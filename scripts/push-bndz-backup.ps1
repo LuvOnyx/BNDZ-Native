@@ -2,7 +2,7 @@
 # Prerequisites: GitHub CLI logged in (gh auth login)
 param(
     [string]$RepoName = "BNDZ-1.0",
-    [string]$Description = "BNDZ 1.0 — private backup of unified file manager and launcher",
+    [string]$Description = "BNDZ 1.0 private backup of unified file manager and launcher",
     [switch]$Public
 )
 
