@@ -13,8 +13,8 @@ public sealed class BndzLauncherSettingsBridge
 
     private static readonly Dictionary<string, string> ThemeMap = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Dark"] = "Darker",
-        ["DarkMica"] = "BlurBlack",
+        ["Dark"] = "BndzRaycast",
+        ["DarkMica"] = "BndzRaycast",
         ["Light"] = "Win11Light",
         ["LightMica"] = "BlurWhite",
         ["LightRoundedFlat"] = "SlimLight",
@@ -23,15 +23,15 @@ public sealed class BndzLauncherSettingsBridge
         ["Nordic Frost"] = "Nord Darker",
         ["macOS Sonoma"] = "Midnight",
         ["macOS Light"] = "Win11Light",
-        ["Slate Workstation"] = "Discord Dark",
-        ["Studio Obsidian"] = "Midnight",
-        ["Monokai Minimal"] = "Dracula",
-        ["Aurora Violet"] = "Dracula",
-        ["Emerald Night"] = "Darker",
-        ["Sunset Ember"] = "Darker",
-        ["Graphite Pro"] = "Gray",
-        ["Ocean Deep"] = "Cyan Dark",
-        ["Nortorn"] = "Dracula",
+        ["Slate Workstation"] = "BndzRaycast",
+        ["Studio Obsidian"] = "BndzRaycast",
+        ["Monokai Minimal"] = "BndzRaycast",
+        ["Aurora Violet"] = "BndzRaycast",
+        ["Emerald Night"] = "BndzRaycast",
+        ["Sunset Ember"] = "BndzRaycast",
+        ["Graphite Pro"] = "BndzRaycast",
+        ["Ocean Deep"] = "BndzRaycast",
+        ["Nortorn"] = "BndzRaycast",
         ["Neumorphic"] = "SlimLight",
     };
 
@@ -149,7 +149,7 @@ public sealed class BndzLauncherSettingsBridge
     }
 
     private static string ResolveFlowThemeName(string bndzTheme) =>
-        ThemeMap.TryGetValue(bndzTheme, out var mapped) ? mapped : "Darker";
+        ThemeMap.TryGetValue(bndzTheme, out var mapped) ? mapped : "BndzRaycast";
 
     private static void WriteBndzSyncTheme(string themesDir, string bg, string surface, string accent, string text)
     {
@@ -255,5 +255,5 @@ public sealed class LauncherSyncPlan
     public bool Enabled { get; set; } = true;
     public bool RequiresRestart { get; set; }
     public string Hotkey { get; set; } = "Alt + Space";
-    public string FlowTheme { get; set; } = "Darker";
+    public string FlowTheme { get; set; } = "BndzRaycast";
 }

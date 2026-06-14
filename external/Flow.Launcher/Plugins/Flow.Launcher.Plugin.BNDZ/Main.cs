@@ -2,25 +2,48 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using Flow.Launcher.Plugin;
 
 namespace Flow.Launcher.Plugin.BNDZ
 {
-    public class Main : IPlugin
+    public class Main : IPlugin, IDisposable
     {
         private static PluginInitContext _context;
+        private static BndzClipboardStore? _clipboard;
 
         public void Init(PluginInitContext context)
         {
             _context = context;
             BndzBranding.ScheduleApply(context);
+            try
+            {
+                _clipboard = new BndzClipboardStore(ResolveUserDataDir());
+            }
+            catch (Exception ex)
+            {
+                context.API.LogError(nameof(Main), $"Clipboard store init failed: {ex.Message}");
+            }
         }
 
         public List<Result> Query(Query query)
         {
             var search = (query.Search ?? string.Empty).Trim();
             var results = new List<Result>();
+            var qLower = search.ToLowerInvariant();
+
+            // SuperCmd root commands + keyword routing
+            foreach (var cmd in BndzSystemCommands.Match(search))
+            {
+                if (cmd.Id == "system-clipboard-manager")
+                {
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\bndz.png", cmd.Score, () => { }));
+                    AppendClipboardResults(results, search);
+                    continue;
+                }
+                results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\bndz.png", cmd.Score, () => ShowComingSoon(cmd.Title)));
+            }
 
             if (string.IsNullOrEmpty(search) || search.Equals("bndz", StringComparison.OrdinalIgnoreCase))
             {
@@ -42,31 +65,73 @@ namespace Flow.Launcher.Plugin.BNDZ
                 }
             }
 
-            if (results.Count == 0 && search.Contains("bndz", StringComparison.OrdinalIgnoreCase))
+            if (results.Count == 0 && (qLower.Contains("bndz") || qLower.Contains("clip")))
             {
-                results.Add(MakeResult(
-                    "Open BNDZ File Manager",
-                    "Full workspace for advanced file management",
-                    () => OpenInBndz()));
+                if (qLower.Contains("bndz"))
+                {
+                    results.Add(MakeResult(
+                        "Open BNDZ File Manager",
+                        "Full workspace for advanced file management",
+                        () => OpenInBndz()));
+                }
+                if (qLower.Contains("clip"))
+                    AppendClipboardResults(results, search);
             }
 
             return results;
         }
 
-        private static Result MakeResult(string title, string subtitle, Action action)
+        private static void AppendClipboardResults(List<Result> results, string search)
+        {
+            if (_clipboard == null) return;
+            var clipQ = search.StartsWith("clip", StringComparison.OrdinalIgnoreCase)
+                ? search.Substring(4).Trim()
+                : search;
+            foreach (var item in _clipboard.Search(clipQ))
+            {
+                var id = item.Id;
+                results.Add(MakeResult(
+                    item.Preview,
+                    "Clipboard · click to paste",
+                    "Images\\bndz.png",
+                    70,
+                    () => _clipboard.CopyToClipboard(id)));
+            }
+        }
+
+        private static Result MakeResult(string title, string subtitle, Action action) =>
+            MakeResult(title, subtitle, "Images\\bndz.png", 120, action);
+
+        private static Result MakeResult(string title, string subtitle, string icon, int score, Action action)
         {
             return new Result
             {
                 Title = title,
                 SubTitle = subtitle,
-                IcoPath = "Images\\bndz.png",
-                Score = 120,
+                IcoPath = icon,
+                Score = score,
                 Action = _ =>
                 {
                     action();
                     return true;
                 }
             };
+        }
+
+        private static void ShowComingSoon(string feature)
+        {
+            _context?.API.ShowMsgBox(
+                $"{feature} is being ported from SuperCmd. Available in the next BNDZ Launcher update.",
+                "BNDZ Launcher",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private static string ResolveUserDataDir()
+        {
+            var pluginDir = Path.GetDirectoryName(typeof(Main).Assembly.Location) ?? "";
+            var launcherDir = Directory.GetParent(pluginDir)?.Parent?.FullName ?? pluginDir;
+            return Path.Combine(launcherDir, "UserData");
         }
 
         private static string ResolveBndzExe()
@@ -122,5 +187,10 @@ namespace Flow.Launcher.Plugin.BNDZ
             }
         }
 
+        public void Dispose()
+        {
+            _clipboard?.Dispose();
+            _clipboard = null;
+        }
     }
 }

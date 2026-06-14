@@ -1,0 +1,131 @@
+/* Ported from SuperCmd (MIT) — glass launcher tokens for BNDZ Raycast shell */
+@import "tailwindcss";
+
+:root {
+  --surface-base-rgb: 30, 30, 30;
+  --on-surface-rgb: 235, 238, 243;
+  --backdrop-rgb: 0, 0, 0;
+  --text-primary: rgba(var(--on-surface-rgb), 0.94);
+  --text-muted: rgba(var(--on-surface-rgb), 0.62);
+  --text-subtle: rgba(var(--on-surface-rgb), 0.5);
+  --glass-outline: rgba(184, 190, 198, 0.2);
+  --command-item-hover-bg: rgba(118, 130, 149, 0.08);
+  --command-item-selected-bg: rgba(118, 130, 149, 0.18);
+  --command-item-selected-border: rgba(118, 130, 149, 0.28);
+  --launcher-chip-bg: rgba(118, 130, 149, 0.1);
+  --launcher-chip-border: rgba(118, 130, 149, 0.2);
+  --kbd-bg: rgba(118, 130, 149, 0.16);
+  --footer-border: rgba(156, 164, 178, 0.22);
+  --accent: #2f6bff;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+.bndz-launcher-body {
+  color: var(--text-primary);
+}
+
+.glass-effect {
+  --glass-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(var(--on-surface-rgb), 0.06), rgba(var(--on-surface-rgb), 0.02)),
+    rgba(var(--surface-base-rgb), 0.82);
+  backdrop-filter: blur(54px) saturate(170%);
+  border-radius: var(--glass-radius);
+  box-shadow: 0 0 0 1.5px var(--glass-outline), 0 12px 40px rgba(0, 0, 0, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-effect::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--glass-radius);
+  border: 1px solid var(--glass-outline);
+  pointer-events: none;
+}
+
+.command-item {
+  border: 1px solid transparent;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.command-item:hover {
+  background: var(--command-item-hover-bg);
+}
+
+.command-item.selected {
+  background: var(--command-item-selected-bg);
+  border-color: var(--command-item-selected-border);
+}
+
+.bndz-search-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.004em;
+}
+
+.bndz-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.bndz-launcher-footer {
+  border-top: 1px solid var(--footer-border);
+  background: linear-gradient(180deg, rgba(var(--on-surface-rgb), 0.05), rgba(var(--on-surface-rgb), 0.01));
+}
+
+.bndz-section-label {
+  color: var(--text-subtle);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.75rem 0.15rem;
+}
+
+.bndz-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--kbd-bg);
+  padding: 0 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.bndz-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--launcher-chip-border);
+  background: var(--launcher-chip-bg);
+  padding: 0 6px;
+  font-size: 0.625rem;
+  font-family: ui-monospace, monospace;
+  color: var(--text-subtle);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(118, 130, 149, 0.3);
+  border-radius: 4px;
+}

@@ -42,8 +42,9 @@ BNDZBackend/Assets/BNDZLauncher/UserData/
 .npm/
 .pnpm-store/
 
-# Cursor / agent artifacts (local only)
-.cursor/
+# Reference clone (sync via scripts/sync-supercmd-launcher-ui.ps1)
+external/SuperCmd/
+
 agent-transcripts/
 agent-tools/
 

@@ -116,7 +116,12 @@ foreach ($exeName in @("BNDZ.Launcher.exe", "Flow.Launcher.exe")) {
     }
 }
 
-# Language + UI strings (runtime-loaded xaml)
+# Copy BNDZ Raycast theme into staged launcher
+$raycastTheme = Join-Path $Root "external\Flow.Launcher\Flow.Launcher\Themes\BndzRaycast.xaml"
+$themesDest = Join-Path $LauncherDir "Themes"
+if ((Test-Path $raycastTheme) -and (Test-Path $themesDest)) {
+    Copy-Item $raycastTheme (Join-Path $themesDest "BndzRaycast.xaml") -Force
+}
 $textReplacements = @(
     @{ From = "Flow Launcher"; To = "BNDZ Launcher" },
     @{ From = "Open Flow Launcher"; To = "Open BNDZ Launcher" },
