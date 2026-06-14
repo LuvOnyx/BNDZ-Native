@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!--  Dialogues  -->
+    <system:String x:Key="plugin_pluginsmanager_downloading_plugin">Pobieranie wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_download_success">Pomyslnie pobrano {0}</system:String>
+    <system:String x:Key="plugin_pluginsmanager_download_error">Blad: Nie udalo sie pobrac wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt">{0} autorstwa {1} {2}{3}Czy chcesz odinstalowac te wtyczke? Po odinstalowaniu Flow automatycznie uruchomi sie ponownie.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt_no_restart">{0} autorstwa {1} {2}{2}Czy chcesz odinstalowac te wtyczke?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_prompt">{0} autorstwa {1} {2}{3}Czy chcesz zainstalowac te wtyczke? Po instalacji Flow automatycznie uruchomi sie ponownie.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_prompt_no_restart">{0} autorstwa {1} {2}{2}Czy chcesz zainstalowac te wtyczke?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_title">Instalacja wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_installing_plugin">Instalowanie wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_from_web">Pobierz i zainstaluj {0}</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_title">Odinstalowanie wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_title">Zachowaj ustawienia wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_subtitle">Czy chcesz zachowac ustawienia wtyczki do nastepnego uzycia?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_success_restart">Wtyczka {0} zostala pomyslnie zainstalowana. Trwa ponowne uruchamianie Flow, prosze czekac...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_errormetadatafile">Nie mozna znalezc pliku metadanych plugin.json z rozpakowanego pliku zip.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_duplicate">Blad: Wtyczka o tej samej lub wyzszej wersji co {0} juz istnieje.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_title">Blad podczas instalacji wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_subtitle">Wystapil blad podczas próby instalacji {0}</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_error_title">Blad podczas odinstalowywania wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_title">Brak dostepnych aktualizacji</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_subtitle">Wszystkie wtyczki sa aktualne</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_prompt">{0} autorstwa {1} {2}{3}Czy chcesz zaktualizowac te wtyczke? Po aktualizacji Flow automatycznie uruchomi sie ponownie.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_prompt_no_restart">{0} autorstwa {1} {2}{2}Czy chcesz zaktualizowac te wtyczke?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_title">Aktualizacja wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_alreadyexists">Ta wtyczka jest juz zainstalowana</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_failed_title">Nie udalo sie pobrac manifestu wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_failed_subtitle">Sprawdz, czy masz polaczenie z github.com. Ten blad oznacza, ze mozesz nie byc w stanie instalowac lub aktualizowac wtyczek.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_title">Zaktualizuj wszystkie wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_subtitle">Czy chcesz zaktualizowac wszystkie wtyczki?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_prompt">Czy chcesz zaktualizowac {0} wtyczek?{1}BNDZ Launcher uruchomi sie ponownie po zaktualizowaniu wszystkich wtyczek.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_prompt_no_restart">Czy chcesz zaktualizowac {0} wtyczek?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_success_restart">{0} wtyczek zaktualizowano pomyslnie. Ponowne uruchamianie Flow, prosze czekac...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_success_restart">Wtyczka {0} zostala pomyslnie zaktualizowana. Ponowne uruchamianie Flow, prosze czekac...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning_title">Instalowanie z nieznanego zródla</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning">Instalujesz te wtyczke z nieznanego zródla i moze ona stanowic potencjalne zagrozenie!{0}{0}Upewnij sie, ze rozumiesz, skad pochodzi ta wtyczka i ze jest ona bezpieczna.{0}{0}Czy mimo to chcesz kontynuowac?{0}{0}(Mozesz wylaczyc to ostrzezenie w ustawieniach)&quot;</system:String>
+
+    <system:String x:Key="plugin_pluginsmanager_install_success_no_restart">Wtyczka {0} zostala pomyslnie zainstalowana. Prosze ponownie uruchomic Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_success_no_restart">Wtyczka {0} zostala pomyslnie odinstalowana. Prosze ponownie uruchomic Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_success_no_restart">Wtyczka {0} zostala pomyslnie zaktualizowana. Prosze ponownie uruchomic Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_success_no_restart">{0} wtyczek zaktualizowano pomyslnie. Prosze ponownie uruchomic Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error">Wtyczka {0} zostala juz zmodyfikowana. Prosze ponownie uruchomic Flow przed wprowadzeniem dalszych zmian.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_title">Wtyczka {0} zostala juz zmodyfikowana</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_message">Prosze ponownie uruchomic Flow przed wprowadzeniem dalszych zmian</system:String>
+
+    <system:String x:Key="plugin_pluginsmanager_invalid_zip_title">Nieprawidlowy plik instalatora zip</system:String>
+    <system:String x:Key="plugin_pluginsmanager_invalid_zip_subtitle">Sprawdz, czy w {0} znajduje sie plik plugin.json</system:String>
+
+    <!--  Plugin Infos  -->
+    <system:String x:Key="plugin_pluginsmanager_plugin_name">Menadzer wtyczek</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_description">Instaluj, odinstalowuj i aktualizuj wtyczki BNDZ Launchera z poziomu okna wyszukiwania</system:String>
+    <system:String x:Key="plugin_pluginsmanager_unknown_author">Nieznany autor</system:String>
+
+    <!--  Context menu items  -->
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_title">Otwórz strone</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_subtitle">Odwiedz strone wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_title">Zobacz kod zródlowy</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_subtitle">Zobacz kod zródlowy wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_title">Zaproponuj ulepszenie lub zglos problem</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_subtitle">Zaproponuj ulepszenie lub zglos problem do twórcy wtyczki</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_title">Przejdz do repozytorium wtyczek Flow</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_subtitle">Odwiedz repozytorium PluginsManifest, aby zobaczyc wtyczki spolecznosci</system:String>
+
+    <!--  Settings menu items  -->
+    <system:String x:Key="plugin_pluginsmanager_plugin_settings_unknown_source">Ostrzezenie o instalacji z nieznanego zródla</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_settings_auto_restart">Automatycznie uruchamiaj ponownie BNDZ Launcher po zainstalowaniu/odinstalowaniu/zaktualizowaniu wtyczki za pomoca Menadzera wtyczek</system:String>
+</ResourceDictionary>

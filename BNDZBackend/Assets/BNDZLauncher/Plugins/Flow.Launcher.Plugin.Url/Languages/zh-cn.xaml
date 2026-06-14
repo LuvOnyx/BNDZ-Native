@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <system:String x:Key="flowlauncher_plugin_url_open_url">????:{0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_cannot_open_url">??????:{0}</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_url_plugin_name">????</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_description">? BNDZ Launcher ????</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_url_plugin_choose">??</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">????(*.exe)|*.exe|????|*.*</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_url_use_custom_browser">????????Flow????????</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_browser_path">?????</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_url_new_tab">???</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_window">???</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_url_private_mode">????</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_url_usehttps">???? https ??? http</system:String>
+</ResourceDictionary>

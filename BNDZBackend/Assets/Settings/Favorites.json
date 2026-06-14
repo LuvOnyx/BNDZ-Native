@@ -1,0 +1,119 @@
+[
+  {
+    "FullPath": "\\",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "This PC",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "mikey",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\Desktop",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Desktop",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\Documents",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Documents",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\Pictures",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Pictures",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\Videos",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Videos",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\Music",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Music",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\Downloads",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Downloads",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Programs",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\OneDrive",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "OneDrive",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\AppData\\Roaming\\Microsoft\\Windows\\Recent",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Recent Items",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "%RecycleBin%",
+    "Project": "mikey",
+    "SortOrder": 0,
+    "Alias": "Recycle Bin",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  },
+  {
+    "FullPath": "C:\\Users\\mikey\\OneDrive",
+    "Project": "Cloud",
+    "SortOrder": 0,
+    "Alias": "OneDrive",
+    "AccessedT": 0,
+    "ModifiedT": 0,
+    "IsFolder": true
+  }
+]

@@ -1,0 +1,707 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+    <!--  Startup  -->
+    <system:String x:Key="runtimePluginInstalledChooseRuntimePrompt">
+        Flow a d�tect� que vous avez install� {0} plugins, qui n�cessiteront {1} pour fonctionner. Souhaitez-vous t�l�charger {1} ?
+        {2}{2}
+        Cliquez sur non s'il est d�j� install�, et vous serez invit� � s�lectionner le dossier qui contient l'ex�cutable {1}
+    </system:String>
+    <system:String x:Key="runtimePluginChooseRuntimeExecutable">Veuillez s�lectionner l'ex�cutable {0}</system:String>
+    <system:String x:Key="runtimeExecutableInvalidChooseDownload">
+        L'ex�cutable {0} que vous avez s�lectionn� n'est pas valide.
+        {2}{2}
+        Cliquez sur oui si vous souhaitez s�lectionner � nouveau l'ex�cutable {0}. Cliquez sur non si vous souhaitez t�l�charger {1}
+    </system:String>
+    <system:String x:Key="runtimePluginUnableToSetExecutablePath">Impossible de d�finir {0} comme chemin d'acc�s vers l'ex�cutable. Veuillez essayer � partir des param�tres de Flow (d�filer vers le bas).</system:String>
+    <system:String x:Key="failedToInitializePluginsTitle">�chec de l'initialisation des plugins</system:String>
+    <system:String x:Key="failedToInitializePluginsMessage">Plugins : {0} - n'ont pas pu �tre charg�s et doivent �tre d�sactiv�s, veuillez contacter le cr�ateur du plugin pour obtenir de l'aide</system:String>
+
+    <!--  Portable  -->
+    <system:String x:Key="restartToDisablePortableMode">BNDZ Launcher doit red�marrer pour terminer la d�sactivation le mode portable, apr�s le red�marrage, les donn�es du profile portable seront supprim� et les donn�es roaming conserv�</system:String>
+    <system:String x:Key="restartToEnablePortableMode">BNDZ Launcher doit red�marrer pour terminer l'activation du mode portable, apr�s le red�marrage, les donn�es du profile roaming seront supprim� et les donn�es du profile portable conserv�</system:String>
+    <system:String x:Key="moveToDifferentLocation">BNDZ Launcher � d�tecter que vous avez activ� le mode portable, voulez-vous le d�placer � un autre emplacement ?</system:String>
+    <system:String x:Key="shortcutsUninstallerCreated">BNDZ Launcher a d�tect� que vous avez d�sactiv� le mode portable, les raccourcis li�s et l'entr�e de d�sinstallation ont �t� cr��s</system:String>
+    <system:String x:Key="userDataDuplicated">BNDZ Launcher a d�tect� que vos donn�es utilisateur existent � la fois dans {0} et {1}. {2}{2}Veuillez supprimer {1} pour continuer. Aucune modification n'a �t� apport�e.</system:String>
+
+    <!--  Plugin Loader  -->
+    <system:String x:Key="pluginHasErrored">Le plugin suivant a produit une erreur et ne peut �tre charg�?:</system:String>
+    <system:String x:Key="pluginsHaveErrored">Les plugins suivants ont produit une erreur et ne peuvent pas �tre charg�s?:</system:String>
+    <system:String x:Key="referToLogs">Veuillez vous r�f�rer aux logs pour plus d'informations</system:String>
+
+    <!--  Http  -->
+    <system:String x:Key="pleaseTryAgain">Veuillez r�essayer</system:String>
+    <system:String x:Key="parseProxyFailed">Impossible d'analyser le proxy Http</system:String>
+
+    <!--  AbstractPluginEnvironment  -->
+    <system:String x:Key="failToInstallTypeScriptEnv">�chec de l'installation de l'environnement TypeScript. Veuillez r�essayer plus tard.</system:String>
+    <system:String x:Key="failToInstallPythonEnv">�chec de l'installation de l'environnement Python. Veuillez r�essayer plus tard.</system:String>
+
+    <!--  MainWindow  -->
+    <system:String x:Key="registerHotkeyFailed">�chec lors de l'enregistrement du raccourci : {0}</system:String>
+    <system:String x:Key="unregisterHotkeyFailed">�chec de la r�initialisation du raccourci &quot;{0}&quot;. Veuillez r�essayer ou consulter le journal pour plus de d�tails</system:String>
+    <system:String x:Key="MessageBoxTitle">BNDZ Launcher</system:String>
+    <system:String x:Key="couldnotStartCmd">Impossible de lancer {0}</system:String>
+    <system:String x:Key="invalidFlowLauncherPluginFileFormat">Le format de fichier n'est pas un plugin BNDZ Launcher valide</system:String>
+    <system:String x:Key="setAsTopMostInThisQuery">D�finir en tant que favori pour cette requ�te</system:String>
+    <system:String x:Key="cancelTopMostInThisQuery">Annuler le favori</system:String>
+    <system:String x:Key="executeQuery">Lancer la requ�te : {0}</system:String>
+    <system:String x:Key="lastExecuteTime">Derni�re ex�cution : {0}</system:String>
+    <system:String x:Key="iconTrayOpen">Ouvrir</system:String>
+    <system:String x:Key="iconTraySettings">Param�tres</system:String>
+    <system:String x:Key="iconTrayAbout">� propos</system:String>
+    <system:String x:Key="iconTrayExit">Quitter</system:String>
+    <system:String x:Key="closeWindow">Fermer</system:String>
+    <system:String x:Key="copy">Copier</system:String>
+    <system:String x:Key="cut">Couper</system:String>
+    <system:String x:Key="paste">Coller</system:String>
+    <system:String x:Key="undo">Annuler</system:String>
+    <system:String x:Key="selectAll">Tout s�lectionner</system:String>
+    <system:String x:Key="fileTitle">Fichier</system:String>
+    <system:String x:Key="folderTitle">Dossier</system:String>
+    <system:String x:Key="textTitle">Texte</system:String>
+    <system:String x:Key="GameMode">Mode jeu</system:String>
+    <system:String x:Key="GameModeToolTip">Suspend l'utilisation des raccourcis claviers.</system:String>
+    <system:String x:Key="PositionReset">R�initialiser la position</system:String>
+    <system:String x:Key="PositionResetToolTip">R�initialiser la position de la fen�tre de recherche</system:String>
+    <system:String x:Key="queryTextBoxPlaceholder">Tapez ici pour rechercher</system:String>
+    <system:String x:Key="pluginStillInitializing">{0}: Ce plugin est toujours en cours d'initialisation...</system:String>
+    <system:String x:Key="pluginStillInitializingSubtitle">S�lectionner ce r�sultat pour la requ�te</system:String>
+    <system:String x:Key="pluginFailedToRespond">{0}: Ne r�pond pas !</system:String>
+    <system:String x:Key="pluginFailedToRespondSubtitle">S�lectionnez ce r�sultat pour plus d'informations</system:String>
+
+    <!--  Setting General  -->
+    <system:String x:Key="flowlauncher_settings">Param�tres</system:String>
+    <system:String x:Key="general">G�n�ral</system:String>
+    <system:String x:Key="portableMode">Mode Portable</system:String>
+    <system:String x:Key="portableModeToolTIp">Stocker tous les param�tres et donn�es utilisateur dans un seul dossier (Pratique en cas d'utilisation de disques amovibles ou de services cloud).</system:String>
+    <system:String x:Key="startFlowLauncherOnSystemStartup">Lancer BNDZ Launcher au d�marrage du syst�me</system:String>
+    <system:String x:Key="useLogonTaskForStartup">Utilisez la t�che de connexion au lieu de l'entr�e de d�marrage pour une exp�rience de d�marrage plus rapide</system:String>
+    <system:String x:Key="useLogonTaskForStartupTooltip">Apr�s une d�sinstallation, vous devez supprimer manuellement cette t�che (BNDZ.Launcher Startup) via le planificateur de t�ches</system:String>
+    <system:String x:Key="setAutoStartFailed">Erreur lors de la configuration du lancement au d�marrage</system:String>
+    <system:String x:Key="hideFlowLauncherWhenLoseFocus">Cacher BNDZ Launcher lors de la perte de focus</system:String>
+    <system:String x:Key="showTaskbarWhenOpened">Afficher la barre des t�ches lorsque BNDZ Launcher est ouvert</system:String>
+    <system:String x:Key="showTaskbarWhenOpenedToolTip">Afficher temporairement la barre des t�ches lorsque BNDZ Launcher est ouvert, utile pour les barres de t�ches auto-masqu�es.</system:String>
+    <system:String x:Key="dontPromptUpdateMsg">Ne pas afficher le message de mise � jour pour les nouvelles versions</system:String>
+    <system:String x:Key="SearchWindowPosition">Emplacement de la fen�tre de recherche</system:String>
+    <system:String x:Key="SearchWindowScreenRememberLastLaunchLocation">Se souvenir de la derni�re position</system:String>
+    <system:String x:Key="SearchWindowScreenCursor">Surveiller avec le curseur de la souris</system:String>
+    <system:String x:Key="SearchWindowScreenFocus">Surveiller avec la fen�tre cibl�e</system:String>
+    <system:String x:Key="SearchWindowScreenPrimary">�cran principal</system:String>
+    <system:String x:Key="SearchWindowScreenCustom">�cran personnalis�</system:String>
+    <system:String x:Key="SearchWindowAlign">Rechercher la position de la fen�tre sur l'�cran</system:String>
+    <system:String x:Key="SearchWindowAlignCenter">Centrer</system:String>
+    <system:String x:Key="SearchWindowAlignCenterTop">Centrer en haut</system:String>
+    <system:String x:Key="SearchWindowAlignLeftTop">Aligner � gauche en haut</system:String>
+    <system:String x:Key="SearchWindowAlignRightTop">Aligner � droite en haut</system:String>
+    <system:String x:Key="SearchWindowAlignCustom">Position personnalis�e</system:String>
+    <system:String x:Key="language">Langue</system:String>
+    <system:String x:Key="lastQueryMode">Affichage de la derni�re recherche</system:String>
+    <system:String x:Key="lastQueryModeToolTip">Afficher/Masquer les r�sultats pr�c�dents lorsque BNDZ Launcher est r�activ�.</system:String>
+    <system:String x:Key="LastQueryPreserved">Conserver la derni�re recherche</system:String>
+    <system:String x:Key="LastQuerySelected">S�lectionner la derni�re recherche</system:String>
+    <system:String x:Key="LastQueryEmpty">Ne pas afficher la derni�re recherche</system:String>
+    <system:String x:Key="LastQueryActionKeywordPreserved">Conserver le mot cl� de la derni�re action</system:String>
+    <system:String x:Key="LastQueryActionKeywordSelected">S�lectionnez le mot cl� de la derni�re action</system:String>
+    <system:String x:Key="maxShowResults">R�sultats maximums � afficher</system:String>
+    <system:String x:Key="maxShowResultsToolTip">Vous pouvez �galement ajuster ce param�tre en utilisant CTRL+Plus ou CTRL+Moins.</system:String>
+    <system:String x:Key="ignoreHotkeysOnFullscreen">Ignore les raccourcis lorsqu'une application est en plein �cran</system:String>
+    <system:String x:Key="ignoreHotkeysOnFullscreenToolTip">D�sactiver l'activation de BNDZ Launcher lorsqu'une application en plein �cran est active (Recommand� pour les jeux).</system:String>
+    <system:String x:Key="defaultFileManager">Gestionnaire de fichiers par d�faut</system:String>
+    <system:String x:Key="defaultFileManagerToolTip">S�lectionnez le gestionnaire de fichiers � utiliser lors de l'ouverture du dossier.</system:String>
+    <system:String x:Key="defaultBrowser">Navigateur web par d�faut</system:String>
+    <system:String x:Key="defaultBrowserToolTip">R�glage pour Nouvel onglet, Nouvelle fen�tre, Mode priv�.</system:String>
+    <system:String x:Key="pythonFilePath">Chemin vers Python</system:String>
+    <system:String x:Key="nodeFilePath">Chemin vers Node.js</system:String>
+    <system:String x:Key="selectNodeExecutable">Veuillez s�lectionner l'ex�cutable Node.js</system:String>
+    <system:String x:Key="selectPythonExecutable">Veuillez s�lectionner pythonw.exe</system:String>
+    <system:String x:Key="typingStartEn">Toujours commencer � taper en mode anglais</system:String>
+    <system:String x:Key="typingStartEnTooltip">Changez temporairement votre mode de saisie en mode anglais lors de l'activation de Flow.</system:String>
+    <system:String x:Key="autoUpdates">Mettre � jour automatiquement</system:String>
+    <system:String x:Key="autoUpdatesTooltip">V�rifier et mettre � jour automatiquement l'application lorsqu'une nouvelle version est disponible</system:String>
+    <system:String x:Key="select">S�lectionner</system:String>
+    <system:String x:Key="hideOnStartup">Cacher BNDZ Launcher au d�marrage</system:String>
+    <system:String x:Key="hideOnStartupToolTip">La fen�tre de recherche de BNDZ Launcher est cach�e dans la barre d��tat apr�s le d�marrage.</system:String>
+    <system:String x:Key="hideNotifyIcon">Masquer l'ic�ne de la barre des t�ches</system:String>
+    <system:String x:Key="hideNotifyIconToolTip">Lorsque l'ic�ne est cach�e dans la barre de t�ches, le menu Param�tres peut �tre ouvert en faisant un clic droit sur la barre de recherche.</system:String>
+    <system:String x:Key="ignoreAccents">Ignorer les accents lors de la recherche</system:String>
+    <system:String x:Key="ignoreAccentsToolTip">Consid�rer les caract�res accentu�s et non accentu�s comme �quivalents.</system:String>
+    <system:String x:Key="promptIgnoreAccents">Voulez-vous activer l'option pour ignorer les accents lors de la recherche ?</system:String>
+    <system:String x:Key="querySearchPrecision">Pr�cision de la recherche</system:String>
+    <system:String x:Key="querySearchPrecisionToolTip">Modifie le score de correspondance minimum requis pour les r�sultats.</system:String>
+    <system:String x:Key="SearchPrecisionNone">Aucun</system:String>
+    <system:String x:Key="SearchPrecisionLow">Faible</system:String>
+    <system:String x:Key="SearchPrecisionRegular">Normal</system:String>
+    <system:String x:Key="ShouldUsePinyin">Devrait utiliser Pinyin</system:String>
+    <system:String x:Key="ShouldUsePinyinToolTip">Pinyin est le syst�me standard d'orthographe romanis�e pour traduire le chinois. Veuillez noter que cela peut augmenter consid�rablement l'utilisation de la m�moire pendant la recherche.</system:String>
+    <system:String x:Key="ShouldUseDoublePinyin">Utiliser Double Pinyin</system:String>
+    <system:String x:Key="ShouldUseDoublePinyinToolTip">Utilisez Double Pinyin au lieu de Full Pinyin pour rechercher.</system:String>
+    <system:String x:Key="DoublePinyinSchema">Sch�ma double Pinyin</system:String>
+    <system:String x:Key="DoublePinyinSchemasXiaoHe">Xiao He</system:String>
+    <system:String x:Key="DoublePinyinSchemasZiRanMa">Zi Ran Ma</system:String>
+    <system:String x:Key="DoublePinyinSchemasWeiRuan">Wei Ruan</system:String>
+    <system:String x:Key="DoublePinyinSchemasZhiNengABC">Zhi Neng ABC</system:String>
+    <system:String x:Key="DoublePinyinSchemasZiGuangPinYin">Zi Guang Pin Yin</system:String>
+    <system:String x:Key="DoublePinyinSchemasPinYinJiaJia">Pin Yin Jia Jia</system:String>
+    <system:String x:Key="DoublePinyinSchemasXingKongJianDao">Xing Kong Jian Dao</system:String>
+    <system:String x:Key="DoublePinyinSchemasDaNiu">Da Niu</system:String>
+    <system:String x:Key="DoublePinyinSchemasXiaoLang">Xiao Lang</system:String>
+    <system:String x:Key="HelpUsTranslateFlow">Aidez-nous � traduire Flow</system:String>
+
+    <system:String x:Key="AlwaysPreview">Toujours pr�visualiser</system:String>
+    <system:String x:Key="AlwaysPreviewToolTip">Toujours ouvrir le panneau d'aper�u lorsque Flow s'active. Appuyez sur {0} pour activer/d�sactiver l'aper�u.</system:String>
+    <system:String x:Key="shadowEffectNotAllowed">L'effet d'ombre n'est pas autoris� lorsque le th�me actuel � un effet de flou activ�</system:String>
+    <system:String x:Key="searchDelay">D�lai de recherche</system:String>
+    <system:String x:Key="searchDelayToolTip">Ajoute un court d�lai pendant la frappe pour r�duire le scintillement de l'interface utilisateur et le chargement des r�sultats. Recommand� si votre vitesse de frappe est moyenne.</system:String>
+    <system:String x:Key="searchDelayNumberBoxToolTip">Entrez le temps d'attente (en ms) jusqu'� ce que l'entr�e soit consid�r�e comme termin�e. Cela ne peut �tre modifi� que si le d�lai de recherche est activ�.</system:String>
+    <system:String x:Key="searchDelayTime">D�lai de recherche par d�faut</system:String>
+    <system:String x:Key="searchDelayTimeToolTip">D�lai d'attente avant l'affichage des r�sultats apr�s l'arr�t de la saisie. Les valeurs �lev�es permettent d'attendre plus longtemps. (ms)</system:String>
+    <system:String x:Key="KoreanImeTitle">Information pour les utilisateurs cor�ens IME</system:String>
+    <system:String x:Key="KoreanImeGuide">
+        La m�thode de saisie cor�enne utilis�e dans Windows 11 peut causer des probl�mes dans BNDZ Launcher.
+
+        Si vous rencontrez des probl�mes, il se peut que vous deviez activer l'option &quot;Utiliser la version pr�c�dente de l'IME cor�en&quot;.
+
+
+        Ouvrez les Param�tres dans Windows 11 et allez dans :
+
+        Heure et langue &gt; Langue et r�gion &gt; Cor�en &gt; Options linguistiques &gt; Claviers - Microsoft IME &gt; Compatibilit�,
+
+        et activez l'option &quot;Utiliser la version pr�c�dente de Microsoft IME&quot;.
+
+
+    </system:String>
+    <system:String x:Key="KoreanImeOpenLink">Ouvrir les param�tres du syst�me de langue et de r�gion</system:String>
+    <system:String x:Key="KoreanImeOpenLinkToolTip">Ouvre l'emplacement de r�glage IME cor�en. Allez dans cor�en &gt; Options linguistiques &gt; Claviers - Microsoft IME &gt; Compatibilit�</system:String>
+    <system:String x:Key="KoreanImeOpenLinkButton">Ouvrir</system:String>
+    <system:String x:Key="KoreanImeRegistry">Utilisez l'IME cor�enne pr�c�dente</system:String>
+    <system:String x:Key="KoreanImeRegistryTooltip">Vous pouvez modifier les param�tres de l'IME cor�en pr�c�dent directement � partir d'ici</system:String>
+    <system:String x:Key="KoreanImeSettingChangeFailTitle">Impossible de changer le param�tre IME cor�en</system:String>
+    <system:String x:Key="KoreanImeSettingChangeFailSubTitle">Veuillez v�rifier votre acc�s au registre du syst�me ou contacter le support.</system:String>
+    <system:String x:Key="homePage">Page d'accueil</system:String>
+    <system:String x:Key="homePageToolTip">Afficher les r�sultats de la page d'accueil lorsque le texte de la requ�te est vide.</system:String>
+    <system:String x:Key="historyResultsForHomePage">Afficher les r�sultats de l'historique sur la page d'accueil</system:String>
+    <system:String x:Key="historyResultsCountForHomePage">Maximum de r�sultats de l'historique affich�s sur la page d'accueil</system:String>
+    <system:String x:Key="historyStyle">Style d'historique</system:String>
+    <system:String x:Key="historyStyleTooltip">Choisissez le type d'historique � afficher dans l'historique et la page d'accueil</system:String>
+    <system:String x:Key="queryHistory">Historique des requ�tes</system:String>
+    <system:String x:Key="executedHistory">Historique des derni�res ouvertures</system:String>
+    <system:String x:Key="homeToggleBoxToolTip">Ceci ne peut �tre �dit� que si le plugin prend en charge la fonction Accueil et que la page d'accueil est activ�e.</system:String>
+    <system:String x:Key="showAtTopmost">Afficher la fen�tre de recherche en premier plan</system:String>
+    <system:String x:Key="showAtTopmostToolTip">Outrepasse le param�tre 'toujours en premier plan' des autres programmes et affiche BNDZ Launcher en premi�re position.</system:String>
+    <system:String x:Key="autoRestartAfterChanging">Red�marrer apr�s modification du plugin via le magasin des plugins</system:String>
+    <system:String x:Key="autoRestartAfterChangingToolTip">Red�marrez automatiquement BNDZ Launcher apr�s l'installation / d�sinstallation / mise � jour du plugin via le magasin des plugins</system:String>
+    <system:String x:Key="showUnknownSourceWarning">Afficher l'avertissement de source inconnue</system:String>
+    <system:String x:Key="showUnknownSourceWarningToolTip">Afficher un avertissement lors de l'installation de plugins � partir de sources inconnues</system:String>
+    <system:String x:Key="autoUpdatePlugins">Mettre � jour automatiquement les plugins</system:String>
+    <system:String x:Key="autoUpdatePluginsToolTip">V�rifier automatiquement les mises � jour des plugins et notifier s'il y a des mises � jour disponibles</system:String>
+
+    <!--  Setting Plugin  -->
+    <system:String x:Key="searchplugin">Rechercher des plugins</system:String>
+    <system:String x:Key="searchpluginToolTip">Ctrl+F pour rechercher des extensions</system:String>
+    <system:String x:Key="searchplugin_Noresult_Title">Aucun r�sultat trouv�</system:String>
+    <system:String x:Key="searchplugin_Noresult_Subtitle">Veuillez utiliser un terme de recherche diff�rent.</system:String>
+    <system:String x:Key="plugin">Plugins</system:String>
+    <system:String x:Key="plugins">Plugins</system:String>
+    <system:String x:Key="browserMorePlugins">Trouver plus de plugins</system:String>
+    <system:String x:Key="enable">On</system:String>
+    <system:String x:Key="disable">D�sactiv�</system:String>
+    <system:String x:Key="actionKeywordsTitle">Param�trage du mot cl� d'action</system:String>
+    <system:String x:Key="actionKeywords">Mot-cl� d'action :</system:String>
+    <system:String x:Key="currentActionKeywords">Mot-cl� d'action actuel</system:String>
+    <system:String x:Key="newActionKeyword">Nouveau mot-cl� d'action</system:String>
+    <system:String x:Key="actionKeywordsTooltip">Changer les mots-cl�s d'action</system:String>
+    <system:String x:Key="pluginSearchDelayTime">D�lai de recherche du plugin</system:String>
+    <system:String x:Key="pluginSearchDelayTimeTooltip">Modifier le d�lai de recherche du plugin</system:String>
+    <system:String x:Key="FilterComboboxLabel">Param�tres avanc�s :</system:String>
+    <system:String x:Key="DisplayModeOnOff">Activ�</system:String>
+    <system:String x:Key="DisplayModePriority">Priorit�</system:String>
+    <system:String x:Key="DisplayModeSearchDelay">D�lai de recherche</system:String>
+    <system:String x:Key="DisplayModeHomeOnOff">Page d'accueil</system:String>
+    <system:String x:Key="currentPriority">Priorit� actuelle</system:String>
+    <system:String x:Key="newPriority">Nouvelle priorit�</system:String>
+    <system:String x:Key="priority">Priorit�</system:String>
+    <system:String x:Key="priorityToolTip">Changer la priorit� des r�sultats du plugin</system:String>
+    <system:String x:Key="pluginDirectory">R�pertoire</system:String>
+    <system:String x:Key="author">par</system:String>
+    <system:String x:Key="plugin_init_time">Chargement :</system:String>
+    <system:String x:Key="plugin_query_time">Utilisation :</system:String>
+    <system:String x:Key="plugin_query_version">Version</system:String>
+    <system:String x:Key="plugin_query_web">Site Web</system:String>
+    <system:String x:Key="plugin_uninstall">D�sinstaller</system:String>
+    <system:String x:Key="plugin_default_search_delay_time">D�lai de recherche : par d�faut</system:String>
+    <system:String x:Key="plugin_search_delay_time">D�lai de recherche : {0}ms</system:String>
+    <system:String x:Key="failedToRemovePluginSettingsTitle">�chec de la suppression des param�tres du plugin</system:String>
+    <system:String x:Key="failedToRemovePluginSettingsMessage">Plugins : {0} - �chec de la suppression des fichiers de configuration des plugins, veuillez les supprimer manuellement</system:String>
+    <system:String x:Key="failedToRemovePluginCacheTitle">�chec de la suppression du cache du plugin</system:String>
+    <system:String x:Key="failedToRemovePluginCacheMessage">Plugins : {0} - �chec de la suppression des fichiers cache des plugins, veuillez les supprimer manuellement</system:String>
+    <system:String x:Key="pluginModifiedAlreadyTitle">{0} est d�j� modifi�</system:String>
+    <system:String x:Key="pluginModifiedAlreadyMessage">Veuillez red�marrer Flow avant d'apporter d'autres modifications</system:String>
+    <system:String x:Key="failedToInstallPluginTitle">�chec de l'installation de {0}</system:String>
+    <system:String x:Key="failedToUninstallPluginTitle">�chec de la d�sinstallation de {0}</system:String>
+    <system:String x:Key="fileNotFoundMessage">Impossible de trouver le fichier plugin.json dans le fichier zip extrait, ou ce chemin {0} n'existe pas</system:String>
+    <system:String x:Key="pluginExistAlreadyMessage">Un plugin avec le m�me ID et la m�me version existe d�j�, ou la version est sup�rieure � ce plugin t�l�charg�</system:String>
+    <system:String x:Key="errorCreatingSettingPanel">Erreur lors de la cr�ation du panneau de configuration pour le plugin {0}:{1}{2}</system:String>
+    <system:String x:Key="pluginMinimumAppVersionUnsatisfiedTitle">{0} n�cessite la version {1} de Flow pour fonctionner</system:String>
+    <system:String x:Key="pluginMinimumAppVersionUnsatisfiedMessage">Flow ne r�pond pas aux exigences de version minimale pour que {0} puisse fonctionner. Voulez-vous continuer l'installation ?{1}{1}Nous vous recommandons de mettre � jour Flow vers la derni�re version pour vous assurer que {0} fonctionne sans probl�me.</system:String>
+    <system:String x:Key="pluginJsonInvalidOrCorrupted">Impossible d'installer le plugin car plugin.json est invalide ou corrompu</system:String>
+
+    <!--  Setting Plugin Store  -->
+    <system:String x:Key="pluginStore">Magasin des Plugins</system:String>
+    <system:String x:Key="pluginStore_NewRelease">Nouvelle version</system:String>
+    <system:String x:Key="pluginStore_RecentlyUpdated">R�cemment mis � jour</system:String>
+    <system:String x:Key="pluginStore_None">Modules</system:String>
+    <system:String x:Key="pluginStore_Installed">Install�</system:String>
+    <system:String x:Key="PluginStoreSortModeDefault">Par d�faut</system:String>
+    <system:String x:Key="PluginStoreSortModeName">Nom</system:String>
+    <system:String x:Key="PluginStoreSortModeReleaseDate">Date de publication</system:String>
+    <system:String x:Key="PluginStoreSortModeUpdatedDate">Date de mise � jour</system:String>
+    <system:String x:Key="PluginStoreSortingModeComboboxLabel">Mode de tri :</system:String>
+    <system:String x:Key="refresh">Rafra�chir</system:String>
+    <system:String x:Key="installbtn">Installer</system:String>
+    <system:String x:Key="uninstallbtn">D�sinstaller</system:String>
+    <system:String x:Key="updatebtn">Actualiser</system:String>
+    <system:String x:Key="LabelInstalledToolTip">Cette extension est d�j� install�e</system:String>
+    <system:String x:Key="LabelNew">Nouvelle version</system:String>
+    <system:String x:Key="LabelNewToolTip">Cette extension a �t� mis � jour au cours des 7 derniers jours</system:String>
+    <system:String x:Key="LabelUpdateToolTip">Une nouvelle mise � jour est disponible</system:String>
+    <system:String x:Key="ErrorInstallingPlugin">Erreur lors de l'installation du plugin</system:String>
+    <system:String x:Key="ErrorUninstallingPlugin">Erreur lors de la d�sinstallation du plugin</system:String>
+    <system:String x:Key="ErrorUpdatingPlugin">Erreur de mise � jour du plugin</system:String>
+    <system:String x:Key="KeepPluginSettingsTitle">Garder les param�tres du plugin</system:String>
+    <system:String x:Key="KeepPluginSettingsSubtitle">Souhaitez-vous conserver les param�tres du plugin pour la prochaine utilisation ?</system:String>
+    <system:String x:Key="InstallSuccessNoRestart">Plugin {0} install� avec succ�s. Veuillez red�marrer Flow.</system:String>
+    <system:String x:Key="UninstallSuccessNoRestart">Plugin {0} d�sinstall� avec succ�s. Veuillez red�marrer Flow.</system:String>
+    <system:String x:Key="UpdateSuccessNoRestart">Plugin {0} mis � jour avec succ�s. Veuillez red�marrer Flow.</system:String>
+    <system:String x:Key="InstallPromptTitle">Installation du plugin</system:String>
+    <system:String x:Key="InstallPromptSubtitle">{0} par {1} {2}{2}Voulez-vous installer ce plugin ?</system:String>
+    <system:String x:Key="UninstallPromptTitle">D�sinstallation du plugin</system:String>
+    <system:String x:Key="UninstallPromptSubtitle">{0} par {1} {2}{2}Voulez-vous d�sinstaller ce plugin ?</system:String>
+    <system:String x:Key="UpdatePromptTitle">Mise � jour du plugin</system:String>
+    <system:String x:Key="UpdatePromptSubtitle">{0} par {1} {2}{2}Voulez-vous mettre � jour ce plugin ?</system:String>
+    <system:String x:Key="DownloadingPlugin">T�l�chargement du plugin</system:String>
+    <system:String x:Key="AutoRestartAfterChange">Red�marrer automatiquement apr�s l'installation / d�sinstallation / mise � jour des plugins dans le magasin des plugins</system:String>
+    <system:String x:Key="ZipFileNotHavePluginJson">Le fichier zip n'a pas de configuration plugin.json valide</system:String>
+    <system:String x:Key="InstallFromUnknownSourceTitle">Installation depuis une source inconnue</system:String>
+    <system:String x:Key="InstallFromUnknownSourceSubtitle">Ce plugin provient d'une source inconnue et il peut contenir des risques !{0}{0}Veuillez vous assurer de comprendre d'o� vient ce plugin et qu'il est s�r. {0} {0} Souhaitez-vous continuer ? {0} {0} (vous pouvez d�sactiver cet avertissement dans la section g�n�ral des param�tres)</system:String>
+    <system:String x:Key="ZipFiles">Fichiers zip</system:String>
+    <system:String x:Key="SelectZipFile">Veuillez s�lectionner un fichier zip</system:String>
+    <system:String x:Key="installLocalPluginTooltip">Installer le plugin depuis le chemin local</system:String>
+    <system:String x:Key="updateNoResultTitle">Aucune mise � jour disponible</system:String>
+    <system:String x:Key="updateNoResultSubtitle">Tous les plugins sont � jour</system:String>
+    <system:String x:Key="updateAllPluginsTitle">Mises � jour de plugins disponibles</system:String>
+    <system:String x:Key="updateAllPluginsButtonContent">Mettre � jour les plugins</system:String>
+    <system:String x:Key="checkPluginUpdatesTooltip">V�rifier les mises � jour des plugins</system:String>
+    <system:String x:Key="PluginsUpdateSuccessNoRestart">Plugins mis � jour avec succ�s. Veuillez red�marrer Flow.</system:String>
+
+    <!--  Setting Theme  -->
+    <system:String x:Key="theme">Th�mes</system:String>
+    <system:String x:Key="appearance">Apparence</system:String>
+    <system:String x:Key="browserMoreThemes">Trouver plus de th�mes</system:String>
+    <system:String x:Key="howToCreateTheme">Comment cr�er un th�me</system:String>
+    <system:String x:Key="hiThere">Salut</system:String>
+    <system:String x:Key="SampleTitleExplorer">Explorateur</system:String>
+    <system:String x:Key="SampleSubTitleExplorer">Rechercher des fichiers, dossiers et contenus de fichiers</system:String>
+    <system:String x:Key="SampleTitleWebSearch">Recherche Web</system:String>
+    <system:String x:Key="SampleSubTitleWebSearch">Recherchez sur le Web avec la prise en charge de moteurs de recherche diff�rents</system:String>
+    <system:String x:Key="SampleTitleProgram">Programmes</system:String>
+    <system:String x:Key="SampleSubTitleProgram">Lancez des programmes en tant qu'administrateur ou un utilisateur diff�rent</system:String>
+    <system:String x:Key="SampleTitleProcessKiller">Tueur de processus</system:String>
+    <system:String x:Key="SampleSubTitleProcessKiller">Terminer les processus non d�sir�s</system:String>
+    <system:String x:Key="SearchBarHeight">Hauteur de la barre de recherche</system:String>
+    <system:String x:Key="ItemHeight">Hauteur de l'objet</system:String>
+    <system:String x:Key="queryBoxFont">Police (barre de recherche)</system:String>
+    <system:String x:Key="resultItemFont">Police du titre du r�sultat</system:String>
+    <system:String x:Key="resultSubItemFont">Police des sous-titres du r�sultat</system:String>
+    <system:String x:Key="resetCustomize">R�initialiser</system:String>
+    <system:String x:Key="resetCustomizeToolTip">R�tablir les param�tres de police et de taille recommand�s.</system:String>
+    <system:String x:Key="ImportThemeSize">Importer la taille du th�me</system:String>
+    <system:String x:Key="ImportThemeSizeToolTip">Si une valeur de taille pr�vue par le concepteur du th�me est disponible, elle sera r�cup�r�e et appliqu�e.</system:String>
+    <system:String x:Key="CustomizeToolTip">Personnaliser</system:String>
+    <system:String x:Key="windowMode">Mode fen�tr�</system:String>
+    <system:String x:Key="opacity">Opacit�</system:String>
+    <system:String x:Key="theme_load_failure_path_not_exists">Le th�me {0} n'existe pas, retour au th�me par d�faut</system:String>
+    <system:String x:Key="theme_load_failure_parse_error">Impossible de charger le th�me {0}, retour au th�me par d�faut</system:String>
+    <system:String x:Key="ThemeFolder">Dossier des th�mes</system:String>
+    <system:String x:Key="OpenThemeFolder">Ouvrir le dossier des th�mes</system:String>
+    <system:String x:Key="ColorScheme">Jeu de couleurs</system:String>
+    <system:String x:Key="ColorSchemeSystem">Suivre le syst�me</system:String>
+    <system:String x:Key="ColorSchemeLight">Clair</system:String>
+    <system:String x:Key="ColorSchemeDark">Sombre</system:String>
+    <system:String x:Key="SoundEffect">Effet Sonore</system:String>
+    <system:String x:Key="SoundEffectTip">Jouer un petit son lorsque la fen�tre de recherche s'ouvre</system:String>
+    <system:String x:Key="SoundEffectVolume">Volume de l'effet sonore</system:String>
+    <system:String x:Key="SoundEffectVolumeTip">Ajuster le volume de l'effet sonore</system:String>
+    <system:String x:Key="SoundEffectWarning">Windows Media Player n'est pas disponible et est requis pour le r�glage du volume de Flow. Veuillez v�rifier votre installation si vous avez besoin de r�gler le volume.</system:String>
+    <system:String x:Key="Animation">Animation</system:String>
+    <system:String x:Key="AnimationTip">Utiliser l'animation dans l'interface</system:String>
+    <system:String x:Key="AnimationSpeed">Vitesse d'animation</system:String>
+    <system:String x:Key="AnimationSpeedTip">La vitesse d'animation de l'interface</system:String>
+    <system:String x:Key="AnimationSpeedSlow">Lent</system:String>
+    <system:String x:Key="AnimationSpeedMedium">Moyen</system:String>
+    <system:String x:Key="AnimationSpeedFast">Rapide</system:String>
+    <system:String x:Key="AnimationSpeedCustom">Personnalis�</system:String>
+    <system:String x:Key="Clock">Heure</system:String>
+    <system:String x:Key="Date">Date</system:String>
+    <system:String x:Key="BackdropType">Type d'arri�re-plan</system:String>
+    <system:String x:Key="BackdropInfo">L'effet de fond n'est pas appliqu� dans l'aper�u.</system:String>
+    <system:String x:Key="BackdropTypeDisabledToolTip">Arri�re-plan pris en charge � partir de Windows 11 version 22000 et plus</system:String>
+    <system:String x:Key="BackdropTypesNone">Aucun</system:String>
+    <system:String x:Key="BackdropTypesAcrylic">Acrylique</system:String>
+    <system:String x:Key="BackdropTypesMica">Mica</system:String>
+    <system:String x:Key="BackdropTypesMicaAlt">Mica Alt</system:String>
+    <system:String x:Key="TypeIsDarkToolTip">Ce th�me prend en charge deux modes (clair/sombre).</system:String>
+    <system:String x:Key="TypeHasBlurToolTip">Ce th�me prend en charge l'arri�re-plan flou et transparent.</system:String>
+    <system:String x:Key="ShowPlaceholder">Afficher l'espace r�serv�</system:String>
+    <system:String x:Key="ShowPlaceholderTip">Afficher un espace r�serv� lorsque la requ�te est vide</system:String>
+    <system:String x:Key="PlaceholderText">Texte de l'espace r�serv�</system:String>
+    <system:String x:Key="PlaceholderTextTip">Modifier le texte de l'espace r�serv�. Les entr�es vides utiliseront : {0}</system:String>
+    <system:String x:Key="KeepMaxResults">Taille de la fen�tre fixe</system:String>
+    <system:String x:Key="KeepMaxResultsToolTip">La taille de la fen�tre n'est pas r�glable par glissement.</system:String>
+    <system:String x:Key="MaxShowResultsCannotWorkWithAlwaysPreview">�tant donn� que Always Preview est toujours activ�, les r�sultats maximaux indiqu�s peuvent ne pas prendre effet car le panneau d'aper�u n�cessite une certaine hauteur minimale</system:String>
+
+    <!--  Setting Hotkey  -->
+    <system:String x:Key="hotkey">Raccourcis</system:String>
+    <system:String x:Key="hotkeys">Raccourcis</system:String>
+    <system:String x:Key="flowlauncherHotkey">Ouvrir BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncherHotkeyToolTip">Entrez le raccourci pour afficher/masquer BNDZ Launcher.</system:String>
+    <system:String x:Key="previewHotkey">Afficher/masquer l'aper�u</system:String>
+    <system:String x:Key="previewHotkeyToolTip">Entrez le raccourci pour afficher/masquer l'aper�u dans la fen�tre de recherche.</system:String>
+    <system:String x:Key="hotkeyPresets">Pr�r�glages des raccourcis clavier</system:String>
+    <system:String x:Key="hotkeyPresetsToolTip">Liste des raccourcis clavier actuellement enregistr�s</system:String>
+    <system:String x:Key="openResultModifiers">Modificateurs de r�sultats ouverts</system:String>
+    <system:String x:Key="openResultModifiersToolTip">S�lectionnez une touche de modification pour ouvrir le r�sultat s�lectionn� via le clavier.</system:String>
+    <system:String x:Key="showOpenResultHotkey">Afficher le raccourci clavier</system:String>
+    <system:String x:Key="showOpenResultHotkeyToolTip">Afficher le raccourci de s�lection des r�sultats avec les r�sultats.</system:String>
+    <system:String x:Key="autoCompleteHotkey">Saisie automatique</system:String>
+    <system:String x:Key="autoCompleteHotkeyToolTip">Ex�cute la saisie automatique pour les �l�ments s�lectionn�s.</system:String>
+    <system:String x:Key="SelectNextItemHotkey">S�lectionner l'objet suivant</system:String>
+    <system:String x:Key="SelectPrevItemHotkey">S�lectionner l'�l�ment pr�c�dent</system:String>
+    <system:String x:Key="SelectNextPageHotkey">Page suivante</system:String>
+    <system:String x:Key="SelectPrevPageHotkey">Page pr�c�dente</system:String>
+    <system:String x:Key="CycleHistoryUpHotkey">Cycle de requ�te pr�c�dente</system:String>
+    <system:String x:Key="CycleHistoryDownHotkey">Cycle de requ�te suivante</system:String>
+    <system:String x:Key="OpenContextMenuHotkey">Ouvrir le Menu Contextuel</system:String>
+    <system:String x:Key="OpenNativeContextMenuHotkey">Ouvrir le menu contextuel natif</system:String>
+    <system:String x:Key="SettingWindowHotkey">Ouvrir la Fen�tre des R�glages</system:String>
+    <system:String x:Key="CopyFilePathHotkey">Copier le chemin du fichier</system:String>
+    <system:String x:Key="ToggleGameModeHotkey">Basculer le mode de jeu</system:String>
+    <system:String x:Key="ToggleHistoryHotkey">Basculer l'historique</system:String>
+    <system:String x:Key="OpenContainFolderHotkey">Ouvrir le r�pertoire</system:String>
+    <system:String x:Key="RunAsAdminHotkey">Ex�cuter en tant qu'Administrateur</system:String>
+    <system:String x:Key="RequeryHotkey">Rafra�chir les r�sultats de recherche</system:String>
+    <system:String x:Key="ReloadPluginHotkey">Recharger les donn�es des plugins</system:String>
+    <system:String x:Key="QuickWidthHotkey">Ajuster rapidement la largeur de la fen�tre</system:String>
+    <system:String x:Key="QuickHeightHotkey">Ajuster rapidement la hauteur de la fen�tre</system:String>
+    <system:String x:Key="ReloadPluginHotkeyToolTip">Utiliser lorsque vous avez besoin de recharger et mettre � jour les donn�es existantes de vos plugins.</system:String>
+    <system:String x:Key="AdditionalHotkeyToolTip">Vous pouvez ajouter un raccourci clavier suppl�mentaire pour cette fonction.</system:String>
+    <system:String x:Key="customQueryHotkey">Requ�tes personnalis�es</system:String>
+    <system:String x:Key="customQueryShortcut">Custom Query Shortcut</system:String>
+    <system:String x:Key="builtinShortcuts">Built-in Shortcut</system:String>
+    <system:String x:Key="customQuery">Requ�te</system:String>
+    <system:String x:Key="customShortcut">Raccourci</system:String>
+    <system:String x:Key="customShortcutExpansion">Expansion</system:String>
+    <system:String x:Key="builtinShortcutDescription">Description</system:String>
+    <system:String x:Key="delete">Supprimer</system:String>
+    <system:String x:Key="edit">Modifier</system:String>
+    <system:String x:Key="add">Ajouter</system:String>
+    <system:String x:Key="none">Aucun</system:String>
+    <system:String x:Key="pleaseSelectAnItem">Veuillez s�lectionner un �l�ment</system:String>
+    <system:String x:Key="deleteCustomHotkeyWarning">Voulez-vous vraiment supprimer {0} raccourci(s) ?</system:String>
+    <system:String x:Key="deleteCustomShortcutWarning">�tes-vous s�r de vouloir supprimer le raccourci : {0} avec l'expansion {1} ?</system:String>
+    <system:String x:Key="shortcut_clipboard_description">R�cup�rer le texte du presse-papiers.</system:String>
+    <system:String x:Key="shortcut_active_explorer_path">R�cup�rer le chemin depuis l'explorateur actif.</system:String>
+    <system:String x:Key="queryWindowShadowEffect">Effet d'ombre de la fen�tre de requ�te</system:String>
+    <system:String x:Key="shadowEffectCPUUsage">L'effet d'ombre a une utilisation substantielle du GPU. Non recommand� si les performances de votre ordinateur sont limit�es.</system:String>
+    <system:String x:Key="windowWidthSize">Largeur de la fen�tre</system:String>
+    <system:String x:Key="windowWidthSizeToolTip">Vous pouvez aussi rapidement ajuster ce param�tre en utilisant Ctrl+[ et Ctrl+].</system:String>
+    <system:String x:Key="useGlyphUI">Utiliser les ic�nes Segoe Fluent</system:String>
+    <system:String x:Key="useGlyphUIEffect">Utiliser les ic�nes Segoe Fluent pour les r�sultats de requ�te lorsque pris en charge</system:String>
+    <system:String x:Key="flowlauncherPressHotkey">Appuyez sur une touche</system:String>
+    <system:String x:Key="showBadges">Afficher les badges de r�sultats</system:String>
+    <system:String x:Key="showBadgesToolTip">Pour les plugins pris en charge, des badges sont affich�s afin de les distinguer plus facilement.</system:String>
+    <system:String x:Key="showBadgesGlobalOnly">Afficher les badges de r�sultats pour la requ�te globale uniquement</system:String>
+    <system:String x:Key="showBadgesGlobalOnlyToolTip">Afficher les badges pour les r�sultats des requ�tes globales uniquement</system:String>
+    <system:String x:Key="dialogJumpHotkey">Saut de dialogue</system:String>
+    <system:String x:Key="dialogJumpHotkeyToolTip">Entrez le raccourci pour naviguer rapidement dans la fen�tre de dialogue Ouvrir/Enregistrer sous, vers le chemin du gestionnaire de fichiers actuel.</system:String>
+    <system:String x:Key="dialogJump">Saut de dialogue</system:String>
+    <system:String x:Key="dialogJumpToolTip">Lorsque la fen�tre de dialogue Ouvrir/Enregistrer sous s'ouvre, acc�dez rapidement au chemin d'acc�s actuel du gestionnaire de fichiers.</system:String>
+    <system:String x:Key="autoDialogJump">Saut de dialogue automatique</system:String>
+    <system:String x:Key="autoDialogJumpToolTip">Lorsque la fen�tre de dialogue Ouvrir/Enregistrer sous est affich�e, naviguez automatiquement vers le chemin du gestionnaire de fichiers actuel. (Exp�rimental)</system:String>
+    <system:String x:Key="showDialogJumpWindow">Afficher la fen�tre de saut de dialogue</system:String>
+    <system:String x:Key="showDialogJumpWindowToolTip">Afficher la fen�tre de recherche de saut de dialogue lorsque la fen�tre de dialogue Ouvrir/Enregistrer sous est affich�e pour naviguer rapidement vers les emplacements de fichier/dossier.</system:String>
+    <system:String x:Key="dialogJumpWindowPosition">Position de la fen�tre de saut de dialogue</system:String>
+    <system:String x:Key="dialogJumpWindowPositionToolTip">S�lectionnez la position pour la fen�tre de recherche de saut de dialogue</system:String>
+    <system:String x:Key="DialogJumpWindowPositionUnderDialog">Fix� sous la fen�tre de dialogue Ouvrir/Enregistrer sous. Affich� � l'ouverture et reste jusqu'� ce que la fen�tre soit ferm�e.</system:String>
+    <system:String x:Key="DialogJumpWindowPositionFollowDefault">Position de la fen�tre de recherche par d�faut. Affich� lorsqu'il est d�clench� par le raccourci clavier de la fen�tre de recherche</system:String>
+    <system:String x:Key="dialogJumpResultBehaviour">Comportement de navigation des r�sultats du saut de dialogue</system:String>
+    <system:String x:Key="dialogJumpResultBehaviourToolTip">Comportement pour naviguer dans la fen�tre de dialogue Ouvrir/Enregistrer sous vers le chemin de r�sultat s�lectionn�</system:String>
+    <system:String x:Key="DialogJumpResultBehaviourLeftClick">Clic gauche ou touche Entr�e</system:String>
+    <system:String x:Key="DialogJumpResultBehaviourRightClick">Clique droit</system:String>
+    <system:String x:Key="dialogJumpFileResultBehaviour">Comportement de navigation des r�sultats du saut de dialogue</system:String>
+    <system:String x:Key="dialogJumpFileResultBehaviourToolTip">Comportement pour naviguer dans la fen�tre de dialogue Ouvrir/Enregistrer sous lorsque le r�sultat est un chemin de fichier</system:String>
+    <system:String x:Key="DialogJumpFileResultBehaviourFullPath">Remplir le chemin complet dans la zone de nom de fichier</system:String>
+    <system:String x:Key="DialogJumpFileResultBehaviourFullPathOpen">Remplir le chemin complet dans la zone de nom de fichier et ouvrir</system:String>
+    <system:String x:Key="DialogJumpFileResultBehaviourDirectory">Remplir le r�pertoire dans la zone de chemin</system:String>
+
+    <!--  Setting Proxy  -->
+    <system:String x:Key="proxy">Proxy HTTP</system:String>
+    <system:String x:Key="enableProxy">Activer le HTTP proxy</system:String>
+    <system:String x:Key="server">Serveur HTTP</system:String>
+    <system:String x:Key="port">Port</system:String>
+    <system:String x:Key="userName">Utilisateur</system:String>
+    <system:String x:Key="password">Mot de passe</system:String>
+    <system:String x:Key="testProxy">Tester</system:String>
+    <system:String x:Key="save">Sauvegarder</system:String>
+    <system:String x:Key="serverCantBeEmpty">Un serveur doit �tre indiqu�</system:String>
+    <system:String x:Key="portCantBeEmpty">Un port doit �tre indiqu</system:String>
+    <system:String x:Key="invalidPortFormat">Format du port invalide</system:String>
+    <system:String x:Key="saveProxySuccessfully">Proxy sauvegard� avec succ�s</system:String>
+    <system:String x:Key="proxyIsCorrect">Le proxy est valide</system:String>
+    <system:String x:Key="proxyConnectFailed">Connexion au proxy �chou�e</system:String>
+
+    <!--  Setting About  -->
+    <system:String x:Key="about">� propos</system:String>
+    <system:String x:Key="website">Site web</system:String>
+    <system:String x:Key="github">Github</system:String>
+    <system:String x:Key="docs">Documents</system:String>
+    <system:String x:Key="crowdin">Crowdin</system:String>
+    <system:String x:Key="version">Version</system:String>
+    <system:String x:Key="icons">Ic�nes</system:String>
+    <system:String x:Key="about_activate_times">Vous avez utilis� BNDZ Launcher {0} fois</system:String>
+    <system:String x:Key="checkUpdates">V�rifier les mises � jour</system:String>
+    <system:String x:Key="BecomeASponsor">Devenez un sponsor</system:String>
+    <system:String x:Key="newVersionTips">Nouvelle version {0} disponible, souhaitez-vous red�marrer BNDZ Launcher pour l'installer ?</system:String>
+    <system:String x:Key="checkUpdatesFailed">�chec de la v�rification de la mise � jour, v�rifiez votre connexion et vos param�tres de configuration proxy pour pouvoir acceder � api.github.com.</system:String>
+    <system:String x:Key="downloadUpdatesFailed">
+        �chec du t�l�chargement de la mise � jour, v�rifiez votre connexion et vos param�tres de configuration proxy pour pouvoir acceder � github-cloud.s3.amazonaws.com, ou t�l�chargez manuelement la mise � jour sur https://github.com/Flow-Launcher/Flow.Launcher/releases.
+    </system:String>
+    <system:String x:Key="releaseNotes">Notes de changement</system:String>
+    <system:String x:Key="documentation">Conseils d'utilisation</system:String>
+    <system:String x:Key="devtool">Outils de d�veloppement</system:String>
+    <system:String x:Key="settingfolder">R�pertoire de param�tres</system:String>
+    <system:String x:Key="logfolder">R�pertoire des journaux</system:String>
+    <system:String x:Key="clearlogfolder">Effacer le journal</system:String>
+    <system:String x:Key="clearlogfolderMessage">�tes-vous s�r de vouloir supprimer tous les journaux ?</system:String>
+    <system:String x:Key="cachefolder">Dossier de cache</system:String>
+    <system:String x:Key="clearcachefolder">Vider les caches</system:String>
+    <system:String x:Key="clearcachefolderMessage">�tes-vous s�r de vouloir supprimer tous les caches ?</system:String>
+    <system:String x:Key="clearfolderfailMessage">�chec de l'effacement d'une partie des dossiers et des fichiers. Veuillez consulter le fichier journal pour plus d'informations</system:String>
+    <system:String x:Key="welcomewindow">Assistant</system:String>
+    <system:String x:Key="userdatapath">Emplacement des donn�es utilisateur</system:String>
+    <system:String x:Key="userdatapathToolTip">Les param�tres utilisateur et les plugins install�s sont enregistr�s dans le dossier des donn�es utilisateur. Cet emplacement peut varier selon que vous soyez en mode portable ou non.</system:String>
+    <system:String x:Key="userdatapathButton">Ouvrir le dossier</system:String>
+    <system:String x:Key="advanced">Avanc�</system:String>
+    <system:String x:Key="logLevel">Niveau de journalisation</system:String>
+    <system:String x:Key="LogLevelNONE">Silencieux</system:String>
+    <system:String x:Key="LogLevelERROR">Erreur</system:String>
+    <system:String x:Key="LogLevelINFO">Info</system:String>
+    <system:String x:Key="LogLevelDEBUG">D�bogage</system:String>
+    <system:String x:Key="settingWindowFontTitle">R�glage de la police de la fen�tre</system:String>
+
+    <!--  Plugin Settings Window  -->
+    <system:String x:Key="pluginSettingsWindowTitle">Param�tres: {0}</system:String>
+    <system:String x:Key="pluginSettingsWindowOpenFailed">�chec de l'ouverture de la fen�tre des param�tres du plugin</system:String>
+
+    <!--  Release Notes Window  -->
+    <system:String x:Key="seeMoreReleaseNotes">Voir plus de notes de version sur GitHub</system:String>
+    <system:String x:Key="checkNetworkConnectionTitle">Impossible de r�cup�rer les notes de version</system:String>
+    <system:String x:Key="checkNetworkConnectionSubTitle">Veuillez v�rifier votre connexion r�seau ou vous assurer que GitHub est accessible</system:String>
+    <system:String x:Key="appUpdateTitle">BNDZ Launcher a �t� mis � jour � {0}</system:String>
+    <system:String x:Key="appUpdateButtonContent">Cliquez ici pour voir les notes de version</system:String>
+
+    <!--  FileManager Setting Dialog  -->
+    <system:String x:Key="fileManagerWindow">S�lectionner le gestionnaire de fichiers</system:String>
+    <system:String x:Key="fileManager_learnMore">En savoir plus</system:String>
+    <system:String x:Key="fileManager_tips">Veuillez sp�cifier l'emplacement du fichier de l'explorateur de fichiers que vous utilisez et ajouter des arguments si n�cessaire. Le &quot;%d&quot; repr�sente le chemin du r�pertoire � ouvrir, utilis� par le champ Arg for Folder et pour les commandes ouvrant des r�pertoires sp�cifiques. Le &quot;%f&quot; repr�sente le chemin du fichier � ouvrir, utilis� par le champ Arg for File et pour les commandes ouvrant des fichiers sp�cifiques.</system:String>
+    <system:String x:Key="fileManager_tips2">Par exemple, si le gestionnaire de fichiers utilise une commande telle que &quot;totalcmd.exe /A c:\windows&quot; pour ouvrir le r�pertoire c:\windows, le chemin du gestionnaire de fichiers sera totalcmd.exe, et le chemin du dossier sera /A &quot;%d&quot;. Certains gestionnaires de fichiers, comme QTTabBar, peuvent se contenter d'un simple chemin d'acc�s. Dans ce cas, utilisez &quot;%d&quot; comme chemin d'acc�s au gestionnaire de fichiers et laissez le reste des champs vides.</system:String>
+    <system:String x:Key="fileManager_name">Gestionnaire de fichiers</system:String>
+    <system:String x:Key="fileManager_profile_name">Nom du profil</system:String>
+    <system:String x:Key="fileManager_path">Chemin du gestionnaire de fichiers</system:String>
+    <system:String x:Key="fileManager_directory_arg">Arguments pour le r�pertoire</system:String>
+    <system:String x:Key="fileManager_file_arg">Arguments pour le fichier</system:String>
+    <system:String x:Key="fileManagerPathNotFound">Le gestionnaire de fichiers '{0}' n'a pas pu �tre situ� � '{1}'. Souhaitez-vous continuer ?</system:String>
+    <system:String x:Key="fileManagerPathError">Erreur de chemin du gestionnaire de fichiers</system:String>
+    <system:String x:Key="fileManagerExplorer">Explorateur de fichiers</system:String>
+
+    <!--  DefaultBrowser Setting Dialog  -->
+    <system:String x:Key="defaultBrowserTitle">Navigateur web par d�faut</system:String>
+    <system:String x:Key="defaultBrowser_tips">La configuration par d�faut suit le param�tre par d�faut du syst�me d'exploitation. Si sp�cifi� s�par�ment, Flow utilisera ce navigateur.</system:String>
+    <system:String x:Key="defaultBrowser_name">Navigateur</system:String>
+    <system:String x:Key="defaultBrowser_profile_name">Nom du navigateur</system:String>
+    <system:String x:Key="defaultBrowser_path">Chemin du navigateur</system:String>
+    <system:String x:Key="defaultBrowser_newWindow">Nouvelle fen�tre</system:String>
+    <system:String x:Key="defaultBrowser_newTab">Nouvel onglet</system:String>
+    <system:String x:Key="defaultBrowser_parameter">Mode priv�</system:String>
+    <system:String x:Key="defaultBrowser_extraArgs">Extra Args</system:String>
+    <system:String x:Key="defaultBrowser_default">Par d�faut</system:String>
+    <system:String x:Key="defaultBrowser_new_profile">Nouveau profil</system:String>
+
+    <!--  Priority Setting Dialog  -->
+    <system:String x:Key="changePriorityWindow">Changer la priorit�</system:String>
+    <system:String x:Key="priority_tips">Plus le nombre est �lev�, plus le r�sultat sera prioris�. Essayez de le d�finir comme 5. Si vous voulez que les r�sultats soient inf�rieurs � n'importe quel autre plugin, fournissez un nombre n�gatif</system:String>
+    <system:String x:Key="invalidPriority">Veuillez fournir un entier valide pour la priorit� !</system:String>
+
+    <!--  Action Keyword Setting Dialog  -->
+    <system:String x:Key="oldActionKeywords">Ancien mot-cl� d'action</system:String>
+    <system:String x:Key="newActionKeywords">Nouveau mot-cl� d'action</system:String>
+    <system:String x:Key="cancel">Annuler</system:String>
+    <system:String x:Key="done">Termin�</system:String>
+    <system:String x:Key="cannotFindSpecifiedPlugin">Impossible de trouver le module sp�cifi</system:String>
+    <system:String x:Key="newActionKeywordsCannotBeEmpty">Le nouveau mot-cl� d'action doit �tre sp�cifi</system:String>
+    <system:String x:Key="newActionKeywordsHasBeenAssigned">Le nouveau mot-cl� d'action a �t� assign� � un autre module, veuillez en choisir un autre</system:String>
+    <system:String x:Key="newActionKeywordsSameAsOld">Ce nouveau mot-cl� d'action est identique � l'ancien, veuillez en choisir un autre</system:String>
+    <system:String x:Key="success">Ajout</system:String>
+    <system:String x:Key="completedSuccessfully">Termin� avec succ�s</system:String>
+    <system:String x:Key="failedToCopy">�chec de la copie</system:String>
+    <system:String x:Key="actionkeyword_tips">Saisissez les mots-cl�s d'action que vous souhaitez utiliser pour lancer le plugin et s�parez-les par des espaces. Utilisez * si vous ne voulez en sp�cifier aucun, et le plugin sera d�clench� sans aucun mot-cl� d'action.</system:String>
+
+    <!--  Search Delay Settings Dialog  -->
+    <system:String x:Key="searchDelayTimeTitle">R�glage du d�lai de recherche</system:String>
+    <system:String x:Key="searchDelayTimeTips">Entrez le d�lai de recherche en ms que vous souhaitez utiliser pour le plugin. Laissez la case vide et le plugin utilisera le d�lai de recherche par d�faut.</system:String>
+
+    <!--  Search Delay Settings Dialog  -->
+    <system:String x:Key="homeTitle">Page d'accueil</system:String>
+    <system:String x:Key="homeTips">Activez l'�tat de la page d'accueil du plugin si vous souhaitez afficher les r�sultats du plugin lorsque la requ�te est vide.</system:String>
+
+    <!--  Custom Query Hotkey Dialog  -->
+    <system:String x:Key="customeQueryHotkeyTitle">Requ�tes personnalis�es</system:String>
+    <system:String x:Key="customeQueryHotkeyTips">Appuyez sur le raccourci personnalis� pour ins�rer automatiquement la requ�te sp�cifi�e.</system:String>
+    <system:String x:Key="preview">Pr�visualiser</system:String>
+    <system:String x:Key="hotkeyIsNotUnavailable">Raccourci indisponible. Veuillez en choisir un autre.</system:String>
+    <system:String x:Key="invalidPluginHotkey">La touche de raccourci n'est pas valide</system:String>
+    <system:String x:Key="update">Actualiser</system:String>
+    <system:String x:Key="hotkeyRegTitle">Raccourci de liaison</system:String>
+    <system:String x:Key="hotkeyUnavailable">Le raccourci clavier actuel n'est pas disponible.</system:String>
+    <system:String x:Key="hotkeyUnavailableUneditable">Ce raccourci est r�serv� � &quot;{0}&quot; et ne peut pas �tre utilis�. Veuillez choisir un autre raccourci clavier.</system:String>
+    <system:String x:Key="hotkeyUnavailableEditable">Ce raccourci est d�j� utilis� par &quot;{0}&quot;. Si vous appuyez sur &quot;�craser&quot;, il sera supprim� de &quot;{0}&quot;.</system:String>
+    <system:String x:Key="hotkeyRegGuide">Appuyez sur les touches que vous voulez utiliser pour cette fonction.</system:String>
+    <system:String x:Key="emptyPluginHotkey">Les touches de raccourci et les mots-cl�s d'action sont vides</system:String>
+
+    <!--  Custom Query Shortcut Dialog  -->
+    <system:String x:Key="customeQueryShortcutTitle">Raccourci de requ�te personnalis�e</system:String>
+    <system:String x:Key="customeQueryShortcutTips">Entrez un raccourci qui s'�tend automatiquement � la requ�te sp�cifi�e.</system:String>
+    <system:String x:Key="customeQueryShortcutGuide" xml:space="preserve">Un raccourci est d�velopp� lorsqu'il correspond exactement � la requ�te. 
+
+Si vous ajoutez un pr�fixe &quot;@&quot; lors de la saisie d'un raccourci, celui-ci correspond � n'importe quelle position dans la requ�te. Les raccourcis int�gr�s correspondent � n'importe quelle position dans une requ�te.
+    </system:String>
+    <system:String x:Key="duplicateShortcut">Le raccourci existe d�j�, veuillez entrer un nouveau raccourci ou modifier le raccourci existant.</system:String>
+    <system:String x:Key="emptyShortcut">Raccourci et/ou son expansion est vide.</system:String>
+    <system:String x:Key="invalidShortcut">Le raccourci n'est pas valide</system:String>
+
+    <!--  Common Action  -->
+    <system:String x:Key="commonSave">Sauvegarder</system:String>
+    <system:String x:Key="commonOverwrite">�craser</system:String>
+    <system:String x:Key="commonCancel">Annuler</system:String>
+    <system:String x:Key="commonReset">R�initialiser</system:String>
+    <system:String x:Key="commonDelete">Supprimer</system:String>
+    <system:String x:Key="commonOK">Ok</system:String>
+    <system:String x:Key="commonYes">Oui</system:String>
+    <system:String x:Key="commonNo">Non</system:String>
+    <system:String x:Key="commonBackground">Arri�re-plan</system:String>
+
+    <!--  Crash Reporter  -->
+    <system:String x:Key="reportWindow_version">Version</system:String>
+    <system:String x:Key="reportWindow_time">Heure</system:String>
+    <system:String x:Key="reportWindow_reproduce">Veuillez nous indiquer comment l'application a plant� afin que nous puissions le corriger</system:String>
+    <system:String x:Key="reportWindow_send_report">Envoyer le rapport</system:String>
+    <system:String x:Key="reportWindow_cancel">Annuler</system:String>
+    <system:String x:Key="reportWindow_general">G�n�ral</system:String>
+    <system:String x:Key="reportWindow_exceptions">Exceptions</system:String>
+    <system:String x:Key="reportWindow_exception_type">Type d'exception</system:String>
+    <system:String x:Key="reportWindow_source">Source</system:String>
+    <system:String x:Key="reportWindow_stack_trace">Trace d'appel</system:String>
+    <system:String x:Key="reportWindow_sending">Envoi en cours</system:String>
+    <system:String x:Key="reportWindow_report_succeed">Signalement envoy</system:String>
+    <system:String x:Key="reportWindow_report_failed">�chec de l'envoi du signalement</system:String>
+    <system:String x:Key="reportWindow_flowlauncher_got_an_error">BNDZ Launcher a rencontr� une erreur</system:String>
+    <system:String x:Key="reportWindow_please_open_issue">Veuillez ouvrir un nouveau ticket dans</system:String>
+    <system:String x:Key="reportWindow_upload_log">1. T�l�charger le fichier journal : {0}</system:String>
+    <system:String x:Key="reportWindow_copy_below">2. Copiez le message d�exception ci-dessous</system:String>
+
+    <!--  File Open Error  -->
+    <system:String x:Key="fileManagerNotFoundTitle">Erreur du gestionnaire de fichiers</system:String>
+    <system:String x:Key="fileManagerNotFound">
+        Le gestionnaire de fichiers sp�cifi� n'a pas �t� trouv�. Veuillez v�rifier le param�tre Gestionnaire de fichiers personnalis� dans Param�tres &gt; G�n�ral.
+    </system:String>
+    <system:String x:Key="errorTitle">Erreur</system:String>
+    <system:String x:Key="folderOpenError">Une erreur s'est produite lors de l'ouverture du dossier.</system:String>
+    <system:String x:Key="browserOpenError">Une erreur s'est produite lors de l'ouverture de l'URL dans le navigateur. Veuillez v�rifier la configuration de votre navigateur Web par d�faut dans la section &quot;G�n�ral&quot; de la fen�tre des param�tres</system:String>
+    <system:String x:Key="fileNotFoundError">Fichier ou r�pertoire introuvable : {0}</system:String>
+
+    <!--  General Notice  -->
+    <system:String x:Key="pleaseWait">Veuillez patienter...</system:String>
+
+    <!--  Update  -->
+    <system:String x:Key="update_flowlauncher_update_check">Recherche de mises � jour</system:String>
+    <system:String x:Key="update_flowlauncher_already_on_latest">Vous avez d�j� la derni�re version de BNDZ Launcher</system:String>
+    <system:String x:Key="update_flowlauncher_update_found">Mise � jour trouv�e</system:String>
+    <system:String x:Key="update_flowlauncher_updating">Mise � jour en cours...</system:String>
+    <system:String x:Key="update_flowlauncher_fail_moving_portable_user_profile_data">
+        BNDZ Launcher n'a pas pu d�placer les donn�es de votre profil utilisateur vers la nouvelle version de mise � jour.
+        Veuillez d�placer manuellement le dossier de donn�es de votre profil de {0} vers {1}
+    </system:String>
+    <system:String x:Key="update_flowlauncher_new_update">Mise � jour disponible</system:String>
+    <system:String x:Key="update_flowlauncher_update_new_version_available">La nouvelle version {0} de BNDZ Launcher est maintenant disponible</system:String>
+    <system:String x:Key="update_flowlauncher_update_error">Une erreur s'est produite lors de l'installation de la mise � jour</system:String>
+    <system:String x:Key="update_flowlauncher_update">Mettre � jour</system:String>
+    <system:String x:Key="update_flowlauncher_update_cancel">Annuler</system:String>
+    <system:String x:Key="update_flowlauncher_fail">La mise � jour a �chou�</system:String>
+    <system:String x:Key="update_flowlauncher_check_connection">V�rifiez votre connexion et essayez de mettre � jour les param�tres du proxy vers github-cloud.s3.amazonaws.com.</system:String>
+    <system:String x:Key="update_flowlauncher_update_restart_flowlauncher_tip">BNDZ Launcher doit red�marrer pour installer cette mise � jour</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_files">Les fichiers suivants seront mis � jour</system:String>
+    <system:String x:Key="update_flowlauncher_update_files">Fichiers mis � jour</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_description">Description de la mise � jour</system:String>
+
+    <!--  Plugin Update Window  -->
+    <system:String x:Key="restartAfterUpdating">Red�marrer BNDZ Launcher apr�s la mise � jour des plugins</system:String>
+    <system:String x:Key="updatePluginCheckboxContent">{0}: Mis � jour de v{1} vers v{2}</system:String>
+    <system:String x:Key="updatePluginNoSelected">Aucun plugin s�lectionn�</system:String>
+
+    <!--  Welcome Window  -->
+    <system:String x:Key="Skip">Passer</system:String>
+    <system:String x:Key="Welcome_Page1_Title">Bienvenue dans BNDZ Launcher</system:String>
+    <system:String x:Key="Welcome_Page1_Text01">Bonjour, c'est la premi�re fois que vous utilisez BNDZ Launcher !</system:String>
+    <system:String x:Key="Welcome_Page1_Text02">Avant de commencer, cet assistant vous aidera � configurer BNDZ Launcher. Vous pouvez sauter cela si vous le souhaitez. Veuillez choisir une langue</system:String>
+    <system:String x:Key="Welcome_Page2_Title">Recherchez et ex�cutez tous les fichiers et applications sur votre PC</system:String>
+    <system:String x:Key="Welcome_Page2_Text01">Recherchez tout, depuis les applications, les fichiers, les signets, YouTube, Twitter et plus encore. Tout cela depuis le confort de votre clavier sans jamais toucher � la souris.</system:String>
+    <system:String x:Key="Welcome_Page2_Text02">BNDZ Launcher commence avec le raccourci ci-dessous, allez-y et essayez maintenant. Pour le modifier, cliquez sur l'entr�e et appuyez sur la touche de raccourci d�sir�e du clavier.</system:String>
+    <system:String x:Key="Welcome_Page3_Title">Raccourcis claviers</system:String>
+    <system:String x:Key="Welcome_Page4_Title">Mot-cl� d'action et commandes</system:String>
+    <system:String x:Key="Welcome_Page4_Text01">Recherchez sur le web, lancez des applications ou ex�cutez diverses fonctions gr�ce aux plugins BNDZ Launcher. Certaines fonctions commencent par un mot cl� d'action, et si n�cessaire, elles peuvent �tre utilis�es sans mots cl�s d'action. Essayez les requ�tes ci-dessous dans BNDZ Launcher.</system:String>
+    <system:String x:Key="Welcome_Page5_Title">D�marrons BNDZ Launcher</system:String>
+    <system:String x:Key="Welcome_Page5_Text01">Termin�. Profitez de BNDZ Launcher. N'oubliez pas le raccourci pour le d�marrer :)</system:String>
+
+    <!--  General Guide & Hotkey  -->
+
+    <system:String x:Key="HotkeyUpDownDesc">Retour / Menu contextuel</system:String>
+    <system:String x:Key="HotkeyLeftRightDesc">Navigation de l'objet</system:String>
+    <system:String x:Key="HotkeyShiftEnterDesc">Ouvrir le Menu Contextuel</system:String>
+    <system:String x:Key="HotkeyCtrlEnterDesc">Ouvrir le r�pertoire</system:String>
+    <system:String x:Key="HotkeyCtrlShiftEnterDesc">Ex�cuter en tant qu'Administrateur</system:String>
+    <system:String x:Key="HotkeyCtrlHDesc">Historique des Recherches</system:String>
+    <system:String x:Key="HotkeyESCDesc">Retour au r�sultat dans le Menu Contextuel</system:String>
+    <system:String x:Key="HotkeyTabDesc">Auto-compl�tion</system:String>
+    <system:String x:Key="HotkeyRunDesc">Ouvrir/Ex�cuter l'�l�ment S�lectionn�</system:String>
+    <system:String x:Key="HotkeyCtrlIDesc">Ouvrir la Fen�tre des R�glages</system:String>
+    <system:String x:Key="HotkeyF5Desc">Recharger les Donn�es des Plugins</system:String>
+
+    <system:String x:Key="HotkeySelectFirstResult">S�lectionner le premier r�sultat</system:String>
+    <system:String x:Key="HotkeySelectLastResult">S�lectionner le dernier r�sultat</system:String>
+    <system:String x:Key="HotkeyRequery">Ex�cuter � nouveau la requ�te actuelle</system:String>
+    <system:String x:Key="HotkeyOpenResult">Ouvrir le r�sultat</system:String>
+    <system:String x:Key="HotkeyOpenResultN">Ouvrir le r�sultat #{0}</system:String>
+
+    <system:String x:Key="RecommendWeather">M�t�o</system:String>
+    <system:String x:Key="RecommendWeatherDesc">M�t�o dans les r�sultats Google</system:String>
+    <system:String x:Key="RecommendShell">&gt; ping 8.8.8.8</system:String>
+    <system:String x:Key="RecommendShellDesc">Commandes Shell</system:String>
+    <system:String x:Key="RecommendBluetooth">Bluetooth</system:String>
+    <system:String x:Key="RecommendBluetoothDesc">Bluetooth dans les Param�tres de Windows</system:String>
+    <system:String x:Key="RecommendAcronyms">sn</system:String>
+    <system:String x:Key="RecommendAcronymsDesc">Pense-b�tes</system:String>
+
+    <!--  Preview Area  -->
+    <system:String x:Key="FileSize">Taille du fichier</system:String>
+    <system:String x:Key="Created">Cr��</system:String>
+    <system:String x:Key="LastModified">Derni�re modification</system:String>
+</ResourceDictionary>

@@ -1,0 +1,214 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!--  Dialogues  -->
+    <system:String x:Key="plugin_explorer_make_selection_warning">??????</system:String>
+    <system:String x:Key="plugin_explorer_quick_access_link_no_folder_selected">???????????</system:String>
+    <system:String x:Key="plugin_explorer_quick_access_link_path_already_exists">???????????????</system:String>
+    <system:String x:Key="plugin_explorer_delete_quick_access_link">???????????????</system:String>
+    <system:String x:Key="plugin_explorer_delete_index_search_excluded_path">?????????????????</system:String>
+    <system:String x:Key="plugin_explorer_select_folder_link_warning">??????????</system:String>
+    <system:String x:Key="plugin_explorer_delete_folder_link">?????? {0} ??</system:String>
+    <system:String x:Key="plugin_explorer_deletefileconfirm">?????????????</system:String>
+    <system:String x:Key="plugin_explorer_deletefilefolderconfirm">???????????/?????</system:String>
+    <system:String x:Key="plugin_explorer_deletefilefoldersuccess">????</system:String>
+    <system:String x:Key="plugin_explorer_deletefilefoldersuccess_detail">????? {0}</system:String>
+    <system:String x:Key="plugin_explorer_globalActionKeywordInvalid">???????????????????????????????????????</system:String>
+    <system:String x:Key="plugin_explorer_quickaccess_globalActionKeywordInvalid">????????????????????,????????</system:String>
+    <system:String x:Key="plugin_explorer_windowsSearchServiceNotRunning">Windows ???????????????</system:String>
+    <system:String x:Key="plugin_explorer_windowsSearchServiceFix">????????,??? Windows ?????????????</system:String>
+    <system:String x:Key="plugin_explorer_alternative">???????? ?????????????????,????? Everything ????{0}{0}?? '?'??Everything??',??'?' ??</system:String>
+    <system:String x:Key="plugin_explorer_alternative_title">???????</system:String>
+    <system:String x:Key="plugin_explorer_directoryinfosearch_error">???????:{0}</system:String>
+    <system:String x:Key="plugin_explorer_opendir_error">???????</system:String>
+    <system:String x:Key="plugin_explorer_openfile_error">??????</system:String>
+    <system:String x:Key="plugin_explorer_new_action_keyword_assigned">?????????????????,???????</system:String>
+
+    <!--  Controls  -->
+    <system:String x:Key="plugin_explorer_delete">??</system:String>
+    <system:String x:Key="plugin_explorer_edit">??</system:String>
+    <system:String x:Key="plugin_explorer_add">??</system:String>
+    <system:String x:Key="plugin_explorer_generalsetting_header">????</system:String>
+    <system:String x:Key="plugin_explorer_manageactionkeywords_header">????????</system:String>
+    <system:String x:Key="plugin_explorer_manage_quick_access_links_header">???????</system:String>
+    <system:String x:Key="plugin_explorer_quickaccesslinks_header">??????</system:String>
+    <system:String x:Key="plugin_explorer_everything_setting_header">Everything ??</system:String>
+    <system:String x:Key="plugin_explorer_previewpanel_setting_header">????</system:String>
+    <system:String x:Key="plugin_explorer_previewpanel_display_file_size_checkbox">??</system:String>
+    <system:String x:Key="plugin_explorer_previewpanel_display_file_creation_checkbox">????</system:String>
+    <system:String x:Key="plugin_explorer_previewpanel_display_file_modification_checkbox">????</system:String>
+    <system:String x:Key="plugin_explorer_previewpanel_display_file_age_checkbox">????</system:String>
+    <system:String x:Key="plugin_explorer_previewpanel_file_info_label">??????</system:String>
+    <system:String x:Key="plugin_explorer_previewpanel_date_and_time_format_label">???????</system:String>
+    <system:String x:Key="plugin_explorer_everything_sort_option">????</system:String>
+    <system:String x:Key="plugin_explorer_everything_installed_path">Everything ??</system:String>
+    <system:String x:Key="plugin_explorer_launch_hidden">????</system:String>
+    <system:String x:Key="plugin_explorer_editor_path">?????</system:String>
+    <system:String x:Key="plugin_explorer_shell_path">Shell ??</system:String>
+    <system:String x:Key="plugin_explorer_indexsearchexcludedpaths_header">?????????</system:String>
+    <system:String x:Key="plugin_explorer_use_location_as_working_dir">????????????????????</system:String>
+    <system:String x:Key="plugin_explorer_display_more_info_in_tooltip">???????????,???????</system:String>
+    <system:String x:Key="plugin_explorer_default_open_in_file_manager">??????????????????</system:String>
+    <system:String x:Key="plugin_explorer_boost_home_folder_score">??????????????(?????????)</system:String>
+    <system:String x:Key="plugin_explorer_usewindowsindexfordirectorysearch">??????????</system:String>
+    <system:String x:Key="plugin_explorer_manageindexoptions">????</system:String>
+    <system:String x:Key="plugin_explorer_actionkeywordview_search">??:</system:String>
+    <system:String x:Key="plugin_explorer_actionkeywordview_pathsearch">????:</system:String>
+    <system:String x:Key="plugin_explorer_actionkeywordview_filecontentsearch">??????:</system:String>
+    <system:String x:Key="plugin_explorer_actionkeywordview_indexsearch">????:</system:String>
+    <system:String x:Key="plugin_explorer_actionkeywordview_quickaccess">????:</system:String>
+    <system:String x:Key="plugin_explorer_actionkeywordview_foldersearch">????:</system:String>
+    <system:String x:Key="plugin_explorer_actionkeywordview_filesearch">????:</system:String>
+    <system:String x:Key="plugin_explorer_actionkeyword_current">???????</system:String>
+    <system:String x:Key="plugin_explorer_actionkeyword_done">??</system:String>
+    <system:String x:Key="plugin_explorer_actionkeyword_enabled">???</system:String>
+    <system:String x:Key="plugin_explorer_actionkeyword_enabled_tooltip">????,BNDZ Launcher ??????????,???????“*”????????</system:String>
+    <system:String x:Key="plugin_explorer_engine_everything">Everything</system:String>
+    <system:String x:Key="plugin_explorer_engine_windows_index">Windows ??</system:String>
+    <system:String x:Key="plugin_explorer_path_enumeration_engine_none">????</system:String>
+    <system:String x:Key="plugin_explorer_file_editor_path">?????(??)</system:String>
+    <system:String x:Key="plugin_explorer_folder_editor_path">?????(???)</system:String>
+    <system:String x:Key="plugin_explorer_enabled">??</system:String>
+    <system:String x:Key="plugin_explorer_disabled">???</system:String>
+
+    <system:String x:Key="plugin_explorer_Content_Search_Engine">????????</system:String>
+    <system:String x:Key="plugin_explorer_Directory_Recursive_Search_Engine">????????</system:String>
+    <system:String x:Key="plugin_explorer_Index_Search_Engine">??????</system:String>
+    <system:String x:Key="plugin_explorer_Open_Window_Index_Option">?? Windows ????</system:String>
+    <system:String x:Key="plugin_explorer_Excluded_File_Types">???????(???????)</system:String>
+    <system:String x:Key="plugin_explorer_Excluded_File_Types_Tooltip">??:exe,jpg,png</system:String>
+    <system:String x:Key="plugin_explorer_Maximum_Results">?????</system:String>
+    <system:String x:Key="plugin_explorer_Maximum_Results_Tooltip">???????????????</system:String>
+
+    <!--  Plugin Infos  -->
+    <system:String x:Key="plugin_explorer_plugin_name">?????</system:String>
+    <system:String x:Key="plugin_explorer_plugin_description">?? Windows ???? Everything ???????</system:String>
+
+    <!--  Plugin Tooltip  -->
+    <system:String x:Key="plugin_explorer_plugin_ToolTipOpenDirectory">Ctrl + Enter ?????</system:String>
+    <system:String x:Key="plugin_explorer_plugin_ToolTipOpenContainingFolder">Ctrl + Enter ?????????</system:String>
+    <system:String x:Key="plugin_explorer_plugin_tooltip_more_info">{0}{4}??:{1}{4}????:{2}{4}????:{3}</system:String>
+    <system:String x:Key="plugin_explorer_plugin_tooltip_more_info_unknown">??</system:String>
+    <system:String x:Key="plugin_explorer_plugin_tooltip_more_info_volume">{0}{3}????:{1}{3}???:{2}</system:String>
+
+    <!--  Context menu items  -->
+    <system:String x:Key="plugin_explorer_copypath">????</system:String>
+    <system:String x:Key="plugin_explorer_copypath_subtitle">?????????????</system:String>
+    <system:String x:Key="plugin_explorer_copyname">????</system:String>
+    <system:String x:Key="plugin_explorer_copyname_subtitle">?????????????</system:String>
+    <system:String x:Key="plugin_explorer_copyfilefolder">??</system:String>
+    <system:String x:Key="plugin_explorer_copyfile_subtitle">??????????</system:String>
+    <system:String x:Key="plugin_explorer_copyfolder_subtitle">???????????</system:String>
+    <system:String x:Key="plugin_explorer_deletefilefolder">??</system:String>
+    <system:String x:Key="plugin_explorer_deletefile_subtitle">????????</system:String>
+    <system:String x:Key="plugin_explorer_deletefolder_subtitle">?????????</system:String>
+    <system:String x:Key="plugin_explorer_name">??</system:String>
+    <system:String x:Key="plugin_explorer_type">??</system:String>
+    <system:String x:Key="plugin_explorer_path">??</system:String>
+    <system:String x:Key="plugin_explorer_file">??</system:String>
+    <system:String x:Key="plugin_explorer_folder">??</system:String>
+    <system:String x:Key="plugin_explorer_deletefilefolder_subtitle">??????</system:String>
+    <system:String x:Key="plugin_explorer_runasdifferentuser">?????????</system:String>
+    <system:String x:Key="plugin_explorer_runasdifferentuser_subtitle">??????????????</system:String>
+    <system:String x:Key="plugin_explorer_opencontainingfolder">?????????</system:String>
+    <system:String x:Key="plugin_explorer_opencontainingfolder_subtitle">???????????</system:String>
+    <system:String x:Key="plugin_explorer_openwitheditor">???????:</system:String>
+    <system:String x:Key="plugin_explorer_openwitheditor_error">????? {1} ({2}) ???? {0} ???</system:String>
+    <system:String x:Key="plugin_explorer_openwithshell">?? Shell ??:</system:String>
+    <system:String x:Key="plugin_explorer_openwithshell_error">?? Shell {1} ({2}) ????? {0} ???</system:String>
+    <system:String x:Key="plugin_explorer_excludefromindexsearch">????????????????</system:String>
+    <system:String x:Key="plugin_explorer_excludedfromindexsearch_msg">????????</system:String>
+    <system:String x:Key="plugin_explorer_openindexingoptions">??Windows????</system:String>
+    <system:String x:Key="plugin_explorer_openindexingoptions_subtitle">??????????</system:String>
+    <system:String x:Key="plugin_explorer_openindexingoptions_errormsg">????Windows????</system:String>
+    <system:String x:Key="plugin_explorer_add_to_quickaccess_title">???????</system:String>
+    <system:String x:Key="plugin_explorer_add_to_quickaccess_subtitle">????????“????”</system:String>
+    <system:String x:Key="plugin_explorer_addfilefoldersuccess">????</system:String>
+    <system:String x:Key="plugin_explorer_addfilefoldersuccess_detail">?????????</system:String>
+    <system:String x:Key="plugin_explorer_removefilefoldersuccess">????</system:String>
+    <system:String x:Key="plugin_explorer_removefilefoldersuccess_detail">???????????</system:String>
+    <system:String x:Key="plugin_explorer_contextmenu_titletooltip">???????,??????Explorer??????????</system:String>
+    <system:String x:Key="plugin_explorer_contextmenu_remove_titletooltip">????????</system:String>
+    <system:String x:Key="plugin_explorer_remove_from_quickaccess_title">????????</system:String>
+    <system:String x:Key="plugin_explorer_remove_from_quickaccess_subtitle">????????????</system:String>
+    <system:String x:Key="plugin_explorer_show_contextmenu_title">?? Windows ?????</system:String>
+    <system:String x:Key="plugin_explorer_openwith">????</system:String>
+    <system:String x:Key="plugin_explorer_openwith_subtitle">????????</system:String>
+    <system:String x:Key="plugin_explorer_fail_to_delete">???? {0}</system:String>
+    <system:String x:Key="plugin_explorer_file_not_found">?????:{0}</system:String>
+    <system:String x:Key="plugin_explorer_fail_to_open">???? {0}</system:String>
+    <system:String x:Key="plugin_explorer_fail_to_set_text">?????????? </system:String>
+    <system:String x:Key="plugin_explorer_fail_to_set_files">??????/??????? </system:String>
+
+    <!--  Special Results  -->
+    <system:String x:Key="plugin_explorer_diskfreespace">{0} ??,? {1}</system:String>
+    <system:String x:Key="plugin_explorer_openresultfolder">???????????</system:String>
+    <system:String x:Key="plugin_explorer_openresultfolder_subtitle">
+        ?? '&gt;' ????????,'*' ????????? '&gt;*' ?????????
+    </system:String>
+
+    <!--  Everything  -->
+    <system:String x:Key="flowlauncher_plugin_everything_sdk_issue">?? Everything SDK ??</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_is_not_running">??:Everything ?????</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_query_error">Everything ?????????(??????????)</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by">????</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_name_ascending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_name_descending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_path_ascending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_path_descending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_size_ascending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_size_descending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_extension_ascending">??? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_extension_descending">??? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_type_name_ascending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_type_name_descending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_created_ascending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_created_descending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_modified_ascending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_modified_descending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_attributes_ascending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_attributes_descending">?? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_file_list_filename_ascending">????? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_file_list_filename_descending">????? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_run_count_ascending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_run_count_descending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_recently_changed_ascending">?????? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_recently_changed_descending">?????? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_accessed_ascending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_accessed_descending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_run_ascending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_date_run_descending">???? ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_ascending">?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_sort_by_descending">?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_nonfastsort_warning">??:???????????,???????</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_everything_search_fullpath">??????</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_enable_run_count">????/???????</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_everything_click_to_launch_or_install">??????? Everything</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_installing_title">Everything ??</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_installing_subtitle">???? Everything ??????...</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_installationsuccess_subtitle">????? Everything ??</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_installationfailed_subtitle">???? Everything ??????? https://www.voidtools.com ????????</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_run_service">??????</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_installing_select">?????? Everything ??,????????????{0}{0} ?? ? ??????? Everything?</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_enable_content_search">????? Everything ?????????</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_enable_content_search_tips">??????,???????(???? Everything v1.5+ ???)</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_everything_not_found">??? Everything.exe</system:String>
+    <system:String x:Key="flowlauncher_plugin_everything_install_issue">?? Everything ??,?????</system:String>
+
+    <!--  Native Context Menu  -->
+    <system:String x:Key="plugin_explorer_native_context_menu_header">???????</system:String>
+    <system:String x:Key="plugin_explorer_native_context_menu_display_context_menu">?????????(???)</system:String>
+    <system:String x:Key="plugin_explorer_native_context_menu_include_patterns_guide">??????????????????????,????????(??“pen wit”)????(“????”)?</system:String>
+    <system:String x:Key="plugin_explorer_native_context_menu_exclude_patterns_guide">?????????????????????,????????(??“pen wit”)????(“????”)?</system:String>
+
+    <!--  Preview Info  -->
+    <system:String x:Key="Today">??</system:String>
+    <system:String x:Key="DaysAgo">{0}??</system:String>
+    <system:String x:Key="OneMonthAgo">1???</system:String>
+    <system:String x:Key="MonthsAgo">{0}???</system:String>
+    <system:String x:Key="OneYearAgo">1??</system:String>
+    <system:String x:Key="YearsAgo">{0}??</system:String>
+</ResourceDictionary>

@@ -1,0 +1,7 @@
+{
+  "name": "BNDZ",
+  "description": "Modern dual-pane file manager for Windows with native shell integration, rich previews, and extension plugins.",
+  "version": "1.0.0",
+  "platform": "win32",
+  "requestFramePermissions": []
+}

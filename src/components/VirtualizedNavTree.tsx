@@ -1,0 +1,543 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { ChevronDown, ChevronRight, Folder } from 'lucide-react';
+import { TreeShellIcon } from './TreeShellIcon';
+import { IPC } from '../lib/ipcBridge';
+import { buildSettingsRuntime } from '../lib/settingsRuntime';
+import { reorderNavTreeKeys } from '../lib/navTreeOrder';
+import type { AppConfig } from '../data/configContext';
+import { buildTreeTooltipContent } from '../lib/treeTooltip';
+import { shouldShowTreeTooltip, bindFloatingTooltipHandlers } from '../lib/tooltipSettings';
+import {
+  BNDZ_TREE_REORDER_MIME,
+  hasBndzFileDrag,
+  readBndzFileDragData,
+  setBndzFileDragData,
+  type BndzFileDragPayload,
+} from '../lib/bndzDrag';
+import { toWindowsPath } from '../lib/pathUtils';
+import {
+  flattenNavTree,
+  dirEntryToTreeNode,
+  shouldExpandOnBrowse,
+  type NavTreeSourceNode,
+  type DynamicTreeState,
+  type FlatNavRow,
+} from '../lib/navTreeModel';
+
+const ROW_HEIGHT = 26;
+const VIRTUAL_THRESHOLD = 32;
+
+interface VirtualizedNavTreeProps {
+  nodes: NavTreeSourceNode[];
+  config: AppConfig;
+  currentPath?: string;
+  onNavigate: (path: string) => void;
+  onStaticNavigate?: () => void;
+  onContextMenu: (e: React.MouseEvent, path: string | undefined, label: string) => void;
+  inlineRename: { path: string; entityId: string; currentName: string } | null;
+  setInlineRename: (v: VirtualizedNavTreeProps['inlineRename']) => void;
+  navTreeOrder?: string[];
+  onTreeOrderChange?: (order: string[]) => void;
+  onFileDrop?: (payload: BndzFileDragPayload, destPath: string, op: 'copy' | 'move') => void;
+}
+
+async function loadDirectoryChildren(
+  path: string,
+  showHidden: boolean,
+  skipInvisible: boolean,
+): Promise<NavTreeSourceNode[]> {
+  try {
+    let items = await IPC.getSubDirectories(path, showHidden);
+    let dirs = (items || []).filter((item: { type?: string; isDirectory?: boolean }) => item.type === 'directory' || item.isDirectory);
+    if (skipInvisible) {
+      dirs = dirs.filter((d: { name?: string }) => !(d.name || '').startsWith('.'));
+    }
+    return dirs
+      .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
+      .map((d: { name: string; path?: string }) => dirEntryToTreeNode(d, true));
+  } catch {
+    const items = await IPC.getDirContents(path);
+    const dirs = items.filter((item: { type?: string }) => item.type === 'directory');
+    return dirs
+      .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
+      .map((d: { name: string; path?: string }) => dirEntryToTreeNode(d, true));
+  }
+}
+
+function TreeRow({
+  row,
+  config,
+  currentPath,
+  onToggle,
+  onNavigate,
+  onStaticNavigate,
+  onContextMenu,
+  inlineRename,
+  setInlineRename,
+  isDragging,
+  dropBefore,
+  dropAfter,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDrop,
+  onFileDragOver,
+  onFileDragLeave,
+  fileDropTarget,
+  tipHandlers,
+}: {
+  row: FlatNavRow;
+  config: AppConfig;
+  currentPath?: string;
+  onToggle: (row: FlatNavRow) => void;
+  onNavigate: (path: string) => void;
+  onStaticNavigate?: () => void;
+  onContextMenu: VirtualizedNavTreeProps['onContextMenu'];
+  inlineRename: VirtualizedNavTreeProps['inlineRename'];
+  setInlineRename: VirtualizedNavTreeProps['setInlineRename'];
+  isDragging?: boolean;
+  dropBefore?: boolean;
+  dropAfter?: boolean;
+  onDragStart?: (e: React.DragEvent, row: FlatNavRow) => void;
+  onDragOver?: (e: React.DragEvent, row: FlatNavRow) => void;
+  onDragEnd?: () => void;
+  onDrop?: (e: React.DragEvent, row: FlatNavRow) => void;
+  onFileDragOver?: (e: React.DragEvent, row: FlatNavRow) => void;
+  onFileDragLeave?: (row: FlatNavRow) => void;
+  fileDropTarget?: string | null;
+  tipHandlers?: ReturnType<typeof bindFloatingTooltipHandlers>;
+}) {
+  const Icon = row.icon || Folder;
+  const isSelected = row.selected || (row.path && currentPath === row.path);
+  const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
+  const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick;
+  const indentPx = row.depth * 14 + 6;
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (row.isPlaceholder) return;
+
+    if (expandOnSingleClick && row.hasChildren) {
+      onToggle(row);
+    }
+
+    if (row.path) {
+      onNavigate(row.path);
+    } else {
+      onStaticNavigate?.();
+      row.staticClick?.();
+    }
+
+    if (row.path && currentPath === row.path && !e.ctrlKey && !e.shiftKey) {
+      setTimeout(() => {
+        setInlineRename({ path: row.path!, entityId: 'TREE', currentName: row.label });
+      }, 500);
+    }
+  };
+
+  const canDragFile = !!row.path && !row.isPlaceholder;
+  const canReorder = !!row.draggable && !row.isPlaceholder;
+  const isFileDropTarget = !!row.path && fileDropTarget === row.path;
+
+  const rowEl = (
+      <div
+      className={`nav-tree-row group flex items-center py-[3px] pr-2 cursor-pointer whitespace-nowrap rounded-sm mx-0.5 transition-colors duration-100 ${
+        isSelected ? 'nav-tree-row-selected' : 'hover:bg-[#2a2d2e]/90'
+      } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''}`}
+      style={{ paddingLeft: `${indentPx}px` }}
+      draggable={(canDragFile || canReorder) && !row.isPlaceholder}
+      onDragStart={(canDragFile || canReorder) ? e => {
+        e.stopPropagation();
+        onDragStart?.(e, row);
+      } : undefined}
+      onDragOver={e => {
+        if (row.path) onFileDragOver?.(e, row);
+        if (canReorder) onDragOver?.(e, row);
+      }}
+      onDragLeave={() => {
+        if (row.path) onFileDragLeave?.(row);
+      }}
+      onDrop={e => {
+        onDrop?.(e, row);
+      }}
+      onDragEnd={(canDragFile || canReorder) ? onDragEnd : undefined}
+      onMouseEnter={tipHandlers?.onMouseEnter}
+      onMouseMove={tipHandlers?.onMouseMove}
+      onMouseLeave={tipHandlers?.onMouseLeave}
+      onClick={handleClick}
+      onDoubleClick={e => {
+        e.stopPropagation();
+        if (!expandOnSingleClick && row.hasChildren) onToggle(row);
+        else if (row.path) onNavigate(row.path);
+      }}
+      onMouseDown={e => {
+        if (e.button === 2) e.preventDefault();
+      }}
+      onContextMenu={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!row.isPlaceholder) onContextMenu(e, row.path, row.label);
+      }}
+    >
+      {row.hasChildren ? (
+        <button
+          type="button"
+          className="w-4 h-4 mr-0.5 flex items-center justify-center text-gray-500 hover:text-white shrink-0 rounded-sm hover:bg-white/5"
+          onClick={e => {
+            e.stopPropagation();
+            onToggle(row);
+          }}
+          aria-label={row.isExpanded ? 'Collapse' : 'Expand'}
+        >
+          {row.isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        </button>
+      ) : (
+        <span className="w-4 mr-0.5 shrink-0" />
+      )}
+
+      {(row.iconPath || row.path) && row.useShellIcon !== false ? (
+        <span className="mr-1.5 shrink-0">
+          <TreeShellIcon path={row.path} iconPath={row.iconPath} size={15} />
+        </span>
+      ) : null}
+
+      {isRenaming ? (
+        <input
+          type="text"
+          autoFocus
+          className="bg-[#111] text-white border border-[#007acc] px-1.5 outline-none text-[12px] w-[140px] rounded-sm"
+          value={inlineRename.currentName}
+          onChange={e => setInlineRename({ ...inlineRename, currentName: e.target.value })}
+          onBlur={() => {
+            if (inlineRename.currentName !== row.label && row.path) {
+              const parentPath = row.path.substring(0, row.path.lastIndexOf('/'));
+              IPC.executeFsOperation(`rename-${Date.now()}`, 'move', row.path, `${parentPath}/${inlineRename.currentName}`);
+            }
+            setInlineRename(null);
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            else if (e.key === 'Escape') setInlineRename(null);
+          }}
+          onClick={e => e.stopPropagation()}
+          onDoubleClick={e => e.stopPropagation()}
+        />
+      ) : (
+        <span className="text-[12px] select-none truncate nav-tree-label transition-colors">
+          {row.label}
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      {dropBefore && <div className="nav-tree-drop-indicator" />}
+      {rowEl}
+      {dropAfter && <div className="nav-tree-drop-indicator" />}
+    </>
+  );
+}
+
+export function VirtualizedNavTree({
+  nodes,
+  config,
+  currentPath,
+  onNavigate,
+  onStaticNavigate,
+  onContextMenu,
+  inlineRename,
+  setInlineRename,
+  navTreeOrder,
+  onTreeOrderChange,
+  onFileDrop,
+}: VirtualizedNavTreeProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(280);
+  const [dynamicState, setDynamicState] = useState<Record<string, DynamicTreeState>>({});
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+  const [dropAfter, setDropAfter] = useState(false);
+  const [fileDropTargetPath, setFileDropTargetPath] = useState<string | null>(null);
+  const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const rt = useMemo(() => buildSettingsRuntime(config), [config]);
+
+  const clearExpandDragTimer = useCallback(() => {
+    if (expandDragTimerRef.current) {
+      clearTimeout(expandDragTimerRef.current);
+      expandDragTimerRef.current = null;
+    }
+  }, []);
+
+  const handleDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
+    if (row.treeKey && row.draggable) {
+      setDragKey(row.treeKey);
+      e.dataTransfer.setData(BNDZ_TREE_REORDER_MIME, row.treeKey);
+    }
+    if (row.path) {
+      const winPath = toWindowsPath(row.path);
+      setBndzFileDragData(e, {
+        sourcePaneId: 'tree',
+        sourcePath: row.path,
+        paths: [winPath],
+        fromTree: true,
+      });
+      if (e.altKey) {
+        e.preventDefault();
+        IPC.startDrag([winPath]);
+      }
+    }
+    e.dataTransfer.effectAllowed = 'copyMove';
+    const ghost = document.createElement('div');
+    ghost.className = 'nav-tree-drag-ghost';
+    ghost.textContent = row.label;
+    ghost.style.cssText = 'position:fixed;top:-1000px;padding:4px 10px;background:#1e3a5f;border:1px solid #0a84ff;border-radius:4px;color:#fff;font-size:12px;pointer-events:none;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 12, 16);
+    requestAnimationFrame(() => document.body.removeChild(ghost));
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {
+    if (!dragKey || !row.treeKey || dragKey === row.treeKey || row.depth !== 0) return;
+    if (hasBndzFileDrag(e)) return;
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const after = e.clientY > rect.top + rect.height / 2;
+    setDropTargetKey(row.treeKey);
+    setDropAfter(after);
+  }, [dragKey]);
+
+  const toggleRowRef = useRef<(row: FlatNavRow) => void>(() => {});
+
+  const handleFileDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {
+    if (!row.path || !hasBndzFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
+    setFileDropTargetPath(row.path);
+
+    if (config.expandTreeNodesOnDragOver && row.hasChildren && !row.isExpanded) {
+      clearExpandDragTimer();
+      expandDragTimerRef.current = setTimeout(() => {
+        toggleRowRef.current(row);
+      }, 650);
+    }
+  }, [config.expandTreeNodesOnDragOver, clearExpandDragTimer]);
+
+  const handleFileDragLeave = useCallback((row: FlatNavRow) => {
+    if (fileDropTargetPath === row.path) setFileDropTargetPath(null);
+    clearExpandDragTimer();
+  }, [fileDropTargetPath, clearExpandDragTimer]);
+
+  const handleDrop = useCallback((e: React.DragEvent, row: FlatNavRow) => {
+    e.preventDefault();
+    e.stopPropagation();
+    clearExpandDragTimer();
+    setFileDropTargetPath(null);
+
+    const filePayload = readBndzFileDragData(e);
+    if (filePayload && row.path && onFileDrop) {
+      const op = e.ctrlKey || e.altKey ? 'copy' : 'move';
+      onFileDrop(filePayload, row.path, op);
+      setDragKey(null);
+      setDropTargetKey(null);
+      return;
+    }
+
+    const reorderKey = e.dataTransfer.getData(BNDZ_TREE_REORDER_MIME) || dragKey;
+    if (!reorderKey || !row.treeKey || !onTreeOrderChange || row.depth !== 0) return;
+    const base = navTreeOrder?.length ? [...navTreeOrder] : nodes.map(n => n.treeKey!).filter(Boolean);
+    const next = reorderNavTreeKeys(base, reorderKey, row.treeKey, dropAfter);
+    onTreeOrderChange(next);
+    setDragKey(null);
+    setDropTargetKey(null);
+  }, [dragKey, dropAfter, navTreeOrder, nodes, onTreeOrderChange, onFileDrop, clearExpandDragTimer]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragKey(null);
+    setDropTargetKey(null);
+    setFileDropTargetPath(null);
+    clearExpandDragTimer();
+  }, [clearExpandDragTimer]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setHeight(Math.max(160, entry.contentRect.height));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const flatRows = useMemo(
+    () => flattenNavTree(nodes, { dynamicState, currentPath }),
+    [nodes, dynamicState, currentPath],
+  );
+
+  useEffect(() => {
+    if (rt.tree.lockState || !rt.tree.expandOnBrowse || !currentPath) return;
+
+    const pathsToExpand: string[] = [];
+    const walk = (list: NavTreeSourceNode[]) => {
+      for (const node of list) {
+        if (node.isDynamic && node.path && shouldExpandOnBrowse(node.path, currentPath, rt.tree.lockState, rt.tree.expandOnBrowse)) {
+          pathsToExpand.push(node.path);
+        }
+        if (node.childrenItems) walk(node.childrenItems);
+      }
+    };
+    walk(nodes);
+
+    pathsToExpand.forEach(p => {
+      setDynamicState(prev => {
+        if (prev[p]?.expanded && (prev[p]?.children || prev[p]?.loading)) return prev;
+        const needsLoad = !prev[p]?.children;
+        if (needsLoad) {
+          loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders).then(children => {
+            setDynamicState(inner => ({
+              ...inner,
+              [p]: { expanded: true, children, loading: false },
+            }));
+          });
+        }
+        return {
+          ...prev,
+          [p]: { expanded: true, children: prev[p]?.children ?? null, loading: needsLoad },
+        };
+      });
+    });
+  }, [currentPath, nodes, rt.tree.lockState, rt.tree.expandOnBrowse, rt.tree.showHidden, config?.skipInvisibleSubfolders]);
+
+  const handleToggle = useCallback(
+    async (row: FlatNavRow) => {
+      if (row.isPlaceholder) return;
+
+      if (row.staticToggle) {
+        row.staticToggle();
+        return;
+      }
+
+      if (!row.path) return;
+
+      const path = row.path;
+      const current = dynamicState[path];
+      const nextExpanded = !current?.expanded;
+
+      if (!nextExpanded) {
+        setDynamicState(prev => ({
+          ...prev,
+          [path]: { ...prev[path], expanded: false, children: prev[path]?.children ?? null },
+        }));
+        return;
+      }
+
+      if (current?.children) {
+        setDynamicState(prev => ({
+          ...prev,
+          [path]: { ...prev[path], expanded: true },
+        }));
+        return;
+      }
+
+      setDynamicState(prev => ({
+        ...prev,
+        [path]: { expanded: true, children: null, loading: true },
+      }));
+
+      const children = await loadDirectoryChildren(
+        path,
+        !!config?.showHiddenSystemFoldersInTree,
+        !!config?.skipInvisibleSubfolders,
+      );
+      setDynamicState(prev => ({
+        ...prev,
+        [path]: { expanded: true, children, loading: false },
+      }));
+    },
+    [dynamicState, config?.showHiddenSystemFoldersInTree, config?.skipInvisibleSubfolders],
+  );
+
+  toggleRowRef.current = handleToggle;
+
+  const showTreeTips = shouldShowTreeTooltip(config);
+
+  const useVirtual = flatRows.length >= VIRTUAL_THRESHOLD;
+  const virtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 18,
+    enabled: useVirtual,
+  });
+
+  const renderRow = (row: FlatNavRow) => {
+    const treeTipContent = showTreeTips && !row.isPlaceholder ? buildTreeTooltipContent(row, config) : null;
+    const tipHandlers = bindFloatingTooltipHandlers(treeTipContent, config);
+    return (
+    <TreeRow
+      key={row.id}
+      row={row}
+      config={config}
+      currentPath={currentPath}
+      onToggle={handleToggle}
+      onNavigate={onNavigate}
+      onStaticNavigate={onStaticNavigate}
+      onContextMenu={onContextMenu}
+      inlineRename={inlineRename}
+      setInlineRename={setInlineRename}
+      isDragging={dragKey === row.treeKey}
+      dropBefore={dropTargetKey === row.treeKey && !dropAfter}
+      dropAfter={dropTargetKey === row.treeKey && dropAfter}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDrop={handleDrop}
+      onFileDragOver={handleFileDragOver}
+      onFileDragLeave={handleFileDragLeave}
+      fileDropTarget={fileDropTargetPath}
+      tipHandlers={tipHandlers}
+    />
+  );
+  };
+
+  return (
+    <div ref={containerRef} className="nav-tree-host flex-1 min-h-[240px] w-full flex flex-col">
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-[200px] overflow-y-auto styled-scrollbar nav-tree-scroll"
+        style={{ maxHeight: Math.max(height, 240) }}
+      >
+        {flatRows.length === 0 ? (
+          <div className="px-3 py-4 text-[11px] text-gray-500 text-center">No locations</div>
+        ) : useVirtual ? (
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+            {virtualizer.getVirtualItems().map(vi => {
+              const row = flatRows[vi.index];
+              return (
+                <div
+                  key={row.id}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: vi.size,
+                    transform: `translateY(${vi.start}px)`,
+                  }}
+                >
+                  {renderRow(row)}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-col py-0.5">{flatRows.map(renderRow)}</div>
+        )}
+      </div>
+    </div>
+  );
+}

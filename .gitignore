@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+
+# Frontend build artifacts (source lives in src/)
+dist/
+build/
+coverage/
+
+# .NET build outputs
+BNDZBackend/bin/
+BNDZBackend/obj/
+**/bin/
+**/obj/
+TestResults/
+
+# Flow Launcher build output (source is vendored under external/)
+external/Flow.Launcher/Output/
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.user
+*.suo
+*.cache
+*.swp
+*~
+
+# Logs & secrets
+*.log
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Launcher portable runtime data (recreated on first run)
+BNDZBackend/Assets/BNDZLauncher/UserData/
+**/BNDZLauncher/UserData/
+
+# Package manager caches
+.npm/
+.pnpm-store/
+
+# Cursor / agent artifacts (local only)
+.cursor/
+agent-transcripts/
+agent-tools/
+
+# Installer output
+installer/output/
+*.msi
+*.zip
+!installer/*.iss

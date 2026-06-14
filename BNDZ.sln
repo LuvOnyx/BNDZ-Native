@@ -1,0 +1,21 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34309.116
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BNDZ", "BNDZBackend\BNDZ.csproj", "{D18CE281-BFCE-4D4F-8812-3D718BC1E14E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D18CE281-BFCE-4D4F-8812-3D718BC1E14E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D18CE281-BFCE-4D4F-8812-3D718BC1E14E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D18CE281-BFCE-4D4F-8812-3D718BC1E14E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D18CE281-BFCE-4D4F-8812-3D718BC1E14E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Win+R kisayolunu kullan</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">Herhangi bir tusa bastiktan sonra Komut Istemi'ni kapatma</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Bu pencereyi kapatmak için herhangi bir tusa basin...</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Çalistirma sona erdikten sonra komut istemini kapatma</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Her zaman yönetici olarak çalistir</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">Windows Terminal Kullan</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Baska bir kullanici olarak çalistir</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_name">Kabuk</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">BNDZ Launcher'dan sistem komutlarinin yürütülmesine izin verir</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">bu komut {0} kez çalistirildi</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">komut isteminde çalistir</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Yönetici Olarak Çalistir</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_copy">Komutu kopyala</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_history">Sadece en çok kullanilan komutlarin sayisini gösterir:</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Komut bulunamadi: {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">Komut çalistirilirken hata olustu: {0}</system:String>
+</ResourceDictionary>

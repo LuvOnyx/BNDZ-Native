@@ -1,0 +1,1 @@
+This is an obsolete theme that is no longer maintained. If you wish to still use it, rename the theme folder to something else but know that some things may look weird due to some keys missing

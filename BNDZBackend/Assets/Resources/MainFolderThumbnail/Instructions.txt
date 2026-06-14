@@ -1,0 +1,16 @@
+Affects ONLY Thumbnail Grid view and Thumbs+Details (not for icons, those are in MainFolderIcon folders and selectable in Settings>Theme)
+
+- Replace these in user's folder (About>Settings folder) and 
+NOT in C:\Program Files\BNDZ)
+
+- Files are PNGs with transparent background
+- Resolution 256x256
+
+FolderThumbDefault.png is thumbnail if there are no thumbnails within
+FolderThumbDefaultInside.png is thumbnail on top of which 1/2/4 thumbnails will be rendered (coordinates of those can't be changed, so use these as templates)
+
+- This only works when "Use local thumbnails" is enabled in Settings>Preview
+- Make backup of your new files you don't lose them in case of reinstall
+
+Restart program from system tray to reload these after updating
+THEN clear thumbnails database from Settings>Preview

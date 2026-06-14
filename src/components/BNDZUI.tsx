@@ -1,0 +1,4526 @@
+import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from 'react';
+import { 
+  ArrowLeft, ArrowRight, ArrowUp, Monitor, FolderSearch, File, 
+  Scissors, Copy, Clipboard, Undo, Redo, Search, RefreshCw, 
+  Filter, Settings, Wrench, Menu, HardDrive, Network,
+  FolderOpen, Server, Star, Tag, Database, PlayCircle, Folder, ArrowDownCircle, Sparkles, Wand2, Columns, X, AlertTriangle, Archive, Trash2, Eye, FileText, ChevronDown, ChevronRight, PanelBottom, Type, Loader2, Cloud, Puzzle, CheckSquare, LayoutGrid, List, Command, Home, Images, Lock, Rocket } from 'lucide-react';
+import Fuse from 'fuse.js';
+import { createInitialFileSystem, getDirContents, getEntityByPath, updateFileSystem } from '../data/initialFS';
+import { VirtualDirectory, FSEntity, DriveInfo, ShortcutInfo } from '../types';
+import { useModal } from './ModalProvider';
+import { useClipboard } from '../data/ClipboardContext';
+import { MenubarSubmenu } from './MenubarSubmenu';
+import RightPreviewPanel from './RightPreviewPanel';
+import WindowControls from './WindowControls';
+import ContextMenuView from './ContextMenuView';
+import { TabContextMenu } from './TabContextMenu';
+import { prefetchIconsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
+import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
+import BottomPluginPanel from './BottomPluginPanel';
+import { LeftSidebar } from './LeftSidebar';
+import { ThumbnailIcon } from './ThumbnailIcon';
+import { ShellNativeIcon } from './ShellNativeIcon';
+import ToolbarConfigurator, { resolveToolbarItem } from './ToolbarConfigurator';
+import { buildEntityTooltipContent } from '../lib/entityTooltip';
+import { shouldShowTooltipForEntity, bindFloatingTooltipHandlers, shouldSuppressNativeEntityTitle } from '../lib/tooltipSettings';
+import { hideFloatingTooltip, getFloatingTooltip, isShiftKeyHeld, subscribeShiftKey, getHoverPending, subscribeFloatingTooltip } from '../lib/floatingTooltip';
+import { registerEscapeLayer } from '../lib/globalEscape';
+import FloatingTooltipHost from './FloatingTooltipHost';
+import LicenseBanner from './LicenseBanner';
+
+const AboutDialog = lazy(() => import('./AboutDialog'));
+const RegisterDialog = lazy(() => import('./RegisterDialog'));
+const HelpTopicsDialog = lazy(() => import('./HelpTopicsDialog'));
+const ConfigurationDialog = lazy(() => import('./ConfigurationDialog'));
+const PluginStoreDialog = lazy(() => import('./PluginStoreDialog').then(m => ({ default: m.PluginStoreDialog })));
+const CommandPalette = lazy(() => import('./CommandPalette'));
+const TagManagerDialog = lazy(() => import('./TagManagerDialog').then(m => ({ default: m.TagManagerDialog })));
+const SmartToolsDialog = lazy(() => import('./SmartToolsDialog'));
+import { RenameOperation } from '../lib/ipcBridge';
+import { toLocalStreamUrl } from '../lib/iconLibraryUtils';
+import { formatFolderSizeLabel } from '../lib/folderSizeDisplay';
+import { VirtualizedFileList } from './VirtualizedFileList';
+import { VirtualizedNavTree } from './VirtualizedNavTree';
+import TutorialOverlay from './TutorialOverlay';
+import DestinationPickerModal from './DestinationPickerModal';
+import QuitConfirmDialog from './QuitConfirmDialog';
+import {
+  getVisibleListColumns,
+  getColumnStyle,
+  formatAttributesLabel,
+  formatFsDateTime,
+  type ListColumnId,
+  type SortColumnId,
+} from '../lib/listColumns';
+import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath } from '../lib/pathUtils';
+import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL } from '../lib/shellPaths';
+import { applySettingsRuntime } from '../lib/settingsRuntime';
+import { pushToast, dismissToast, type ToastKind } from './ToastHost';
+import { getPaneTabLabel } from '../lib/paneLabels';
+import { formatAddressBarPath, formatDriveLetter, getBreadcrumbSegments } from '../lib/displayPath';
+import { applyNavTreeOrder, mergeNavTreeOrder, type NavTreeBuildNode } from '../lib/navTreeOrder';
+import { StorageUsageBar } from './StorageUsageBar';
+import { resolveShellPropertiesPath } from '../lib/shellPaths';
+import { runMenubarAction } from '../lib/menubarUtils';
+import {
+  evaluateColorFilter,
+  filterListEntities,
+  sortEntities,
+  wrapListIndex,
+  getDisplayName,
+  getRenameInitialValue,
+  buildSettingsRuntime,
+} from '../lib/settingsRuntime';
+import { useAppConfig, VisualFilter } from '../data/configContext';
+import { usePluginRegistry } from '../data/PluginRegistryContext';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const applyVisualFilters = (entity: any, filters?: VisualFilter[]): VisualFilter | null => {
+    if (!filters || !filters.length) return null;
+    const now = Date.now();
+    for (const rule of filters) {
+        if (!rule.isActive) continue;
+        
+        switch (rule.matchType) {
+            case 'event':
+                if (rule.matchValue === 'modifiedToday') {
+                    if (entity.modified) {
+                        const fileTime = new Date(entity.modified);
+                        const today = new Date();
+                        if (fileTime.toDateString() === today.toDateString()) return rule;
+                    }
+                } else if (rule.matchValue === 'createdWithin24Hours') {
+                    if (entity.created) {
+                        const fileTime = new Date(entity.created).getTime();
+                        if (now - fileTime <= 24 * 60 * 60 * 1000) return rule;
+                     }
+                } else if (rule.matchValue === 'isReadOnly') {
+                    if (entity.attributes && entity.attributes.includes('readonly')) return rule;
+                }
+                break;
+            case 'extension':
+                if (entity.extension && entity.extension.toLowerCase() === rule.matchValue.toLowerCase().replace('.', '')) {
+                    return rule;
+                }
+                break;
+            case 'regex':
+                try {
+                    const regex = new RegExp(rule.matchValue, 'i');
+                    if (regex.test(entity.name)) return rule;
+                } catch { }
+                break;
+            case 'size':
+                if (entity.type !== 'directory') {
+                    const sizeMB = entity.size / (1024 * 1024);
+                    const val = parseFloat(rule.matchValue.replace(/[^0-9.]/g, ''));
+                    if (!isNaN(val)) {
+                        if (rule.matchValue.includes('>') && sizeMB > val) return rule;
+                        if (rule.matchValue.includes('<') && sizeMB < val) return rule;
+                    }
+                }
+                break;
+            case 'age':
+                if (entity.modified) {
+                    const fileTime = new Date(entity.modified).getTime();
+                    const daysDiff = (now - fileTime) / (1000 * 3600 * 24);
+                    const ageVal = parseFloat(rule.matchValue.replace(/[^0-9.]/g, ''));
+                    if (!isNaN(ageVal)) {
+                        if (rule.matchValue.includes('>') && daysDiff > ageVal) return rule;
+                        if (rule.matchValue.includes('<') && daysDiff < ageVal) return rule;
+                    }
+                }
+                break;
+        }
+    }
+    return null;
+};
+import { ResizablePanel, ResizablePanelGroup, ResizableHandle, usePanelRef, useGroupRef } from "./ui/resizable";
+import {
+  getInnerDefaultLayout,
+  getOuterDefaultLayout,
+  DEFAULT_INNER_LAYOUT,
+  DEFAULT_OUTER_LAYOUT,
+  WORKSPACE_LAYOUT_VERSION,
+} from '../lib/workspaceLayout';
+
+const BNDZ_APP_ICON = '/bndz-light.png';
+
+const ToolbarButton = ({ icon: Icon, color, onClick, className = '', title }: any) => {
+  return (
+    <button title={title} className={`p-[4px] hover:bg-[#333] rounded mx-[1px] flex items-center justify-center ${className}`} onClick={onClick}>
+        <Icon size={16} color={color || "#ccc"} fill={color || "none"} className="drop-shadow-sm" />
+    </button>
+  );
+};
+
+function formatSize(bytes: number | null | undefined) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n < 0) return '—';
+  if (n === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(k)), sizes.length - 1);
+  return `${parseFloat((n / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+interface TabState {
+  id: string;
+  path: string;
+  history: string[];
+  historyIndex: number;
+  selectedItems: string[];
+  viewMode?: 'details' | 'grid' | 'list';
+  locked?: boolean;
+}
+
+interface PaneState {
+  id: string;
+  tabs: TabState[];
+  activeTabIndex: number;
+  sortColumn?: SortColumnId;
+  sortDirection?: 'asc' | 'desc';
+  filterRegex?: string;
+}
+
+const Spinner = () => (
+  <div className="flex justify-center items-center w-full h-full p-4 relative min-w-[50px] min-h-[50px]">
+    <div className="w-[40px] h-[40px] border-[3.5px] border-[#333] rounded-full absolute" />
+    <div className="w-[40px] h-[40px] border-[3.5px] border-transparent border-t-[#22c55e] border-r-[#22c55e] rounded-full animate-[spin_1s_cubic-bezier(0.5,0,0.5,1)_infinite] absolute" />
+    <div className="w-[40px] h-[40px] border-[3.5px] border-transparent border-b-[#22c55e] border-l-[#22c55e] rounded-full animate-[spin_1.5s_cubic-bezier(0.5,0,0.5,1)_infinite_reverse] absolute opacity-70" />
+  </div>
+);
+
+export default function BNDZUI() {
+  const { showModal } = useModal();
+  const { clipboard, setClipboardState, executePaste } = useClipboard();
+  const { config, updateConfig } = useAppConfig();
+  const { ensurePluginInstalled } = usePluginRegistry();
+  const [isSaveTabsetOpen, setIsSaveTabsetOpen] = useState(false);
+  const [tabsetNameInput, setTabsetNameInput] = useState('');
+  const [isLoadTabsetOpen, setIsLoadTabsetOpen] = useState(false);
+  const [marquee, setMarquee] = useState<{ activePane: string, startX: number, startY: number, currX: number, currY: number } | null>(null);
+  const [drives, setDrives] = useState<DriveInfo[]>([]);
+  const [cloudProviders, setCloudProviders] = useState<{name: string, path: string}[]>([]);
+  const [shortcuts, setShortcuts] = useState<ShortcutInfo[]>([]);
+  const [networkNodes, setNetworkNodes] = useState<any[]>([]);
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
+  const [fileSystem, setFileSystem] = useState<VirtualDirectory>(() => createInitialFileSystem());
+  const [isSyncMode, setIsSyncMode] = useState(false);
+  const [syncResults, setSyncResults] = useState<{ [path: string]: { id: string, statusA?: string, statusB?: string, status?: string } }>({});
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [folderSizeMap, setFolderSizeMap] = useState<Record<string, number>>({});
+  const [folderSizeSync, setFolderSizeSync] = useState<{
+    active: boolean; current: number; total: number; path: string; percent: number;
+  } | null>(null);
+  const folderSizeScanGen = useRef(0);
+  const folderSizeToastCooldownRef = useRef(0);
+  const folderSizeSessionScannedRef = useRef(0);
+
+  useEffect(() => {
+    let unsubDrives: (() => void) | undefined;
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      IPC.getSystemDrives().then(setDrives);
+      IPC.getCloudProviders().then(setCloudProviders);
+      IPC.getSystemShortcuts().then(setShortcuts);
+      IPC.getNetworkLocations().then(setNetworkNodes);
+      IPC.getTagsConfig().then(setAvailableTags);
+      unsubDrives = IPC.onDrivesChanged((newDrives) => {
+          setDrives(newDrives);
+      });
+    });
+    return () => { if (unsubDrives) unsubDrives(); };
+  }, []);
+
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      unsub = IPC.onFolderSizeProgress(prog => {
+        setFolderSizeSync({
+          active: (prog.percent ?? 0) < 100,
+          current: prog.current ?? 0,
+          total: prog.total ?? 0,
+          path: prog.path ?? '',
+          percent: prog.percent ?? 0,
+        });
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && folderSizeSync?.active) {
+        e.preventDefault();
+        folderSizeScanGen.current++;
+        import('../lib/ipcBridge').then(({ IPC }) => {
+          IPC.cancelFolderSizeScan();
+          setFolderSizeSync(prev => prev ? { ...prev, active: false } : null);
+          updateConfig({ autoSyncFolderSizes: false });
+          setToastMessage('Folder size sync stopped. Re-enable via View → Get Folder Sizes.');
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [folderSizeSync?.active, updateConfig]);
+
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      unsub = IPC.onCloseRequest(({ source } = {}) => {
+        if (source === 'x' && config.minimizeToTrayOnXClose) {
+          IPC.windowCloseResolve('tray');
+          return;
+        }
+        setQuitCloseSource(source || 'x');
+        setQuitDialogOpen(true);
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [config.minimizeToTrayOnXClose]);
+
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(["/", "/workspace"]));
+  const [isSmartToolsOpen, setIsSmartToolsOpen] = useState(false);
+  const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState(config.previewPanelOpen !== false);
+  const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(config.bottomPanelOpen !== false);
+  const bottomPanelRef = usePanelRef();
+  const previewPanelRef = usePanelRef();
+  const outerGroupRef = useGroupRef();
+  const innerGroupRef = useGroupRef();
+
+  const outerDefaultLayout = useMemo(
+    () => getOuterDefaultLayout(config.workspaceLayoutOuter),
+    [config.workspaceLayoutOuter]
+  );
+  const innerDefaultLayout = useMemo(
+    () => getInnerDefaultLayout(config.workspaceLayoutInner),
+    [config.workspaceLayoutInner]
+  );
+
+  useEffect(() => {
+    applySettingsRuntime(config);
+  }, [config.theme, config.applyColors, config.accent, config.bgMain, config.launcherSyncTheme]);
+
+  /** One-time upgrade for panel defaults + sidebar cloud section */
+  useEffect(() => {
+    const patches: Record<string, unknown> = {};
+    if ((config.workspaceLayoutVersion ?? 0) < WORKSPACE_LAYOUT_VERSION) {
+      patches.workspaceLayoutVersion = WORKSPACE_LAYOUT_VERSION;
+      patches.workspaceLayoutOuter = { ...DEFAULT_OUTER_LAYOUT };
+      patches.workspaceLayoutInner = { ...DEFAULT_INNER_LAYOUT };
+    }
+    const order = config.sidebarOrder || [];
+    const desiredSidebar = ['storage', 'quick', 'cloud', 'tree'];
+    if (order.join(',') !== desiredSidebar.join(',')) {
+      patches.sidebarOrder = desiredSidebar;
+    }
+    if ((config.tooltipBehaviorVersion ?? 0) < 1) {
+      patches.tooltipBehaviorVersion = 1;
+      patches.onlyWhileTheShiftKeyIsHeldDown = true;
+    }
+    if (Object.keys(patches).length) updateConfig(patches);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
+
+  useEffect(() => {
+    setIsPreviewPanelOpen(config.previewPanelOpen !== false);
+    setIsBottomPanelOpen(config.bottomPanelOpen !== false);
+  }, [config.previewPanelOpen, config.bottomPanelOpen]);
+
+  const togglePreviewPanel = () => {
+    const next = !isPreviewPanelOpen;
+    setIsPreviewPanelOpen(next);
+    updateConfig({ previewPanelOpen: next });
+  };
+
+  const toggleBottomPanel = () => {
+    const next = !isBottomPanelOpen;
+    setIsBottomPanelOpen(next);
+    updateConfig({ bottomPanelOpen: next });
+  };
+
+  const saveOuterLayout = (layout: Record<string, number>) => {
+    const preview = isPreviewPanelOpen
+      ? (layout.preview ?? config.workspaceLayoutOuter?.preview ?? outerDefaultLayout.preview)
+      : (config.workspaceLayoutOuter?.preview ?? outerDefaultLayout.preview);
+    updateConfig({
+      workspaceLayoutOuter: {
+        sidebar: layout.sidebar ?? outerDefaultLayout.sidebar,
+        workspace: layout.workspace ?? outerDefaultLayout.workspace,
+        preview,
+      },
+    });
+  };
+
+  const saveInnerLayout = (layout: Record<string, number>) => {
+    const bottom = isBottomPanelOpen
+      ? (layout.bottom ?? config.workspaceLayoutInner?.bottom ?? innerDefaultLayout.bottom)
+      : (config.workspaceLayoutInner?.bottom ?? innerDefaultLayout.bottom);
+    updateConfig({
+      workspaceLayoutInner: {
+        main: layout.main ?? innerDefaultLayout.main,
+        bottom,
+      },
+    });
+  };
+
+  useEffect(() => {
+    const panel = bottomPanelRef.current;
+    if (!panel) return;
+    if (isBottomPanelOpen) panel.expand();
+    else panel.collapse();
+  }, [isBottomPanelOpen, bottomPanelRef]);
+
+  useEffect(() => {
+    const panel = previewPanelRef.current;
+    if (!panel) return;
+    if (isPreviewPanelOpen && config.rightSidebarEnabled !== false) panel.expand();
+    else panel.collapse();
+  }, [isPreviewPanelOpen, config.rightSidebarEnabled, previewPanelRef]);
+  const [isToolbarConfigOpen, setIsToolbarConfigOpen] = useState(false);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [showAboutDialog, setShowAboutDialog] = useState(false);
+  const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  const [showHelpTopics, setShowHelpTopics] = useState(false);
+  const [, setUiHintTick] = useState(0);
+  useEffect(() => {
+    const u1 = subscribeShiftKey(() => setUiHintTick(t => t + 1));
+    const u2 = subscribeFloatingTooltip(() => setUiHintTick(t => t + 1));
+    return () => { u1(); u2(); };
+  }, []);
+  const [isPluginStoreOpen, setIsPluginStoreOpen] = useState(false);
+  const [bottomPluginTab, setBottomPluginTab] = useState<string | null>(null);
+  const contextMenuBlockRef = React.useRef(false);
+  const contextMenuRootRef = React.useRef<HTMLDivElement>(null);
+  const menubarRef = React.useRef<HTMLDivElement>(null);
+  const menubarAnchors = React.useRef<Record<string, HTMLDivElement | null>>({});
+  const menubarAnchorCallbacks = React.useRef<Record<string, (el: HTMLDivElement | null) => void>>({});
+  const bindMenuAnchor = React.useCallback((id: string) => {
+    if (!menubarAnchorCallbacks.current[id]) {
+      menubarAnchorCallbacks.current[id] = (el: HTMLDivElement | null) => {
+        menubarAnchors.current[id] = el;
+      };
+    }
+    return menubarAnchorCallbacks.current[id];
+  }, []);
+  const suppressNavClickUntilRef = React.useRef(0);
+  const typeAheadPrefixRef = useRef('');
+  const typeAheadAtRef = useRef(0);
+
+  const openBottomPlugin = (pluginId: string) => {
+    ensurePluginInstalled?.(pluginId);
+    setIsBottomPanelOpen(true);
+    setBottomPluginTab(pluginId);
+  };
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+  const [inlineRename, setInlineRename] = useState<{ path: string, entityId: string, currentName: string } | null>(null);
+  const [lastClickData, setLastClickData] = useState<{ id: string, time: number } | null>(null);
+  const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const internalDragRef = useRef(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [editingAddressBarPaneId, setEditingAddressBarPaneId] = useState<string | null>(null);
+  const [addressBarInput, setAddressBarInput] = useState<string>('');
+  
+  useEffect(() => {
+    if (!isTagManagerOpen) {
+       import('../lib/ipcBridge').then(({ IPC }) => {
+           IPC.getTagsConfig().then(setAvailableTags);
+       });
+    }
+  }, [isTagManagerOpen]);
+  
+  // Dual Pane Architecture state
+  const [isDualPane, setIsDualPane] = useState(false);
+  // pathContentsCache stores backend-fetched directory contents keyed by path
+  const [pathContentsCache, setPathContentsCache] = useState<Record<string, any[]>>({});
+  // loadingPaths tracks which paths are currently being fetched so we show a spinner
+  const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
+
+  const [panes, setPanes] = useState<PaneState[]>([
+     { 
+       id: 'pane1', 
+       tabs: [{ id: 't1', path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: config.defaultViewMode || 'details' }],
+       activeTabIndex: 0,
+       sortColumn: 'name',
+       sortDirection: 'asc'
+     }
+  ]);
+
+
+  // Fetch directory contents from the backend whenever the active pane path changes.
+  // Core fix: We track a separate `fetchedPaths` ref so navigation always triggers a fresh
+  // fetch if the path hasn't been loaded in THIS session. The cache is only used to avoid
+  // duplicate in-flight requests for the SAME navigation event.
+  const activePanePathsKey = useMemo(
+    () => panes.map(p => `${p.id}:${normalizePanePath(p.tabs[p.activeTabIndex]?.path || '')}`).join('|'),
+    [panes],
+  );
+  const dirFetchInFlightRef = useRef<Set<string>>(new Set());
+  const pathContentsCacheRef = useRef(pathContentsCache);
+  pathContentsCacheRef.current = pathContentsCache;
+
+  useEffect(() => {
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      if (!IPC.isNative) return;
+      panes.forEach(pane => {
+        const tab = pane.tabs[pane.activeTabIndex];
+        const path = normalizePanePath(tab?.path || '');
+        if (!path) return;
+        if (pathContentsCacheRef.current[path] !== undefined) return;
+        if (dirFetchInFlightRef.current.has(path)) return;
+
+        dirFetchInFlightRef.current.add(path);
+        setLoadingPaths(prev => new Set(prev).add(path));
+
+        IPC.getDirContents(path).then(data => {
+          const normalized = (data || []).map((item: any) => ({
+            ...item,
+            size: item.size != null ? Number(item.size) : (item.type === 'directory' ? 0 : undefined),
+            tags: Array.isArray(item.tags) ? item.tags : []
+          }));
+          setPathContentsCache(prev => ({ ...prev, [path]: normalized }));
+          void prefetchIconsForEntities(normalized, path);
+        }).catch(() => {
+          setPathContentsCache(prev => {
+            if (prev[path] !== undefined) return prev;
+            return { ...prev, [path]: [] };
+          });
+        }).finally(() => {
+          dirFetchInFlightRef.current.delete(path);
+          setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+        });
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePanePathsKey]);
+
+  const refetchPath = React.useCallback(async (rawPath: string) => {
+    const path = normalizePanePath(rawPath);
+    if (!path) return;
+    const { IPC } = await import('../lib/ipcBridge');
+    if (!IPC.isNative) return;
+    setLoadingPaths(prev => new Set(prev).add(path));
+    try {
+      const data = await IPC.getDirContents(path);
+      const normalized = (data || []).map((item: any) => ({
+        ...item,
+        size: item.size != null ? Number(item.size) : (item.type === 'directory' ? 0 : undefined),
+        tags: Array.isArray(item.tags) ? item.tags : [],
+      }));
+      setPathContentsCache(prev => ({ ...prev, [path]: normalized }));
+    } catch {
+      setPathContentsCache(prev => ({ ...prev, [path]: [] }));
+    } finally {
+      setLoadingPaths(prev => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+    }
+  }, []);
+
+  const invalidatePath = React.useCallback((rawPath: string) => {
+    const path = normalizePanePath(rawPath);
+    setPathContentsCache(prev => {
+      const next = { ...prev };
+      delete next[path];
+      return next;
+    });
+    void refetchPath(path);
+  }, [refetchPath]);
+
+  const refreshPathsForPanes = React.useCallback(() => {
+    panes.forEach(p => {
+      const tab = p.tabs[p.activeTabIndex];
+      if (tab?.path && tab.path !== '/' && tab.path !== '/this-pc') {
+        invalidatePath(tab.path);
+      }
+    });
+  }, [panes, invalidatePath]);
+
+  // Return cached backend data only - never fall back to virtual FS for native paths
+  const safeGetDirContents = (fs: any, path: string) => {
+    const norm = normalizePanePath(path);
+    if (norm === '/' || norm === '/this-pc') return null;
+    if (pathContentsCache[norm] !== undefined) return pathContentsCache[norm];
+    const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
+    if (!isNative) return getDirContents(fs, path);
+    return null; // loading state - will show spinner
+  };
+
+
+  const [activePaneId, setActivePaneId] = useState('pane1');
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+
+  // File Operations State
+  const [transferProgress, setTransferProgress] = useState<{ [opId: string]: { percentage: number, file: string, bytesTransferred: number, totalBytes: number, speedBytesPerSecond: number, itemsCompleted: number, totalItems: number } }>({});
+  const [conflict, setConflict] = useState<{ opId: string, fileName: string, srcPath: string, destPath: string } | null>(null);
+
+  // Omni-Filter State
+  const [filterText, setFilterText] = useState("");
+  const [globalSearchResults, setGlobalSearchResults] = useState<any[] | null>(null);
+  const [isGlobalSearchLoading, setIsGlobalSearchLoading] = useState(false);
+  const [globalSearchEngine, setGlobalSearchEngine] = useState<'everything' | 'indexed' | null>(null);
+  const omniFilterRef = useRef<HTMLInputElement>(null);
+  const startColumnResize = (colId: ListColumnId, startX: number, headerEl: HTMLElement) => {
+    const startWidth = headerEl.getBoundingClientRect().width;
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.max(56, Math.min(520, startWidth + (ev.clientX - startX)));
+      updateConfig({
+        listColumnWidths: { ...(config.listColumnWidths || {}), [colId]: Math.round(next) },
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  // Trigger Global Search
+  useEffect(() => {
+     if (config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ')) {
+         const query = filterText.trimStart().substring(2).trim();
+         if (query.length > 0) {
+             setIsGlobalSearchLoading(true);
+             const timer = setTimeout(() => {
+                 import('../lib/ipcBridge').then(({ IPC }) => {
+                     const activePane = panes.find(p => p.id === activePaneId) || panes[0];
+                     const searchRoot = activePane?.tabs[activePane.activeTabIndex]?.path || '';
+                     IPC.performGlobalSearch(
+                         query,
+                         config.globalSearchLimit || 1000,
+                         false,
+                         searchRoot,
+                         config.enableEverythingSearch !== false,
+                     )
+                         .then(({ items, engine }) => {
+                             setGlobalSearchResults(items);
+                             setGlobalSearchEngine(engine === 'everything' ? 'everything' : 'indexed');
+                             setIsGlobalSearchLoading(false);
+                         })
+                         .catch(() => {
+                             setGlobalSearchResults([]);
+                             setGlobalSearchEngine(null);
+                             setIsGlobalSearchLoading(false);
+                         });
+                 });
+             }, 300);
+             return () => clearTimeout(timer);
+         } else {
+             setGlobalSearchResults(null);
+             setIsGlobalSearchLoading(false);
+         }
+     } else {
+         setGlobalSearchResults(null);
+         setGlobalSearchEngine(null);
+         setIsGlobalSearchLoading(false);
+     }
+  }, [filterText, config.enableGlobalSearchPrefix, config.enableEverythingSearch, config.globalSearchLimit, panes, activePaneId]);
+
+  // Focus trap for F2 rename shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+
+      if (e.key === 'p' && e.ctrlKey && e.shiftKey) {
+         e.preventDefault();
+         setIsCommandPaletteOpen(prev => !prev);
+      }
+      if (e.key === 'z' && e.ctrlKey && !e.shiftKey && !isInput) {
+         e.preventDefault();
+         import('../lib/ipcBridge').then(({ IPC }) => IPC.executeUndo());
+      }
+      if (((e.key === 'y' && e.ctrlKey) || (e.key === 'z' && e.ctrlKey && e.shiftKey)) && !isInput) {
+         e.preventDefault();
+         import('../lib/ipcBridge').then(({ IPC }) => IPC.executeRedo());
+      }
+      
+      // Cut / Copy / Paste intercept
+      if (!isInput && e.ctrlKey && (e.key === 'c' || e.key === 'x')) {
+          const activePane = panes.find(p => p.id === activePaneId);
+          if (activePane) {
+              const tab = activePane.tabs[activePane.activeTabIndex];
+              if (tab.selectedItems.length > 0) {
+                 const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
+                 const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id)).map((x: any) => ({
+                    id: x.id,
+                    name: x.name,
+                    path: x.path || undefined, // Support visual search results
+                    type: x.type
+                 }));
+                 if (selectedEntities.length > 0) {
+                     setClipboardState(
+                       selectedEntities.map((ent: any) => joinPanePath(tab.path, ent)),
+                       e.key === 'x' ? 'cut' : 'copy'
+                     );
+                 }
+              }
+          }
+      }
+
+      if (!isInput && e.ctrlKey && e.key === 'v') {
+          const activePane = panes.find(p => p.id === activePaneId);
+          if (activePane) {
+              const tab = activePane.tabs[activePane.activeTabIndex];
+              executePaste(tab.path);
+          }
+      }
+
+      // Inline F2 Rename
+      if (e.key === 'F2' && focusedItemId && !isToolbarConfigOpen && !isSmartToolsOpen) {
+         e.preventDefault();
+         const activePane = panes.find(p => p.id === activePaneId);
+         if (activePane) {
+             const tab = activePane.tabs[activePane.activeTabIndex];
+             const entity = safeGetDirContents(fileSystem, tab.path)?.find((x: any) => x.id === focusedItemId);
+             if (entity) {
+                 setInlineRename({ path: tab.path, entityId: focusedItemId, currentName: getRenameInitialValue(entity, config) });
+             }
+         }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusedItemId, panes, activePaneId, fileSystem, isToolbarConfigOpen, isSmartToolsOpen, setClipboardState, executePaste]);
+
+  // Context Menu State
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, isDirectory: boolean, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
+  const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; paneId: string; tabIndex: number } | null>(null);
+
+  const handleContextMenuRequest = async (e: React.MouseEvent, targetPath: string, entityId: string | null, isDirectory: boolean, entityName: string | null, selectedPaths?: string[]) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setLastClickData(null);
+      setInlineRename(null);
+      contextMenuBlockRef.current = true;
+      suppressNavClickUntilRef.current = Date.now() + 500;
+      setTimeout(() => { contextMenuBlockRef.current = false; }, 500);
+
+      const menuItemPath = entityId && entityName
+          ? (selectedPaths?.length ? selectedPaths[0] : joinPanePath(targetPath, { name: entityName }))
+          : targetPath;
+      const winPath = toWindowsPath(menuItemPath);
+
+      setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          entityId,
+          path: targetPath,
+          entityName,
+          isDirectory,
+          nativeContextItems: [],
+          selectedPaths
+      });
+
+      try {
+          const { IPC } = await import('../lib/ipcBridge');
+          const nativeItems = await IPC.fetchNativeContextMenuItems(winPath);
+          setContextMenu(prev => prev ? { ...prev, nativeContextItems: nativeItems } : null);
+      } catch (err) {
+          console.error("Failed to fetch native context menu items", err);
+      }
+  };
+
+  const guardedSetCurrentPath = (p: string) => {
+      if (Date.now() < suppressNavClickUntilRef.current) return;
+      setCurrentPath(p);
+  };
+  const setToastMessage = React.useCallback((
+    message: string,
+    kind: ToastKind = 'success',
+    title?: string,
+    opts?: { native?: boolean },
+  ) => {
+    const resolvedTitle = title ?? (kind === 'error' ? 'Something went wrong' : kind === 'warning' ? 'Notice' : kind === 'info' ? 'Info' : 'Done');
+    const useNative = opts?.native ?? (config.useNativeWindowsNotifications !== false && kind !== 'info' && kind !== 'progress');
+    pushToast({ message, kind, title: resolvedTitle, native: useNative });
+    if (useNative && kind !== 'progress') {
+      import('../lib/ipcBridge').then(({ IPC }) => {
+        IPC.showNativeNotification(resolvedTitle, message);
+      });
+    }
+  }, [config.useNativeWindowsNotifications]);
+  const [dragTargetId, setDragTargetId] = useState<string | null>(null);
+  const [gridFilters, setGridFilters] = useState<any>({});
+
+  const handleDeleteRequest = (items: any[], path: string, isFromTree: boolean = false) => {
+    if (items.length === 0) return;
+    const rt = buildSettingsRuntime(config);
+
+    if (isFromTree && config.disallowDeleteByKeyInFolderTree) return;
+
+    const executeDelete = () => {
+      const label = items.length === 1 ? items[0].name : `${items.length} items`;
+      const toastId = `delete-${Date.now()}`;
+      pushToast({ id: toastId, kind: 'progress', title: 'Deleting…', message: label, sticky: true });
+      import('../lib/ipcBridge').then(({ IPC }) => {
+        items.forEach(entity => {
+          const full = toWindowsPath(entity.path || joinPanePath(path, { name: entity.name }));
+          IPC.executeFsOperation(`del-${Date.now()}-${entity.name}`, 'delete', full, '', rt.shell.bypassRecycle);
+        });
+        setTimeout(() => {
+          refreshWorkspace();
+          dismissToast(toastId);
+          const deletedMsg = rt.shell.bypassRecycle ? `Permanently removed ${label}.` : `Moved ${label} to Recycle Bin.`;
+          pushToast({ kind: 'success', title: 'Deleted', message: deletedMsg, native: true });
+          if (config.useNativeWindowsNotifications !== false) {
+            import('../lib/ipcBridge').then(({ IPC }) => IPC.showNativeNotification('Deleted', deletedMsg));
+          }
+        }, 400);
+      });
+    };
+
+    const names = items.map(x => x.name).slice(0, 5).join('\n• ');
+    const confirmMsg = items.length === 1
+      ? `Permanently remove "${items[0].name}"?${rt.shell.bypassRecycle ? '\n\n(Bypassing Recycle Bin)' : '\n\nItems will be moved to the Recycle Bin.'}`
+      : `Delete ${items.length} items?${rt.shell.bypassRecycle ? '\n\n(Bypassing Recycle Bin)' : '\n\nItems will be moved to the Recycle Bin.'}\n\n• ${names}${items.length > 5 ? '\n• ...' : ''}`;
+
+    // Only skip confirmation when user has explicitly turned it off in Settings
+    if (config.confirmDeleteOperations === false) {
+      executeDelete();
+      return;
+    }
+
+    showModal({
+      type: 'destructive',
+      title: items.length === 1 ? 'Delete Item' : `Delete ${items.length} Items`,
+      message: confirmMsg,
+      neverShowAgain: {
+        label: "Don't ask again",
+        onConfirm: () => updateConfig({ confirmDeleteOperations: false }),
+      },
+      actions: [
+        { label: items.length === 1 ? 'Delete' : `Delete ${items.length} Items`, style: 'destructive', action: executeDelete },
+        { label: 'Cancel', style: 'secondary', action: () => {} }
+      ]
+    });
+  };
+
+  const handleDeletePaths = (paths: string[]) => {
+    if (!paths.length) return;
+    const items = paths.map(p => ({ name: p.split(/[/\\]/).pop() || p, path: p }));
+    handleDeleteRequest(items, paths[0].substring(0, Math.max(paths[0].lastIndexOf('/'), paths[0].lastIndexOf('\\'))) || currentPath);
+  };
+
+  const handleEmptyRecycleBin = () => {
+    showModal({
+      type: 'destructive',
+      title: 'Empty Recycle Bin',
+      message: 'Permanently delete all items in the Recycle Bin?\n\nThis cannot be undone.',
+      actions: [
+        {
+          label: 'Empty Recycle Bin',
+          style: 'destructive',
+          action: () => {
+            import('../lib/ipcBridge').then(({ IPC }) => {
+              IPC.emptyRecycleBin().then(result => {
+                if (result?.success) {
+                  setToastMessage('Recycle Bin emptied.');
+                  refreshWorkspace();
+                } else {
+                  setToastMessage('Could not empty Recycle Bin.');
+                }
+              });
+            });
+          },
+        },
+        { label: 'Cancel', style: 'secondary', action: () => {} },
+      ],
+    });
+  };
+
+  const refreshWorkspace = () => {
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      IPC.getSystemDrives().then(setDrives);
+      IPC.getCloudProviders().then(setCloudProviders);
+      refreshPathsForPanes();
+      IPC.refreshWorkspace().catch(() => {});
+    });
+  };
+
+  useEffect(() => {
+    const handleDismiss = (e: MouseEvent) => {
+      if (contextMenuBlockRef.current) return;
+      const target = e.target as Element | null;
+      if (target?.closest?.('[data-bndz-context-menu], [data-bndz-submenu-flyout], [data-bndz-tab-context-menu]')) return;
+      if (contextMenuRootRef.current?.contains(e.target as Node)) return;
+      if (menubarRef.current?.contains(e.target as Node)) return;
+      if (e.button !== 0) return;
+      setContextMenu(null);
+      setTabContextMenu(null);
+      setOpenMenuId(null);
+    };
+    window.addEventListener('mousedown', handleDismiss, true);
+    return () => window.removeEventListener('mousedown', handleDismiss, true);
+  }, []);
+
+  const activePaneIndex = panes.findIndex(p => p.id === activePaneId);
+  const activePane = panes[activePaneIndex] || panes[0];
+  const activeTab = activePane?.tabs[activePane.activeTabIndex] || { path: '/', selectedItems: [] };
+  const currentPath = activeTab.path;
+
+  // Auto-select first item when entering a folder (settings: autoSelectFirstItem)
+  useEffect(() => {
+    if (!buildSettingsRuntime(config).list.autoSelectFirst) return;
+    if (!currentPath || currentPath === '/' || currentPath === '/this-pc') return;
+    const items = pathContentsCache[currentPath];
+    if (!items?.length) return;
+    setFocusedItemId(prev => prev ?? items[0].id);
+  }, [currentPath, pathContentsCache, config.autoSelectFirstItem]);
+
+  const scanCurrentFolderSizes = React.useCallback((
+    forceRescan = false,
+    opts?: { batchOffset?: number; manual?: boolean },
+  ) => {
+    if (!currentPath || currentPath === '/' || currentPath === '/this-pc') return;
+    const items = pathContentsCache[currentPath];
+    if (!items?.length) return;
+
+    const FOLDER_SIZE_BATCH = 30;
+    const batchOffset = opts?.batchOffset ?? 0;
+    const allDirs = items
+      .filter((e: any) => e.type === 'directory' || e.type === 'folder')
+      .map((e: any) => toWindowsPath(joinPanePath(currentPath, e)));
+    const dirs = allDirs.slice(batchOffset, batchOffset + FOLDER_SIZE_BATCH);
+
+    if (!allDirs.length) {
+      if (batchOffset === 0) setToastMessage('No folders to scan in the current directory.', 'info');
+      return;
+    }
+    if (!dirs.length) return;
+
+    if (batchOffset === 0) folderSizeSessionScannedRef.current = 0;
+
+    const gen = ++folderSizeScanGen.current;
+    setFolderSizeSync({
+      active: true,
+      current: Math.min(batchOffset, allDirs.length),
+      total: allDirs.length,
+      path: '',
+      percent: allDirs.length ? Math.round((batchOffset / allDirs.length) * 100) : 0,
+    });
+
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      IPC.scanFolderSizes(dirs, forceRescan).then(result => {
+        if (folderSizeScanGen.current !== gen) return;
+        const next: Record<string, number> = {};
+        for (const [p, size] of Object.entries(result.sizes || {})) {
+          if (typeof size === 'number' && size >= 0) next[p.toLowerCase()] = size;
+        }
+        setFolderSizeMap(prev => ({ ...prev, ...next }));
+        folderSizeSessionScannedRef.current += result.scannedCount ?? 0;
+
+        const hasMore = !result.cancelled && batchOffset + FOLDER_SIZE_BATCH < allDirs.length;
+        if (hasMore) {
+          scanCurrentFolderSizes(forceRescan, { batchOffset: batchOffset + FOLDER_SIZE_BATCH, manual: opts?.manual });
+          return;
+        }
+
+        setFolderSizeSync(prev => prev ? {
+          ...prev,
+          active: false,
+          current: allDirs.length,
+          total: allDirs.length,
+          percent: result.cancelled ? prev.percent : 100,
+        } : null);
+
+        if (!result.cancelled) {
+          const scanned = folderSizeSessionScannedRef.current;
+          const onlyFetched = config.folderSizeToastOnlyWhenFetched !== false;
+          if (scanned > 0 || !onlyFetched) {
+            const cooldownMs = (config.folderSizeToastCooldownSeconds ?? 90) * 1000;
+            const now = Date.now();
+            const manual = !!opts?.manual;
+            const allowToast = manual || (scanned > 0 && now - folderSizeToastCooldownRef.current >= cooldownMs);
+            if (allowToast && (!onlyFetched || scanned > 0)) {
+              folderSizeToastCooldownRef.current = now;
+              const label = scanned > 0
+                ? `${scanned} folder${scanned === 1 ? '' : 's'} calculated`
+                : `${Object.keys(next).length} folder size${Object.keys(next).length === 1 ? '' : 's'} from cache`;
+              setToastMessage(label, 'success', 'Folder sizes', { native: scanned > 0 });
+            }
+          }
+        }
+      }).catch(() => setFolderSizeSync(null));
+    });
+  }, [currentPath, pathContentsCache, config.folderSizeToastCooldownSeconds, config.folderSizeToastOnlyWhenFetched, setToastMessage]);
+
+  const currentDirItems = pathContentsCache[currentPath];
+
+  useEffect(() => {
+    if (config.showCachedFolderSizesOnly) return;
+    if (config.autoSyncFolderSizes === false && !config.alwaysShowFolderSizes) return;
+    if (!currentDirItems?.length) return;
+    const timer = window.setTimeout(() => scanCurrentFolderSizes(false), 400);
+    return () => clearTimeout(timer);
+  }, [currentPath, currentDirItems, config.alwaysShowFolderSizes, config.autoSyncFolderSizes, config.showCachedFolderSizesOnly, scanCurrentFolderSizes]);
+
+  useEffect(() => {
+    if (!config.cacheFolderSizes) return;
+    if (config.alwaysShowFolderSizes && !config.showCachedFolderSizesOnly) return;
+    if (!currentDirItems?.length) return;
+    const timer = window.setTimeout(() => scanCurrentFolderSizes(false), 800);
+    return () => clearTimeout(timer);
+  }, [currentPath, currentDirItems, config.cacheFolderSizes, config.alwaysShowFolderSizes, config.showCachedFolderSizesOnly, scanCurrentFolderSizes]);
+
+  // --- External File System Watcher ---
+  useEffect(() => {
+    let unsubscribe: () => void;
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      unsubscribe = IPC.onFsEvents((events) => {
+        const rt = buildSettingsRuntime(config);
+        const shouldRefresh = rt.operations.autoRefresh !== false && rt.operations.fsNotifications !== false;
+        if (shouldRefresh) {
+          const touched = new Set<string>();
+          for (const ev of events) {
+            const panePath = watcherDirToPanePath(ev.dir || '');
+            if (panePath) touched.add(panePath);
+          }
+          touched.forEach(p => invalidatePath(p));
+        }
+        setFileSystem(prevFs => {
+          let newFs = prevFs;
+          for (const ev of events) {
+            const vPath = ev.dir.replace(/\\/g, '/');
+            newFs = updateFileSystem(newFs, vPath, (dir) => {
+              if (ev.type === 'Created' && !dir.children[ev.name]) {
+                const isFile = ev.name.includes('.');
+                dir.children[ev.name] = {
+                  id: `${vPath}/${ev.name}`,
+                  name: ev.name,
+                  type: isFile ? 'file' : 'directory',
+                  size: isFile ? 1024 : 0,
+                  modified: new Date().toISOString(),
+                  tags: [],
+                  ...(isFile ? { extension: ev.name.split('.').pop() } : { children: {} })
+                } as any;
+              } else if (ev.type === 'Deleted') {
+                delete dir.children[ev.name];
+              } else if (ev.type === 'Renamed' && ev.oldName) {
+                const node = dir.children[ev.oldName];
+                if (node) {
+                  dir.children[ev.name] = { ...node, name: ev.name };
+                  delete dir.children[ev.oldName];
+                }
+              }
+            });
+          }
+          return newFs;
+        });
+      });
+    });
+    return () => unsubscribe && unsubscribe();
+  }, [config, panes]);
+
+  // Monitor paths when panes change to fire native FileSystemWatcher
+  useEffect(() => {
+    import('../lib/ipcBridge').then(({ IPC }) => {
+       panes.forEach(p => {
+          p.tabs.forEach(t => {
+            const path = normalizePanePath(t.path);
+            if (path && path !== '/' && path !== '/this-pc') {
+               IPC.watchDirectory(path);
+            }
+          });
+       });
+    });
+  }, [panes]);
+
+  const refreshPathsRef = React.useRef(refreshPathsForPanes);
+  refreshPathsRef.current = refreshPathsForPanes;
+
+  // Operations Progress and Conflict Listeners
+  useEffect(() => {
+    let unsubProp: () => void;
+    let unsubConf: () => void;
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      unsubProp = IPC.onProgress((progressDetails) => {
+        const pct = progressDetails.percentage ?? 0;
+        const opId = progressDetails.operationId;
+        setTransferProgress(prev => ({
+           ...prev,
+           [opId]: {
+              percentage: pct,
+              file: progressDetails.currentFile,
+              bytesTransferred: progressDetails.bytesTransferred || 0,
+              totalBytes: progressDetails.totalBytes || 0,
+              speedBytesPerSecond: progressDetails.speedBytesPerSecond || 0,
+              itemsCompleted: progressDetails.itemsCompleted || 0,
+              totalItems: progressDetails.totalItems || 0
+           }
+        }));
+        const fileName = (progressDetails.currentFile || '').split(/[/\\]/).pop() || 'items';
+        if (pct > 0 && pct < 100) {
+          pushToast({
+            id: `xfer-${opId}`,
+            kind: 'progress',
+            title: 'Transfer in progress',
+            message: fileName,
+            progress: pct,
+            sticky: true,
+          });
+        }
+        if (pct >= 100) {
+           dismissToast(`xfer-${opId}`);
+           pushToast({ kind: 'success', title: 'Transfer complete', message: fileName });
+           refreshPathsRef.current();
+           setTimeout(() => {
+             setTransferProgress(prev => {
+                const next = { ...prev };
+                delete next[opId];
+                return next;
+             });
+           }, 1200);
+        }
+      });
+      unsubConf = IPC.onConflictContent((conflictDetails) => {
+         showModal({
+           type: 'conflict',
+           title: 'File Conflict Detected',
+           message: `The destination already contains a file named:\n"${conflictDetails.fileName}"\n\nWhat would you like to do?`,
+           actions: [
+             {
+               label: 'Replace the file in the destination',
+               style: 'destructive',
+               action: () => import('../lib/ipcBridge').then(({ IPC }) => IPC.resolveConflict(conflictDetails.opId, conflictDetails.fileName, 'replace'))
+             },
+             {
+               label: 'Keep both (rename the copied file)',
+               style: 'primary',
+               action: () => import('../lib/ipcBridge').then(({ IPC }) => IPC.resolveConflict(conflictDetails.opId, conflictDetails.fileName, 'keepboth'))
+             },
+             {
+               label: 'Skip this file',
+               style: 'secondary',
+               action: () => import('../lib/ipcBridge').then(({ IPC }) => IPC.resolveConflict(conflictDetails.opId, conflictDetails.fileName, 'skip'))
+             }
+           ]
+         });
+      });
+    });
+    return () => {
+       unsubProp && unsubProp();
+       unsubConf && unsubConf();
+    };
+  }, []);
+
+  // --- Tree State Helpers ---
+  const toggleExpand = (path: string) => {
+    setExpandedPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const buildFSTree = (node: FSEntity, path: string): any => {
+    if (node.type !== "directory") return null;
+    const isExpanded = expandedPaths.has(path);
+    const childrenItems = Object.keys(node.children)
+      .map(k => buildFSTree(node.children[k], `${path}/${k}`))
+      .filter(Boolean);
+
+    return {
+      label: node.name,
+      icon: Folder,
+      iconColor: "#dcb67a",
+      selected: currentPath === path,
+      expanded: isExpanded,
+      onClick: () => { setCurrentPath(path); },
+      onToggle: () => toggleExpand(path),
+      childrenItems
+    };
+  };
+
+  // Resolve the actual Windows username for building correct quick-access paths
+  const windowsUsername = useMemo(() => {
+    // shortcuts come from C# which reads Environment.UserName - pick from any shortcut path
+    const ds = shortcuts.find(s => s.path?.includes('\\') || s.path?.includes('/'));
+    if (ds) {
+      const parts = (ds.path || '').replace(/\\/g, '/').split('/');
+      const usersIdx = parts.findIndex((p: string) => p.toLowerCase() === 'users');
+      if (usersIdx >= 0 && parts[usersIdx + 1]) return parts[usersIdx + 1];
+    }
+    return 'Public'; // safe fallback
+  }, [shortcuts]);
+
+  const [thisPcExpanded, setThisPcExpanded] = useState(true);
+  const [networkExpanded, setNetworkExpanded] = useState(false);
+  const [linuxExpanded, setLinuxExpanded] = useState(false);
+  const [librariesExpanded, setLibrariesExpanded] = useState(true);
+  const [destinationPicker, setDestinationPicker] = useState<{ mode: 'copy' | 'move'; sources: string[] } | null>(null);
+  const [quitDialogOpen, setQuitDialogOpen] = useState(false);
+  const [quitCloseSource, setQuitCloseSource] = useState<'x' | 'tray' | 'menu' | string>('x');
+  const [draggedTab, setDraggedTab] = useState<{ paneId: string; index: number } | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  const homeShortcut = shortcuts.find(s => s.name === 'Home');
+  const galleryShortcut = shortcuts.find(s => s.name === 'Gallery');
+  const homeTreePath = useMemo(() => {
+    const p = homeShortcut?.path;
+    if (p && !String(p).toLowerCase().includes('workspace')) return toPanePath(p);
+    return '/shell:Profile';
+  }, [homeShortcut]);
+
+  const libraryFolderItems = useMemo(() => {
+    const order = ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'];
+    const seen = new Set<string>();
+    const items: { label: string; path: string; iconPath?: string; isDynamic: boolean; useShellIcon: boolean; icon: typeof Folder; iconColor: string }[] = [];
+
+    const add = (name: string, rawPath: string) => {
+      const p = toPanePath(rawPath);
+      if (seen.has(p)) return;
+      seen.add(p);
+      items.push({
+        label: name,
+        path: p,
+        iconPath: KNOWN_FOLDER_SHELL[name],
+        isDynamic: true,
+        useShellIcon: true,
+        icon: Folder,
+        iconColor: '#dcb67a',
+      });
+    };
+
+    for (const name of order) {
+      const s = shortcuts.find(sc => sc.name === name);
+      add(name, s?.path || `C:/Users/${windowsUsername}/${name}`);
+    }
+    if (galleryShortcut?.path) add('Gallery', galleryShortcut.path);
+    return items;
+  }, [shortcuts, windowsUsername, galleryShortcut]);
+
+  const cloudDriveItems = useMemo(() => (
+    [...cloudProviders]
+      .sort((a, b) => {
+        const aOd = a.name.toLowerCase().includes('onedrive');
+        const bOd = b.name.toLowerCase().includes('onedrive');
+        if (aOd && !bOd) return -1;
+        if (bOd && !aOd) return 1;
+        return a.name.localeCompare(b.name);
+      })
+      .map((p: { name: string; path?: string }) => ({
+        label: p.name,
+        path: toPanePath(p.path),
+        isDynamic: true,
+        useShellIcon: true,
+        icon: Cloud,
+        iconColor: '#38bdf8',
+      }))
+  ), [cloudProviders]);
+
+  const wslRootNode = useMemo(
+    () => networkNodes.find((n: { kind?: string; name?: string }) =>
+      n.kind === 'wsl-root' || n.name === 'Linux (WSL)' || n.name === 'WSL (legacy)'),
+    [networkNodes],
+  );
+  const wslDistroNodes = useMemo(
+    () => networkNodes.filter((n: { kind?: string }) => n.kind === 'wsl-distro'),
+    [networkNodes],
+  );
+  const networkOnlyNodes = useMemo(
+    () => networkNodes.filter((n: { kind?: string; name?: string }) =>
+      n.kind !== 'wsl-root' && n.kind !== 'wsl-distro' && n.kind !== 'wsl-legacy'
+      && n.name !== 'Linux (WSL)' && n.name !== 'WSL (legacy)'),
+    [networkNodes],
+  );
+
+  const wslLinuxPath = wslRootNode ? toPanePath(wslRootNode.path) : '//wsl.localhost/';
+
+  const treeData = useMemo(() => {
+    const raw: NavTreeBuildNode[] = [
+      {
+        treeKey: 'home',
+        draggable: true,
+        label: 'Home',
+        path: homeTreePath,
+        iconPath: KNOWN_FOLDER_SHELL.Home,
+        icon: Home,
+        iconColor: '#6db4e6',
+        isDynamic: true,
+        useShellIcon: true,
+        onClick: () => guardedSetCurrentPath(homeTreePath),
+      },
+      {
+        treeKey: 'libraries',
+        draggable: true,
+        label: 'Libraries',
+        path: '/shell:Libraries',
+        iconPath: SHELL_CLSID.libraries,
+        icon: FolderOpen,
+        iconColor: '#dcb67a',
+        useShellIcon: true,
+        expanded: librariesExpanded,
+        onToggle: () => setLibrariesExpanded(!librariesExpanded),
+        childrenItems: libraryFolderItems,
+      },
+      {
+        treeKey: 'this-pc',
+        draggable: true,
+        label: 'This PC',
+        path: '/',
+        iconPath: SHELL_CLSID.thisPc,
+        icon: Monitor,
+        iconColor: '#6db4e6',
+        useShellIcon: true,
+        expanded: thisPcExpanded,
+        selected: currentPath === '/',
+        onClick: () => setCurrentPath('/'),
+        onToggle: () => setThisPcExpanded(!thisPcExpanded),
+        childrenItems: drives.map(d => ({
+          label: `${d.label || 'Local Disk'} (${d.name.replace(/^\//, '')})`,
+          icon: HardDrive,
+          iconColor: d.name.includes('C:') ? '#6db4e6' : '#aaa',
+          path: toPanePath(d.name),
+          isDynamic: true,
+          useShellIcon: true,
+        })),
+      },
+      {
+        treeKey: 'linux',
+        draggable: true,
+        label: 'Linux',
+        path: wslLinuxPath,
+        icon: Server,
+        iconColor: '#34d399',
+        isDynamic: true,
+        useShellIcon: true,
+        expanded: linuxExpanded,
+        onClick: () => guardedSetCurrentPath(wslLinuxPath),
+        onToggle: () => setLinuxExpanded(!linuxExpanded),
+        childrenItems: wslDistroNodes.map((n: { name: string; path?: string }) => ({
+          label: n.name,
+          path: toPanePath(n.path),
+          isDynamic: true,
+          useShellIcon: true,
+          icon: Server,
+          iconColor: '#34d399',
+        })),
+      },
+      {
+        treeKey: 'network',
+        draggable: true,
+        label: 'Network',
+        icon: Network,
+        iconColor: '#6db4e6',
+        path: '//',
+        iconPath: SHELL_CLSID.network,
+        useShellIcon: true,
+        isDynamic: true,
+        expanded: networkExpanded,
+        onClick: () => guardedSetCurrentPath('//'),
+        onToggle: () => setNetworkExpanded(!networkExpanded),
+        childrenItems: networkOnlyNodes.map((n: { name: string; path?: string }) => ({
+          label: n.name,
+          path: toPanePath(n.path || '//'),
+          isDynamic: true,
+          useShellIcon: true,
+          icon: Network,
+          iconColor: '#38bdf8',
+        })),
+      },
+      {
+        treeKey: 'recycle-bin',
+        draggable: true,
+        label: 'Recycle Bin',
+        path: RECYCLE_BIN_PATH,
+        iconPath: SHELL_CLSID.recycleBin,
+        icon: Trash2,
+        iconColor: '#c084fc',
+        useShellIcon: true,
+        leaf: true,
+        selected: isRecycleBinPath(currentPath),
+        onClick: () => guardedSetCurrentPath(RECYCLE_BIN_PATH),
+      },
+    ];
+    const keys = raw.map(n => n.treeKey).filter(Boolean) as string[];
+    const order = mergeNavTreeOrder(config.navTreeOrder, keys);
+    return applyNavTreeOrder(raw, order);
+  }, [
+    drives, currentPath, thisPcExpanded, libraryFolderItems,
+    networkOnlyNodes, networkExpanded, homeTreePath, wslLinuxPath,
+    wslRootNode, wslDistroNodes,
+    linuxExpanded, librariesExpanded, config.navTreeOrder,
+  ]);
+
+  useEffect(() => {
+    const items: Array<{ path: string; iconPath?: string }> = [];
+    const walk = (nodes: typeof treeData) => {
+      for (const n of nodes) {
+        if (n.useShellIcon !== false && (n.iconPath || n.path)) {
+          items.push({ path: n.path || '', iconPath: n.iconPath });
+        }
+        if (n.childrenItems?.length) {
+          for (const c of n.childrenItems) {
+            if (c.useShellIcon !== false && (c.iconPath || c.path)) {
+              items.push({ path: c.path || '', iconPath: c.iconPath });
+            }
+          }
+        }
+      }
+    };
+    walk(treeData);
+    if (items.length) void prefetchShellIconPaths(items);
+  }, [treeData]);
+
+  // --- Multi-pane Orchestration Logic ---
+  const toggleDualPane = () => {
+    if (isDualPane) {
+       setPanes([activePane]);
+       setIsDualPane(false);
+    } else {
+       setPanes([panes[0], { 
+         id: `pane-${Date.now()}`, 
+         tabs: [{ id: `t-${Date.now()}`, path: '/workspace', history: ['/workspace'], historyIndex: 0, selectedItems: [], viewMode: 'details' }],
+         activeTabIndex: 0,
+         sortColumn: 'name',
+         sortDirection: 'asc'
+       }]);
+       setIsDualPane(true);
+    }
+  };
+
+  const swapPanes = () => {
+    if (!isDualPane || panes.length < 2) {
+      setToastMessage('Enable dual pane first.');
+      return;
+    }
+    setPanes([panes[1], panes[0]]);
+    setActivePaneId(prev => (prev === panes[0].id ? panes[1].id : panes[0].id));
+    setToastMessage('Panes swapped.');
+  };
+
+  const syncPanesToSamePath = () => {
+    if (!isDualPane || panes.length < 2) {
+      setToastMessage('Enable dual pane first.');
+      return;
+    }
+    const srcPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
+    if (!srcPath) return;
+    const other = panes.find(p => p.id !== activePaneId);
+    if (other) setCurrentPath(srcPath, other.id);
+    setToastMessage('Panes synced to same folder.');
+  };
+
+  const getSelectedEntityPaths = (): string[] => {
+    const pane = panes.find(p => p.id === activePaneId);
+    if (!pane) return [];
+    const tab = pane.tabs[pane.activeTabIndex];
+    const dir = getDirContents(fileSystem, tab.path || '') || [];
+    return tab.selectedItems
+      .map(id => dir.find((x: any) => x.id === id))
+      .filter(Boolean)
+      .map((ent: any) => joinPanePath(tab.path, ent));
+  };
+
+  const copyOrMoveToTarget = async (mode: 'copy' | 'move', targetDir?: string, sourcesOverride?: string[]) => {
+    const sources = sourcesOverride?.length ? sourcesOverride : getSelectedEntityPaths();
+    if (!sources.length) {
+      setToastMessage('Select items first.');
+      return;
+    }
+    let dest = targetDir;
+    if (!dest) {
+      setDestinationPicker({ mode, sources });
+      return;
+    }
+    const { IPC } = await import('../lib/ipcBridge');
+    const opId = `${mode}-${Date.now()}`;
+    for (const src of sources) {
+      const name = src.split(/[/\\]/).pop() || 'item';
+      const winSrc = toWindowsPath(src);
+      const winDest = `${toWindowsPath(dest).replace(/\\$/, '')}\\${name}`;
+      IPC.executeFsOperation(opId, mode, winSrc, winDest);
+    }
+    setToastMessage(`${mode === 'copy' ? 'Copy' : 'Move'} started.`);
+    refreshWorkspace();
+  };
+
+  const toggleFavoriteFolder = () => {
+    const path = currentTab.path;
+    if (!path || path === '/') {
+      setToastMessage('Navigate to a folder to pin to Rapid access.');
+      return;
+    }
+    const pinned = config.pinnedFavorites || [];
+    const norm = path.replace(/\\/g, '/');
+    const exists = pinned.some((p: any) => p.path.replace(/\\/g, '/') === norm);
+    if (exists) {
+      updateConfig({ pinnedFavorites: pinned.filter((p: any) => p.path.replace(/\\/g, '/') !== norm) });
+      setToastMessage('Removed from Rapid access.');
+    } else {
+      const name = path.split('/').filter(Boolean).pop() || 'Folder';
+      updateConfig({ pinnedFavorites: [...pinned, { name, path: norm, icon: 'folder' }] });
+      setToastMessage('Pinned to Rapid access.');
+    }
+  };
+
+  const closeMenu = () => setOpenMenuId(null);
+  const menuAct = (fn: () => void) => runMenubarAction(() => { fn(); closeMenu(); });
+
+  const applyTagToSelection = async (tag: { name?: string; label?: string; color?: string }) => {
+    const tagKey = tag.name || (tag.label || '').toLowerCase().replace(/\s+/g, '-');
+    if (!tagKey) return;
+    let paths = getSelectedEntityPaths().map(p => toWindowsPath(p));
+    if (!paths.length && focusedItemId) {
+      const ent = findEntityInCache(pathContentsCache, focusedItemId);
+      if (ent) paths = [toWindowsPath(joinPanePath(currentPath, ent))];
+    }
+    if (!paths.length) {
+      setToastMessage('No items selected to tag.');
+      closeMenu();
+      return;
+    }
+    const { IPC } = await import('../lib/ipcBridge');
+    await IPC.applyTags(paths, [tagKey]);
+    const newCache = { ...pathContentsCache };
+    const tabItems = [...(newCache[currentPath] || [])];
+    const selectedIds = new Set(activeTab.selectedItems);
+    const pathSet = new Set(paths.map(p => p.toLowerCase()));
+    tabItems.forEach((item: any) => {
+      const itemPath = toWindowsPath(joinPanePath(currentPath, item)).toLowerCase();
+      if (selectedIds.has(item.id) || pathSet.has(itemPath) || pathSet.has(item.id?.toLowerCase?.())) {
+        if (!item.tags) item.tags = [];
+        if (!item.tags.includes(tagKey)) item.tags.push(tagKey);
+      }
+    });
+    newCache[currentPath] = tabItems;
+    setPathContentsCache(newCache);
+    setToastMessage(`Applied tag "${tag.label || tagKey}" to ${paths.length} item(s).`);
+    closeMenu();
+  };
+
+  const addTab = (paneId: string, path: string) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id === paneId) {
+        const newTab = { id: `t-${Date.now()}`, path, history: [path], historyIndex: 0, selectedItems: [], viewMode: 'details' as const };
+        return { ...p, tabs: [...p.tabs, newTab], activeTabIndex: p.tabs.length };
+      }
+      return p;
+    }));
+  };
+
+  const reorderTab = (paneId: string, fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return;
+    setPanes(prev => prev.map(p => {
+      if (p.id !== paneId) return p;
+      const tabs = [...p.tabs];
+      const [moved] = tabs.splice(fromIdx, 1);
+      tabs.splice(toIdx, 0, moved);
+      let activeTabIndex = p.activeTabIndex;
+      if (activeTabIndex === fromIdx) activeTabIndex = toIdx;
+      else if (fromIdx < activeTabIndex && toIdx >= activeTabIndex) activeTabIndex -= 1;
+      else if (fromIdx > activeTabIndex && toIdx <= activeTabIndex) activeTabIndex += 1;
+      return { ...p, tabs, activeTabIndex };
+    }));
+  };
+
+  const closeTabAt = (paneId: string, tabIndex: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setPanes(prev => prev.map(p => {
+      if (p.id !== paneId) return p;
+      const tab = p.tabs[tabIndex];
+      if (!tab || p.tabs.length <= 1) return p;
+      if (tab.locked) {
+        if (config.promptOnClosingALockedTab) {
+          if (!window.confirm(`"${getPaneTabLabel(tab.path)}" is locked. Close anyway?`)) return p;
+        } else {
+          return p;
+        }
+      }
+      const newTabs = p.tabs.filter((_, i) => i !== tabIndex);
+      let newActive = p.activeTabIndex;
+      if (p.activeTabIndex === tabIndex) newActive = Math.min(tabIndex, newTabs.length - 1);
+      else if (p.activeTabIndex > tabIndex) newActive = p.activeTabIndex - 1;
+      return { ...p, tabs: newTabs, activeTabIndex: newActive };
+    }));
+    setTabContextMenu(null);
+  };
+
+  const closeOtherTabs = (paneId: string, keepIndex: number) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id !== paneId) return p;
+      const kept = p.tabs[keepIndex];
+      if (!kept) return p;
+      const lockedOthers = p.tabs.filter((t, i) => i !== keepIndex && t.locked);
+      if (lockedOthers.length > 0 && config.promptOnClosingALockedTab) {
+        if (!window.confirm(`Close ${lockedOthers.length} locked tab(s) as well?`)) {
+          return { ...p, tabs: [kept, ...lockedOthers], activeTabIndex: 0 };
+        }
+      }
+      return { ...p, tabs: [kept], activeTabIndex: 0 };
+    }));
+    setTabContextMenu(null);
+  };
+
+  const closeAllTabs = (paneId: string) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id !== paneId) return p;
+      const locked = p.tabs.filter(t => t.locked);
+      if (locked.length === p.tabs.length) return p;
+      if (locked.length > 0 && config.promptOnClosingALockedTab) {
+        if (!window.confirm(`Keep ${locked.length} locked tab(s) and close the rest?`)) return p;
+        return { ...p, tabs: locked, activeTabIndex: 0 };
+      }
+      const fallback = p.tabs[p.activeTabIndex] || p.tabs[0];
+      return { ...p, tabs: [{ ...fallback, locked: false }], activeTabIndex: 0 };
+    }));
+    setTabContextMenu(null);
+  };
+
+  const toggleTabLock = (paneId: string, tabIndex: number) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id !== paneId) return p;
+      const tabs = [...p.tabs];
+      const tab = tabs[tabIndex];
+      if (!tab) return p;
+      tabs[tabIndex] = { ...tab, locked: !tab.locked };
+      return { ...p, tabs };
+    }));
+    setTabContextMenu(null);
+  };
+
+  const duplicateTab = (paneId: string, tabIndex: number) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id !== paneId) return p;
+      const src = p.tabs[tabIndex];
+      if (!src) return p;
+      const newTab: TabState = {
+        id: `t-${Date.now()}`,
+        path: src.path,
+        history: [...src.history],
+        historyIndex: src.historyIndex,
+        selectedItems: [],
+        viewMode: src.viewMode,
+      };
+      const tabs = [...p.tabs];
+      tabs.splice(tabIndex + 1, 0, newTab);
+      return { ...p, tabs, activeTabIndex: tabIndex + 1 };
+    }));
+    setTabContextMenu(null);
+  };
+
+  const setActiveTab = (paneId: string, tabIndex: number) => {
+    setActivePaneId(paneId);
+    setPanes(prev => prev.map(p => p.id === paneId ? { ...p, activeTabIndex: tabIndex } : p));
+  };
+
+  const setCurrentPath = (path: string, paneId: string = activePaneId, updateHistory: boolean = true) => {
+    const norm = normalizePanePath(path);
+    setPanes(prev => prev.map(p => {
+      if (p.id === paneId) {
+        const newTabs = [...p.tabs];
+        const tab = newTabs[p.activeTabIndex];
+        let newHistory = tab.history;
+        let newHistoryIndex = tab.historyIndex;
+        if (updateHistory && tab.path !== norm) {
+            newHistory = newHistory.slice(0, newHistoryIndex + 1);
+            newHistory.push(norm);
+            newHistoryIndex = newHistory.length - 1;
+        }
+        newTabs[p.activeTabIndex] = { ...tab, path: norm, history: newHistory, historyIndex: newHistoryIndex, selectedItems: [] };
+        return { ...p, tabs: newTabs };
+      }
+      return p;
+    }));
+  };
+
+  useEffect(() => {
+    const onNavigate = (e: Event) => {
+      const path = (e as CustomEvent).detail?.path;
+      if (path) setCurrentPath(path);
+    };
+    window.addEventListener('bndz-navigate', onNavigate);
+    return () => window.removeEventListener('bndz-navigate', onNavigate);
+  }, [activePaneId]);
+
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      unsub = IPC.onOpenPath(path => {
+        if (path) setCurrentPath(normalizePanePath(path));
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [activePaneId]);
+
+  const goBack = (paneId: string = activePaneId) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id === paneId) {
+         const newTabs = [...p.tabs];
+         const tab = newTabs[p.activeTabIndex];
+         if (tab.historyIndex > 0) {
+             const newHistoryIndex = tab.historyIndex - 1;
+             const path = tab.history[newHistoryIndex];
+             newTabs[p.activeTabIndex] = { ...tab, path, historyIndex: newHistoryIndex, selectedItems: [] };
+         }
+         return { ...p, tabs: newTabs };
+      }
+      return p;
+    }));
+  };
+
+  const goForward = (paneId: string = activePaneId) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id === paneId) {
+         const newTabs = [...p.tabs];
+         const tab = newTabs[p.activeTabIndex];
+         if (tab.historyIndex < tab.history.length - 1) {
+             const newHistoryIndex = tab.historyIndex + 1;
+             const path = tab.history[newHistoryIndex];
+             newTabs[p.activeTabIndex] = { ...tab, path, historyIndex: newHistoryIndex, selectedItems: [] };
+         }
+         return { ...p, tabs: newTabs };
+      }
+      return p;
+    }));
+  };
+
+  /** Global Escape — dismiss stuck overlays in priority order */
+  useEffect(() => {
+    const layers = [
+      registerEscapeLayer({
+        id: 'context-menu',
+        priority: 900,
+        isActive: () => !!contextMenu,
+        dismiss: () => setContextMenu(null),
+      }),
+      registerEscapeLayer({
+        id: 'tab-context-menu',
+        priority: 890,
+        isActive: () => !!tabContextMenu,
+        dismiss: () => setTabContextMenu(null),
+      }),
+      registerEscapeLayer({
+        id: 'destination-picker',
+        priority: 850,
+        isActive: () => !!destinationPicker,
+        dismiss: () => setDestinationPicker(null),
+      }),
+      registerEscapeLayer({
+        id: 'config-dialog',
+        priority: 820,
+        isActive: () => isConfigDialogOpen,
+        dismiss: () => setIsConfigDialogOpen(false),
+      }),
+      registerEscapeLayer({
+        id: 'plugin-store',
+        priority: 810,
+        isActive: () => isPluginStoreOpen,
+        dismiss: () => setIsPluginStoreOpen(false),
+      }),
+      registerEscapeLayer({
+        id: 'command-palette',
+        priority: 800,
+        isActive: () => isCommandPaletteOpen,
+        dismiss: () => setIsCommandPaletteOpen(false),
+      }),
+      registerEscapeLayer({
+        id: 'tag-manager',
+        priority: 790,
+        isActive: () => isTagManagerOpen,
+        dismiss: () => setIsTagManagerOpen(false),
+      }),
+      registerEscapeLayer({
+        id: 'smart-tools',
+        priority: 780,
+        isActive: () => isSmartToolsOpen,
+        dismiss: () => setIsSmartToolsOpen(false),
+      }),
+      registerEscapeLayer({
+        id: 'toolbar-config',
+        priority: 770,
+        isActive: () => isToolbarConfigOpen,
+        dismiss: () => setIsToolbarConfigOpen(false),
+      }),
+      registerEscapeLayer({
+        id: 'about-dialog',
+        priority: 760,
+        isActive: () => showAboutDialog,
+        dismiss: () => setShowAboutDialog(false),
+      }),
+      registerEscapeLayer({
+        id: 'register-dialog',
+        priority: 755,
+        isActive: () => showRegisterDialog,
+        dismiss: () => setShowRegisterDialog(false),
+      }),
+      registerEscapeLayer({
+        id: 'help-topics',
+        priority: 750,
+        isActive: () => showHelpTopics,
+        dismiss: () => setShowHelpTopics(false),
+      }),
+      registerEscapeLayer({
+        id: 'save-tabset',
+        priority: 740,
+        isActive: () => isSaveTabsetOpen,
+        dismiss: () => setIsSaveTabsetOpen(false),
+      }),
+      registerEscapeLayer({
+        id: 'tutorial',
+        priority: 720,
+        isActive: () => showTutorial,
+        dismiss: () => setShowTutorial(false),
+      }),
+      registerEscapeLayer({
+        id: 'menubar',
+        priority: 700,
+        isActive: () => !!openMenuId,
+        dismiss: closeMenu,
+      }),
+      registerEscapeLayer({
+        id: 'inline-rename',
+        priority: 600,
+        isActive: () => !!inlineRename,
+        dismiss: () => setInlineRename(null),
+      }),
+      registerEscapeLayer({
+        id: 'omni-filter',
+        priority: 500,
+        isActive: () => filterText.length > 0 || document.activeElement === omniFilterRef.current,
+        dismiss: () => {
+          setFilterText('');
+          omniFilterRef.current?.blur();
+        },
+      }),
+      registerEscapeLayer({
+        id: 'floating-tooltip',
+        priority: 400,
+        isActive: () => !!getFloatingTooltip(),
+        dismiss: () => hideFloatingTooltip(),
+      }),
+      registerEscapeLayer({
+        id: 'nav-back',
+        priority: 100,
+        isActive: () => {
+          const pane = panes.find(p => p.id === activePaneId);
+          if (!pane) return false;
+          const tab = pane.tabs[pane.activeTabIndex];
+          return (tab?.historyIndex ?? 0) > 0;
+        },
+        dismiss: () => goBack(activePaneId),
+      }),
+    ];
+    return () => layers.forEach(u => u());
+  }, [
+    contextMenu, tabContextMenu, destinationPicker, isConfigDialogOpen, isPluginStoreOpen,
+    isCommandPaletteOpen, isTagManagerOpen, isSmartToolsOpen, isToolbarConfigOpen,
+    showAboutDialog, showRegisterDialog, showHelpTopics, isSaveTabsetOpen, showTutorial, openMenuId,
+    inlineRename, filterText, activePaneId, panes, goBack,
+  ]);
+
+  const setSelectedItems = (items: string[] | ((prev: string[]) => string[]), paneId: string = activePaneId) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id === paneId) {
+         const newTabs = [...p.tabs];
+         const tab = newTabs[p.activeTabIndex];
+         const newSelected = typeof items === 'function' ? items(tab.selectedItems) : items;
+         newTabs[p.activeTabIndex] = { ...tab, selectedItems: newSelected };
+         return { ...p, tabs: newTabs };
+      }
+      return p;
+    }));
+  };
+
+  useEffect(() => {
+     if (!marquee) return;
+     const left = Math.min(marquee.startX, marquee.currX);
+     const top = Math.min(marquee.startY, marquee.currY);
+     const width = Math.abs(marquee.startX - marquee.currX);
+     const height = Math.abs(marquee.startY - marquee.currY);
+     const rect = { left, top, right: left + width, bottom: top + height };
+
+     const elements = document.querySelectorAll(`[data-pane-id="${marquee.activePane}"] .fs-item-wrapper`);
+     const selected: string[] = [];
+     
+     elements.forEach(el => {
+         const elRect = el.getBoundingClientRect();
+         if (!(elRect.right < rect.left || 
+               elRect.left > rect.right || 
+               elRect.bottom < rect.top || 
+               elRect.top > rect.bottom)) {
+             const id = el.getAttribute('data-id');
+             if (id) selected.push(id);
+         }
+     });
+
+     setSelectedItems(selected, marquee.activePane);
+  }, [marquee?.currX, marquee?.currY]);
+
+  const startFolderCompare = async () => {
+      // Create pane 2 if it doesn't exist
+      if (panes.length < 2) {
+          setPanes(prev => {
+              const newPane = { 
+                  id: `pane${Date.now()}`,
+                  tabs: [{ id: `t${Date.now()}`, path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: config.defaultViewMode || 'details' }],
+                  activeTabIndex: 0,
+                  sortColumn: 'name' as const,
+                  sortDirection: 'asc' as const
+              };
+              return [...prev, newPane];
+          });
+          setIsDualPane(true);
+          // Wait for render
+          setTimeout(() => executeCompare(), 300);
+      } else {
+          setIsDualPane(true);
+          executeCompare();
+      }
+  };
+
+  const executeCompare = async () => {
+      const { IPC } = await import('../lib/ipcBridge');
+      setIsSyncMode(true);
+      setIsSyncing(true);
+      
+      // Get current panes
+      setPanes(currentPanes => {
+          if (currentPanes.length >= 2) {
+             const pathA = currentPanes[0].tabs[currentPanes[0].activeTabIndex].path;
+             const pathB = currentPanes[1].tabs[currentPanes[1].activeTabIndex].path;
+             IPC.compareDirectories(pathA, pathB, config.syncUseHashing || false).then(res => {
+                 const map: any = {};
+                 (res || []).forEach((item: any) => {
+                     map[item.id] = item;
+                 });
+                 setSyncResults(map);
+                 setIsSyncing(false);
+             }).catch(() => {
+                 setIsSyncing(false);
+                 pushToast({ kind: 'error', title: 'Compare failed', message: 'Could not compare the selected folders.' });
+             });
+          }
+          return currentPanes;
+      });
+  };
+
+  const executeFolderSync = async (mode: 'mirror' | 'updateTarget') => {
+      const { IPC } = await import('../lib/ipcBridge');
+      if (panes.length >= 2) {
+          const pathA = panes[0].tabs[panes[0].activeTabIndex].path;
+          const pathB = panes[1].tabs[panes[1].activeTabIndex].path;
+          IPC.executeFsOperation(`sync-${Date.now()}`, 'copy', pathA, pathB);
+      }
+      setToastMessage(`Executed Sync: ${mode}`);
+      setIsSyncMode(false);
+      setSyncResults({});
+  };
+
+  const setViewMode = (mode: 'details' | 'grid' | 'list', paneId: string = activePaneId) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id === paneId) {
+         const newTabs = [...p.tabs];
+         const tab = newTabs[p.activeTabIndex];
+         newTabs[p.activeTabIndex] = { ...tab, viewMode: mode };
+         return { ...p, tabs: newTabs };
+      }
+      return p;
+    }));
+    updateConfig({ defaultViewMode: mode });
+  };
+
+  const toggleSort = (paneId: string, column: SortColumnId) => {
+    setPanes(prev => prev.map(p => {
+      if (p.id === paneId) {
+         if (p.sortColumn === column) {
+            return { ...p, sortDirection: p.sortDirection === 'asc' ? 'desc' : 'asc' };
+         } else {
+            return { ...p, sortColumn: column, sortDirection: 'asc' };
+         }
+      }
+      return p;
+    }));
+  };
+
+  const getSortedContentsForActivePane = React.useCallback(() => {
+    const pane = panes.find(p => p.id === activePaneId);
+    if (!pane) return [] as any[];
+    const tab = pane.tabs[pane.activeTabIndex];
+    const panePath = tab.path;
+    const normPanePath = normalizePanePath(panePath);
+    const isThisPc = normPanePath === '/' || normPanePath === '/this-pc';
+    let contents: any[] = isThisPc
+      ? drives.map(d => ({
+          id: `drive-${d.name.replace(/^\/+/, '/')}`,
+          name: formatDriveLetter(d.name),
+          label: d.label,
+          type: 'directory',
+          path: d.name,
+          driveInfo: d,
+        }))
+      : (pathContentsCache[panePath] || []);
+
+    const isGlobal = config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ');
+    if (isGlobal) {
+      contents = globalSearchResults || [];
+    } else if (filterText.trim() !== '') {
+      try {
+        const regex = new RegExp(filterText, 'i');
+        contents = contents.filter((item: any) => regex.test(item.name));
+      } catch {
+        contents = contents.filter((item: any) => item.name.toLowerCase().includes(filterText.toLowerCase()));
+      }
+    }
+
+    if (pane.filterRegex?.trim()) {
+      try {
+        const regex = new RegExp(pane.filterRegex, 'i');
+        contents = contents.filter((item: any) => regex.test(item.name));
+      } catch {
+        contents = contents.filter((item: any) => item.name.toLowerCase().includes(pane.filterRegex!.toLowerCase()));
+      }
+    }
+
+    if (gridFilters?.isActive) {
+      if (gridFilters.hideSystem) contents = contents.filter((item: any) => !item.name.startsWith('.'));
+    }
+
+    return sortEntities(filterListEntities(contents, config), config, {
+      sortColumn: pane.sortColumn,
+      sortDirection: pane.sortDirection,
+    });
+  }, [panes, activePaneId, pathContentsCache, drives, config, filterText, globalSearchResults, gridFilters]);
+
+  const goUp = (paneId: string = activePaneId) => {
+    const p = panes.find(x => x.id === paneId);
+    if (!p) return;
+    const cPath = p.tabs[p.activeTabIndex].path;
+    if (cPath === "/" || cPath === "") {
+      return;
+    } else if (cPath.lastIndexOf("/") <= 0) {
+      setCurrentPath("/", paneId);
+    } else {
+      setCurrentPath(cPath.substring(0, cPath.lastIndexOf("/")), paneId);
+    }
+    setSelectedItems([], paneId);
+  };
+
+  // Keyboard state
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+
+      if (e.key === '/') {
+          if (document.activeElement !== omniFilterRef.current && !isInput) {
+              e.preventDefault();
+              omniFilterRef.current?.focus();
+              return;
+          }
+      }
+      
+      if (e.key === 'Escape') {
+          if (document.activeElement === omniFilterRef.current) {
+              e.preventDefault();
+              omniFilterRef.current?.blur();
+              setFilterText('');
+              return;
+          }
+      }
+
+      if (e.altKey && e.key === 'ArrowLeft') {
+         e.preventDefault();
+         goBack(activePaneId);
+      } else if (e.altKey && e.key === 'ArrowRight') {
+         e.preventDefault();
+         goForward(activePaneId);
+      } else if ((e.altKey && e.key === 'ArrowUp') || (e.key === 'Backspace' && !isInput)) {
+         e.preventDefault();
+         goUp(activePaneId);
+      }
+
+      // Ignore other keys if user is typing in another input (like Smart Tools)
+      if (isInput && document.activeElement !== omniFilterRef.current) return;
+
+      // Allow typing in OmniFilter to proceed normally, but handle specific keys like Down/Up/Enter
+      if (document.activeElement === omniFilterRef.current && !['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+          return;
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (isDualPane) {
+           const nextIdx = (activePaneIndex + 1) % panes.length;
+           setActivePaneId(panes[nextIdx].id);
+        }
+      } else if (e.key === 'l' && (e.ctrlKey || e.metaKey) && e.shiftKey && !isInput) {
+        e.preventDefault();
+        import('../lib/ipcBridge').then(({ IPC }) => IPC.showLauncher());
+      } else if (e.key === 't' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        addTab(activePaneId, activeTab.path);
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeUndo());
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+        e.preventDefault();
+        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeRedo());
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        setClipboardState(getSelectedEntityPaths(), 'copy');
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        setClipboardState(getSelectedEntityPaths(), 'cut');
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        void executePaste(activeTab.path);
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        const items = getSortedContentsForActivePane();
+        setSelectedItems(items.map((x: any) => x.id), activePaneId);
+        return;
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        if (activeTab.selectedItems.length > 0) {
+           setIsSmartToolsOpen(true);
+        }
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const isGlobal = config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ');
+        let paneContents = activeTab.path === '/' || activeTab.path === '/D:' ? [] : getDirContents(fileSystem, activeTab.path) || [];
+        
+        if (isGlobal) {
+            paneContents = globalSearchResults || [];
+        } else if (filterText.trim() !== '') {
+            try {
+                const regex = new RegExp(filterText, 'i');
+                paneContents = paneContents.filter((item: any) => regex.test(item.name)) as any;
+            } catch (err) {
+                paneContents = paneContents.filter((item: any) => item.name.toLowerCase().includes(filterText.toLowerCase())) as any;
+            }
+        }
+
+        if (paneContents.length === 0) return;
+        
+        let idx = paneContents.findIndex((c: any) => c.id === focusedItemId || (activeTab.selectedItems.length > 0 && c.id === activeTab.selectedItems[0]));
+        
+        const baseIdx = idx === -1 ? (e.key === 'ArrowDown' ? -1 : paneContents.length) : idx;
+        idx = wrapListIndex(baseIdx, e.key === 'ArrowDown' ? 1 : -1, paneContents.length, config);
+        
+        const nextItem = paneContents[idx] as any;
+        if (nextItem) {
+           setFocusedItemId(nextItem.id);
+           setSelectedItems([nextItem.id], activePaneId);
+           const el = document.getElementById(`fs-item-${nextItem.id}`);
+           if (el) el.scrollIntoView({ block: 'nearest' });
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeTab.selectedItems.length > 0) {
+           const isGlobal = config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ');
+           let paneContents = activeTab.path === '/' || activeTab.path === '/D:' ? [] : safeGetDirContents(fileSystem, activeTab.path) || [];
+           if (isGlobal) {
+               paneContents = globalSearchResults || [];
+           } else if (filterText.trim() !== '') {
+               try {
+                   const regex = new RegExp(filterText, 'i');
+                   paneContents = paneContents.filter((item: any) => regex.test(item.name)) as any;
+               } catch (err) {
+                   paneContents = paneContents.filter((item: any) => item.name.toLowerCase().includes(filterText.toLowerCase())) as any;
+               }
+           }
+           const selectedItem = paneContents?.find((c: any) => c.id === activeTab.selectedItems[0]) as any;
+           if (selectedItem?.type === 'directory') {
+               const newPath = selectedItem.path || `${activeTab.path}/${selectedItem.name}`;
+               setCurrentPath(newPath, activePaneId);
+               setFilterText(''); // Clear filter when opening directory
+               omniFilterRef.current?.blur();
+           } else if (selectedItem?.type === 'file') {
+               // Optional: If it's a file, execute it or open directory (if the path is known)
+               if (isGlobal && selectedItem.path) {
+                    const dirPath = selectedItem.path.substring(0, selectedItem.path.lastIndexOf('/'));
+                    setCurrentPath(dirPath, activePaneId);
+                    setFilterText('');
+                    omniFilterRef.current?.blur();
+                    // maybe focus this item?
+                    setTimeout(() => {
+                        setFocusedItemId(selectedItem.id);
+                        setSelectedItems([selectedItem.id], activePaneId);
+                        const el = document.getElementById(`fs-item-${selectedItem.id}`);
+                        if (el) el.scrollIntoView({ block: 'nearest' });
+                    }, 50);
+               }
+           }
+        }
+      }
+      
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && /^[a-z0-9]$/i.test(e.key)) {
+        const now = Date.now();
+        if (now - typeAheadAtRef.current > 1000) typeAheadPrefixRef.current = '';
+        typeAheadPrefixRef.current += e.key.toLowerCase();
+        typeAheadAtRef.current = now;
+        e.preventDefault();
+        const prefix = typeAheadPrefixRef.current;
+        const sorted = getSortedContentsForActivePane();
+        const match = sorted.find((item: any) => getDisplayName(item, config).toLowerCase().startsWith(prefix));
+        if (match) {
+          setFocusedItemId(match.id);
+          setSelectedItems([match.id], activePaneId);
+          const el = document.getElementById(`fs-item-${match.id}`);
+          if (el) el.scrollIntoView({ block: 'nearest' });
+        }
+        return;
+      }
+
+      if (e.key === 'Delete') {
+         const activePane = panes.find(p => p.id === activePaneId);
+         if (activePane) {
+             const tab = activePane.tabs[activePane.activeTabIndex];
+             if (tab.selectedItems.length > 0) {
+                 const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
+                 const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                 if (selectedEntities.length > 0) {
+                     handleDeleteRequest(selectedEntities, tab.path, focusedItemId === 'TREE');
+                 }
+             }
+         }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [panes, activePaneId, isDualPane, activePaneIndex, activeTab, fileSystem, focusedItemId, filterText, config, getSortedContentsForActivePane, setClipboardState, executePaste]);
+
+  // Bridge Handler for AI renaming modification
+  const handleApplyRename = (operations: RenameOperation[]) => {
+     let newFs = fileSystem;
+     newFs = updateFileSystem(newFs, activeTab.path, (dir) => {
+        for (const op of operations) {
+            const fileKey = Object.keys(dir.children).find(k => dir.children[k].name === op.originalName);
+            if (fileKey) {
+                const node = dir.children[fileKey] as any;
+                dir.children[op.newName] = { ...node, name: op.newName, modified: new Date().toISOString() };
+                if (node.type === "file") {
+                   const parts = op.newName.split('.');
+                   (dir.children[op.newName] as any).extension = parts.length > 1 ? parts.pop()! : '';
+                }
+                delete dir.children[fileKey];
+            }
+        }
+     });
+     setFileSystem(newFs);
+     setSelectedItems([]); 
+  };
+
+    // Retrieves active selected objects for AI manipulation context
+    const isGlobal = config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ');
+    const rootDriveEntities = drives.map(d => {
+        const normalizedName = d.name.replace(/^\/+/, '/');
+        return {
+            id: `drive-${normalizedName}`,
+            name: normalizedName,
+            type: "directory",
+            path: normalizedName,
+            size: d.totalSpace,
+            modified: '1970-01-01T00:00:00.000Z',
+            created: '1970-01-01T00:00:00.000Z',
+            tags: [],
+            typeDescription: `${d.label} Drive (${d.format})`,
+            driveInfo: d
+        };
+    });
+
+    let activeContents = currentPath === '/' || currentPath === '/this-pc' ? rootDriveEntities : safeGetDirContents(fileSystem, currentPath);
+    if (isGlobal) activeContents = globalSearchResults || [];
+    
+    const activeFilesMap = activeContents?.filter(c => activeTab.selectedItems.includes(c.id)) || [];
+
+  // --- Subcomponents ---
+  const renderPane = (pane: PaneState, index: number) => {
+    const isActive = pane.id === activePaneId;
+    const currentTab = pane.tabs[pane.activeTabIndex];
+    const computedViewMode = currentTab.viewMode || config.defaultViewMode || 'details';
+    const panePath = currentTab.path;
+    const isGlobal = isActive && config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ');
+    
+    const normPanePath = normalizePanePath(panePath);
+    const isThisPc = normPanePath === '/' || normPanePath === '/this-pc';
+    let contents = isThisPc ? rootDriveEntities : safeGetDirContents(fileSystem, panePath);
+    if (!isThisPc && pathContentsCache[normPanePath]?.length) {
+      contents = pathContentsCache[normPanePath];
+    }
+    const isPaneLoading = !isThisPc
+      && loadingPaths.has(normPanePath)
+      && pathContentsCache[normPanePath] === undefined;
+    if (isPaneLoading) contents = null; // show spinner only when no cached data yet
+
+    if (isGlobal) {
+        if (isGlobalSearchLoading) {
+            // Render loading indicator
+            contents = [];
+        } else if (globalSearchResults) {
+            contents = globalSearchResults;
+        } else {
+            contents = [];
+        }
+    } else if (contents && isActive && filterText.trim() !== '') {
+        try {
+            // Attempt Regex matching first
+            const regex = new RegExp(filterText, 'i');
+            contents = contents.filter(item => regex.test(item.name));
+        } catch (e) {
+            // Fallback to standard string checking if regex is invalid
+            contents = contents.filter(item => item.name.toLowerCase().includes(filterText.toLowerCase()));
+        }
+    }
+
+    if (contents && pane.filterRegex && pane.filterRegex.trim() !== '') {
+        try {
+            // Allow string search as well as regex
+            const regex = new RegExp(pane.filterRegex, 'i');
+            contents = contents.filter(item => regex.test(item.name));
+        } catch (e) {
+            // fallback to plain string match if invalid regex
+            contents = contents.filter(item => item.name.toLowerCase().includes(pane.filterRegex!.toLowerCase()));
+        }
+    }
+
+    if (contents && isActive && gridFilters?.isActive) {
+        if (gridFilters.hideSystem) {
+             contents = contents.filter((item: any) => !item.name.startsWith('.'));
+        }
+        if (gridFilters.isolateImages) {
+             const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
+             contents = contents.filter((item: any) => item.type === 'directory' || (item.extension && imageExts.includes(item.extension.toLowerCase())));
+        }
+        if (gridFilters.isolateCode) {
+             const codeExts = ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'html', 'css', 'json', 'yaml', 'yml', 'xml', 'md'];
+             contents = contents.filter((item: any) => item.type === 'directory' || (item.extension && codeExts.includes(item.extension.toLowerCase())));
+        }
+        if (gridFilters.excludeExt) {
+             const ext = gridFilters.excludeExt.toLowerCase();
+             contents = contents.filter((item: any) => !item.extension || item.extension.toLowerCase() !== ext);
+        }
+    }
+
+    if (contents) {
+        contents = sortEntities(filterListEntities(contents, config), config, {
+            sortColumn: pane.sortColumn,
+            sortDirection: pane.sortDirection,
+        });
+    }
+
+    const handleEntityClicked = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      setActivePaneId(pane.id);
+      
+      const wasAlreadySelected = currentTab.selectedItems.length === 1 && currentTab.selectedItems[0] === id;
+      
+      setFocusedItemId(id);
+      if (e.ctrlKey || e.metaKey) {
+        setSelectedItems(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id], pane.id);
+        setLastClickData(null);
+      } else if (e.shiftKey) {
+        setSelectedItems([id], pane.id);
+        setLastClickData(null);
+      } else {
+        setSelectedItems([id], pane.id);
+        
+        // Slow second-click rename — delayed so double-click navigation wins
+        const now = Date.now();
+        if (renameTimerRef.current) {
+          clearTimeout(renameTimerRef.current);
+          renameTimerRef.current = null;
+        }
+        if (wasAlreadySelected && lastClickData?.id === id) {
+            const delay = now - lastClickData.time;
+            if (delay >= 900 && delay <= 2200) {
+                 const entity = safeGetDirContents(fileSystem, panePath)?.find((x: any) => x.id === id)
+                   || contents?.find((x: any) => x.id === id);
+                 if (entity) {
+                     renameTimerRef.current = setTimeout(() => {
+                       renameTimerRef.current = null;
+                       setInlineRename({ path: panePath, entityId: id, currentName: getRenameInitialValue(entity, config) });
+                     }, 350);
+                     setLastClickData({ id, time: now });
+                     return;
+                 }
+            }
+        }
+        setLastClickData({ id, time: now });
+      }
+    };
+
+    const handleEntityDoubleClicked = (entity: any) => {
+      if (renameTimerRef.current) {
+        clearTimeout(renameTimerRef.current);
+        renameTimerRef.current = null;
+      }
+      setActivePaneId(pane.id);
+      setFocusedItemId(entity.id);
+      setLastClickData(null);
+      setInlineRename(null);
+      if (entity.type === "directory") {
+        let newPath = isGlobal && entity.path ? entity.path : 
+            panePath === '/' ? (entity.name.startsWith('/') ? entity.name : `/${entity.name}`) : 
+            `${panePath}/${entity.name}`;
+        
+        // Clean up any double slashes that might have formed (except network paths)
+        if (newPath.startsWith('///')) {
+            newPath = '/' + newPath.substring(3);
+        } else if (newPath.startsWith('//') && !newPath.includes('.')) {
+            newPath = '/' + newPath.substring(2);
+        }
+
+        setCurrentPath(newPath, pane.id);
+        if (isGlobal) {
+            setFilterText('');
+            omniFilterRef.current?.blur();
+        }
+      } else {
+        const fullPath = isGlobal && entity.path
+          ? entity.path
+          : joinPanePath(panePath, entity);
+        import('../lib/ipcBridge').then(({ IPC }) => {
+          IPC.executeContextMenuVerb(toWindowsPath(fullPath), 'open');
+        });
+      }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isActive && isDualPane) setActivePaneId(pane.id);
+      e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
+    };
+
+    const visibleListColumns = getVisibleListColumns(config, { isGlobalSearch: isGlobal });
+
+    const renderDetailColumn = (
+      colId: ListColumnId,
+      entity: any,
+      opts: {
+        isDir: boolean;
+        displayName: string;
+        renameInput: React.ReactNode;
+        filterResult: VisualFilter | null;
+        filterColor?: string;
+        entityTags: string[];
+        panePath: string;
+      },
+    ) => {
+      const { isDir, displayName, renameInput, filterResult, filterColor, entityTags, panePath } = opts;
+      const textStyle = filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {};
+      switch (colId) {
+        case 'name':
+          return (
+            <div key={colId} className="px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none flex items-center gap-1.5" style={textStyle}>
+              {entityTags.length > 0 && buildSettingsRuntime(config).list.showTags && (
+                <span className="flex items-center gap-0.5 shrink-0">
+                  {entityTags.slice(0, 3).map(t => {
+                    const meta = availableTags.find((x: any) => x.name === t || x.label === t);
+                    return (
+                      <span key={t} title={meta?.label || t} className="inline-flex shrink-0">
+                        <Tag size={11} style={{ color: meta?.color || '#888' }} fill={meta?.color || '#888'} aria-hidden />
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+              {renameInput || displayName}
+            </div>
+          );
+        case 'type':
+          return (
+            <div key={colId} className="px-2 bndz-list-col-muted whitespace-nowrap overflow-hidden text-ellipsis text-gray-400">
+              {entity.typeDescription || (isDir ? 'File Folder' : `${(entity as any).extension || ''} File`)}
+            </div>
+          );
+        case 'size':
+          return (
+            <div key={colId} className="px-2 text-right text-gray-400 flex justify-end items-center gap-2">
+              {isDir ? formatFolderSizeLabel(
+                folderSizeMap[toWindowsPath(joinPanePath(panePath, entity)).toLowerCase()],
+                {
+                  alwaysShowFolderSizes: config.alwaysShowFolderSizes,
+                  cacheFolderSizes: config.cacheFolderSizes,
+                  showCachedFolderSizesOnly: config.showCachedFolderSizesOnly,
+                },
+                formatSize,
+              ) : formatSize((entity as any).size)}
+              {filterResult?.badgeColor && (
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
+              )}
+            </div>
+          );
+        case 'modified':
+          return (
+            <div key={colId} className="px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
+              {formatFsDateTime(entity.modified)}
+            </div>
+          );
+        case 'created':
+          return (
+            <div key={colId} className="px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
+              {formatFsDateTime((entity as any).created)}
+            </div>
+          );
+        case 'attributes':
+          return (
+            <div key={colId} className="px-2 text-gray-500 font-mono text-[10px] tracking-wider whitespace-nowrap overflow-hidden text-ellipsis" title={(entity.attributes || []).join(', ')}>
+              {formatAttributesLabel(entity.attributes)}
+            </div>
+          );
+        case 'tags':
+          return (
+            <div key={colId} className="px-2 flex gap-1 h-full items-center flex-wrap">
+              {buildSettingsRuntime(config).list.showTags && entityTags.map(t => (
+                <span key={t} className="bg-[#333] text-[9px] px-[4px] rounded-sm text-gray-300 border border-[#444] uppercase tracking-wide leading-none py-[2px]">{t}</span>
+              ))}
+            </div>
+          );
+        case 'path':
+          return (
+            <div key={colId} className="px-2 text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px]" title={entity.path || joinPanePath(panePath, entity)}>
+              {(entity.path || joinPanePath(panePath, entity)).replace(/^\//, '')}
+            </div>
+          );
+        default:
+          return null;
+      }
+    };
+
+    const handleDrop = (e: React.DragEvent, dropTargetIdOverride?: string | null) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragTargetId(null);
+      setActivePaneId(pane.id);
+      try {
+        let destPath = panePath;
+        if (dropTargetIdOverride) {
+          const targetEntity = contents.find(c => c.id === dropTargetIdOverride);
+          if (targetEntity?.type === 'directory') {
+            destPath = joinPanePath(panePath, targetEntity);
+          }
+        }
+        const destWin = toWindowsPath(destPath);
+        const op = e.ctrlKey || e.altKey ? 'copy' : 'move';
+
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const filePaths = Array.from(e.dataTransfer.files).map(f => (f as any).path).filter(Boolean);
+            if (filePaths.length > 0) {
+                import('../lib/ipcBridge').then(({ IPC }) => {
+                    IPC.executeFsOperation(`drop-${Date.now()}`, op, filePaths, destWin);
+                });
+            }
+            return;
+        }
+
+        const dataStr = e.dataTransfer.getData('application/bndz-file');
+        if (!dataStr) return;
+        const data = JSON.parse(dataStr);
+        const sourcePaths: string[] = (data.paths || []).map((p: string) => toWindowsPath(p)).filter(Boolean);
+        if (!sourcePaths.length) return;
+
+        const destNorm = toWindowsPath(destPath).toLowerCase();
+        const sameLocation = sourcePaths.every(sp => {
+          const parent = sp.replace(/[/\\][^/\\]+$/, '');
+          return parent.toLowerCase() === destNorm;
+        });
+        if (sameLocation) return;
+
+        import('../lib/ipcBridge').then(({ IPC }) => {
+          const opId = `drop-int-${Date.now()}`;
+          IPC.executeFsOperation(opId, op, sourcePaths, destWin);
+          if (!IPC.isNative && op === 'move' && data.sourcePath) {
+            let newFs = fileSystem;
+            for (const sp of sourcePaths) {
+              const name = sp.split(/[/\\]/).pop() || '';
+              newFs = updateFileSystem(newFs, data.sourcePath, (dir) => {
+                const key = Object.keys(dir.children).find(k => dir.children[k].name === name);
+                if (key) delete dir.children[key];
+              });
+            }
+            setFileSystem(newFs);
+          }
+          setTimeout(() => refreshWorkspace(), 200);
+        });
+      } catch (err) {
+         console.error(err);
+      }
+    };
+
+    return (
+      <div 
+        key={pane.id}
+        className={`flex-1 flex flex-col min-w-0 ${config.applyColors ? '' : 'bg-[#1c1c1c]'} ${isActive && isDualPane ? 'shadow-[inset_0_0_0_1px_rgba(59,130,246,0.6)] z-10' : ''} relative`}
+        style={config.applyColors ? { backgroundColor: 'var(--list-bg)', color: 'var(--list-text)' } : {}}
+        onClick={() => { setActivePaneId(pane.id); }}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {config.shadeInactivePane !== false && !isActive && isDualPane && (
+           <div className="absolute inset-0 bg-black/15 z-[5] pointer-events-none"></div>
+        )}
+        {/* Tab Strip */}
+        <div className="flex bg-[#111] pt-1 px-1 shrink-0 overflow-x-auto border-b border-[#333] items-end scrollbar-hidden" style={{ minHeight: config.tabBarHeight || 28 }}>
+           {pane.tabs.map((tab, idx) => {
+             const isTabActive = idx === pane.activeTabIndex;
+             const name = getPaneTabLabel(tab.path);
+             const isTabDragging = draggedTab?.paneId === pane.id && draggedTab.index === idx;
+             return (
+               <div 
+                 key={tab.id}
+                 draggable={!tab.locked}
+                 onDragStart={(e) => {
+                   if (tab.locked) { e.preventDefault(); return; }
+                   e.stopPropagation();
+                   setDraggedTab({ paneId: pane.id, index: idx });
+                   e.dataTransfer.effectAllowed = 'move';
+                 }}
+                 onDragOver={(e) => {
+                   e.preventDefault();
+                   if (!draggedTab || draggedTab.paneId !== pane.id || draggedTab.index === idx) return;
+                   reorderTab(pane.id, draggedTab.index, idx);
+                   setDraggedTab({ paneId: pane.id, index: idx });
+                 }}
+                 onDragEnd={() => setDraggedTab(null)}
+                 onClick={(e) => { e.stopPropagation(); setActiveTab(pane.id, idx); }}
+                 onContextMenu={(e) => {
+                   e.preventDefault();
+                   e.stopPropagation();
+                   setTabContextMenu({ x: e.clientX, y: e.clientY, paneId: pane.id, tabIndex: idx });
+                 }}
+                 className={`flex items-center px-3 py-[4px] ml-[2px] rounded-t z-10 -mb-[1px] cursor-pointer group border-t border-l border-r ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''}`}
+                 style={config.applyColors ? {
+                    backgroundColor: isTabActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
+                    color: isTabActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)'
+                 } : {
+                    backgroundColor: isTabActive ? '#1c1c1c' : '#111',
+                    color: isTabActive ? '#6db4e6' : '#6b7280'
+                 }}
+               >
+                 {config.showIconsTabs !== false && (
+                    <span className="mr-1.5 shrink-0">
+                      <ShellNativeIcon
+                        path={tab.path}
+                        isDir={tab.path !== '/' && !tab.path.match(/^\/[A-Za-z]:$/)}
+                        size={12}
+                        eager
+                      />
+                    </span>
+                 )}
+                 {tab.locked && <Lock size={10} className="mr-1 shrink-0 text-amber-400" aria-label="Locked" />}
+                 <span className="truncate" style={{ fontSize: config.tabFontSize || 11 }}>{name}</span>
+                 {config.showXCloseButtonsOnTabs !== "None" && pane.tabs.length > 1 && (config.showXCloseButtonsOnTabs === "All tabs" || isTabActive) && (
+                    <X size={12} className={`ml-2 text-gray-500 hover:text-red-400 opacity-100`} onClick={(e) => closeTabAt(pane.id, idx, e)} />
+                 )}
+               </div>
+             );
+           })}
+           {config.showNewTabButton !== false && (
+             <div 
+               className="ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400 font-bold"
+               onClick={(e) => { e.stopPropagation(); addTab(pane.id, currentTab.path); }}
+             >
+               <span className="text-[14px] leading-tight">+</span>
+             </div>
+           )}
+           {config.showTabListButton && (
+             <div 
+               className="ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400"
+             >
+               <Menu size={12} />
+             </div>
+           )}
+        </div>
+        
+        {/* Breadcrumb Row */}
+        <div className={`flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1 py-[2px] shrink-0`}
+             style={config.applyColors ? { backgroundColor: 'var(--breadcrumb-bg)', color: 'var(--breadcrumb-text)' } : {}}>
+            <ToolbarButton icon={ArrowLeft} className={`w-5 ${currentTab.historyIndex > 0 ? '' : 'opacity-30'}`} onClick={() => goBack(pane.id)} />
+            <ToolbarButton icon={ArrowRight} className={`w-5 ${currentTab.historyIndex < currentTab.history.length - 1 ? '' : 'opacity-30'}`} onClick={() => goForward(pane.id)} />
+            <ToolbarButton icon={ArrowUp} className="w-5" onClick={() => goUp(pane.id)} />
+            <div 
+              className="flex items-center text-[12px] px-1 overflow-x-hidden whitespace-nowrap mask-image-rtl flex-1 cursor-text"
+              onClick={() => {
+                 if (!isGlobal) {
+                     setEditingAddressBarPaneId(pane.id);
+                     setAddressBarInput(formatAddressBarPath(currentTab.path));
+                 }
+              }}
+            >
+              {editingAddressBarPaneId === pane.id && !isGlobal ? (
+                 <input 
+                    type="text" 
+                    autoFocus 
+                    className="flex-1 bg-transparent border-none outline-none text-white w-full" 
+                    value={addressBarInput} 
+                    onChange={e => setAddressBarInput(e.target.value)} 
+                    onBlur={() => setEditingAddressBarPaneId(null)}
+                    onKeyDown={async e => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            let newPath = addressBarInput.replace(/\\/g, '/');
+                            if (!newPath.startsWith('/')) newPath = '/' + newPath;
+                            import('../lib/ipcBridge').then(async ({IPC}) => {
+                                const exists = await IPC.checkPathExists(newPath);
+                                if (exists) {
+                                  setCurrentPath(newPath, pane.id);
+                                  setEditingAddressBarPaneId(null);
+                                } else {
+                                  setEditingAddressBarPaneId(null);
+                                  // Revert smoothly as requested
+                                }
+                            });
+                        }
+                        if (e.key === 'Escape') setEditingAddressBarPaneId(null);
+                    }}
+                 />
+              ) : isGlobal ? (
+                 <React.Fragment>
+                    <span className="text-gray-500 mx-1 shrink-0">Global Search &gt;</span>
+                    <span className="hover:underline cursor-pointer font-semibold shrink-0 text-yellow-400">
+                       {filterText.trimStart().substring(2).trim()}
+                    </span>
+                 </React.Fragment>
+              ) : getBreadcrumbSegments(currentTab.path).map((seg, idx) => (
+                  <React.Fragment key={seg.path}>
+                    {idx > 0 && <span className="text-gray-500 mx-1 shrink-0">&gt;</span>}
+                    <span
+                      className="hover:underline cursor-pointer font-semibold shrink-0"
+                      onClick={(e) => { e.stopPropagation(); setCurrentPath(seg.path, pane.id); }}
+                    >
+                      {seg.label}
+                    </span>
+                  </React.Fragment>
+                ))}
+            </div>
+            <div className="flex bg-[#222] border border-[#444] rounded items-center px-1 text-[11px] shrink-0 mx-2">
+                 <button onClick={() => setViewMode('details', pane.id)} className={`p-1 rounded ${computedViewMode === 'details' ? 'bg-[#444]' : 'hover:bg-[#333]'}`} title="Details View">
+                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                 </button>
+                 <button onClick={() => setViewMode('grid', pane.id)} className={`p-1 rounded ${computedViewMode === 'grid' ? 'bg-[#444]' : 'hover:bg-[#333]'}`} title="Grid View">
+                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                 </button>
+                 <button onClick={() => setViewMode('list', pane.id)} className={`p-1 rounded ${computedViewMode === 'list' ? 'bg-[#444]' : 'hover:bg-[#333]'}`} title="List View">
+                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                 </button>
+            </div>
+            <div className="flex bg-[#222] border border-[#444] rounded items-center px-2 py-0.5 mx-2 text-[11px] shrink-0 w-[140px] focus-within:w-[200px] focus-within:border-sky-500 transition-all duration-200">
+               <Search size={12} className="text-gray-400 mr-1.5" />
+               <input
+                   type="text"
+                   placeholder="Regex Filter..."
+                   className="bg-transparent border-none outline-none text-gray-200 flex-1 placeholder:text-gray-600"
+                   value={pane.filterRegex || ''}
+                   onChange={(e) => {
+                       const newPanes = [...panes];
+                       const p = newPanes.find(x => x.id === pane.id);
+                       if (p) p.filterRegex = e.target.value;
+                       setPanes(newPanes);
+                   }}
+               />
+            </div>
+        </div>
+
+        {/* Grid Header */}
+        {(computedViewMode === 'details') && buildSettingsRuntime(config).list.showSortHeaders && (
+        <div className={`fs-list-header flex text-[#9ca3af] text-[11px] py-1.5 shrink-0 px-1 select-none ${!buildSettingsRuntime(config).list.verticalGridLines ? '[&>div]:border-r-0' : ''}`}>
+           <div className="w-6 border-r border-[#333]"></div>
+           {getVisibleListColumns(config, { isGlobalSearch: isGlobal }).map(col => (
+             <div
+               key={col.id}
+               className={`${col.widthClass || 'shrink-0'} relative px-2 border-r border-[#333] flex items-center justify-between ${col.sortable ? 'cursor-pointer hover:bg-[#2a2a2a]' : ''} ${col.align === 'right' ? 'text-right' : ''}`}
+               style={getColumnStyle(col)}
+               onClick={col.sortable ? () => toggleSort(pane.id, col.id as SortColumnId) : undefined}
+             >
+               <span className={col.align === 'right' ? 'flex-1 text-right' : ''}>{col.label}</span>
+               {col.sortable && pane.sortColumn === col.id && (
+                 <span className="text-[10px] ml-1">{pane.sortDirection === 'asc' ? '▲' : '▼'}</span>
+               )}
+               <div
+                 className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-sky-500/40 z-10"
+                 onMouseDown={e => { e.stopPropagation(); startColumnResize(col.id, e.clientX, e.currentTarget.parentElement as HTMLElement); }}
+               />
+             </div>
+           ))}
+        </div>
+        )}
+
+        {/* List Items */}
+        <div 
+           data-pane-id={pane.id}
+           className="flex-1 overflow-y-auto p-1 focus:outline-none relative bndz-scrollbar bndz-file-list-scroll"
+           style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
+           onContextMenu={(e) => handleContextMenuRequest(e, panePath, null, true, null)}
+           onClick={(e) => {
+              if (e.defaultPrevented) return;
+              // if marquee was active and dragged, we shouldn't clear. 
+              // A simple way is to check a ref or just see if the mouse moved during pointerdown.
+              // We'll rely on the fact that we can set a flag on the event or use a ref.
+              // Actually, since React resets e, we will rely on a generic check.
+              if ((window as any)._marqueeDragOccurred) {
+                  (window as any)._marqueeDragOccurred = false;
+                  return;
+              }
+              setSelectedItems([], pane.id);
+              setLastClickData(null);
+              setInlineRename(null);
+           }}
+           onPointerDown={(e) => {
+              // Only trigger if clicking directly on the background or list container, not on an item
+              if (!(e.target as HTMLElement).closest('.fs-item-wrapper')) {
+                 const startX = e.clientX;
+                 const startY = e.clientY;
+                 setMarquee({ activePane: pane.id, startX, startY, currX: startX, currY: startY });
+                 (window as any)._marqueeDragOccurred = false;
+
+                 const onPointerMove = (ev: PointerEvent) => {
+                     if (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3) {
+                         (window as any)._marqueeDragOccurred = true;
+                     }
+                     setMarquee(prev => prev ? { ...prev, currX: ev.clientX, currY: ev.clientY } : null);
+                 };
+                 const onPointerUp = () => {
+                     window.removeEventListener('pointermove', onPointerMove);
+                     window.removeEventListener('pointerup', onPointerUp);
+                     setMarquee(null);
+                 };
+                 window.addEventListener('pointermove', onPointerMove);
+                 window.addEventListener('pointerup', onPointerUp);
+              }
+           }}
+        >
+          {isPaneLoading && (
+             <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500 min-h-[200px]">
+               <Loader2 className="animate-spin" size={24} />
+               <span className="text-[11px]">Loading {panePath.split('/').pop() || panePath}...</span>
+             </div>
+          )}
+          {!isPaneLoading && isGlobal && isGlobalSearchLoading && (
+             <div className="flex flex-col items-center justify-center h-full gap-3 text-amber-400/80 min-h-[200px]">
+               <Loader2 className="animate-spin" size={22} />
+               <span className="text-[11px]">Searching{config.enableEverythingSearch !== false ? ' with Everything' : ''}…</span>
+             </div>
+          )}
+          {!isPaneLoading && !(isGlobal && isGlobalSearchLoading) && (
+            <VirtualizedFileList
+              items={contents || []}
+              enabled={computedViewMode === 'details' || computedViewMode === 'grid'}
+              mode={computedViewMode === 'grid' ? 'grid' : 'list'}
+              rowHeight={computedViewMode === 'details' ? 28 : 26}
+              className={
+                computedViewMode === 'grid' ? "w-full" :
+                computedViewMode === 'list' ? "flex flex-wrap gap-2" :
+                "flex flex-col w-full"
+              }
+              emptyState={
+                <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-gray-500 gap-2">
+                  <FolderOpen size={28} className="opacity-40" />
+                  <span className="text-[11px]">
+                    {isGlobal ? 'No global search results.' : 'This folder is empty.'}
+                  </span>
+                </div>
+              }
+              renderItem={(entity) => {
+                const entityTags: string[] = Array.isArray((entity as any).tags) ? (entity as any).tags : [];
+                const isSelected = currentTab.selectedItems.includes(entity.id);
+
+                const isDir = entity.type === "directory";
+                const isDrive = !!(entity as any).driveInfo;
+                const drive = (entity as any).driveInfo;
+                const isCut = clipboard?.action === 'cut' && clipboard.items.some((i: any) => i.id === entity.id);
+                let filterResult = applyVisualFilters(entity, config.visualFilters);
+                const colorFilterResult = evaluateColorFilter(entity, config.colorFilters, config);
+                let filterColor = filterResult?.hexColor; 
+                let syncOpacity = false;
+
+                if (isSyncMode && syncResults) {
+                     const sRes = syncResults[entity.id] || Object.values(syncResults).find((s: any) => s.path?.endsWith(entity.name));
+                     if (sRes) {
+                         const isPaneA = panes[0].id === pane.id;
+                         const status = isPaneA ? sRes.statusA : sRes.statusB;
+                         if (status === 'Identical') {
+                             syncOpacity = true;
+                         } else if (status === 'Unique') {
+                             filterColor = '#22c55e'; // Green
+                         } else if (status === 'Newer') {
+                             filterColor = '#3b82f6'; // Blue
+                         } else if (status === 'Conflict' || status === 'Missing') {
+                             filterColor = status === 'Conflict' ? '#eab308' : '#ef4444'; // Yellow or Red
+                         }
+                     }
+                }
+                
+                const displayName = getDisplayName(entity, config, panePath);
+                    
+                const renameInput = inlineRename?.entityId === entity.id && inlineRename?.path === panePath ? (
+                    <input 
+                       type="text" 
+                       className="bg-[#111] text-white border border-[#007acc] px-1 outline-none w-[90%]"
+                       autoFocus 
+                       value={inlineRename.currentName}
+                       onChange={e => setInlineRename({ ...inlineRename, currentName: e.target.value })}
+                       onBlur={() => {
+                           if (inlineRename.currentName !== entity.name) {
+                               import("../lib/ipcBridge").then(({ IPC }) => IPC.executeFsOperation(`rename-${Date.now()}`, "move", `${panePath}/${entity.name}`, `${panePath}/${inlineRename.currentName}`));
+                           }
+                           setInlineRename(null);
+                       }}
+                       onKeyDown={e => {
+                           if (e.key === "Enter") {
+                               e.currentTarget.blur();
+                           } else if (e.key === "Escape") {
+                               setInlineRename(null);
+                           }
+                       }}
+                       onClick={e => e.stopPropagation()}
+                       onDoubleClick={e => e.stopPropagation()}
+                    />
+                ) : null;
+
+                const tooltipContent = (inlineRename?.entityId !== entity.id && shouldShowTooltipForEntity(entity, config))
+                  ? buildEntityTooltipContent(entity, panePath, config, folderSizeMap, formatSize)
+                  : null;
+                const tipHandlers = bindFloatingTooltipHandlers(tooltipContent, config);
+                const suppressNativeTitle = shouldSuppressNativeEntityTitle(config);
+
+                const rowNode = (
+                  <div 
+                    id={`fs-item-${entity.id}`}
+                    data-id={entity.id}
+                    className={`fs-item-wrapper ${currentTab.viewMode === 'grid' ? 'flex flex-col items-center justify-center p-2 rounded w-full h-[100px]' : currentTab.viewMode === 'list' ? 'flex items-center text-[12px] py-1 px-2 w-[220px] rounded' : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : "py-[3px]"}`} border cursor-pointer 
+                      ${isSelected ? `border-[#007acc] ${buildSettingsRuntime(config).list.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : "border-transparent hover:bg-[#2a2d2e]"}
+                      ${focusedItemId === entity.id ? "ring-1 ring-inset ring-white/30" : ""}
+                      ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-sky-400 bg-sky-900/40" : ""}
+                      ${isCut || syncOpacity ? "opacity-50 grayscale" : ""}`}
+                    style={{
+                        ...(((config.applyColors && isSelected) ? { backgroundColor: "var(--list-selected-bg)" } : (isSelected ? { backgroundColor: "#264f78" } : {}))),
+                        ...(filterResult?.rowTint && !isSelected ? { backgroundColor: filterResult.rowTint } : filterColor && !isSelected ? { backgroundColor: `${filterColor}1A` } : {}),
+                        ...(!isSelected && colorFilterResult?.inlineStyle ? colorFilterResult.inlineStyle : {})
+                    }}
+                    onClick={(e) => handleEntityClicked(e, entity.id)}
+                    onDoubleClick={() => handleEntityDoubleClicked(entity)}
+                    onMouseEnter={tipHandlers.onMouseEnter}
+                    onMouseMove={tipHandlers.onMouseMove}
+                    onMouseLeave={tipHandlers.onMouseLeave}
+                    onDragEnter={(e) => { e.preventDefault(); if (isDir) setDragTargetId(entity.id); }}
+                    onDragLeave={(e) => { e.preventDefault(); if (dragTargetId === entity.id) setDragTargetId(null); }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (isDir) {
+                        e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
+                        setDragTargetId(entity.id);
+                      }
+                    }}
+                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDragTargetId(null); if (isDir) { handleDrop(e, entity.id); } else { handleDrop(e); } }}
+                    onContextMenu={(e) => {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       let isPart = currentTab.selectedItems.includes(entity.id);
+                       if (!isPart) {
+                           handleEntityClicked(e, entity.id); // Select it if not part of current selection
+                       }
+                       // Compute paths array for context menu bulk actions
+                       let selectedIds = isPart ? currentTab.selectedItems : [entity.id];
+                       let contextPaths = selectedIds.map(sid => {
+                           const se = contents.find(c => c.id === sid);
+                           if (!se) return toWindowsPath(sid);
+                           return joinPanePath(panePath, se);
+                       }).filter(Boolean) as string[];
+                       if (!contextPaths.length) {
+                         contextPaths = [joinPanePath(panePath, entity)];
+                       }
+
+                       handleContextMenuRequest(e, panePath, entity.id, isDir, entity.name, contextPaths);
+                    }}
+                    draggable={true}
+                    onDragStart={(e) => {
+                      let dragPaths = [joinPanePath(panePath, entity)];
+                      if (pane.tabs[pane.activeTabIndex].selectedItems.includes(entity.id)) {
+                          dragPaths = pane.tabs[pane.activeTabIndex].selectedItems.map((sid: string) => {
+                             const se = contents.find(c => c.id === sid);
+                             if (!se) return null;
+                             return isGlobal && se.path ? se.path : joinPanePath(panePath, se);
+                          }).filter(Boolean) as string[];
+                      }
+                      dragPaths = dragPaths.map(p => toWindowsPath(p));
+                      const payload = {
+                        sourcePaneId: pane.id,
+                        sourcePath: panePath,
+                        entityId: entity.id,
+                        paths: dragPaths,
+                      };
+                      e.dataTransfer.setData('application/bndz-file', JSON.stringify(payload));
+                      e.dataTransfer.setData('text/plain', dragPaths.join('\n'));
+                      e.dataTransfer.effectAllowed = 'copyMove';
+                      internalDragRef.current = true;
+                      if (e.altKey) {
+                        e.preventDefault();
+                        import('../lib/ipcBridge').then(m => m.IPC.startDrag(dragPaths));
+                      }
+                    }}
+                    onDragEnd={() => {
+                      internalDragRef.current = false;
+                      setDragTargetId(null);
+                    }}
+                  >
+                     {isDrive && drive ? (
+                        <>
+                           <div className="w-6 flex justify-center shrink-0">
+                              <ShellNativeIcon path={entity.path || drive.name} isDir={false} size={16} eager />
+                           </div>
+                           {computedViewMode !== 'grid' && computedViewMode !== 'list' && (
+                             <div className="flex-1 flex items-center shadow-none focus:outline-none">
+                                <div className="w-[45%] max-w-[300px] px-2">{drive.label} ({drive.name.replace(/^\//,"")})</div>
+                                <div className="w-[15%] max-w-[120px] px-2">{drive.type}</div>
+                                <div className="w-[15%] max-w-[100px] px-2 text-right">{(drive.totalSpace / (1024*1024*1024)).toFixed(0)} GB</div>
+                                <div className="w-[25%] max-w-[160px] px-2"></div>
+                                <div className="w-[200px] shrink-0 pl-2 pr-2">
+                                   <StorageUsageBar
+                                     usedPct={((drive.totalSpace - drive.freeSpace) / drive.totalSpace) * 100}
+                                     height={8}
+                                     className="w-full max-w-[200px] mb-[3px]"
+                                   />
+                                   <div className="text-[10px] text-gray-400">{(drive.freeSpace / (1024*1024*1024)).toFixed(2)} GB free of {(drive.totalSpace / (1024*1024*1024)).toFixed(2)} GB</div>
+                                </div>
+                             </div>
+                           )}
+                           {(computedViewMode === 'grid' || computedViewMode === 'list') && (
+                               <div className="px-2 truncate">
+                                   {drive.label} ({drive.name.replace(/^\//,"")})
+                               </div>
+                           )}
+                        </>
+                     ) : (
+                        <>
+                           {computedViewMode === 'grid' ? (
+                             <>
+                               <div className="flex-1 flex items-center justify-center min-h-[48px] relative">
+                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={48} />
+                                  {filterResult?.badgeColor && (
+                                      <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full ring-1 ring-black" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
+                                  )}
+                               </div>
+                               <div className="text-center line-clamp-2 w-full break-words text-[11px] leading-tight" title={suppressNativeTitle ? undefined : entity.name} style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
+                                  {renameInput || displayName}
+                               </div>
+                             </>
+                           ) : computedViewMode === 'list' ? (
+                             <>
+                               <div className="w-6 flex justify-center shrink-0">
+                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={16} />
+                               </div>
+                               <div className="flex-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
+                                  {renameInput || displayName}
+                               </div>
+                               {filterResult?.badgeColor && (
+                                   <div className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
+                               )}
+                             </>
+                           ) : (
+                             <>
+                               <div className="w-6 flex justify-center shrink-0">
+                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={16} />
+                               </div>
+                               <div className="flex-1 flex items-center min-w-0">
+                                 {visibleListColumns.map(col => (
+                                   <div key={col.id} className={`${col.widthClass || 'shrink-0'} shrink-0`} style={getColumnStyle(col)}>
+                                     {renderDetailColumn(col.id, entity, {
+                                       isDir, displayName, renameInput, filterResult, filterColor, entityTags, panePath,
+                                     })}
+                                   </div>
+                                 ))}
+                               </div>
+                             </>
+                           )}
+                        </>
+                     )}
+                  </div>
+                );
+
+                return <React.Fragment key={entity.id}>{rowNode}</React.Fragment>;
+              }}
+            />
+          )}
+          {marquee && marquee.activePane === pane.id && (
+             <div 
+                className="fixed bg-sky-500/20 border border-sky-400 z-50 pointer-events-none"
+                style={{
+                    left: Math.min(marquee.startX, marquee.currX),
+                    top: Math.min(marquee.startY, marquee.currY),
+                    width: Math.abs(marquee.startX - marquee.currX),
+                    height: Math.abs(marquee.startY - marquee.currY)
+                }}
+             />
+          )}
+         </div>
+      </div>
+    );
+  };
+
+  const currentPane = panes.find(p => p.id === activePaneId) || panes[0];
+  const currentTab = currentPane.tabs[currentPane.activeTabIndex];
+  const getResolvedEntity = (id: string | null) => {
+      if (!id) return null;
+      const cached = findEntityInCache(pathContentsCache, id);
+      if (cached) return cached;
+      let ent = getEntityByPath(fileSystem, id);
+      if (ent) return ent;
+      for (const pane of panes) {
+         for (const tab of pane.tabs) {
+             const found = (tab as any).items?.find((i: any) => i.id === id || (tab.path + '/' + i.name) === id);
+             if (found) return found;
+         }
+      }
+      if (id.startsWith('drive-')) {
+          const suffix = id.slice(6);
+          const drivePath = normalizePanePath(suffix.startsWith('/') ? suffix : `/${suffix}`);
+          return { id, name: formatDriveLetter(drivePath), type: 'directory', path: drivePath, driveInfo: drives.find(d => normalizePanePath(d.name) === drivePath) };
+      }
+      if (id.includes('/') || id.includes('\\') || /^[A-Za-z]:/.test(id)) {
+          return {
+              id,
+              name: id.split(/[/\\]/).pop() || id,
+              type: id.includes('.') ? 'file' : 'directory',
+              path: normalizePanePath(id.replace(/\\/g, '/')),
+          };
+      }
+      return null;
+  };
+  const focusedEntity = getResolvedEntity(focusedItemId);
+  const focusedFullPath = focusedEntity
+      ? joinPanePath(currentTab.path, focusedEntity)
+      : null;
+
+  const previewEntity = useMemo(() => {
+    if (currentTab.selectedItems.length > 0) {
+      const ent = getResolvedEntity(currentTab.selectedItems[0]);
+      if (ent) return ent;
+    }
+    if (focusedEntity) return focusedEntity;
+    return getLocationEntityFromPath(currentTab.path);
+  }, [currentTab.selectedItems, currentTab.path, focusedEntity, pathContentsCache]);
+
+  const previewPath = useMemo(() => {
+    if (currentTab.selectedItems.length > 0) {
+      const ent = getResolvedEntity(currentTab.selectedItems[0]);
+      if (ent) return joinPanePath(currentTab.path, ent);
+    }
+    if (focusedFullPath) return focusedFullPath;
+    return currentTab.path;
+  }, [currentTab.selectedItems, currentTab.path, focusedFullPath, pathContentsCache]);
+
+  const bottomSelectionTargets = useMemo(() => {
+    const paths: string[] = [];
+    const types: string[] = [];
+    for (const id of currentTab.selectedItems || []) {
+      const ent = getResolvedEntity(id);
+      let path: string;
+      if (ent?.path) path = toWindowsPath(ent.path);
+      else if (/^[A-Za-z]:/.test(id) || id.startsWith('//') || id.startsWith('\\\\') || id.startsWith('/')) path = toWindowsPath(id);
+      else if (ent) path = toWindowsPath(joinPanePath(currentTab.path, ent));
+      else path = toWindowsPath(id);
+      paths.push(path);
+      types.push(
+        ent?.type === 'directory' ? 'folder'
+        : ent?.type === 'file' ? 'file'
+        : (/\.lnk$/i.test(path) ? 'shortcut' : 'folder'),
+      );
+    }
+    return { paths, types };
+  }, [currentTab.selectedItems, currentTab.path, pathContentsCache, fileSystem, panes]);
+
+  const customStyles = config.applyColors ? {
+    '--tree-bg': config.colorConfig2,
+    '--tree-text': config.colorConfig1,
+    '--tab-active-bg': config.colorConfig7,
+    '--tab-active-text': config.colorConfig6,
+    '--tab-inactive-bg': config.colorConfig9,
+    '--tab-inactive-text': config.colorConfig8,
+    '--list-bg': config.colorConfig11,
+    '--list-text': config.colorConfig10,
+    '--list-selected-bg': config.colorConfig14,
+    '--breadcrumb-bg': config.colorConfig23,
+    '--breadcrumb-text': config.colorConfig22,
+  } as React.CSSProperties : {};
+
+  const uiRadius = config.uiCornerRadius === 'sharp' ? '0px' : config.uiCornerRadius === 'round' ? '12px' : '6px';
+
+  return (
+    <div
+      style={{
+        ...customStyles,
+        fontFamily: config.uiFontFamily || undefined,
+        fontSize: config.fontSize ? `${config.fontSize}px` : undefined,
+        ['--bndz-ui-radius' as string]: uiRadius,
+      }}
+      className={`flex flex-col h-screen w-full bg-[#0f0f0f] text-[#d4d4d4] font-sans text-[12px] select-none overflow-hidden ${
+        config.compactToolbar ? 'bndz-compact-toolbar' : ''
+      } ${config.denseMenubar ? 'bndz-dense-menubar' : ''} ${config.showPanelAccentBorders ? 'bndz-accent-borders' : ''}`}
+      onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
+    >
+      <LicenseBanner onRegister={() => setShowRegisterDialog(true)} />
+      {/* Menu Bar + window controls (replaces native title bar) */}
+      {config.showTopMenubar !== false && (
+      <div
+        ref={menubarRef}
+        className="bndz-chrome-menubar flex items-stretch h-9 border-b border-[#333] text-[#ccc] shrink-0 select-none z-[200]"
+        onMouseDown={e => {
+          e.stopPropagation();
+          if ((e.target as HTMLElement).closest('[data-window-btn],[data-menu-trigger]')) return;
+          if (e.button === 0) import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('drag'));
+        }}
+        onDoubleClick={() => import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize'))}
+      >
+         <div className="flex items-center gap-2 pl-3 pr-3 border-r border-[#444] shrink-0">
+            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-10 h-10 object-contain drop-shadow-md" draggable={false} />
+            <span className="text-[12px] font-bold tracking-widest text-gray-200 uppercase hidden sm:inline">BNDZ</span>
+         </div>
+         <div className="flex items-center flex-1 px-1 min-w-0 overflow-x-auto overflow-y-visible scrollbar-hidden">
+         <div className="relative shrink-0" ref={bindMenuAnchor('File')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'File' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'File' ? null : 'File'); }}
+             >File</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[220px] overflow-visible ${openMenuId === 'File' ? 'block' : 'hidden'}`} style={openMenuId === 'File' && menubarAnchors.current['File'] ? { top: menubarAnchors.current['File']!.getBoundingClientRect().bottom, left: menubarAnchors.current['File']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                 <div className="max-h-[min(80vh,calc(100vh-52px))] overflow-y-auto overflow-x-visible bndz-scrollbar">
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        const selArgs = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.selectedItems[0];
+                        if (selArgs) {
+                           const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
+                           const entity = getDirContents(fileSystem, cPath || '')?.find(x => x.id === selArgs);
+                           if (entity) import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(joinPanePath(cPath || '/', entity)), 'open'));
+                        }
+                    })}><FolderOpen size={14} /> Open Selected</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      const sel = currentTab.selectedItems[0];
+                      if (!sel) { setToastMessage('Select an item first.'); return; }
+                      const entity = pathContentsCache[currentTab.path]?.find((x: any) => x.id === sel);
+                      const targetPath = entity ? joinPanePath(currentTab.path, entity) : currentTab.path;
+                      addTab(activePaneId, targetPath);
+                    })}><FolderOpen size={14} /> Open in New Tab</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      const sel = currentTab.selectedItems[0];
+                      if (!sel) { setToastMessage('Select an item to rename.'); return; }
+                      const entity = pathContentsCache[currentTab.path]?.find((x: any) => x.id === sel);
+                      if (entity) setInlineRename({ path: currentTab.path, entityId: sel, currentName: getRenameInitialValue(entity, config) });
+                    })}><Type size={14} /> Rename</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      setClipboardState(getSelectedEntityPaths(), 'cut');
+                    })}><Scissors size={14} /> Cut</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      setClipboardState(getSelectedEntityPaths(), 'copy');
+                    })}><Copy size={14} /> Copy</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => void executePaste(currentTab.path))}><Clipboard size={14} /> Paste</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+
+                    <MenubarSubmenu label="Recent Files">
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-400 italic">(Empty)</div>
+                    </MenubarSubmenu>
+
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                       const cPath = currentTab.path;
+                       import('../lib/ipcBridge').then(({ IPC }) => {
+                         IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath || '/', 'New folder'), '');
+                         setTimeout(() => refreshWorkspace(), 150);
+                       });
+                    })}><Folder size={14} className="text-[#dcb67a]" /> New Folder</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                       import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), ''));
+                    })}><FileText size={14} className="text-[#eee]" /> New Text Document</div>
+
+                    <MenubarSubmenu label="New (Other)">
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                              const paths = getSelectedEntityPaths();
+                              if (!paths.length) { setToastMessage('Select files to archive.'); return; }
+                              const dest = `${toWindowsPath(currentTab.path)}\\Archive-${Date.now()}.zip`;
+                              import('../lib/ipcBridge').then(({ IPC }) => IPC.createArchive(paths.map(toWindowsPath), dest, 'zip'));
+                              setToastMessage('Creating archive...');
+                            })}>ZIP Archive</div>
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                              const paths = getSelectedEntityPaths();
+                              if (paths.length !== 1) { setToastMessage('Select one item for a shortcut.'); return; }
+                              const { IPC } = await import('../lib/ipcBridge');
+                              const target = toWindowsPath(paths[0]);
+                              await IPC.createLink(`${target}.lnk`, target, 'symlink');
+                              setToastMessage('Shortcut created.');
+                            })}>Shortcut</div>
+                    </MenubarSubmenu>
+
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      const paths = getSelectedEntityPaths();
+                      if (paths[0]) import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', toWindowsPath(paths[0])));
+                    })}><Copy size={14} /> Copy Path</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => refreshWorkspace())}><RefreshCw size={14} /> Refresh</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        const sel = currentTab.selectedItems[0];
+                        if (!sel) return;
+                        const entity = pathContentsCache[currentTab.path]?.find((x: any) => x.id === sel)
+                          || getDirContents(fileSystem, currentTab.path)?.find(x => x.id === sel);
+                        if (entity) {
+                          import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(joinPanePath(currentTab.path, entity)), 'properties'));
+                        }
+                    })}>
+                       <Settings size={14} /> Properties
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}><Settings size={14} /> Configuration...</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Wrench size={14} /> Customize Toolbar...</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#e81123] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                       import('../lib/ipcBridge').then(({ IPC }) => IPC.requestClose('menu'));
+                    })}>
+                       Exit
+                    </div>
+                 </div>
+                 </div>
+             )}
+         </div>
+         <div className="relative shrink-0" ref={bindMenuAnchor('Edit')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Edit' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Edit' ? null : 'Edit'); }}
+             >Edit</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[220px] overflow-visible ${openMenuId === 'Edit' ? 'block' : 'hidden'}`} style={openMenuId === 'Edit' && menubarAnchors.current['Edit'] ? { top: menubarAnchors.current['Edit']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Edit']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                 <div className="max-h-[min(80vh,calc(100vh-52px))] overflow-y-auto overflow-x-visible bndz-scrollbar">
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      setClipboardState(getSelectedEntityPaths(), 'cut');
+                    })}><Scissors size={14} /> Cut</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      setClipboardState(getSelectedEntityPaths(), 'copy');
+                    })}><Copy size={14} /> Copy</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      void executePaste(currentTab.path);
+                    })}><Clipboard size={14} /> Paste</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      const items = pathContentsCache[currentTab.path] || [];
+                      setSelectedItems(items.map((x: any) => x.id), activePaneId);
+                    })}><CheckSquare size={14} /> Select All</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeUndo());
+                    })}><Undo size={14} /> Undo <span className="ml-auto text-[10px] text-gray-500">Ctrl+Z</span></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeRedo());
+                    })}><Redo size={14} /> Redo <span className="ml-auto text-[10px] text-gray-500">Ctrl+Y</span></div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => {
+                        const selArgs = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.selectedItems[0];
+                        if (selArgs) {
+                           const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
+                           const entity = getDirContents(fileSystem, cPath || '')?.find(x => x.id === selArgs);
+                           if (entity) import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', `${cPath}/${entity.name}`));
+                        }
+                    }}><Copy size={14} /> Copy Path</div>
+
+                    <MenubarSubmenu label="Copy To...">
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                              const other = panes.find(p => p.id !== activePaneId);
+                              const dest = other?.tabs[other.activeTabIndex]?.path;
+                              if (dest) void copyOrMoveToTarget('copy', dest);
+                            })}>Other Pane</div>
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('copy'); })}>Browse...</div>
+                    </MenubarSubmenu>
+
+                    <MenubarSubmenu label="Move To...">
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                              const other = panes.find(p => p.id !== activePaneId);
+                              const dest = other?.tabs[other.activeTabIndex]?.path;
+                              if (dest) void copyOrMoveToTarget('move', dest);
+                            })}>Other Pane</div>
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void copyOrMoveToTarget('move'); })}>Browse...</div>
+                    </MenubarSubmenu>
+
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => setIsSmartToolsOpen(true)}>
+                       <Sparkles size={14} className="text-yellow-400" /> Smart Rename
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#e81123] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        const tab = currentTab;
+                        if (tab.selectedItems.length > 0) {
+                           const dirContents = pathContentsCache[tab.path] || getDirContents(fileSystem, tab.path) || [];
+                           const entities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                           if (entities.length > 0) handleDeleteRequest(entities, tab.path);
+                        }
+                    })}><Scissors size={14} /> Delete Selected</div>
+                 </div>
+                 </div>
+             )}
+         </div>
+         <div className="relative shrink-0" ref={bindMenuAnchor('View')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'View' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'View' ? null : 'View'); }}
+             >View</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'View' ? 'block' : 'hidden'}`} style={openMenuId === 'View' && menubarAnchors.current['View'] ? { top: menubarAnchors.current['View']!.getBoundingClientRect().bottom, left: menubarAnchors.current['View']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={toggleDualPane}>
+                       <Columns size={14} /> {isDualPane ? 'Single Pane' : 'Dual Pane'}
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { togglePreviewPanel(); closeMenu(); }}>
+                        <Eye size={14} /> {isPreviewPanelOpen ? 'Hide Preview Panel' : 'Show Preview Panel'}
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { toggleBottomPanel(); closeMenu(); }}>
+                        <Monitor size={14} /> {isBottomPanelOpen ? 'Hide Bottom Panel' : 'Show Bottom Panel'}
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { refreshWorkspace(); closeMenu(); }}>
+                       <RefreshCw size={14} /> Refresh
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => scanCurrentFolderSizes(true, { manual: true }))}>
+                       <FolderSearch size={14} className="text-emerald-400" /> Get Folder Sizes
+                    </div>
+                    <div
+                      className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${config.autoSyncFolderSizes !== false ? 'text-emerald-300' : 'text-gray-200'}`}
+                      onMouseDown={menuAct(() => {
+                        const next = config.autoSyncFolderSizes === false;
+                        updateConfig({ autoSyncFolderSizes: next });
+                        setToastMessage(next ? 'Auto sync folder sizes enabled.' : 'Auto sync folder sizes paused.');
+                        if (next) scanCurrentFolderSizes(false);
+                        closeMenu();
+                      })}
+                    >
+                      <span className="w-4 text-center text-[11px]">{config.autoSyncFolderSizes !== false ? '✓' : ''}</span>
+                      <FolderSearch size={14} className={config.autoSyncFolderSizes !== false ? 'text-emerald-400' : 'text-gray-500'} />
+                      Auto Sync Folder Sizes
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('details', activePaneId))}><List size={14} /> Details</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('grid', activePaneId))}><LayoutGrid size={14} /> Grid</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setViewMode('list', activePaneId))}><Columns size={14} /> List</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}><Settings size={14} /> Configuration...</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Wrench size={14} /> Customize Toolbar...</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsCommandPaletteOpen(true))}><Command size={14} /> Command Palette</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setShowTutorial(true); closeMenu(); })}><Sparkles size={14} className="text-purple-400" /> Show tutorial</div>
+                 </div>
+             )}
+         </div>
+         <div className="relative shrink-0" ref={bindMenuAnchor('Go')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Go' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Go' ? null : 'Go'); }}
+             >Go</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'Go' ? 'block' : 'hidden'}`} style={openMenuId === 'Go' && menubarAnchors.current['Go'] ? { top: menubarAnchors.current['Go']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Go']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goBack())}>
+                       <ArrowLeft size={14} /> Back
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goForward())}>
+                       <ArrowRight size={14} /> Forward
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => goUp())}>
+                       <ArrowUp size={14} /> Up One Level
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
+                       <Home size={14} /> Home
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/'))}>
+                       <Monitor size={14} /> This PC
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Desktop'))}><Monitor size={14} /> Desktop</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Personal'))}><File size={14} /> Documents</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Downloads'))}><ArrowDownCircle size={14} /> Downloads</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => addTab(activePaneId, currentTab.path))}><FolderOpen size={14} /> Open Location in New Tab</div>
+                 </div>
+             )}
+         </div>
+         <div className="relative shrink-0" ref={bindMenuAnchor('Tools')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Tools' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Tools' ? null : 'Tools'); }}
+             >Tools</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'Tools' ? 'block' : 'hidden'}`} style={openMenuId === 'Tools' && menubarAnchors.current['Tools'] ? { top: menubarAnchors.current['Tools']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Tools']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-violet-700/50 cursor-pointer text-sm text-violet-100 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        import('../lib/ipcBridge').then(({ IPC }) => IPC.showLauncher());
+                    })}>
+                       <Rocket size={14} className="text-violet-300" /> BNDZ Launcher
+                       <span className="ml-auto text-[10px] text-[#888]">{config.launcherHotkey || 'Alt+Space'}</span>
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => scanCurrentFolderSizes(true, { manual: true }))}>
+                       <FolderSearch size={14} className="text-emerald-400" /> Get Folder Sizes
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => startFolderCompare())}>
+                       <RefreshCw size={14} className="text-purple-400" /> Sync / Compare Folders
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsSmartToolsOpen(true))}>
+                       <Sparkles size={14} className="text-yellow-400" /> AI Smart Workspace Tools
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        import('../lib/ipcBridge').then(({ IPC }) => {
+                            IPC.clearIconCache().then(() => {
+                                updateConfig({ iconCacheBuster: Date.now() });
+                                setToastMessage("Icon cache cleared successfully");
+                            });
+                        });
+                    })}>
+                       <RefreshCw size={14} /> Clear Icon Cache
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        import('../lib/ipcBridge').then(({ IPC }) => {
+                            IPC.clearIconCache().then(() => {
+                                updateConfig({ iconCacheBuster: Date.now() });
+                                setToastMessage("Rebuilding icon cache...");
+                            });
+                        });
+                    })}>
+                       <RefreshCw size={14} /> Rebuild Icon Cache
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsPluginStoreOpen(true))}>
+                       <Sparkles size={14} className="text-purple-400" /> Extension Hub
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsToolbarConfigOpen(true))}><Wrench size={14} /> Customize Toolbar...</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); closeMenu(); })}><Tag size={14} className="text-pink-400" /> Manage Tags...</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setBottomPluginTab('batch-rename'); if (!isBottomPanelOpen) toggleBottomPanel(); closeMenu(); })}><Type size={14} /> Batch Rename</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>
+                       <Settings size={14} /> Configuration
+                    </div>
+                 </div>
+             )}
+         </div>
+         <div className="relative shrink-0" ref={bindMenuAnchor('Favorites')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Favorites' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Favorites' ? null : 'Favorites'); }}
+             >Rapid access</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] overflow-visible ${openMenuId === 'Favorites' ? 'block' : 'hidden'}`} style={openMenuId === 'Favorites' && menubarAnchors.current['Favorites'] ? { top: menubarAnchors.current['Favorites']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Favorites']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { toggleFavoriteFolder(); closeMenu(); }}><Star size={14} className="text-yellow-400" /> Toggle Rapid access pin</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(currentTab.path))}><FolderOpen size={14} /> Add Current Folder</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <MenubarSubmenu label="Manage Rapid access">
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Organize pins...</div>
+                    </MenubarSubmenu>
+                 </div>
+             )}
+         </div>
+
+         <div className="relative shrink-0" ref={bindMenuAnchor('Tags')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Tags' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Tags' ? null : 'Tags'); }}
+             >Tags</div>
+             {config.fileTaggingFeature !== false && config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'Tags' ? 'block' : 'hidden'}`} style={openMenuId === 'Tags' && menubarAnchors.current['Tags'] ? { top: menubarAnchors.current['Tags']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Tags']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    {availableTags.map(tag => (
+                        <div key={tag.name || tag.label} className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" 
+                             onClick={() => void applyTagToSelection(tag)}>
+                            <Tag size={12} style={{ color: tag.color }} fill={tag.color} />
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                            {tag.label || tag.name}
+                        </div>
+                    ))}
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { setIsTagManagerOpen(true); closeMenu(); }}>
+                      <Tag size={12} className="text-pink-400" /> Manage Tags...
+                    </div>
+                 </div>
+             )}
+         </div>
+
+         <div className="relative shrink-0" ref={bindMenuAnchor('User')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'User' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'User' ? null : 'User'); }}
+             >User</div>
+             {config.userDefinedCommands !== false && config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'User' ? 'block' : 'hidden'}`} style={openMenuId === 'User' && menubarAnchors.current['User'] ? { top: menubarAnchors.current['User']!.getBoundingClientRect().bottom, left: menubarAnchors.current['User']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={async () => {
+                      const paths = getSelectedEntityPaths();
+                      const { IPC } = await import('../lib/ipcBridge');
+                      IPC.shellExecute('openTerminal', paths.length ? paths : currentTab.path);
+                      closeMenu();
+                    }}>Open Terminal Here</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setIsCommandPaletteOpen(true); closeMenu(); }}>Command Palette</div>
+                 </div>
+             )}
+         </div>
+
+         <div className="relative shrink-0" ref={bindMenuAnchor('Scripting')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Scripting' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Scripting' ? null : 'Scripting'); }}
+             >Scripting</div>
+             {config.scripting !== false && config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'Scripting' ? 'block' : 'hidden'}`} style={openMenuId === 'Scripting' && menubarAnchors.current['Scripting'] ? { top: menubarAnchors.current['Scripting']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Scripting']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={async () => {
+                      const { IPC } = await import('../lib/ipcBridge');
+                      const files = await IPC.openFileDialog('Scripts (*.ps1;*.bat;*.cmd)|*.ps1;*.bat;*.cmd|All files (*.*)|*.*');
+                      if (files[0]) { IPC.shellExecute('executeScript', files[0], currentTab.path); setToastMessage('Running script...'); }
+                      closeMenu();
+                    }}>Load Script File...</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={async () => {
+                      const { IPC } = await import('../lib/ipcBridge');
+                      const files = await IPC.openFileDialog('Scripts (*.ps1;*.bat;*.cmd)|*.ps1;*.bat;*.cmd|All files (*.*)|*.*');
+                      if (files[0]) { IPC.shellExecute('executeScript', files[0], currentTab.path); setToastMessage('Running script...'); }
+                      closeMenu();
+                    }}>Run Script...</div>
+                 </div>
+             )}
+         </div>
+
+         <div className="relative shrink-0" ref={bindMenuAnchor('Panes')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Panes' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Panes' ? null : 'Panes'); }}
+             >Panes</div>
+             {config.dualPaneFeature !== false && config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'Panes' ? 'block' : 'hidden'}`} style={openMenuId === 'Panes' && menubarAnchors.current['Panes'] ? { top: menubarAnchors.current['Panes']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Panes']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={toggleDualPane}>Toggle Dual Pane</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { swapPanes(); closeMenu(); }}>Swap Panes</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { syncPanesToSamePath(); closeMenu(); }}>Sync Panes</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setActivePaneId(panes[0]?.id || activePaneId); closeMenu(); }}>Focus Left Pane</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setActivePaneId(panes[1]?.id || activePaneId); closeMenu(); }}>Focus Right Pane</div>
+                 </div>
+             )}
+         </div>
+
+         <div className="relative shrink-0" ref={bindMenuAnchor('Tabsets')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Tabsets' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Tabsets' ? null : 'Tabsets'); }}
+             >Tabsets</div>
+             {config.tabsets !== false && config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'Tabsets' ? 'block' : 'hidden'}`} style={openMenuId === 'Tabsets' && menubarAnchors.current['Tabsets'] ? { top: menubarAnchors.current['Tabsets']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Tabsets']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => {
+                        setIsSaveTabsetOpen(true);
+                        setTabsetNameInput('');
+                    }}>Save Tabset As...</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => setIsLoadTabsetOpen(true)}>Load Tabset...</div>
+                 </div>
+             )}
+         </div>
+
+         <div className="relative shrink-0" ref={bindMenuAnchor('Window')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Window' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Window' ? null : 'Window'); }}
+             >Window</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[200px] max-h-[calc(100vh-48px)] overflow-y-auto bndz-scrollbar ${openMenuId === 'Window' ? 'block' : 'hidden'}`} style={openMenuId === 'Window' && menubarAnchors.current['Window'] ? { top: menubarAnchors.current['Window']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Window']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => {
+                      const next = !config.alwaysOnTop;
+                      updateConfig({ alwaysOnTop: next });
+                      import('../lib/ipcBridge').then(({ IPC }) => IPC.setAlwaysOnTop(next));
+                      setToastMessage(next ? 'Always on top enabled.' : 'Always on top disabled.');
+                      closeMenu();
+                    }}>Always on Top</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('minimize')); closeMenu(); }}>Minimize</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize')); closeMenu(); }}>Maximize / Restore</div>
+                    <div className="px-3 py-1 hover:bg-[#e81123] cursor-pointer text-sm text-gray-200" onClick={() => { import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('close')); closeMenu(); }}>Close</div>
+                 </div>
+             )}
+         </div>
+
+         <div className="relative shrink-0" ref={bindMenuAnchor('Help')}>
+             <div 
+                 data-menu-trigger
+                 className={`px-2 py-[2px] cursor-pointer rounded-sm ${openMenuId === 'Help' ? 'bg-[#333]' : 'hover:bg-[#333]'}`}
+                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === 'Help' ? null : 'Help'); }}
+             >Help</div>
+             {config.enableContextSubmenus !== false && (
+                 <div className={`fixed z-[300] bg-[#1f1f1f] border border-[#444] shadow-xl rounded-md py-1 min-w-[220px] max-h-[calc(100vh-48px)] overflow-visible bndz-scrollbar ${openMenuId === 'Help' ? 'block' : 'hidden'}`} style={openMenuId === 'Help' && menubarAnchors.current['Help'] ? { top: menubarAnchors.current['Help']!.getBoundingClientRect().bottom, left: menubarAnchors.current['Help']!.getBoundingClientRect().left } : undefined} onMouseDown={e => e.stopPropagation()}>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowHelpTopics(true))}>Help Topics</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setToastMessage('F2 Rename · Ctrl+C/X/V · Del Delete · / Fuzzy filter · Ctrl+Tab Switch pane · Alt+Space Launcher · Ctrl+Shift+L Launcher (in BNDZ)'))}>Keyboard Shortcuts</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Settings Reference...</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1.5 hover:bg-emerald-700/80 cursor-pointer text-sm text-emerald-100 flex items-center gap-2" onMouseDown={menuAct(() => setShowRegisterDialog(true))}>
+                      <Lock size={13} className="opacity-80" /> Register Product...
+                    </div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setToastMessage('You are on the latest version.'))}>Check for Updates...</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowAboutDialog(true))}>About BNDZ</div>
+                 </div>
+             )}
+         </div>
+         </div>
+         <WindowControls />
+      </div>
+      )}
+
+      {/* Main Toolbar */}
+      <div 
+         data-tutorial="toolbar"
+         className="flex items-center px-1 py-1 bg-[#1a1a1a] border-b border-[#333] shrink-0 flex-wrap"
+         onWheel={(e) => {
+             if (e.shiftKey) {
+                 const profiles = config.toolbarProfiles || [];
+                 if (profiles.length < 2) return;
+                 let newIdx = (config.activeToolbarProfileIndex || 0) + (e.deltaY > 0 ? 1 : -1);
+                 if (newIdx >= profiles.length) newIdx = 0;
+                 if (newIdx < 0) newIdx = profiles.length - 1;
+                 updateConfig({ activeToolbarProfileIndex: newIdx });
+             }
+         }}
+      >
+         {(config.toolbarProfiles?.[config.activeToolbarProfileIndex || 0] || []).map((item: any, i: number) => {
+             const def = resolveToolbarItem(item.id, availableTags);
+             if (!def) return null;
+             
+             if (item.id === 'separator') return <div key={i} className="w-[1px] h-4 bg-[#444] mx-1"></div>;
+             if (item.id === 'spacer') return <div key={i} className="w-2"></div>;
+             if (item.id === 'new_row') return <div key={i} className="w-full h-0 basis-full"></div>;
+
+             return (
+                 <ToolbarButton 
+                     key={i} 
+                     icon={def.icon} 
+                     icon3d={(def as any).icon3d}
+                     color={def.color} 
+                     title={def.label}
+                     onClick={() => {
+                         switch(item.id) {
+                           case 'nav_back': goBack(activePaneId); break;
+                           case 'nav_forward': goForward(activePaneId); break;
+                           case 'nav_up': goUp(activePaneId); break;
+                           case 'go_home': setCurrentPath(homeTreePath); break;
+                          case 'refresh': {
+                              import('../lib/ipcBridge').then(({ IPC }) => {
+                                  IPC.getSystemDrives().then(setDrives);
+                                  IPC.getCloudProviders().then(setCloudProviders);
+                                  refreshPathsForPanes();
+                                  IPC.refreshWorkspace().catch(() => {});
+                              });
+                              break;
+                          }
+                           case 'folder_size_sync': {
+                               const next = !(config.autoSyncFolderSizes ?? true);
+                               updateConfig({ autoSyncFolderSizes: next });
+                               setToastMessage(next ? 'Auto sync folder sizes enabled.' : 'Auto sync folder sizes paused.');
+                               if (next) scanCurrentFolderSizes(false);
+                               break;
+                           }
+                           case 'view_details': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) setPanes(panes.map(p => p.id === activePaneId ? { ...p, tabs: p.tabs.map((t, ti) => ti === p.activeTabIndex ? { ...t, viewMode: 'details' as const } : t) } : p));
+                               break;
+                           }
+                           case 'undo': import('../lib/ipcBridge').then(({ IPC }) => IPC.executeUndo()); break;
+                           case 'redo': import('../lib/ipcBridge').then(({ IPC }) => IPC.executeRedo()); break;
+                           case 'sync_folders': startFolderCompare(); break;
+                           case 'config': setIsConfigDialogOpen(true); break;
+                           case 'wrench': setIsToolbarConfigOpen(true); break;
+                           case 'extension_hub': setIsPluginStoreOpen(true); break;
+                           case 'view_grid': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) setPanes(panes.map(p => p.id === activePaneId ? { ...p, tabs: p.tabs.map((t, i) => i === p.activeTabIndex ? { ...t, viewMode: 'grid' as const } : t) } : p));
+                               break;
+                           }
+                           case 'view_list': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) setPanes(panes.map(p => p.id === activePaneId ? { ...p, tabs: p.tabs.map((t, i) => i === p.activeTabIndex ? { ...t, viewMode: 'list' as const } : t) } : p));
+                               break;
+                           }
+                           case 'search': omniFilterRef.current?.focus(); break;
+                           case 'smart_tools': setIsSmartToolsOpen(true); break;
+                           case 'tag_manager': setIsTagManagerOpen(true); break;
+                           case 'icon_studio': openBottomPlugin('icon-studio'); break;
+                           case 'find': openBottomPlugin('find'); break;
+                           case 'dropstack': openBottomPlugin('dropstack'); break;
+                           case 'filters': openBottomPlugin('filters'); break;
+                           case 'properties': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) {
+                                   const tab = ap.tabs[ap.activeTabIndex];
+                                   const contents = getDirContents(fileSystem, tab.path);
+                                   let paneTarget = tab.path;
+                                   if (tab.selectedItems.length > 0) {
+                                       const sel = contents.find(c => c.id === tab.selectedItems[0]);
+                                       if (sel) paneTarget = joinPanePath(tab.path, sel);
+                                   }
+                                   const shellPath = resolveShellPropertiesPath(paneTarget);
+                                   import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(shellPath, 'properties'));
+                               }
+                               break;
+                           }
+                           case 'new_folder': {
+                               const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
+                               if (cPath) import('../lib/ipcBridge').then(({ IPC }) => {
+                                 IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath, 'New folder'), '');
+                                 setTimeout(() => refreshWorkspace(), 150);
+                               });
+                               break;
+                           }
+                           case 'new_file': {
+                               const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
+                               if (cPath) import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', `${cPath}/New Text Document.txt`, ''));
+                               break;
+                           }
+                           case 'select_all': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) {
+                                   const tab = ap.tabs[ap.activeTabIndex];
+                                   const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
+                                   setSelectedItems(dirContents.map((x: any) => x.id), activePaneId);
+                               }
+                               break;
+                           }
+                           case 'invert_selection': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) {
+                                   const tab = ap.tabs[ap.activeTabIndex];
+                                   const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
+                                   const currentSelected = new Set(tab.selectedItems);
+                                   const newSelected = dirContents.filter((x: any) => !currentSelected.has(x.id)).map((x: any) => x.id);
+                                   setSelectedItems(newSelected, activePaneId);
+                               }
+                               break;
+                           }
+                           case 'cut':
+                           case 'copy': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) {
+                                   const tab = ap.tabs[ap.activeTabIndex];
+                                   const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
+                                   const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                                   if (selectedEntities.length > 0) {
+                                       setClipboardState(
+                                         selectedEntities.map((ent: any) => joinPanePath(tab.path, ent)),
+                                         item.id as 'copy' | 'cut'
+                                       );
+                                   }
+                               }
+                               break;
+                           }
+                           case 'paste': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) executePaste(ap.tabs[ap.activeTabIndex].path);
+                               break;
+                           }
+                           case 'delete':
+                              const activePaneForBtn = panes.find(p => p.id === activePaneId);
+                              if (activePaneForBtn) {
+                                  const tab = activePaneForBtn.tabs[activePaneForBtn.activeTabIndex];
+                                  if (tab.selectedItems.length > 0) {
+                                      const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
+                                      const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
+                                      if (selectedEntities.length > 0) {
+                                          handleDeleteRequest(selectedEntities, tab.path);
+                                      }
+                                  }
+                              }
+                              break;
+                           case 'compress': 
+                           case 'extract': {
+                              const apc = panes.find(p => p.id === activePaneId);
+                              if (apc) {
+                                  const tab = apc.tabs[apc.activeTabIndex];
+                                  const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
+                                  const sel = dirContents.find((x: any) => x.id === tab.selectedItems[0]);
+                                  const target = sel ? joinPanePath(tab.path, sel) : tab.path;
+                                  import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute(item.id, target));
+                              }
+                              break;
+                           }
+                           case 'map_network_drive': 
+                           case 'share': 
+                           case 'burn_disc':
+                           case 'cmd': 
+                           case 'ps':
+                           case 'taskmgr':
+                           case 'regedit':
+                           case 'control_panel':
+                           case 'settings_app':
+                           case 'device_manager':
+                           case 'services':
+                           case 'event_viewer':
+                           case 'disk_mgmt':
+                           case 'computer_mgmt':
+                           case 'sysdm_cpl':
+                           case 'network_connections':
+                           case 'printers':
+                           case 'programs_features':
+                           case 'firewall':
+                           case 'power_options':
+                           case 'user_accounts':
+                           case 'msinfo':
+                           case 'dxdiag':
+                           case 'notepad':
+                           case 'calc':
+                           case 'paint':
+                           case 'snipping_tool':
+                           case 'magnifier':
+                           case 'osk':
+                               import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute(`launch-${item.id}`, ''));
+                               break;
+                           case 'explorer':
+                               import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('launch-explorer', toWindowsPath(currentTab.path || '/')));
+                               break;
+                           case 'batch_rename': openBottomPlugin('batch-rename'); break;
+                           case 'shell_menus': openBottomPlugin('context-menu-manager'); break;
+                           case 'metadata': openBottomPlugin('metadata'); break;
+                           case 'storage_cleanup': openBottomPlugin('storage-cleanup'); break;
+                           case 'sys_properties': openBottomPlugin('properties'); break;
+                           case 'copy_path': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) {
+                                   const tab = ap.tabs[ap.activeTabIndex];
+                                   const contents = safeGetDirContents(fileSystem, tab.path) || [];
+                                   const selected = contents.filter((x: any) => tab.selectedItems.includes(x.id));
+                                   const target = selected.length > 0
+                                       ? selected.map((s: any) => toWindowsPath(joinPanePath(tab.path, s))).join('\n')
+                                       : toWindowsPath(tab.path);
+                                   import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', target));
+                                   setToastMessage(selected.length > 1 ? `Copied ${selected.length} paths.` : 'Path copied to clipboard.');
+                               }
+                               break;
+                           }
+                           case 'terminal_here': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               const tabPath = ap?.tabs[ap.activeTabIndex]?.path;
+                               if (tabPath) import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('openTerminal', toWindowsPath(tabPath)));
+                               break;
+                           }
+                           case 'toggle_dual_pane': toggleDualPane(); break;
+                           case 'toggle_preview': togglePreviewPanel(); break;
+                           case 'toggle_bottom': toggleBottomPanel(); break;
+                           case 'go_recycle_bin': guardedSetCurrentPath(RECYCLE_BIN_PATH); break;
+                           case 'go_network': guardedSetCurrentPath('//'); break;
+                           case 'new_tab': {
+                               const ap = panes.find(p => p.id === activePaneId);
+                               if (ap) addTab(ap.id, ap.tabs[ap.activeTabIndex]?.path || '/');
+                               break;
+                           }
+                           default:
+                               if (item.id.startsWith('tag__')) {
+                                 const tagId = item.id.slice(5);
+                                 const tag = availableTags.find((t: any) => (t.id || t.name) === tagId);
+                                 if (tag) void applyTagToSelection(tag);
+                               }
+                               break;
+                         }
+                     }}
+                 />
+             );
+         })}
+         
+         {/* Drive letters scoped to active pane (always show at end for fast access) */}
+         <div className="w-[1px] h-4 bg-[#444] mx-2"></div>
+         <div className="flex text-[10px] items-center gap-[2px] mx-1 font-mono">
+            {drives.map(d => (
+                <span key={d.name} className="bg-[#333] px-1.5 py-[1px] rounded border border-[#555] cursor-pointer hover:bg-[#444] hover:border-sky-600/50 transition-colors" onClick={() => setCurrentPath(d.name)} title={d.label || formatDriveLetter(d.name)}>{formatDriveLetter(d.name)}</span>
+            ))}
+            {!drives.length && (
+              <><span className="bg-[#333] px-1 py-[1px] rounded border border-[#555] cursor-pointer hover:bg-[#444]" onClick={() => setCurrentPath('/')}>Root</span><span className="bg-[#333] px-1 py-[1px] rounded border border-[#555] cursor-pointer hover:bg-[#444]" onClick={() => setCurrentPath('/workspace')}>Workspace</span></>
+            )}
+         </div>
+         <div className="w-[1px] h-4 bg-[#444] mx-2"></div>
+         {config.dualPaneFeature !== false && (
+            <ToolbarButton icon={Columns} color={isDualPane ? "#6db4e6" : "#666"} className="ml-1" title="Toggle Dual Pane View" onClick={toggleDualPane} />
+         )}
+         <div className="flex-1"></div>
+         <ToolbarButton icon={Puzzle} color={isPluginStoreOpen ? "#a475d4" : "#888"} title="Extension Hub (Plugin Marketplace)" onClick={() => setIsPluginStoreOpen(true)} />
+         <ToolbarButton icon={PanelBottom} color={isBottomPanelOpen ? "#6db4e6" : "#666"} title="Toggle Bottom Plugin Panel" onClick={toggleBottomPanel} />
+         <ToolbarButton icon={Eye} color={isPreviewPanelOpen ? "#6db4e6" : "#666"} title="Toggle Right Side Preview Panel" onClick={togglePreviewPanel} />
+      </div>
+
+      {/* Omni-Filter Bar */}
+      <div data-tutorial="omnibar" className="flex bg-[#111] px-2 py-1 items-center border-b border-[#333] shrink-0">
+         <Search size={14} className="text-gray-400 mr-2" />
+         <input 
+            ref={omniFilterRef}
+            type="text"
+            className="flex-1 bg-[#1a1a1a] text-white border border-[#444] rounded px-2 py-[2px] text-[12px] focus:outline-none focus:border-blue-500 transition-colors placeholder-[#666]"
+            placeholder="Type '/' to instantly fuzzy-filter files in the active pane..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            onKeyDown={(e) => {
+               if (e.key === 'Escape') {
+                   setFilterText('');
+                   omniFilterRef.current?.blur();
+               }
+            }}
+         />
+         {filterText && (
+             <button onClick={() => setFilterText('')} className="ml-2 hover:bg-[#333] text-gray-400 hover:text-white px-2 py-[2px] rounded border border-transparent hover:border-[#555] transition-colors">
+                <X size={14} />
+             </button>
+         )}
+      </div>
+
+      {/* Main Split Architecture */}
+      <div className="flex flex-1 overflow-hidden min-h-0 relative">
+         <ResizablePanelGroup
+             id="workspace-outer"
+             groupRef={outerGroupRef}
+             direction="horizontal"
+             defaultLayout={outerDefaultLayout}
+             onLayoutChanged={saveOuterLayout}
+         >
+            {/* Sidebar Tree */}
+            <ResizablePanel id="sidebar" data-tutorial="sidebar" minSize={0} collapsible defaultSize={outerDefaultLayout.sidebar} className="bndz-chrome-sidebar shrink-0 border-r border-[#282830] bg-[#111111] overflow-hidden py-2 flex flex-col min-h-0" style={config.applyColors ? { backgroundColor: 'var(--tree-bg)', color: 'var(--tree-text)' } : {}}>
+               <LeftSidebar
+                  sidebarOrder={config.sidebarOrder}
+                  onSectionOrderChange={(order: string[]) => updateConfig({ sidebarOrder: order })}
+                  onBackgroundClick={() => { setSelectedItems([], activePaneId); setFocusedItemId(null); setLastClickData(null); setInlineRename(null); }}
+                  drivesContent={drives.length > 0 && drives.map(drive => {
+                     const used = drive.totalSpace - drive.freeSpace;
+                     const pct = (used / drive.totalSpace) * 100;
+                     const formatBytesSpc = (bytes: number) => {
+                        const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                        if (bytes === 0) return '0 B';
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+                     };
+                     return (
+                        <div 
+                           key={drive.name} 
+                           className="px-3 py-2 cursor-pointer hover:bg-[#202020] group border-l-2 border-transparent hover:border-[#3b82f6] transition-all"
+                           onClick={() => guardedSetCurrentPath(drive.name)}
+                           onContextMenu={(e) => handleContextMenuRequest(e, drive.name, null, true, drive.label)}
+                        >
+                           <div className="flex items-center gap-2 mb-1.5 text-[#ccc] group-hover:text-white">
+                              <ShellNativeIcon path={drive.name} isDir={false} size={14} eager />
+                              <span className="text-[11px] font-medium truncate">{drive.label} <span className="text-[#666] font-normal">({drive.name.replace(/^\//,'')})</span></span>
+                           </div>
+                           <StorageUsageBar usedPct={pct} height={5} className="mb-1.5" />
+                           <div className="flex justify-between text-[9px] text-[#777] font-mono tracking-tighter">
+                              <span><strong className="text-[#aaa] font-medium">{formatBytesSpc(drive.freeSpace)}</strong> free</span>
+                              <span>{formatBytesSpc(drive.totalSpace)}</span>
+                           </div>
+                        </div>
+                     );
+                  })}
+                  quickAccessContent={
+                     (config.pinnedFavorites || []).length > 0 ? (
+                        (config.pinnedFavorites || []).map((s: any) => {
+                           const qaPath = s.path?.startsWith('/') ? s.path : `/${(s.path || '').replace(/\\/g, '/')}`;
+                           return (
+                              <div 
+                                 key={s.path}
+                                 className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-amber-400/70 transition-all rounded-r-sm mx-1"
+                                 onClick={() => guardedSetCurrentPath(s.path)}
+                                 onContextMenu={(e) => handleContextMenuRequest(e, s.path, null, true, s.name)}
+                              >
+                                 <ShellNativeIcon
+                                    path={toWindowsPath(qaPath)}
+                                    size={14}
+                                    eager
+                                 />
+                                 <span className="text-[11px] font-medium truncate">{s.name}</span>
+                              </div>
+                           );
+                        })
+                     ) : (
+                        <div className="mx-3 my-2 px-3 py-4 text-center rounded-md border border-dashed border-[#333] bg-[#151515]/80">
+                           <Star size={16} className="mx-auto mb-2 text-emerald-500/50" />
+                           <p className="text-[10px] text-gray-500 leading-relaxed">Pin folders from the<br />context menu</p>
+                        </div>
+                     )
+                  }
+                  cloudProvidersContent={
+                    cloudDriveItems.length > 0 ? (
+                      cloudDriveItems.map((item: { label: string; path?: string }) => (
+                        <div
+                          key={item.path || item.label}
+                          className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-sky-400/70 transition-all rounded-r-sm mx-1"
+                          onClick={() => item.path && guardedSetCurrentPath(item.path)}
+                          onContextMenu={(e) => item.path && handleContextMenuRequest(e, item.path, null, true, item.label)}
+                        >
+                          <ShellNativeIcon
+                            path={item.path}
+                            size={14}
+                            eager
+                          />
+                          <span className="text-[11px] font-medium truncate">{item.label}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="mx-3 my-2 px-3 py-4 text-center rounded-md border border-dashed border-[#333] bg-[#151515]/80">
+                        <Cloud size={16} className="mx-auto mb-2 text-sky-400/40" />
+                        <p className="text-[10px] text-gray-500 leading-relaxed">No cloud drives detected</p>
+                      </div>
+                    )
+                  }
+                  treeContent={
+                    <VirtualizedNavTree
+                      nodes={treeData}
+                      config={config}
+                      currentPath={currentPath}
+                      onNavigate={guardedSetCurrentPath}
+                      onContextMenu={(e, path, name) => handleContextMenuRequest(e, path ?? '', null, true, name)}
+                      inlineRename={inlineRename}
+                      setInlineRename={setInlineRename}
+                      navTreeOrder={config.navTreeOrder}
+                      onTreeOrderChange={(order) => updateConfig({ navTreeOrder: order })}
+                      onFileDrop={(payload, destPath, op) => {
+                        const destWin = toWindowsPath(destPath);
+                        const sourcePaths = payload.paths.map(p => toWindowsPath(p));
+                        import('../lib/ipcBridge').then(({ IPC }) => {
+                          IPC.executeFsOperation(`tree-drop-${Date.now()}`, op, sourcePaths, destWin);
+                          setTimeout(() => refreshWorkspace(), 200);
+                        });
+                      }}
+                    />
+                  }
+               />
+            </ResizablePanel>
+            <ResizableHandle direction="horizontal" className="bndz-resize-handle-glow w-1 bg-[#282830] transition-colors hover:bg-sky-500 cursor-col-resize shrink-0 z-20" />
+
+            {/* Center Workspace Area */}
+            <ResizablePanel id="workspace" data-tutorial="workspace" defaultSize={outerDefaultLayout.workspace} minSize={30}>
+               <ResizablePanelGroup
+                   id="workspace-inner"
+                   groupRef={innerGroupRef}
+                   direction="vertical"
+                   defaultLayout={innerDefaultLayout}
+                   onLayoutChanged={saveInnerLayout}
+               >
+                  {/* Main File Grid */}
+                  <ResizablePanel id="main" defaultSize={innerDefaultLayout.main} minSize={20}>
+                     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#202020] relative">
+                        {isSyncMode && (
+                           <div className="w-full bg-[#36274c] border-b border-[#5e4186] px-4 py-2 flex items-center justify-between shrink-0 z-30 shadow-md">
+                               <div className="flex items-center gap-3">
+                                  <RefreshCw size={16} className={`text-white ${isSyncing ? "animate-spin" : ""}`} />
+                                  <span className="font-semibold text-white">Compare & Sync</span>
+                                  {!isSyncing && syncResults && (
+                                      <span className="text-gray-300 ml-4 font-mono text-xs">{Object.keys(syncResults).length} differences</span>
+                                  )}
+                               </div>
+                               <div className="flex items-center gap-2">
+                                  <button disabled={isSyncing} onClick={() => executeFolderSync('mirror')} className="px-3 py-1 bg-[#10b981] hover:bg-[#059669] text-white rounded shadow text-xs font-semibold flex items-center gap-1 disabled:opacity-50">
+                                     <ArrowRight size={14}/> Mirror L {'->'} R
+                                  </button>
+                                  <button disabled={isSyncing} onClick={() => executeFolderSync('updateTarget')} className="px-3 py-1 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded shadow text-xs font-semibold flex items-center gap-1 disabled:opacity-50">
+                                     <ArrowRight size={14}/> Update Target
+                                  </button>
+                                  <div className="w-[1px] h-4 bg-[#5e4186] mx-2"></div>
+                                  <button onClick={() => { setIsSyncMode(false); setSyncResults({}); }} className="px-3 py-1 bg-[#ef4444] hover:bg-[#dc2626] text-white rounded shadow text-xs font-semibold">
+                                     Close
+                                  </button>
+                               </div>
+                           </div>
+                        )}
+                        <div className="flex flex-1 overflow-hidden min-h-0">
+                           {renderPane(panes[0], 0)}
+                           
+                           {config.dualPaneFeature !== false && isDualPane && panes[1] && (
+                              <>
+                                 <div className="w-1 bg-[#282830] cursor-col-resize shrink-0 shadow-[inset_0_0_2px_rgba(0,0,0,0.5)] z-20"></div>
+                                 {renderPane(panes[1], 1)}
+                              </>
+                           )}
+                        </div>
+                     </div>
+                  </ResizablePanel>
+
+                  <ResizableHandle
+                     direction="vertical"
+                     disabled={!isBottomPanelOpen}
+                     className="bndz-resize-handle-glow-v h-1 bg-[#282830] transition-colors hover:bg-sky-500 cursor-row-resize shrink-0 z-20"
+                  />
+                  {/* Bottom Plugin Panel — always mounted; collapsed via panelRef when hidden */}
+                  <ResizablePanel
+                     id="bottom"
+                     panelRef={bottomPanelRef}
+                     defaultSize={innerDefaultLayout.bottom}
+                     minSize={5}
+                     collapsible
+                     collapsedSize={0}
+                     className="bndz-chrome-bottom border-t border-[#282830] flex min-h-0 z-30"
+                  >
+                     <div className="flex-1 overflow-hidden h-full flex flex-col min-h-0">
+                        <BottomPluginPanel
+                           entity={previewEntity}
+                           config={config}
+                           drives={drives}
+                           focusedPath={currentTab.path}
+                           primarySelectedPath={focusedFullPath ? toWindowsPath(focusedFullPath) : null}
+                           requestedTab={bottomPluginTab}
+                           selectedItems={bottomSelectionTargets.paths}
+                           selectedTargetTypes={bottomSelectionTargets.types}
+                           onFilterChange={setGridFilters}
+                           onOpenPluginStore={() => setIsPluginStoreOpen(true)}
+                           currentPath={currentPath}
+                           pathContentsCache={pathContentsCache}
+                           folderSizeMap={folderSizeMap}
+                        />
+                     </div>
+                  </ResizablePanel>
+               </ResizablePanelGroup>
+            </ResizablePanel>
+
+            <ResizableHandle
+               direction="horizontal"
+               disabled={!isPreviewPanelOpen || config.rightSidebarEnabled === false}
+               className="bndz-resize-handle-glow w-1 bg-[#282830] transition-colors hover:bg-sky-500 cursor-col-resize shrink-0 z-20"
+            />
+            <ResizablePanel
+               id="preview"
+               panelRef={previewPanelRef}
+               defaultSize={outerDefaultLayout.preview}
+               minSize={2}
+               collapsible
+               collapsedSize={0}
+               className="bndz-chrome-preview shrink-0 border-l border-[#282830] overflow-hidden z-10 flex min-h-0"
+            >
+               <div
+                  className="w-full h-full flex flex-col min-w-0 min-h-0"
+                  onContextMenu={(e) => {
+                     if (focusedFullPath && focusedEntity) {
+                        handleContextMenuRequest(
+                           e,
+                           currentPath,
+                           focusedEntity.id,
+                           focusedEntity.type === 'directory',
+                           focusedEntity.name
+                        );
+                     } else {
+                        e.preventDefault();
+                     }
+                  }}
+               >
+                  <RightPreviewPanel
+                     entity={previewEntity}
+                     path={previewPath}
+                  />
+               </div>
+            </ResizablePanel>
+         </ResizablePanelGroup>
+      </div>
+
+      {/* Footer Status Bar scoped to active pane metrics */}
+      <div className="bndz-chrome-statusbar status-bar-glow border-t border-[#333] px-3 py-1 flex items-center justify-between text-[11px] text-gray-400 shrink-0 gap-3 min-h-[28px]">
+         <div className="truncate">
+           {activeContents ? `${activeContents.length} item(s)` : `${drives.length} drive(s)`}
+           {activeTab.selectedItems.length > 0 ? ` | ${activeTab.selectedItems.length} selected` : ''}
+           {isGlobal && isGlobalSearchLoading && (
+             <span className="text-amber-400/90 ml-2">Searching…</span>
+           )}
+           {isGlobal && !isGlobalSearchLoading && globalSearchEngine && (
+             <span className="text-amber-400/70 ml-2">
+               Global · {globalSearchEngine === 'everything' ? 'Everything' : 'Indexed walk'}
+             </span>
+           )}
+           {folderSizeSync?.active && (
+             <span className="text-pink-300 ml-2">
+               Syncing sizes {folderSizeSync.current}/{folderSizeSync.total}
+               {folderSizeSync.path ? ` — ${folderSizeSync.path.split('\\').pop()}` : ''}
+               <span className="text-gray-500 ml-1">(Esc to cancel)</span>
+             </span>
+           )}
+         </div>
+         <div className="flex items-center gap-4 shrink-0">
+            {getHoverPending() && config.showFileInfoTips !== false && (
+              <span className={`bndz-shift-hint hidden md:inline-flex ${isShiftKeyHeld() ? 'bndz-shift-hint-active' : ''}`}>
+                <kbd>⇧</kbd> Shift + hover for file details
+              </span>
+            )}
+            {(() => {
+              const totalCap = drives.reduce((s, d) => s + (d.totalSpace || 0), 0);
+              const totalFree = drives.reduce((s, d) => s + (d.freeSpace || 0), 0);
+              const pctFree = totalCap > 0 ? Math.round((totalFree / totalCap) * 100) : 0;
+              return (
+                <>
+                  <div className="hidden sm:block">{formatSize(totalFree)} free ({pctFree}%) · {formatSize(totalCap)} total</div>
+                  <div className="flex items-center">
+                     <HardDrive size={12} className="text-[#6db4e6] mr-1" />
+                     <span className="bg-[#1c1c1c] border border-[#333] px-2 py-[2px] rounded-sm font-mono text-[10px]">
+                       {drives.length} vol · {formatSize(totalFree)} free
+                     </span>
+                  </div>
+                </>
+              );
+            })()}
+         </div>
+      </div>
+      
+      {/* Overlays / Modals */}
+      {isSaveTabsetOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+           <div className="bg-[#1f1f1f] border border-[#444] rounded-md shadow-2xl p-6 w-[400px]">
+               <h2 className="text-white text-lg font-semibold mb-4">Save Tabset As...</h2>
+               <div className="mb-4">
+                  <label className="block text-gray-300 text-sm mb-2">Tabset Name</label>
+                  <input
+                     autoFocus
+                     type="text"
+                     value={tabsetNameInput}
+                     onChange={(e) => setTabsetNameInput(e.target.value)}
+                     className="w-full bg-[#111] text-white border border-[#444] rounded px-3 py-1.5 outline-none focus:border-sky-500"
+                     onKeyDown={(e) => {
+                         if (e.key === 'Enter' && tabsetNameInput.trim()) {
+                             const newTabset = { id: `ts-${Date.now()}`, name: tabsetNameInput.trim(), panes: JSON.parse(JSON.stringify(panes)) };
+                             updateConfig({ savedTabsets: [...(config.savedTabsets || []), newTabset] });
+                             setIsSaveTabsetOpen(false);
+                             setToastMessage(`Saved Tabset: ${newTabset.name}`);
+                         }
+                         if (e.key === 'Escape') setIsSaveTabsetOpen(false);
+                     }}
+                  />
+               </div>
+               <div className="flex justify-end gap-2">
+                  <button onClick={() => setIsSaveTabsetOpen(false)} className="px-4 py-1.5 text-gray-300 hover:bg-[#333] rounded">Cancel</button>
+                  <button onClick={() => {
+                      if (!tabsetNameInput.trim()) return;
+                      const newTabset = { id: `ts-${Date.now()}`, name: tabsetNameInput.trim(), panes: JSON.parse(JSON.stringify(panes)) };
+                      updateConfig({ savedTabsets: [...(config.savedTabsets || []), newTabset] });
+                      setIsSaveTabsetOpen(false);
+                      setToastMessage(`Saved Tabset: ${newTabset.name}`);
+                  }} className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded">Save</button>
+               </div>
+           </div>
+        </div>
+      )}
+
+      {isLoadTabsetOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setIsLoadTabsetOpen(false)}>
+           <div className="bg-[#1f1f1f] border border-[#444] rounded-md shadow-2xl p-6 w-[400px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+               <h2 className="text-white text-lg font-semibold mb-4">Load Tabset</h2>
+               <div className="flex-1 overflow-y-auto min-h-[100px] mb-4 border border-[#333] rounded">
+                   {!(config.savedTabsets && config.savedTabsets.length > 0) ? (
+                       <div className="text-gray-500 text-sm p-4 text-center">No saved tabsets.</div>
+                   ) : (
+                       config.savedTabsets.map((ts) => (
+                           <div key={ts.id} className="flex justify-between items-center px-4 py-2 hover:bg-[#2a2d2e] border-b border-[#333] last:border-0 cursor-pointer text-gray-200" onClick={() => {
+                               setPanes(JSON.parse(JSON.stringify(ts.panes)));
+                               setIsLoadTabsetOpen(false);
+                               setToastMessage(`Loaded Tabset: ${ts.name}`);
+                           }}>
+                               <span>{ts.name}</span>
+                               <button onClick={(e) => {
+                                   e.stopPropagation();
+                                   updateConfig({ savedTabsets: config.savedTabsets?.filter(s => s.id !== ts.id) });
+                               }} className="text-gray-500 hover:text-red-400">
+                                   <Trash2 size={14} />
+                               </button>
+                           </div>
+                       ))
+                   )}
+               </div>
+               <div className="flex justify-end">
+                  <button onClick={() => setIsLoadTabsetOpen(false)} className="px-4 py-1.5 text-gray-300 hover:bg-[#333] rounded">Close</button>
+               </div>
+           </div>
+        </div>
+      )}
+
+      {isSmartToolsOpen && (
+        <Suspense fallback={null}>
+          <SmartToolsDialog
+            isOpen={isSmartToolsOpen}
+            onClose={() => setIsSmartToolsOpen(false)}
+            selectedItems={activeFilesMap.map((e: any) => e.path || joinPanePath(currentTab.path, e))}
+            currentPath={currentTab.path}
+          />
+        </Suspense>
+      )}
+      
+      {isToolbarConfigOpen && (
+        <ToolbarConfigurator onClose={() => setIsToolbarConfigOpen(false)} availableTags={availableTags} />
+      )}
+
+      {isConfigDialogOpen && (
+        <Suspense fallback={null}>
+          <ConfigurationDialog onClose={() => setIsConfigDialogOpen(false)} />
+        </Suspense>
+      )}
+
+      <AnimatePresence>
+        {showAboutDialog && (
+          <Suspense fallback={null}>
+            <AboutDialog onClose={() => setShowAboutDialog(false)} />
+          </Suspense>
+        )}
+        {showRegisterDialog && (
+          <Suspense fallback={null}>
+            <RegisterDialog
+              onClose={() => setShowRegisterDialog(false)}
+              onActivated={() => setToastMessage('License activated successfully.')}
+            />
+          </Suspense>
+        )}
+        {showHelpTopics && (
+          <Suspense fallback={null}>
+            <HelpTopicsDialog onClose={() => setShowHelpTopics(false)} />
+          </Suspense>
+        )}
+      </AnimatePresence>
+      {isPluginStoreOpen && (
+        <Suspense fallback={null}>
+          <PluginStoreDialog onClose={() => setIsPluginStoreOpen(false)} />
+        </Suspense>
+      )}
+      
+      {isTagManagerOpen && (
+        <Suspense fallback={null}>
+          <TagManagerDialog
+            isOpen={isTagManagerOpen}
+            onClose={() => setIsTagManagerOpen(false)}
+            availableTags={availableTags}
+            onTagsUpdated={setAvailableTags}
+            pathContentsCache={pathContentsCache}
+          />
+        </Suspense>
+      )}
+
+      {/* Global Progress Bars */}
+      {Object.keys(transferProgress).length > 0 && (
+         <div className="absolute bottom-24 right-5 w-[380px] flex flex-col gap-2.5 z-40 pointer-events-none">
+            {Object.keys(transferProgress).map((opId) => {
+               const prog = transferProgress[opId];
+               const formatBytes = (bytes: number) => {
+                 if (bytes === 0) return '0 B';
+                 const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                 const i = Math.floor(Math.log(bytes) / Math.log(k));
+                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+               };
+               const fileLabel = (prog.file || '').split(/[/\\]/).pop() || 'items';
+               return (
+               <div key={opId} className="pointer-events-auto rounded-xl border border-violet-500/25 bg-gradient-to-br from-[#14141c]/95 to-[#0d0d12]/95 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.45)] p-4">
+                 <div className="flex items-center gap-3 mb-3">
+                   {prog.percentage < 100 ? (
+                     <div className="w-9 h-9 rounded-lg bg-violet-500/15 flex items-center justify-center ring-1 ring-violet-400/20">
+                       <Loader2 size={18} className="text-violet-400 animate-spin" />
+                     </div>
+                   ) : (
+                     <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center ring-1 ring-emerald-400/20">
+                       <Sparkles size={18} className="text-emerald-400" />
+                     </div>
+                   )}
+                   <div className="min-w-0 flex-1">
+                     <div className="text-[13px] font-semibold text-white truncate">
+                       {prog.percentage < 100 ? `Moving ${prog.itemsCompleted} of ${prog.totalItems || '?'}` : 'Complete'}
+                     </div>
+                     <div className="text-[11px] text-gray-400 truncate" title={prog.file}>{fileLabel}</div>
+                   </div>
+                   <span className="text-[12px] font-mono text-violet-300">{Math.round(prog.percentage)}%</span>
+                 </div>
+                 <div className="h-1.5 rounded-full bg-black/40 overflow-hidden mb-2">
+                   <div
+                     className={`h-full rounded-full transition-all duration-300 ${prog.percentage >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-violet-500 to-fuchsia-400'}`}
+                     style={{ width: `${prog.percentage}%` }}
+                   />
+                 </div>
+                 <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                   <span>{prog.percentage < 100 && prog.speedBytesPerSecond > 0 ? `${formatBytes(prog.speedBytesPerSecond)}/s` : ''}</span>
+                   <span>{formatBytes(prog.bytesTransferred)} / {formatBytes(prog.totalBytes)}</span>
+                 </div>
+               </div>
+               );
+            })}
+         </div>
+      )}
+
+      {tabContextMenu && (() => {
+        const pane = panes.find(p => p.id === tabContextMenu.paneId);
+        const tab = pane?.tabs[tabContextMenu.tabIndex];
+        if (!pane || !tab) return null;
+        return (
+          <TabContextMenu
+            x={tabContextMenu.x}
+            y={tabContextMenu.y}
+            tabLabel={getPaneTabLabel(tab.path)}
+            isLocked={!!tab.locked}
+            canClose={pane.tabs.length > 1}
+            canCloseOthers={pane.tabs.length > 1}
+            onLock={() => toggleTabLock(tabContextMenu.paneId, tabContextMenu.tabIndex)}
+            onClose={() => closeTabAt(tabContextMenu.paneId, tabContextMenu.tabIndex)}
+            onCloseOthers={() => closeOtherTabs(tabContextMenu.paneId, tabContextMenu.tabIndex)}
+            onCloseAll={() => closeAllTabs(tabContextMenu.paneId)}
+            onDuplicate={() => duplicateTab(tabContextMenu.paneId, tabContextMenu.tabIndex)}
+            onCloseMenu={() => setTabContextMenu(null)}
+          />
+        );
+      })()}
+
+      {contextMenu && (
+        <div ref={contextMenuRootRef} onMouseDown={e => e.stopPropagation()}>
+        <ContextMenuView
+          menu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          config={config}
+          updateConfig={updateConfig}
+          activePaneId={activePaneId}
+          addTab={addTab}
+          setIsSmartToolsOpen={setIsSmartToolsOpen}
+          setToastMessage={setToastMessage}
+          setInlineRename={setInlineRename}
+          setClipboardState={setClipboardState}
+          executePaste={executePaste}
+          onDeletePaths={handleDeletePaths}
+          onEmptyRecycleBin={handleEmptyRecycleBin}
+          onRefresh={refreshWorkspace}
+          onCopyTo={sources => void copyOrMoveToTarget('copy', undefined, sources)}
+          onMoveTo={sources => void copyOrMoveToTarget('move', undefined, sources)}
+        />
+        </div>
+      )}
+
+      <DestinationPickerModal
+        open={!!destinationPicker}
+        title={destinationPicker?.mode === 'move' ? 'Move to folder' : 'Copy to folder'}
+        drives={drives}
+        onCancel={() => setDestinationPicker(null)}
+        onConfirm={panePath => {
+          const picker = destinationPicker;
+          setDestinationPicker(null);
+          if (picker) void copyOrMoveToTarget(picker.mode, panePath, picker.sources);
+        }}
+      />
+
+      <QuitConfirmDialog
+        open={quitDialogOpen}
+        source={quitCloseSource}
+        onCancel={() => {
+          setQuitDialogOpen(false);
+          import('../lib/ipcBridge').then(({ IPC }) => IPC.windowCloseResolve('cancel'));
+        }}
+        onQuit={() => {
+          setQuitDialogOpen(false);
+          import('../lib/ipcBridge').then(({ IPC }) => IPC.windowCloseResolve('quit'));
+        }}
+        onMinimizeToTray={(remember) => {
+          if (remember) {
+            updateConfig({ minimizeToTrayOnXClose: true, minimizeToTray: true });
+          }
+          setQuitDialogOpen(false);
+          import('../lib/ipcBridge').then(({ IPC }) => IPC.windowCloseResolve('tray', remember));
+        }}
+      />
+
+      <TutorialOverlay forceShow={showTutorial} onClose={() => setShowTutorial(false)} />
+      <Suspense fallback={null}>
+        <CommandPalette 
+            isOpen={isCommandPaletteOpen} 
+            onClose={() => setIsCommandPaletteOpen(false)} 
+            fileSystem={fileSystem} 
+            currentPath={currentPath}
+            drives={drives}
+            setCurrentPath={(p: string) => setCurrentPath(p, activePaneId)}
+            setConfigOpen={setIsConfigDialogOpen}
+        />
+      </Suspense>
+      <FloatingTooltipHost />
+    </div>
+  );
+}

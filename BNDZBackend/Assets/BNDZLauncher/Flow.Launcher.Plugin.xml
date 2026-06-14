@@ -1,0 +1,2782 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Flow.Launcher.Plugin</name>
+    </assembly>
+    <members>
+        <member name="T:Flow.Launcher.Plugin.ActionContext">
+            <summary>
+            Context provided as a parameter when invoking a
+            <see cref="P:Flow.Launcher.Plugin.Result.Action"/> or <see cref="P:Flow.Launcher.Plugin.Result.AsyncAction"/>
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.ActionContext.SpecialKeyState">
+            <summary>
+            Contains the press state of certain special keys.
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SpecialKeyState">
+            <summary>
+            Contains the press state of certain special keys.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SpecialKeyState.CtrlPressed">
+            <summary>
+            True if the Ctrl key is pressed.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SpecialKeyState.ShiftPressed">
+            <summary>
+            True if the Shift key is pressed.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SpecialKeyState.AltPressed">
+            <summary>
+            True if the Alt key is pressed.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SpecialKeyState.WinPressed">
+            <summary>
+            True if the Windows key is pressed.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SpecialKeyState.ToModifierKeys">
+            <summary>
+            Get this object represented as a <see cref="T:System.Windows.Input.ModifierKeys"/> flag combination.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.SpecialKeyState.Default">
+            <summary>
+            Default <see cref="T:Flow.Launcher.Plugin.SpecialKeyState"/> object with all keys not pressed.
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.AllowedLanguage">
+            <summary>
+            Allowed plugin languages
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.Python">
+            <summary>
+            Python
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.PythonV2">
+            <summary>
+            Python V2
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.CSharp">
+            <summary>
+            C#
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.FSharp">
+            <summary>
+            F#
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.Executable">
+            <summary>
+            Standard .exe
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.ExecutableV2">
+            <summary>
+            Standard .exe
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.TypeScript">
+            <summary>
+            TypeScript
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.TypeScriptV2">
+            <summary>
+            TypeScript
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.JavaScript">
+            <summary>
+            JavaScript
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.AllowedLanguage.JavaScriptV2">
+            <summary>
+            JavaScript
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.AllowedLanguage.IsDotNet(System.String)">
+            <summary>
+            Determines if this language is a .NET language
+            </summary>
+            <param name="language"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.AllowedLanguage.IsPython(System.String)">
+            <summary>
+            Determines if this language is a Python language
+            </summary>
+            <param name="language"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.AllowedLanguage.IsNodeJs(System.String)">
+            <summary>
+            Determines if this language is a Node.js language
+            </summary>
+            <param name="language"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.AllowedLanguage.IsExecutable(System.String)">
+            <summary>
+            Determines if this language is a executable language
+            </summary>
+            <param name="language"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.AllowedLanguage.IsAllowed(System.String)">
+            <summary>
+            Determines if this language is supported
+            </summary>
+            <param name="language"></param>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.BaseModel">
+            <summary>
+            Base model for plugin classes
+            </summary>
+        </member>
+        <member name="E:Flow.Launcher.Plugin.BaseModel.PropertyChanged">
+            <summary>
+            Property changed event handler
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.BaseModel.OnPropertyChanged(System.String)">
+            <summary>
+            Invoked when a property changes
+            </summary>
+            <param name="propertyName"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.DialogJumpResult">
+            <summary>
+            Describes a result of a <see cref="T:Flow.Launcher.Plugin.Query"/> executed by a plugin in Dialog Jump window
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.DialogJumpResult.DialogJumpPath">
+            <summary>
+            This holds the path which can be provided by plugin to be navigated to the
+            file dialog when records in Dialog Jump window is right clicked on a result.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.DialogJumpResult.Clone">
+            <summary>
+            Clones the current Dialog Jump result
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.DialogJumpResult.From(Flow.Launcher.Plugin.Result,System.String)">
+            <summary>
+            Convert <see cref="T:Flow.Launcher.Plugin.Result"/> to <see cref="T:Flow.Launcher.Plugin.DialogJumpResult"/>.
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.FlowLauncherKeyDownEventHandler">
+            <summary>
+            Delegate for key down event
+            </summary>
+            <param name="e"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.AfterFlowLauncherQueryEventHandler">
+            <summary>
+            Delegate for query event
+            </summary>
+            <param name="e"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.ResultItemDropEventHandler">
+            <summary>
+            Delegate for drop events [unused?]
+            </summary>
+            <param name="result"></param>
+            <param name="dropObject"></param>
+            <param name="e"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.FlowLauncherGlobalKeyboardEventHandler">
+            <summary>
+            Global keyboard events
+            </summary>
+            <param name="keyevent">WM_KEYDOWN = 256,WM_KEYUP = 257,WM_SYSKEYUP = 261,WM_SYSKEYDOWN = 260</param>
+            <param name="vkcode"></param>
+            <param name="state"></param>
+            <returns>return true to continue handling, return false to intercept system handling</returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.VisibilityChangedEventHandler">
+            <summary>
+            A delegate for when the visibility is changed
+            </summary>
+            <param name="sender"></param>
+            <param name="args"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.ActualApplicationThemeChangedEventHandler">
+            <summary>
+            A delegate for when the actual application theme is changed
+            </summary>
+            <param name="sender"></param>
+            <param name="args"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.VisibilityChangedEventArgs">
+            <summary>
+            The event args for <see cref="T:Flow.Launcher.Plugin.VisibilityChangedEventHandler"/>
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.VisibilityChangedEventArgs.IsVisible">
+            <summary>
+            <see langword="true"/> if the main window has become visible
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.FlowLauncherKeyDownEventArgs">
+            <summary>
+            Arguments container for the Key Down event
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.FlowLauncherKeyDownEventArgs.Query">
+            <summary>
+            The actual query
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.FlowLauncherKeyDownEventArgs.keyEventArgs">
+            <summary>
+            Relevant key events for this event
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.FlowLauncherQueryEventArgs">
+            <summary>
+            Arguments container for the Query event
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.FlowLauncherQueryEventArgs.Query">
+            <summary>
+            The actual query
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.ActualApplicationThemeChangedEventArgs">
+            <summary>
+            The event args for <see cref="T:Flow.Launcher.Plugin.ActualApplicationThemeChangedEventHandler"/>
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.ActualApplicationThemeChangedEventArgs.IsDark">
+            <summary>
+            <see langword="true"/> if the application has changed actual theme
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IFeatures">
+            <summary>
+            Base Interface for Flow's special plugin feature interface
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.GlyphInfo">
+            <summary>
+            Text with FontFamily specified
+            </summary>
+            <param name="FontFamily">Font Family of this Glyph</param>
+            <param name="Glyph">Text/Unicode of the Glyph</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.GlyphInfo.#ctor(System.String,System.String)">
+            <summary>
+            Text with FontFamily specified
+            </summary>
+            <param name="FontFamily">Font Family of this Glyph</param>
+            <param name="Glyph">Text/Unicode of the Glyph</param>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.GlyphInfo.FontFamily">
+            <summary>Font Family of this Glyph</summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.GlyphInfo.Glyph">
+            <summary>Text/Unicode of the Glyph</summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IAsyncDialogJump">
+            <summary>
+            Asynchronous Dialog Jump Model
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncDialogJump.QueryDialogJumpAsync(Flow.Launcher.Plugin.Query,System.Threading.CancellationToken)">
+            <summary>
+            Asynchronous querying for Dialog Jump window
+            </summary>
+            <para>
+            If the Querying method requires high IO transmission
+            or performing CPU intense jobs (performing better with cancellation), please use this IAsyncDialogJump interface
+            </para>
+            <param name="query">Query to search</param>
+            <param name="token">Cancel when querying job is obsolete</param>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IAsyncExternalPreview">
+            <summary>
+            This interface is for plugins that wish to provide file preview (external preview) 
+            via a third party app instead of the default preview.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncExternalPreview.OpenPreviewAsync(System.String,System.Boolean)">
+            <summary>
+            Method for opening/showing the preview.
+            </summary>
+            <param name="path">The file path to open the preview for</param>
+            <param name="sendFailToast">Whether to send a toast message notification on failure for the user</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncExternalPreview.ClosePreviewAsync">
+            <summary>
+            Method for closing/hiding the preview.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncExternalPreview.SwitchPreviewAsync(System.String,System.Boolean)">
+            <summary>
+            Method for switching the preview to the next file result. 
+            This requires the external preview be already open/showing
+            </summary>
+            <param name="path">The file path to switch the preview for</param>
+            <param name="sendFailToast">Whether to send a toast message notification on failure for the user</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncExternalPreview.AllowAlwaysPreview">
+            <summary>
+            Allows the preview plugin to override the AlwaysPreview setting. Typically useful if plugin's preview does not
+            fully work well with being shown together when the query window appears with results.
+            When AlwaysPreview setting is on and this is set to false, the preview will not be shown when query 
+            window appears with results, instead the internal preview will be shown.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IAsyncHomeQuery">
+            <summary>
+            Asynchronous Query Model for Flow Launcher When Query Text is Empty
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncHomeQuery.HomeQueryAsync(System.Threading.CancellationToken)">
+            <summary>
+            Asynchronous Querying When Query Text is Empty
+            </summary>
+            <para>
+            If the Querying method requires high IO transmission
+            or performing CPU intense jobs (performing better with cancellation), please use this IAsyncHomeQuery interface
+            </para>
+            <param name="token">Cancel when querying job is obsolete</param>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IAsyncPlugin">
+            <summary>
+            Asynchronous Plugin Model for Flow Launcher
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncPlugin.QueryAsync(Flow.Launcher.Plugin.Query,System.Threading.CancellationToken)">
+            <summary>
+            Asynchronous Querying
+            </summary>
+            <para>
+            If the Querying or Init method requires high IO transmission
+            or performing CPU intense jobs (performing better with cancellation), please use this IAsyncPlugin interface
+            </para>
+            <param name="query">Query to search</param>
+            <param name="token">Cancel when querying job is obsolete</param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncPlugin.InitAsync(Flow.Launcher.Plugin.PluginInitContext)">
+            <summary>
+            Initialize plugin asynchrously (will still wait finish to continue)
+            </summary>
+            <param name="context"></param>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IAsyncReloadable">
+            <summary>
+            This interface is to indicate and allow plugins to asyncronously reload their
+            in memory data cache or other mediums when user makes a new change
+            that is not immediately captured. For example, for BrowserBookmark and Program
+            plugin does not automatically detect when a user added a new bookmark or program,
+            so this interface's function is exposed to allow user manually do the reloading after 
+            those new additions.
+            
+            The command that allows user to manual reload is exposed via Plugin.Sys, and
+            it will call the plugins that have implemented this interface.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IAsyncReloadable.ReloadDataAsync">
+            <summary>
+            Reload plugin data
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IContextMenu">
+            <summary>
+            Adds support for presenting additional options for a given <see cref="T:Flow.Launcher.Plugin.Result"/> from a context menu.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IContextMenu.LoadContextMenus(Flow.Launcher.Plugin.Result)">
+            <summary>
+            Load context menu items for the given result.
+            </summary>
+            <param name="selectedResult">
+            The <see cref="T:Flow.Launcher.Plugin.Result"/> for which the user has activated the context menu.
+            </param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IDialogJump">
+            <summary>
+            Synchronous Dialog Jump Model
+            <para>
+            If the Querying method requires high IO transmission
+            or performing CPU intense jobs (performing better with cancellation), please try the IAsyncDialogJump interface
+            </para>
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJump.QueryDialogJump(Flow.Launcher.Plugin.Query)">
+            <summary>
+            Querying for Dialog Jump window
+            <para>
+            This method will be called within a Task.Run,
+            so please avoid synchrously wait for long.
+            </para>
+            </summary>
+            <param name="query">Query to search</param>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IDialogJumpDialog">
+            <summary>
+            Interface for handling file dialog instances in DialogJump.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpDialog.CheckDialogWindow(System.IntPtr)">
+            <summary>
+            Check if the foreground window is a file dialog instance.
+            </summary>
+            <param name="hwnd">
+            The handle of the foreground window to check.
+            </param>
+            <returns>
+            The window if the foreground window is a file dialog instance. Null if it is not.
+            </returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IDialogJumpDialogWindow">
+            <summary>
+            Interface for handling a specific file dialog window in DialogJump.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.IDialogJumpDialogWindow.Handle">
+            <summary>
+            The handle of the dialog window.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpDialogWindow.GetCurrentTab">
+            <summary>
+            Get the current tab of the dialog window.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IDialogJumpDialogWindowTab">
+            <summary>
+            Interface for handling a specific tab in a file dialog window in DialogJump.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.IDialogJumpDialogWindowTab.Handle">
+            <summary>
+            The handle of the dialog tab.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpDialogWindowTab.GetCurrentFolder">
+            <summary>
+            Get the current folder path of the dialog tab.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpDialogWindowTab.GetCurrentFile">
+            <summary>
+            Get the current file of the dialog tab.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpDialogWindowTab.JumpFolder(System.String,System.Boolean)">
+            <summary>
+            Jump to a folder in the dialog tab.
+            </summary>
+            <param name="path">
+            The path to the folder to jump to.
+            </param>
+            <param name="auto">
+            Whether folder jump is under automatical mode.
+            </param>
+            <returns>
+            True if the jump was successful, false otherwise.
+            </returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpDialogWindowTab.JumpFile(System.String)">
+            <summary>
+            Jump to a file in the dialog tab.
+            </summary>
+            <param name="path">
+            The path to the file to jump to.
+            </param>
+            <returns>
+            True if the jump was successful, false otherwise.
+            </returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpDialogWindowTab.Open">
+            <summary>
+            Open the file in the dialog tab.
+            </summary>
+            <returns>
+            True if the file was opened successfully, false otherwise.
+            </returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IDialogJumpExplorer">
+            <summary>
+            Interface for handling file explorer instances in DialogJump.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpExplorer.CheckExplorerWindow(System.IntPtr)">
+            <summary>
+            Check if the foreground window is a Windows Explorer instance.
+            </summary>
+            <param name="hwnd">
+            The handle of the foreground window to check.
+            </param>
+            <returns>
+            The window if the foreground window is a file explorer instance. Null if it is not.
+            </returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IDialogJumpExplorerWindow">
+            <summary>
+            Interface for handling a specific file explorer window in DialogJump.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.IDialogJumpExplorerWindow.Handle">
+            <summary>
+            The handle of the explorer window.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IDialogJumpExplorerWindow.GetExplorerPath">
+            <summary>
+            Get the current folder path of the explorer window.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IHomeQuery">
+            <summary>
+            Synchronous Query Model for Flow Launcher When Query Text is Empty
+            <para>
+            If the Querying method requires high IO transmission
+            or performing CPU intense jobs (performing better with cancellation), please try the IAsyncHomeQuery interface
+            </para>
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IHomeQuery.HomeQuery">
+            <summary>
+            Querying When Query Text is Empty
+            <para>
+            This method will be called within a Task.Run,
+            so please avoid synchronously wait for long.
+            </para>
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IPlugin">
+            <summary>
+            Synchronous Plugin Model for Flow Launcher
+            <para>
+            If the Querying or Init method requires high IO transmission
+            or performaing CPU intense jobs (performing better with cancellation), please try the IAsyncPlugin interface
+            </para>
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPlugin.Query(Flow.Launcher.Plugin.Query)">
+            <summary>
+            Querying when user's search changes
+            <para>
+            This method will be called within a Task.Run,
+            so please avoid synchrously wait for long.
+            </para>
+            </summary>
+            <param name="query">Query to search</param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPlugin.Init(Flow.Launcher.Plugin.PluginInitContext)">
+            <summary>
+            Initialize plugin
+            </summary>
+            <param name="context"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IPluginI18n">
+            <summary>
+            Represent plugins that support internationalization
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPluginI18n.GetTranslatedPluginTitle">
+            <summary>
+            Get a localised version of the plugin's title
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPluginI18n.GetTranslatedPluginDescription">
+            <summary>
+            Get a localised version of the plugin's description
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPluginI18n.OnCultureInfoChanged(System.Globalization.CultureInfo)">
+            <summary>
+            The method will be invoked when language of flow changed
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IPublicAPI">
+            <summary>
+            Public APIs that plugin can use
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ChangeQuery(System.String,System.Boolean)">
+            <summary>
+            Change Flow.Launcher query.
+            When current results are from context menu or history, it will go back to query results before changing query.
+            </summary>
+            <param name="query">query text</param>
+            <param name="requery">
+            Force requery. By default, Flow Launcher will not fire query if your query is same with existing one.
+            Set this to <see langword="true"/> to force Flow Launcher re-querying
+            </param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.RestartApp">
+            <summary>
+            Restart Flow Launcher
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShellRun(System.String,System.String)">
+            <summary>
+            Run a shell command
+            </summary>
+            <param name="cmd">The command or program to run</param>
+            <param name="filename">the shell type to run, e.g. powershell.exe</param>
+            <exception cref="T:System.IO.FileNotFoundException">Thrown when unable to find the file specified in the command </exception>
+            <exception cref="T:System.ComponentModel.Win32Exception">Thrown when error occurs during the execution of the command </exception>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.CopyToClipboard(System.String,System.Boolean,System.Boolean)">
+            <summary>
+            Copies the passed in text and shows a message indicating whether the operation was completed successfully.
+            When directCopy is set to true and passed in text is the path to a file or directory,
+            the actual file/directory will be copied to clipboard. Otherwise the text itself will still be copied to clipboard.
+            </summary>
+            <param name="text">Text to save on clipboard</param>
+            <param name="directCopy">When true it will directly copy the file/folder from the path specified in text</param>
+            <param name="showDefaultNotification">Whether to show the default notification from this method after copy is done.
+                                                    It will show file/folder/text is copied successfully.
+                                                    Turn this off to show your own notification after copy is done.</param>>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.SaveAppAllSettings">
+            <summary>
+            Save everything, all of Flow Launcher and plugins' data and settings
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.SavePluginSettings">
+            <summary>
+            Save all Flow's plugins settings
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ReloadAllPluginData">
+            <summary>
+            Reloads any Plugins that have the
+            IReloadable implemented. It refeshes
+            Plugin's in memory data with new content
+            added by user.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.CheckForNewUpdate">
+            <summary>
+            Check for new Flow Launcher update
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMsgError(System.String,System.String)">
+            <summary>
+            Show the error message using Flow's standard error icon.
+            </summary>
+            <param name="title">Message title</param>
+            <param name="subTitle">Optional message subtitle</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMsgErrorWithButton(System.String,System.String,System.Action,System.String)">
+            <summary>
+            Show the error message using Flow's standard error icon.
+            </summary>
+            <param name="title">Message title</param>
+            <param name="buttonText">Message button content</param>
+            <param name="buttonAction">Message button action</param>
+            <param name="subTitle">Optional message subtitle</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMainWindow">
+            <summary>
+            Show the MainWindow when hiding
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.FocusQueryTextBox">
+            <summary>
+            Focus the query text box in the main window
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.HideMainWindow">
+            <summary>
+            Hide MainWindow
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.IsMainWindowVisible">
+            <summary>
+            Representing whether the main window is visible
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="E:Flow.Launcher.Plugin.IPublicAPI.VisibilityChanged">
+            <summary>
+            Invoked when the visibility of the main window has changed. Currently, the plugin will continue to be subscribed even if it is turned off.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMsg(System.String,System.String,System.String)">
+            <summary>
+            Show message box
+            </summary>
+            <param name="title">Message title</param>
+            <param name="subTitle">Message subtitle</param>
+            <param name="iconPath">Message icon path (relative path to your plugin folder)</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMsg(System.String,System.String,System.String,System.Boolean)">
+            <summary>
+            Show message box
+            </summary>
+            <param name="title">Message title</param>
+            <param name="subTitle">Message subtitle</param>
+            <param name="iconPath">Message icon path (relative path to your plugin folder)</param>
+            <param name="useMainWindowAsOwner">when true will use main windows as the owner</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMsgWithButton(System.String,System.String,System.Action,System.String,System.String)">
+            <summary>
+            Show message box with button
+            </summary>
+            <param name="title">Message title</param>
+            <param name="buttonText">Message button content</param>
+            <param name="buttonAction">Message button action</param>
+            <param name="subTitle">Message subtitle</param>
+            <param name="iconPath">Message icon path (relative path to your plugin folder)</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMsgWithButton(System.String,System.String,System.Action,System.String,System.String,System.Boolean)">
+            <summary>
+            Show message box with button
+            </summary>
+            <param name="title">Message title</param>
+            <param name="buttonText">Message button content</param>
+            <param name="buttonAction">Message button action</param>
+            <param name="subTitle">Message subtitle</param>
+            <param name="iconPath">Message icon path (relative path to your plugin folder)</param>
+            <param name="useMainWindowAsOwner">when true will use main windows as the owner</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenSettingDialog">
+            <summary>
+            Open setting dialog
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenPluginSettingsWindow(System.String)">
+            <summary>
+            Open plugin setting window for a specific plugin.
+            Reuses the existing window when that plugin's settings window is already open.
+            </summary>
+            <param name="pluginId">ID of the plugin whose settings window should be opened</param>
+            <returns>True if the plugin settings window was successfully opened or reused; false otherwise</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetTranslation(System.String)">
+            <summary>
+            Get translation of current language
+            You need to implement IPluginI18n if you want to support multiple languages for your plugin
+            </summary>
+            <param name="key"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetAllPlugins">
+            <summary>
+            Get all loaded plugins
+            </summary>
+            <remarks>
+            Will also return any plugins not fully initialized yet
+            </remarks>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetAllInitializedPlugins(System.Boolean)">
+            <summary>
+            Get all initialized plugins
+            </summary>
+            <param name="includeFailed">
+            Whether to include plugins that failed to initialize
+            </param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.RegisterGlobalKeyboardCallback(System.Func{System.Int32,System.Int32,Flow.Launcher.Plugin.SpecialKeyState,System.Boolean})">
+            <summary>
+            Registers a callback function for global keyboard events.
+            </summary>
+            <param name="callback">
+            The callback function to invoke when a global keyboard event occurs.
+            <para>
+            Parameters:
+            <list type="number">
+              <item><description>int: The type of <see cref="T:Flow.Launcher.Plugin.KeyEvent"/> (key down, key up, etc.)</description></item>
+              <item><description>int: The virtual key code of the pressed/released key</description></item>
+              <item><description><see cref="T:Flow.Launcher.Plugin.SpecialKeyState"/>: The state of modifier keys (Ctrl, Alt, Shift, etc.)</description></item>
+            </list>
+            </para>
+            <para>
+            Returns: <c>true</c> to allow normal system processing of the key event,
+            or <c>false</c> to intercept and prevent default handling.
+            </para>
+            </param>
+            <remarks>
+            This callback will be invoked for all keyboard events system-wide.
+            Use with caution as intercepting system keys may affect normal system operation.
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.RemoveGlobalKeyboardCallback(System.Func{System.Int32,System.Int32,Flow.Launcher.Plugin.SpecialKeyState,System.Boolean})">
+            <summary>
+            Remove a callback for Global Keyboard Event
+            </summary>
+            <param name="callback">
+            The callback function to invoke when a global keyboard event occurs.
+            <para>
+            Parameters:
+            <list type="number">
+              <item><description>int: The type of <see cref="T:Flow.Launcher.Plugin.KeyEvent"/> (key down, key up, etc.)</description></item>
+              <item><description>int: The virtual key code of the pressed/released key</description></item>
+              <item><description><see cref="T:Flow.Launcher.Plugin.SpecialKeyState"/>: The state of modifier keys (Ctrl, Alt, Shift, etc.)</description></item>
+            </list>
+            </para>
+            <para>
+            Returns: <c>true</c> to allow normal system processing of the key event,
+            or <c>false</c> to intercept and prevent default handling.
+            </para>
+            </param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.FuzzySearch(System.String,System.String)">
+            <summary>
+            Fuzzy Search the string with the given query. This is the core search mechanism Flow uses
+            </summary>
+            <param name="query">Query string</param>
+            <param name="stringToCompare">The string that will be compared against the query</param>
+            <returns>Match results</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.HttpGetStringAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Http download the specific url and return as string
+            </summary>
+            <param name="url">URL to call Http Get</param>
+            <param name="token">Cancellation Token</param>
+            <returns>Task to get string result</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.HttpGetStreamAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Http download the specific url and return as stream
+            </summary>
+            <param name="url">URL to call Http Get</param>
+            <param name="token">Cancellation Token</param>
+            <returns>Task to get stream result</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.HttpDownloadAsync(System.String,System.String,System.Action{System.Double},System.Threading.CancellationToken)">
+            <summary>
+            Download the specific url to a cretain file path
+            </summary>
+            <param name="url">URL to download file</param>
+            <param name="filePath">path to save downloaded file</param>
+            <param name="reportProgress">
+            Action to report progress. The input of the action is the progress value which is a double value between 0 and 100.
+            It will be called if url support range request and the reportProgress is not null.
+            </param>
+            <param name="token">place to store file</param>
+            <returns>Task showing the progress</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.AddActionKeyword(System.String,System.String)">
+            <summary>
+            Add ActionKeyword and update action keyword metadata for specific plugin.
+            Before adding, please check if action keyword is already assigned by <see cref="M:Flow.Launcher.Plugin.IPublicAPI.ActionKeywordAssigned(System.String)"/>
+            </summary>
+            <param name="pluginId">ID for plugin that needs to add action keyword</param>
+            <param name="newActionKeyword">The actionkeyword that is supposed to be added</param>
+            <remarks>
+            If new action keyword contains any whitespace, FL will still add it but it will not work for users.
+            So plugin should check the whitespace before calling this function.
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.RemoveActionKeyword(System.String,System.String)">
+            <summary>
+            Remove ActionKeyword and update action keyword metadata for specific plugin
+            </summary>
+            <param name="pluginId">ID for plugin that needs to remove action keyword</param>
+            <param name="oldActionKeyword">The actionkeyword that is supposed to be removed</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ActionKeywordAssigned(System.String)">
+            <summary>
+            Check whether specific ActionKeyword is assigned to any of the plugin
+            </summary>
+            <param name="actionKeyword">The actionkeyword for checking</param>
+            <returns>True if the actionkeyword is already assigned, False otherwise</returns>
+            <remarks>
+            Flow now supports assigning one action keyword to multiple plugins.
+            This method is kept only for legacy Flow compatibility.
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LogDebug(System.String,System.String,System.String)">
+            <summary>
+            Log debug message
+            Message will only be logged in Debug mode
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LogInfo(System.String,System.String,System.String)">
+            <summary>
+            Log info message
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LogWarn(System.String,System.String,System.String)">
+            <summary>
+            Log warning message
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LogError(System.String,System.String,System.String)">
+            <summary>
+            Log error message. Preferred error logging method for plugins.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LogException(System.String,System.String,System.Exception,System.String)">
+            <summary>
+            Log an Exception. Will throw if in debug mode so developer will be aware,
+            otherwise logs the eror message. This is the primary logging method used for Flow
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LoadSettingJsonStorage``1">
+            <summary>
+            Load JsonStorage for current plugin's setting. This is the method used to load settings from json in Flow.
+            When the file is not exist, it will create a new instance for the specific type.
+            </summary>
+            <typeparam name="T">Type for deserialization</typeparam>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.SaveSettingJsonStorage``1">
+            <summary>
+            Save JsonStorage for current plugin's setting. This is the method used to save settings to json in Flow.
+            This method will save the original instance loaded with LoadJsonStorage.
+            This API call is for manually Save.
+            Flow will automatically save all setting type that has called <see cref="M:Flow.Launcher.Plugin.IPublicAPI.LoadSettingJsonStorage``1"/> or <see cref="M:Flow.Launcher.Plugin.IPublicAPI.SaveSettingJsonStorage``1"/> previously.
+            </summary>
+            <typeparam name="T">Type for Serialization</typeparam>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenDirectory(System.String,System.String)">
+            <summary>
+            Open directory in an explorer configured by user via Flow's Settings. The default is Windows Explorer
+            </summary>
+            <param name="DirectoryPath">Directory Path to open</param>
+            <param name="FileNameOrFilePath">Extra FileName Info</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenWebUrl(System.Uri,System.Nullable{System.Boolean})">
+            <summary>
+            Opens the URL using the browser with the given Uri object, even if the URL is a local file.
+            The browser and mode used is based on what's configured in Flow's default browser settings.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenWebUrl(System.String,System.Nullable{System.Boolean})">
+            <summary>
+            Opens the URL using the browser with the given string, even if the URL is a local file.
+            The browser and mode used is based on what's configured in Flow's default browser settings.
+            Non-C# plugins should use this method.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenUrl(System.Uri,System.Nullable{System.Boolean})">
+            <summary>
+            Opens the URL with the given Uri object in browser if scheme is Http or Https.
+            If the URL is a local file, it will instead be opened with the default application for that file type.
+            The browser and mode used is based on what's configured in Flow's default browser settings.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenUrl(System.String,System.Nullable{System.Boolean})">
+            <summary>
+            Opens the URL with the given string in browser if scheme is Http or Https.
+            If the URL is a local file, it will instead be opened with the default application for that file type.
+            The browser and mode used is based on what's configured in Flow's default browser settings.
+            Non-C# plugins should use this method.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenAppUri(System.Uri)">
+            <summary>
+            Opens the application URI with the given Uri object, e.g. obsidian://search-query-example
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.OpenAppUri(System.String)">
+            <summary>
+            Opens the application URI with the given string, e.g. obsidian://search-query-example
+            Non-C# plugins should use this method
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ToggleGameMode">
+            <summary>
+            Toggles Game Mode. off -> on and backwards
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.SetGameMode(System.Boolean)">
+            <summary>
+            Switches Game Mode to given value
+            </summary>
+            <param name="value">New Game Mode status</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.IsGameModeOn">
+            <summary>
+            Representing Game Mode status
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ReQuery(System.Boolean)">
+            <summary>
+            Reloads the query.
+            When current results are from context menu or history, it will go back to query results before re-querying.
+            </summary>
+            <param name="reselect">Choose the first result after reload if true; keep the last selected result if false. Default is true.</param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.BackToQueryResults">
+            <summary>
+            Back to the query results.
+            This method should run when selected item is from context menu or history.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowMsgBox(System.String,System.String,System.Windows.MessageBoxButton,System.Windows.MessageBoxImage,System.Windows.MessageBoxResult)">
+            <summary>
+            Displays a standardised Flow message box.
+            </summary>
+            <param name="messageBoxText">The message of the message box.</param>
+            <param name="caption">The caption of the message box.</param>
+            <param name="button">Specifies which button or buttons to display.</param>
+            <param name="icon">Specifies the icon to display.</param>
+            <param name="defaultResult">Specifies the default result of the message box.</param>
+            <returns>Specifies which message box button is clicked by the user.</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.ShowProgressBoxAsync(System.String,System.Func{System.Action{System.Double},System.Threading.Tasks.Task},System.Action)">
+            <summary>
+            Displays a standardised Flow progress box.
+            </summary>
+            <param name="caption">The caption of the progress box.</param>
+            <param name="reportProgressAsync">
+            Time-consuming task function, whose input is the action to report progress.
+            The input of the action is the progress value which is a double value between 0 and 100.
+            If there are any exceptions, this action will be null.
+            </param>
+            <param name="cancelProgress">When user cancel the progress, this action will be called.</param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.StartLoadingBar">
+            <summary>
+            Start the loading bar in main window
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.StopLoadingBar">
+            <summary>
+            Stop the loading bar in main window
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetAvailableThemes">
+            <summary>
+            Get all available themes
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetCurrentTheme">
+            <summary>
+            Get the current theme
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.SetCurrentTheme(Flow.Launcher.Plugin.SharedModels.ThemeData)">
+            <summary>
+            Set the current theme
+            </summary>
+            <param name="theme"></param>
+            <returns>
+            True if the theme is set successfully, false otherwise.
+            </returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.SavePluginCaches">
+            <summary>
+            Save all Flow's plugins caches
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LoadCacheBinaryStorageAsync``1(System.String,System.String,``0)">
+            <summary>
+            Load BinaryStorage for current plugin's cache. This is the method used to load cache from binary in Flow.
+            When the file is not exist, it will create a new instance for the specific type.
+            </summary>
+            <typeparam name="T">Type for deserialization</typeparam>
+            <param name="cacheName">Cache file name</param>
+            <param name="cacheDirectory">Cache directory from plugin metadata</param>
+            <param name="defaultData">Default data to return</param>
+            <returns></returns>
+            <remarks>
+            BinaryStorage utilizes MemoryPack, which means the object must be MemoryPackSerializable <see href="https://github.com/Cysharp/MemoryPack"/>
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.SaveCacheBinaryStorageAsync``1(System.String,System.String)">
+            <summary>
+            Save BinaryStorage for current plugin's cache. This is the method used to save cache to binary in Flow.
+            This method will save the original instance loaded with LoadCacheBinaryStorageAsync.
+            This API call is for manually Save.
+            Flow will automatically save all cache type that has called <see cref="M:Flow.Launcher.Plugin.IPublicAPI.LoadCacheBinaryStorageAsync``1(System.String,System.String,``0)"/> or <see cref="M:Flow.Launcher.Plugin.IPublicAPI.SaveCacheBinaryStorageAsync``1(System.String,System.String)"/> previously.
+            </summary>
+            <typeparam name="T">Type for Serialization</typeparam>
+            <param name="cacheName">Cache file name</param>
+            <param name="cacheDirectory">Cache directory from plugin metadata</param>
+            <returns></returns>
+            <remarks>
+            BinaryStorage utilizes MemoryPack, which means the object must be MemoryPackSerializable <see href="https://github.com/Cysharp/MemoryPack"/>
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.LoadImageAsync(System.String,System.Boolean,System.Boolean)">
+            <summary>
+            Load image from path.
+            Support local, remote and data:image url.
+            Support png, jpg, jpeg, gif, bmp, tiff, ico, svg image files.
+            If image path is missing, it will return a missing icon.
+            </summary>
+            <param name="path">The path of the image.</param>
+            <param name="loadFullImage">
+            Load full image or not.
+            </param>
+            <param name="cacheImage">
+            Cache the image or not. Cached image will be stored in FL cache.
+            If the image is just used one time, it's better to set this to false.
+            </param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.UpdatePluginManifestAsync(System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Update the plugin manifest
+            </summary>
+            <param name="usePrimaryUrlOnly">
+            FL has multiple urls to download the plugin manifest. Set this to true to only use the primary url.
+            </param>
+            <param name="token"></param>
+            <returns>True if the manifest is updated successfully, false otherwise</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetPluginManifest">
+            <summary>
+            Get the current plugin manifest entries known to Flow Launcher.
+            </summary>
+            <returns>
+            A non-null read-only list of <see cref="T:Flow.Launcher.Plugin.UserPlugin"/> entries. The list may be empty if the
+            manifest has not been loaded yet, or if no successful manifest fetch has completed in the current session.
+            </returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.PluginModified(System.String)">
+            <summary>
+            Check if the plugin has been modified.
+            If this plugin is updated, installed or uninstalled and users do not restart the app,
+            it will be marked as modified
+            </summary>
+            <param name="id">Plugin id</param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.UpdatePluginAsync(Flow.Launcher.Plugin.PluginMetadata,Flow.Launcher.Plugin.UserPlugin,System.String)">
+            <summary>
+            Update a plugin to new version, from a zip file. By default will remove the zip file if update is via url,
+            unless it's a local path installation
+            </summary>
+            <param name="pluginMetadata">The metadata of the old plugin to update</param>
+            <param name="plugin">The new plugin to update</param>
+            <param name="zipFilePath">
+            Path to the zip file containing the plugin. It will be unzipped to the temporary directory, removed and installed.
+            </param>
+            <returns>
+            True if the plugin is updated successfully, false otherwise.
+            </returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.InstallPlugin(Flow.Launcher.Plugin.UserPlugin,System.String)">
+            <summary>
+            Install a plugin. By default will remove the zip file if installation is from url,
+            unless it's a local path installation
+            </summary>
+            <param name="plugin">The plugin to install</param>
+            <param name="zipFilePath">
+            Path to the zip file containing the plugin. It will be unzipped to the temporary directory, removed and installed.
+            </param>
+            <returns>
+            True if the plugin is installed successfully, false otherwise.
+            </returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.UninstallPluginAsync(Flow.Launcher.Plugin.PluginMetadata,System.Boolean)">
+            <summary>
+            Uninstall a plugin
+            </summary>
+            <param name="pluginMetadata">The metadata of the plugin to uninstall</param>
+            <param name="removePluginSettings">
+            Plugin has their own settings. If this is set to true, the plugin settings will be removed.
+            </param>
+            <returns>
+            True if the plugin is updated successfully, false otherwise.
+            </returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.StopwatchLogDebug(System.String,System.String,System.Action,System.String)">
+            <summary>
+            Log debug message of the time taken to execute a method
+            Message will only be logged in Debug mode
+            </summary>
+            <returns>The time taken to execute the method in milliseconds</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.StopwatchLogDebugAsync(System.String,System.String,System.Func{System.Threading.Tasks.Task},System.String)">
+            <summary>
+            Log debug message of the time taken to execute a method asynchronously
+            Message will only be logged in Debug mode
+            </summary>
+            <returns>The time taken to execute the method in milliseconds</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.StopwatchLogInfo(System.String,System.String,System.Action,System.String)">
+            <summary>
+            Log info message of the time taken to execute a method
+            </summary>
+            <returns>The time taken to execute the method in milliseconds</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.StopwatchLogInfoAsync(System.String,System.String,System.Func{System.Threading.Tasks.Task},System.String)">
+            <summary>
+            Log info message of the time taken to execute a method asynchronously
+            </summary>
+            <returns>The time taken to execute the method in milliseconds</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.IsApplicationDarkTheme">
+            <summary>
+            Representing whether the application is using a dark theme
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="E:Flow.Launcher.Plugin.IPublicAPI.ActualApplicationThemeChanged">
+            <summary>
+            Invoked when the actual theme of the application has changed. Currently, the plugin will continue to be subscribed even if it is turned off.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetDataDirectory">
+            <summary>
+            Get the user data directory of Flow Launcher.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IPublicAPI.GetLogDirectory">
+            <summary>
+            Get the log directory of Flow Launcher.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="E:Flow.Launcher.Plugin.IPublicAPI.StringMatcherBehaviorChanged">
+             <summary>
+             Raised when StringMatcher behavior or options change.
+             This can include changes such as case sensitivity, diacritic handling, or
+             other matcher configuration that affect how queries are compared to
+             candidate strings. Such changes can alter the results produced by
+             <see cref="M:Flow.Launcher.Plugin.IPublicAPI.FuzzySearch(System.String,System.String)"/> and the content of any existing
+             <see cref="T:Flow.Launcher.Plugin.SharedModels.MatchResult"/> values.
+            
+             Plugins that cache match results or ranking information should subscribe
+             to this event so they can invalidate and recompute those caches when the
+             string matcher behavior changes.
+             </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IReloadable">
+            <summary>
+            This interface is to indicate and allow plugins to synchronously reload their
+            in memory data cache or other mediums when user makes a new change
+            that is not immediately captured. For example, for BrowserBookmark and Program
+            plugin does not automatically detect when a user added a new bookmark or program,
+            so this interface's function is exposed to allow user manually do the reloading after 
+            those new additions.
+            
+            The command that allows user to manual reload is exposed via Plugin.Sys, and
+            it will call the plugins that have implemented this interface.
+            
+            <para>
+            If requiring reloading data asynchronously, please use the IAsyncReloadable interface
+            </para>
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.IReloadable.ReloadData">
+            <summary>
+            Synchronously reload plugin data 
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.IResultUpdated">
+            <summary>
+            Interface for plugins that want to manually update their results
+            </summary>
+        </member>
+        <member name="E:Flow.Launcher.Plugin.IResultUpdated.ResultsUpdated">
+            <summary>
+            Event that is triggered when the results are updated
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.ResultUpdatedEventHandler">
+            <summary>
+            Delegate for the ResultsUpdated event
+            </summary>
+            <param name="sender"></param>
+            <param name="e"></param>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.ResultUpdatedEventArgs">
+            <summary>
+            Event arguments for the ResultsUpdated event
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.ResultUpdatedEventArgs.Results">
+            <summary>
+            List of results that should be displayed
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.ResultUpdatedEventArgs.Query">
+            <summary>
+            Query that triggered the update
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.ResultUpdatedEventArgs.Token">
+            <summary>
+            Token that can be used to cancel the update
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.ISavable">
+            <summary>
+            Inherit this interface if you need to save additional data which is not a setting or cache,
+            please implement this interface.
+            </summary>
+            <remarks>
+            For storing plugin settings, prefer <see cref="M:Flow.Launcher.Plugin.IPublicAPI.LoadSettingJsonStorage``1"/>
+            or <see cref="M:Flow.Launcher.Plugin.IPublicAPI.SaveSettingJsonStorage``1"/>.
+            For storing plugin caches, prefer <see cref="M:Flow.Launcher.Plugin.IPublicAPI.LoadCacheBinaryStorageAsync``1(System.String,System.String,``0)"/>
+            or <see cref="M:Flow.Launcher.Plugin.IPublicAPI.SaveCacheBinaryStorageAsync``1(System.String,System.String)"/>.
+            Once called, those settings and caches will be automatically saved by Flow.
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.ISavable.Save">
+            <summary>
+            Save additional plugin data.
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.ISettingProvider">
+            <summary>
+            This interface is used to create settings panel for .Net plugins
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.ISettingProvider.CreateSettingPanel">
+            <summary>
+            Create settings panel control for .Net plugins
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.KeyEvent">
+            <summary>
+            Enumeration of key events for 
+            <see cref="M:Flow.Launcher.Plugin.IPublicAPI.RegisterGlobalKeyboardCallback(System.Func{System.Int32,System.Int32,Flow.Launcher.Plugin.SpecialKeyState,System.Boolean})"/>
+            and <see cref="M:Flow.Launcher.Plugin.IPublicAPI.RemoveGlobalKeyboardCallback(System.Func{System.Int32,System.Int32,Flow.Launcher.Plugin.SpecialKeyState,System.Boolean})"/>
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.KeyEvent.WM_KEYDOWN">
+            <summary>
+            Key down
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.KeyEvent.WM_KEYUP">
+            <summary>
+            Key up
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.KeyEvent.WM_SYSKEYUP">
+            <summary>
+            System key up
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.KeyEvent.WM_SYSKEYDOWN">
+            <summary>
+            System key down
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.PluginInitContext">
+            <summary>
+            Carries data passed to a plugin when it gets initialized.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.PluginInitContext.#ctor">
+            <summary>
+            Default constructor.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.PluginInitContext.#ctor(Flow.Launcher.Plugin.PluginMetadata,Flow.Launcher.Plugin.IPublicAPI)">
+            <summary>
+            Constructor.
+            </summary>
+            <param name="currentPluginMetadata"></param>
+            <param name="api"></param>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginInitContext.CurrentPluginMetadata">
+            <summary>
+            The metadata of the plugin being initialized.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginInitContext.API">
+            <summary>
+            Public APIs for plugin invocation
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.PluginMetadata">
+            <summary>
+            Plugin metadata
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.ID">
+            <summary>
+            Plugin ID.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Name">
+            <summary>
+            Plugin name.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Author">
+            <summary>
+            Plugin author.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Version">
+            <summary>
+            Plugin version.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Language">
+            <summary>
+            Plugin language.
+            See <see cref="T:Flow.Launcher.Plugin.AllowedLanguage"/>
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Description">
+            <summary>
+            Plugin description.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Website">
+            <summary>
+            Plugin website.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Disabled">
+            <summary>
+            Whether plugin is disabled.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.HomeDisabled">
+            <summary>
+            Whether plugin is disabled in home query.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.ExecuteFilePath">
+            <summary>
+            Plugin execute file path.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.ExecuteFileName">
+            <summary>
+            Plugin execute file name.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.AssemblyName">
+            <summary>
+            Plugin assembly name.
+            Only available for .Net plugins.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.PluginDirectory">
+            <summary>
+            Plugin source directory.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.ActionKeyword">
+            <summary>
+            The first action keyword of plugin.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.ActionKeywords">
+            <summary>
+            All action keywords of plugin.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.HideActionKeywordPanel">
+            <summary>
+            Hide plugin keyword setting panel.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.SearchDelayTime">
+            <summary>
+            Plugin search delay time in ms. Null means use default search delay time.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.IcoPath">
+            <summary>
+            Plugin icon path.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.Priority">
+            <summary>
+            Plugin priority.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.InitTime">
+            <summary>
+            Init time include both plugin load time and init time.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.AvgQueryTime">
+            <summary>
+            Average query time.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.QueryCount">
+            <summary>
+            Query count.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.MinimumAppVersion">
+            <summary>
+            The minimum Flow Launcher version required for this plugin. Default is "".
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.PluginSettingsDirectoryPath">
+            <summary>
+            The path to the plugin settings directory which is not validated.
+            It is used to store plugin settings files and data files.
+            When plugin is deleted, FL will ask users whether to keep its settings.
+            If users do not want to keep, this directory will be deleted.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginMetadata.PluginCacheDirectoryPath">
+            <summary>
+            The path to the plugin cache directory which is not validated.
+            It is used to store cache files.
+            When plugin is deleted, this directory will be deleted as well.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.PluginMetadata.ToString">
+            <summary>
+            Convert <see cref="T:Flow.Launcher.Plugin.PluginMetadata"/> to string.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.PluginPair">
+            <summary>
+            Plugin instance and plugin metadata
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginPair.Plugin">
+            <summary>
+            Plugin instance
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.PluginPair.Metadata">
+            <summary>
+            Plugin metadata
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.PluginPair.ToString">
+            <summary>
+            Convert to string
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.PluginPair.Equals(System.Object)">
+            <summary>
+            Compare by plugin metadata ID
+            </summary>
+            <param name="obj"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.PluginPair.GetHashCode">
+            <summary>
+            Get hash code
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.Query">
+            <summary>
+            Represents a query that is sent to a plugin.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.OriginalQuery">
+            <summary>
+            Original query, exactly how the user has typed into the search box.
+            We don't recommend using this property directly. You should always use Search property.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.RawQuery">
+            <summary>
+            Raw query, this includes action keyword if it has.
+            It has handled built-in custom query hotkeys and built-in shortcuts, and it trims the whitespace.
+            We don't recommend using this property directly. You should always use Search property.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.TrimmedQuery">
+            <summary>
+            Original query but with trimmed whitespace. Includes action keyword.
+            It has handled built-in custom query hotkeys and build-in shortcuts.
+            If you need the exact original query from the search box, use OriginalQuery property instead.
+            We don't recommend using this property directly. You should always use Search property.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.IsReQuery">
+            <summary>
+            Determines whether the query was forced to execute again.
+            For example, the value will be true when the user presses Ctrl + R.
+            When this property is true, plugins handling this query should avoid serving cached results.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.IsHomeQuery">
+            <summary>
+            Determines whether the query is a home query.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.Search">
+            <summary>
+            Search part of a query.
+            This will not include action keyword if exclusive plugin gets it, otherwise it should be same as TrimmedQuery.
+            Since we allow user to switch a exclusive plugin to generic plugin,
+            so this property will always give you the "real" query part of the query
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.SearchTerms">
+            <summary>
+            The search string split into a string array.
+            Does not include the <see cref="P:Flow.Launcher.Plugin.Query.ActionKeyword"/>.
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.Query.TermSeparator">
+            <summary>
+            Query can be splited into multiple terms by whitespace
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.Query.ActionKeywordSeparator">
+            <summary>
+            User can set multiple action keywords seperated by whitespace
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.Query.GlobalPluginWildcardSign">
+            <summary>
+            Wildcard action keyword. Plugins using this value will be queried on every search.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.ActionKeyword">
+            <summary>
+            The action keyword part of this query.
+            For global plugins this value will be empty.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.FirstSearch">
+            <summary>
+            Splits <see cref="P:Flow.Launcher.Plugin.Query.SearchTerms"/> by spaces and returns the first item.
+            </summary>
+            <remarks>
+            returns an empty string when <see cref="P:Flow.Launcher.Plugin.Query.SearchTerms"/> does not have enough items.
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.SecondToEndSearch">
+            <summary>
+            strings from second search (including) to last search
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.SecondSearch">
+            <summary>
+            Splits <see cref="P:Flow.Launcher.Plugin.Query.SearchTerms"/> by spaces and returns the second item.
+            </summary>
+            <remarks>
+            returns an empty string when <see cref="P:Flow.Launcher.Plugin.Query.SearchTerms"/> does not have enough items.
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Query.ThirdSearch">
+            <summary>
+            Splits <see cref="P:Flow.Launcher.Plugin.Query.SearchTerms"/> by spaces and returns the third item.
+            </summary>
+            <remarks>
+            returns an empty string when <see cref="P:Flow.Launcher.Plugin.Query.SearchTerms"/> does not have enough items.
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.Query.ToString">
+            <inheritdoc />
+        </member>
+        <member name="T:Flow.Launcher.Plugin.Result">
+            <summary>
+            Describes a result of a <see cref="T:Flow.Launcher.Plugin.Query"/> executed by a plugin.
+            This or its child classes is serializable.
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.Result.MaxScore">
+            <summary>
+            Maximum score. This can be useful when set one result to the top by default. This is the score for the results set to the topmost by users.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.Title">
+            <summary>
+            The title of the result. This is always required.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.SubTitle">
+            <summary>
+            Provides additional details for the result. This is optional
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.ActionKeywordAssigned">
+            <summary>
+            This holds the action keyword that triggered the result.
+            If result is triggered by global keyword: *, this should be empty.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.CopyText">
+            <summary>
+            This holds the text which can be provided by plugin to be copied to the
+            user's clipboard when Ctrl + C is pressed on a result. If the text is a file/directory path
+            flow will copy the actual file/folder instead of just the path text.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.AutoCompleteText">
+            <summary>
+            This holds the text which can be provided by plugin to help Flow autocomplete text
+            for user on the plugin result. If autocomplete action for example is tab, pressing tab will have
+            the default constructed autocomplete text (result's Title), or the text provided here if not empty.
+            </summary>
+            <remarks>
+            When a value is not set, the <see cref="P:Flow.Launcher.Plugin.Result.Title"/> will be used.
+            Please include the action keyword prefix when necessary because Flow does not prepend it automatically.
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.IcoPath">
+             <summary>
+             Path or URI to the icon image for this result.
+             Updates <see cref="P:Flow.Launcher.Plugin.Result.IcoPathAbsolute"/> appropriately when set.
+             </summary>
+             <remarks>
+             Preferred usage: provide a path relative to the plugin directory (for example: "Images\icon.png").
+             Because <see cref="P:Flow.Launcher.Plugin.Result.IcoPath"/> is serialized, using relative paths keeps the icon reference portable
+             when Flow is moved.
+            
+             Accepted formats:
+             - Relative file paths (resolved against <see cref="P:Flow.Launcher.Plugin.Result.PluginDirectory"/> into <see cref="P:Flow.Launcher.Plugin.Result.IcoPathAbsolute"/>)
+             - Absolute file paths (left as-is)
+             - HTTP/HTTPS URLs (left as-is)
+             - Data URIs (left as-is)
+             </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.IcoPathAbsolute">
+            <summary>
+            Absolute path or URI which is used to load and display the result icon for Flow. 
+            This is populated by the <see cref="P:Flow.Launcher.Plugin.Result.IcoPath"/> setter.
+            If a relative path was provided to <see cref="P:Flow.Launcher.Plugin.Result.IcoPath"/>, this property will contain the resolved
+            absolute local path after combining with <see cref="P:Flow.Launcher.Plugin.Result.PluginDirectory"/>.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.BadgeIcoPath">
+            <summary>
+            The image to be displayed for the badge of the result.
+            </summary>
+            <value>Can be a local file path or a URL.</value>
+            <remarks>If null or empty, will use plugin icon</remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.RoundedIcon">
+            <summary>
+            Determines if Icon has a border radius
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.Result.IconDelegate">
+            <summary>
+            Delegate function that produces an <see cref="T:System.Windows.Media.ImageSource"/>
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.Result.Icon">
+            <summary>
+            Delegate to load an icon for this result.
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.Result.BadgeIcon">
+            <summary>
+            Delegate to load an icon for the badge of this result.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.Glyph">
+            <summary>
+            Information for Glyph Icon (Prioritized than IcoPath/Icon if user enable Glyph Icons)
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.Result.SetGlyph(Flow.Launcher.Plugin.GlyphInfo)">
+            <summary>
+            Set the Glyph Icon after initialization
+            </summary>
+            <param name="glyph"></param>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.Action">
+            <summary>
+            An action to take in the form of a function call when the result has been selected.
+            </summary>
+            <remarks>
+            The function is invoked with an <see cref="T:Flow.Launcher.Plugin.ActionContext"/> as the only parameter.
+            Its result determines what happens to Flow Launcher's query form:
+            when true, the form will be hidden; when false, it will stay in focus.
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.AsyncAction">
+            <summary>
+            An async action to take in the form of a function call when the result has been selected.
+            </summary>
+            <remarks>
+            The function is invoked with an <see cref="T:Flow.Launcher.Plugin.ActionContext"/> as the only parameter and awaited.
+            Its result determines what happens to Flow Launcher's query form:
+            when true, the form will be hidden; when false, it will stay in focus.
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.Score">
+            <summary>
+            Priority of the current result
+            </summary>
+            <value>default: 0</value>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.TitleHighlightData">
+            <summary>
+            A list of indexes for the characters to be highlighted in Title
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.OriginQuery">
+            <summary>
+            Query information associated with the result
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PluginDirectory">
+            <summary>
+            Plugin directory
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.ContextData">
+            <summary>
+            Additional data associated with this result
+            </summary>
+            <example>
+            As external information for ContextMenu
+            </example>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PluginID">
+            <summary>
+            Plugin ID that generated this result
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.TitleToolTip">
+            <summary>
+            Show message as ToolTip on result Title hover over
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.SubTitleToolTip">
+            <summary>
+            Show message as ToolTip on result SubTitle hover over
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PreviewPanel">
+            <summary>
+            Customized Preview Panel
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.ProgressBar">
+            <summary>
+            Progress bar display. Providing an int value between 0-100 will trigger the progress bar to be displayed on the result
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.ProgressBarColor">
+            <summary>
+            Optionally set the color of the progress bar
+            </summary>
+            <default>#26a0da (blue)</default>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.Preview">
+            <summary>
+            Contains data used to populate the preview section of this result.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.AddSelectedCount">
+            <summary>
+            Determines if the user selection count should be added to the score. This can be useful when set to false to allow the result sequence order to be the same everytime instead of changing based on selection.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.RecordKey">
+            <summary>
+            The key to identify the record. This is used when FL checks whether the result is the topmost record. Or FL calculates the hashcode of the result for user selected records.
+            This can be useful when your plugin will change the Title or SubTitle of the result dynamically.
+            If the plugin does not specific this, FL just uses Title and SubTitle to identify this result.
+            Note: Because old data does not have this key, we should use null as the default value for consistency.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.ShowBadge">
+            <summary>
+            Determines if the badge icon should be shown.
+            If users want to show the result badges and here you set this to true, the results will show the badge icon.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.QuerySuggestionText">
+            <summary>
+            This holds the text which can be shown as a query suggestion.
+            </summary>
+            <remarks>
+            When a value is not set, the <see cref="P:Flow.Launcher.Plugin.Result.Title"/> will be used.
+            Do not include the action keyword prefix because Flow prepends it automatically.
+            If the it does not start with the query text, it will not be shown as a suggestion.
+            So make sure to set this value to start with the query text.
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.Result.ExecuteAsync(Flow.Launcher.Plugin.ActionContext)">
+            <summary>
+            Run this result, asynchronously
+            </summary>
+            <param name="context"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.Result.ToString">
+            <inheritdoc />
+        </member>
+        <member name="M:Flow.Launcher.Plugin.Result.Clone">
+            <summary>
+            Clones the current result
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.Result.PreviewInfo">
+            <summary>
+            Info of the preview section of a <see cref="T:Flow.Launcher.Plugin.Result"/>
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PreviewInfo.PreviewImagePath">
+            <summary>
+            Full image used for preview panel
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PreviewInfo.IsMedia">
+            <summary>
+            Determines if the preview image should occupy the full width of the preview panel.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PreviewInfo.Description">
+            <summary>
+            Result description text that is shown at the bottom of the preview panel.
+            </summary>
+            <remarks>
+            When a value is not set, the <see cref="P:Flow.Launcher.Plugin.Result.SubTitle"/> will be used.
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PreviewInfo.PreviewDelegate">
+            <summary>
+            Delegate to get the preview panel's image
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PreviewInfo.FilePath">
+            <summary>
+            File path of the result. For third-party programs providing external preview.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.Result.PreviewInfo.Default">
+            <summary>
+            Default instance of <see cref="T:Flow.Launcher.Plugin.Result.PreviewInfo"/>
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedCommands.FilesFolders">
+            <summary>
+            Commands that are useful to run on files... and folders!
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.CopyAll(System.String,System.String,System.Func{System.String,System.Windows.MessageBoxResult})">
+            <summary>
+            Copies the folder and all of its files and folders 
+            including subfolders to the target location
+            </summary>
+            <param name="sourcePath"></param>
+            <param name="targetPath"></param>
+            <param name="messageBoxExShow"></param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.VerifyBothFolderFilesEqual(System.String,System.String,System.Func{System.String,System.Windows.MessageBoxResult})">
+            <summary>
+            Check if the files and directories are identical between <paramref name="fromPath"/> 
+            and <paramref name="toPath"/>
+            </summary>
+            <param name="fromPath"></param>
+            <param name="toPath"></param>
+            <param name="messageBoxExShow"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.RemoveFolderIfExists(System.String,System.Func{System.String,System.Windows.MessageBoxResult})">
+            <summary>
+            Deletes a folder if it exists
+            </summary>
+            <param name="path"></param>
+            <param name="messageBoxExShow"></param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.TryDeleteDirectoryRobust(System.String,System.Int32,System.Int32)">
+            <summary>
+            Attempts to delete a directory robustly with retry logic for locked files.
+            This method tries to delete files individually with retries, then removes empty directories.
+            Returns true if the directory was completely deleted, false if some files/folders remain.
+            </summary>
+            <param name="path">The directory path to delete</param>
+            <param name="maxRetries">Maximum number of retry attempts for locked files (default: 3)</param>
+            <param name="retryDelayMs">Delay in milliseconds between retries (default: 100ms)</param>
+            <returns>True if directory was fully deleted, false if some items remain</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.LocationExists(System.String)">
+            <summary>
+            Checks if a directory exists
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.FileExists(System.String)">
+            <summary>
+            Checks if a file exists
+            </summary>
+            <param name="filePath"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.FileOrLocationExists(System.String)">
+            <summary>
+            Checks if a file or directory exists
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.OpenPath(System.String,System.Func{System.String,System.Windows.MessageBoxResult})">
+            <summary>
+            Open a directory window (using the OS's default handler, usually explorer)
+            </summary>
+            <param name="fileOrFolderPath"></param>
+            <param name="messageBoxExShow"></param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.OpenFile(System.String,System.String,System.Boolean,System.Func{System.String,System.Windows.MessageBoxResult})">
+            <summary>
+            Open a file with associated application
+            </summary>
+            <param name="filePath">File path</param>
+            <param name="workingDir">Working directory</param>
+            <param name="asAdmin">Open as Administrator</param>
+            <param name="messageBoxExShow"></param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.IsZipFilePath(System.String,System.Boolean)">
+            <summary>
+             This checks whether a given string is a zip file path.
+             By default does not check if the zip file actually exist on disk, can do so by
+             setting checkFileExists = true.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.IsLocationPathString(System.String)">
+            <summary>
+             This checks whether a given string is a directory path or network location string. 
+             It does not check if location actually exists.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.GetPreviousExistingDirectory(System.Func{System.String,System.Boolean},System.String)">
+            <summary>
+             Gets the previous level directory from a path string.
+             Checks that previous level directory exists and returns it 
+             as a path string, or empty string if doesn't exist
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.ReturnPreviousDirectoryIfIncompleteString(System.String)">
+            <summary>
+             Returns the previous level directory if path incomplete (does not end with '\').
+             Does not check if previous level directory exists.
+             Returns passed in string if is complete path
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.PathContains(System.String,System.String,System.Boolean)">
+            <summary>
+            Returns if <paramref name="parentPath"/> contains <paramref name="subPath"/>. Equal paths are not considered to be contained by default.
+            From https://stackoverflow.com/a/66877016
+            </summary>
+            <param name="parentPath">Parent path</param>
+            <param name="subPath">Sub path</param>
+            <param name="allowEqual">If <see langword="true"/>, when <paramref name="parentPath"/> and <paramref name="subPath"/> are equal, returns <see langword="true"/></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.EnsureTrailingSlash(System.String)">
+            <summary>
+            Returns path ended with "\"
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.ValidateDirectory(System.String)">
+            <summary>
+            Validates a directory, creating it if it doesn't exist
+            </summary>
+            <param name="path"></param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.ValidateDataDirectory(System.String,System.String)">
+            <summary>
+            Validates a data directory, synchronizing it by ensuring all files from a bundled source directory exist in it.
+            If files are missing or outdated, they are copied from the bundled directory to the data directory.
+            </summary>
+            <param name="bundledDataDirectory"></param>
+            <param name="dataDirectory"></param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.FilesFolders.ResolveAbsolutePath(System.String)">
+            <summary>
+            Resolves a path that may be relative to an absolute path.
+            If the path is already absolute, returns it as-is.
+            If the path is not rooted (as determined by <see cref="M:System.IO.Path.IsPathRooted(System.String)"/>), resolves it relative to ProgramDirectory.
+            </summary>
+            <param name="path">The path to resolve</param>
+            <returns>An absolute path</returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedCommands.SearchWeb">
+            <summary>
+            Contains methods to open a search in a new browser window or tab.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.SearchWeb.OpenInBrowserWindow(System.String,System.String,System.Boolean,System.String,System.String)">
+            <summary> 
+            Opens search in a new browser. If no browser path is passed in then Chrome is used. 
+            Leave browser path blank to use Chrome.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.SearchWeb.OpenInBrowserTab(System.String,System.String,System.Boolean,System.String,System.String)">
+            <summary> 
+            Opens search as a tab in the default browser chosen in Windows settings.
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedCommands.ShellCommand">
+            <summary>
+            Contains methods for running shell commands
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedCommands.ShellCommand.EnumThreadDelegate">
+            <summary>
+            Delegate for EnumThreadWindows
+            </summary>
+            <param name="hwnd"></param>
+            <param name="lParam"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.ShellCommand.RunAsDifferentUser(System.Diagnostics.ProcessStartInfo)">
+            <summary>
+            Runs a windows command using the provided ProcessStartInfo
+            </summary>
+            <param name="processStartInfo"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.ShellCommand.SetProcessStartInfo(System.String,System.String,System.String,System.String,System.Boolean)">
+            <summary>
+            Runs a windows command using the provided ProcessStartInfo
+            </summary>
+            <param name="fileName"></param>
+            <param name="workingDirectory"></param>
+            <param name="arguments"></param>
+            <param name="verb"></param>
+            <param name="createNoWindow"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.ShellCommand.Execute(System.Diagnostics.ProcessStartInfo)">
+            <summary>
+            Runs a windows command using the provided ProcessStartInfo
+            </summary>
+            <exception cref="T:System.IO.FileNotFoundException">Thrown when unable to find the file specified in the command </exception>
+            <exception cref="T:System.ComponentModel.Win32Exception">Thrown when error occurs during the execution of the command </exception>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedCommands.ShellCommand.Execute(System.Func{System.Diagnostics.ProcessStartInfo,System.Diagnostics.Process},System.Diagnostics.ProcessStartInfo)">
+            <summary>
+            Runs a windows command using the provided ProcessStartInfo using a custom execute command function
+            </summary>
+            <param name="startProcess">allows you to pass in a custom command execution function</param>
+            <param name="info">allows you to pass in the info that will be passed to startProcess</param>
+            <exception cref="T:System.IO.FileNotFoundException">Thrown when unable to find the file specified in the command </exception>
+            <exception cref="T:System.ComponentModel.Win32Exception">Thrown when error occurs during the execution of the command </exception>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedModels.MatchResult">
+            <summary>
+            Represents the result of a match operation.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MatchResult.#ctor(System.Boolean,Flow.Launcher.Plugin.SharedModels.SearchPrecisionScore)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Flow.Launcher.Plugin.SharedModels.MatchResult"/> class.
+            </summary>
+            <param name="success"></param>
+            <param name="searchPrecision"></param>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MatchResult.#ctor(System.Boolean,Flow.Launcher.Plugin.SharedModels.SearchPrecisionScore,System.Collections.Generic.List{System.Int32},System.Int32)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Flow.Launcher.Plugin.SharedModels.MatchResult"/> class.
+            </summary>
+            <param name="success"></param>
+            <param name="searchPrecision"></param>
+            <param name="matchData"></param>
+            <param name="rawScore"></param>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MatchResult.Success">
+            <summary>
+            Whether the match operation was successful.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MatchResult.Score">
+            <summary>
+            The final score of the match result with search precision filters applied.
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.SharedModels.MatchResult._rawScore">
+            <summary>
+            The raw calculated search score without any search precision filtering applied.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MatchResult.RawScore">
+            <summary>
+            The raw calculated search score without any search precision filtering applied.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MatchResult.MatchData">
+            <summary>
+            Matched data to highlight.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MatchResult.SearchPrecision">
+            <summary>
+            The search precision score used to filter the search results.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MatchResult.IsSearchPrecisionScoreMet">
+            <summary>
+            Determines if the search precision score is met.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedModels.SearchPrecisionScore">
+            <summary>
+            Represents the search precision score used to filter search results.
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.SharedModels.SearchPrecisionScore.Regular">
+            <summary>
+            The highest search precision score.
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.SharedModels.SearchPrecisionScore.Low">
+            <summary>
+            The medium search precision score.
+            </summary>
+        </member>
+        <member name="F:Flow.Launcher.Plugin.SharedModels.SearchPrecisionScore.None">
+            <summary>
+            The lowest search precision score.
+            </summary>
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedModels.MonitorInfo">
+            <summary>
+            Contains full information about a display monitor.
+            Inspired from: https://github.com/Jack251970/DesktopWidgets3.
+            </summary>
+            <remarks>
+            Use this class to replace the System.Windows.Forms.Screen class which can cause possible System.PlatformNotSupportedException.
+            </remarks>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MonitorInfo.GetDisplayMonitors">
+            <summary>
+            Gets the display monitors (including invisible pseudo-monitors associated with the mirroring drivers).
+            </summary>
+            <returns>A list of display monitors</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MonitorInfo.GetNearestDisplayMonitor(System.IntPtr)">
+            <summary>
+            Gets the display monitor that is nearest to a given window.
+            </summary>
+            <param name="hwnd">Window handle</param>
+            <returns>The display monitor that is nearest to a given window, or null if no monitor is found.</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MonitorInfo.GetPrimaryDisplayMonitor">
+            <summary>
+            Gets the primary display monitor (the one that contains the taskbar).
+            </summary>
+            <returns>The primary display monitor, or null if no monitor is found.</returns>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MonitorInfo.GetCursorDisplayMonitor">
+            <summary>
+            Gets the display monitor that contains the cursor.
+            </summary>
+            <returns>The display monitor that contains the cursor, or null if no monitor is found.</returns>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MonitorInfo.Name">
+            <summary>
+            Gets the name of the display.
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MonitorInfo.Bounds">
+            <summary>
+            Gets the display monitor rectangle, expressed in virtual-screen coordinates.
+            </summary>
+            <remarks>
+            <note>If the monitor is not the primary display monitor, some of the rectangle's coordinates may be negative values.</note>
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MonitorInfo.WorkingArea">
+            <summary>
+            Gets the work area rectangle of the display monitor, expressed in virtual-screen coordinates.
+            </summary>
+            <remarks>
+            <note>If the monitor is not the primary display monitor, some of the rectangle's coordinates may be negative values.</note>
+            </remarks>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.MonitorInfo.IsPrimary">
+            <summary>
+            Gets if the monitor is the primary display monitor.
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.MonitorInfo.ToString">
+            <inheritdoc />
+        </member>
+        <member name="T:Flow.Launcher.Plugin.SharedModels.ThemeData">
+            <summary>
+            Theme data model
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.ThemeData.FileNameWithoutExtension">
+            <summary>
+            Theme file name without extension
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.ThemeData.Name">
+            <summary>
+            Theme name
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.ThemeData.IsDark">
+            <summary>
+            Indicates whether the theme supports dark mode
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.SharedModels.ThemeData.HasBlur">
+            <summary>
+            Indicates whether the theme supports blur effects
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.ThemeData.#ctor(System.String,System.String,System.Nullable{System.Boolean},System.Nullable{System.Boolean})">
+            <summary>
+            Theme data constructor
+            </summary>
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.ThemeData.op_Equality(Flow.Launcher.Plugin.SharedModels.ThemeData,Flow.Launcher.Plugin.SharedModels.ThemeData)">
+            <inheritdoc />
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.ThemeData.op_Inequality(Flow.Launcher.Plugin.SharedModels.ThemeData,Flow.Launcher.Plugin.SharedModels.ThemeData)">
+            <inheritdoc />
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.ThemeData.Equals(System.Object)">
+            <inheritdoc />
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.ThemeData.GetHashCode">
+            <inheritdoc />
+        </member>
+        <member name="M:Flow.Launcher.Plugin.SharedModels.ThemeData.ToString">
+            <inheritdoc />
+        </member>
+        <member name="T:Flow.Launcher.Plugin.UserPlugin">
+            <summary>
+            User Plugin Model for Flow Launcher
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.ID">
+            <summary>
+            Unique identifier of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.Name">
+            <summary>
+            Name of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.Description">
+            <summary>
+            Description of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.Author">
+            <summary>
+            Author of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.Version">
+            <summary>
+            Version of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.Language">
+            <summary>
+            Allow language of the plugin <see cref="T:Flow.Launcher.Plugin.AllowedLanguage"/>
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.Website">
+            <summary>
+            Website of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.UrlDownload">
+            <summary>
+            URL to download the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.UrlSourceCode">
+            <summary>
+            URL to the source code of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.LocalInstallPath">
+            <summary>
+            Local path where the plugin is installed
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.IcoPath">
+            <summary>
+            Icon path of the plugin
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.LatestReleaseDate">
+            <summary>
+            The date when the plugin was last updated
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.DateAdded">
+            <summary>
+            The date when the plugin was added to the local system
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.IsFromLocalInstallPath">
+            <summary>
+            Indicates whether the plugin is installed from a local path
+            </summary>
+        </member>
+        <member name="P:Flow.Launcher.Plugin.UserPlugin.MinimumAppVersion">
+            <summary>
+            The minimum Flow Launcher version required for this plugin. Default is "".
+            </summary>
+        </member>
+        <member name="T:Windows.Win32.Foundation.PCWSTR">
+            <summary>
+            A pointer to a null-terminated, constant character string.
+            </summary>
+        </member>
+        <member name="F:Windows.Win32.Foundation.PCWSTR.Value">
+            <summary>
+            A pointer to the first character in the string. The content should be considered readonly, as it was typed as constant in the SDK.
+            </summary>
+        </member>
+        <member name="P:Windows.Win32.Foundation.PCWSTR.Length">
+            <summary>
+            Gets the number of characters up to the first null character (exclusive).
+            </summary>
+        </member>
+        <member name="M:Windows.Win32.Foundation.PCWSTR.ToString">
+            <summary>
+            Returns a <see langword="string"/> with a copy of this character array, up to the first null character (exclusive).
+            </summary>
+            <returns>A <see langword="string"/>, or <see langword="null"/> if <see cref="F:Windows.Win32.Foundation.PCWSTR.Value"/> is <see langword="null"/>.</returns>
+        </member>
+        <member name="M:Windows.Win32.Foundation.PCWSTR.AsSpan">
+            <summary>
+            Returns a span of the characters in this string, up to the first null character (exclusive).
+            </summary>
+        </member>
+        <member name="M:Windows.Win32.Foundation.PWSTR.ToString">
+            <inheritdoc cref="M:Windows.Win32.Foundation.PCWSTR.ToString"/>
+        </member>
+        <member name="P:Windows.Win32.Foundation.PWSTR.Length">
+            <inheritdoc cref="P:Windows.Win32.Foundation.PCWSTR.Length"/>
+        </member>
+        <member name="M:Windows.Win32.Foundation.PWSTR.AsSpan">
+            <summary>
+            Returns a span of the characters in this string, up to the first null character (exclusive).
+            </summary>
+        </member>
+        <member name="T:Windows.Win32.Foundation.RECT">
+            <summary>The RECT structure defines a rectangle by the coordinates of its upper-left and lower-right corners.</summary>
+            <remarks>The RECT structure is identical to the <a href="https://docs.microsoft.com/windows/desktop/api/windef/ns-windef-rectl">RECTL</a> structure.</remarks>
+        </member>
+        <member name="F:Windows.Win32.Foundation.RECT.left">
+            <summary>Specifies the <i>x</i>-coordinate of the upper-left corner of the rectangle.</summary>
+        </member>
+        <member name="F:Windows.Win32.Foundation.RECT.top">
+            <summary>Specifies the <i>y</i>-coordinate of the upper-left corner of the rectangle.</summary>
+        </member>
+        <member name="F:Windows.Win32.Foundation.RECT.right">
+            <summary>Specifies the <i>x</i>-coordinate of the lower-right corner of the rectangle.</summary>
+        </member>
+        <member name="F:Windows.Win32.Foundation.RECT.bottom">
+            <summary>Specifies the <i>y</i>-coordinate of the lower-right corner of the rectangle.</summary>
+        </member>
+        <member name="P:Windows.Win32.__char_32.Length">
+            <summary>The length of the inline array.</summary>
+        </member>
+        <member name="P:Windows.Win32.__char_32.Item(System.Int32)">
+            <summary>
+            Gets a ref to an individual element of the inline array.
+            ⚠ Important ⚠: When this struct is on the stack, do not let the returned reference outlive the stack frame that defines it.
+            </summary>
+        </member>
+        <member name="M:Windows.Win32.__char_32.AsSpan">
+            <summary>
+            Gets this inline array as a span.
+            </summary>
+            <remarks>
+            ⚠ Important ⚠: When this struct is on the stack, do not let the returned span outlive the stack frame that defines it.
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.__char_32.AsReadOnlySpan">
+            <summary>
+            Gets this inline array as a span.
+            </summary>
+            <remarks>
+            ⚠ Important ⚠: When this struct is on the stack, do not let the returned span outlive the stack frame that defines it.
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.__char_32.ToString(System.Int32)">
+            <summary>
+            Copies the fixed array to a new string up to the specified length regardless of whether there are null terminating characters.
+            </summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">
+            Thrown when <paramref name="length"/> is less than <c>0</c> or greater than <see cref="P:Windows.Win32.__char_32.Length"/>.
+            </exception>
+        </member>
+        <member name="M:Windows.Win32.__char_32.ToString">
+            <summary>
+            Copies the fixed array to a new string, stopping before the first null terminator character or at the end of the fixed array (whichever is shorter).
+            </summary>
+        </member>
+        <member name="T:Windows.Win32.Graphics.Gdi.MONITORINFO">
+            <summary>The MONITORINFO structure contains information about a display monitor.The GetMonitorInfo function stores information in a MONITORINFO structure or a MONITORINFOEX structure.The MONITORINFO structure is a subset of the MONITORINFOEX structure.</summary>
+            <remarks>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/ns-winuser-monitorinfo">Learn more about this API from learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="F:Windows.Win32.Graphics.Gdi.MONITORINFO.cbSize">
+            <summary>
+            <para>The size of the structure, in bytes. Set this member to <c>sizeof ( MONITORINFO )</c> before calling the <a href="https://docs.microsoft.com/windows/desktop/api/winuser/nf-winuser-getmonitorinfoa">GetMonitorInfo</a> function. Doing so lets the function determine the type of structure you are passing to it.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/ns-winuser-monitorinfo#members">Read more on learn.microsoft.com</see>.</para>
+            </summary>
+        </member>
+        <member name="F:Windows.Win32.Graphics.Gdi.MONITORINFO.rcMonitor">
+            <summary>A <a href="https://docs.microsoft.com/windows/desktop/api/windef/ns-windef-rect">RECT</a> structure that specifies the display monitor rectangle, expressed in virtual-screen coordinates. Note that if the monitor is not the primary display monitor, some of the rectangle's coordinates may be negative values.</summary>
+        </member>
+        <member name="F:Windows.Win32.Graphics.Gdi.MONITORINFO.rcWork">
+            <summary>A <a href="https://docs.microsoft.com/windows/desktop/api/windef/ns-windef-rect">RECT</a> structure that specifies the work area rectangle of the display monitor, expressed in virtual-screen coordinates. Note that if the monitor is not the primary display monitor, some of the rectangle's coordinates may be negative values.</summary>
+        </member>
+        <member name="F:Windows.Win32.Graphics.Gdi.MONITORINFO.dwFlags">
+            <summary>
+            <para>A set of flags that represent attributes of the display monitor. The following flag is defined. </para>
+            <para>This doc was truncated.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/ns-winuser-monitorinfo#members">Read more on learn.microsoft.com</see>.</para>
+            </summary>
+        </member>
+        <member name="T:Windows.Win32.Graphics.Gdi.MONITORINFOEXW">
+            <summary>The MONITORINFOEX structure contains information about a display monitor.The GetMonitorInfo function stores information into a MONITORINFOEX structure or a MONITORINFO structure.The MONITORINFOEX structure is a superset of the MONITORINFO structure. (Unicode)</summary>
+            <remarks>
+            <para>> [!NOTE] > The winuser.h header defines MONITORINFOEX as an alias which automatically selects the ANSI or Unicode version of this function based on the definition of the UNICODE preprocessor constant. Mixing usage of the encoding-neutral alias with code that not encoding-neutral can lead to mismatches that result in compilation or runtime errors. For more information, see [Conventions for Function Prototypes](/windows/win32/intl/conventions-for-function-prototypes).</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/ns-winuser-monitorinfoexw#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="F:Windows.Win32.Graphics.Gdi.MONITORINFOEXW.szDevice">
+            <summary>A string that specifies the device name of the monitor being used.  Most applications have no use for a display monitor name, and so can save some bytes by using a <a href="https://docs.microsoft.com/windows/desktop/api/winuser/ns-winuser-monitorinfo">MONITORINFO</a> structure.</summary>
+        </member>
+        <member name="T:Windows.Win32.PInvoke">
+            <content>
+            Contains extern methods from "KERNEL32.dll".
+            </content>
+            <content>
+            Contains extern methods from "USER32.dll".
+            </content>
+        </member>
+        <member name="F:Windows.Win32.PInvoke.WM_KEYDOWN">
+            <summary>Posted to the window with the keyboard focus when a nonsystem key is pressed. A nonsystem key is a key that is pressed when the ALT key is not pressed.</summary>
+            <returns>An application should return zero if it processes this message.</returns>
+            <remarks>
+            <para>If the F10 key is pressed, the [**DefWindowProc**](/windows/desktop/api/winuser/nf-winuser-defwindowproca) function sets an internal flag. When **DefWindowProc** receives the [**WM\_KEYUP**](wm-keyup.md) message, the function checks whether the internal flag is set and, if so, sends a [**WM\_SYSCOMMAND**](/windows/desktop/menurc/wm-syscommand) message to the top-level window. The **WM\_SYSCOMMAND** parameter of the message is set to SC\_KEYMENU. Because of the autorepeat feature, more than one **WM\_KEYDOWN** message may be posted before a [**WM\_KEYUP**](wm-keyup.md) message is posted. The previous key state (bit 30) can be used to determine whether the **WM\_KEYDOWN** message indicates the first down transition or a repeated down transition. For enhanced 101- and 102-key keyboards, extended keys are the right ALT and CTRL keys on the main section of the keyboard; the INS, DEL, HOME, END, PAGE UP, PAGE DOWN, and arrow keys in the clusters to the left of the numeric keypad; and the divide (/) and ENTER keys in the numeric keypad. Other keyboards may support the extended-key bit in the *lParam* parameter. Applications must pass *wParam* to [**TranslateMessage**](/windows/desktop/api/winuser/nf-winuser-translatemessage) without altering it at all.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/inputdev/wm-keydown#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="F:Windows.Win32.PInvoke.WM_KEYUP">
+            <summary>Posted to the window with the keyboard focus when a nonsystem key is released. A nonsystem key is a key that is pressed when the ALT key is not pressed, or a keyboard key that is pressed when a window has the keyboard focus.</summary>
+            <returns>An application should return zero if it processes this message.</returns>
+            <remarks>
+            <para>The [**DefWindowProc**](/windows/desktop/api/winuser/nf-winuser-defwindowproca) function sends a [**WM\_SYSCOMMAND**](/windows/desktop/menurc/wm-syscommand) message to the top-level window if the F10 key or the ALT key was released. The *wParam* parameter of the message is set to SC\_KEYMENU. For enhanced 101- and 102-key keyboards, extended keys are the right ALT and CTRL keys on the main section of the keyboard; the INS, DEL, HOME, END, PAGE UP, PAGE DOWN, and arrow keys in the clusters to the left of the numeric keypad; and the divide (/) and ENTER keys in the numeric keypad. Other keyboards may support the extended-key bit in the *lParam* parameter. Applications must pass *wParam* to [**TranslateMessage**](/windows/desktop/api/winuser/nf-winuser-translatemessage) without altering it at all.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/inputdev/wm-keyup#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="F:Windows.Win32.PInvoke.WM_SYSKEYDOWN">
+            <summary>Posted to the window with the keyboard focus when the user presses the F10 key (which activates the menu bar) or holds down the ALT key and then presses another key.</summary>
+            <returns>An application should return zero if it processes this message.</returns>
+            <remarks>
+            <para>The [**DefWindowProc**](/windows/desktop/api/winuser/nf-winuser-defwindowproca) function examines the specified key and generates a [**WM\_SYSCOMMAND**](/windows/desktop/menurc/wm-syscommand) message if the key is either TAB or ENTER. When the context code is zero, the message can be passed to the [**TranslateAccelerator**](/windows/desktop/api/winuser/nf-winuser-translateacceleratora) function, which will handle it as though it were a normal key message instead of a character-key message. This allows accelerator keys to be used with the active window even if the active window does not have the keyboard focus. Because of automatic repeat, more than one **WM\_SYSKEYDOWN** message may occur before a [**WM\_SYSKEYUP**](wm-syskeyup.md) message is sent. The previous key state (bit 30) can be used to determine whether the **WM\_SYSKEYDOWN** message indicates the first down transition or a repeated down transition. For enhanced 101- and 102-key keyboards, enhanced keys are the right ALT and CTRL keys on the main section of the keyboard; the INS, DEL, HOME, END, PAGE UP, PAGE DOWN, and arrow keys in the clusters to the left of the numeric keypad; and the divide (/) and ENTER keys in the numeric keypad. Other keyboards may support the extended-key bit in the *lParam* parameter. This message is also sent whenever the user presses the F10 key without the ALT key.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/inputdev/wm-syskeydown#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="F:Windows.Win32.PInvoke.WM_SYSKEYUP">
+            <summary>Posted to the window with the keyboard focus when the user releases a key that was pressed while the ALT key was held down.</summary>
+            <returns>An application should return zero if it processes this message.</returns>
+            <remarks>
+            <para>The [**DefWindowProc**](/windows/desktop/api/winuser/nf-winuser-defwindowproca) function sends a [**WM\_SYSCOMMAND**](/windows/desktop/menurc/wm-syscommand) message to the top-level window if the F10 key or the ALT key was released. The *wParam* parameter of the message is set to **SC\_KEYMENU**. When the context code is zero, the message can be passed to the [**TranslateAccelerator**](/windows/desktop/api/winuser/nf-winuser-translateacceleratora) function, which will handle it as though it were a normal key message instead of a character-key message. This allows accelerator keys to be used with the active window even if the active window does not have the keyboard focus. For enhanced 101- and 102-key keyboards, extended keys are the right ALT and CTRL keys on the main section of the keyboard; the INS, DEL, HOME, END, PAGE UP, PAGE DOWN, and arrow keys in the clusters to the left of the numeric keypad; and the divide (/) and ENTER keys in the numeric keypad. Other keyboards may support the extended-key bit in the *lParam* parameter. For non-U.S. enhanced 102-key keyboards, the right ALT key is handled as a CTRL+ALT key. The following table shows the sequence of messages that result when the user presses and releases this key.</para>
+            <para>| Message                           | Virtual-key code | |-----------------------------------|------------------| | [**WM\_KEYDOWN**](wm-keydown.md) | **VK\_CONTROL**  | | [**WM\_KEYDOWN**](wm-keydown.md) | **VK\_MENU**     | | [**WM\_KEYUP**](wm-keyup.md)     | **VK\_CONTROL**  | | **WM\_SYSKEYUP**                  | **VK\_MENU**     |</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/inputdev/wm-syskeyup#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.CloseHandle(Windows.Win32.Foundation.HANDLE)">
+            <summary>Closes an open object handle.</summary>
+            <param name="hObject">A valid handle to an open object.</param>
+            <returns>
+            <para>If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To get extended error information, call <a href="https://docs.microsoft.com/windows/desktop/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError</a>. If the application is running under a debugger,  the function will throw an exception if it receives either a  handle value that is not valid  or a pseudo-handle value. This can happen if you close a handle twice, or if you  call <b>CloseHandle</b> on a handle returned by the <a href="https://docs.microsoft.com/windows/desktop/api/fileapi/nf-fileapi-findfirstfilea">FindFirstFile</a> function instead of calling the <a href="https://docs.microsoft.com/windows/desktop/api/fileapi/nf-fileapi-findclose">FindClose</a> function.</para>
+            </returns>
+            <remarks>
+            <para>The <b>CloseHandle</b> function closes handles to the following objects: </para>
+            <para>This doc was truncated.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/handleapi/nf-handleapi-closehandle#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.EnumThreadWindows(System.UInt32,Windows.Win32.UI.WindowsAndMessaging.WNDENUMPROC,Windows.Win32.Foundation.LPARAM)">
+            <summary>Enumerates all nonchild windows associated with a thread by passing the handle to each window, in turn, to an application-defined callback function.</summary>
+            <param name="dwThreadId">
+            <para>Type: <b>DWORD</b> The identifier of the thread whose windows are to be enumerated.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumthreadwindows#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <param name="lpfn">
+            <para>Type: <b>WNDENUMPROC</b> A pointer to an application-defined callback function. For more information, see <a href="https://docs.microsoft.com/previous-versions/windows/desktop/legacy/ms633496(v=vs.85)">EnumThreadWndProc</a>.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumthreadwindows#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <param name="lParam">
+            <para>Type: <b>LPARAM</b> An application-defined value to be passed to the callback function.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumthreadwindows#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <returns>
+            <para>Type: <b>BOOL</b> If the callback function returns <b>TRUE</b> for all windows in the thread specified by <i>dwThreadId</i>, the return value is <b>TRUE</b>. If the callback function returns <b>FALSE</b> on any enumerated window, or if there are no windows found in the thread specified by <i>dwThreadId</i>, the return value is <b>FALSE</b>.</para>
+            </returns>
+            <remarks>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumthreadwindows">Learn more about this API from learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetWindowText(Windows.Win32.Foundation.HWND,System.Span{System.Char})">
+            <inheritdoc cref="M:Windows.Win32.PInvoke.GetWindowText(Windows.Win32.Foundation.HWND,Windows.Win32.Foundation.PWSTR,System.Int32)"/>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetWindowText(Windows.Win32.Foundation.HWND,Windows.Win32.Foundation.PWSTR,System.Int32)">
+            <summary>Copies the text of the specified window's title bar (if it has one) into a buffer. If the specified window is a control, the text of the control is copied. However, GetWindowText cannot retrieve the text of a control in another application. (Unicode)</summary>
+            <param name="hWnd">
+            <para>Type: <b>HWND</b> A handle to the window or control containing the text.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindowtextw#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <param name="lpString">
+            <para>Type: <b>LPTSTR</b> The buffer that will receive the text. If the string is as long or longer than the buffer, the string is truncated and terminated with a null character.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindowtextw#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <param name="nMaxCount">
+            <para>Type: <b>int</b> The maximum number of characters to copy to the buffer, including the null character. If the text exceeds this limit, it is truncated.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindowtextw#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <returns>
+            <para>Type: <b>int</b> If the function succeeds, the return value is the length, in characters, of the copied string, not including the terminating null character. If the window has no title bar or text, if the title bar is empty, or if the window or control handle is invalid, the return value is zero. To get extended error information, call <a href="https://docs.microsoft.com/windows/desktop/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError</a>. This function cannot retrieve the text of an edit control in another application.</para>
+            </returns>
+            <remarks>
+            <para>If the target window is owned by the current process, <b>GetWindowText</b> causes a <a href="https://docs.microsoft.com/windows/desktop/winmsg/wm-gettext">WM_GETTEXT</a> message to be sent to the specified window or control. If the target window is owned by another process and has a caption, <b>GetWindowText</b> retrieves the window caption text. If the window does not have a caption, the return value is a null string. This behavior is by design. It allows applications to call <b>GetWindowText</b> without becoming unresponsive if the process that owns the target window is not responding. However, if the target window is not responding and it belongs to the calling application, <b>GetWindowText</b> will cause the calling application to become unresponsive. To retrieve the text of a control in another process, send a <a href="https://docs.microsoft.com/windows/desktop/winmsg/wm-gettext">WM_GETTEXT</a> message directly instead of calling <b>GetWindowText</b>.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindowtextw#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetWindowTextLength(Windows.Win32.Foundation.HWND)">
+            <summary>Retrieves the length, in characters, of the specified window's title bar text (if the window has a title bar). (Unicode)</summary>
+            <param name="hWnd">
+            <para>Type: <b>HWND</b> A handle to the window or control.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindowtextlengthw#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <returns>
+            <para>Type: <b>int</b> If the function succeeds, the return value is the length, in characters, of the text. Under certain conditions, this value might be greater than the length of the text (see Remarks). If the window has no text, the return value is zero. Function failure is indicated by a return value of zero and a <a href="https://docs.microsoft.com/windows/desktop/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError</a> result that is nonzero. > [!NOTE] > This function does not clear the most recent error information. To determine success or failure, clear the most recent error information by calling <a href="https://docs.microsoft.com/windows/desktop/api/errhandlingapi/nf-errhandlingapi-setlasterror">SetLastError</a> with 0, then call <a href="https://docs.microsoft.com/windows/desktop/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError</a>.</para>
+            </returns>
+            <remarks>
+            <para>If the target window is owned by the current process, <b>GetWindowTextLength</b> causes a <a href="https://docs.microsoft.com/windows/desktop/winmsg/wm-gettextlength">WM_GETTEXTLENGTH</a> message to be sent to the specified window or control. Under certain conditions, the <b>GetWindowTextLength</b> function may return a value that is larger than the actual length of the text. This occurs with certain mixtures of ANSI and Unicode, and is due to the system allowing for the possible existence of double-byte character set (DBCS) characters within the text. The return value, however, will always be at least as large as the actual length of the text; you can thus always use it to guide buffer allocation. This behavior can occur when an application uses both ANSI functions and common dialogs, which use Unicode. It can also occur when an application uses the ANSI version of <b>GetWindowTextLength</b> with a window whose window procedure is Unicode, or the Unicode version of <b>GetWindowTextLength</b> with a window whose window procedure is ANSI. For more information on ANSI and ANSI functions, see <a href="https://docs.microsoft.com/windows/desktop/Intl/conventions-for-function-prototypes">Conventions for Function Prototypes</a>. To obtain the exact length of the text, use the <a href="https://docs.microsoft.com/windows/desktop/winmsg/wm-gettext">WM_GETTEXT</a>, <a href="https://docs.microsoft.com/windows/desktop/Controls/lb-gettext">LB_GETTEXT</a>, or <a href="https://docs.microsoft.com/windows/desktop/Controls/cb-getlbtext">CB_GETLBTEXT</a> messages, or the <a href="https://docs.microsoft.com/windows/desktop/api/winuser/nf-winuser-getwindowtexta">GetWindowText</a> function.</para>
+            <para>> [!NOTE] > The winuser.h header defines GetWindowTextLength as an alias which automatically selects the ANSI or Unicode version of this function based on the definition of the UNICODE preprocessor constant. Mixing usage of the encoding-neutral alias with code that not encoding-neutral can lead to mismatches that result in compilation or runtime errors. For more information, see [Conventions for Function Prototypes](/windows/win32/intl/conventions-for-function-prototypes).</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindowtextlengthw#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetSystemMetrics(Windows.Win32.UI.WindowsAndMessaging.SYSTEM_METRICS_INDEX)">
+            <summary>Retrieves the specified system metric or system configuration setting.</summary>
+            <param name="nIndex">Type: <b>int</b></param>
+            <returns>
+            <para>Type: <b>int</b> If the function succeeds, the return value is the requested system metric or configuration setting. If the function fails, the return value is 0. <a href="https://docs.microsoft.com/windows/desktop/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError</a> does not provide extended error information.</para>
+            </returns>
+            <remarks>
+            <para>System metrics can vary from display to display. <b>GetSystemMetrics</b>(SM_CMONITORS) counts only visible display monitors. This is different from <a href="https://docs.microsoft.com/windows/desktop/api/winuser/nf-winuser-enumdisplaymonitors">EnumDisplayMonitors</a>, which enumerates both visible display monitors and invisible  pseudo-monitors that are associated with mirroring drivers. An invisible pseudo-monitor is associated with a pseudo-device used to mirror application drawing for remoting or other purposes. The SM_ARRANGE setting specifies how the system arranges minimized windows, and consists of a starting position and a direction. The starting position can be one of the following values.</para>
+            <para></para>
+            <para>This doc was truncated.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getsystemmetrics#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.EnumDisplayMonitors(Windows.Win32.Graphics.Gdi.HDC,System.Nullable{Windows.Win32.Foundation.RECT},Windows.Win32.Graphics.Gdi.MONITORENUMPROC,Windows.Win32.Foundation.LPARAM)">
+            <inheritdoc cref="M:Windows.Win32.PInvoke.EnumDisplayMonitors(Windows.Win32.Graphics.Gdi.HDC,Windows.Win32.Foundation.RECT*,Windows.Win32.Graphics.Gdi.MONITORENUMPROC,Windows.Win32.Foundation.LPARAM)"/>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.EnumDisplayMonitors(Windows.Win32.Graphics.Gdi.HDC,Windows.Win32.Foundation.RECT*,Windows.Win32.Graphics.Gdi.MONITORENUMPROC,Windows.Win32.Foundation.LPARAM)">
+            <summary>The EnumDisplayMonitors function enumerates display monitors (including invisible pseudo-monitors associated with the mirroring drivers) that intersect a region formed by the intersection of a specified clipping rectangle and the visible region of a device context. EnumDisplayMonitors calls an application-defined MonitorEnumProc callback function once for each monitor that is enumerated. Note that GetSystemMetrics (SM_CMONITORS) counts only the display monitors.</summary>
+            <param name="hdc">
+            <para>A handle to a display device context that defines the visible region of interest. If this parameter is <b>NULL</b>, the <i>hdcMonitor</i> parameter passed to the callback function will be <b>NULL</b>, and the visible region of interest is the virtual screen that encompasses all the displays on the desktop.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumdisplaymonitors#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <param name="lprcClip">
+            <para>A pointer to a <a href="https://docs.microsoft.com/windows/desktop/api/windef/ns-windef-rect">RECT</a> structure that specifies a clipping rectangle. The region of interest is the intersection of the clipping rectangle with the visible region specified by <i>hdc</i>. If <i>hdc</i> is non-<b>NULL</b>, the coordinates of the clipping rectangle are relative to the origin of the <i>hdc</i>. If <i>hdc</i> is <b>NULL</b>, the coordinates are virtual-screen coordinates. This parameter can be <b>NULL</b> if you don't want to clip the region specified by <i>hdc</i>.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumdisplaymonitors#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <param name="lpfnEnum">A pointer to a <a href="https://docs.microsoft.com/windows/desktop/api/winuser/nc-winuser-monitorenumproc">MonitorEnumProc</a> application-defined callback function.</param>
+            <param name="dwData">Application-defined data that <b>EnumDisplayMonitors</b> passes directly to the <a href="https://docs.microsoft.com/windows/desktop/api/winuser/nc-winuser-monitorenumproc">MonitorEnumProc</a> function.</param>
+            <returns>
+            <para>If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.</para>
+            </returns>
+            <remarks>
+            <para>There are two reasons to call the <b>EnumDisplayMonitors</b> function: </para>
+            <para>This doc was truncated.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumdisplaymonitors#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.MonitorFromWindow(Windows.Win32.Foundation.HWND,Windows.Win32.Graphics.Gdi.MONITOR_FROM_FLAGS)">
+            <summary>The MonitorFromWindow function retrieves a handle to the display monitor that has the largest area of intersection with the bounding rectangle of a specified window.</summary>
+            <param name="hwnd">A handle to the window of interest.</param>
+            <param name="dwFlags">Determines the function's return value if the window does not intersect any display monitor.</param>
+            <returns>
+            <para>If the window intersects one or more display monitor rectangles, the return value is an <b>HMONITOR</b> handle to the display monitor that has the largest area of intersection with the window. If the window does not intersect a display monitor, the return value depends on the value of <i>dwFlags</i>.</para>
+            </returns>
+            <remarks>If the window is currently minimized, <b>MonitorFromWindow</b> uses the rectangle of the window before it was minimized.</remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetMonitorInfo(Windows.Win32.Graphics.Gdi.HMONITOR,Windows.Win32.Graphics.Gdi.MONITORINFO@)">
+            <inheritdoc cref="M:Windows.Win32.PInvoke.GetMonitorInfo(Windows.Win32.Graphics.Gdi.HMONITOR,Windows.Win32.Graphics.Gdi.MONITORINFO*)"/>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetMonitorInfo(Windows.Win32.Graphics.Gdi.HMONITOR,Windows.Win32.Graphics.Gdi.MONITORINFO*)">
+            <summary>The GetMonitorInfo function retrieves information about a display monitor. (Unicode)</summary>
+            <param name="hMonitor">A handle to the display monitor of interest.</param>
+            <param name="lpmi">
+            <para>A pointer to a <a href="https://docs.microsoft.com/windows/desktop/api/winuser/ns-winuser-monitorinfo">MONITORINFO</a> or <a href="https://docs.microsoft.com/windows/desktop/api/winuser/ns-winuser-monitorinfoexa">MONITORINFOEX</a> structure that receives information about the specified display monitor. You must set the <b>cbSize</b> member of the structure to sizeof(MONITORINFO) or sizeof(MONITORINFOEX) before calling the <b>GetMonitorInfo</b> function. Doing so lets the function determine the type of structure you are passing to it. The <a href="https://docs.microsoft.com/windows/desktop/api/winuser/ns-winuser-monitorinfoexa">MONITORINFOEX</a> structure is a superset of the <a href="https://docs.microsoft.com/windows/desktop/api/winuser/ns-winuser-monitorinfo">MONITORINFO</a> structure. It has one additional member: a string that contains a name for the display monitor. Most applications have no use for a display monitor name, and so can save some bytes by using a <b>MONITORINFO</b> structure.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getmonitorinfow#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <returns>
+            <para>If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.</para>
+            </returns>
+            <remarks>
+            <para>> [!NOTE] > The winuser.h header defines GetMonitorInfo as an alias which automatically selects the ANSI or Unicode version of this function based on the definition of the UNICODE preprocessor constant. Mixing usage of the encoding-neutral alias with code that not encoding-neutral can lead to mismatches that result in compilation or runtime errors. For more information, see [Conventions for Function Prototypes](/windows/win32/intl/conventions-for-function-prototypes).</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getmonitorinfow#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetCursorPos(System.Drawing.Point@)">
+            <inheritdoc cref="M:Windows.Win32.PInvoke.GetCursorPos(System.Drawing.Point*)"/>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.GetCursorPos(System.Drawing.Point*)">
+            <summary>Retrieves the position of the mouse cursor, in screen coordinates.</summary>
+            <param name="lpPoint">
+            <para>Type: <b>LPPOINT</b> A pointer to a <a href="https://docs.microsoft.com/windows/win32/api/windef/ns-windef-point">POINT</a> structure that receives the screen coordinates of the cursor.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getcursorpos#parameters">Read more on learn.microsoft.com</see>.</para>
+            </param>
+            <returns>
+            <para>Type: <b>BOOL</b> Returns nonzero if successful or zero otherwise. To get extended error information, call <a href="https://docs.microsoft.com/windows/desktop/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError</a>.</para>
+            </returns>
+            <remarks>
+            <para>The cursor position is always specified in screen coordinates and is not affected by the mapping mode of the window that contains the cursor. The calling process must have <b>WINSTA_READATTRIBUTES</b> access to the window station. The input desktop must be the current desktop when you call <b>GetCursorPos</b>. Call <a href="https://docs.microsoft.com/windows/desktop/api/winuser/nf-winuser-openinputdesktop">OpenInputDesktop</a> to determine whether the current desktop is the input desktop. If it is not, call <a href="https://docs.microsoft.com/windows/desktop/api/winuser/nf-winuser-setthreaddesktop">SetThreadDesktop</a> with the <b>HDESK</b> returned by <b>OpenInputDesktop</b> to switch to that desktop.</para>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getcursorpos#">Read more on learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+        <member name="M:Windows.Win32.PInvoke.MonitorFromPoint(System.Drawing.Point,Windows.Win32.Graphics.Gdi.MONITOR_FROM_FLAGS)">
+            <summary>The MonitorFromPoint function retrieves a handle to the display monitor that contains a specified point.</summary>
+            <param name="pt">A <a href="https://docs.microsoft.com/windows/win32/api/windef/ns-windef-point">POINT</a> structure that specifies the point of interest in virtual-screen coordinates.</param>
+            <param name="dwFlags">Determines the function's return value if the point is not contained within any display monitor.</param>
+            <returns>
+            <para>If the point is contained by a display monitor, the return value is an <b>HMONITOR</b> handle to that display monitor. If the point is not contained by a display monitor, the return value depends on the value of <i>dwFlags</i>.</para>
+            </returns>
+            <remarks>
+            <para><see href="https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-monitorfrompoint">Learn more about this API from learn.microsoft.com</see>.</para>
+            </remarks>
+        </member>
+    </members>
+</doc>

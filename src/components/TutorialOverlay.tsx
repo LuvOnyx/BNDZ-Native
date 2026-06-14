@@ -1,0 +1,302 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  X, ChevronRight, Sparkles, FolderTree, Search, Columns, Puzzle, Star,
+} from 'lucide-react';
+import { useAppConfig } from '../data/configContext';
+
+const TUTORIAL_STEPS = [
+  {
+    id: 'welcome',
+    icon: Sparkles,
+    color: '#a475d4',
+    title: 'Welcome to BNDZ',
+    body: 'A fast, modern file manager built for Windows. This quick tour highlights the essentials — you can replay it anytime from View → Show tutorial.',
+  },
+  {
+    id: 'sidebar',
+    icon: FolderTree,
+    color: '#34d399',
+    title: 'Navigation tree',
+    body: 'Use Home, Gallery, Recycle Bin, Rapid access, This PC, and Network in the sidebar. Pin folders to Rapid access from the right-click menu.',
+    anchor: 'sidebar',
+  },
+  {
+    id: 'search',
+    icon: Search,
+    color: '#fbbf24',
+    title: 'Global search',
+    body: 'Type > followed by a filename in the filter bar for instant Everything-powered search across your PC.',
+    anchor: 'omnibar',
+  },
+  {
+    id: 'dualpane',
+    icon: Columns,
+    color: '#38bdf8',
+    title: 'Dual pane & views',
+    body: 'Open View → Dual Pane for side-by-side browsing. Switch between Details, Grid, and List views from the toolbar.',
+    anchor: 'workspace',
+  },
+  {
+    id: 'plugins',
+    icon: Puzzle,
+    color: '#c084fc',
+    title: 'Plugins & extensions',
+    body: 'Open the bottom panel for Icon Studio, Fast Search, Storage Cleanup, and more. Use the puzzle icon for the Extension Hub.',
+    anchor: 'toolbar',
+  },
+  {
+    id: 'rapid',
+    icon: Star,
+    color: '#6dc2b8',
+    title: 'Rapid access',
+    body: 'Right-click any folder and choose Pin to Rapid access. Your pins appear in the sidebar and under Rapid access in the tree.',
+    anchor: 'sidebar',
+  },
+];
+
+const SPOTLIGHT_PAD = 10;
+
+interface TutorialOverlayProps {
+  forceShow?: boolean;
+  onClose?: () => void;
+}
+
+function useTutorialAnchor(anchor: string | undefined, active: boolean) {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  const measure = useCallback(() => {
+    if (!anchor || !active) {
+      setRect(null);
+      return;
+    }
+    const el = document.querySelector(`[data-tutorial="${anchor}"]`);
+    if (!el) {
+      setRect(null);
+      return;
+    }
+    setRect(el.getBoundingClientRect());
+  }, [anchor, active]);
+
+  useEffect(() => {
+    measure();
+    if (!anchor || !active) return;
+
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    const ro = new ResizeObserver(measure);
+    const el = document.querySelector(`[data-tutorial="${anchor}"]`);
+    if (el) ro.observe(el);
+
+    const interval = window.setInterval(measure, 400);
+
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+      ro.disconnect();
+      window.clearInterval(interval);
+    };
+  }, [anchor, active, measure]);
+
+  return rect;
+}
+
+function Spotlight({ rect }: { rect: DOMRect }) {
+  const x = Math.max(0, rect.left - SPOTLIGHT_PAD);
+  const y = Math.max(0, rect.top - SPOTLIGHT_PAD);
+  const w = rect.width + SPOTLIGHT_PAD * 2;
+  const h = rect.height + SPOTLIGHT_PAD * 2;
+
+  return (
+    <>
+      <svg className="fixed inset-0 z-[500] w-full h-full pointer-events-none" aria-hidden>
+        <defs>
+          <mask id="bndz-tutorial-mask">
+            <rect width="100%" height="100%" fill="white" />
+            <rect x={x} y={y} width={w} height={h} rx="10" fill="black" />
+          </mask>
+        </defs>
+        <rect width="100%" height="100%" fill="rgba(0,0,0,0.58)" mask="url(#bndz-tutorial-mask)" />
+      </svg>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="fixed z-[500] pointer-events-none rounded-xl ring-2 ring-sky-400/70 shadow-[0_0_28px_rgba(56,189,248,0.35)]"
+        style={{ left: x, top: y, width: w, height: h }}
+      />
+    </>
+  );
+}
+
+function cardPosition(rect: DOMRect | null): React.CSSProperties {
+  if (!rect) {
+    return {
+      left: '50%',
+      top: '50%',
+      transform: 'translate(-50%, -50%)',
+    };
+  }
+
+  const cardW = Math.min(420, window.innerWidth - 32);
+  const cardH = 320;
+  const gap = 16;
+  let top = rect.bottom + gap;
+  let left = rect.left + rect.width / 2 - cardW / 2;
+
+  if (top + cardH > window.innerHeight - 16) {
+    top = rect.top - cardH - gap;
+  }
+  if (top < 16) top = 16;
+  left = Math.max(16, Math.min(left, window.innerWidth - cardW - 16));
+
+  return {
+    left,
+    top,
+    transform: 'none',
+  };
+}
+
+export default function TutorialOverlay({ forceShow = false, onClose }: TutorialOverlayProps) {
+  const { config, updateConfig } = useAppConfig();
+  const [stepIndex, setStepIndex] = useState(0);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (forceShow) {
+      setStepIndex(0);
+      setVisible(true);
+      return;
+    }
+    if (config.tutorialNeverShow) return;
+    if (config.tutorialCompleted) return;
+    const timer = setTimeout(() => setVisible(true), 900);
+    return () => clearTimeout(timer);
+  }, [forceShow, config.tutorialNeverShow, config.tutorialCompleted]);
+
+  const step = TUTORIAL_STEPS[stepIndex];
+  const anchorRect = useTutorialAnchor(step?.anchor, visible && !!step?.anchor);
+  const isLast = stepIndex >= TUTORIAL_STEPS.length - 1;
+  const StepIcon = step?.icon ?? Sparkles;
+
+  const dismiss = (opts: { completed?: boolean; neverShow?: boolean }) => {
+    if (opts.neverShow) updateConfig({ tutorialNeverShow: true, tutorialCompleted: true });
+    else if (opts.completed) updateConfig({ tutorialCompleted: true });
+    setVisible(false);
+    onClose?.();
+  };
+
+  return (
+    <AnimatePresence>
+      {visible && step && (
+        <>
+          {!step.anchor && (
+            <motion.div
+              key="tutorial-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="fixed inset-0 z-[500] bg-black/55 backdrop-blur-[2px] pointer-events-none"
+            />
+          )}
+          {step.anchor && (
+            <div
+              className="fixed inset-0 z-[499] pointer-events-none"
+              aria-hidden
+            />
+          )}
+          {anchorRect && <Spotlight rect={anchorRect} />}
+          <motion.div
+            key={`tutorial-card-${step.id}`}
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            className="fixed z-[501] w-[min(420px,calc(100vw-32px))] bg-[#1a1a1e] border border-[#3a3a44] rounded-xl shadow-[0_24px_80px_rgba(0,0,0,0.65)] overflow-hidden"
+            style={cardPosition(anchorRect)}
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="h-1.5 w-full"
+              style={{ background: `linear-gradient(90deg, ${step.color}, transparent)` }}
+            />
+            <div className="p-5 pb-4">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <motion.div
+                  key={step.id}
+                  initial={{ rotate: -8, scale: 0.8 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  className="p-3 rounded-xl shrink-0"
+                  style={{ backgroundColor: `${step.color}22`, border: `1px solid ${step.color}44` }}
+                >
+                  <StepIcon size={22} style={{ color: step.color }} />
+                </motion.div>
+                <button
+                  type="button"
+                  onClick={() => dismiss({})}
+                  className="text-gray-500 hover:text-gray-300 p-1 rounded transition-colors"
+                  title="Cancel"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <motion.div
+                key={`text-${step.id}`}
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.05 }}
+              >
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">
+                  Tip {stepIndex + 1} of {TUTORIAL_STEPS.length}
+                </div>
+                <h2 className="text-[18px] font-bold text-white mb-2">{step.title}</h2>
+                <p className="text-[13px] text-gray-400 leading-relaxed">{step.body}</p>
+              </motion.div>
+
+              <div className="flex gap-1.5 mt-5 mb-4">
+                {TUTORIAL_STEPS.map((s, i) => (
+                  <div
+                    key={s.id}
+                    className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= stepIndex ? 'bg-sky-500' : 'bg-[#333]'}`}
+                  />
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => dismiss({ neverShow: true })}
+                  className="text-[11px] text-gray-500 hover:text-gray-300 transition-colors px-1"
+                >
+                  Never show again
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => dismiss({})}
+                    className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-semibold text-gray-400 hover:text-white border border-[#444] hover:border-[#555] rounded-md transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isLast) dismiss({ completed: true });
+                      else setStepIndex(i => i + 1);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-bold text-white bg-sky-600 hover:bg-sky-500 rounded-md transition-colors shadow-lg shadow-sky-900/30"
+                  >
+                    {isLast ? 'Get started' : 'Next'}
+                    {!isLast && <ChevronRight size={14} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+

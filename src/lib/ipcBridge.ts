@@ -1,0 +1,1036 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { nativeCall, dedupeInFlight } from './ipcCore';
+import { normalizePanePath } from './pathUtils';
+
+export interface RenameOperation {
+  originalName: string;
+  newName: string;
+  reason?: string;
+}
+
+export interface ShareMenuItem {
+  id?: string;
+  label?: string;
+  kind?: 'verb' | 'sendto' | 'open' | 'cloud-share';
+  verb?: string;
+  target?: string;
+  group?: 'main' | 'sendto' | 'cloud';
+  separator?: boolean;
+}
+
+function _parseWebViewMessage(raw: unknown): any {
+  if (raw == null) return null;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  return raw;
+}
+
+function _nativeCall<T>(
+  type: string,
+  responseType: string,
+  _legacyId: string,
+  payload?: any,
+  timeoutMs = 15000,
+): Promise<T> {
+  return nativeCall<T>(type, responseType, payload, timeoutMs);
+}
+
+export const IPC = {
+  // True when running inside WebView2 C# host
+  isNative: typeof window !== 'undefined' && !!(window as any).chrome?.webview,
+
+  async readFileContent(path: string): Promise<string> {
+    try {
+        if (this.isNative) {
+            const { toWindowsPath, encodeLocalStreamPath } = await import('./pathUtils');
+            const virtualUrl = `http://bndz.local/local-stream/${encodeLocalStreamPath(toWindowsPath(path))}`;
+            const response = await window.fetch(virtualUrl);
+            if (response.ok) return await response.text();
+        } else {
+            const cleanPath = path.startsWith('C:\\') ? path.replace('C:\\', '/') : path;
+            const res = await fetch('/api/fs/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: cleanPath })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                return data.content;
+            }
+        }
+        return "";
+    } catch {
+        return `// Content of ${path}\n`;
+    }
+  },
+
+  _listeners: [] as Array<(events: any[]) => void>,
+  _initialized: false as boolean,
+  _progressListeners: [] as Array<(progress: any) => void>,
+  _conflictListeners: [] as Array<(conflict: any) => void>,
+  _drivesListeners: [] as Array<(drives: any[]) => void>,
+  _folderSizeListeners: [] as Array<(progress: any) => void>,
+  _duplicateProgressListeners: [] as Array<(progress: any) => void>,
+  _folderSyncProgressListeners: [] as Array<(progress: any) => void>,
+  _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
+  _openPathListeners: [] as Array<(path: string) => void>,
+
+  init() {
+    if (this.isNative && !this._initialized) {
+      (window as any).chrome.webview.addEventListener('message', (e: any) => {
+        const data = _parseWebViewMessage(e.data);
+        if (!data?.type) return;
+        if (data.type === 'FS_EVENT_BATCH') {
+          this._listeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'PROGRESS_UPDATE') {
+          this._progressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'CONFLICT_DETECTED') {
+          this._conflictListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'DRIVES_CHANGED') {
+          this._drivesListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'EXTERNAL_FILES_DROPPED') {
+          window.dispatchEvent(new CustomEvent('bndz-external-drop', { detail: data.payload }));
+        } else if (data.type === 'FOLDER_SIZE_PROGRESS') {
+          this._folderSizeListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'DUPLICATE_SCAN_PROGRESS') {
+          this._duplicateProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'FOLDER_SYNC_PROGRESS') {
+          this._folderSyncProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'CLOSE_REQUEST') {
+          const source = data.payload?.source;
+          this._closeRequestListeners.forEach(cb => cb({ source }));
+        } else if (data.type === 'BNDZ_OPEN_PATH') {
+          const path = data.payload?.path ?? '';
+          this._openPathListeners.forEach(cb => cb(path));
+        }
+      });
+      this._initialized = true;
+    }
+  },
+
+  onDrivesChanged(callback: (drives: any[]) => void) {
+    this.init();
+    this._drivesListeners.push(callback);
+    return () => {
+      this._drivesListeners = this._drivesListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onFsEvents(callback: (events: any[]) => void) {
+    this.init();
+    this._listeners.push(callback);
+    return () => {
+      this._listeners = this._listeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onProgress(callback: (progress: any) => void) {
+    this.init();
+    this._progressListeners.push(callback);
+    return () => {
+      this._progressListeners = this._progressListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onConflictContent(callback: (conflict: any) => void) {
+    this.init();
+    this._conflictListeners.push(callback);
+    return () => {
+      this._conflictListeners = this._conflictListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onFolderSizeProgress(callback: (progress: { current: number; total: number; path: string; percent: number; bytesScanned?: number }) => void) {
+    this.init();
+    this._folderSizeListeners.push(callback);
+    return () => {
+      this._folderSizeListeners = this._folderSizeListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onDuplicateScanProgress(callback: (progress: { filesScanned: number; totalFiles: number; currentPath: string; percent: number }) => void) {
+    this.init();
+    this._duplicateProgressListeners.push(callback);
+    return () => {
+      this._duplicateProgressListeners = this._duplicateProgressListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onFolderSyncProgress(callback: (progress: { jobId: string; status: string; percent: number; currentFile?: string; message?: string }) => void) {
+    this.init();
+    this._folderSyncProgressListeners.push(callback);
+    return () => {
+      this._folderSyncProgressListeners = this._folderSyncProgressListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onCloseRequest(callback: (payload?: { source?: string }) => void) {
+    this.init();
+    this._closeRequestListeners.push(callback);
+    return () => {
+      this._closeRequestListeners = this._closeRequestListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onOpenPath(callback: (path: string) => void) {
+    this.init();
+    this._openPathListeners.push(callback);
+    return () => {
+      this._openPathListeners = this._openPathListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  requestClose(source: 'x' | 'menu' | 'tray' = 'x'): void {
+    if (this.isNative) {
+      if (source === 'x') {
+        this.windowChrome('close');
+        return;
+      }
+      (window as any).chrome.webview.postMessage({ type: 'REQUEST_CLOSE', payload: { source } });
+    }
+  },
+
+  showLauncher(): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SHOW_LAUNCHER' });
+    }
+  },
+
+  syncLauncherSettings(settings: Record<string, unknown>): Promise<void> {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SYNC_LAUNCHER', payload: settings });
+    }
+    return Promise.resolve();
+  },
+
+  getLauncherState(): Promise<{ installed?: boolean; running?: boolean; hotkey?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_launcherState`;
+      return _nativeCall<{ installed?: boolean; running?: boolean; hotkey?: string }>(
+        'GET_LAUNCHER_STATE',
+        'GET_LAUNCHER_STATE_RESULT',
+        id,
+        {},
+        8000,
+      ).then(r => r || {});
+    }
+    return Promise.resolve({});
+  },
+
+  windowCloseResolve(action: 'cancel' | 'tray' | 'quit', rememberTray = false): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'WINDOW_CLOSE_RESOLVE',
+        payload: { action, rememberTray },
+      });
+    }
+  },
+
+  restoreFromTray(): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'TRAY_RESTORE' });
+    }
+  },
+
+  getFolderSyncJobs(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_folderSyncJobs`;
+      return _nativeCall<any[]>('FOLDER_SYNC_GET_JOBS', 'FOLDER_SYNC_JOBS_RESULT', id, {}, 15000).then(r => r || []);
+    }
+    return Promise.resolve([]);
+  },
+
+  saveFolderSyncJobs(jobs: any[]): Promise<void> {
+    if (this.isNative) {
+      const id = `${Date.now()}_folderSyncSave`;
+      return _nativeCall<any>('FOLDER_SYNC_SAVE_JOBS', 'FOLDER_SYNC_SAVE_RESULT', id, jobs, 15000).then(() => {});
+    }
+    return Promise.resolve();
+  },
+
+  runFolderSync(jobId: string): Promise<any> {
+    if (this.isNative) {
+      const id = `${Date.now()}_folderSyncRun`;
+      return _nativeCall<any>('FOLDER_SYNC_RUN', 'FOLDER_SYNC_RUN_RESULT', id, { jobId }, 600000);
+    }
+    return Promise.resolve({ ok: true });
+  },
+
+  setFolderSyncWatch(jobId: string, enabled: boolean): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'FOLDER_SYNC_SET_WATCH',
+        payload: { jobId, enabled },
+      });
+    }
+  },
+
+  scanFolderSizes(paths: string[], forceRescan = false): Promise<{
+    sizes: Record<string, number>;
+    cancelled?: boolean;
+    error?: string;
+    scannedCount?: number;
+    cachedCount?: number;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_folderSizes`;
+      return _nativeCall<any>('SCAN_FOLDER_SIZES', 'FOLDER_SIZE_RESULT', id, { paths, forceRescan }, 600000).then(r => ({
+        sizes: r?.sizes ?? r?.Sizes ?? {},
+        cancelled: r?.cancelled ?? r?.Cancelled,
+        error: r?.error,
+        scannedCount: r?.scannedCount ?? r?.ScannedCount ?? 0,
+        cachedCount: r?.cachedCount ?? r?.CachedCount ?? 0,
+      }));
+    }
+    return Promise.resolve({ sizes: {}, scannedCount: 0, cachedCount: 0 });
+  },
+
+  showNativeNotification(title: string, message: string, tag?: string): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'SHOW_NATIVE_NOTIFICATION',
+      payload: { title, message, tag },
+    });
+  },
+
+  cancelFolderSizeScan(): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'CANCEL_FOLDER_SIZE_SCAN' });
+    }
+  },
+
+  scanDuplicates(
+    rootPath: string,
+    recursive = true,
+    minSizeBytes = 1024,
+  ): Promise<{ groups: Array<{ hash: string; size: number; paths: string[] }>; cancelled?: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_dupes`;
+      return _nativeCall<any>('SCAN_DUPLICATES', 'DUPLICATE_SCAN_RESULT', id, { rootPath, recursive, minSizeBytes }, 600000).then(r => ({
+        groups: r?.groups ?? r?.Groups ?? [],
+        cancelled: r?.cancelled ?? r?.Cancelled,
+        error: r?.error,
+      }));
+    }
+    return Promise.resolve({ groups: [] });
+  },
+
+  cancelDuplicateScan(): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'CANCEL_DUPLICATE_SCAN' });
+    }
+  },
+
+  archiveAddFiles(archivePath: string, files: string[]): Promise<{ success: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_archiveAdd`;
+      return _nativeCall<{ success: boolean; error?: string }>('ARCHIVE_ADD_FILES', 'ARCHIVE_ADD_FILES_RESULT', id, { archivePath, files }, 120000);
+    }
+    return Promise.resolve({ success: false, error: 'Native only' });
+  },
+
+  archiveExtractEntry(archivePath: string, entryPath: string, destination: string): Promise<{ success: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_archiveExtract`;
+      return _nativeCall<{ success: boolean; error?: string }>('ARCHIVE_EXTRACT_ENTRY', 'ARCHIVE_EXTRACT_ENTRY_RESULT', id, { archivePath, entryPath, destination }, 120000);
+    }
+    return Promise.resolve({ success: false, error: 'Native only' });
+  },
+
+  executeFsOperation(
+    operationId: string,
+    action: 'copy' | 'move' | 'delete' | 'create-dir' | 'create-file' | 'undo' | 'redo',
+    source: string | string[],
+    target: string,
+    bypassRecycleBin: boolean = false
+  ) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'EXECUTE_FS_OPERATION',
+        payload: { operationId, action, source, target, bypassRecycleBin }
+      });
+    } else {
+      // Mock progress for web preview
+      if (action !== 'delete') {
+        setTimeout(() => {
+          this._progressListeners.forEach(cb => cb({
+            operationId, percentage: 50,
+            currentFile: typeof source === 'string' ? source : source[0] || '',
+            bytesTransferred: 5000000, totalBytes: 10000000,
+            speedBytesPerSecond: 10000000, itemsCompleted: 1, totalItems: 2
+          }));
+        }, 500);
+        setTimeout(() => {
+          this._progressListeners.forEach(cb => cb({
+            operationId, percentage: 100,
+            currentFile: typeof source === 'string' ? source : source[source.length - 1] || '',
+            bytesTransferred: 10000000, totalBytes: 10000000,
+            speedBytesPerSecond: 10000000, itemsCompleted: 2, totalItems: 2
+          }));
+        }, 1000);
+      }
+    }
+  },
+
+  startDrag(paths: string | string[]) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'START_DRAG', payload: { paths } });
+    }
+  },
+
+  clearThumbnailCache() {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'CLEAR_THUMBNAIL_CACHE' });
+    }
+  },
+
+  executeUndo() {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'EXECUTE_UNDO' });
+    }
+  },
+
+  executeRedo() {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'EXECUTE_REDO' });
+    }
+  },
+
+  compareDirectories(pathA: string, pathB: string, useHashing: boolean = false): Promise<any> {
+    if (this.isNative) {
+      const id = `${Date.now()}_compareDir`;
+      return _nativeCall<any>('COMPARE_DIRECTORIES', 'COMPARE_DIRECTORIES_RESULT', id, { pathA, pathB, useHashing });
+    }
+    return Promise.resolve([]);
+  },
+
+  executeContextMenuVerb(path: string | string[], verb: string, x?: number, y?: number, bypassRecycleBin: boolean = false, sendToTarget?: string) {
+    if (this.isNative) {
+      const normalize = (p: string) => {
+        let s = p.trim();
+        if (s.startsWith('::{')) return s;
+        if (s.toLowerCase().startsWith('shell:')) return s;
+        if (s.startsWith('/')) s = s.substring(1);
+        s = s.replace(/\//g, '\\');
+        while (s.includes('\\\\')) s = s.replace('\\\\', '\\');
+        if (/^[A-Za-z]:$/.test(s)) s += '\\';
+        return s;
+      };
+      const paths = Array.isArray(path) ? path.map(normalize) : normalize(path);
+      (window as any).chrome.webview.postMessage({
+        type: 'EXECUTE_CONTEXT_MENU_VERB',
+        payload: { path: paths, verb, x, y, bypassRecycleBin, sendToTarget }
+      });
+    }
+  },
+
+  shellExecute(action: 'open' | 'openWith' | 'copyPath' | 'compress' | 'openTerminal' | 'openExplorer' | 'executeScript' | string, path: string | string[], workingDir?: string) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SHELL_EXECUTE', payload: { action, path, workingDir } });
+    } else {
+      if (action === 'copyPath') {
+        const text = Array.isArray(path) ? path.join('\n') : path;
+        navigator.clipboard.writeText(text).catch(err => alert('Clipboard failed: ' + err.message));
+      }
+    }
+  },
+
+  resolveConflict(operationId: string, fileName: string, resolution: 'replace' | 'skip' | 'keepboth') {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'RESOLVE_CONFLICT',
+        payload: { operationId, fileName, resolution }
+      });
+    }
+  },
+
+  watchDirectory(path: string) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'WATCH_DIR', payload: { path } });
+    }
+  },
+
+  async aiBatchRename(filenames: string[], instructions: string): Promise<RenameOperation[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_aiBatchRename`;
+      try {
+        return await _nativeCall<RenameOperation[]>('AI_BATCH_RENAME', 'AI_BATCH_RENAME_RESULT', id, { filenames, instructions }, 30000);
+      } catch {
+        return [];
+      }
+    }
+    // Web fallback
+    const res = await fetch('/api/gemini/batch-rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filenames, customInstructions: instructions })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'AI Request Failed');
+    }
+    const data = await res.json();
+    return data.renamedFiles;
+  },
+
+  syncFolders(source: string, target: string, entityId: string, action: 'copy' | 'move' = 'move') {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'SYNC_FOLDERS',
+        payload: { source, target, entityId, action }
+      });
+    }
+  },
+
+  getCloudProviders(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_cloudProviders`;
+      return _nativeCall<any[]>('GET_CLOUD_PROVIDERS', 'CLOUD_PROVIDERS_RESULT', id);
+    }
+    return Promise.resolve([
+      { name: 'OneDrive', path: 'C:\\Users\\' + (window as any).__bndzUser || 'User' + '\\OneDrive', icon: '☁️' }
+    ]);
+  },
+
+  getSystemDrives(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_drives`;
+      return _nativeCall<any[]>('GET_DRIVES', 'DRIVES_RESULT', id);
+    }
+    return Promise.resolve([
+      { name: '/', letter: '/', label: 'Container Root', totalSpace: 10_000_000_000, freeSpace: 5_000_000_000 },
+      { name: '/workspace', letter: '/workspace', label: 'Workspace', totalSpace: 10_000_000_000, freeSpace: 5_000_000_000 }
+    ]);
+  },
+
+  getNetworkLocations(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_network`;
+      return _nativeCall<any[]>('GET_NETWORK_LOCATIONS', 'NETWORK_LOCATIONS_RESULT', id).catch(() => []);
+    }
+    return Promise.resolve([]);
+  },
+
+  getSystemShortcuts(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_shortcuts`;
+      return _nativeCall<any[]>('GET_SYSTEM_SHORTCUTS', 'SYSTEM_SHORTCUTS_RESULT', id).catch(() => IPC._fallbackShortcuts());
+    }
+    return Promise.resolve(IPC._fallbackShortcuts());
+  },
+
+  _fallbackShortcuts(): any[] {
+    return [
+      { name: 'Home', path: 'shell:Profile', icon: 'home' },
+      { name: 'Desktop', path: 'shell:Desktop', icon: 'desktop' },
+      { name: 'Documents', path: 'shell:Personal', icon: 'documents' },
+      { name: 'Downloads', path: 'shell:Downloads', icon: 'downloads' },
+      { name: 'Pictures', path: 'shell:My Pictures', icon: 'pictures' },
+      { name: 'Root', path: `/`, icon: 'hard-drive' },
+    ];
+  },
+
+  setAsDefaultManager(enable: boolean) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'SHELL_INTEGRATION',
+        payload: { action: 'setDefault', enable }
+      });
+    }
+  },
+
+  setInContextMenu(enable: boolean) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'SHELL_INTEGRATION',
+        payload: { action: 'setContextMenu', enable }
+      });
+    }
+  },
+
+  setWin11MoreOptions(enable: boolean) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'SHELL_INTEGRATION',
+        payload: { action: 'setWin11MoreOptions', enable }
+      });
+    }
+  },
+
+  relaunchAsAdmin() {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({
+        type: 'SHELL_INTEGRATION',
+        payload: { action: 'relaunchAdmin' }
+      });
+    }
+  },
+
+  saveSettings(settings: any) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SAVE_SETTINGS', payload: settings });
+    }
+  },
+
+  loadSettings(): Promise<any> {
+    if (this.isNative) {
+      const id = `${Date.now()}_loadSettings`;
+      return _nativeCall<any>('LOAD_SETTINGS', 'LOAD_SETTINGS_RESULT', id).catch(() => null);
+    }
+    return Promise.resolve(null);
+  },
+
+  fetchNativeContextMenuItems(path: string): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_ctxItems`;
+      return _nativeCall<any[]>('GET_CONTEXT_MENU_ITEMS', 'CONTEXT_MENU_ITEMS_RESULT', id, { path });
+    }
+    return Promise.resolve([
+      { id: 'open',       label: 'Open',       icon: 'Open'     },
+      { id: 'edit',       label: 'Edit',       icon: 'Edit'     },
+      { id: 'share',      label: 'Share',      icon: 'Share'    },
+      { separator: true },
+      { id: 'copy',       label: 'Copy',       icon: 'Copy'     },
+      { id: 'cut',        label: 'Cut',        icon: 'Cut'      },
+      { id: 'delete',     label: 'Delete',     icon: 'Trash'    },
+      { id: 'properties', label: 'Properties', icon: 'Settings' },
+    ]);
+  },
+
+  fetchShareMenuItems(path: string): Promise<ShareMenuItem[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_shareItems`;
+      return _nativeCall<ShareMenuItem[]>('GET_SHARE_MENU_ITEMS', 'SHARE_MENU_ITEMS_RESULT', id, { path });
+    }
+    return Promise.resolve([
+      { id: 'share', label: 'Share with apps…', kind: 'verb', verb: 'share', group: 'main' },
+    ]);
+  },
+
+  checkPathExists(path: string): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_checkPath`;
+      return _nativeCall<boolean>('CHECK_PATH_EXISTS', 'CHECK_PATH_RESULT', id, { path });
+    }
+    return Promise.resolve(path.length > 2);
+  },
+
+  emptyRecycleBin(): Promise<{ success: boolean }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_emptyRecycleBin`;
+      return _nativeCall<{ success: boolean }>('EMPTY_RECYCLE_BIN', 'EMPTY_RECYCLE_BIN_RESULT', id, {}, 60000);
+    }
+    return Promise.resolve({ success: false });
+  },
+
+  getDirContents(path: string): Promise<any[]> {
+    if (this.isNative) {
+      const norm = normalizePanePath(path);
+      return dedupeInFlight(`dir:${norm}`, () =>
+        _nativeCall<any[]>('GET_DIR_CONTENTS', 'DIR_CONTENTS_RESULT', '', { path: norm }, 60000),
+      );
+    }
+    // Web backend route
+    return fetch('/api/fs/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: path.startsWith('C:\\') ? path.replace('C:\\', '/') : path })
+    }).then(res => res.json()).then(data => data.items || []);
+  },
+
+  performGlobalSearch(query: string, limit: number, useRegex = false, rootPath = '', useEverything = true): Promise<{ items: any[]; engine?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_globalSearch`;
+      return _nativeCall<{ items: any[]; engine?: string }>('PERFORM_GLOBAL_SEARCH', 'GLOBAL_SEARCH_RESULT', id, { query, limit, useRegex, rootPath, useEverything }, 45000)
+        .then(payload => {
+          if (Array.isArray(payload)) return { items: payload };
+          return { items: payload?.items ?? [], engine: payload?.engine };
+        });
+    }
+    return Promise.resolve({ items: [] });
+  },
+
+  openFolderDialog(description = 'Select a folder'): Promise<string> {
+    if (this.isNative) {
+      const id = `${Date.now()}_openFolder`;
+      return _nativeCall<string>('OPEN_FOLDER_DIALOG', 'OPEN_FOLDER_DIALOG_RESULT', id, { description });
+    }
+    return Promise.resolve('');
+  },
+
+  scanIconFolder(folderPath: string, autoConvert = true): Promise<Array<{ name: string; icoStr: string }>> {
+    if (this.isNative) {
+      const id = `${Date.now()}_scanIcons`;
+      return _nativeCall<Array<{ name: string; icoStr: string }>>('SCAN_ICON_FOLDER', 'SCAN_ICON_FOLDER_RESULT', id, { folderPath, autoConvert }, 120000);
+    }
+    return Promise.resolve([]);
+  },
+
+  getSubDirectories(path: string, showHidden: boolean = false): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_subDirs`;
+      return _nativeCall<any[]>('GET_SUB_DIRECTORIES', 'SUBDIR_RESULT', id, { path, showHidden });
+    }
+    return Promise.resolve([]);
+  },
+
+  showNativeContextMenu(path: string, x: number, y: number) {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SHOW_CONTEXT_MENU', payload: { path, x, y } });
+    }
+  },
+
+  getNativeShellIconBase64(path: string, isDirectory: boolean): Promise<string | null> {
+    if (this.isNative) {
+      return _nativeCall<string | null>('GET_SHELL_ICON', 'SHELL_ICON_RESULT', '', { path, isDirectory }, 45000);
+    }
+    return Promise.resolve(null);
+  },
+
+  getNativeShellIconsBatch(items: Array<{ path: string; isDirectory: boolean }>): Promise<Record<string, string | null>> {
+    if (this.isNative) {
+      return _nativeCall<Record<string, string | null>>(
+        'GET_SHELL_ICONS_BATCH',
+        'SHELL_ICONS_BATCH_RESULT',
+        '',
+        { items },
+        90000,
+      );
+    }
+    return Promise.resolve({});
+  },
+
+  getNativeThumbnailBase64(path: string): Promise<string | null> {
+    if (this.isNative) {
+      return import('./iconRequestQueue').then(({ enqueueIconRequest }) =>
+        enqueueIconRequest(() =>
+          _nativeCall<string | null>('GET_THUMBNAIL', 'THUMBNAIL_RESULT', `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_thumb`, { path }, 45000),
+        ),
+      );
+    }
+    return new Promise(resolve => setTimeout(() => resolve(null), 50));
+  },
+
+  openFileDialog(filter: string = 'Images (*.png;*.ico;*.jpg;*.jpeg)|*.png;*.ico;*.jpg;*.jpeg|All files (*.*)|*.*'): Promise<string[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_openFile`;
+      return _nativeCall<string[]>('OPEN_FILE_DIALOG', 'OPEN_FILE_DIALOG_RESULT', id, { filter });
+    }
+    // Web fallback using simulated input
+    return new Promise(resolve => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = filter.includes('.png') ? '.png,.ico,.jpg,.jpeg' : '*';
+      input.onchange = (e: any) => {
+        const files = Array.from(e.target.files) as File[];
+        // Simulated paths since actual paths aren't available in standard browser
+        resolve(files.map(f => `C:\\VirtualPath\\${f.name}`));
+      };
+      input.click();
+    });
+  },
+
+  clearIconCache(): Promise<void> {
+    if (this.isNative) {
+      const id = `${Date.now()}_clearIconCache`;
+      return _nativeCall<void>('CLEAR_ICON_CACHE', 'CLEAR_ICON_CACHE_RESULT', id).catch(() => {});
+    }
+    return Promise.resolve();
+  },
+
+  convertToIco(imagePath: string): Promise<string | null> {
+    if (this.isNative) {
+      const id = `${Date.now()}_convertIco`;
+      return _nativeCall<string | null>('CONVERT_TO_ICO', 'CONVERT_TO_ICO_RESULT', id, { path: imagePath }, 30000);
+    }
+    return Promise.resolve(null);
+  },
+
+  /** Download Iconify PNG and cache as .ico for folder/file apply + shell menus */
+  materializeIconifyIcon(iconId: string): Promise<string | null> {
+    if (this.isNative) {
+      const id = `${Date.now()}_materializeIconify`;
+      return _nativeCall<string | null>('MATERIALIZE_ICONIFY', 'MATERIALIZE_ICONIFY_RESULT', id, { iconId }, 60000);
+    }
+    return Promise.resolve(null);
+  },
+
+  _normalizeIconPath(p: string): string {
+    if (!p) return p;
+    let s = p.trim().replace(/\//g, '\\');
+    if (s.startsWith('\\') && s.length > 2 && s[2] === ':') s = s.substring(1);
+    return s;
+  },
+
+  setSystemIcon(targetPath: string, targetType: string, customIcoPath: string, allowGlobal = false): Promise<{ success: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_setIcon`;
+      return _nativeCall<{ success: boolean; error?: string }>('SET_SYSTEM_ICON', 'SET_SYSTEM_ICON_RESULT', id, {
+        targetPath: this._normalizeIconPath(targetPath),
+        targetType,
+        customIcoPath: this._normalizeIconPath(customIcoPath),
+        allowGlobal,
+      }, 90000).then(r => (typeof r === 'boolean' ? { success: r } : { success: !!r?.success, error: r?.error }));
+    }
+    return Promise.resolve({ success: true });
+  },
+
+  restoreSystemIcon(targetPath: string, targetType: string): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_restoreIcon`;
+      return _nativeCall<boolean>('RESTORE_SYSTEM_ICON', 'RESTORE_SYSTEM_ICON_RESULT', id, {
+        targetPath: this._normalizeIconPath(targetPath),
+        targetType,
+      }, 15000)
+        .catch(err => {
+          console.warn('[IPC] restoreSystemIcon:', err);
+          return false;
+        });
+    }
+    return Promise.resolve(true);
+  },
+
+  updateGlobalContextMenu(actions: any[]): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_updateCtxMenu`;
+      return _nativeCall<boolean>('UPDATE_GLOBAL_CONTEXT_MENU', 'UPDATE_GLOBAL_CONTEXT_MENU_RESULT', id, { actions });
+    }
+    // Registry deploy only exists in the native host
+    return Promise.resolve(false);
+  },
+
+  getExtendedMetadata(path: string): Promise<Record<string, string>> {
+    if (this.isNative) {
+      const id = `${Date.now()}_extMeta`;
+      return _nativeCall<Record<string, string>>('GET_EXTENDED_METADATA', 'EXTENDED_METADATA_RESULT', id, { path });
+    }
+    return new Promise(resolve =>
+      setTimeout(() => resolve({ 'Audio Bitrate': '320 kbps', 'Dimensions': '1920x1080' }), 50)
+    );
+  },
+
+  getAsyncHashes(path: string): Promise<{md5?: string, sha256?: string}> {
+    if (this.isNative) {
+      const id = `${Date.now()}_hashes`;
+      return _nativeCall<{md5?: string, sha256?: string}>('GET_ASYNC_HASHES', 'ASYNC_HASHES_RESULT', id, { path }, 60000);
+    }
+    return Promise.resolve({});
+  },
+
+  /** Read media file as base64 blob for preview fallback when local-stream fails */
+  getMediaBlob(path: string, maxBytes = 48 * 1024 * 1024): Promise<{ base64?: string; mime?: string; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_mediaBlob`;
+      return _nativeCall<{ base64?: string; mime?: string; error?: string }>(
+        'GET_MEDIA_BLOB', 'GET_MEDIA_BLOB_RESULT', id, { path, maxBytes }, 120000
+      );
+    }
+    return Promise.resolve({ error: 'Not native' });
+  },
+
+  getIconLibraries(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_getIconLibs`;
+      return _nativeCall<any[]>('GET_ICON_LIBRARIES', 'ICON_LIBRARIES_RESULT', id).catch(() => []);
+    }
+    return Promise.resolve([]);
+  },
+
+  syncIconLibraries(libraries: any[]): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_syncIconLibs`;
+      return _nativeCall<boolean>('SYNC_ICON_LIBRARIES', 'SYNC_ICON_LIBRARIES_RESULT', id, { libraries }, 30000);
+    }
+    return Promise.resolve(true);
+  },
+
+  getArchiveContents(path: string, limit = 5000): Promise<any> {
+    if (this.isNative) {
+      const id = `${Date.now()}_archiveContents`;
+      return _nativeCall<any>('GET_ARCHIVE_CONTENTS', 'ARCHIVE_CONTENTS_RESULT', id, { path, limit }, 120000);
+    }
+    return Promise.resolve({ format: 'zip', entries: [], entryCount: 0, totalSize: 0 });
+  },
+
+  getTorrentInfo(path: string): Promise<any> {
+    if (this.isNative) {
+      const id = `${Date.now()}_torrentInfo`;
+      return _nativeCall<any>('GET_TORRENT_INFO', 'TORRENT_INFO_RESULT', id, { path }, 30000);
+    }
+    return Promise.resolve({ name: 'Sample', files: [], totalSize: 0 });
+  },
+
+  createArchive(sources: string[], target: string, format: 'zip' | '7z' | 'tar' | 'gz' | 'rar' = 'zip'): void {
+    if (this.isNative) {
+      const operationId = `archive-${Date.now()}`;
+      (window as any).chrome.webview.postMessage({
+        type: 'CREATE_ARCHIVE',
+        payload: { operationId, sources, target, format },
+      });
+    }
+  },
+
+  extractArchive(archivePath: string, destination: string): void {
+    if (this.isNative) {
+      const operationId = `extract-${Date.now()}`;
+      (window as any).chrome.webview.postMessage({
+        type: 'EXTRACT_ARCHIVE',
+        payload: { operationId, path: archivePath, destination },
+      });
+    }
+  },
+
+  createLink(linkPath: string, targetPath: string, linkType: 'symlink' | 'hardlink' | 'junction' | 'shortcut'): Promise<{ success: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_createLink`;
+      return _nativeCall<{ success: boolean; error?: string }>('CREATE_LINK', 'CREATE_LINK_RESULT', id, { linkPath, targetPath, linkType }, 15000);
+    }
+    return Promise.resolve({ success: false, error: 'Native only' });
+  },
+
+  refreshWorkspace(): Promise<void> {
+    if (this.isNative) {
+      const id = `${Date.now()}_refresh`;
+      return _nativeCall<void>('REFRESH_WORKSPACE', 'REFRESH_WORKSPACE_RESULT', id).catch(() => {});
+    }
+    return Promise.resolve();
+  },
+
+  setFileAttributes(path: string, attributes: Record<string, boolean>): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_setAttrs`;
+      return _nativeCall<boolean>('SET_FILE_ATTRIBUTES', 'SET_FILE_ATTRIBUTES_RESULT', id, { path, attributes });
+    }
+    return Promise.resolve(false);
+  },
+
+  async getTagsConfig(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_getTags`;
+      return _nativeCall<any[]>('GET_TAGS_CONFIG', 'TAGS_CONFIG_RESULT', id).catch(() => []);
+    }
+    const defaultTags = [
+      { name: 'red',       label: 'Red',       color: '#EF4444', icon: 'Circle'      },
+      { name: 'orange',    label: 'Orange',     color: '#F97316', icon: 'Circle'      },
+      { name: 'yellow',    label: 'Yellow',     color: '#EAB308', icon: 'Circle'      },
+      { name: 'green',     label: 'Green',      color: '#22C55E', icon: 'Circle'      },
+      { name: 'blue',      label: 'Blue',       color: '#3B82F6', icon: 'Circle'      },
+      { name: 'purple',    label: 'Purple',     color: '#A855F7', icon: 'Circle'      },
+      { name: 'gray',      label: 'Gray',       color: '#6B7280', icon: 'Circle'      },
+      { name: 'work',      label: 'Work',       color: '#2563EB', icon: 'Briefcase'   },
+      { name: 'personal',  label: 'Personal',   color: '#DB2777', icon: 'User'        },
+      { name: 'important', label: 'Important',  color: '#DC2626', icon: 'AlertCircle' },
+      { name: 'todo',      label: 'To-Do',      color: '#16A34A', icon: 'CheckSquare' },
+    ];
+    const stored = localStorage.getItem('bndz_tags_config');
+    return stored ? JSON.parse(stored) : defaultTags;
+  },
+
+  async saveTagsConfig(tags: any[]): Promise<void> {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SAVE_TAGS_CONFIG', payload: { tags } });
+    } else {
+      localStorage.setItem('bndz_tags_config', JSON.stringify(tags));
+    }
+  },
+
+  async applyTags(paths: string[], tags: string[]): Promise<void> {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'APPLY_TAGS', payload: { paths, tags } });
+    } else {
+      console.log('Applying tags', tags, 'to', paths);
+    }
+  },
+
+  windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag'): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action } });
+    }
+  },
+
+  setAlwaysOnTop(enabled: boolean): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'WINDOW_CHROME', payload: { action: 'alwaysOnTop', enabled } });
+    }
+  },
+
+  getWindowState(): Promise<{ maximized?: boolean }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_winState`;
+      return _nativeCall<{ maximized?: boolean }>('GET_WINDOW_STATE', 'WINDOW_STATE_RESULT', id);
+    }
+    return Promise.resolve({ maximized: false });
+  },
+
+  readTextFile(path: string, maxBytes = 2 * 1024 * 1024): Promise<{ content?: string; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_readText`;
+      return _nativeCall<{ content?: string; error?: string }>(
+        'READ_TEXT_FILE', 'READ_TEXT_FILE_RESULT', id, { path, maxBytes }, 60000
+      );
+    }
+    return Promise.resolve({ error: 'Not native' });
+  },
+
+  writeTextFile(path: string, content: string): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_writeText`;
+      return _nativeCall<boolean>('WRITE_TEXT_FILE', 'WRITE_TEXT_FILE_RESULT', id, { path, content }, 60000);
+    }
+    return Promise.resolve(false);
+  },
+
+  getLicenseStatus(): Promise<{ activated: boolean; email?: string; name?: string; serialMasked?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_licenseStatus`;
+      return _nativeCall<{ activated: boolean; email?: string; name?: string; serialMasked?: string }>(
+        'GET_LICENSE_STATUS', 'LICENSE_STATUS_RESULT', id, undefined, 10000,
+      ).catch(() => ({ activated: false }));
+    }
+    try {
+      const raw = localStorage.getItem('bndz_license');
+      if (!raw) return Promise.resolve({ activated: false });
+      const rec = JSON.parse(raw);
+      return Promise.resolve({
+        activated: !!rec.serial,
+        email: rec.email,
+        name: rec.name,
+        serialMasked: rec.serial ? `${String(rec.serial).slice(0, 9)}****` : undefined,
+      });
+    } catch {
+      return Promise.resolve({ activated: false });
+    }
+  },
+
+  activateLicense(serial: string, email: string, name: string): Promise<{ success: boolean; message?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_activateLicense`;
+      return _nativeCall<{ success: boolean; message?: string }>(
+        'ACTIVATE_LICENSE', 'ACTIVATE_LICENSE_RESULT', id, { serial, email, name }, 15000,
+      );
+    }
+    const ok = /^BNDZ-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(serial.trim());
+    if (!ok) return Promise.resolve({ success: false, message: 'Invalid serial format.' });
+    localStorage.setItem('bndz_license', JSON.stringify({ serial: serial.trim().toUpperCase(), email, name }));
+    return Promise.resolve({ success: true, message: 'Activated (preview mode).' });
+  },
+
+  deactivateLicense(): Promise<void> {
+    if (this.isNative) {
+      const id = `${Date.now()}_deactivateLicense`;
+      return _nativeCall<void>('DEACTIVATE_LICENSE', 'DEACTIVATE_LICENSE_RESULT', id).catch(() => {});
+    }
+    localStorage.removeItem('bndz_license');
+    return Promise.resolve();
+  },
+};

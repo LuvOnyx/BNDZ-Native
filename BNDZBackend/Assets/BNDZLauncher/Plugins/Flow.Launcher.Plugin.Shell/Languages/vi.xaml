@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Thay th? Win + R</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">Ðóng Command Prompt sau khi nh?n phím b?t k?</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Nh?n phím b?t k? d? dóng c?a s? này...</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Không dóng d?u nh?c l?nh sau khi th?c hi?n l?nh</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Luôn ch?y v?i tu cách qu?n tr? viên</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">S? d?ng Windows Terminal</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Xóa l?a ch?n dã ch?n</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_name">V?</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">Cho phép th?c thi các l?nh h? th?ng t? BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">l?nh này dã du?c th?c thi {0} l?n</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">th?c thi l?nh thông qua l?nh shell</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Ch?y v?i quy?n qu?n tr?</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_copy">Sao chép l?nh</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_history">Ch? hi?n th? s? lu?ng l?nh du?c s? d?ng nhi?u nh?t:</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Không tìm th?y l?nh: {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">L?i khi ch?y l?nh: {0}</system:String>
+</ResourceDictionary>

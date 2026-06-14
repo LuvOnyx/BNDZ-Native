@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!--  Dialogues  -->
+    <system:String x:Key="plugin_pluginsmanager_downloading_plugin">Plugin dang du?c t?i</system:String>
+    <system:String x:Key="plugin_pluginsmanager_download_success">�� t?i xu?ng th�nh c�ng!</system:String>
+    <system:String x:Key="plugin_pluginsmanager_download_error">L?i: Kh�ng th? t?i plugin xu?ng</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt">{0} b?i {1} {2}{3}B?n c� mu?n g? c�i d?t plugin n�y kh�ng? Sau khi g? c�i d?t Flow s? t? d?ng kh?i d?ng l?i.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt_no_restart">{0} by {1} {2}{2}Would you like to uninstall this plugin?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_prompt">{0} b?i {1} {2}{3}B?n c� mu?n g? c�i d?t plugin n�y kh�ng? Sau khi g? c�i d?t Flow s? t? d?ng kh?i d?ng l?i.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_prompt_no_restart">{0} by {1} {2}{2}Would you like to install this plugin?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_title">�� c�i d?t plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_installing_plugin">C�i d?t Plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_from_web">T?i v? v� c�i d?t</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_title">�� g? c�i d?t plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_title">Gi? l?i c�c c�i d?t plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_subtitle">Do you want to keep the settings of the plugin for the next usage?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_success_restart">�� c�i d?t th�nh c�ng plugin. �ang kh?i d?ng l?i Flow, vui l�ng d?i...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_errormetadatafile">Kh�ng th? t�m th?y t?p si�u d? li?u plugin.json t? t?p zip du?c gi?i n�n.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_duplicate">L?i: �� t?n t?i m?t plugin c� phi�n b?n tuong t? ho?c cao hon v?i {0}.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_title">L?i c�i d?t plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_subtitle">�� x?y ra l?i khi c? g?ng c�i d?t {0}</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_error_title">L?i c�i d?t plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_title">Kh�ng c� c?p nh?t</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_subtitle">T?t c? c�c plugin d?u du?c c?p nh?t</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_prompt">{0} b?i {1} {2}{3}B?n c� mu?n g? c�i d?t plugin n�y kh�ng? Sau khi g? c�i d?t Flow s? t? d?ng kh?i d?ng l?i.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_prompt_no_restart">{0} by {1} {2}{2}Would you like to update this plugin?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_title">C?p nh?t plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_alreadyexists">�� c�i d?t plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_failed_title">T?i xu?ng b?n k� khai plugin kh�ng th�nh c�ng</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_failed_subtitle">Vui l�ng ki?m tra xem b?n c� th? k?t n?i v?i github.com kh�ng. L?i n�y c� nghia l� b?n kh�ng th? c�i d?t ho?c c?p nh?t plugin.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_title">C?p nh?t t?t c? plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_subtitle">B?n c� mu?n c?p nh?t t?t c? c�c plugin kh�ng?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_prompt">Would you like to update {0} plugins?{1}BNDZ Launcher will restart after updating all plugins.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_prompt_no_restart">B?n c� mu?n c?p nh?t {0} plugin kh�ng?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_success_restart">{0} plugins successfully updated. Restarting BNDZ, please wait...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_success_restart">Plugin {0} successfully updated. Restarting BNDZ, please wait...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning_title">C�i d?t t? m?t ngu?n kh�ng x�c d?nh</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning">B?n dang c�i d?t plugin n�y t? m?t ngu?n kh�ng x�c d?nh v� n� c� th? ch?a nh?ng r?i ro ti?m ?n!{0}{0}H�y d?m b?o r?ng b?n hi?u plugin n�y d?n t? d�u v� n� an to�n.{0}{0}B?n v?n mu?n ti?p t?c ch?? {0}{0}(B?n c� th? t?t c?nh b�o n�y th�ng qua c�i d?t)</system:String>
+
+    <system:String x:Key="plugin_pluginsmanager_install_success_no_restart">Plugin {0} successfully installed. Please restart BNDZ.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_success_no_restart">Plugin {0} successfully uninstalled. Please restart BNDZ.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_success_no_restart">Plugin {0} successfully updated. Please restart BNDZ.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_success_no_restart">{0} plugins successfully updated. Please restart BNDZ.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error">Plugin {0} has already been modified. Please restart BNDZ before making any further changes.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_title">{0} modified already</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_message">Please restart BNDZ before making any further changes</system:String>
+
+    <system:String x:Key="plugin_pluginsmanager_invalid_zip_title">Invalid zip installer file</system:String>
+    <system:String x:Key="plugin_pluginsmanager_invalid_zip_subtitle">Please check if there is a plugin.json in {0}</system:String>
+
+    <!--  Plugin Infos  -->
+    <system:String x:Key="plugin_pluginsmanager_plugin_name">Tr�nh qu?n l� plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_description">Install, uninstall or update BNDZ Launcher plugins via the search window</system:String>
+    <system:String x:Key="plugin_pluginsmanager_unknown_author">Kh�ng�r��t�c�gi?</system:String>
+
+    <!--  Context menu items  -->
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_title">M? website</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_subtitle">Truy c?p trang web c?a plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_title">Xem m� ngu?n</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_subtitle">Xem m� ngu?n c?a plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_title">�? xu?t c?i ti?n ho?c g?i v?n d?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_subtitle">�? xu?t c?i ti?n ho?c g?i v?n d? cho nh� ph�t tri?n plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_title">�i t?i kho plugin c?a Flow</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_subtitle">Truy c?p kho luu tr? PluginsManifest d? xem c�c b?n g?i plugin do c?ng d?ng g?i</system:String>
+
+    <!--  Settings menu items  -->
+    <system:String x:Key="plugin_pluginsmanager_plugin_settings_unknown_source">C?nh b�o c�i d?t t? ngu?n kh�ng x�c d?nh</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_settings_auto_restart">Restart BNDZ Launcher automatically after installing/uninstalling/updating plugin via Plugins Manager</system:String>
+</ResourceDictionary>

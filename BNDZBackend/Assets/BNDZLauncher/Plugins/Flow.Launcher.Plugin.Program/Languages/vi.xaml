@@ -1,0 +1,99 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!--  Program setting  -->
+    <system:String x:Key="flowlauncher_plugin_program_reset">Khôi ph?c v? m?c d?nh</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete">Xóa</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_edit">S?a</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_add">Thêm</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_name">Tên</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable">Kích ho?t</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enabled">Ðã b?t</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable">Vô hi?u</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_status">Tr?ng thái</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_true">Ðã b?t</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_false">Vô hi?u hóa</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_location">V? trí</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_all_programs">T?t c? ?ng d?ng</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes">Lo?i t?p</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_reindex">Ch? s? hoá</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_indexing">Nh?p d? li?u</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_source">Ngu?n ch? m?c</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_option">Tùy ch?nh</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_uwp">UWP Apps</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_uwp_tooltip">When enabled, Flow will load UWP Applications</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_start">Menu Kh?i d?ng</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_start_tooltip">Khi du?c b?t, Flow s? t?i các chuong trình t? menu b?t d?u</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_registry">Ðang ký</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_registry_tooltip">Khi du?c b?t, Flow s? t?i các chuong trình t? menu b?t d?u</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_PATH">ÐU?NG D?N</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_PATH_tooltip">Khi du?c b?t, Flow s? t?i các chuong trình t? menu b?t d?u</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath">?n du?ng d?n ?ng d?ng</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath_tooltip">Ð?i v?i các t?p th?c thi nhu UWP ho?c lnk, hãy ?n du?ng d?n t?p d? không hi?n th?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hideuninstallers">Hide uninstallers</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hideuninstallers_tooltip">Hides programs with common uninstaller names, such as unins000.exe</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_description">Tìm ki?m trong Mô t? chuong trình</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_description_tooltip">Flow will search program's description</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hideduplicatedwindowsapp">Hide duplicated apps</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hideduplicatedwindowsapp_tooltip">Hide duplicated Win32 programs that are already in the UWP list</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_header">H?u t?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_max_depth_header">Ð? sâu t?i da:</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_directory">Danh b?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_browse">Duy?t</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_file_suffixes">H?u t? t?p:</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_max_search_depth">Ð? sâu tìm ki?m t?i da (-1 là không gi?i h?n):</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_pls_select_program_source">Hãy ch?n m?t ngu?n d? li?u</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete_program_source">B?n có ch?c ch?n là mu?n xóa các d?t hàng dã ch?n?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_not_user_added">Please select program sources that are not added by you</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_user_added">Please select program sources that are added by you</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_duplicate_program_source">Ðã t?n t?i m?t ngu?n chuong trình khác có cùng v? trí.</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_edit_program_source_title">Ngu?n chuong trình</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_edit_program_source_tips">Ch?nh s?a thu m?c và tr?ng thái c?a ngu?n chuong trình này.</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_update">C?p nh?t</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_only_index_tip">Program Plugin will only index files with selected suffixes and .url files with selected protocols.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_update_file_suffixes">Ðã c?p nh?t thành công h?u t? t?p</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_cannot_empty">H?u t? t?p không du?c d? tr?ng</system:String>
+    <system:String x:Key="flowlauncher_plugin_protocols_cannot_empty">Tru?ng c?ng không du?c tr?ng</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_executable_types">H?u t? t?p</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_types">URL Protocols</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_steam">Steam Games</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_epic">Epic Games</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_http">Http/Https</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_custom_urls">Custom URL Protocols</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_custom_file_types">Custom File Suffixes</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_tooltip">
+        Insert file suffixes you want to index. Suffixes should be separated by ';'. (ex&gt;bat;py)
+    </system:String>
+    <system:String x:Key="flowlauncher_plugin_program_protocol_tooltip">
+        Insert protocols of .url files you want to index. Protocols should be separated by ';', and should end with &quot;://&quot;. (ex&gt;ftp://;mailto://)
+    </system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_run_as_different_user">Xóa l?a ch?n dã ch?n</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_as_administrator">Ch?y v?i quy?n qu?n tr?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_open_containing_folder">M? thu m?c ch?a</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable_program">Hide</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_open_target_folder">M? thu m?c dích</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_plugin_name">Chuong trình</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_plugin_description">Tìm ki?m chuong trình trong BNDZ Launcher</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_invalid_path">Ðu?ng d?n không h?p l?</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_program_customizedexplorer">Trình khám phá tùy ch?nh</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_args">Ð?i s?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_tooltip_customizedexplorer">You can customize the explorer used for opening the container folder by inputing the Environmental Variable of the explorer you want to use. It will be useful to use CMD to test whether the Environmental Variable is available.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_tooltip_args">Nh?p các d?i s? tùy ch?nh mà b?n mu?n thêm cho trình khám phá tùy ch?nh c?a mình. %s cho thu m?c m?, %f cho du?ng d?n d?y d? (ch? ho?t d?ng v?i win32). Ki?m tra trang web c?a nhà thám hi?m d? bi?t chi ti?t.</system:String>
+
+    <!--  Dialogs  -->
+    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success">Thành công</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_error">L?i</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success_message">Ðã vô hi?u hóa thành công chuong trình này kh?i hi?n th? trong truy v?n c?a b?n</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_as_administrator_not_supported_message">?ng d?ng này không nh?m m?c dích ch?y v?i tu cách qu?n tr? viên</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_failed">Không th? d?c {0}</system:String>
+
+</ResourceDictionary>

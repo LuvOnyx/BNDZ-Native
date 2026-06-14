@@ -1,0 +1,708 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+    <!--  Startup  -->
+    <system:String x:Key="runtimePluginInstalledChooseRuntimePrompt">
+        BNDZ detected you have installed {0} plugins, which will require {1} to run. Would you like to download {1}?
+        {2}{2}
+        Click no if it's already installed, and you will be prompted to select the folder that contains the {1} executable
+    </system:String>
+    <system:String x:Key="runtimePluginChooseRuntimeExecutable">Please select the {0} executable</system:String>
+    <system:String x:Key="runtimeExecutableInvalidChooseDownload">
+        Your selected {0} executable is invalid.
+        {2}{2}
+        Click yes if you would like select the {0} executable again. Click no if you would like to download {1}
+    </system:String>
+    <system:String x:Key="runtimePluginUnableToSetExecutablePath">Unable to set {0} executable path, please try from BNDZ's settings (scroll down to the bottom).</system:String>
+    <system:String x:Key="failedToInitializePluginsTitle">Fail to Init Plugins</system:String>
+    <system:String x:Key="failedToInitializePluginsMessage">Plugins: {0} - fail to load and would be disabled, please contact plugin creator for help</system:String>
+
+    <!--  Portable  -->
+    <system:String x:Key="restartToDisablePortableMode">BNDZ Launcher needs to restart to finish disabling portable mode, after the restart your portable data profile will be deleted and roaming data profile kept</system:String>
+    <system:String x:Key="restartToEnablePortableMode">BNDZ Launcher needs to restart to finish enabling portable mode, after the restart your roaming data profile will be deleted and portable data profile kept</system:String>
+    <system:String x:Key="moveToDifferentLocation">BNDZ Launcher has detected you enabled portable mode, would you like to move it to a different location?</system:String>
+    <system:String x:Key="shortcutsUninstallerCreated">BNDZ Launcher has detected you disabled portable mode, the relevant shortcuts and uninstaller entry have been created</system:String>
+    <system:String x:Key="userDataDuplicated">BNDZ Launcher detected your user data exists both in {0} and {1}. {2}{2}Please delete {1} in order to proceed. No changes have occurred.</system:String>
+
+    <!--  Plugin Loader  -->
+    <system:String x:Key="pluginHasErrored">The following plugin has errored and cannot be loaded:</system:String>
+    <system:String x:Key="pluginsHaveErrored">The following plugins have errored and cannot be loaded:</system:String>
+    <system:String x:Key="referToLogs">Please refer to the logs for more information</system:String>
+
+    <!--  Http  -->
+    <system:String x:Key="pleaseTryAgain">Please try again</system:String>
+    <system:String x:Key="parseProxyFailed">Unable to parse Http Proxy</system:String>
+
+    <!--  AbstractPluginEnvironment  -->
+    <system:String x:Key="failToInstallTypeScriptEnv">Failed to install TypeScript environment. Please try again later</system:String>
+    <system:String x:Key="failToInstallPythonEnv">Failed to install Python environment. Please try again later.</system:String>
+
+    <!--  MainWindow  -->
+    <system:String x:Key="registerHotkeyFailed">Nepodarilo se zaregistrovat hotkey &quot;{0}&quot;. Kl�vesov� zkratka mu�e b�t pou��v�na jin�m programem. Zmente na jinou kl�vesu nebo ukonc�te jin� program.</system:String>
+    <system:String x:Key="unregisterHotkeyFailed">Failed to unregister hotkey &quot;{0}&quot;. Please try again or see log for details</system:String>
+    <system:String x:Key="MessageBoxTitle">BNDZ Launcher</system:String>
+    <system:String x:Key="couldnotStartCmd">Nepodarilo se spustit {0}</system:String>
+    <system:String x:Key="invalidFlowLauncherPluginFileFormat">Neplatn� typ souboru pluginu aplikace BNDZ Launcher</system:String>
+    <system:String x:Key="setAsTopMostInThisQuery">Pripnout jako prvn� v�sledek tohoto hled�n�</system:String>
+    <system:String x:Key="cancelTopMostInThisQuery">Odepnout jako prvn� v�sledek tohoto hled�n�</system:String>
+    <system:String x:Key="executeQuery">Prov�st hled�n�: {0}</system:String>
+    <system:String x:Key="lastExecuteTime">Posledn� cas proveden�: {0}</system:String>
+    <system:String x:Key="iconTrayOpen">Otevr�t</system:String>
+    <system:String x:Key="iconTraySettings">Nastaven�</system:String>
+    <system:String x:Key="iconTrayAbout">O aplikaci</system:String>
+    <system:String x:Key="iconTrayExit">Ukoncit</system:String>
+    <system:String x:Key="closeWindow">Zavr�t</system:String>
+    <system:String x:Key="copy">Kop�rovat</system:String>
+    <system:String x:Key="cut">Vyjmout</system:String>
+    <system:String x:Key="paste">Vlo�it</system:String>
+    <system:String x:Key="undo">Vr�tit zpet</system:String>
+    <system:String x:Key="selectAll">Vybrat v�e</system:String>
+    <system:String x:Key="fileTitle">Soubor</system:String>
+    <system:String x:Key="folderTitle">Slo�ka</system:String>
+    <system:String x:Key="textTitle">Text</system:String>
+    <system:String x:Key="GameMode">Hern� re�im</system:String>
+    <system:String x:Key="GameModeToolTip">Potlacit u��v�n� kl�vesov�ch zkratek.</system:String>
+    <system:String x:Key="PositionReset">Obnovit pozici</system:String>
+    <system:String x:Key="PositionResetToolTip">Reset search window position</system:String>
+    <system:String x:Key="queryTextBoxPlaceholder">Type here to search</system:String>
+    <system:String x:Key="pluginStillInitializing">{0}: This plugin is still initializing...</system:String>
+    <system:String x:Key="pluginStillInitializingSubtitle">Select this result to requery</system:String>
+    <system:String x:Key="pluginFailedToRespond">{0}: Failed to respond!</system:String>
+    <system:String x:Key="pluginFailedToRespondSubtitle">Select this result for more info</system:String>
+
+    <!--  Setting General  -->
+    <system:String x:Key="flowlauncher_settings">Nastaven�</system:String>
+    <system:String x:Key="general">Obecn�</system:String>
+    <system:String x:Key="portableMode">Prenosn� re�im</system:String>
+    <system:String x:Key="portableModeToolTIp">Ukl�dat v�echna nastaven� a u�ivatelsk� data v jedn� slo�ce (U�itecn� pri u�it� s prenosn�mi zar�zen�mi).</system:String>
+    <system:String x:Key="startFlowLauncherOnSystemStartup">Spustit BNDZ Launcher pri spu�ten� syst�mu</system:String>
+    <system:String x:Key="useLogonTaskForStartup">Use logon task instead of startup entry for faster startup experience</system:String>
+    <system:String x:Key="useLogonTaskForStartupTooltip">After uninstallation, you need to manually remove this task (BNDZ.Launcher Startup) via Task Scheduler</system:String>
+    <system:String x:Key="setAutoStartFailed">Pri nastavov�n� spou�ten� do�lo k chybe</system:String>
+    <system:String x:Key="hideFlowLauncherWhenLoseFocus">Skr�t BNDZ Launcher pri vykliknut�</system:String>
+    <system:String x:Key="showTaskbarWhenOpened">Show taskbar when BNDZ Launcher is opened</system:String>
+    <system:String x:Key="showTaskbarWhenOpenedToolTip">Temporarily show the taskbar when BNDZ Launcher is opened, useful for auto-hidden taskbars.</system:String>
+    <system:String x:Key="dontPromptUpdateMsg">Nezobrazovat ozn�men� o nov� verzi</system:String>
+    <system:String x:Key="SearchWindowPosition">Search Window Location</system:String>
+    <system:String x:Key="SearchWindowScreenRememberLastLaunchLocation">Zapamatovat posledn� pozici</system:String>
+    <system:String x:Key="SearchWindowScreenCursor">Obrazovka s kurzorem</system:String>
+    <system:String x:Key="SearchWindowScreenFocus">Obrazovka s aktivn�m oknem</system:String>
+    <system:String x:Key="SearchWindowScreenPrimary">Prim�rn� obrazovka</system:String>
+    <system:String x:Key="SearchWindowScreenCustom">Vlastn� obrazovka</system:String>
+    <system:String x:Key="SearchWindowAlign">Pozice vyhled�vac�ho okna na obrazovce</system:String>
+    <system:String x:Key="SearchWindowAlignCenter">Uprostred</system:String>
+    <system:String x:Key="SearchWindowAlignCenterTop">Uprostred nahore</system:String>
+    <system:String x:Key="SearchWindowAlignLeftTop">Vlevo nahore</system:String>
+    <system:String x:Key="SearchWindowAlignRightTop">Vpravo nahore</system:String>
+    <system:String x:Key="SearchWindowAlignCustom">Vlastn� um�sten�</system:String>
+    <system:String x:Key="language">Jazyk</system:String>
+    <system:String x:Key="lastQueryMode">Styl posledn�ho vyhled�v�n�</system:String>
+    <system:String x:Key="lastQueryModeToolTip">Zobrazit / skr�t predchoz� v�sledky po znovuzobrazen� BNDZ Launcher.</system:String>
+    <system:String x:Key="LastQueryPreserved">Zachovat posledn� dotaz</system:String>
+    <system:String x:Key="LastQuerySelected">Vybrat posledn� dotaz</system:String>
+    <system:String x:Key="LastQueryEmpty">Smazat posledn� dotaz</system:String>
+    <system:String x:Key="LastQueryActionKeywordPreserved">Preserve Last Action Keyword</system:String>
+    <system:String x:Key="LastQueryActionKeywordSelected">Select Last Action Keyword</system:String>
+    <system:String x:Key="maxShowResults">Pocet zobrazen�ch v�sledku</system:String>
+    <system:String x:Key="maxShowResultsToolTip">Toto nastaven� mu�ete tak� rychle upravit pomoc� CTRL + Plus a CTRL + Minus.</system:String>
+    <system:String x:Key="ignoreHotkeysOnFullscreen">Ignorovat kl�vesov� zkratky v re�imu cel� obrazovky</system:String>
+    <system:String x:Key="ignoreHotkeysOnFullscreenToolTip">Zak�zat zobrazen� aplikace BNDZ Launcher pri behu jin� aplikace v re�imu cel� obrazovky (Doporuceno pro hry).</system:String>
+    <system:String x:Key="defaultFileManager">V�choz� spr�vce souboru</system:String>
+    <system:String x:Key="defaultFileManagerToolTip">Vyberte spr�vce souboru, kter� bude pou�it pri otev�r�n� slo�ky.</system:String>
+    <system:String x:Key="defaultBrowser">V�choz� prohl�ec</system:String>
+    <system:String x:Key="defaultBrowserToolTip">Nastaven� pro novou z�lo�ku, nov� okno, soukrom� re�im.</system:String>
+    <system:String x:Key="pythonFilePath">Cesta k Python</system:String>
+    <system:String x:Key="nodeFilePath">Cesta k Node.js</system:String>
+    <system:String x:Key="selectNodeExecutable">Pros�m, vyberte spustiteln� soubor Node.js</system:String>
+    <system:String x:Key="selectPythonExecutable">Pros�m, vyberte pythonw.exe</system:String>
+    <system:String x:Key="typingStartEn">V�dy spou�tet psan� v anglick�m rozvr�en� kl�vesnice</system:String>
+    <system:String x:Key="typingStartEnTooltip">Docasne zmen� metodu vstupu do anglictiny pri zobrazen� BNDZ Launcher.</system:String>
+    <system:String x:Key="autoUpdates">Automatick� aktualizace</system:String>
+    <system:String x:Key="autoUpdatesTooltip">Automatically check and update the app when available</system:String>
+    <system:String x:Key="select">Vybrat</system:String>
+    <system:String x:Key="hideOnStartup">Skr�t BNDZ Launcher pri spu�ten�</system:String>
+    <system:String x:Key="hideOnStartupToolTip">BNDZ Launcher search window is hidden in the tray after starting up.</system:String>
+    <system:String x:Key="hideNotifyIcon">Skr�t ikonu v syst�mov� li�te</system:String>
+    <system:String x:Key="hideNotifyIconToolTip">Pokud je ikona v oznamovac� oblasti skryt�, nastaven� lze otevr�t kliknut�m prav�m tlac�tkem my�i na okno vyhled�v�n�.</system:String>
+    <system:String x:Key="ignoreAccents">Ignore accents when searching</system:String>
+    <system:String x:Key="ignoreAccentsToolTip">Treat accented and unaccented characters as equivalent.</system:String>
+    <system:String x:Key="promptIgnoreAccents">Would you like to turn on the option to ignore accents when searching?</system:String>
+    <system:String x:Key="querySearchPrecision">Presnost vyhled�v�n�</system:String>
+    <system:String x:Key="querySearchPrecisionToolTip">Zmen� minim�ln� sk�re shody, kter� je nutn� pro zobrazen� v�sledku.</system:String>
+    <system:String x:Key="SearchPrecisionNone">None</system:String>
+    <system:String x:Key="SearchPrecisionLow">Low</system:String>
+    <system:String x:Key="SearchPrecisionRegular">Regular</system:String>
+    <system:String x:Key="ShouldUsePinyin">Vyhled�v�n� pomoc� pchin-jin</system:String>
+    <system:String x:Key="ShouldUsePinyinToolTip">Pinyin is the standard system of romanized spelling for translating Chinese. Please note, enabling this can significantly increase memory usage during search.</system:String>
+    <system:String x:Key="ShouldUseDoublePinyin">Use Double Pinyin</system:String>
+    <system:String x:Key="ShouldUseDoublePinyinToolTip">Use Double Pinyin instead of Full Pinyin to search.</system:String>
+    <system:String x:Key="DoublePinyinSchema">Double Pinyin Schema</system:String>
+    <system:String x:Key="DoublePinyinSchemasXiaoHe">Xiao He</system:String>
+    <system:String x:Key="DoublePinyinSchemasZiRanMa">Zi Ran Ma</system:String>
+    <system:String x:Key="DoublePinyinSchemasWeiRuan">Wei Ruan</system:String>
+    <system:String x:Key="DoublePinyinSchemasZhiNengABC">Zhi Neng ABC</system:String>
+    <system:String x:Key="DoublePinyinSchemasZiGuangPinYin">Zi Guang Pin Yin</system:String>
+    <system:String x:Key="DoublePinyinSchemasPinYinJiaJia">Pin Yin Jia Jia</system:String>
+    <system:String x:Key="DoublePinyinSchemasXingKongJianDao">Xing Kong Jian Dao</system:String>
+    <system:String x:Key="DoublePinyinSchemasDaNiu">Da Niu</system:String>
+    <system:String x:Key="DoublePinyinSchemasXiaoLang">Xiao Lang</system:String>
+    <system:String x:Key="HelpUsTranslateFlow">Help us translate BNDZ</system:String>
+
+    <system:String x:Key="AlwaysPreview">V�dy zobrazit n�hled</system:String>
+    <system:String x:Key="AlwaysPreviewToolTip">Pri aktivaci slu�by Flow v�dy otevrete panel n�hledu. Stisknut�m kl�vesy {0} prepnete n�hled.</system:String>
+    <system:String x:Key="shadowEffectNotAllowed">St�nov� efekt nen� povolen, pokud je aktivn� efekt rozostren�</system:String>
+    <system:String x:Key="searchDelay">Search Delay</system:String>
+    <system:String x:Key="searchDelayToolTip">Adds a short delay while typing to reduce UI flicker and result load. Recommended if your typing speed is average.</system:String>
+    <system:String x:Key="searchDelayNumberBoxToolTip">Enter the wait time (in ms) until input is considered complete. This can only be edited if Search Delay is enabled.</system:String>
+    <system:String x:Key="searchDelayTime">Default Search Delay Time</system:String>
+    <system:String x:Key="searchDelayTimeToolTip">Wait time before showing results after typing stops. Higher values wait longer. (ms)</system:String>
+    <system:String x:Key="KoreanImeTitle">Information for Korean IME user</system:String>
+    <system:String x:Key="KoreanImeGuide">
+        The Korean input method used in Windows 11 may cause some issues in BNDZ Launcher.
+
+        If you experience any problems, you may need to enable &quot;Use previous version of Korean IME&quot;.
+
+
+        Open Setting in Windows 11 and go to:
+
+        Time &amp; Language &gt; Language &amp; Region &gt; Korean &gt; Language Options &gt; Keyboard - Microsoft IME &gt; Compatibility,
+
+        and enable &quot;Use previous version of Microsoft IME&quot;.
+
+
+    </system:String>
+    <system:String x:Key="KoreanImeOpenLink">Open Language and Region System Settings</system:String>
+    <system:String x:Key="KoreanImeOpenLinkToolTip">Opens the Korean IME setting location. Go to Korean &gt; Language Options &gt; Keyboard - Microsoft IME &gt; Compatibility</system:String>
+    <system:String x:Key="KoreanImeOpenLinkButton">Otevr�t</system:String>
+    <system:String x:Key="KoreanImeRegistry">Use Previous Korean IME</system:String>
+    <system:String x:Key="KoreanImeRegistryTooltip">You can change the Previous Korean IME settings directly from here</system:String>
+    <system:String x:Key="KoreanImeSettingChangeFailTitle">Failed to change Korean IME setting</system:String>
+    <system:String x:Key="KoreanImeSettingChangeFailSubTitle">Please check your system registry access or contact support.</system:String>
+    <system:String x:Key="homePage">Home Page</system:String>
+    <system:String x:Key="homePageToolTip">Show home page results when query text is empty.</system:String>
+    <system:String x:Key="historyResultsForHomePage">Show History Results in Home Page</system:String>
+    <system:String x:Key="historyResultsCountForHomePage">Maximum History Results Shown in Home Page</system:String>
+    <system:String x:Key="historyStyle">History Style</system:String>
+    <system:String x:Key="historyStyleTooltip">Choose the type of history to show in the History and Home Page</system:String>
+    <system:String x:Key="queryHistory">Query history</system:String>
+    <system:String x:Key="executedHistory">Last opened history</system:String>
+    <system:String x:Key="homeToggleBoxToolTip">This can only be edited if plugin supports Home feature and Home Page is enabled.</system:String>
+    <system:String x:Key="showAtTopmost">Show Search Window at Foremost</system:String>
+    <system:String x:Key="showAtTopmostToolTip">Overrides other programs' 'Always on Top' setting and shows BNDZ in the foremost position.</system:String>
+    <system:String x:Key="autoRestartAfterChanging">Restart after modifying plugin via Plugin Store</system:String>
+    <system:String x:Key="autoRestartAfterChangingToolTip">Restart BNDZ Launcher automatically after installing/uninstalling/updating plugin via Plugin Store</system:String>
+    <system:String x:Key="showUnknownSourceWarning">Show unknown source warning</system:String>
+    <system:String x:Key="showUnknownSourceWarningToolTip">Show warning when installing plugins from unknown sources</system:String>
+    <system:String x:Key="autoUpdatePlugins">Auto update plugins</system:String>
+    <system:String x:Key="autoUpdatePluginsToolTip">Automatically check plugin updates and notify if there are any updates available</system:String>
+
+    <!--  Setting Plugin  -->
+    <system:String x:Key="searchplugin">Vyhledat plugin</system:String>
+    <system:String x:Key="searchpluginToolTip">Ctrl+F pro hled�n� pluginu</system:String>
+    <system:String x:Key="searchplugin_Noresult_Title">Nenalezeny ��dn� v�sledky</system:String>
+    <system:String x:Key="searchplugin_Noresult_Subtitle">Zkuste pros�m jin� vyhled�v�n�.</system:String>
+    <system:String x:Key="plugin">Pluginy</system:String>
+    <system:String x:Key="plugins">Pluginy</system:String>
+    <system:String x:Key="browserMorePlugins">Naj�t dal�� pluginy</system:String>
+    <system:String x:Key="enable">Zapnuto</system:String>
+    <system:String x:Key="disable">Vypnuto</system:String>
+    <system:String x:Key="actionKeywordsTitle">Nastaven� akcn�ho pr�kazu</system:String>
+    <system:String x:Key="actionKeywords">Aktivacn� pr�kaz</system:String>
+    <system:String x:Key="currentActionKeywords">Aktu�ln� aktivacn� pr�kaz</system:String>
+    <system:String x:Key="newActionKeyword">Nov� aktivacn� pr�kaz</system:String>
+    <system:String x:Key="actionKeywordsTooltip">Upravit aktivacn� pr�kaz</system:String>
+    <system:String x:Key="pluginSearchDelayTime">Plugin search delay time</system:String>
+    <system:String x:Key="pluginSearchDelayTimeTooltip">Change Plugin Search Delay Time</system:String>
+    <system:String x:Key="FilterComboboxLabel">Advanced Settings:</system:String>
+    <system:String x:Key="DisplayModeOnOff">Povoleno</system:String>
+    <system:String x:Key="DisplayModePriority">Priorita</system:String>
+    <system:String x:Key="DisplayModeSearchDelay">Search Delay</system:String>
+    <system:String x:Key="DisplayModeHomeOnOff">Home Page</system:String>
+    <system:String x:Key="currentPriority">Aktu�ln� priorita</system:String>
+    <system:String x:Key="newPriority">Nov� priorita</system:String>
+    <system:String x:Key="priority">Priorita</system:String>
+    <system:String x:Key="priorityToolTip">Zmenit prioritu v�sledku pluginu</system:String>
+    <system:String x:Key="pluginDirectory">Adres�r pluginu</system:String>
+    <system:String x:Key="author">od</system:String>
+    <system:String x:Key="plugin_init_time">Iniciace:</system:String>
+    <system:String x:Key="plugin_query_time">Cas dotazu:</system:String>
+    <system:String x:Key="plugin_query_version">Verze</system:String>
+    <system:String x:Key="plugin_query_web">Webov� str�nka</system:String>
+    <system:String x:Key="plugin_uninstall">Odinstalovat</system:String>
+    <system:String x:Key="plugin_default_search_delay_time">Search delay time: default</system:String>
+    <system:String x:Key="plugin_search_delay_time">Search delay time: {0}ms</system:String>
+    <system:String x:Key="failedToRemovePluginSettingsTitle">Fail to remove plugin settings</system:String>
+    <system:String x:Key="failedToRemovePluginSettingsMessage">Plugins: {0} - Fail to remove plugin settings files, please remove them manually</system:String>
+    <system:String x:Key="failedToRemovePluginCacheTitle">Fail to remove plugin cache</system:String>
+    <system:String x:Key="failedToRemovePluginCacheMessage">Plugins: {0} - Fail to remove plugin cache files, please remove them manually</system:String>
+    <system:String x:Key="pluginModifiedAlreadyTitle">{0} modified already</system:String>
+    <system:String x:Key="pluginModifiedAlreadyMessage">Please restart BNDZ before making any further changes</system:String>
+    <system:String x:Key="failedToInstallPluginTitle">Fail to install {0}</system:String>
+    <system:String x:Key="failedToUninstallPluginTitle">Fail to uninstall {0}</system:String>
+    <system:String x:Key="fileNotFoundMessage">Unable to find plugin.json from the extracted zip file, or this path {0} does not exist</system:String>
+    <system:String x:Key="pluginExistAlreadyMessage">A plugin with the same ID and version already exists, or the version is greater than this downloaded plugin</system:String>
+    <system:String x:Key="errorCreatingSettingPanel">Error creating setting panel for plugin {0}:{1}{2}</system:String>
+    <system:String x:Key="pluginMinimumAppVersionUnsatisfiedTitle">{0} requires BNDZ version {1} to run</system:String>
+    <system:String x:Key="pluginMinimumAppVersionUnsatisfiedMessage">BNDZ does not meet the minimum version requirements for {0} to run. Do you want to continue installing it?{1}{1}We recommend updating BNDZ to the latest version to ensure that {0} works without issues.</system:String>
+    <system:String x:Key="pluginJsonInvalidOrCorrupted">Failed to install plugin because plugin.json is invalid or corrupted</system:String>
+
+    <!--  Setting Plugin Store  -->
+    <system:String x:Key="pluginStore">Obchod s pluginy</system:String>
+    <system:String x:Key="pluginStore_NewRelease">Nov� verze</system:String>
+    <system:String x:Key="pluginStore_RecentlyUpdated">Ned�vno aktualizovan�</system:String>
+    <system:String x:Key="pluginStore_None">Pluginy</system:String>
+    <system:String x:Key="pluginStore_Installed">Nainstalovan�</system:String>
+    <system:String x:Key="PluginStoreSortModeDefault">Default</system:String>
+    <system:String x:Key="PluginStoreSortModeName">Jm�no</system:String>
+    <system:String x:Key="PluginStoreSortModeReleaseDate">Release Date</system:String>
+    <system:String x:Key="PluginStoreSortModeUpdatedDate">Updated Date</system:String>
+    <system:String x:Key="PluginStoreSortingModeComboboxLabel">Sorting Mode:</system:String>
+    <system:String x:Key="refresh">Obnovit</system:String>
+    <system:String x:Key="installbtn">Instalovat</system:String>
+    <system:String x:Key="uninstallbtn">Odinstalovat</system:String>
+    <system:String x:Key="updatebtn">Aktualizovat</system:String>
+    <system:String x:Key="LabelInstalledToolTip">Plugin je ji� nainstalov�n</system:String>
+    <system:String x:Key="LabelNew">Nov� verze</system:String>
+    <system:String x:Key="LabelNewToolTip">Tento plugin byl aktualizov�n behem posledn�ch 7 dn�</system:String>
+    <system:String x:Key="LabelUpdateToolTip">Nov� aktualizace je k dispozici</system:String>
+    <system:String x:Key="ErrorInstallingPlugin">Chyba instalace pluginu</system:String>
+    <system:String x:Key="ErrorUninstallingPlugin">Error uninstalling plugin</system:String>
+    <system:String x:Key="ErrorUpdatingPlugin">Error updating plugin</system:String>
+    <system:String x:Key="KeepPluginSettingsTitle">Keep plugin settings</system:String>
+    <system:String x:Key="KeepPluginSettingsSubtitle">Do you want to keep the settings of the plugin for the next usage?</system:String>
+    <system:String x:Key="InstallSuccessNoRestart">Plugin {0} successfully installed. Please restart BNDZ.</system:String>
+    <system:String x:Key="UninstallSuccessNoRestart">Plugin {0} successfully uninstalled. Please restart BNDZ.</system:String>
+    <system:String x:Key="UpdateSuccessNoRestart">Plugin {0} successfully updated. Please restart BNDZ.</system:String>
+    <system:String x:Key="InstallPromptTitle">Plugin install</system:String>
+    <system:String x:Key="InstallPromptSubtitle">{0} by {1} {2}{2}Would you like to install this plugin?</system:String>
+    <system:String x:Key="UninstallPromptTitle">Plugin uninstall</system:String>
+    <system:String x:Key="UninstallPromptSubtitle">{0} by {1} {2}{2}Would you like to uninstall this plugin?</system:String>
+    <system:String x:Key="UpdatePromptTitle">Plugin update</system:String>
+    <system:String x:Key="UpdatePromptSubtitle">{0} by {1} {2}{2}Would you like to update this plugin?</system:String>
+    <system:String x:Key="DownloadingPlugin">Stahov�n� pluginu</system:String>
+    <system:String x:Key="AutoRestartAfterChange">Automatically restart after installing/uninstalling/updating plugins in plugin store</system:String>
+    <system:String x:Key="ZipFileNotHavePluginJson">Zip file does not have a valid plugin.json configuration</system:String>
+    <system:String x:Key="InstallFromUnknownSourceTitle">Instalace z nezn�m�ho zdroje</system:String>
+    <system:String x:Key="InstallFromUnknownSourceSubtitle">This plugin is from an unknown source and it may contain potential risks!{0}{0}Please ensure you understand where this plugin is from and that it is safe.{0}{0}Would you like to continue still?{0}{0}(You can switch off this warning in general section of setting window)</system:String>
+    <system:String x:Key="ZipFiles">Zip files</system:String>
+    <system:String x:Key="SelectZipFile">Please select zip file</system:String>
+    <system:String x:Key="installLocalPluginTooltip">Install plugin from local path</system:String>
+    <system:String x:Key="updateNoResultTitle">Nejsou dostupn� ��dn� aktualizace</system:String>
+    <system:String x:Key="updateNoResultSubtitle">V�echny pluginy jsou aktu�ln�</system:String>
+    <system:String x:Key="updateAllPluginsTitle">Plugin updates available</system:String>
+    <system:String x:Key="updateAllPluginsButtonContent">Update plugins</system:String>
+    <system:String x:Key="checkPluginUpdatesTooltip">Check plugin updates</system:String>
+    <system:String x:Key="PluginsUpdateSuccessNoRestart">Plugins are successfully updated. Please restart BNDZ.</system:String>
+
+    <!--  Setting Theme  -->
+    <system:String x:Key="theme">Motiv</system:String>
+    <system:String x:Key="appearance">Vzhled</system:String>
+    <system:String x:Key="browserMoreThemes">Galerie motivu</system:String>
+    <system:String x:Key="howToCreateTheme">Jak vytvorit motiv</system:String>
+    <system:String x:Key="hiThere">V�tejte</system:String>
+    <system:String x:Key="SampleTitleExplorer">Pruzkumn�k</system:String>
+    <system:String x:Key="SampleSubTitleExplorer">Vyhled�v�n� souboru, slo�ek a obsahu souboru</system:String>
+    <system:String x:Key="SampleTitleWebSearch">Webov� vyhled�v�n�</system:String>
+    <system:String x:Key="SampleSubTitleWebSearch">Webov� vyhled�v�n� s podporou ruzn�ch vyhled�vacu</system:String>
+    <system:String x:Key="SampleTitleProgram">Program�</system:String>
+    <system:String x:Key="SampleSubTitleProgram">Spustit programy jako administr�tor nebo jin� u�ivatel</system:String>
+    <system:String x:Key="SampleTitleProcessKiller">ProcessKiller</system:String>
+    <system:String x:Key="SampleSubTitleProcessKiller">Ukoncit ne��douc� procesy</system:String>
+    <system:String x:Key="SearchBarHeight">Search Bar Height</system:String>
+    <system:String x:Key="ItemHeight">Item Height</system:String>
+    <system:String x:Key="queryBoxFont">P�smo vyhled�vac�ho pole</system:String>
+    <system:String x:Key="resultItemFont">Result Title Font</system:String>
+    <system:String x:Key="resultSubItemFont">Result Subtitle Font</system:String>
+    <system:String x:Key="resetCustomize">Reset</system:String>
+    <system:String x:Key="resetCustomizeToolTip">Reset to the recommended font and size settings.</system:String>
+    <system:String x:Key="ImportThemeSize">Import Theme Size</system:String>
+    <system:String x:Key="ImportThemeSizeToolTip">If a size value intended by the theme designer is available, it will be retrieved and applied.</system:String>
+    <system:String x:Key="CustomizeToolTip">Customize</system:String>
+    <system:String x:Key="windowMode">Re�im okna</system:String>
+    <system:String x:Key="opacity">Nepruhlednost</system:String>
+    <system:String x:Key="theme_load_failure_path_not_exists">Motiv {0} neexistuje, pou�ije se v�choz� motiv</system:String>
+    <system:String x:Key="theme_load_failure_parse_error">Nepodarilo se nac�st motiv {0}, je pou�it v�choz� motiv</system:String>
+    <system:String x:Key="ThemeFolder">Slo�ka motivu</system:String>
+    <system:String x:Key="OpenThemeFolder">Otevr�t slo�ku motivu</system:String>
+    <system:String x:Key="ColorScheme">Barevn� sch�ma</system:String>
+    <system:String x:Key="ColorSchemeSystem">V�choz� syst�mov� nastaven�</system:String>
+    <system:String x:Key="ColorSchemeLight">Svetl�</system:String>
+    <system:String x:Key="ColorSchemeDark">Tmav�</system:String>
+    <system:String x:Key="SoundEffect">Zvukov� efekt</system:String>
+    <system:String x:Key="SoundEffectTip">Prehr�t kr�tk� zvuk pri otevren� okna vyhled�v�n�</system:String>
+    <system:String x:Key="SoundEffectVolume">Sound Effect Volume</system:String>
+    <system:String x:Key="SoundEffectVolumeTip">Adjust the volume of the sound effect</system:String>
+    <system:String x:Key="SoundEffectWarning">Windows Media Player is unavailable and is required for BNDZ's volume adjustment. Please check your installation if you need to adjust volume.</system:String>
+    <system:String x:Key="Animation">Animace</system:String>
+    <system:String x:Key="AnimationTip">Pou��t animaci v UI</system:String>
+    <system:String x:Key="AnimationSpeed">Rychlost animace</system:String>
+    <system:String x:Key="AnimationSpeedTip">Rychlost animace u�ivatelsk�ho rozhran�</system:String>
+    <system:String x:Key="AnimationSpeedSlow">Pomalu</system:String>
+    <system:String x:Key="AnimationSpeedMedium">Stredn�</system:String>
+    <system:String x:Key="AnimationSpeedFast">Rychle</system:String>
+    <system:String x:Key="AnimationSpeedCustom">Vlastn�</system:String>
+    <system:String x:Key="Clock">Hodiny</system:String>
+    <system:String x:Key="Date">Datum</system:String>
+    <system:String x:Key="BackdropType">Backdrop Type</system:String>
+    <system:String x:Key="BackdropInfo">The backdrop effect is not applied in the preview.</system:String>
+    <system:String x:Key="BackdropTypeDisabledToolTip">Backdrop supported starting from Windows 11 build 22000 and above</system:String>
+    <system:String x:Key="BackdropTypesNone">None</system:String>
+    <system:String x:Key="BackdropTypesAcrylic">Acrylic</system:String>
+    <system:String x:Key="BackdropTypesMica">Mica</system:String>
+    <system:String x:Key="BackdropTypesMicaAlt">Mica Alt</system:String>
+    <system:String x:Key="TypeIsDarkToolTip">This theme supports two (light/dark) modes.</system:String>
+    <system:String x:Key="TypeHasBlurToolTip">This theme supports Blur Transparent Background.</system:String>
+    <system:String x:Key="ShowPlaceholder">Show placeholder</system:String>
+    <system:String x:Key="ShowPlaceholderTip">Display placeholder when query is empty</system:String>
+    <system:String x:Key="PlaceholderText">Placeholder text</system:String>
+    <system:String x:Key="PlaceholderTextTip">Change placeholder text. Input empty will use: {0}</system:String>
+    <system:String x:Key="KeepMaxResults">Fixed Window Size</system:String>
+    <system:String x:Key="KeepMaxResultsToolTip">The window size is not adjustable by dragging.</system:String>
+    <system:String x:Key="MaxShowResultsCannotWorkWithAlwaysPreview">Since Always Preview is on, maximum results shown may not take effect because preview panel requires a certain minimum height</system:String>
+
+    <!--  Setting Hotkey  -->
+    <system:String x:Key="hotkey">Kl�vesov� zkratka</system:String>
+    <system:String x:Key="hotkeys">Kl�vesov� zkratky</system:String>
+    <system:String x:Key="flowlauncherHotkey">Open BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncherHotkeyToolTip">Zadejte zkratku pro zobrazen�/skryt� n�stroje BNDZ Launcher.</system:String>
+    <system:String x:Key="previewHotkey">Toggle Preview</system:String>
+    <system:String x:Key="previewHotkeyToolTip">Zadejte kl�vesovou zkratku pro zobrazen�/skryt� n�hledu v okne vyhled�v�n�.</system:String>
+    <system:String x:Key="hotkeyPresets">Hotkey Presets</system:String>
+    <system:String x:Key="hotkeyPresetsToolTip">List of currently registered hotkeys</system:String>
+    <system:String x:Key="openResultModifiers">Modifikacn� kl�vesa pro otevren� v�sledku</system:String>
+    <system:String x:Key="openResultModifiersToolTip">V�berem modifikacn� kl�vesy otevrete vybran� v�sledek pomoc� kl�vesnice.</system:String>
+    <system:String x:Key="showOpenResultHotkey">Zobrazit kl�vesovou zkratku</system:String>
+    <system:String x:Key="showOpenResultHotkeyToolTip">Zobraz� kl�vesovou zkratku spolu s v�sledky.</system:String>
+    <system:String x:Key="autoCompleteHotkey">Auto Complete</system:String>
+    <system:String x:Key="autoCompleteHotkeyToolTip">Runs autocomplete for the selected items.</system:String>
+    <system:String x:Key="SelectNextItemHotkey">Select Next Item</system:String>
+    <system:String x:Key="SelectPrevItemHotkey">Select Previous Item</system:String>
+    <system:String x:Key="SelectNextPageHotkey">Next Page</system:String>
+    <system:String x:Key="SelectPrevPageHotkey">Previous Page</system:String>
+    <system:String x:Key="CycleHistoryUpHotkey">Cycle Previous Query</system:String>
+    <system:String x:Key="CycleHistoryDownHotkey">Cycle Next Query</system:String>
+    <system:String x:Key="OpenContextMenuHotkey">Otevr�t kontextovou nab�dku</system:String>
+    <system:String x:Key="OpenNativeContextMenuHotkey">Open Native Context Menu</system:String>
+    <system:String x:Key="SettingWindowHotkey">Otevr�t okno s nastaven�m</system:String>
+    <system:String x:Key="CopyFilePathHotkey">Copy File Path</system:String>
+    <system:String x:Key="ToggleGameModeHotkey">Toggle Game Mode</system:String>
+    <system:String x:Key="ToggleHistoryHotkey">Toggle History</system:String>
+    <system:String x:Key="OpenContainFolderHotkey">Otevr�t um�sten� slo�ky</system:String>
+    <system:String x:Key="RunAsAdminHotkey">Run As Admin</system:String>
+    <system:String x:Key="RequeryHotkey">Refresh Search Results</system:String>
+    <system:String x:Key="ReloadPluginHotkey">Reload Plugins Data</system:String>
+    <system:String x:Key="QuickWidthHotkey">Quick Adjust Window Width</system:String>
+    <system:String x:Key="QuickHeightHotkey">Quick Adjust Window Height</system:String>
+    <system:String x:Key="ReloadPluginHotkeyToolTip">Use when require plugins to reload and update their existing data.</system:String>
+    <system:String x:Key="AdditionalHotkeyToolTip">You can add one more hotkey for this function.</system:String>
+    <system:String x:Key="customQueryHotkey">Vlastn� kl�vesov� zkratky pro vyhled�v�n�</system:String>
+    <system:String x:Key="customQueryShortcut">Vlastn� zkratky dotazu</system:String>
+    <system:String x:Key="builtinShortcuts">Vestaven� zkratky</system:String>
+    <system:String x:Key="customQuery">Dotaz</system:String>
+    <system:String x:Key="customShortcut">Z�stupce</system:String>
+    <system:String x:Key="customShortcutExpansion">Roz��ren�</system:String>
+    <system:String x:Key="builtinShortcutDescription">Popis</system:String>
+    <system:String x:Key="delete">Smazat</system:String>
+    <system:String x:Key="edit">Editovat</system:String>
+    <system:String x:Key="add">Pridat</system:String>
+    <system:String x:Key="none">None</system:String>
+    <system:String x:Key="pleaseSelectAnItem">Vyberte pros�m polo�ku</system:String>
+    <system:String x:Key="deleteCustomHotkeyWarning">Jste si jisti, �e chcete odstranit kl�vesovou zkratku {0} pro plugin?</system:String>
+    <system:String x:Key="deleteCustomShortcutWarning">Opravdu chcete odstranit z�stupce: {0} pro dotaz {1}?</system:String>
+    <system:String x:Key="shortcut_clipboard_description">Zkop�rovat text do schr�nky.</system:String>
+    <system:String x:Key="shortcut_active_explorer_path">Z�skat cestu z aktivn�ho pruzkumn�ka.</system:String>
+    <system:String x:Key="queryWindowShadowEffect">Efekt st�nu ve vyhled�vac�m poli</system:String>
+    <system:String x:Key="shadowEffectCPUUsage">GPU v�razne vyu��v� st�nov� efekt. Nedoporucuje se, pokud je v�kon poc�tace omezen�.</system:String>
+    <system:String x:Key="windowWidthSize">��rka okna</system:String>
+    <system:String x:Key="windowWidthSizeToolTip">Tuto hodnotu mu�ete tak� rychle upravit pomoc� kl�ves Ctrl + [ a Ctrl +].</system:String>
+    <system:String x:Key="useGlyphUI">Pou��t ikony Segoe Fluent</system:String>
+    <system:String x:Key="useGlyphUIEffect">Pou�it� ikon Segoe Fluent, pokud jsou podporov�ny</system:String>
+    <system:String x:Key="flowlauncherPressHotkey">Stisknete kl�vesu</system:String>
+    <system:String x:Key="showBadges">Show Result Badges</system:String>
+    <system:String x:Key="showBadgesToolTip">For supported plugins, badges are displayed to help distinguish them more easily.</system:String>
+    <system:String x:Key="showBadgesGlobalOnly">Show Result Badges for Global Query Only</system:String>
+    <system:String x:Key="showBadgesGlobalOnlyToolTip">Show badges for global query results only</system:String>
+    <system:String x:Key="dialogJumpHotkey">Dialog Jump</system:String>
+    <system:String x:Key="dialogJumpHotkeyToolTip">Enter shortcut to quickly navigate the Open/Save As dialog window to the path of the current file manager.</system:String>
+    <system:String x:Key="dialogJump">Dialog Jump</system:String>
+    <system:String x:Key="dialogJumpToolTip">When Open/Save As dialog window opens, quickly navigate to the current path of the file manager.</system:String>
+    <system:String x:Key="autoDialogJump">Dialog Jump Automatically</system:String>
+    <system:String x:Key="autoDialogJumpToolTip">When Open/Save As dialog window is displayed, automatically navigate to the path of the current file manager. (Experimental)</system:String>
+    <system:String x:Key="showDialogJumpWindow">Show Dialog Jump Window</system:String>
+    <system:String x:Key="showDialogJumpWindowToolTip">Display Dialog Jump search window when the open/save dialog window is shown to quickly navigate to file/folder locations.</system:String>
+    <system:String x:Key="dialogJumpWindowPosition">Dialog Jump Window Position</system:String>
+    <system:String x:Key="dialogJumpWindowPositionToolTip">Select position for the Dialog Jump search window</system:String>
+    <system:String x:Key="DialogJumpWindowPositionUnderDialog">Fixed under the Open/Save As dialog window. Displayed on open and stays until the window is closed</system:String>
+    <system:String x:Key="DialogJumpWindowPositionFollowDefault">Default search window position. Displayed when triggered by search window hotkey</system:String>
+    <system:String x:Key="dialogJumpResultBehaviour">Dialog Jump Result Navigation Behaviour</system:String>
+    <system:String x:Key="dialogJumpResultBehaviourToolTip">Behaviour to navigate Open/Save As dialog window to the selected result path</system:String>
+    <system:String x:Key="DialogJumpResultBehaviourLeftClick">Left click or Enter key</system:String>
+    <system:String x:Key="DialogJumpResultBehaviourRightClick">Right click</system:String>
+    <system:String x:Key="dialogJumpFileResultBehaviour">Dialog Jump File Navigation Behaviour</system:String>
+    <system:String x:Key="dialogJumpFileResultBehaviourToolTip">Behaviour to navigate Open/Save As dialog window when the result is a file path</system:String>
+    <system:String x:Key="DialogJumpFileResultBehaviourFullPath">Fill full path in file name box</system:String>
+    <system:String x:Key="DialogJumpFileResultBehaviourFullPathOpen">Fill full path in file name box and open</system:String>
+    <system:String x:Key="DialogJumpFileResultBehaviourDirectory">Fill directory in path box</system:String>
+
+    <!--  Setting Proxy  -->
+    <system:String x:Key="proxy">HTTP Proxy</system:String>
+    <system:String x:Key="enableProxy">Povolit HTTP proxy</system:String>
+    <system:String x:Key="server">HTTP Server</system:String>
+    <system:String x:Key="port">Port</system:String>
+    <system:String x:Key="userName">U�ivatelsk� jm�no</system:String>
+    <system:String x:Key="password">Heslo</system:String>
+    <system:String x:Key="testProxy">Test proxy serveru</system:String>
+    <system:String x:Key="save">Ulo�it</system:String>
+    <system:String x:Key="serverCantBeEmpty">Pole Server nesm� b�t pr�zdn�</system:String>
+    <system:String x:Key="portCantBeEmpty">Pole Port nesm� b�t pr�zdn�</system:String>
+    <system:String x:Key="invalidPortFormat">Nespr�vn� form�t portu</system:String>
+    <system:String x:Key="saveProxySuccessfully">Nastaven� proxy �spe�ne ulo�eno</system:String>
+    <system:String x:Key="proxyIsCorrect">Nastaven� proxy je v por�dku</system:String>
+    <system:String x:Key="proxyConnectFailed">Pripojen� k serveru proxy se nezdarilo</system:String>
+
+    <!--  Setting About  -->
+    <system:String x:Key="about">O aplikaci</system:String>
+    <system:String x:Key="website">Webov� str�nka</system:String>
+    <system:String x:Key="github">GitHub</system:String>
+    <system:String x:Key="docs">Dokumentace</system:String>
+    <system:String x:Key="crowdin">Crowdin</system:String>
+    <system:String x:Key="version">Verze</system:String>
+    <system:String x:Key="icons">Ikony</system:String>
+    <system:String x:Key="about_activate_times">BNDZ Launcher byl aktivov�n {0} kr�t</system:String>
+    <system:String x:Key="checkUpdates">Zkontrolovat Aktualizace</system:String>
+    <system:String x:Key="BecomeASponsor">Become a Sponsor</system:String>
+    <system:String x:Key="newVersionTips">Je k dispozici nov� verze {0}, chcete BNDZ Launcher restartovat, aby se mohl aktualizovat?</system:String>
+    <system:String x:Key="checkUpdatesFailed">Hled�n� aktualizac� se nezdarilo, zkontrolujte pros�m sv� internetov� pripojen� a nastaven� proxy serveru k api.github.com.</system:String>
+    <system:String x:Key="downloadUpdatesFailed">
+        Sta�en� aktualizac� se nezdarilo, zkontrolujte nastaven� internetov�ho pripojen� a proxy serveru na github-cloud.s3.amazonaws.com,
+        nebo prejdete na str�nku https://github.com/Flow-Launcher/Flow.Launcher/releases a st�hnete aktualizaci rucne.
+    </system:String>
+    <system:String x:Key="releaseNotes">Pozn�mky k vyd�n�</system:String>
+    <system:String x:Key="documentation">Tipy pro pou��v�n�</system:String>
+    <system:String x:Key="devtool">V�voj�rsk� n�stroje</system:String>
+    <system:String x:Key="settingfolder">Slo�ka s nastaven�m</system:String>
+    <system:String x:Key="logfolder">Slo�ka s logy</system:String>
+    <system:String x:Key="clearlogfolder">Vymazat logy</system:String>
+    <system:String x:Key="clearlogfolderMessage">Opravdu chcete odstranit v�echny logy?</system:String>
+    <system:String x:Key="cachefolder">Cache Folder</system:String>
+    <system:String x:Key="clearcachefolder">Clear Caches</system:String>
+    <system:String x:Key="clearcachefolderMessage">Are you sure you want to delete all caches?</system:String>
+    <system:String x:Key="clearfolderfailMessage">Failed to clear part of folders and files. Please see log file for more information</system:String>
+    <system:String x:Key="welcomewindow">Pruvodce</system:String>
+    <system:String x:Key="userdatapath">User Data Location</system:String>
+    <system:String x:Key="userdatapathToolTip">User settings and installed plugins are saved in the user data folder. This location may vary depending on whether it's in portable mode or not.</system:String>
+    <system:String x:Key="userdatapathButton">Open Folder</system:String>
+    <system:String x:Key="advanced">Advanced</system:String>
+    <system:String x:Key="logLevel">Log Level</system:String>
+    <system:String x:Key="LogLevelNONE">Silent</system:String>
+    <system:String x:Key="LogLevelERROR">Chyba</system:String>
+    <system:String x:Key="LogLevelINFO">Info</system:String>
+    <system:String x:Key="LogLevelDEBUG">Debug</system:String>
+    <system:String x:Key="settingWindowFontTitle">Setting Window Font</system:String>
+
+    <!--  Plugin Settings Window  -->
+    <system:String x:Key="pluginSettingsWindowTitle">Settings: {0}</system:String>
+    <system:String x:Key="pluginSettingsWindowOpenFailed">Failed to open plugin settings window</system:String>
+
+    <!--  Release Notes Window  -->
+    <system:String x:Key="seeMoreReleaseNotes">See more release notes on GitHub</system:String>
+    <system:String x:Key="checkNetworkConnectionTitle">Failed to fetch release notes</system:String>
+    <system:String x:Key="checkNetworkConnectionSubTitle">Please check your network connection or ensure GitHub is accessible</system:String>
+    <system:String x:Key="appUpdateTitle">BNDZ Launcher has been updated to {0}</system:String>
+    <system:String x:Key="appUpdateButtonContent">Click here to view the release notes</system:String>
+
+    <!--  FileManager Setting Dialog  -->
+    <system:String x:Key="fileManagerWindow">Vybrat spr�vce souboru</system:String>
+    <system:String x:Key="fileManager_learnMore">Learn more</system:String>
+    <system:String x:Key="fileManager_tips">Please specify the file location of the file manager you using and add arguments as required. The &quot;%d&quot; represents the directory path to open for, used by the Arg for Folder field and for commands opening specific directories. The &quot;%f&quot; represents the file path to open for, used by the Arg for File field and for commands opening specific files.</system:String>
+    <system:String x:Key="fileManager_tips2">For example, if the file manager uses a command such as &quot;totalcmd.exe /A c:\windows&quot; to open the c:\windows directory, the File Manager Path will be totalcmd.exe, and the Arg For Folder will be /A &quot;%d&quot;. Certain file managers like QTTabBar may just require a path to be supplied, in this instance use &quot;%d&quot; as the File Manager Path and leave the rest of the fields blank.</system:String>
+    <system:String x:Key="fileManager_name">Spr�vce souboru</system:String>
+    <system:String x:Key="fileManager_profile_name">Jm�no profilu</system:String>
+    <system:String x:Key="fileManager_path">Cesta k spr�vci souboru</system:String>
+    <system:String x:Key="fileManager_directory_arg">Argumenty pro slo�ku</system:String>
+    <system:String x:Key="fileManager_file_arg">Argumenty pro Soubor</system:String>
+    <system:String x:Key="fileManagerPathNotFound">The file manager '{0}' could not be located at '{1}'. Would you like to continue?</system:String>
+    <system:String x:Key="fileManagerPathError">File Manager Path Error</system:String>
+    <system:String x:Key="fileManagerExplorer">File Explorer</system:String>
+
+    <!--  DefaultBrowser Setting Dialog  -->
+    <system:String x:Key="defaultBrowserTitle">V�choz� prohl�ec</system:String>
+    <system:String x:Key="defaultBrowser_tips">V�choz� nastaven� je podle nastaven� v syst�mu. Pokud je zad�no samostatne, bude Flow pou��vat tento prohl�ec.</system:String>
+    <system:String x:Key="defaultBrowser_name">Prohl�ec</system:String>
+    <system:String x:Key="defaultBrowser_profile_name">N�zev prohl�ece</system:String>
+    <system:String x:Key="defaultBrowser_path">Cesta k prohl�eci</system:String>
+    <system:String x:Key="defaultBrowser_newWindow">Nov� okno</system:String>
+    <system:String x:Key="defaultBrowser_newTab">Nov� karta</system:String>
+    <system:String x:Key="defaultBrowser_parameter">Soukrom� re�im</system:String>
+    <system:String x:Key="defaultBrowser_extraArgs">Extra Args</system:String>
+    <system:String x:Key="defaultBrowser_default">Default</system:String>
+    <system:String x:Key="defaultBrowser_new_profile">New Profile</system:String>
+
+    <!--  Priority Setting Dialog  -->
+    <system:String x:Key="changePriorityWindow">Zmenit prioritu</system:String>
+    <system:String x:Key="priority_tips">Vet�� c�slo znamen�, �e v�sledek bude vy���. Zkuste napr�klad nastavit hodnotu 5. Pokud chcete, aby byl v�sledek ni��� ne� u ostatn�ch z�suvn�ch modulu, zadejte z�porn� c�slo</system:String>
+    <system:String x:Key="invalidPriority">Zadejte pros�m platn� c�slo pro prioritu!</system:String>
+
+    <!--  Action Keyword Setting Dialog  -->
+    <system:String x:Key="oldActionKeywords">Star� aktivacn� pr�kaz</system:String>
+    <system:String x:Key="newActionKeywords">Nov� aktivacn� pr�kaz</system:String>
+    <system:String x:Key="cancel">Zru�it</system:String>
+    <system:String x:Key="done">Hotovo</system:String>
+    <system:String x:Key="cannotFindSpecifiedPlugin">Nepodarilo se naj�t zadan� plugin</system:String>
+    <system:String x:Key="newActionKeywordsCannotBeEmpty">Nov� aktivacn� pr�kaz nemu�e b�t pr�zdn�</system:String>
+    <system:String x:Key="newActionKeywordsHasBeenAssigned">Nov� aktivacn� pr�kaz byl ji� prirazen jin�mu pluginu, vyberte jin� aktivacn� pr�kaz</system:String>
+    <system:String x:Key="newActionKeywordsSameAsOld">This new Action Keyword is the same as old, please choose a different one</system:String>
+    <system:String x:Key="success">�spe�n�</system:String>
+    <system:String x:Key="completedSuccessfully">�spe�ne dokonceno</system:String>
+    <system:String x:Key="failedToCopy">Failed to copy</system:String>
+    <system:String x:Key="actionkeyword_tips">Enter the action keywords you like to use to start the plugin and use whitespace to divide them. Use * if you don't want to specify any, and the plugin will be triggered without any action keywords.</system:String>
+
+    <!--  Search Delay Settings Dialog  -->
+    <system:String x:Key="searchDelayTimeTitle">Search Delay Time Setting</system:String>
+    <system:String x:Key="searchDelayTimeTips">Input the search delay time in ms you like to use for the plugin. Input empty if you don't want to specify any, and the plugin will use default search delay time.</system:String>
+
+    <!--  Search Delay Settings Dialog  -->
+    <system:String x:Key="homeTitle">Home Page</system:String>
+    <system:String x:Key="homeTips">Enable the plugin home page state if you like to show the plugin results when query is empty.</system:String>
+
+    <!--  Custom Query Hotkey Dialog  -->
+    <system:String x:Key="customeQueryHotkeyTitle">Vlastn� kl�vesov� zkratka pro vyhled�v�n�</system:String>
+    <system:String x:Key="customeQueryHotkeyTips">Stisknut�m vlastn� kl�vesov� zkratky otevrete n�stroj BNDZ Launcher a automaticky zadejte dotaz.</system:String>
+    <system:String x:Key="preview">N�hled</system:String>
+    <system:String x:Key="hotkeyIsNotUnavailable">Kl�vesov� zkratka je nedostupn�, zadejte pros�m novou zkratku</system:String>
+    <system:String x:Key="invalidPluginHotkey">Hotkey is invalid</system:String>
+    <system:String x:Key="update">Aktualizovat</system:String>
+    <system:String x:Key="hotkeyRegTitle">Binding Hotkey</system:String>
+    <system:String x:Key="hotkeyUnavailable">Current hotkey is unavailable.</system:String>
+    <system:String x:Key="hotkeyUnavailableUneditable">This hotkey is reserved for &quot;{0}&quot; and can't be used. Please choose another hotkey.</system:String>
+    <system:String x:Key="hotkeyUnavailableEditable">This hotkey is already in use by &quot;{0}&quot;. If you press &quot;Overwrite&quot;, it will be removed from &quot;{0}&quot;.</system:String>
+    <system:String x:Key="hotkeyRegGuide">Press the keys you want to use for this function.</system:String>
+    <system:String x:Key="emptyPluginHotkey">Hotkey and action keyword are empty</system:String>
+
+    <!--  Custom Query Shortcut Dialog  -->
+    <system:String x:Key="customeQueryShortcutTitle">Vlastn� kl�vesov� zkratka pro zad�v�n� dotazu</system:String>
+    <system:String x:Key="customeQueryShortcutTips">Zadejte zkratku, kter� automaticky vlo�� konkr�tn� dotaz.</system:String>
+    <system:String x:Key="customeQueryShortcutGuide" xml:space="preserve">Zkratka se rozbal�, pokud presne odpov�d� dotazu. 
+
+Pokud pred zkratku pri zad�v�n� prid�te znak &quot;@&quot;, bude odpov�dat libovoln� pozici v dotazu. Vestaven� zkratky odpov�daj� libovoln� pozici v dotazu.
+    </system:String>
+    <system:String x:Key="duplicateShortcut">Zkratka ji� existuje, zadejte novou zkratku nebo upravte st�vaj�c�.</system:String>
+    <system:String x:Key="emptyShortcut">Zkratka a/nebo jej� pln� znen� je pr�zdn�.</system:String>
+    <system:String x:Key="invalidShortcut">Shortcut is invalid</system:String>
+
+    <!--  Common Action  -->
+    <system:String x:Key="commonSave">Ulo�it</system:String>
+    <system:String x:Key="commonOverwrite">Overwrite</system:String>
+    <system:String x:Key="commonCancel">Zru�it</system:String>
+    <system:String x:Key="commonReset">Reset</system:String>
+    <system:String x:Key="commonDelete">Smazat</system:String>
+    <system:String x:Key="commonOK">Dobre</system:String>
+    <system:String x:Key="commonYes">Yes</system:String>
+    <system:String x:Key="commonNo">No</system:String>
+    <system:String x:Key="commonBackground">Pozad�</system:String>
+
+    <!--  Crash Reporter  -->
+    <system:String x:Key="reportWindow_version">Verze</system:String>
+    <system:String x:Key="reportWindow_time">Cas</system:String>
+    <system:String x:Key="reportWindow_reproduce">Dejte n�m pros�m vedet, jak do�lo k p�du aplikace, abychom to mohli opravit</system:String>
+    <system:String x:Key="reportWindow_send_report">Odeslat hl�en�</system:String>
+    <system:String x:Key="reportWindow_cancel">Zru�it</system:String>
+    <system:String x:Key="reportWindow_general">Z�kladn� nastaven�</system:String>
+    <system:String x:Key="reportWindow_exceptions">V�jimky</system:String>
+    <system:String x:Key="reportWindow_exception_type">Typ v�jimky</system:String>
+    <system:String x:Key="reportWindow_source">Zdroj</system:String>
+    <system:String x:Key="reportWindow_stack_trace">Trasov�n� z�sobn�ku</system:String>
+    <system:String x:Key="reportWindow_sending">Odes�l�m</system:String>
+    <system:String x:Key="reportWindow_report_succeed">Hl�en� bylo �spe�ne odesl�no</system:String>
+    <system:String x:Key="reportWindow_report_failed">Nepodarilo se odeslat hl�en�</system:String>
+    <system:String x:Key="reportWindow_flowlauncher_got_an_error">BNDZ Launcher zaznamenal chybu</system:String>
+    <system:String x:Key="reportWindow_please_open_issue">Please open new issue in</system:String>
+    <system:String x:Key="reportWindow_upload_log">1. Upload log file: {0}</system:String>
+    <system:String x:Key="reportWindow_copy_below">2. Copy below exception message</system:String>
+
+    <!--  File Open Error  -->
+    <system:String x:Key="fileManagerNotFoundTitle">File Manager Error</system:String>
+    <system:String x:Key="fileManagerNotFound">
+        The specified file manager could not be found. Please check the Custom File Manager setting under Settings &gt; General.
+    </system:String>
+    <system:String x:Key="errorTitle">Chyba</system:String>
+    <system:String x:Key="folderOpenError">An error occurred while opening the folder.</system:String>
+    <system:String x:Key="browserOpenError">An error occurred while opening the URL in the browser. Please check your Default Web Browser configuration in the General section of the settings window</system:String>
+    <system:String x:Key="fileNotFoundError">File or directory not found: {0}</system:String>
+
+    <!--  General Notice  -->
+    <system:String x:Key="pleaseWait">Pockejte pros�m...</system:String>
+
+    <!--  Update  -->
+    <system:String x:Key="update_flowlauncher_update_check">Kontroluji nov� aktualizace</system:String>
+    <system:String x:Key="update_flowlauncher_already_on_latest">Ji� m�te nejnovej�� verzi BNDZ Launcheru</system:String>
+    <system:String x:Key="update_flowlauncher_update_found">Byla nalezena aktualizace</system:String>
+    <system:String x:Key="update_flowlauncher_updating">Aktualizace...</system:String>
+    <system:String x:Key="update_flowlauncher_fail_moving_portable_user_profile_data">
+        Aplikaci BNDZ Launcher se nepodarilo presunout u�ivatelsk� data do aktualizovan� verze.
+            Presunte pros�m slo�ku s daty profilu z {0} do {1}
+    </system:String>
+    <system:String x:Key="update_flowlauncher_new_update">Nov� Aktualizace</system:String>
+    <system:String x:Key="update_flowlauncher_update_new_version_available">Nov� verze BNDZ Launcheru {0} je nyn� dostupn�</system:String>
+    <system:String x:Key="update_flowlauncher_update_error">Pri pokusu o aktualizaci do�lo k chybe</system:String>
+    <system:String x:Key="update_flowlauncher_update">Aktualizovat</system:String>
+    <system:String x:Key="update_flowlauncher_update_cancel">Zru�it</system:String>
+    <system:String x:Key="update_flowlauncher_fail">Aktualizace selhala</system:String>
+    <system:String x:Key="update_flowlauncher_check_connection">Zkontrolujte pripojen� a zkuste aktualizovat nastaven� proxy na github-cloud.s3.amazonaws.com.</system:String>
+    <system:String x:Key="update_flowlauncher_update_restart_flowlauncher_tip">Tato aktualizace restartuje BNDZ Launcher</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_files">N�sleduj�c� soubory budou aktualizov�ny</system:String>
+    <system:String x:Key="update_flowlauncher_update_files">Aktualizovat soubory</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_description">Aktualizovat popis</system:String>
+
+    <!--  Plugin Update Window  -->
+    <system:String x:Key="restartAfterUpdating">Restart BNDZ Launcher after updating plugins</system:String>
+    <system:String x:Key="updatePluginCheckboxContent">{0}: Update from v{1} to v{2}</system:String>
+    <system:String x:Key="updatePluginNoSelected">No plugin selected</system:String>
+
+    <!--  Welcome Window  -->
+    <system:String x:Key="Skip">Preskocit</system:String>
+    <system:String x:Key="Welcome_Page1_Title">V�tejte v BNDZ Launcheru</system:String>
+    <system:String x:Key="Welcome_Page1_Text01">Dobr� den, BNDZ Launcher spou�t�te poprv�!</system:String>
+    <system:String x:Key="Welcome_Page1_Text02">Tento pruvodce v�m pomu�e nastavit BNDZ Launcher je�te predt�m, ne� zacnete. Pokud chcete, mu�ete ho preskocit. Zvolte si jazyk</system:String>
+    <system:String x:Key="Welcome_Page2_Title">Vyhled�v�n� a spou�ten� v�ech souboru a aplikac� v poc�taci</system:String>
+    <system:String x:Key="Welcome_Page2_Text01">Vyhled�vejte v aplikac�ch, souborech, z�lo�k�ch, YouTube, Twitteru a dal��ch. To v�e z pohodl� kl�vesnice, ani� byste se museli dotknout my�i.</system:String>
+    <system:String x:Key="Welcome_Page2_Text02">Aplikace BNDZ Launcher se spou�t� pomoc� n�e uveden� kl�vesov� zkratky, pojdte si ji vyzkou�et. Chcete-li ji zmenit, kliknete na vstupn� pole a stisknete po�adovanou kl�vesovou zkratku.</system:String>
+    <system:String x:Key="Welcome_Page3_Title">Kl�vesov� zkratky</system:String>
+    <system:String x:Key="Welcome_Page4_Title">Kl�cov� slovo a pr�kazy</system:String>
+    <system:String x:Key="Welcome_Page4_Text01">Pomoc� doplnku BNDZ Launcher mu�ete vyhled�vat na webu, spou�tet aplikace nebo spou�tet ruzn� funkce. Nekter� funkce se spou�tej� aktivacn�m pr�kazem a v pr�pade potreby je lze pou��vat bez aktivacn�ch pr�kazu. Vyzkou�ejte si n�e uveden� v�razy ve BNDZ Launcheru.</system:String>
+    <system:String x:Key="Welcome_Page5_Title">Spu�ten� aplikace BNDZ Launcher</system:String>
+    <system:String x:Key="Welcome_Page5_Text01">Hotovo. U�ijte si BNDZ Launcher. Nezapomente na kl�vesovou zkratku pro spu�ten� :)</system:String>
+
+    <!--  General Guide & Hotkey  -->
+
+    <system:String x:Key="HotkeyUpDownDesc">Zpet / Kontextov� menu</system:String>
+    <system:String x:Key="HotkeyLeftRightDesc">Navigace mezi polo�kami</system:String>
+    <system:String x:Key="HotkeyShiftEnterDesc">Otevr�t kontextovou nab�dku</system:String>
+    <system:String x:Key="HotkeyCtrlEnterDesc">Otevr�t um�sten� slo�ky</system:String>
+    <system:String x:Key="HotkeyCtrlShiftEnterDesc">Spustit jako Admin / Otevr�t slo�ku ve v�choz�m spr�vci souboru</system:String>
+    <system:String x:Key="HotkeyCtrlHDesc">Historie Dotazu</system:String>
+    <system:String x:Key="HotkeyESCDesc">Zpet na v�sledek v kontextov� nab�dce</system:String>
+    <system:String x:Key="HotkeyTabDesc">Automatick� dokoncov�n�</system:String>
+    <system:String x:Key="HotkeyRunDesc">Otevr�t / Spustit vybranou polo�ku</system:String>
+    <system:String x:Key="HotkeyCtrlIDesc">Otevr�t okno s nastaven�m</system:String>
+    <system:String x:Key="HotkeyF5Desc">Znovu nac�st data pluginu</system:String>
+
+    <system:String x:Key="HotkeySelectFirstResult">Select first result</system:String>
+    <system:String x:Key="HotkeySelectLastResult">Select last result</system:String>
+    <system:String x:Key="HotkeyRequery">Run current query again</system:String>
+    <system:String x:Key="HotkeyOpenResult">Open result</system:String>
+    <system:String x:Key="HotkeyOpenResultN">Open result #{0}</system:String>
+
+    <system:String x:Key="RecommendWeather">Pocas�</system:String>
+    <system:String x:Key="RecommendWeatherDesc">V�sledky pocas� Google</system:String>
+    <system:String x:Key="RecommendShell">&gt; ping 8.8.8</system:String>
+    <system:String x:Key="RecommendShellDesc">Pr�kazov� r�dek</system:String>
+    <system:String x:Key="RecommendBluetooth">- Bluetooth</system:String>
+    <system:String x:Key="RecommendBluetoothDesc">Bluetooth v nastaven� Windows</system:String>
+    <system:String x:Key="RecommendAcronyms">sn</system:String>
+    <system:String x:Key="RecommendAcronymsDesc">Oznacen� pozn�mky</system:String>
+
+    <!--  Preview Area  -->
+    <system:String x:Key="FileSize">File Size</system:String>
+    <system:String x:Key="Created">Created</system:String>
+    <system:String x:Key="LastModified">Last Modified</system:String>
+</ResourceDictionary>

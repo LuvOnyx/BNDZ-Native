@@ -1,0 +1,90 @@
+import type { AppConfig } from '../data/configContext';
+
+export type ListColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'path';
+export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created';
+
+export interface ListColumnDef {
+  id: ListColumnId;
+  label: string;
+  widthClass: string;
+  widthPx?: number;
+  align?: 'left' | 'right';
+  sortable?: boolean;
+}
+
+export const LIST_COLUMN_DEFS: ListColumnDef[] = [
+  { id: 'name', label: 'Name', widthClass: 'w-[35%] min-w-[140px] max-w-[360px]', sortable: true },
+  { id: 'type', label: 'Type', widthClass: 'w-[14%] min-w-[80px] max-w-[140px]', sortable: true },
+  { id: 'size', label: 'Size', widthClass: 'w-[12%] min-w-[72px] max-w-[110px]', align: 'right', sortable: true },
+  { id: 'modified', label: 'Modified', widthClass: 'w-[18%] min-w-[120px] max-w-[180px]', sortable: true },
+  { id: 'created', label: 'Created', widthClass: 'w-[18%] min-w-[120px] max-w-[180px]', sortable: true },
+  { id: 'attributes', label: 'Attributes', widthClass: 'w-[12%] min-w-[90px] max-w-[140px]' },
+  { id: 'tags', label: 'Tags', widthClass: 'flex-1 min-w-[80px]' },
+  { id: 'path', label: 'Path', widthClass: 'w-[30%] min-w-[160px] max-w-[400px]' },
+];
+
+export const DEFAULT_LIST_COLUMN_VISIBILITY: Record<ListColumnId, boolean> = {
+  name: true,
+  type: true,
+  size: true,
+  modified: true,
+  created: false,
+  attributes: false,
+  tags: true,
+  path: false,
+};
+
+export function resolveListColumnVisibility(
+  config: AppConfig,
+  options?: { isGlobalSearch?: boolean },
+): Record<ListColumnId, boolean> {
+  const stored = (config.listColumnVisibility || {}) as Partial<Record<ListColumnId, boolean>>;
+  const merged = { ...DEFAULT_LIST_COLUMN_VISIBILITY, ...stored };
+  merged.name = true;
+  if (options?.isGlobalSearch) merged.path = true;
+  return merged;
+}
+
+export function getVisibleListColumns(
+  config: AppConfig,
+  options?: { isGlobalSearch?: boolean },
+): ListColumnDef[] {
+  const vis = resolveListColumnVisibility(config, options);
+  const widths = (config.listColumnWidths || {}) as Partial<Record<ListColumnId, number>>;
+  return LIST_COLUMN_DEFS.filter(col => vis[col.id]).map(col => {
+    const px = widths[col.id];
+    if (!px || px < 48) return col;
+    return {
+      ...col,
+      widthClass: '',
+      widthPx: px,
+    };
+  });
+}
+
+export function getColumnStyle(col: ListColumnDef): { width: number; minWidth: number; maxWidth: number; flexShrink: 0 } | undefined {
+  if (!col.widthPx) return undefined;
+  return { width: col.widthPx, minWidth: col.widthPx, maxWidth: col.widthPx, flexShrink: 0 };
+}
+
+export function formatAttributesLabel(attrs?: string[]): string {
+  if (!attrs?.length) return '';
+  const short: Record<string, string> = {
+    readonly: 'R',
+    hidden: 'H',
+    system: 'S',
+    archive: 'A',
+    compressed: 'C',
+    encrypted: 'E',
+    offline: 'O',
+    temporary: 'T',
+  };
+  return attrs.map(a => short[a.toLowerCase()] || a.slice(0, 1).toUpperCase()).join('');
+}
+
+export function formatFsDateTime(value?: string): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}

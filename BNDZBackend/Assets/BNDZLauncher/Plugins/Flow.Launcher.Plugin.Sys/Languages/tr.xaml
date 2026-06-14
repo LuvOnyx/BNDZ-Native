@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!--  Setting  -->
+    <system:String x:Key="flowlauncher_plugin_sys_skip_confirm">Skip confirmation when Shutting down, Restarting, or Logging off</system:String>
+
+    <!--  Command List  -->
+    <system:String x:Key="flowlauncher_plugin_sys_name">Ad</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_desc">Açiklama</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command">Komut</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">Bilgisayari Kapat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">Yeniden Baslat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">Gelismis Önyükleme Seçenekleri ile Yeniden Baslat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">Oturumu Kapat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">Kilitle</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_sleep_cmd">Uyku Moduna Geç</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">Hazirda Beklet</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_indexoption_cmd">Dizin Seçenegi</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin_cmd">Geri Dönüsüm Kutusunu Bosalt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin_cmd">Geri Dönüsüm Kutusunu Aç</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_exit_cmd">Çikis</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings_cmd">Ayarlari Kaydet</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">BNDZ Launcher'u Yeniden Baslat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_setting_cmd">Ayarlar</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Eklenti Verisini Yenile</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_check_for_update_cmd">Güncellemeleri Denetle</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">Günlük Konumunu Aç</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips_cmd">BNDZ Launcher Ipuçlari</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location_cmd">BNDZ Launcher UserData Klasörü</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">Oyun Modunu Aç/Kapat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_theme_selector_cmd">BNDZ Launcher Temasini Ayarla</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_sys_edit">Düzenle</system:String>
+
+    <!--  Command Descriptions  -->
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">Bilgisayari Kapat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Yeniden Baslat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Gelismis Baslatma Seçenekleri ile bilgisayari yeniden baslatin, Güvenli Mod ve Hata Ayiklama Modu da dahil olmak üzere diger seçenekler için</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off">Oturumu Kapat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock">Bilgisayari Kilitle</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_exit">BNDZ Launcher'u Kapat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart">BNDZ Launcher'u Yeniden Baslat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_setting">BNDZ Launcher Ayarlarini Aç</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_sleep">Bilgisayari Uyku Moduna Al</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">Geri Dönüsüm Kutusunu Bosalt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">Geri dönüsüm kutusunu aç</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_indexoption">Dizin Olusturma Seçenekleri</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_hibernate">Bilgisayari Askiya Al</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">Tüm BNDZ Launcher Ayarlarini Kaydet</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">Eklentilerin verilerini BNDZ Launcher'un açilisindan sonra yapilan degisiklikleri için günceller. Eklentilerin bu özelligi zaten eklemis olmasi gerekir.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">BNDZ Launcher'in günlük konumunu aç</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_check_for_update">Yeni BNDZ Launcher güncellemelerini kontrol et</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">Daha fazla yardim ve ipuçlari için BNDZ Launcher'in dokümantasyonunu ziyaret edin</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">BNDZ Launcher'in ayarlarinin depolandigi dosya konumunu açin</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">Oyun Modunu Aç/Kapat</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_theme_selector">BNDZ Launcher temasini hizlica degistir</system:String>
+
+    <!--  Dialogs  -->
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">Basarili</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">Tüm BNDZ Launcher ayarlari kaydedildi.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Geçerli tüm eklenti verileri yeniden yüklendi</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Bilgisayari kapatmak istediginize emin misiniz?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">Bilgisayari yeniden baslatmak istediginize emin misiniz?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">Gelismis Baslatma Seçenekleri ile bilgisayari yeniden baslatmak istediginizden emin misiniz?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">Oturumu kapatmayi istediginizden emin misiniz?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_error">Hata</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_empty_recycle_bin_failed">Geri dönüsüm kutusu bosaltilamadi. Bu durum su durumlarda meydana gelebilir:{0}- Bazi ögeler su anda kullanimda{0}- Bazi ögeler izinler nedeniyle silinemiyor{0}Lütfen bu dosyalari kullaniyor olabilecek tüm uygulamalari kapatin ve tekrar deneyin.</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_sys_command_keyword_setting_window_title">Komut Anahtar Kelimesi Ayari</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword">Özel Komut Anahtar Kelimesi</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword_tip">Komut aramak için bir anahtar kelimesi girin: {0}. Bu anahtar kelime, sorgunuzu eslestirmek için kullanilir.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command_keyword">Komut Anahtar Kelimesi</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reset">Sifirla</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_confirm">Onayla</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_cancel">Iptal</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_input_command_keyword">Lütfen bos olmayan bir komut anahtar kelimesini girin</system:String>
+
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_name">Sistem Komutlari</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Sistem ile ilgili komutlara erisim saglar. ör. shutdown, lock, settings vb.</system:String>
+
+    <!--  Theme Selector  -->
+    <system:String x:Key="flowlauncher_plugin_sys_type_isdark_hasblur">Bu tema iki modu (açik/koyu) ve Bulanik Seffaf Arka Plani destekler</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_isdark">Bu tema iki (açik/koyu) modu destekler</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_hasblur">Bu tema Bulanik Seffaf Arka Plani destekler</system:String>
+
+</ResourceDictionary>

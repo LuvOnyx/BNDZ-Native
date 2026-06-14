@@ -1,0 +1,188 @@
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { subscribeTooltipKeys } from '../lib/tooltipSettings';
+
+export interface TooltipLine {
+  label?: string;
+  value: string;
+  mono?: boolean;
+  accent?: string;
+}
+
+export interface HoverTooltipContent {
+  title: string;
+  subtitle?: string;
+  lines?: TooltipLine[];
+  badge?: { text: string; color?: string };
+  icon?: React.ReactNode;
+}
+
+export type HoverTooltipTheme = 'glass' | 'minimal' | 'accent' | 'mono';
+
+const TOOLTIP_THEMES: Record<HoverTooltipTheme, { panel: string; header: string; accent: string }> = {
+  glass: {
+    panel: 'rounded-xl border border-white/10 bg-gradient-to-br from-[#1e1e28]/98 to-[#12121a]/98 backdrop-blur-xl shadow-2xl shadow-black/50',
+    header: 'border-b border-white/5',
+    accent: 'from-sky-500/60 via-violet-500/40 to-transparent',
+  },
+  minimal: {
+    panel: 'rounded-lg border border-[#444] bg-[#1a1a1a]/95 backdrop-blur-md shadow-xl shadow-black/40',
+    header: 'border-b border-[#333]',
+    accent: 'from-[#555] to-transparent',
+  },
+  accent: {
+    panel: 'rounded-xl border border-sky-500/30 bg-gradient-to-br from-[#0c1929]/98 to-[#0a0f1a]/98 backdrop-blur-xl shadow-2xl shadow-sky-900/30',
+    header: 'border-b border-sky-500/20',
+    accent: 'from-sky-400 via-cyan-400 to-transparent',
+  },
+  mono: {
+    panel: 'rounded-md border border-[#555] bg-[#0d0d0d] font-mono shadow-lg',
+    header: 'border-b border-[#333]',
+    accent: 'from-[#888] to-transparent',
+  },
+};
+
+interface HoverTooltipProps {
+  content: HoverTooltipContent | null;
+  children: React.ReactNode;
+  disabled?: boolean;
+  delayMs?: number;
+  theme?: HoverTooltipTheme;
+  className?: string;
+}
+
+export function HoverTooltip({ content, children, disabled, delayMs = 320, theme = 'glass', className = '' }: HoverTooltipProps) {
+  const themeStyle = TOOLTIP_THEMES[theme] || TOOLTIP_THEMES.glass;
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [, setKeyTick] = useState(0);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoveringRef = useRef(false);
+  const tooltipId = useId();
+
+  useEffect(() => subscribeTooltipKeys(() => {
+    if (hoveringRef.current) setKeyTick(t => t + 1);
+  }), []);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const updatePosition = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const pad = 10;
+    let x = r.left + r.width / 2;
+    let y = r.bottom + 8;
+    const maxW = 340;
+    if (x + maxW / 2 > window.innerWidth - pad) x = window.innerWidth - pad - maxW / 2;
+    if (x - maxW / 2 < pad) x = pad + maxW / 2;
+    if (y + 180 > window.innerHeight - pad) y = r.top - 8;
+    setPos({ x, y });
+  }, []);
+
+  const show = () => {
+    if (disabled || !content) return;
+    clearTimer();
+    timerRef.current = setTimeout(() => {
+      updatePosition();
+      setVisible(true);
+    }, delayMs);
+  };
+
+  const hide = () => {
+    clearTimer();
+    setVisible(false);
+  };
+
+  useEffect(() => () => clearTimer(), []);
+
+  return (
+    <>
+      <div
+        ref={anchorRef}
+        className={`bndz-tooltip-anchor w-full min-w-0 ${className}`}
+        onMouseEnter={() => {
+          hoveringRef.current = true;
+          show();
+        }}
+        onMouseLeave={() => {
+          hoveringRef.current = false;
+          hide();
+        }}
+        onMouseMove={() => {
+          if (visible) updatePosition();
+        }}
+      >
+        {children}
+      </div>
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {visible && content && (
+            <motion.div
+              id={tooltipId}
+              role="tooltip"
+              initial={{ opacity: 0, y: 6, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.98 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed z-[650] pointer-events-none max-w-[340px]"
+              style={{
+                left: pos.x,
+                top: pos.y,
+                transform: 'translate(-50%, 0)',
+              }}
+            >
+              <div className={`${themeStyle.panel} overflow-hidden`}>
+                <div className={`px-3.5 py-2.5 ${themeStyle.header} flex items-start gap-2.5`}>
+                  {content.icon && (
+                    <div className="w-9 h-9 rounded-lg bg-black/30 flex items-center justify-center shrink-0 ring-1 ring-white/5">
+                      {content.icon}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-semibold text-white leading-tight truncate">{content.title}</div>
+                    {content.subtitle && (
+                      <div className="text-[10px] text-gray-400 mt-0.5 truncate">{content.subtitle}</div>
+                    )}
+                  </div>
+                  {content.badge && (
+                    <span
+                      className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md shrink-0"
+                      style={{ background: `${content.badge.color || '#007acc'}22`, color: content.badge.color || '#38bdf8' }}
+                    >
+                      {content.badge.text}
+                    </span>
+                  )}
+                </div>
+                {content.lines && content.lines.length > 0 && (
+                  <div className="px-3.5 py-2 space-y-1">
+                    {content.lines.map((line, i) => (
+                      <div key={i} className="flex items-baseline gap-2 text-[11px]">
+                        {line.label && <span className="text-gray-500 shrink-0 w-[52px]">{line.label}</span>}
+                        <span
+                          className={`text-gray-200 truncate ${line.mono ? 'font-mono text-[10px]' : ''}`}
+                          style={line.accent ? { color: line.accent } : undefined}
+                        >
+                          {line.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className={`h-[2px] bg-gradient-to-r ${themeStyle.accent}`} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </>
+  );
+}
