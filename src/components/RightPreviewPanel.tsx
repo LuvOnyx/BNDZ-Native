@@ -5,7 +5,7 @@ import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate,
 import { isPreviewEnabledForExt, buildSettingsRuntime } from '../lib/settingsRuntime';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
-import { File, Folder, Image, Music, FileText, Code, Settings, HardDrive, Binary, ShieldUser, KeyRound, ExternalLink, Copy, Info, Film } from 'lucide-react';
+import { File, Folder, Image, Music, FileText, Code, Settings, HardDrive, Binary, ShieldUser, KeyRound, ExternalLink, Copy, Info, Film, BookMarked } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
@@ -16,6 +16,7 @@ import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
 import { isArchiveExt, isTorrentExt } from '../lib/archiveTypes';
 import { isAudioExt, isVideoExt, isImageExt } from '../lib/mediaTypes';
+import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 
 type PreviewTab = 'preview' | 'details' | 'media';
 
@@ -40,6 +41,7 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
   const [extendedDetails, setExtendedDetails] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<PreviewTab>('preview');
   const [fileHashes, setFileHashes] = useState<{ md5?: string; sha256?: string } | null>(null);
+  const [catalogs, setCatalogs] = useState<CatalogEntry[]>([]);
   const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
   const [htmlView, setHtmlView] = useState<'render' | 'source'>('render');
   const svgBlobUrlRef = useRef<string | null>(null);
@@ -48,6 +50,23 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
     setBrowsePath(path ?? null);
     setSelectedChild(null);
   }, [path, entity?.id]);
+
+  useEffect(() => {
+    let active = true;
+    listCatalogs().then(items => {
+      if (active) setCatalogs(items);
+    }).catch(() => {
+      if (active) setCatalogs([]);
+    });
+    const onCatalogChanged = () => {
+      listCatalogs().then(items => { if (active) setCatalogs(items); }).catch(() => {});
+    };
+    window.addEventListener('bndz-catalog-changed', onCatalogChanged);
+    return () => {
+      active = false;
+      window.removeEventListener('bndz-catalog-changed', onCatalogChanged);
+    };
+  }, []);
 
   const folderBrowsePath = browsePath || path;
 
@@ -186,7 +205,11 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
      if (!path || isDir || !previewAllowed || isArchive || isTorrent) return;
      if (isHtml && htmlView === 'render') return;
 
+     const delayMs = previewRt.delayMs || 0;
+     let cancelled = false;
+
      const fetchContent = async () => {
+         if (cancelled) return;
          setIsLoadingContent(true);
          try {
              if (isEditableText) {
@@ -221,10 +244,12 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
      };
 
      if (isEditableText || isBinary || (isHtml && htmlView === 'source') || (!isImage && !isAudio && !isVideo && !isPdf && !isHtml)) {
-         fetchContent();
+         const timer = setTimeout(() => { void fetchContent(); }, delayMs);
+         return () => { cancelled = true; clearTimeout(timer); };
      }
+     return () => { cancelled = true; };
 
-  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isHtml, htmlView, isArchive, isTorrent, virtualUrl, previewAllowed]);
+  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isHtml, htmlView, isArchive, isTorrent, virtualUrl, previewAllowed, previewRt.delayMs]);
 
   useEffect(() => {
     if (!path || isDir || !isSvg || !previewAllowed) {
@@ -301,6 +326,90 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
     const base = win.replace(/\\[^\\]+$/, '');
     const name = entity.name.replace(/\.[^.]+$/, '');
     import('../lib/ipcBridge').then(({ IPC }) => IPC.extractArchive(win, `${base}\\${name}`));
+  };
+
+  const renderFolderContentsPreview = () => {
+    if (!isDir || folderChildren.length === 0) return null;
+    return (
+      <div className="flex flex-col min-h-0 flex-1 overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]">
+        <div className="text-[9px] uppercase tracking-wider text-gray-500 px-2 py-1.5 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+          <span>Contents preview</span>
+          {browsePath && path && browsePath !== path && (
+            <button
+              type="button"
+              className="text-sky-400/90 hover:text-sky-300 normal-case tracking-normal text-[10px]"
+              onClick={() => {
+                const parent = browsePath.replace(/\/[^/]+$/, '') || path;
+                setBrowsePath(parent);
+                setSelectedChild(null);
+              }}
+            >
+              ↑ Back
+            </button>
+          )}
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
+          {folderChildren.map(c => (
+            <button
+              key={c.name}
+              type="button"
+              onClick={() => openChild(c)}
+              onDoubleClick={() => openChild(c, { navigateMain: true })}
+              className={`w-full flex items-center gap-2 px-2 py-1 text-[10px] text-gray-300 text-left transition-colors ${
+                selectedChild === c.name ? 'bg-sky-500/20 text-sky-100' : 'hover:bg-white/[0.06]'
+              }`}
+              title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
+            >
+              {c.type === 'directory' ? <Folder size={10} className="text-amber-400 shrink-0" /> : <File size={10} className="text-slate-400 shrink-0" />}
+              <span className="truncate flex-1 min-w-0">{c.name}</span>
+              {c.type === 'file' && c.size != null && <span className="text-gray-600 shrink-0">{formatSize(c.size)}</span>}
+            </button>
+          ))}
+          {folderStats && folderStats.files + folderStats.folders > folderChildren.length && (
+            <div className="text-[9px] text-gray-600 px-2 py-1">+ more items…</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCatalogQuickPanel = () => {
+    if (!catalogs.length) return null;
+    return (
+      <div className="flex flex-col min-h-0 max-h-[120px] overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]">
+        <div className="text-[9px] uppercase tracking-wider text-violet-300/80 px-2 py-1.5 border-b border-violet-500/15 flex items-center gap-1.5 shrink-0">
+          <BookMarked size={10} />
+          <span>Catalogs</span>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
+          {catalogs.slice(0, 8).map(cat => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => onNavigate?.(`/vf/${cat.id}`)}
+              className="w-full flex items-center gap-2 px-2 py-1 text-[10px] text-gray-300 hover:bg-violet-500/10 text-left transition-colors"
+              title={`${cat.paths.length} item(s) · Open virtual catalog`}
+            >
+              <BookMarked size={10} className="text-violet-400 shrink-0" />
+              <span className="truncate flex-1 min-w-0">{cat.name}</span>
+              <span className="text-gray-600 shrink-0">{cat.paths.length}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderFolderDock = () => {
+    const contentsPanel = renderFolderContentsPreview();
+    const catalogPanel = renderCatalogQuickPanel();
+    if (!contentsPanel && !catalogPanel) return null;
+    return (
+      <div className="flex flex-col gap-2 min-h-[140px] max-h-[min(280px,38vh)] w-full min-w-0">
+        {contentsPanel}
+        {catalogPanel}
+      </div>
+    );
   };
 
   const renderUniversalPreview = () => {
@@ -431,80 +540,44 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
       }
 
       return (
-         <div className={`w-full h-full flex flex-col items-center justify-center p-4 relative bndz-preview-stage ${showThumb ? 'pattern-checkerboard' : ''}`}>
-             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-10 pointer-events-none" />
-             <div className="transition-transform duration-300 flex flex-col items-center gap-3">
+         <div className={`w-full h-full flex flex-col items-center justify-center p-6 relative bndz-preview-stage ${showThumb ? 'pattern-checkerboard' : ''}`}>
+             <div className="absolute inset-0 bg-gradient-to-b from-sky-500/[0.04] via-transparent to-violet-500/[0.03] pointer-events-none" />
+             <div className="bndz-glass-panel px-6 py-5 flex flex-col items-center gap-3 max-w-[min(88%,280px)] border border-white/[0.06]">
                  {path ? (
                     <PreviewHeroIcon
                        path={heroPath || path}
                        isDir={isDir}
                        isDrive={isDrive}
-                       size={isDir ? 112 : 144}
+                       size={isDir ? 88 : 112}
                        extension={ext}
                        preferThumbnail={!isDir && isImage}
                     />
                  ) : thumbnailNative ? (
-                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[200px] max-h-[200px] object-contain drop-shadow-2xl" alt="Preview" />
+                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[180px] max-h-[180px] object-contain drop-shadow-2xl rounded-xl" alt="Preview" />
                  ) : shellIcon ? (
-                    <img src={shellIcon} className="max-w-[128px] max-h-[128px] object-contain drop-shadow-2xl" alt="Shell Icon" />
+                    <img src={shellIcon} className="max-w-[112px] max-h-[112px] object-contain drop-shadow-2xl" alt="Shell Icon" />
                  ) : (
                     <div className="flex flex-col items-center drop-shadow-2xl">{getPreviewIcon()}</div>
                  )}
                  {isDir && folderStats && (
-                    <div className="text-[11px] text-gray-400 text-center font-mono">
+                    <div className="text-[11px] text-white/55 text-center font-medium tracking-wide">
                        {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
                     </div>
                  )}
-                 {isDir && folderChildren.length > 0 && (
-                    <div className="w-full max-w-[280px] mt-2 max-h-[180px] overflow-y-auto bndz-scrollbar rounded-md border border-white/10 bg-black/30 text-left">
-                      <div className="text-[9px] uppercase tracking-wider text-gray-500 px-2 py-1 border-b border-white/5 flex items-center justify-between gap-2">
-                        <span>Contents preview</span>
-                        {browsePath && path && browsePath !== path && (
-                          <button
-                            type="button"
-                            className="text-sky-400/90 hover:text-sky-300 normal-case tracking-normal"
-                            onClick={() => {
-                              const parent = browsePath.replace(/\/[^/]+$/, '') || path;
-                              setBrowsePath(parent);
-                              setSelectedChild(null);
-                            }}
-                          >
-                            ↑ Back
-                          </button>
-                        )}
-                      </div>
-                      {folderChildren.map(c => (
-                        <button
-                          key={c.name}
-                          type="button"
-                          onClick={() => openChild(c)}
-                          onDoubleClick={() => openChild(c, { navigateMain: true })}
-                          className={`w-full flex items-center gap-2 px-2 py-1 text-[10px] text-gray-300 truncate text-left transition-colors ${
-                            selectedChild === c.name ? 'bg-sky-500/20 text-sky-100' : 'hover:bg-white/[0.06]'
-                          }`}
-                          title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
-                        >
-                          {c.type === 'directory' ? <Folder size={10} className="text-amber-400 shrink-0" /> : <File size={10} className="text-slate-400 shrink-0" />}
-                          <span className="truncate flex-1">{c.name}</span>
-                          {c.type === 'file' && c.size != null && <span className="text-gray-600 shrink-0">{formatSize(c.size)}</span>}
-                        </button>
-                      ))}
-                      {folderStats && folderStats.files + folderStats.folders > folderChildren.length && (
-                        <div className="text-[9px] text-gray-600 px-2 py-1">+ more items…</div>
-                      )}
-                    </div>
+                 {isDir && !folderStats && (
+                    <div className="text-[10px] text-white/40 animate-pulse">Calculating folder size…</div>
                  )}
                  {isDrive && (entity as any).driveInfo && (
-                    <div className="text-[11px] text-gray-400 text-center">
+                    <div className="text-[11px] text-white/55 text-center">
                        {formatSize((entity as any).driveInfo.freeSpace)} free of {formatSize((entity as any).driveInfo.totalSpace)}
                     </div>
                  )}
              </div>
-             <div className="absolute bottom-2 right-2 flex gap-1 shadow-md">
+             <div className="absolute bottom-3 right-3 flex gap-1.5">
                 {isDir ? (
-                   <span className="bg-black/90 text-[#dcb67a] text-[9px] px-2 py-0.5 rounded-[2px] uppercase font-bold border border-[#dcb67a]/40 shadow-inner tracking-wider">DIR</span>
+                   <span className="bndz-glass-chip text-[#dcb67a] text-[9px] px-2.5 py-1 uppercase font-semibold tracking-wider">DIR</span>
                 ) : ext && (
-                   <span className="bg-black/90 text-white text-[9px] px-2 py-0.5 rounded-[2px] uppercase font-bold border border-white/20 shadow-inner tracking-wider">{ext}</span>
+                   <span className="bndz-glass-chip text-white/90 text-[9px] px-2.5 py-1 uppercase font-semibold tracking-wider">{ext}</span>
                 )}
              </div>
          </div>
@@ -534,14 +607,14 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
 
   return (
     <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 shadow-[-6px_0_24px_rgba(0,0,0,0.35)] z-10 overflow-hidden">
-       <div className="bndz-preview-tabstrip border-b border-white/[0.06] px-2.5 py-1.5 flex justify-between items-center z-10 shrink-0 select-none gap-2 backdrop-blur-sm">
+       <div className="bndz-preview-tabstrip border-b border-white/[0.06] px-3 py-2 flex justify-between items-center z-10 shrink-0 select-none gap-2 backdrop-blur-md">
           <div className="flex gap-1">
              {tabs.filter(t => t.show).map(t => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => setActiveTab(t.id)}
-                  className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all duration-150 ${
+                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all duration-150 ${
                     activeTab === t.id ? 'bndz-preview-tab-active text-sky-100' : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.04]'
                   }`}
                 >
@@ -567,7 +640,9 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
                 className="flex flex-col flex-1"
              >
                 {(activeTab === 'preview' || activeTab === 'media') && (
-                <div className={`w-full shrink-0 border-b border-[#282830] relative group ${isArchive || isTorrent ? 'h-[420px]' : 'h-[340px]'}`}>
+                <div className={`w-full shrink-0 border-b border-[#282830] relative group flex flex-col min-h-0 ${
+                  isArchive || isTorrent ? 'h-[420px]' : isDir && activeTab === 'preview' ? 'flex-1 min-h-[200px]' : 'h-[340px]'
+                }`}>
                     {activeTab === 'preview' && (isArchive || isTorrent) ? (
                       isTorrent && path ? <TorrentPreviewPanel path={path} /> : path ? <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} /> : null
                     ) : activeTab === 'media' && (isAudio || isVideo) ? (
@@ -703,12 +778,29 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
                 )}
 
                 {activeTab === 'preview' && (
+                isDir ? (
+                  <div className="shrink-0 border-t border-white/[0.06] bg-gradient-to-r from-[#0d0d12] to-[#111118] grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
+                    <div className="min-w-0 flex flex-col justify-center">
+                      <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
+                      <p className="text-[10px] text-sky-400/70 uppercase tracking-widest mt-1 font-medium">Folder</p>
+                      {folderStats && (
+                        <p className="text-[10px] text-gray-500 mt-2 font-mono">
+                          {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex justify-end">
+                      {renderFolderDock()}
+                    </div>
+                  </div>
+                ) : (
                 <div className="px-4 py-3 border-t border-white/[0.06] bg-gradient-to-r from-[#0d0d12] to-[#111118] shrink-0">
                    <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
                    <p className="text-[10px] text-sky-400/70 uppercase tracking-widest mt-1 font-medium">
-                      {isDrive ? (entity as any).typeDescription : (isDir ? 'Folder' : `${ext.toUpperCase()} file`)}
+                      {isDrive ? (entity as any).typeDescription : `${ext.toUpperCase()} file`}
                    </p>
                 </div>
+                )
                 )}
              </motion.div>
           </AnimatePresence>

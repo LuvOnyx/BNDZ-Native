@@ -221,6 +221,10 @@ function mockQuery(query: string): LauncherQueryResult {
     { id: 'system-ai-chat', title: 'AI Chat', subtitle: 'Ask Gemini anything', category: 'system', iconGlyph: '✨' },
     { id: 'system-search-snippets', title: 'Search Snippets', subtitle: 'Text expansion snippets', category: 'snippet', iconGlyph: '✂️' },
     { id: 'system-search-quicklinks', title: 'Quick Links', subtitle: 'Bookmarked URLs', category: 'quicklink', iconGlyph: '🔗' },
+    { id: 'system-clipboard-manager', title: 'Clipboard History', subtitle: 'Raycast-style pasteboard', category: 'system', iconGlyph: '📋' },
+    { id: 'system-file-search', title: 'Search Files', subtitle: 'Find files on disk', category: 'system', iconGlyph: '🔍' },
+    { id: 'system-open-extensions', title: 'Extension Hub', subtitle: 'Manage launcher extensions', category: 'extension', iconGlyph: '🧩' },
+    { id: 'system-open-plugin-store', title: 'BNDZ Plugin Store', subtitle: 'Properties, Find, Catalog…', category: 'bndz', iconGlyph: '🛒' },
     { id: 'bndz-open', title: 'Open BNDZ File Manager', subtitle: 'Dual-pane workspace', category: 'bndz', iconGlyph: '📁' },
   ];
   const commands = q

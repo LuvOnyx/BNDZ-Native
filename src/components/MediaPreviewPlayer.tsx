@@ -137,7 +137,7 @@ export default function MediaPreviewPlayer({
     setBuffering(false);
   };
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     const el = mediaRef.current;
     if (!el || loadError) return;
     if (el.paused || el.ended) {
@@ -145,16 +145,16 @@ export default function MediaPreviewPlayer({
     } else {
       el.pause();
     }
-  };
+  }, [loadError]);
 
-  const seek = (t: number) => {
+  const seek = useCallback((t: number) => {
     const el = mediaRef.current;
     if (!el || !Number.isFinite(t)) return;
     el.currentTime = Math.max(0, Math.min(t, el.duration || t));
     setCurrent(el.currentTime);
-  };
+  }, []);
 
-  const skip = (delta: number) => seek((mediaRef.current?.currentTime || 0) + delta);
+  const skip = useCallback((delta: number) => seek((mediaRef.current?.currentTime || 0) + delta), [seek]);
 
   const setVol = (v: number) => {
     const el = mediaRef.current;
@@ -178,6 +178,19 @@ export default function MediaPreviewPlayer({
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen?.();
   };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      if (e.code === 'ArrowLeft') { e.preventDefault(); skip(-5); }
+      if (e.code === 'ArrowRight') { e.preventDefault(); skip(5); }
+      if (e.code === 'KeyF' && type === 'video') { e.preventDefault(); toggleFullscreen(); }
+      if (e.code === 'KeyM') { e.preventDefault(); toggleMute(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [type, loadError, togglePlay, skip, toggleFullscreen, toggleMute]);
 
   const progress = duration > 0 ? (current / duration) * 100 : 0;
 
@@ -207,7 +220,7 @@ export default function MediaPreviewPlayer({
   };
 
   return (
-    <div className={`w-full h-full flex flex-col bg-[#080808] ${type === 'video' ? '' : 'justify-center'}`}>
+    <div className={`w-full h-full flex flex-col bndz-glass-panel overflow-hidden ${type === 'video' ? '' : 'justify-center'}`}>
       <div className={`relative flex-1 flex items-center justify-center min-h-0 ${type === 'audio' ? 'py-6' : ''}`}>
         {loadError ? (
           <div className="flex flex-col items-center gap-3 px-6 text-center">
@@ -241,7 +254,7 @@ export default function MediaPreviewPlayer({
               {...mediaProps}
             />
             <div className="flex flex-col items-center gap-3 px-6 text-center">
-              <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-sky-900/40 to-purple-900/30 border border-sky-500/20 flex items-center justify-center shadow-lg">
+              <div className="w-24 h-24 rounded-3xl bndz-glass-surface border border-sky-500/20 flex items-center justify-center shadow-lg">
                 <Volume2 size={40} className="text-sky-400" />
               </div>
               {title && <p className="text-sm font-semibold text-white truncate max-w-full">{title}</p>}
@@ -256,7 +269,7 @@ export default function MediaPreviewPlayer({
         )}
       </div>
 
-      <div className="shrink-0 bg-[#141414] border-t border-[#2a2a2a] px-3 py-2.5 flex flex-col gap-2">
+      <div className="shrink-0 border-t border-white/10 px-3 py-2.5 flex flex-col gap-2 backdrop-blur-md bg-black/20">
         {type === 'video' && title && (
           <div className="text-[11px] text-gray-400 truncate font-medium">{title}</div>
         )}
@@ -265,7 +278,7 @@ export default function MediaPreviewPlayer({
           <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Back 10s">
             <SkipBack size={14} />
           </button>
-          <button type="button" onClick={togglePlay} disabled={!!loadError} className="p-2 bg-sky-600 hover:bg-sky-500 rounded-full text-white shadow-lg disabled:opacity-30" title={playing ? 'Pause' : 'Play'}>
+          <button type="button" onClick={togglePlay} disabled={!!loadError} className="p-2 bg-sky-500/90 hover:bg-sky-400 rounded-full text-white shadow-lg disabled:opacity-30" title={playing ? 'Pause' : 'Play'}>
             {playing ? <Pause size={16} fill="white" /> : <Play size={16} fill="white" className="ml-0.5" />}
           </button>
           <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Forward 10s">

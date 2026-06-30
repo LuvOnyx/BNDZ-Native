@@ -36,7 +36,7 @@ public sealed class ArchiveService
             if (ext == "zip")
                 return ListZipContents(path, limit);
 
-            using var archive = ArchiveFactory.Open(path);
+            using var archive = ArchiveFactory.OpenArchive(path);
             var entries = new List<ArchiveEntryDto>();
             long totalSize = 0;
             long totalCompressed = 0;
@@ -191,7 +191,7 @@ public sealed class ArchiveService
         };
 
         using var stream = File.Open(target, FileMode.CreateNew);
-        using var writer = WriterFactory.Open(stream, archiveType, CompressionType.Deflate);
+        using var writer = WriterFactory.OpenWriter(stream, archiveType, new WriterOptions(CompressionType.Deflate));
 
         var allFiles = CollectFiles(sources);
         int i = 0;
@@ -229,7 +229,7 @@ public sealed class ArchiveService
             return;
         }
 
-        using var archive = ArchiveFactory.Open(archivePath);
+        using var archive = ArchiveFactory.OpenArchive(archivePath);
         var arcEntry = archive.Entries.FirstOrDefault(e =>
             (e.Key ?? "").Replace('\\', '/').TrimEnd('/').Equals(entryPath, StringComparison.OrdinalIgnoreCase));
         if (arcEntry == null) throw new FileNotFoundException("Entry not found in archive", entryPath);
@@ -315,7 +315,7 @@ public sealed class ArchiveService
                 return;
             }
 
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath);
             var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
             int i = 0;
             foreach (var entry in entries)

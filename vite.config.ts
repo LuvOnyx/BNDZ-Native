@@ -9,7 +9,12 @@ export default defineConfig(() => {
     build: {
       outDir: 'BNDZBackend/Assets/ui',
       emptyOutDir: true,
+      chunkSizeWarningLimit: 1200,
       rollupOptions: {
+        onwarn(warning, warn) {
+          if (warning.message?.includes('dynamic import will not move module into another chunk')) return;
+          warn(warning);
+        },
         output: {
           manualChunks(id) {
             if (id.includes('node_modules/framer-motion') || id.includes('node_modules/motion')) {

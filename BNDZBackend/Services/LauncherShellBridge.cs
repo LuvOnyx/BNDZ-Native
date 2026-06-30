@@ -238,7 +238,7 @@ public sealed class LauncherShellBridge
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    private void Reply(string? requestId, string type, object payload)
+    private void Reply(string? requestId, string type, object? payload)
     {
         _postJson(JsonSerializer.Serialize(new { type, requestId, payload }, JsonOpts));
     }

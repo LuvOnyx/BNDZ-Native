@@ -38,7 +38,18 @@ public partial class LauncherShellWindow : Window
     {
         try
         {
-            await LauncherWebView.EnsureCoreWebView2Async(null);
+            var userDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "BNDZ64",
+                "WebView2Launcher");
+            Directory.CreateDirectory(userDataFolder);
+
+            var webEnvOptions = new CoreWebView2EnvironmentOptions
+            {
+                AdditionalBrowserArguments = "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion"
+            };
+            var webEnv = await CoreWebView2Environment.CreateAsync(null, userDataFolder, webEnvOptions);
+            await LauncherWebView.EnsureCoreWebView2Async(webEnv);
             LauncherWebView.DefaultBackgroundColor = Color.Transparent;
             var core = LauncherWebView.CoreWebView2;
             core.Settings.AreDefaultContextMenusEnabled = false;
@@ -70,6 +81,15 @@ public partial class LauncherShellWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[LauncherShell] init failed: {ex.Message}");
+            var hint = ex.Message.Contains("Class not registered", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("WebView2", StringComparison.OrdinalIgnoreCase)
+                ? "\n\nInstall Microsoft Edge WebView2 Runtime:\nhttps://go.microsoft.com/fwlink/p/?LinkId=2124703"
+                : string.Empty;
+            System.Windows.MessageBox.Show(
+                $"BNDZ Launcher could not start its web view.\n\n{ex.Message}{hint}",
+                "Launcher Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -280,11 +300,42 @@ public partial class LauncherShellWindow : Window
         var wallpaperUrl = !string.IsNullOrWhiteSpace(wallpaperPath)
             ? $"https://bndz.launcher.local/stream?path={Uri.EscapeDataString(wallpaperPath)}"
             : null;
+
+        var chrome = "#12141a";
+        var raised = "#1c1f28";
+        var accent = "#2f6bff";
+        try
+        {
+            var json = new SettingsManager().LoadSettings();
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                accent = GetJsonString(root, "accent", GetJsonString(root, "colorConfig15", accent));
+                var palette = GetJsonString(root, "appearanceChromePalette", "cool");
+                chrome = palette switch
+                {
+                    "neutral" => "#141414",
+                    "warm" => "#161412",
+                    _ => "#12141a",
+                };
+                raised = palette switch
+                {
+                    "neutral" => "#1e1e1e",
+                    "warm" => "#211e1a",
+                    _ => "#1c1f28",
+                };
+            }
+        }
+        catch { }
+
         var themeJson = JsonSerializer.Serialize(new
         {
             type = "THEME_SYNC",
             dark = true,
-            accent = "#2f6bff",
+            accent,
+            surfaceChrome = chrome,
+            surfaceRaised = raised,
             wallpaperUrl,
             launcherShowBackground = true,
             launcherBackgroundOpacity = 46,
@@ -292,6 +343,11 @@ public partial class LauncherShellWindow : Window
         });
         LauncherWebView.CoreWebView2.PostWebMessageAsJson(themeJson);
     }
+
+    private static string GetJsonString(JsonElement root, string name, string fallback) =>
+        root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String
+            ? el.GetString() ?? fallback
+            : fallback;
 
     private static string? GetDesktopWallpaperPath()
     {
@@ -352,7 +408,7 @@ public partial class LauncherShellWindow : Window
         BndzInstalledAppsIndex.Shared.EnsureIndexed();
         _ = Task.Run(BndzShellQueryClient.WarmupFlowPlugins);
 
-        ApplyLayoutMode("compact");
+        ApplyLayoutMode("expanded");
         _shownAtUtc = DateTime.UtcNow;
         if (!IsVisible)
         {

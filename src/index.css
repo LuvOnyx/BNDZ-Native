@@ -9,6 +9,82 @@
   --tooltip-muted: rgba(255, 255, 255, 0.52);
   --tooltip-border: rgba(255, 255, 255, 0.14);
   --tooltip-accent: #38bdf8;
+  /* macOS-inspired glass & radii — cool slate, subtle corners (NOT pills) */
+  --bndz-radius-sm: 5px;
+  --bndz-radius-md: 6px;
+  --bndz-radius-lg: 8px;
+  --bndz-glass-bg: rgba(26, 29, 38, 0.82);
+  --bndz-glass-border: rgba(255, 255, 255, 0.08);
+  --bndz-glass-highlight: rgba(255, 255, 255, 0.04);
+  --bndz-glass-blur: 12px;
+  --bndz-surface-base: #16181f;
+  --bndz-surface-raised: #1c1f28;
+  --bndz-surface-chrome: #12141a;
+}
+
+/* ── macOS glass surfaces ── */
+.bndz-glass-surface {
+  border-radius: var(--bndz-radius-md);
+  background: var(--bndz-glass-bg);
+  border: 1px solid var(--bndz-glass-border);
+  box-shadow: inset 0 1px 0 var(--bndz-glass-highlight), 0 8px 32px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(var(--bndz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--bndz-glass-blur));
+}
+
+.bndz-glass-chip {
+  border-radius: var(--bndz-radius-sm);
+  background: rgba(30, 33, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.bndz-glass-panel {
+  border-radius: var(--bndz-radius-lg);
+  background: linear-gradient(145deg, rgba(32, 34, 42, 0.85) 0%, rgba(18, 20, 28, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.bndz-storage-track {
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.bndz-storage-fill {
+  border-radius: 2px;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bndz-storage-fill-healthy {
+  background: linear-gradient(90deg, #3b9fd9 0%, #5ec4f0 100%);
+  box-shadow: none;
+}
+
+.bndz-storage-fill-warn {
+  background: linear-gradient(90deg, #c98a2e 0%, #e8b04a 100%);
+  box-shadow: none;
+}
+
+.bndz-storage-fill-critical {
+  background: linear-gradient(90deg, #c43c4a 0%, #f06b78 100%);
+  box-shadow: none;
+}
+
+.bndz-menubar-trigger {
+  border-radius: var(--bndz-radius-sm);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.bndz-menubar-trigger-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 @layer base {
@@ -159,7 +235,7 @@
     transition: background 0.1s ease, box-shadow 0.12s ease, outline-color 0.12s ease;
   }
 
-  .fs-item-wrapper:hover:not(.border-\[\#007acc\]) {
+  .fs-item-wrapper:hover:not(.fs-item-selected) {
     background: linear-gradient(90deg, rgba(42, 45, 46, 0.92) 0%, rgba(30, 32, 34, 0.75) 100%) !important;
   }
 
@@ -306,12 +382,13 @@ html[data-theme] .bndz-chrome-preview .bndz-preview-tab-active {
 }
 
 html[data-theme] .bndz-chrome-preview .bndz-preview-stage {
-  background: color-mix(in srgb, var(--panel-preview-bg) 72%, #000000 28%) !important;
+  background: linear-gradient(160deg, rgba(28, 32, 44, 0.45) 0%, rgba(12, 14, 20, 0.6) 100%) !important;
 }
 
 html[data-theme] .bndz-chrome-preview .bndz-preview-detail-card {
-  background: color-mix(in srgb, var(--panel-preview-bg) 88%, #000000 12%) !important;
-  border-color: var(--border-subtle) !important;
+  border-radius: var(--bndz-radius-md);
+  background: var(--bndz-glass-bg) !important;
+  border-color: var(--bndz-glass-border) !important;
 }
 
 html[data-theme] .bndz-chrome-bottom {
@@ -437,10 +514,7 @@ html.theme-light .nav-tree-row:hover {
 /* File Pilot Direct3D parity — Chromium compositor + WebView2 GPU raster layers */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
-.bndz-chrome-menubar,
 .bndz-chrome-toolbar,
-.bndz-chrome-sidebar,
-.bndz-chrome-preview,
 .bndz-chrome-bottom,
 .bndz-file-list-scroll,
 .bndz-quick-actions-bar {
@@ -448,6 +522,19 @@ html.theme-light .nav-tree-row:hover {
   will-change: transform;
   backface-visibility: hidden;
   contain: layout style paint;
+}
+
+.bndz-chrome-menubar {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  overflow: visible;
+}
+
+.bndz-chrome-sidebar,
+.bndz-chrome-preview {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 /* Premium plugin panel harmonization tier */
@@ -484,6 +571,148 @@ html.theme-light .nav-tree-row:hover {
 
 .bndz-resize-handle-glow-v:hover {
   background: linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.55), transparent) !important;
+}
+
+.fs-item-wrapper.fs-item-selected {
+  /* Base — overridden by appearance variants below */
+}
+
+/* ── Appearance: list selection variants (Settings → Appearance) ── */
+html[data-selection-style="classic"] .fs-list-item.fs-item-selected:not([style*="background"]) {
+  background-color: rgba(38, 79, 120, 0.92);
+  box-shadow: none;
+}
+
+html[data-selection-style="inset"] .fs-list-item.fs-item-selected {
+  background-color: rgba(0, 122, 204, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 122, 204, 0.75);
+}
+
+html[data-selection-style="xyplorer"] .fs-list-item.fs-item-selected:not([style*="background"]) {
+  background-color: #264f78;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+html[data-selection-style="filepilot"] .fs-list-item.fs-item-selected {
+  background-color: rgba(0, 122, 204, 0.14);
+  box-shadow: inset 3px 0 0 #007acc;
+  border-radius: var(--bndz-radius-sm);
+}
+
+html[data-selection-style="minimal"] .fs-list-item.fs-item-selected {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.45);
+}
+
+html[data-selection-style="glow"] .fs-list-item.fs-item-selected {
+  background-color: rgba(38, 79, 120, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(0, 122, 204, 0.85), 0 0 12px rgba(0, 122, 204, 0.22);
+}
+
+/* Grid / icon tile selection */
+html[data-grid-selection="subtle"] .fs-grid-item.fs-item-selected {
+  background-color: rgba(0, 122, 204, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(0, 122, 204, 0.55);
+}
+
+html[data-grid-selection="filled"] .fs-grid-item.fs-item-selected:not([style*="background"]) {
+  background-color: rgba(38, 79, 120, 0.45);
+  box-shadow: none;
+}
+
+html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 2px rgba(56, 189, 248, 0.65);
+}
+
+/* Density */
+html[data-density="compact"] .fs-list-item {
+  min-height: 20px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+html[data-density="comfortable"] .fs-list-item {
+  min-height: var(--bndz-density-row, 24px);
+}
+
+html[data-density="spacious"] .fs-list-item {
+  min-height: 28px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+html[data-density="compact"] .nav-tree-row {
+  min-height: 20px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+html[data-density="comfortable"] .nav-tree-row {
+  min-height: var(--bndz-density-row, 24px);
+}
+
+html[data-density="spacious"] .nav-tree-row {
+  min-height: 28px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* Tab strip variants */
+html[data-tab-style="underline"] .bndz-tab-item.bndz-tab-active {
+  border-bottom: 2px solid #007acc;
+  margin-bottom: -2px;
+}
+
+html[data-tab-style="segment"] .bndz-tab-item.bndz-tab-active {
+  background: var(--bndz-surface-raised) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html[data-tab-style="flat"] .bndz-chrome-tabstrip {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+html[data-tab-style="flat"] .bndz-tab-item {
+  border: none;
+  border-radius: var(--bndz-radius-sm);
+}
+
+html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Surface style toggles glass on panels */
+html[data-surface-style="flat"] .bndz-glass-surface,
+html[data-surface-style="flat"] .bndz-glass-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-surface-style="glass"] .bndz-chrome-sidebar,
+html[data-surface-style="glass"] .bndz-chrome-omnibar {
+  backdrop-filter: blur(var(--bndz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--bndz-glass-blur));
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .fs-item-wrapper,
+  .nav-tree-row,
+  .bndz-tab-item,
+  .command-item {
+    transition: none !important;
+  }
+}
+
+.bndz-chrome-bar {
+  background: var(--bndz-surface-chrome);
+}
+
+.bndz-chrome-raised {
+  background: var(--bndz-surface-raised);
 }
 
 .fs-item-wrapper.border-\[\#007acc\] {
@@ -883,6 +1112,20 @@ html[data-theme] .status-bar-glow {
 }
 
 /* BNDZ Launcher — Flow-style quick launcher */
+/* Focus rings (keyboard navigation) */
+.fs-item-wrapper:focus-visible,
+.nav-tree-row:focus-visible,
+.bndz-tab-item:focus-visible,
+.bndz-menubar-trigger:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.65);
+  outline-offset: -2px;
+}
+
+html[data-theme] .fs-item-wrapper:focus-visible,
+html[data-theme] .nav-tree-row:focus-visible {
+  outline-color: color-mix(in srgb, var(--accent, #38bdf8) 70%, transparent);
+}
+
 .bndz-launcher-root {
   background: radial-gradient(ellipse 120% 80% at 50% -20%, color-mix(in srgb, var(--accent, #0ea5e9) 18%, transparent) 0%, transparent 55%),
     linear-gradient(180deg, color-mix(in srgb, var(--bg, #0a0a0e) 92%, #000) 0%, var(--bg, #08080c) 100%);

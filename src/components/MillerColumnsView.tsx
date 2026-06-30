@@ -46,7 +46,30 @@ export default function MillerColumnsView({
   }, [rootPath, selectedPath]);
 
   return (
-    <div className="flex h-full min-h-0 overflow-x-auto bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer">
+    <div className="flex flex-col h-full min-h-0">
+      <div
+        className="shrink-0 flex items-center gap-0.5 px-2 py-1.5 border-b border-white/[0.06] overflow-x-auto bndz-scrollbar text-[11px]"
+        style={{ background: 'var(--bndz-surface-chrome, #12141a)' }}
+      >
+        {columnPaths.map((seg, i) => {
+          const label = seg === '/' ? 'This PC' : (seg.split('/').pop() || seg);
+          return (
+            <React.Fragment key={seg}>
+              {i > 0 && <ChevronRight size={10} className="shrink-0 text-gray-600" />}
+              <button
+                type="button"
+                className={`shrink-0 px-1.5 py-0.5 rounded hover:bg-white/[0.06] truncate max-w-[140px] ${
+                  i === columnPaths.length - 1 ? 'text-sky-300 font-medium' : 'text-gray-400'
+                }`}
+                onClick={() => onNavigate(seg)}
+              >
+                {label}
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    <div className="flex flex-1 min-h-0 overflow-x-auto bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer">
       {columnPaths.map((colPath) => {
         const items = pathContentsCache[colPath] || [];
         return (
@@ -92,6 +115,7 @@ export default function MillerColumnsView({
           </div>
         );
       })}
+    </div>
     </div>
   );
 }

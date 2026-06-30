@@ -78,7 +78,7 @@ html, body, #root {
 .command-item.selected {
   background: linear-gradient(90deg, var(--accent-soft), var(--command-item-selected-bg));
   border-color: var(--command-item-selected-border);
-  box-shadow: inset 0 0 0 1px rgba(47, 107, 255, 0.12);
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px rgba(47, 107, 255, 0.12);
 }
 
 .bndz-search-input {

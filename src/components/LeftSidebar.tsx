@@ -19,11 +19,18 @@ const REVERSE_SECTION_MAP: Record<string, string> = {
 
 const DEFAULT_SECTION_ORDER = ['drives', 'quickAccess', 'cloud', 'miniTree', 'tree'];
 
-function mapSidebarOrder(sidebarOrder?: string[]) {
+function mapSidebarOrder(sidebarOrder?: string[], includeMiniTree?: boolean) {
     const mapped = (sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])
         .map((k: string) => SECTION_KEY_MAP[k] || k)
         .filter((k: string) => DEFAULT_SECTION_ORDER.includes(k));
-    return mapped.length ? mapped : DEFAULT_SECTION_ORDER.filter(k => k !== 'miniTree');
+    let order = mapped.length ? mapped : DEFAULT_SECTION_ORDER.filter(k => k !== 'miniTree');
+    if (includeMiniTree && !order.includes('miniTree')) {
+        const treeIdx = order.indexOf('tree');
+        order = treeIdx >= 0
+            ? [...order.slice(0, treeIdx), 'miniTree', ...order.slice(treeIdx)]
+            : [...order, 'miniTree'];
+    }
+    return order;
 }
 
 export function LeftSidebar({
@@ -34,6 +41,7 @@ export function LeftSidebar({
     miniTreeContent,
     treeContent,
     sidebarOrder,
+    showMiniTree,
     onSectionOrderChange,
 }: any) {
     const [expandedSections, setExpandedSections] = useState({
@@ -44,54 +52,64 @@ export function LeftSidebar({
         tree: true,
     });
 
-    const mappedOrder = useMemo(() => mapSidebarOrder(sidebarOrder), [sidebarOrder]);
+    const mappedOrder = useMemo(
+        () => mapSidebarOrder(sidebarOrder, showMiniTree === true || !!miniTreeContent),
+        [sidebarOrder, showMiniTree, miniTreeContent],
+    );
     const [order, setOrder] = useState(mappedOrder);
-    const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragOrderRef = React.useRef(order);
 
-    useEffect(() => {
-        setOrder(mappedOrder);
-    }, [mappedOrder]);
+  useEffect(() => {
+    dragOrderRef.current = order;
+  }, [order]);
 
-    const toggleSection = (section: string) => {
-        setExpandedSections(prev => ({ ...prev, [section]: !(prev as any)[section] }));
-    };
+  useEffect(() => {
+    setOrder(mappedOrder);
+  }, [mappedOrder]);
 
-    const handleDragStart = (e: React.DragEvent, id: string) => {
-        e.stopPropagation();
-        setDraggedItem(id);
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', `sidebar-section:${id}`);
-        setTimeout(() => {
-            const dragEl = document.getElementById(`section-${id}`);
-            if (dragEl) dragEl.classList.add('opacity-50');
-        }, 0);
-    };
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !(prev as any)[section] }));
+  };
 
-    const handleDragOver = (e: React.DragEvent, id: string) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!draggedItem || draggedItem === id) return;
-        
-        setOrder(prev => {
-            const newOrder = [...prev];
-            const draggedIdx = newOrder.indexOf(draggedItem);
-            const targetIdx = newOrder.indexOf(id);
-            newOrder.splice(draggedIdx, 1);
-            newOrder.splice(targetIdx, 0, draggedItem);
-            return newOrder;
-        });
-    };
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.stopPropagation();
+    setDraggedItem(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `sidebar-section:${id}`);
+    if (e.dataTransfer.setDragImage) {
+      const ghost = document.createElement('div');
+      ghost.className = 'fixed pointer-events-none opacity-0';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      requestAnimationFrame(() => ghost.remove());
+    }
+  };
 
-    const handleDragEnd = (e: React.DragEvent) => {
-        if (draggedItem) {
-            const dragEl = document.getElementById(`section-${draggedItem}`);
-            if (dragEl) dragEl.classList.remove('opacity-50');
-        }
-        if (draggedItem && onSectionOrderChange) {
-            onSectionOrderChange(order.map(k => REVERSE_SECTION_MAP[k] || k));
-        }
-        setDraggedItem(null);
-    };
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedItem || draggedItem === id) return;
+    setDragOverId(id);
+    setOrder(prev => {
+      const newOrder = [...prev];
+      const draggedIdx = newOrder.indexOf(draggedItem);
+      const targetIdx = newOrder.indexOf(id);
+      if (draggedIdx < 0 || targetIdx < 0 || draggedIdx === targetIdx) return prev;
+      newOrder.splice(draggedIdx, 1);
+      newOrder.splice(targetIdx, 0, draggedItem);
+      return newOrder;
+    });
+  };
+
+  const handleDragEnd = () => {
+    if (draggedItem && onSectionOrderChange) {
+      onSectionOrderChange(dragOrderRef.current.map(k => REVERSE_SECTION_MAP[k] || k));
+    }
+    setDraggedItem(null);
+    setDragOverId(null);
+  };
 
     const sections = {
         quickAccess: { content: quickAccessContent, label: "Rapid access", icon: Star, iconColor: "text-emerald-400" },
@@ -116,7 +134,7 @@ export function LeftSidebar({
                     <div 
                         key={key} 
                         id={`section-${key}`}
-                        className={`transition-transform duration-200 ${key === 'tree' ? 'flex-1 flex flex-col min-h-[320px] mb-2' : 'mb-4 shrink-0'}`}
+                        className={`transition-[transform,opacity] duration-150 ease-out ${draggedItem === key ? 'opacity-40 scale-[0.98]' : ''} ${dragOverId === key && draggedItem !== key ? 'ring-1 ring-sky-500/30' : ''} ${key === 'tree' ? 'flex-[3] flex flex-col min-h-[min(560px,52vh)] mb-1' : key === 'miniTree' ? 'mb-2 shrink-0 max-h-[160px] overflow-hidden flex flex-col' : 'mb-3 shrink-0'}`}
                         onDragOver={e => handleDragOver(e, key)}
                     >
                         <div 

@@ -291,7 +291,14 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         });
     };
 
-    if (!loaded) return null; // Avoid rendering with completely default settings if waiting for init
+    if (!loaded) {
+        return (
+            <div className="w-screen h-screen flex flex-col items-center justify-center bg-[#111114] text-gray-400 gap-3 select-none">
+                <div className="w-8 h-8 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+                <span className="text-[11px] tracking-wide text-gray-500">Loading BNDZ…</span>
+            </div>
+        );
+    }
 
     return <ConfigContext.Provider value={{ config, updateConfig }}>{children}</ConfigContext.Provider>;
 };

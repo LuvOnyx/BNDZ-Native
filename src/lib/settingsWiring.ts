@@ -72,7 +72,8 @@ export function buildKeyboardMap(config: AppConfig): Record<string, string> {
 /** Mouse / usability flags */
 export function buildMouseRuntime(config: AppConfig) {
   return {
-    singleClickOpen: readSettingBool(config, 'openItemsOnSingleClick'),
+    singleClickOpen: readSettingBool(config, 'openItemsOnSingleClick')
+      || readSettingBool(config, 'singleClickToOpenAnItem'),
     doubleClickOpen: readSettingBool(config, 'openItemsOnDoubleClick', true),
     activateOnMiddleClick: readSettingBool(config, 'activateTabOnMiddleClick'),
     hoverSelect: readSettingBool(config, 'selectListItemsOnMouseHover'),

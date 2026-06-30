@@ -379,15 +379,16 @@ export default function PropertiesPlugin({
             </div>
 
             {/* Tab strip */}
-            <div className="shrink-0 flex border-b border-[#222] bg-[#111]">
+            <div className="shrink-0 flex border-b border-[#222]" style={{ background: 'var(--bndz-surface-chrome)' }}>
                 {tabs.filter(t => t.show).map(t => (
                     <button
                         key={t.id}
                         type="button"
                         onClick={() => setActiveTab(t.id)}
                         className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider border-r border-[#222] transition-colors ${
-                            activeTab === t.id ? 'bg-[#1a1a1a] text-sky-400 border-b-2 border-b-sky-500' : 'text-gray-500 hover:text-gray-300'
+                            activeTab === t.id ? 'text-sky-400 border-b-2 border-b-sky-500' : 'text-gray-500 hover:text-gray-300'
                         }`}
+                        style={activeTab === t.id ? { background: 'var(--bndz-surface-raised)' } : undefined}
                     >
                         {t.label}
                     </button>

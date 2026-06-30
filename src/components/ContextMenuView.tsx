@@ -216,7 +216,8 @@ export default function ContextMenuView({
   const useCustomMenu = rt.shell.useCustomContextMenu;
   const allNative = menu.nativeContextItems || [];
 
-  if (!useCustomMenu) {
+  // Always show custom menu immediately; native items merge in when ready (no blocking wait)
+  if (!useCustomMenu && allNative.length > 0) {
     return (
       <ClampedFixedMenu
         x={menu.x}
@@ -225,11 +226,7 @@ export default function ContextMenuView({
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
       >
-        {allNative.length > 0 ? (
-          allNative.map(renderNativeItem)
-        ) : (
-          <ContextMenuItem label="Loading…" disabled />
-        )}
+        {allNative.map(renderNativeItem)}
       </ClampedFixedMenu>
     );
   }

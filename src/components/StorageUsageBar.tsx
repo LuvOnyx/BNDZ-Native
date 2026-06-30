@@ -5,33 +5,53 @@ interface StorageUsageBarProps {
   height?: number;
   className?: string;
   warnAbove?: number;
+  showLabels?: boolean;
 }
 
-/** Rounded-rectangle storage meter (sidebar + list view) */
+function tier(pct: number, warnAbove: number) {
+  if (pct >= warnAbove) return 'critical';
+  if (pct >= warnAbove - 15) return 'warn';
+  return 'healthy';
+}
+
+/** macOS-inspired storage meter — rounded glass track with tiered fill */
 export function StorageUsageBar({
   usedPct,
   height = 6,
   className = '',
   warnAbove = 90,
+  showLabels = false,
 }: StorageUsageBarProps) {
   const pct = Math.min(100, Math.max(0, usedPct));
-  const critical = pct >= warnAbove;
+  const freePct = 100 - pct;
+  const level = tier(pct, warnAbove);
+
+  const fillClass =
+    level === 'critical'
+      ? 'bndz-storage-fill-critical'
+      : level === 'warn'
+        ? 'bndz-storage-fill-warn'
+        : 'bndz-storage-fill-healthy';
 
   return (
-    <div
-      className={`storage-usage-bar w-full overflow-hidden rounded-[3px] bg-[#2a2a2a] border border-[#333]/80 shadow-inner ${className}`}
-      style={{ height }}
-      role="progressbar"
-      aria-valuenow={Math.round(pct)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
+    <div className={className}>
+      {showLabels && (
+        <div className="flex justify-between text-[8px] text-white/40 mb-0.5 font-medium tracking-wide">
+          <span>{Math.round(pct)}% used</span>
+          <span>{Math.round(freePct)}% free</span>
+        </div>
+      )}
       <div
-        className={`h-full rounded-[2px] transition-[width] duration-300 ${
-          critical ? 'bg-gradient-to-r from-[#c43c4a] to-[#e85d6a]' : 'bg-gradient-to-r from-[#4a9fd4] to-[#6db4e6]'
-        }`}
-        style={{ width: `${pct}%` }}
-      />
+        className="bndz-storage-track w-full overflow-hidden"
+        style={{ height }}
+        role="progressbar"
+        aria-valuenow={Math.round(pct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${Math.round(pct)} percent storage used`}
+      >
+        <div className={`h-full bndz-storage-fill ${fillClass}`} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }

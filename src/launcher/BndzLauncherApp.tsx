@@ -38,6 +38,15 @@ const VIEW_COMMANDS = new Set([
   'system-open-settings',
 ]);
 
+function hexToRgbCsv(hex: string): string {
+  const h = hex.replace('#', '').trim();
+  if (h.length < 6) return '30, 30, 30';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
 /** SuperCmd App.tsx orchestration — BNDZ Launcher multi-view shell */
 export default function BndzLauncherApp() {
   const views = useBndzLauncherViews();
@@ -49,7 +58,7 @@ export default function BndzLauncherApp() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loadingExtensions, setLoadingExtensions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [wallpaperUrl, setWallpaperUrl] = useState('');
   const [showBackground, setShowBackground] = useState(true);
   const [backgroundOpacity, setBackgroundOpacity] = useState(46);
@@ -179,6 +188,10 @@ export default function BndzLauncherApp() {
         if (typeof msg.launcherShowBackground === 'boolean') setShowBackground(msg.launcherShowBackground);
         if (typeof msg.launcherBackgroundOpacity === 'number') setBackgroundOpacity(msg.launcherBackgroundOpacity);
         if (typeof msg.launcherBackgroundBlur === 'number') setBackgroundBlur(msg.launcherBackgroundBlur);
+        const root = document.documentElement;
+        if (msg.surfaceChrome) root.style.setProperty('--surface-base-rgb', hexToRgbCsv(msg.surfaceChrome));
+        if (msg.surfaceRaised) root.style.setProperty('--launcher-panel-bg', msg.surfaceRaised);
+        if (msg.accent) root.style.setProperty('--accent', msg.accent);
       }
       if (msg.type === 'LAUNCHER_VISIBLE') expandLauncher();
     });
@@ -188,8 +201,7 @@ export default function BndzLauncherApp() {
   useEffect(() => {
     if (!views.isMain) return;
     inputRef.current?.focus();
-    expandLauncher();
-  }, [views.isMain, expandLauncher]);
+  }, [views.isMain]);
 
   useEffect(() => {
     if (!views.isMain) return;

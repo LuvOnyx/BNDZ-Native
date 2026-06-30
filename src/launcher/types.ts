@@ -130,6 +130,8 @@ export type LauncherBridgeMessage = LauncherBridgeEnvelope & (
       launcherShowBackground?: boolean;
       launcherBackgroundOpacity?: number;
       launcherBackgroundBlur?: number;
+      surfaceChrome?: string;
+      surfaceRaised?: string;
     }
   | { type: 'AI_STREAM_CHUNK'; requestId: string; chunk: string }
   | { type: 'AI_STREAM_DONE'; requestId: string }

@@ -1,5 +1,6 @@
 import type { AppConfig } from '../data/configContext';
 import { applyThemeByName } from '../data/themePresets';
+import { applyAppearanceVariants } from './appearanceVariants';
 import {
   syncAllSettingsToDocument,
   buildKeyboardMap,
@@ -202,10 +203,17 @@ function sortKeyName(name: string, config: AppConfig): string {
 }
 
 function naturalCompare(a: string, b: string, config: AppConfig): number {
-  const sa = sortKeyName(a, config);
-  const sb = sortKeyName(b, config);
+  const sa = sortKeyName(a || '', config);
+  const sb = sortKeyName(b || '', config);
   const sensitivity = config.treatHyphensAndApostrophesLikeNormalCharacters ? 'variant' : 'base';
   return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: sensitivity as Intl.CollatorOptions['sensitivity'] });
+}
+
+/** Stable sort key for FS entities (shell folders may omit `name`) */
+export function entitySortName(entity: any): string {
+  if (!entity) return '';
+  const raw = entity.name ?? entity.label ?? entity.displayName ?? entity.id;
+  return raw != null ? String(raw) : '';
 }
 
 /** Resolve default sort column from global sortMethod setting */
@@ -252,13 +260,15 @@ export function compareEntities(
 
   if (col === 'name') {
     const method = rt.sort.method;
-    if (method === 'Alphabetical') return mul * a.name.localeCompare(b.name);
-    return mul * naturalCompare(a.name, b.name, config);
+    const nameA = entitySortName(a);
+    const nameB = entitySortName(b);
+    if (method === 'Alphabetical') return mul * nameA.localeCompare(nameB);
+    return mul * naturalCompare(nameA, nameB, config);
   }
   if (col === 'type') {
     const typeA = a.extension || (a.type === 'directory' ? 'folder' : '');
     const typeB = b.extension || (b.type === 'directory' ? 'folder' : '');
-    return mul * typeA.localeCompare(typeB);
+    return mul * String(typeA).localeCompare(String(typeB));
   }
   if (col === 'size') {
     return mul * ((a.size || 0) - (b.size || 0));
@@ -280,7 +290,7 @@ export function sortEntities(items: any[], config: AppConfig, pane?: PaneSortSta
 export function getDisplayName(entity: any, config: AppConfig, panePath?: string): string {
   // Lazy import avoided — inline recycle-bin strip to keep bundle simple
   const isDir = entity.type === 'directory';
-  let name = entity.name || '';
+  let name = entitySortName(entity);
   const inRecycle = entity.isRecycleItem || (panePath && (
     panePath === '/shell:RecycleBin' ||
     panePath.replace(/^\//, '').toLowerCase() === 'shell:recyclebin'
@@ -597,6 +607,8 @@ export function applySettingsRuntime(config: AppConfig): void {
   document.body.style.fontSize = `${rt.ui.fontSize}px`;
   document.body.style.fontFamily = rt.ui.fontFamily;
 
+  applyAppearanceVariants(config, root);
+
   applyBackendSettings(config);
 }
 
@@ -612,6 +624,8 @@ function launcherSettingsKey(config: AppConfig): string {
     launcherExitWithBndz: config.launcherExitWithBndz,
     theme: config.theme,
     applyColors: config.applyColors,
+    appearanceChromePalette: config.appearanceChromePalette,
+    appearanceSurfaceStyle: config.appearanceSurfaceStyle,
     bgMain: config.bgMain,
     accent: config.accent,
     textMain: config.textMain,

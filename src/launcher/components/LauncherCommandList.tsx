@@ -59,7 +59,12 @@ export default function LauncherCommandList({
         </div>
       ))}
       {flatCommands.length === 0 && !calcResult && (
-        <div className="px-3 py-8 text-center text-[var(--text-muted)] text-sm">No matching commands</div>
+        <div className="px-6 py-10 text-center">
+          <div className="text-[var(--text-muted)] text-sm font-medium">No matching commands</div>
+          <div className="text-[var(--text-subtle)] text-xs mt-2 leading-relaxed">
+            Try a different query, or type <span className="bndz-kbd">?</span> for help
+          </div>
+        </div>
       )}
     </div>
   );

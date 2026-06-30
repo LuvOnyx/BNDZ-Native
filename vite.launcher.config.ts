@@ -11,6 +11,13 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, 'BNDZBackend/Assets/launcher-ui'),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (warning.message?.includes('dynamic import will not move module into another chunk')) return;
+        warn(warning);
+      },
+    },
   },
   resolve: {
     alias: {

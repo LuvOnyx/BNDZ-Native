@@ -1,0 +1,1 @@
+const n=new Map;function i(){if(n.size<=64)return;const e=[...n.entries()].sort((t,o)=>t[1].at-o[1].at);for(let t=0;t<e.length-64;t++)n.delete(e[t][0])}function r(e){const t=n.get(e);return t?Date.now()-t.at>45e3?(n.delete(e),null):t.items:null}function c(e,t){n.set(e,{items:t,at:Date.now()}),i()}export{r as getCachedNativeContextMenu,c as setCachedNativeContextMenu};

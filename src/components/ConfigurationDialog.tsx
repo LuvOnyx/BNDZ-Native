@@ -10,6 +10,7 @@ import ConditionalFormattingDialog from './ConditionalFormattingDialog';
 import IconConfiguratorTab from './IconConfiguratorTab';
 import ContextMenuConfiguratorTab from './ContextMenuConfiguratorTab';
 import ThemesTabContent from './settings/ThemesTabContent';
+import AppearanceTabContent from './settings/AppearanceTabContent';
 import LauncherTabContent from './settings/LauncherTabContent';
 import KeyboardShortcutsTab from './settings/KeyboardShortcutsTab';
 import ColorsTabContent from './settings/ColorsTabContent';
@@ -71,7 +72,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
 
   const categories = [
     { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "BNDZ Launcher", "Keyboard Shortcuts"] },
-    { name: "Colors and Styles", items: ["Colors", "Themes", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
+    { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
     { name: "File Operations", items: ["File Operations", "Undo & Action Log"] },
     { name: "Find and Filter", items: ["Find Files & Branch View", "Filters & Type Ahead Find"] },
@@ -1915,6 +1916,10 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   applySettingsRuntime({ ...localConfig, ...updates });
                 }}
               />
+            </TabsContent>
+
+            <TabsContent value="Appearance" className="m-0 border-0 p-0 outline-none">
+              <AppearanceTabContent localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
             </TabsContent>
 
             <TabsContent value="Colors" className="m-0 border-0 p-0 outline-none">

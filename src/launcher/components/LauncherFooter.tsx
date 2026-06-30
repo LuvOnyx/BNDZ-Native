@@ -55,6 +55,13 @@ export default function LauncherFooter({
         <span className="mx-1 opacity-30">·</span>
         <span className="bndz-kbd">esc</span>
         <span>hide</span>
+        {!compact && (
+          <>
+            <span className="mx-1 opacity-30">·</span>
+            <span className="bndz-kbd">↑↓</span>
+            <span>navigate</span>
+          </>
+        )}
       </span>
     </div>
   );

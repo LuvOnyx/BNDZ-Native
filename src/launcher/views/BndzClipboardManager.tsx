@@ -61,6 +61,27 @@ export default function BndzClipboardManager({ onClose }: Props) {
 
   const selected = filtered[selectedIndex];
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!filtered.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(i => Math.min(i + 1, filtered.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(i => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter' && selected) {
+        e.preventDefault();
+        void pasteClipboardItem(selected.id);
+      } else if (e.key === 'Delete' && selected) {
+        e.preventDefault();
+        void deleteClipboardItem(selected.id).then(load);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [filtered, selected, load]);
+
   const kindIcon = (item: ClipboardRecord) => {
     if (item.kind === 'image') return <ImageIcon size={14} className="shrink-0 mt-0.5 opacity-70" />;
     if (item.kind === 'files') return <FolderOpen size={14} className="shrink-0 mt-0.5 opacity-70" />;

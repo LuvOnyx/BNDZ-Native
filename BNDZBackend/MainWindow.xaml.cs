@@ -1672,7 +1672,7 @@ namespace BNDZ
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
                         var responseJson = "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":\"" + idProp + "\",\"payload\":null}";
                         Dispatcher.InvokeAsync(() => { MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson); });

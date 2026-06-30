@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChevronRight, Folder } from 'lucide-react';
 import { joinPanePath } from '../lib/pathUtils';
-import { getDisplayName } from '../lib/settingsRuntime';
+import { getDisplayName, entitySortName } from '../lib/settingsRuntime';
 
 type Entity = {
   id: string;
@@ -27,17 +27,13 @@ export default function BranchViewStrip({ panePath, contents, config, branchType
     if (mode === 'Folders only') {
       // all folders already
     }
-    return dirs.sort((a, b) => getDisplayName(a, config as any, panePath).localeCompare(
-      getDisplayName(b, config as any, panePath),
-      undefined,
-      { sensitivity: 'base' },
-    ));
+    return dirs.sort((a, b) => entitySortName(a).localeCompare(entitySortName(b), undefined, { sensitivity: 'base' }));
   }, [contents, config, panePath, branchType]);
 
   if (!folders.length) return null;
 
   return (
-    <div className="shrink-0 border-b border-white/[0.06] bg-[#141418]/90 backdrop-blur-sm bndz-gpu-layer">
+    <div className="shrink-0 border-b border-white/[0.06] backdrop-blur-sm bndz-gpu-layer" style={{ background: 'var(--bndz-surface-chrome)' }}>
       <div className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-gray-500">Branch</div>
       <div className="flex gap-1 px-2 pb-2 overflow-x-auto bndz-scrollbar">
         {folders.map(folder => {
