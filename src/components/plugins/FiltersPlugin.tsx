@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Filter, Pen, Plus, Trash2 } from 'lucide-react';
 import { useAppConfig, VisualFilter } from '../../data/configContext';
+import { FILTER_MATCH_HINTS } from '../../lib/visualFilterEngine';
 import PluginPanelShell from './PluginPanelShell';
 
 export const FiltersPluginDef = {
@@ -12,10 +13,24 @@ export const FiltersPluginDef = {
     targetPanel: 'bottom' as const,
 };
 
+const SAMPLE_ENTITY = {
+    name: 'example-report.pdf',
+    extension: 'pdf',
+    type: 'file',
+    size: 2_500_000,
+    modified: new Date().toISOString(),
+    attributes: ['archive'],
+};
+
 export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (filters: VisualFilter[]) => void }) {
     const { config, updateConfig } = useAppConfig();
     const [editing, setEditing] = useState<VisualFilter | null>(null);
     const filters = config.visualFilters || [];
+
+    const persist = (next: VisualFilter[]) => {
+        updateConfig({ visualFilters: next });
+        onFilterChange?.(next);
+    };
 
     const saveRule = (e: React.FormEvent) => {
         e.preventDefault();
@@ -24,21 +39,17 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
         const idx = next.findIndex(f => f.id === editing.id);
         if (idx >= 0) next[idx] = editing;
         else next.push(editing);
-        updateConfig({ visualFilters: next });
-        onFilterChange?.(next);
+        persist(next);
         setEditing(null);
     };
 
     const toggleActive = (id: string, active: boolean) => {
-        const next = filters.map(f => f.id === id ? { ...f, isActive: active } : f);
-        updateConfig({ visualFilters: next });
-        onFilterChange?.(next);
+        persist(filters.map(f => f.id === id ? { ...f, isActive: active } : f));
     };
 
     const removeRule = (id: string) => {
-        const next = filters.filter(f => f.id !== id);
-        updateConfig({ visualFilters: next });
-        onFilterChange?.(next);
+        persist(filters.filter(f => f.id !== id));
+        if (editing?.id === id) setEditing(null);
     };
 
     const startNew = () => setEditing({
@@ -49,7 +60,13 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
         matchValue: '',
         rowTint: 'rgba(0,122,204,0.12)',
         textColor: '#6db4e6',
+        badgeColor: '#38bdf8',
     });
+
+    const previewStyle = editing ? {
+        color: editing.textColor || '#e8e8ec',
+        backgroundColor: editing.rowTint || 'transparent',
+    } : {};
 
     return (
         <PluginPanelShell
@@ -58,7 +75,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
             iconColor="#38bdf8"
             subtitle={`${filters.filter(f => f.isActive).length} active rules`}
             toolbar={
-                <button onClick={startNew} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded text-xs font-semibold">
+                <button type="button" onClick={startNew} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded text-xs font-semibold">
                     <Plus size={12} /> New Rule
                 </button>
             }
@@ -76,31 +93,63 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                                 <div className="text-xs font-semibold text-white truncate">{f.name}</div>
                                 <div className="text-[10px] text-gray-500 font-mono truncate">{f.matchType}: {f.matchValue || '—'}</div>
                             </div>
-                            <button onClick={() => setEditing(f)} className="p-1.5 hover:bg-[#222] rounded text-gray-500 hover:text-white"><Pen size={12} /></button>
-                            <button onClick={() => removeRule(f.id)} className="p-1.5 hover:bg-red-950/30 rounded text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                            <button type="button" onClick={() => setEditing(f)} className="p-1.5 hover:bg-[#222] rounded text-gray-500 hover:text-white"><Pen size={12} /></button>
+                            <button type="button" onClick={() => removeRule(f.id)} className="p-1.5 hover:bg-red-950/30 rounded text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
                         </div>
                     ))}
                 </div>
 
-                {editing && (
-                    <form onSubmit={saveRule} className="w-[280px] shrink-0 border border-[#333] bg-[#111] rounded-xl p-4 flex flex-col gap-3">
-                        <div className="text-xs font-bold text-white">Edit Rule</div>
-                        <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-xs text-white" placeholder="Rule name" />
-                        <select value={editing.matchType} onChange={e => setEditing({ ...editing, matchType: e.target.value as VisualFilter['matchType'] })} className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-xs text-white">
-                            <option value="extension">Extension</option>
-                            <option value="regex">Regex</option>
-                            <option value="attribute">Attribute</option>
-                            <option value="age">Age (days)</option>
-                            <option value="size">Size</option>
-                        </select>
-                        <input value={editing.matchValue} onChange={e => setEditing({ ...editing, matchValue: e.target.value })} className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-xs text-white font-mono" placeholder="Match value" />
-                        <input type="color" value={editing.textColor || '#6db4e6'} onChange={e => setEditing({ ...editing, textColor: e.target.value })} className="w-full h-8 rounded cursor-pointer" title="Text color" />
-                        <div className="flex gap-2 mt-auto">
-                            <button type="submit" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-xs py-1.5 rounded font-semibold">Save</button>
-                            <button type="button" onClick={() => setEditing(null)} className="flex-1 border border-[#333] text-xs py-1.5 rounded text-gray-400 hover:text-white">Cancel</button>
+                <div className="w-[300px] shrink-0 flex flex-col gap-3 min-h-0">
+                    {editing ? (
+                        <form onSubmit={saveRule} className="border border-[#333] bg-[#111] rounded-xl p-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
+                            <div className="text-xs font-bold text-white">Edit Rule</div>
+                            <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-xs text-white" placeholder="Rule name" />
+                            <select value={editing.matchType} onChange={e => setEditing({ ...editing, matchType: e.target.value as VisualFilter['matchType'] })} className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-xs text-white">
+                                <option value="extension">Extension</option>
+                                <option value="regex">Regex</option>
+                                <option value="attribute">Attribute</option>
+                                <option value="age">Age (days)</option>
+                                <option value="size">Size (MB)</option>
+                                <option value="event">Event</option>
+                            </select>
+                            <input
+                                value={editing.matchValue}
+                                onChange={e => setEditing({ ...editing, matchValue: e.target.value })}
+                                className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-xs text-white font-mono"
+                                placeholder={FILTER_MATCH_HINTS[editing.matchType]}
+                            />
+                            <div className="grid grid-cols-3 gap-2">
+                                <label className="text-[10px] text-gray-500">
+                                    Text
+                                    <input type="color" value={editing.textColor || '#6db4e6'} onChange={e => setEditing({ ...editing, textColor: e.target.value })} className="w-full h-7 rounded cursor-pointer mt-0.5" />
+                                </label>
+                                <label className="text-[10px] text-gray-500">
+                                    Row tint
+                                    <input type="color" value={editing.rowTint?.startsWith('#') ? editing.rowTint : '#007acc'} onChange={e => setEditing({ ...editing, rowTint: `${e.target.value}22` })} className="w-full h-7 rounded cursor-pointer mt-0.5" />
+                                </label>
+                                <label className="text-[10px] text-gray-500">
+                                    Badge
+                                    <input type="color" value={editing.badgeColor || '#38bdf8'} onChange={e => setEditing({ ...editing, badgeColor: e.target.value })} className="w-full h-7 rounded cursor-pointer mt-0.5" />
+                                </label>
+                            </div>
+                            <div className="rounded-lg border border-[#333] p-2 bg-[#0a0a0a]">
+                                <div className="text-[9px] uppercase tracking-wider text-gray-600 mb-1.5">Live preview</div>
+                                <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs" style={previewStyle}>
+                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: editing.badgeColor || '#38bdf8' }} />
+                                    {SAMPLE_ENTITY.name}
+                                </div>
+                            </div>
+                            <div className="flex gap-2 mt-auto">
+                                <button type="submit" className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-xs py-1.5 rounded font-semibold">Save</button>
+                                <button type="button" onClick={() => setEditing(null)} className="flex-1 border border-[#333] text-xs py-1.5 rounded text-gray-400 hover:text-white">Cancel</button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-600 text-xs border border-dashed border-[#333] rounded-xl p-4">
+                            Select a rule to edit or create a new one.
                         </div>
-                    </form>
-                )}
+                    )}
+                </div>
             </div>
         </PluginPanelShell>
     );

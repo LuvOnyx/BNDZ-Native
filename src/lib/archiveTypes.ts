@@ -24,6 +24,70 @@ export function formatArchiveSize(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+/** Normalize archive internal paths to forward slashes without trailing slash (except root). */
+export function normalizeArchivePath(p: string): string {
+  const n = (p || '').replace(/\\/g, '/').replace(/\/+/g, '/');
+  if (n === '/') return '';
+  return n.endsWith('/') ? n.slice(0, -1) : n;
+}
+
+/** List direct children of a folder inside a flat archive entry list. */
+export function listArchiveFolder(entries: ArchiveEntry[], folderPath: string): ArchiveEntry[] {
+  const base = folderPath ? `${normalizeArchivePath(folderPath)}/` : '';
+  const childMap = new Map<string, ArchiveEntry>();
+
+  for (const raw of entries) {
+    const full = normalizeArchivePath(raw.path);
+    if (!full) continue;
+    const isDirEntry = raw.isDirectory || full.endsWith('/') || !raw.name;
+    const path = isDirEntry && !full.endsWith('/') ? `${full}/` : full;
+    if (base && !path.startsWith(base)) continue;
+    const remainder = base ? path.slice(base.length) : path;
+    if (!remainder) continue;
+    const parts = remainder.split('/').filter(Boolean);
+    if (parts.length === 0) continue;
+
+    if (parts.length === 1) {
+      const key = base + parts[0] + (raw.isDirectory || path.endsWith('/') ? '/' : '');
+      childMap.set(key, {
+        ...raw,
+        path: key,
+        name: parts[0],
+        isDirectory: raw.isDirectory || key.endsWith('/'),
+      });
+    } else {
+      const folderKey = `${base}${parts[0]}/`;
+      if (!childMap.has(folderKey)) {
+        childMap.set(folderKey, {
+          path: folderKey,
+          name: parts[0],
+          size: 0,
+          compressedSize: 0,
+          isDirectory: true,
+        });
+      }
+    }
+  }
+
+  return Array.from(childMap.values()).sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+}
+
+export function archiveBreadcrumb(folderPath: string): { label: string; path: string }[] {
+  const crumbs = [{ label: 'Archive', path: '' }];
+  const norm = normalizeArchivePath(folderPath);
+  if (!norm) return crumbs;
+  const parts = norm.split('/').filter(Boolean);
+  let acc = '';
+  for (const part of parts) {
+    acc = acc ? `${acc}/${part}` : part;
+    crumbs.push({ label: part, path: acc });
+  }
+  return crumbs;
+}
+
 export interface ArchiveEntry {
   path: string;
   name: string;

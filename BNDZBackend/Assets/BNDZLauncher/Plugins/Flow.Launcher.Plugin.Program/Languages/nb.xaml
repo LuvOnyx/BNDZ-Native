@@ -16,24 +16,24 @@
     <system:String x:Key="flowlauncher_plugin_program_location">Plassering</system:String>
     <system:String x:Key="flowlauncher_plugin_program_all_programs">Alle programmer</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes">Filtype</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_reindex">Indekser på nytt</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_reindex">Indekser pÃ¥ nytt</system:String>
     <system:String x:Key="flowlauncher_plugin_program_indexing">Indekserer</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_source">Indeks kilder</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_option">Alternativer</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_uwp">UWP-apper</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_uwp_tooltip">Når aktivert, vil Flow laste UWP-applikasjoner</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_uwp_tooltip">NÃ¥r aktivert, vil Flow laste UWP-applikasjoner</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_start">Startmeny</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_start_tooltip">Når aktivert, vil Flow laste programmer fra startmenyen</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_start_tooltip">NÃ¥r aktivert, vil Flow laste programmer fra startmenyen</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_registry">Registeret</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_registry_tooltip">Når aktivert, vil Flow laste programmer fra registeret</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_registry_tooltip">NÃ¥r aktivert, vil Flow laste programmer fra registeret</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_PATH">BANE</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_PATH_tooltip">Når aktivert, vil Flow laste programmer fra BANE-miljøvariabelen</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_PATH_tooltip">NÃ¥r aktivert, vil Flow laste programmer fra BANE-miljÃ¸variabelen</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath">Skjul app-banen</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath_tooltip">For kjørbare filer som for eksempel UWP eller lnk, skjul filbanen fra å være synlig</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath_tooltip">For kjÃ¸rbare filer som for eksempel UWP eller lnk, skjul filbanen fra Ã¥ vÃ¦re synlig</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_hideuninstallers">Skjul avinstalleringsprogrammer</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_hideuninstallers_tooltip">Skjuler programmer med samme navn til avinstalleringer, for eksempel unins000.exe</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_description">Søk i programbeskrivelse</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_description_tooltip">Flow vil søke i programmets beskrivelse</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_description">SÃ¸k i programbeskrivelse</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_description_tooltip">Flow vil sÃ¸ke i programmets beskrivelse</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_hideduplicatedwindowsapp">Hide duplicated apps</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_hideduplicatedwindowsapp_tooltip">Hide duplicated Win32 programs that are already in the UWP list</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes_header">Suffikser</system:String>
@@ -42,10 +42,10 @@
     <system:String x:Key="flowlauncher_plugin_program_directory">Katalog</system:String>
     <system:String x:Key="flowlauncher_plugin_program_browse">Bla</system:String>
     <system:String x:Key="flowlauncher_plugin_program_file_suffixes">Filendelser:</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_max_search_depth">Maks søkedybde (-1 er ubegrenset):</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_max_search_depth">Maks sÃ¸kedybde (-1 er ubegrenset):</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_pls_select_program_source">Vennligst velg en programkilde</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_delete_program_source">Er du sikker på at du vil slette de valgte programkildene?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete_program_source">Er du sikker pÃ¥ at du vil slette de valgte programkildene?</system:String>
     <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_not_user_added">Please select program sources that are not added by you</system:String>
     <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_user_added">Please select program sources that are added by you</system:String>
     <system:String x:Key="flowlauncher_plugin_program_duplicate_program_source">Det finnes allerede en annen programkilde med samme plassering.</system:String>
@@ -56,8 +56,8 @@
     <system:String x:Key="flowlauncher_plugin_program_update">Oppdater</system:String>
     <system:String x:Key="flowlauncher_plugin_program_only_index_tip">Programtillegg vil bare indeksere filer med valgte endelser og .url filer med valgte protokoller.</system:String>
     <system:String x:Key="flowlauncher_plugin_program_update_file_suffixes">Vellykket oppdatering av filendelser</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_suffixes_cannot_empty">Filendelser kan ikke være tomme</system:String>
-    <system:String x:Key="flowlauncher_plugin_protocols_cannot_empty">Protokoller kan ikke være tomme</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_cannot_empty">Filendelser kan ikke vÃ¦re tomme</system:String>
+    <system:String x:Key="flowlauncher_plugin_protocols_cannot_empty">Protokoller kan ikke vÃ¦re tomme</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_suffixes_executable_types">Filendelser</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_types">URL-protokoller</system:String>
@@ -73,27 +73,27 @@
         Sett inn protokoller for .url-filer du vil indeksere. Protokoller skal skilles med ';', og skal slutte med &quot;://&quot;. (eks&gt;ftp://;mailto://)
     </system:String>
 
-    <system:String x:Key="flowlauncher_plugin_program_run_as_different_user">Kjør som en annen bruker</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_run_as_administrator">Kjør som administrator</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_open_containing_folder">Åpne inneholdende mappe</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_as_different_user">KjÃ¸r som en annen bruker</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_as_administrator">KjÃ¸r som administrator</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_open_containing_folder">Ã…pne inneholdende mappe</system:String>
     <system:String x:Key="flowlauncher_plugin_program_disable_program">Hide</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_open_target_folder">Åpne målmappe</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_open_target_folder">Ã…pne mÃ¥lmappe</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_plugin_name">Program</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_plugin_description">Søk etter programmer i BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_plugin_description">SÃ¸k etter programmer i BNDZ Launcher</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_invalid_path">Ugyldig bane</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_customizedexplorer">Tilpasset utforsker</system:String>
     <system:String x:Key="flowlauncher_plugin_program_args">Argumenter</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_tooltip_customizedexplorer">Du kan tilpasse utforskeren som brukes til å åpne beholdermappen, ved å skrive inn miljøvariabelen for utforskeren du vil bruke. Det vil være nyttig å bruke CMD for å teste om miljøvariabelen er tilgjengelig.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_tooltip_customizedexplorer">Du kan tilpasse utforskeren som brukes til Ã¥ Ã¥pne beholdermappen, ved Ã¥ skrive inn miljÃ¸variabelen for utforskeren du vil bruke. Det vil vÃ¦re nyttig Ã¥ bruke CMD for Ã¥ teste om miljÃ¸variabelen er tilgjengelig.</system:String>
     <system:String x:Key="flowlauncher_plugin_program_tooltip_args">Skriv inn de tilpassede argumentene du vil legge til for din tilpassede utforsker. %s for overordnet katalog, %f for full bane (som bare fungerer for win32). Sjekk utforskerens nettsted for detaljer.</system:String>
 
     <!--  Dialogs  -->
     <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success">Vellykket</system:String>
     <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_error">Feil</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success_message">Deaktiverte dette programmet fra å vises i spørringen din</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_run_as_administrator_not_supported_message">Denne appen er ikke ment å kjøre som administrator</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_run_failed">Kan ikke kjøre {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success_message">Deaktiverte dette programmet fra Ã¥ vises i spÃ¸rringen din</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_as_administrator_not_supported_message">Denne appen er ikke ment Ã¥ kjÃ¸re som administrator</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_failed">Kan ikke kjÃ¸re {0}</system:String>
 
 </ResourceDictionary>

@@ -28,7 +28,7 @@
     <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">Apri Posizione dei Log</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips_cmd">Consigli di BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location_cmd">Cartella UserData di BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">Attiva/Disattiva Modalit‡ Di Gioco</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">Attiva/Disattiva Modalit√† Di Gioco</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_theme_selector_cmd">Set the BNDZ Launcher Theme</system:String>
 
     <system:String x:Key="flowlauncher_plugin_sys_edit">Modifica</system:String>
@@ -36,13 +36,13 @@
     <!--  Command Descriptions  -->
     <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">Spegni il computer</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Riavvia il Computer</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Riavvia il computer con le Opzioni di Avvio Avanzato per le Modalit‡ di debug e Provvisoria, cosÏ come altre opzioni</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Riavvia il computer con le Opzioni di Avvio Avanzato per le Modalit√† di debug e Provvisoria, cos√¨ come altre opzioni</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_log_off">Disconnetti</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_lock">Blocca questo computer</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_exit">Chiudi BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_restart">Riavvia BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_setting">Modifica le impostazioni di BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_sleep">Metti il computer in modalit‡ sospensione</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_sleep">Metti il computer in modalit√† sospensione</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">Svuota il Cestino</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">Apri il Cestino</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_indexoption">Opzioni di Indicizzazione</system:String>
@@ -53,7 +53,7 @@
     <system:String x:Key="flowlauncher_plugin_sys_check_for_update">Controlla il nuovo aggiornamento di BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">Visita la documentazione di BNDZ Launcher per maggiori informazioni e suggerimenti su come usarlo</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">Apri la posizione in cui vengono memorizzate le impostazioni di BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">Attiva/Disattiva Modalit‡ Di Gioco</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">Attiva/Disattiva Modalit√† Di Gioco</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_theme_selector">Quickly change the BNDZ Launcher theme</system:String>
 
     <!--  Dialogs  -->

@@ -4,7 +4,7 @@
     <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Substituir Win+R</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">Close Command Prompt after pressing any key</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Press any key to close this window...</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Não feche o Prompt de Comando após a execução do comando</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">NÃ£o feche o Prompt de Comando apÃ³s a execuÃ§Ã£o do comando</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Sempre executar como administrador</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">Use Windows Terminal</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Run as different user</system:String>

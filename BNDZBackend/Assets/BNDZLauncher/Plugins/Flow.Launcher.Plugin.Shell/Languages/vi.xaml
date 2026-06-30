@@ -1,20 +1,20 @@
 <?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Thay th? Win + R</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">��ng Command Prompt sau khi nh?n ph�m b?t k?</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Nh?n ph�m b?t k? d? d�ng c?a s? n�y...</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Kh�ng d�ng d?u nh?c l?nh sau khi th?c hi?n l?nh</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Lu�n ch?y v?i tu c�ch qu?n tr? vi�n</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">S? d?ng Windows Terminal</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">X�a l?a ch?n d� ch?n</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_plugin_name">V?</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">Cho ph�p th?c thi c�c l?nh h? th?ng t? BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">l?nh n�y d� du?c th?c thi {0} l?n</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">th?c thi l?nh th�ng qua l?nh shell</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Ch?y v?i quy?n qu?n tr?</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_copy">Sao ch�p l?nh</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_history">Ch? hi?n th? s? lu?ng l?nh du?c s? d?ng nhi?u nh?t:</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Kh�ng t�m th?y l?nh: {0}</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">L?i khi ch?y l?nh: {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Thay thế Win + R</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">Đóng Command Prompt sau khi nhấn phím bất kỳ</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Nhấn phím bất kỳ để đóng cửa sổ này...</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Không đóng dấu nhắc lệnh sau khi thực hiện lệnh</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Luôn chạy với tư cách quản trị viên</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">Sử dụng Windows Terminal</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Xóa lựa chọn đã chọn</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_name">Vỏ</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">Cho phép thực thi các lệnh hệ thống từ BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">lệnh này đã được thực thi {0} lần</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">thực thi lệnh thông qua lệnh shell</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Chạy với quyền quản trị</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_copy">Sao chép lệnh</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_history">Chỉ hiển thị số lượng lệnh được sử dụng nhiều nhất:</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Không tìm thấy lệnh: {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">Lỗi khi chạy lệnh: {0}</system:String>
 </ResourceDictionary>

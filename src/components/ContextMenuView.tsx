@@ -49,11 +49,14 @@ export default function ContextMenuView({
   const [iconLibs, setIconLibs] = useState<any[]>(config.iconLibraries || []);
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
   const [shareLoading, setShareLoading] = useState(false);
+  const [menuFilter, setMenuFilter] = useState('');
 
   const staticShareMain: import('../lib/ipcBridge').ShareMenuItem[] = !isBackground && targetPaths.length > 0
     ? [
-        { id: 'share', label: 'Share with apps…', kind: 'verb', verb: 'share', group: 'main' },
-        ...(menu.isDirectory ? [{ id: 'grantaccess', label: 'Give access to…', kind: 'verb', verb: 'grantaccess', group: 'main' }] : []),
+        { id: 'share', label: 'Share with apps…', kind: 'verb' as const, verb: 'share', group: 'main' as const },
+        ...(menu.isDirectory
+          ? [{ id: 'grantaccess', label: 'Give access to…', kind: 'verb' as const, verb: 'grantaccess', group: 'main' as const }]
+          : []),
       ]
     : [];
 
@@ -210,6 +213,27 @@ export default function ContextMenuView({
     return combined.replace(/\//g, '\\');
   };
 
+  const useCustomMenu = rt.shell.useCustomContextMenu;
+  const allNative = menu.nativeContextItems || [];
+
+  if (!useCustomMenu) {
+    return (
+      <ClampedFixedMenu
+        x={menu.x}
+        y={menu.y}
+        className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[220px] text-sm bndz-scrollbar"
+        onMouseDown={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
+      >
+        {allNative.length > 0 ? (
+          allNative.map(renderNativeItem)
+        ) : (
+          <ContextMenuItem label="Loading…" disabled />
+        )}
+      </ClampedFixedMenu>
+    );
+  }
+
   if (isBackground) {
     if (isRecycleBinPath(menu.path)) {
       return (
@@ -344,6 +368,20 @@ export default function ContextMenuView({
         />
       )}
 
+      {(config.pinnedContextActions || []).length > 0 && (
+        <>
+          {(config.pinnedContextActions || []).map((action: { id: string; label: string; verb?: string }) => (
+            <ContextMenuItem
+              key={action.id}
+              label={action.label}
+              iconVerb={(action.verb as any) || 'filetext'}
+              onClick={() => { if (action.verb) void handleVerb(action.verb); }}
+            />
+          ))}
+          <div className="bndz-context-menu-sep" />
+        </>
+      )}
+
       {/* Primary open */}
       <ContextMenuItem
         label="Open"
@@ -369,6 +407,36 @@ export default function ContextMenuView({
           />
         </>
       )}
+
+      <div className="bndz-context-menu-sep" />
+
+      <ContextSubmenu label="Pin to menu" iconVerb="pin">
+        {[
+          { verb: 'cut', label: 'Cut' },
+          { verb: 'copy', label: 'Copy' },
+          { verb: 'paste', label: 'Paste' },
+          { verb: 'delete', label: 'Delete' },
+          { verb: 'properties', label: 'Properties' },
+        ].map(({ verb, label }) => {
+          const pinned = (config.pinnedContextActions || []).some((p: { verb?: string }) => p.verb === verb);
+          return (
+            <ContextMenuItem
+              key={verb}
+              label={`${pinned ? '✓ ' : ''}${label}`}
+              iconVerb={verb as any}
+              onClick={() => {
+                const pins = config.pinnedContextActions || [];
+                const next = pinned
+                  ? pins.filter((p: { verb?: string }) => p.verb !== verb)
+                  : [...pins, { id: `pin-${verb}`, label, verb }];
+                updateConfig({ pinnedContextActions: next });
+                setToastMessage(pinned ? `Unpinned ${label}` : `Pinned ${label} to menu`);
+                onClose();
+              }}
+            />
+          );
+        })}
+      </ContextSubmenu>
 
       <div className="bndz-context-menu-sep" />
 
@@ -473,7 +541,28 @@ export default function ContextMenuView({
         />
       )}
 
-      {config.customContextMenuActions?.map((action: any, idx: number) => {
+      {(config.customContextMenuActions?.length || 0) > 6 && (
+        <>
+          <div className="px-2 py-1.5">
+            <input
+              type="text"
+              placeholder="Filter menu…"
+              value={menuFilter}
+              onChange={e => setMenuFilter(e.target.value)}
+              className="w-full bg-[#111] border border-[#333] rounded px-2 py-1 text-[11px] text-white outline-none focus:border-sky-500"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+          <div className="bndz-context-menu-sep" />
+        </>
+      )}
+
+      {config.customContextMenuActions?.filter((action: any) => {
+        if (action.id === 'separator') return true;
+        const label = (action.name || action.label || '').toLowerCase();
+        const q = menuFilter.trim().toLowerCase();
+        return !q || label.includes(q);
+      }).map((action: any, idx: number) => {
         if (action.id === 'separator') return <div key={idx} className="bndz-context-menu-sep" />;
         const cmd = (action.command || '').trim();
         const iconVerb =

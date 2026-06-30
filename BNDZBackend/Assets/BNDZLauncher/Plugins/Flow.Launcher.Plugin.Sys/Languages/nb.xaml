@@ -9,23 +9,23 @@
     <system:String x:Key="flowlauncher_plugin_sys_desc">Beskrivelse</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_command">Kommando</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">Slå av</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">Start på nytt</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">Start på nytt med avanserte oppstartsalternativer</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">SlÃ¥ av</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">Start pÃ¥ nytt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">Start pÃ¥ nytt med avanserte oppstartsalternativer</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">Logg av/logg ut</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">Lås</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">LÃ¥s</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_sleep_cmd">Hvilemodus</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">Dvalemodus</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_indexoption_cmd">Indeksalternativ</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin_cmd">Tøm papirkurven</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin_cmd">Åpne papirkurven</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin_cmd">TÃ¸m papirkurven</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin_cmd">Ã…pne papirkurven</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_exit_cmd">Avslutt</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_save_all_settings_cmd">Lagre innstillinger</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">Start BNDZ Launcher på nytt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">Start BNDZ Launcher pÃ¥ nytt</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_setting_cmd">Innstillinger</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Last programtilleggdata på nytt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Last programtilleggdata pÃ¥ nytt</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_check_for_update_cmd">Se etter oppdatering</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">Åpne loggplassering</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">Ã…pne loggplassering</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips_cmd">BNDZ Launcher Tips</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location_cmd">Brukerdatamappe for BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">Vis/Skjul spillmodus</system:String>
@@ -34,36 +34,36 @@
     <system:String x:Key="flowlauncher_plugin_sys_edit">Rediger</system:String>
 
     <!--  Command Descriptions  -->
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">Slår av datamaskin</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Start datamaskinen på nytt</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Start datamaskinen på nytt med avanserte oppstartsalternativer for sikker og feilsøking, i tillegg til andre alternativer</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">SlÃ¥r av datamaskin</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Start datamaskinen pÃ¥ nytt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Start datamaskinen pÃ¥ nytt med avanserte oppstartsalternativer for sikker og feilsÃ¸king, i tillegg til andre alternativer</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_log_off">Logg av</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_lock">Lås denne datamaskinen</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock">LÃ¥s denne datamaskinen</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_exit">Lukk BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart">Start BNDZ Launcher på nytt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart">Start BNDZ Launcher pÃ¥ nytt</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_setting">Juster innstillingene for BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_sleep">Sett datamaskinen i hvilemodus</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">Tøm papirkurven</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">Åpne papirkurven</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">TÃ¸m papirkurven</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">Ã…pne papirkurven</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_indexoption">Alternativer for indeksering</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_hibernate">Sett datamaskinen i dvalemodus</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">Lagre alle innstillinger for BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">Oppdaterer programtilleggdata med nytt innhold</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">Åpne BNDZ Launchers loggplassering</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">Ã…pne BNDZ Launchers loggplassering</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_check_for_update">Se etter nye oppdateringer for BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">Besøk BNDZ Launcher sin dokumentasjon for mer hjelp og hvordan du bruker tips</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">Åpne plasseringen hvor BNDZ Launcher sine innstillinger er lagret</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">BesÃ¸k BNDZ Launcher sin dokumentasjon for mer hjelp og hvordan du bruker tips</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">Ã…pne plasseringen hvor BNDZ Launcher sine innstillinger er lagret</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">Vis/Skjul spillmodus</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_theme_selector">Quickly change the BNDZ Launcher theme</system:String>
 
     <!--  Dialogs  -->
     <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">Vellykket</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">Alle innstillinger for BNDZ Launcher er lagret</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Lastet inn alle gjeldende programtilleggdata på nytt</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Er du sikker på at du vil slå av datamaskinen?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">Er du sikker på at du vil starte datamaskinen på nytt?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">Er du sikker på at du vil starte datamaskinen på nytt med avanserte oppstartsalternativer?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">Er du sikker på at du vil logge av?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Lastet inn alle gjeldende programtilleggdata pÃ¥ nytt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Er du sikker pÃ¥ at du vil slÃ¥ av datamaskinen?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">Er du sikker pÃ¥ at du vil starte datamaskinen pÃ¥ nytt?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">Er du sikker pÃ¥ at du vil starte datamaskinen pÃ¥ nytt med avanserte oppstartsalternativer?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">Er du sikker pÃ¥ at du vil logge av?</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_error">Feil</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtext_empty_recycle_bin_failed">Failed to empty the recycle bin. This might happen if:{0}- Some items are currently in use{0}- Some items can't be deleted due to permissions{0}Please close any applications that might be using these files and try again.</system:String>
 
@@ -77,7 +77,7 @@
     <system:String x:Key="flowlauncher_plugin_sys_input_command_keyword">Please enter a non-empty command keyword</system:String>
 
     <system:String x:Key="flowlauncher_plugin_sys_plugin_name">Systemkommandoer</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Gir systemrelaterte kommandoer, f.eks. slå av, lås, innstillinger osv.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Gir systemrelaterte kommandoer, f.eks. slÃ¥ av, lÃ¥s, innstillinger osv.</system:String>
 
     <!--  Theme Selector  -->
     <system:String x:Key="flowlauncher_plugin_sys_type_isdark_hasblur">This theme supports two (light/dark) modes and Blur Transparent Background</system:String>

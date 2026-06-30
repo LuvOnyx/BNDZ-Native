@@ -4,17 +4,17 @@
     <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Substituir Win+R</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">Fechar linha de comandos ao premir qualquer tecla</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Prima uma tecla para fechar esta janela...</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Não fechar linha de comandos depois de executar o comando</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">NÃ£o fechar linha de comandos depois de executar o comando</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Executar sempre como administrador</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">Usar terminal do Windows</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Executar com outro utilizador</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_plugin_name">Consola</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">Permite executar comandos do sistema via BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">este comando foi executado {0} vezes</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">executar comando através de uma consola</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">executar comando atravÃ©s de uma consola</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Executar como administrador</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_copy">Copiar comando</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_history">Mostrar este número dos comandos mais usados:</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Comando não encontrado: {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_history">Mostrar este nÃºmero dos comandos mais usados:</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Comando nÃ£o encontrado: {0}</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">Erro ao executar o comando: {0}</system:String>
 </ResourceDictionary>

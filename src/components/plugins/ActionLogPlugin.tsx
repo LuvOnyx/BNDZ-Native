@@ -1,0 +1,115 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { History, Undo2, Redo2, RefreshCw, Loader2 } from 'lucide-react';
+import PluginPanelShell from './PluginPanelShell';
+import { IPC } from '../../lib/ipcBridge';
+import { pushToast } from '../ToastHost';
+
+export const ActionLogPluginDef = {
+  id: 'action-log',
+  name: 'Action Log',
+  icon: History,
+  targetPanel: 'bottom' as const,
+  installOnFirstUse: false,
+};
+
+type LogEntry = {
+  id: string;
+  kind: string;
+  label: string;
+  utc: string;
+  canUndo: boolean;
+};
+
+export default function ActionLogPlugin() {
+  const [items, setItems] = useState<LogEntry[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await IPC.getActionLog();
+      setItems(data.items || []);
+      setCanUndo(!!data.canUndo);
+      setCanRedo(!!data.canRedo);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    return IPC.onActionLogChanged(() => { void refresh(); });
+  }, [refresh]);
+
+  const runUndo = async () => {
+    const r = await IPC.executeUndo();
+    pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? 'Undo' : 'Undo failed', message: r.message });
+    await refresh();
+  };
+
+  const runRedo = async () => {
+    const r = await IPC.executeRedo();
+    pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? 'Redo' : 'Redo failed', message: r.message });
+    await refresh();
+  };
+
+  return (
+    <PluginPanelShell
+      title="Action Log"
+      icon={History}
+      iconColor="#a78bfa"
+      subtitle="XYplorer-style reversible operation history"
+      variant="embedded"
+      toolbar={
+        <>
+          <button
+            type="button"
+            disabled={!canUndo}
+            onClick={() => void runUndo()}
+            className="px-2 py-1 text-[10px] uppercase font-bold rounded border border-white/10 disabled:opacity-40 hover:bg-white/5 flex items-center gap-1"
+          >
+            <Undo2 size={12} /> Undo
+          </button>
+          <button
+            type="button"
+            disabled={!canRedo}
+            onClick={() => void runRedo()}
+            className="px-2 py-1 text-[10px] uppercase font-bold rounded border border-white/10 disabled:opacity-40 hover:bg-white/5 flex items-center gap-1"
+          >
+            <Redo2 size={12} /> Redo
+          </button>
+          <button type="button" onClick={() => void refresh()} className="p-1 rounded hover:bg-white/5 text-gray-500" title="Refresh">
+            <RefreshCw size={12} />
+          </button>
+        </>
+      }
+    >
+      <div className="h-full overflow-y-auto bndz-scrollbar">
+        {loading && (
+          <div className="flex items-center justify-center gap-2 py-8 text-gray-500 text-xs">
+            <Loader2 size={14} className="animate-spin" /> Loading…
+          </div>
+        )}
+        {!loading && items.length === 0 && (
+          <div className="py-8 text-center text-gray-500 text-xs">No logged actions yet.</div>
+        )}
+        {!loading && items.map(entry => (
+          <div
+            key={entry.id}
+            className="flex items-center gap-3 px-4 py-2 border-b border-white/[0.04] hover:bg-white/[0.02] text-[11px]"
+          >
+            <span className="shrink-0 w-16 text-[10px] uppercase tracking-wide text-violet-400/80">{entry.kind}</span>
+            <span className="flex-1 truncate text-gray-200">{entry.label}</span>
+            <span className="shrink-0 text-[10px] text-gray-500">
+              {entry.utc ? new Date(entry.utc).toLocaleString() : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+    </PluginPanelShell>
+  );
+}

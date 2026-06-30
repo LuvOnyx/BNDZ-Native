@@ -157,6 +157,9 @@
             </summary>
             <param name="propertyName"></param>
         </member>
+        <member name="T:Flow.Launcher.Plugin.BndzShellRedirect">
+            <summary>Allows Flow.Launcher.Plugin.BNDZ to redirect ShowMainWindow to the BNDZ WebView2 shell.</summary>
+        </member>
         <member name="T:Flow.Launcher.Plugin.DialogJumpResult">
             <summary>
             Describes a result of a <see cref="T:Flow.Launcher.Plugin.Query"/> executed by a plugin in Dialog Jump window

@@ -58,6 +58,7 @@ const THUMBNAIL_KEYS = new Set([
 ]);
 
 export function getSettingsConsumer(key: string): SettingsConsumer {
+  if (key === 'catalog' || key === 'customEventActions' || key === 'userDefinedCommands') return 'persisted';
   if (LIST_KEYS.has(key)) return 'list';
   if (SORT_KEYS.has(key)) return 'sort';
   if (TREE_KEYS.has(key)) return 'tree';
@@ -71,6 +72,15 @@ export function getSettingsConsumer(key: string): SettingsConsumer {
   if (key.includes('Tab') || key === 'dualPane' || key === 'dualPaneFeature' || key === 'shadeInactivePane') return 'tabs';
   if (key.includes('Rename') || key === 'preselectName' || key === 'hideExtensionsFromRenameEditBox') return 'rename';
   return 'persisted';
+}
+
+const WIRED_FEATURE_KEYS = new Set(['catalog', 'userDefinedCommands', 'fileTagging', 'scripting', 'tabsets']);
+
+export function getSettingWiringStatus(key: string): 'wired' | 'deferred' | 'hidden' {
+  if (key.startsWith('unwired')) return 'deferred';
+  if (WIRED_FEATURE_KEYS.has(key)) return 'wired';
+  if (key === 'ceaGroup1') return 'deferred';
+  return 'wired';
 }
 
 import { WIRED_KEY_COUNT } from './settingsWiring';

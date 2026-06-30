@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, HardDrive, Star, Cloud, FolderTree, GripVertical } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronDown, ChevronRight, HardDrive, Star, Cloud, FolderTree, GitBranch, GripVertical } from 'lucide-react';
 
 const SECTION_KEY_MAP: Record<string, string> = {
     storage: 'drives',
     quick: 'quickAccess',
     cloud: 'cloud',
+    miniTree: 'miniTree',
     tree: 'tree',
 };
 
@@ -12,25 +13,44 @@ const REVERSE_SECTION_MAP: Record<string, string> = {
     quickAccess: 'quick',
     cloud: 'cloud',
     drives: 'storage',
+    miniTree: 'miniTree',
     tree: 'tree',
 };
 
-export function LeftSidebar({ onBackgroundClick, drivesContent, quickAccessContent, cloudProvidersContent, treeContent, sidebarOrder, onSectionOrderChange }: any) {
+const DEFAULT_SECTION_ORDER = ['drives', 'quickAccess', 'cloud', 'miniTree', 'tree'];
+
+function mapSidebarOrder(sidebarOrder?: string[]) {
+    const mapped = (sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])
+        .map((k: string) => SECTION_KEY_MAP[k] || k)
+        .filter((k: string) => DEFAULT_SECTION_ORDER.includes(k));
+    return mapped.length ? mapped : DEFAULT_SECTION_ORDER.filter(k => k !== 'miniTree');
+}
+
+export function LeftSidebar({
+    onBackgroundClick,
+    drivesContent,
+    quickAccessContent,
+    cloudProvidersContent,
+    miniTreeContent,
+    treeContent,
+    sidebarOrder,
+    onSectionOrderChange,
+}: any) {
     const [expandedSections, setExpandedSections] = useState({
         quickAccess: true,
         cloud: true,
         drives: true,
-        tree: true
+        miniTree: true,
+        tree: true,
     });
 
-    const defaultOrder = ['drives', 'quickAccess', 'cloud', 'tree'];
-    const mappedOrder = (sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])
-        .map((k: string) => SECTION_KEY_MAP[k] || k)
-        .filter((k: string) => defaultOrder.includes(k));
-    const initialOrder = mappedOrder.length ? mappedOrder : defaultOrder;
-
-    const [order, setOrder] = useState(initialOrder);
+    const mappedOrder = useMemo(() => mapSidebarOrder(sidebarOrder), [sidebarOrder]);
+    const [order, setOrder] = useState(mappedOrder);
     const [draggedItem, setDraggedItem] = useState<string | null>(null);
+
+    useEffect(() => {
+        setOrder(mappedOrder);
+    }, [mappedOrder]);
 
     const toggleSection = (section: string) => {
         setExpandedSections(prev => ({ ...prev, [section]: !(prev as any)[section] }));
@@ -77,7 +97,8 @@ export function LeftSidebar({ onBackgroundClick, drivesContent, quickAccessConte
         quickAccess: { content: quickAccessContent, label: "Rapid access", icon: Star, iconColor: "text-emerald-400" },
         cloud: { content: cloudProvidersContent, label: "Cloud Drives", icon: Cloud, iconColor: "text-sky-400" },
         drives: { content: drivesContent, label: "Drives", icon: HardDrive, iconColor: "text-gray-400" },
-        tree: { content: treeContent, label: "Navigation Tree", icon: FolderTree, iconColor: "text-emerald-500" }
+        miniTree: { content: miniTreeContent, label: "Mini Tree", icon: GitBranch, iconColor: "text-violet-400" },
+        tree: { content: treeContent, label: "Navigation Tree", icon: FolderTree, iconColor: "text-emerald-500" },
     };
 
     return (

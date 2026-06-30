@@ -6,6 +6,7 @@ export const SHELL_CLSID = {
   thisPc: '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}',
   network: '::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}',
   libraries: '::{031E4825-7B94-4DC3-B131-E946B44C8DD5}',
+  portableDevices: '::{35786D3C-B076-497C-A057-7DCC04A3D85}',
 } as const;
 
 /** Windows shell: known-folder names for native library icons */
@@ -53,6 +54,7 @@ export function resolveShellIconPath(path: string | null | undefined): string {
   if (isRecycleBinPath(path)) return SHELL_CLSID.recycleBin;
   const pane = normalizePanePath(path);
   if (pane === '/shell:Libraries' || pane.toLowerCase() === '/shell:libraries') return SHELL_CLSID.libraries;
+  if (pane === '/shell:PortableDevices' || pane.toLowerCase() === '/shell:portabledevices') return SHELL_CLSID.portableDevices;
   if (pane === '/') return SHELL_CLSID.thisPc;
   if (pane === '//' || pane === '\\\\') return SHELL_CLSID.network;
   if (isDriveRootPanePath(pane)) {

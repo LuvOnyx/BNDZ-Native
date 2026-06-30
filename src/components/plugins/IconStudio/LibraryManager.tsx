@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Palette, Layers, Edit2, Trash2, Plus, Check, X, FolderOpen } from 'lucide-react';
+import { Palette, Layers, Edit2, Trash2, Plus, Check, X, FolderOpen, RefreshCw, Download } from 'lucide-react';
 import { useIconStudio } from './IconStudioContext';
 import styles from './IconStudio.module.css';
 
 export default function LibraryManager() {
-    const { libraries, activeLibraryId, setActiveLibraryId, createLibrary, deleteLibrary, renameLibrary, importLibraryFromFolder } = useIconStudio();
+    const { libraries, activeLibraryId, setActiveLibraryId, createLibrary, deleteLibrary, renameLibrary, importLibraryFromFolder, isImporting, resyncLibrary, exportLibrary } = useIconStudio();
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
 
@@ -22,7 +22,12 @@ export default function LibraryManager() {
     };
 
     return (
-        <div className={styles.sidebar}>
+        <div className={`${styles.sidebar} relative`}>
+            {isImporting && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-[2px] pointer-events-none">
+                    <div className={`${styles.spinnerRing} w-10 h-10`} />
+                </div>
+            )}
             <div className="px-4 py-3.5 border-b border-white/6">
                 <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500/25 to-purple-600/20 flex items-center justify-center ring-1 ring-pink-500/20">
@@ -84,6 +89,26 @@ export default function LibraryManager() {
             </div>
 
             <div className="p-3 border-t border-white/6 flex flex-col gap-2">
+                {activeLibraryId && (
+                    <div className="flex gap-1.5">
+                        <button
+                            type="button"
+                            title="Resync from source folder"
+                            onClick={() => void resyncLibrary(activeLibraryId)}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-[10px] font-medium py-2 rounded-lg transition-colors"
+                        >
+                            <RefreshCw size={12} /> Resync
+                        </button>
+                        <button
+                            type="button"
+                            title="Export library JSON"
+                            onClick={() => exportLibrary(activeLibraryId)}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-[10px] font-medium py-2 rounded-lg transition-colors"
+                        >
+                            <Download size={12} /> Export
+                        </button>
+                    </div>
+                )}
                 <button type="button" onClick={importLibraryFromFolder} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-pink-600/90 to-purple-600/90 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-semibold py-2.5 rounded-lg shadow-md shadow-pink-900/15 transition-all">
                     <FolderOpen size={14} /> Import folder
                 </button>

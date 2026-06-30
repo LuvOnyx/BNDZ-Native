@@ -1,20 +1,20 @@
 <?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Nahradit Win+R</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">Zatvorit príkazovı riadok po stlacení lubovolného klávesu</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Toto okno zatvoríte stlacením lubovolného klávesu…</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Nezatvárat príkazovı riadok po dokoncení príkazu</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Spustit vdy ako správca</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">Pouit Windows Terminál</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Spustit ako inı pouívatel</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">NahradiÅ¥ Win+R</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">ZatvoriÅ¥ prÃ­kazovÃ½ riadok po stlaÄenÃ­ Ä¾ubovoÄ¾nÃ©ho klÃ¡vesu</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Toto okno zatvorÃ­te stlaÄenÃ­m Ä¾ubovoÄ¾nÃ©ho klÃ¡vesuâ€¦</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">NezatvÃ¡raÅ¥ prÃ­kazovÃ½ riadok po dokonÄenÃ­ prÃ­kazu</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">SpustiÅ¥ vÅ¾dy ako sprÃ¡vca</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">PouÅ¾iÅ¥ Windows TerminÃ¡l</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">SpustiÅ¥ ako inÃ½ pouÅ¾Ã­vateÄ¾</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_plugin_name">Shell</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">Umonuje vykonávat systémové príkazy z BNDZ Launchera</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">tento príkaz bol vykonanı {0}-krát</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">vykonat príkaz cez príkazovı riadok</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Spustit ako správca</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_copy">Kopírovat príkaz</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_history">Zobrazit iba pocet najpouívanejších príkazov:</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Príkaz sa nenašiel: {0}</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">Neporadilo sa spustit príkaz: {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">UmoÅ¾Åˆuje vykonÃ¡vaÅ¥ systÃ©movÃ© prÃ­kazy z BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">tento prÃ­kaz bol vykonanÃ½ {0}-krÃ¡t</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">vykonaÅ¥ prÃ­kaz cez prÃ­kazovÃ½ riadok</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">SpustiÅ¥ ako sprÃ¡vca</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_copy">KopÃ­rovaÅ¥ prÃ­kaz</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_history">ZobraziÅ¥ iba poÄet najpouÅ¾Ã­vanejÅ¡Ã­ch prÃ­kazov:</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">PrÃ­kaz sa nenaÅ¡iel: {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">Neporadilo sa spustiÅ¥ prÃ­kaz: {0}</system:String>
 </ResourceDictionary>

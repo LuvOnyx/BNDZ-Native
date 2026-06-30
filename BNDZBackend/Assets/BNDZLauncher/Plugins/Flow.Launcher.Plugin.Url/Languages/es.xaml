@@ -8,12 +8,12 @@
     <system:String x:Key="flowlauncher_plugin_url_plugin_description">Abre la URL escrita desde BNDZ Launcher</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_plugin_choose">Elegir</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">Aplicación(*.exe)|*.exe|Todos los archivos|*.*</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">AplicaciÃ³n(*.exe)|*.exe|Todos los archivos|*.*</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_use_custom_browser">Utilizar un navegador web personalizado en lugar del predeterminado de Flow</system:String>
     <system:String x:Key="flowlauncher_plugin_url_browser_path">Ruta del navegador</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_new_tab">Nueva pestaña</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_tab">Nueva pestaÃ±a</system:String>
     <system:String x:Key="flowlauncher_plugin_url_new_window">Nueva ventana</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_private_mode">Modo privado</system:String>

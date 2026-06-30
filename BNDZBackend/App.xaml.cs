@@ -11,6 +11,13 @@ namespace BNDZ
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
+            if (e.Args.Length >= 1 && e.Args[0] == "--version")
+            {
+                Console.WriteLine(BndzUpdateService.GetCurrentVersion());
+                Current.Shutdown();
+                return;
+            }
+
             if (e.Args.Length >= 2 && e.Args[0] == "--restore-icon")
             {
                 string targetPath = e.Args[1];
@@ -64,14 +71,12 @@ namespace BNDZ
             ServiceProvider = serviceCollection.BuildServiceProvider();
 
             var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-            string? openPath = null;
-            for (int i = 0; i < e.Args.Length; i++)
-            {
-                if (e.Args[i] == "--open-path" && i + 1 < e.Args.Length)
-                    openPath = e.Args[++i];
-            }
+            var openPath = ResolveOpenPath(e.Args);
             if (!string.IsNullOrWhiteSpace(openPath))
                 mainWindow.SetPendingOpenPath(openPath);
+            var startupAction = ResolveStartupAction(e.Args);
+            if (!string.IsNullOrWhiteSpace(startupAction))
+                mainWindow.SetPendingStartupAction(startupAction);
             mainWindow.Show();
 
             BndzLauncherIpcService.Instance.Start();
@@ -83,6 +88,43 @@ namespace BNDZ
                 if (BndzLauncherSettingsBridge.IsLauncherEnabled(bndzJson))
                     BndzHostCoordinator.Instance.EnsureLauncherRunning(bndzJson);
             }
+        }
+
+        /// <summary>Accepts --open-path or a bare path from Explorer context menus ("BNDZ.exe" "%1").</summary>
+        private static string? ResolveOpenPath(string[] args)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--open-path" && i + 1 < args.Length)
+                    return args[++i];
+            }
+
+            foreach (var arg in args)
+            {
+                if (string.IsNullOrWhiteSpace(arg) || arg.StartsWith('-')) continue;
+                try
+                {
+                    if (File.Exists(arg) || Directory.Exists(arg))
+                        return arg;
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
+        /// <summary>CLI: --find "query", --catalog id, --dual-pane</summary>
+        private static string? ResolveStartupAction(string[] args)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--dual-pane") return "dual-pane";
+                if (args[i] == "--find" && i + 1 < args.Length)
+                    return $"find:{args[++i]}";
+                if (args[i] == "--catalog" && i + 1 < args.Length)
+                    return $"catalog:{args[++i]}";
+            }
+            return null;
         }
 
         private void ConfigureServices(IServiceCollection services)

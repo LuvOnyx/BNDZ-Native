@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/audit-bndzui.mjs && powershell -ExecutionPolicy Bypass -File scripts/copy-launcher-toolbar-icons.ps1 && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:launcher": "vite build --config vite.launcher.config.ts",
     "build:all": "npm run build && npm run build:launcher",
     "package": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1",
@@ -17,7 +17,10 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit -p tsconfig.app.json",
+    "audit:ui": "node scripts/audit-bndzui.mjs",
+    "smoke": "node scripts/smoke-matrix.mjs",
+    "audit:wiring": "node scripts/wiring-audit.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -28,6 +31,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-virtual": "^3.14.2",
     "@vitejs/plugin-react": "^5.0.4",
+    "animejs": "^4.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",

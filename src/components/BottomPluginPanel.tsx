@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -48,10 +48,16 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
   );
 }
 
-export default function BottomPluginPanel(props: any & { onOpenPluginStore?: () => void; requestedTab?: string | null }) {
-  const { onOpenPluginStore, requestedTab, ...pluginProps } = props;
+export default function BottomPluginPanel(props: any & {
+  onOpenPluginStore?: () => void;
+  requestedTab?: string | null;
+  onRequestedTabConsumed?: () => void;
+}) {
+  const { onOpenPluginStore, requestedTab, onRequestedTabConsumed, ...pluginProps } = props;
   const { pluginRegistry, ensurePluginInstalled } = usePluginRegistry();
   const { config, updateConfig } = useAppConfig();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [mountedTabIds, setMountedTabIds] = useState<Set<string>>(new Set());
 
   const orderedPlugins = useMemo(() => {
     const installed = pluginRegistry.filter((p: any) => p.isInstalled);
@@ -69,23 +75,63 @@ export default function BottomPluginPanel(props: any & { onOpenPluginStore?: () 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   useEffect(() => {
+    if (!requestedTab || !orderedPlugins.some((p: any) => p.id === requestedTab)) return;
+    setActiveTab(requestedTab);
+    onRequestedTabConsumed?.();
+  }, [requestedTab, orderedPlugins, onRequestedTabConsumed]);
+
+  useEffect(() => {
     if (orderedPlugins.length === 0) {
       setActiveTab(null);
       return;
     }
-    if (requestedTab && orderedPlugins.some((p: any) => p.id === requestedTab)) {
-      setActiveTab(requestedTab);
-      return;
-    }
+    if (activeTab && orderedPlugins.some((p: any) => p.id === activeTab)) return;
+
     if (config.bottomPanelRememberTab && config.bottomPanelLastTab && orderedPlugins.some((p: any) => p.id === config.bottomPanelLastTab)) {
       setActiveTab(config.bottomPanelLastTab);
       return;
     }
-    if (!activeTab || !orderedPlugins.some((p: any) => p.id === activeTab)) {
-      const def = config.bottomPanelDefaultPlugin || orderedPlugins[0].id;
-      setActiveTab(orderedPlugins.some((p: any) => p.id === def) ? def : orderedPlugins[0].id);
+    const def = config.bottomPanelDefaultPlugin || orderedPlugins[0].id;
+    setActiveTab(orderedPlugins.some((p: any) => p.id === def) ? def : orderedPlugins[0].id);
+  }, [orderedPlugins, activeTab, config.bottomPanelRememberTab, config.bottomPanelLastTab, config.bottomPanelDefaultPlugin]);
+
+  useEffect(() => {
+    if (activeTab) {
+      setMountedTabIds(prev => {
+        if (prev.has(activeTab)) return prev;
+        const next = new Set(prev);
+        next.add(activeTab);
+        return next;
+      });
     }
-  }, [orderedPlugins, activeTab, requestedTab, config.bottomPanelRememberTab, config.bottomPanelLastTab, config.bottomPanelDefaultPlugin]);
+  }, [activeTab]);
+
+  const cycleTab = useCallback((direction: 1 | -1) => {
+    if (!activeTab || orderedPlugins.length < 2) return;
+    const idx = orderedPlugins.findIndex((p: { id: string }) => p.id === activeTab);
+    if (idx < 0) return;
+    const next = orderedPlugins[(idx + direction + orderedPlugins.length) % orderedPlugins.length];
+    ensurePluginInstalled?.(next.id);
+    setActiveTab(next.id);
+    if (config.bottomPanelRememberTab !== false) {
+      updateConfig({ bottomPanelLastTab: next.id });
+    }
+  }, [activeTab, orderedPlugins, ensurePluginInstalled, config.bottomPanelRememberTab, updateConfig]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.key !== 'PageDown' && e.key !== 'PageUp') return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const root = panel.closest('.bndz-chrome-bottom');
+      if (!root || !document.contains(root)) return;
+      e.preventDefault();
+      cycleTab(e.key === 'PageDown' ? 1 : -1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cycleTab]);
 
   const handleTabClick = (id: string) => {
     ensurePluginInstalled?.(id);
@@ -105,8 +151,6 @@ export default function BottomPluginPanel(props: any & { onOpenPluginStore?: () 
     const next = arrayMove(ids, oldIndex, newIndex) as string[];
     updateConfig({ bottomPluginTabOrder: next });
   };
-
-  const ActivePluginComponent = orderedPlugins.find((p: any) => p.id === activeTab)?.component || null;
 
   if (orderedPlugins.length === 0) {
     return (
@@ -128,10 +172,10 @@ export default function BottomPluginPanel(props: any & { onOpenPluginStore?: () 
   }
 
   return (
-    <div className="bndz-bottom-panel flex flex-col h-full min-h-0">
+    <div ref={panelRef} className="bndz-bottom-panel flex flex-col h-full min-h-0" tabIndex={-1}>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="bndz-bottom-tabstrip flex border-b border-white/[0.05] shrink-0 overflow-x-auto scrollbar-hidden backdrop-blur-sm">
+          <div className="bndz-bottom-tabstrip flex border-b border-white/[0.05] shrink-0 overflow-x-auto scrollbar-hidden backdrop-blur-sm" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
             {orderedPlugins.map((plugin: any) => (
               <SortableTab
                 key={plugin.id}
@@ -147,6 +191,7 @@ export default function BottomPluginPanel(props: any & { onOpenPluginStore?: () 
 
       <div className="bndz-bottom-content flex-1 overflow-hidden relative min-h-0 bndz-scrollbar">
         {orderedPlugins.map((plugin: any) => {
+          if (!mountedTabIds.has(plugin.id)) return null;
           const Component = plugin.component;
           if (!Component) return null;
           const isActive = plugin.id === activeTab;

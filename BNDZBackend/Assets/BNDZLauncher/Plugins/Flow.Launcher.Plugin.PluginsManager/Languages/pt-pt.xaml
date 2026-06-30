@@ -4,67 +4,67 @@
     <!--  Dialogues  -->
     <system:String x:Key="plugin_pluginsmanager_downloading_plugin">Descarregar plugin</system:String>
     <system:String x:Key="plugin_pluginsmanager_download_success">Descarregado com sucesso {0}</system:String>
-    <system:String x:Key="plugin_pluginsmanager_download_error">N„o foi possÌvel descarregar o plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt">{0} de {1} {2}{3}Tem a certeza de que pretende desinstalar este plugin? ApÛs a desinstalaÁ„o, BNDZ Launcher ser· reiniciado.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_download_error">N√£o foi poss√≠vel descarregar o plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt">{0} de {1} {2}{3}Tem a certeza de que pretende desinstalar este plugin? Ap√≥s a desinstala√ß√£o, BNDZ Launcher ser√° reiniciado.</system:String>
     <system:String x:Key="plugin_pluginsmanager_uninstall_prompt_no_restart">{0} de {1} {2}{2}Gostaria de desinstalar este plugin?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_prompt">{0} de {1} {2}{3}Tem a certeza de que pretende instalar este plugin? ApÛs a instalaÁ„o, BNDZ Launcher ser· reiniciado.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_prompt">{0} de {1} {2}{3}Tem a certeza de que pretende instalar este plugin? Ap√≥s a instala√ß√£o, BNDZ Launcher ser√° reiniciado.</system:String>
     <system:String x:Key="plugin_pluginsmanager_install_prompt_no_restart">{0} de {1} {2}{2}Gostaria de instalar este plugin?</system:String>
     <system:String x:Key="plugin_pluginsmanager_install_title">Instalador de plugins</system:String>
     <system:String x:Key="plugin_pluginsmanager_installing_plugin">Instalando plugin...</system:String>
     <system:String x:Key="plugin_pluginsmanager_install_from_web">Descarregar e instalar {0}</system:String>
     <system:String x:Key="plugin_pluginsmanager_uninstall_title">Desinstalador de plugins</system:String>
-    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_title">Manter definiÁıes</system:String>
-    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_subtitle">Deseja manter as definiÁıes do plugin para o caso de o voltar a instalar?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_title">Manter defini√ß√µes</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_subtitle">Deseja manter as defini√ß√µes do plugin para o caso de o voltar a instalar?</system:String>
     <system:String x:Key="plugin_pluginsmanager_install_success_restart">Plugin {0} instalado com sucesso. Estamos a reiniciar BNDZ Launcher. Por favor aguarde.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_errormetadatafile">N„o foi possÌvel localizar o ficheiro plugin.json a partir do ficheiro extraÌdo.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_error_duplicate">Erro: j· est· instalado um plugin com uma vers„o igual ou superior a {0}.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_errormetadatafile">N√£o foi poss√≠vel localizar o ficheiro plugin.json a partir do ficheiro extra√≠do.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_duplicate">Erro: j√° est√° instalado um plugin com uma vers√£o igual ou superior a {0}.</system:String>
     <system:String x:Key="plugin_pluginsmanager_install_error_title">Erro ao instalar o plugin</system:String>
     <system:String x:Key="plugin_pluginsmanager_install_error_subtitle">Ocorreu um erro ao tentar instalar {0}</system:String>
     <system:String x:Key="plugin_pluginsmanager_uninstall_error_title">Erro ao desinstalar o plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_noresult_title">N„o existem atualizaÁıes</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_noresult_subtitle">Todos os plugins est„o instalados</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_prompt">{0} de {1} {2}{3}Tem a certeza de que pretende atualizar este plugin? ApÛs a atualizaÁ„o, BNDZ Launcher ser· reiniciado.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_title">N√£o existem atualiza√ß√µes</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_subtitle">Todos os plugins est√£o instalados</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_prompt">{0} de {1} {2}{3}Tem a certeza de que pretende atualizar este plugin? Ap√≥s a atualiza√ß√£o, BNDZ Launcher ser√° reiniciado.</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_prompt_no_restart">{0} de {1} {2}{2}Gostaria de atualizar este plugin?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_title">AtualizaÁ„o de plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_alreadyexists">Este plugin j· est· instalado</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_title">Atualiza√ß√£o de plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_alreadyexists">Este plugin j√° est√° instalado</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_failed_title">Erro ao descarregar o manifesto do plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_failed_subtitle">Verifique se consegue estabelecer ligaÁ„o a github.com. Este erro significa que pode n„o ser possÌvel instalar ou atualizar os plugins.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_failed_subtitle">Verifique se consegue estabelecer liga√ß√£o a github.com. Este erro significa que pode n√£o ser poss√≠vel instalar ou atualizar os plugins.</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_all_title">Atualizar todos os plugins</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_all_subtitle">Gostaria de atualizar todos os plugins?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_all_prompt">Gostaria de atualizar {0} plugins ?{1}BNDZ Launcher ser· reiniciado apÛs a atualizaÁ„o.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_prompt">Gostaria de atualizar {0} plugins ?{1}BNDZ Launcher ser√° reiniciado ap√≥s a atualiza√ß√£o.</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_all_prompt_no_restart">Gostaria de atualizar {0} plugins?</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_all_success_restart">{0} plugins atualizados com sucesso. Estamos a reiniciar BNDZ Launcher...</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_success_restart">Plugin {0} atualizado com sucesso. Estamos a reiniciar BNDZ Launcher, aguarde...</system:String>
     <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning_title">Instalar a partir de fontes desconhecidas</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning">Est· a instalar este plugin a partir de uma fonte desconhecida o que pode ser perigoso!{0}{0}Certifique-se de que este plugin È seguro.{0}{0}Ainda assim, pretende continuar com a instalaÁ„o?{0}{0}(Pode desativar este aviso nas definiÁıes da aplicaÁ„o)</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning">Est√° a instalar este plugin a partir de uma fonte desconhecida o que pode ser perigoso!{0}{0}Certifique-se de que este plugin √© seguro.{0}{0}Ainda assim, pretende continuar com a instala√ß√£o?{0}{0}(Pode desativar este aviso nas defini√ß√µes da aplica√ß√£o)</system:String>
 
     <system:String x:Key="plugin_pluginsmanager_install_success_no_restart">Plugin {0} instalado com sucesso. Por favor, reinicie o BNDZ Launcher.</system:String>
     <system:String x:Key="plugin_pluginsmanager_uninstall_success_no_restart">Plugin {0} desinstalado com sucesso. Por favor, reinicie o BNDZ Launcher.</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_success_no_restart">Plugin {0} atualizado com sucesso. Por favor, reinicie o BNDZ Launcher.</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_all_success_no_restart">{0} plugins atualizados com sucesso. Deve reiniciar BNDZ Launcher.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error">O plugin {0} foi modificado. Por favor, reinicie o BNDZ Launcher antes de fazer mais alteraÁıes.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_title">{0} j· modificado</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_message">Reinicie BNDZ Launcher antes de fazer mais alteraÁıes</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error">O plugin {0} foi modificado. Por favor, reinicie o BNDZ Launcher antes de fazer mais altera√ß√µes.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_title">{0} j√° modificado</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_message">Reinicie BNDZ Launcher antes de fazer mais altera√ß√µes</system:String>
 
-    <system:String x:Key="plugin_pluginsmanager_invalid_zip_title">Ficheiro Zip inv·lido</system:String>
+    <system:String x:Key="plugin_pluginsmanager_invalid_zip_title">Ficheiro Zip inv√°lido</system:String>
     <system:String x:Key="plugin_pluginsmanager_invalid_zip_subtitle">Verifique se existe o ficheiro &quot;plugin.json&quot; em {0}</system:String>
 
     <!--  Plugin Infos  -->
     <system:String x:Key="plugin_pluginsmanager_plugin_name">Gestor de plugins</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_description">Instalar, desinstalar ou atualizar plugins do BNDZ Launcher atravÈs da janela de pesquisa</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_description">Instalar, desinstalar ou atualizar plugins do BNDZ Launcher atrav√©s da janela de pesquisa</system:String>
     <system:String x:Key="plugin_pluginsmanager_unknown_author">Autor desconhecido</system:String>
 
     <!--  Context menu items  -->
     <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_title">Abrir site</system:String>
     <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_subtitle">Aceder ao site do plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_title">Ver cÛdigo fonte</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_subtitle">Consultar o cÛdigo fonte do plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_title">Ver c√≥digo fonte</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_subtitle">Consultar o c√≥digo fonte do plugin</system:String>
     <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_title">Sugerir uma melhoria ou reportar um erro</system:String>
     <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_subtitle">Possibilidade de sugerir uma melhoria ou reportar um erro ao programador</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_title">Ir para o repositÛrio de plugins</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_subtitle">Aceda ao repositÛrio para ver os plugins submetidos pela comunidade</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_title">Ir para o reposit√≥rio de plugins</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_subtitle">Aceda ao reposit√≥rio para ver os plugins submetidos pela comunidade</system:String>
 
     <!--  Settings menu items  -->
     <system:String x:Key="plugin_pluginsmanager_plugin_settings_unknown_source">Aviso ao instalar de fontes desconhecidas</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_settings_auto_restart">Reiniciar BNDZ Launcher apÛs instalar/desinstalar/atualizar um plugin via Gestor de plugins</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_settings_auto_restart">Reiniciar BNDZ Launcher ap√≥s instalar/desinstalar/atualizar um plugin via Gestor de plugins</system:String>
 </ResourceDictionary>

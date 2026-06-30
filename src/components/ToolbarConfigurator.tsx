@@ -18,8 +18,9 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { 
-    ArrowLeft, ArrowRight, ArrowUp, Monitor, Scissors, Copy, Clipboard, 
+import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
+import {
+    ArrowLeft, ArrowRight, ArrowUp, Monitor, Scissors, Copy, Clipboard,
     Trash2, Undo, Redo, RefreshCw, Settings, Wrench, Grid, Save, Plus, Terminal, Activity, Table, FolderPlus, List, Shield, Archive, SquareTerminal, Command, HardDrive,
     FilePlus, CheckSquare, Combine, Share2, Disc, Network, FileArchive, MousePointerClick, Info, Puzzle,
     Search, Tag, Wand2, Palette, Layers, Filter, LayoutGrid, FolderSearch,
@@ -159,6 +160,10 @@ const TRASH_ZONE = 'trash-zone';
 const ListItemIcon = ({ item }: { item: any }) => {
   if (item.isStructure) {
     return <div className="w-5 text-center text-[#888] font-mono font-bold text-xs">{(item.id === 'separator' ? '|' : item.id === 'spacer' ? '< >' : '---')}</div>;
+  }
+  const png = launcherIconUrl(item.id);
+  if (png) {
+    return <img src={png} alt="" className="w-4 h-4 object-contain" draggable={false} />;
   }
   return item.icon ? <item.icon size={16} color={item.color || '#ccc'} fill={item.color || "none"} className="drop-shadow-md" /> : null;
 };

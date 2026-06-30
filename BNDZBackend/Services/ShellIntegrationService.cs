@@ -214,25 +214,40 @@ public class ShellIntegrationService
             var exe = Process.GetCurrentProcess().MainModule?.FileName;
             if (string.IsNullOrEmpty(exe)) return;
 
+            const string fileRoot = @"Software\Classes\*\shell\BNDZOpen";
+            const string dirRoot = @"Software\Classes\Directory\shell\BNDZOpen";
+            const string bgRoot = @"Software\Classes\Directory\Background\shell\BNDZOpen";
+            const string legacyFile = @"*\shell\BNDZOpen";
+            const string legacyDir = @"Directory\shell\BNDZOpen";
+
             if (enable)
             {
-                using var key = Registry.ClassesRoot.CreateSubKey(@"*\shell\BNDZOpen");
-                key?.SetValue("MUIVerb", "Open with BNDZ");
-                using var cmd = key?.CreateSubKey("command");
-                cmd?.SetValue("", $"\"{exe}\" \"%1\"");
-
-                using var dirKey = Registry.ClassesRoot.CreateSubKey(@"Directory\shell\BNDZOpen");
-                dirKey?.SetValue("MUIVerb", "Open with BNDZ");
-                using var dirCmd = dirKey?.CreateSubKey("command");
-                dirCmd?.SetValue("", $"\"{exe}\" \"%1\"");
+                WriteBndzOpenMenu(Registry.CurrentUser, fileRoot, exe, "Open with BNDZ", "%1");
+                WriteBndzOpenMenu(Registry.CurrentUser, dirRoot, exe, "Open with BNDZ", "%1");
+                WriteBndzOpenMenu(Registry.CurrentUser, bgRoot, exe, "Open with BNDZ", "%V");
             }
             else
             {
-                try { Registry.ClassesRoot.DeleteSubKeyTree(@"*\shell\BNDZOpen", false); } catch { }
-                try { Registry.ClassesRoot.DeleteSubKeyTree(@"Directory\shell\BNDZOpen", false); } catch { }
+                foreach (var root in new[] { fileRoot, dirRoot, bgRoot })
+                {
+                    try { Registry.CurrentUser.DeleteSubKeyTree(root, false); } catch { }
+                }
             }
+
+            // Legacy HKCR cleanup from older builds
+            try { Registry.ClassesRoot.DeleteSubKeyTree(legacyFile, false); } catch { }
+            try { Registry.ClassesRoot.DeleteSubKeyTree(legacyDir, false); } catch { }
         }
         catch { }
+    }
+
+    private static void WriteBndzOpenMenu(RegistryKey hive, string rootPath, string exe, string label, string pathToken)
+    {
+        using var key = hive.CreateSubKey(rootPath);
+        key?.SetValue("MUIVerb", label);
+        key?.SetValue("Icon", $"\"{exe}\",0");
+        using var cmd = key?.CreateSubKey("command");
+        cmd?.SetValue("", $"\"{exe}\" --open-path \"{pathToken}\"");
     }
 
     public void SetWin11MoreOptions(bool enable)

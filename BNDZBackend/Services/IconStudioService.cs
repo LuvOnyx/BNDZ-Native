@@ -21,7 +21,13 @@ namespace BNDZ.Services
         public static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
 
         private const string LIBRARY_REG_PATH = @"Software\BNDZ\IconStudio\Libraries";
-        private const string CONTEXT_MENU_FOLDER = @"Software\Classes\Folder\shell\IconStudio";
+        private static readonly (string Root, string PathToken, bool FilesOnly)[] ContextMenuRoots =
+        {
+            (@"Software\Classes\Folder\shell\IconStudio", "%1", false),
+            (@"Software\Classes\Directory\shell\IconStudio", "%1", false),
+            (@"Software\Classes\Directory\Background\shell\IconStudio", "%V", false),
+            (@"Software\Classes\*\shell\IconStudio", "%1", true),
+        };
 
         public IconStudioService()
         {
@@ -356,73 +362,84 @@ namespace BNDZ.Services
             UpdateContextMenu();
         }
 
-        // Write "IconStudio" into right-Click context menu supporting cascading menus
+        // Write "IconStudio" into Explorer right-click menus (files, folders, desktop background)
         private void UpdateContextMenu()
         {
             try
             {
-                using var folderKey = Registry.CurrentUser.CreateSubKey(CONTEXT_MENU_FOLDER);
-                if (folderKey == null) return;
-
-                folderKey.SetValue("MUIVerb", "Icon Studio");
-                folderKey.SetValue("Icon", "imageres.dll,-103");
-                folderKey.SetValue("ExtendedSubCommandsKey", @"Software\Classes\Folder\shell\IconStudio\shell");
-
-                using var subShellKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Folder\shell\IconStudio\shell");
-                if (subShellKey == null) return;
-
-                // Clear old subkeys
-                foreach (var sk in subShellKey.GetSubKeyNames())
-                {
-                    subShellKey.DeleteSubKeyTree(sk, false);
-                }
-
                 var libs = GetPersistedLibraries();
-                int idx = 1;
+                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                    ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
 
-                foreach (var lib in libs)
+                foreach (var (root, pathToken, filesOnly) in ContextMenuRoots)
                 {
-                    string safeName = $"Lib_{idx++}";
-                    using var libKey = subShellKey.CreateSubKey(safeName);
-                    if (libKey != null)
-                    {
-                        libKey.SetValue("MUIVerb", lib.Name);
-                        libKey.SetValue("ExtendedSubCommandsKey", $@"Software\Classes\Folder\shell\IconStudio\shell\{safeName}\shell");
-
-                        using var iconShellKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\Folder\shell\IconStudio\shell\{safeName}\shell");
-                        if (iconShellKey == null) continue;
-
-                        int iconIdx = 1;
-                        foreach (var icon in lib.Icons)
-                        {
-                            string iconPath = icon.IcoStr.Replace("/", "\\");
-                            if (!File.Exists(iconPath)) continue;
-                            string iconName = string.IsNullOrWhiteSpace(icon.Name)
-                                ? Path.GetFileNameWithoutExtension(iconPath)
-                                : icon.Name;
-                            string itemKeyName = $"Icon_{iconIdx++}";
-                            
-                            using var itemKey = iconShellKey.CreateSubKey(itemKeyName);
-                            if (itemKey != null)
-                            {
-                                itemKey.SetValue("", iconName);
-                                itemKey.SetValue("Icon", iconPath);
-
-                                using var cmdKey = itemKey.CreateSubKey("command");
-                                if (cmdKey != null)
-                                {
-                                    // Must match the --apply-icon {iconPath} {targetPath} handler in App.xaml.cs
-                                    string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
-                                        ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
-                                    cmdKey.SetValue("", $"\"{exePath}\" --apply-icon \"{iconPath}\" \"%1\"");
-                                }
-                            }
-                        }
-                    }
+                    WriteIconStudioMenu(root, pathToken, filesOnly, libs, exePath);
                 }
             }
             catch { }
             SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
+        }
+
+        private static void WriteIconStudioMenu(
+            string menuRoot,
+            string pathToken,
+            bool filesOnly,
+            List<IconLibraryDto> libs,
+            string exePath)
+        {
+            using var folderKey = Registry.CurrentUser.CreateSubKey(menuRoot);
+            if (folderKey == null) return;
+
+            folderKey.SetValue("MUIVerb", "Icon Studio");
+            folderKey.SetValue("Icon", "imageres.dll,-103");
+
+            string subShellRelative = menuRoot.Replace(@"Software\Classes\", "") + @"\shell";
+            folderKey.SetValue("ExtendedSubCommandsKey", subShellRelative);
+
+            using var subShellKey = Registry.CurrentUser.CreateSubKey(subShellRelative);
+            if (subShellKey == null) return;
+
+            foreach (var sk in subShellKey.GetSubKeyNames())
+            {
+                subShellKey.DeleteSubKeyTree(sk, false);
+            }
+
+            int idx = 1;
+            foreach (var lib in libs)
+            {
+                string safeName = $"Lib_{idx++}";
+                using var libKey = subShellKey.CreateSubKey(safeName);
+                if (libKey == null) continue;
+
+                libKey.SetValue("MUIVerb", lib.Name);
+                string iconShellRelative = subShellRelative + @"\" + safeName + @"\shell";
+                libKey.SetValue("ExtendedSubCommandsKey", iconShellRelative);
+
+                using var iconShellKey = Registry.CurrentUser.CreateSubKey(iconShellRelative);
+                if (iconShellKey == null) continue;
+
+                int iconIdx = 1;
+                foreach (var icon in lib.Icons)
+                {
+                    string iconPath = icon.IcoStr.Replace("/", "\\");
+                    if (!File.Exists(iconPath)) continue;
+                    if (filesOnly && Directory.Exists(iconPath)) continue;
+
+                    string iconName = string.IsNullOrWhiteSpace(icon.Name)
+                        ? Path.GetFileNameWithoutExtension(iconPath)
+                        : icon.Name;
+                    string itemKeyName = $"Icon_{iconIdx++}";
+
+                    using var itemKey = iconShellKey.CreateSubKey(itemKeyName);
+                    if (itemKey == null) continue;
+
+                    itemKey.SetValue("", iconName);
+                    itemKey.SetValue("Icon", iconPath);
+
+                    using var cmdKey = itemKey.CreateSubKey("command");
+                    cmdKey?.SetValue("", $"\"{exePath}\" --apply-icon \"{iconPath}\" \"{pathToken}\"");
+                }
+            }
         }
     }
 }

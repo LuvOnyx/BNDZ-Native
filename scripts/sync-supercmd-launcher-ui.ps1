@@ -25,7 +25,12 @@ $Pairs = @(
     @{ Src = "src\renderer\src\hooks\useAppViewManager.ts"; Dst = "src\launcher\_supercmd\useAppViewManager.ts" },
     @{ Src = "src\renderer\styles\index.css"; Dst = "src\launcher\_supercmd\index.css" },
     @{ Src = "src\main\clipboard-manager.ts"; Dst = "src\launcher\_supercmd\clipboard-manager.ts" },
-    @{ Src = "src\main\commands.ts"; Dst = "src\launcher\_supercmd\commands.ts" }
+    @{ Src = "src\main\commands.ts"; Dst = "src\launcher\_supercmd\commands.ts" },
+    @{ Src = "src\renderer\src\hooks\useAiChat.ts"; Dst = "src\launcher\_supercmd\useAiChat.ts" },
+    @{ Src = "src\renderer\src\views\AiChatView.tsx"; Dst = "src\launcher\_supercmd\AiChatView.tsx" },
+    @{ Src = "src\renderer\src\raycast-api\detail-markdown.tsx"; Dst = "src\launcher\_supercmd\detail-markdown.tsx" },
+    @{ Src = "src\renderer\src\SnippetManager.tsx"; Dst = "src\launcher\_supercmd\SnippetManager.tsx" },
+    @{ Src = "src\renderer\src\QuickLinkManager.tsx"; Dst = "src\launcher\_supercmd\QuickLinkManager.tsx" }
 )
 
 $header = @"

@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using Flow.Launcher.Core.Plugin;
+using Flow.Launcher.Helper;
 using Flow.Launcher.Plugin;
 using Version = SemanticVersioning.Version;
 
@@ -19,8 +20,8 @@ namespace Flow.Launcher.ViewModel
         }
 
         public string ID => _newPlugin.ID;
-        public string Name => _newPlugin.Name;
-        public string Description => _newPlugin.Description;
+        public string Name => BndzBrandingText.Sanitize(_newPlugin.Name);
+        public string Description => BndzBrandingText.Sanitize(_newPlugin.Description);
         public string Author => _newPlugin.Author;
         public string Version => _newPlugin.Version;
         public string Language => _newPlugin.Language;

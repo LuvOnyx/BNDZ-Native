@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { StorageUsageBar } from '../StorageUsageBar';
+import PluginPanelShell from './PluginPanelShell';
 
 export const StorageCleanupPluginDef = {
   id: 'storage-cleanup',
@@ -17,6 +18,8 @@ export const StorageCleanupPluginDef = {
 };
 
 type TabId = 'overview' | 'duplicates' | 'organize';
+
+type DupKeepRule = 'first' | 'newest' | 'oldest' | 'shortest';
 
 interface DupGroup {
   hash: string;
@@ -37,6 +40,26 @@ function formatSize(bytes: number) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(i > 1 ? 2 : 0))} ${sizes[i]}`;
+}
+
+function panePathFromWin(winPath: string): string {
+  const norm = winPath.replace(/\\/g, '/');
+  if (/^[A-Za-z]:/.test(norm)) return `/${norm}`;
+  return norm.startsWith('/') ? norm : `/${norm}`;
+}
+
+function pickKeepIndex(paths: string[], rule: DupKeepRule): number {
+  if (paths.length < 2) return 0;
+  if (rule === 'first') return 0;
+  if (rule === 'shortest') {
+    let best = 0;
+    for (let i = 1; i < paths.length; i++) {
+      if (paths[i].length < paths[best].length) best = i;
+    }
+    return best;
+  }
+  const sorted = paths.map((p, i) => ({ p, i })).sort((a, b) => a.p.localeCompare(b.p));
+  return (rule === 'oldest' ? sorted[0] : sorted[sorted.length - 1]).i;
 }
 
 const ORGANIZE_BUCKETS: Record<string, { re: RegExp; color: string; icon: string }> = {
@@ -87,14 +110,26 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   const [showOrganizePreview, setShowOrganizePreview] = useState(false);
   const [organizePlan, setOrganizePlan] = useState<OrganizePlan[]>([]);
   const [deletingDupes, setDeletingDupes] = useState<string | null>(null);
+  const [dupKeepRule, setDupKeepRule] = useState<DupKeepRule>('first');
+
+  const navigateToPath = (winPath: string) => {
+    if (!winPath) return;
+    const isFile = /\.[A-Za-z0-9]{1,8}$/.test(winPath.replace(/\\/g, '/'));
+    const target = isFile ? winPath.replace(/\\[^\\]+$/, '') : winPath;
+    window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: panePathFromWin(target) } }));
+  };
+
+  const openFindDuplicates = () => {
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'find' } }));
+  };
 
   const items = pathContentsCache?.[currentPath] || [];
 
   const largeCandidates = useMemo(() => {
     return items
       .map((e: any) => {
-        const win = toWindowsPath(e.path || `${currentPath}/${e.name}`).toLowerCase();
-        const folderSize = e.type === 'directory' ? folderSizeMap?.[win] : null;
+        const win = toWindowsPath(e.path || `${currentPath}/${e.name}`);
+        const folderSize = e.type === 'directory' ? folderSizeMap?.[win.toLowerCase()] : null;
         const size = e.type === 'directory' ? (folderSize ?? 0) : (Number(e.size) || 0);
         return { ...e, computedSize: size, winPath: win };
       })
@@ -174,11 +209,12 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     setDupProgress(null);
   };
 
-  const deleteDuplicateExtras = async (group: DupGroup, keepIndex = 0) => {
+  const deleteDuplicateExtras = async (group: DupGroup, keepIndex?: number) => {
+    const keep = keepIndex ?? pickKeepIndex(group.paths, dupKeepRule);
     setDeletingDupes(group.hash);
     try {
       const { IPC } = await import('../../lib/ipcBridge');
-      const toDelete = group.paths.filter((_, i) => i !== keepIndex);
+      const toDelete = group.paths.filter((_, i) => i !== keep);
       for (const p of toDelete) {
         await IPC.executeFsOperation(`dup-del-${Date.now()}`, 'delete', p, '');
       }
@@ -249,43 +285,30 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   const folderLabel = currentPath?.split('/').filter(Boolean).pop() || 'This PC';
 
   return (
-    <div className="h-full flex flex-col bg-[#09090d] text-gray-200 overflow-hidden">
-      {/* Hero header */}
-      <div className="shrink-0 relative overflow-hidden border-b border-white/[0.06]">
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/50 via-[#0c1018] to-violet-950/40" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(16,185,129,0.15),transparent_50%)]" />
-        <div className="relative px-5 py-4 flex items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-                <Sparkles size={18} className="text-emerald-400" />
-              </div>
-              <div>
-                <h2 className="text-[15px] font-bold text-white tracking-tight">Smart Storage</h2>
-                <p className="text-[10px] text-gray-500 mt-0.5 font-mono truncate max-w-[280px]">{folderLabel}</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-1 p-1 rounded-xl bg-black/30 border border-white/[0.06]">
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
-                  activeTab === t.id
-                    ? 'bg-emerald-600/35 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
-                }`}
-              >
-                <t.icon size={11} />
-                {t.label}
-              </button>
-            ))}
-          </div>
+    <PluginPanelShell
+      title="Smart Storage"
+      icon={Sparkles}
+      iconColor="#34d399"
+      subtitle={folderLabel}
+      toolbar={
+        <div className="flex gap-1 p-0.5 rounded-lg bg-black/30 border border-white/[0.06]">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
+                activeTab === t.id ? 'bg-emerald-600/35 text-emerald-200' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <t.icon size={11} />
+              {t.label}
+            </button>
+          ))}
         </div>
-      </div>
-
+      }
+    >
+    <div className="h-full flex flex-col bg-[#09090d] text-gray-200 overflow-hidden">
       <div className="flex-1 overflow-y-auto bndz-scrollbar p-5">
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (
@@ -347,7 +370,12 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                 ) : (
                   <div className="divide-y divide-white/[0.04]">
                     {largeCandidates.map((item: any) => (
-                      <div key={item.id || item.winPath} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors group">
+                      <button
+                        type="button"
+                        key={item.id || item.winPath}
+                        onClick={() => navigateToPath(item.winPath)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors group text-left"
+                      >
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.type === 'directory' ? 'bg-amber-500/12 text-amber-400' : 'bg-sky-500/12 text-sky-400'}`}>
                           {item.type === 'directory' ? <HardDrive size={15} /> : <PieChart size={15} />}
                         </div>
@@ -356,8 +384,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                           <StorageUsageBar usedPct={(item.computedSize / maxItemSize) * 100} height={4} className="mt-1.5 max-w-[200px]" />
                         </div>
                         <div className="text-[12px] font-mono text-emerald-400 shrink-0">{formatSize(item.computedSize)}</div>
-                        <ArrowRight size={12} className="text-gray-700 group-hover:text-gray-400 shrink-0 transition-colors" />
-                      </div>
+                        <ArrowRight size={12} className="text-gray-700 group-hover:text-sky-400 shrink-0 transition-colors" />
+                      </button>
                     ))}
                   </div>
                 )}
@@ -372,6 +400,18 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                   <input type="checkbox" checked={dupRecursive} onChange={e => setDupRecursive(e.target.checked)} className="accent-violet-500 rounded" />
                   Recursive scan
                 </label>
+                <label className="flex items-center gap-2 text-[11px] text-gray-400">
+                  Keep rule
+                  <select value={dupKeepRule} onChange={e => setDupKeepRule(e.target.value as DupKeepRule)} className="bg-[#1a1a22] border border-[#333] rounded-lg px-2 py-1 text-[11px] text-gray-300 outline-none">
+                    <option value="first">First in list</option>
+                    <option value="newest">Newest path (Z→A)</option>
+                    <option value="oldest">Oldest path (A→Z)</option>
+                    <option value="shortest">Shortest path</option>
+                  </select>
+                </label>
+                <button type="button" onClick={openFindDuplicates} className="text-[10px] text-violet-300/90 hover:text-violet-200 underline underline-offset-2">
+                  Open in Fast Search →
+                </button>
                 <label className="flex items-center gap-2 text-[11px] text-gray-400">
                   Min size
                   <select value={dupMinKb} onChange={e => setDupMinKb(Number(e.target.value))} className="bg-[#1a1a22] border border-[#333] rounded-lg px-2 py-1 text-[11px] text-gray-300 outline-none">
@@ -445,23 +485,26 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                         <button
                           type="button"
                           disabled={deletingDupes === group.hash}
-                          onClick={e => { e.stopPropagation(); void deleteDuplicateExtras(group, 0); }}
+                          onClick={e => { e.stopPropagation(); void deleteDuplicateExtras(group); }}
                           className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/35 border border-rose-500/30 text-rose-300 text-[10px] font-bold uppercase tracking-wide disabled:opacity-50 flex items-center gap-1.5"
                         >
                           {deletingDupes === group.hash ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                          Keep 1st, delete rest
+                          Keep {dupKeepRule === 'first' ? '1st' : dupKeepRule}, delete rest
                         </button>
                       </button>
                       {expanded && (
                         <div className="border-t border-white/[0.04] divide-y divide-white/[0.03]">
-                          {group.paths.map((p, i) => (
+                          {group.paths.map((p, i) => {
+                            const keepIdx = pickKeepIndex(group.paths, dupKeepRule);
+                            return (
                             <div key={p} className="px-4 py-2 pl-10 flex items-center gap-2 text-[11px]">
-                              <span className={`shrink-0 w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${i === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700/30 text-gray-500'}`}>
-                                {i === 0 ? '✓' : i + 1}
+                              <span className={`shrink-0 w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${i === keepIdx ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700/30 text-gray-500'}`}>
+                                {i === keepIdx ? '✓' : i + 1}
                               </span>
-                              <span className="font-mono text-gray-400 truncate flex-1" title={p}>{p}</span>
+                              <button type="button" onClick={() => navigateToPath(p)} className="font-mono text-gray-400 hover:text-sky-300 truncate flex-1 text-left" title={p}>{p}</button>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -548,5 +591,6 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
         </AnimatePresence>
       </div>
     </div>
+    </PluginPanelShell>
   );
 }

@@ -3,6 +3,7 @@ import { IPC } from '../../../lib/ipcBridge';
 import { useAppConfig } from '../../../data/configContext';
 import { formatLibrariesForConfig } from '../../../lib/iconLibraryUtils';
 import { buildDefaultIconLibraries } from '../../../data/defaultIconLibraries';
+import { pushToast } from '../../ToastHost';
 
 export interface IconItem {
     id: string;
@@ -35,15 +36,19 @@ interface IconStudioState {
     activeLibraryId: string;
     isApplying: boolean;
     isImporting: boolean;
+    selectedIcon: IconItem | null;
     createLibrary: (name: string) => string;
     deleteLibrary: (id: string) => void;
     renameLibrary: (id: string, newName: string) => void;
     setActiveLibraryId: (id: string) => void;
     setIsApplying: (v: boolean) => void;
+    setSelectedIcon: (icon: IconItem | null) => void;
     importIcon: (libraryId: string, iconPath: string) => void;
     importIconsFromPaths: (libraryId: string | null, paths: string[]) => Promise<boolean>;
     importLibraryFromFolder: () => Promise<void>;
     removeIcon: (libraryId: string, iconId: string) => void;
+    resyncLibrary: (libraryId: string) => Promise<void>;
+    exportLibrary: (libraryId: string) => void;
 }
 
 const IconStudioContext = createContext<IconStudioState | undefined>(undefined);
@@ -84,6 +89,7 @@ export function IconStudioProvider({
     const [activeLibraryId, setActiveLibraryId] = useState<string>(() => libraries[0]?.id || '');
     const [isApplying, setIsApplying] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
+    const [selectedIcon, setSelectedIcon] = useState<IconItem | null>(null);
 
     const librariesRef = useRef(libraries);
     librariesRef.current = libraries;
@@ -214,6 +220,7 @@ export function IconStudioProvider({
         commitLibraries(prev => prev.map(l =>
             l.id === libraryId ? { ...l, icons: l.icons.filter(i => i.id !== iconId) } : l
         ));
+        setSelectedIcon(prev => (prev?.id === iconId ? null : prev));
     };
 
     const renameLibrary = (id: string, newName: string) => {
@@ -264,6 +271,49 @@ export function IconStudioProvider({
         void importIconsFromPaths(libraryId, [iconPath]);
     };
 
+    const resyncLibrary = async (libraryId: string) => {
+        const lib = librariesRef.current.find(l => l.id === libraryId);
+        if (!lib?.sourceFolder) {
+            pushToast({ kind: 'warning', title: 'No source folder', message: 'Import this library from a folder first to enable resync.' });
+            return;
+        }
+        setIsImporting(true);
+        try {
+            const icons = await IPC.scanIconFolder(lib.sourceFolder, config.autoConvertIcons ?? true);
+            if (!icons.length) {
+                pushToast({ kind: 'warning', title: 'Resync empty', message: 'No icons found in the source folder.' });
+                return;
+            }
+            commitLibraries(prev => prev.map(l => {
+                if (l.id !== libraryId) return l;
+                return {
+                    ...l,
+                    icons: icons.map((ic, i) => ({
+                        id: `ico_${Date.now()}_${i}`,
+                        name: ic.name,
+                        icoStr: normPath(ic.icoStr),
+                    })),
+                };
+            }));
+            pushToast({ kind: 'success', title: 'Library resynced', message: `${icons.length} icons loaded from source folder.` });
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const exportLibrary = (libraryId: string) => {
+        const lib = librariesRef.current.find(l => l.id === libraryId);
+        if (!lib) return;
+        const blob = new Blob([JSON.stringify(lib, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${lib.name.replace(/[^\w.-]+/g, '_')}-library.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        pushToast({ kind: 'success', title: 'Exported', message: `Saved ${lib.name} library definition.` });
+    };
+
     const importLibraryFromFolder = async () => {
         const folderPath = await IPC.openFolderDialog('Select a folder containing your icon collection');
         if (!folderPath) return;
@@ -272,7 +322,7 @@ export function IconStudioProvider({
         try {
             const icons = await IPC.scanIconFolder(folderPath, config.autoConvertIcons ?? true);
             if (!icons.length) {
-                alert('No supported icon files found (.ico, .png, .jpg, .bmp, .webp).');
+                pushToast({ kind: 'warning', title: 'No icons found', message: 'No supported files (.ico, .png, .jpg, .bmp, .webp) in that folder.' });
                 return;
             }
             const libName = folderPath.split('\\').pop() || folderPath.split('/').pop() || 'Imported Library';
@@ -320,9 +370,9 @@ export function IconStudioProvider({
 
     return (
         <IconStudioContext.Provider value={{
-            libraries, activeLibraryId, isApplying, isImporting,
-            createLibrary, deleteLibrary, renameLibrary, setActiveLibraryId, setIsApplying,
-            importIcon, importIconsFromPaths, importLibraryFromFolder, removeIcon,
+            libraries, activeLibraryId, isApplying, isImporting, selectedIcon,
+            createLibrary, deleteLibrary, renameLibrary, setActiveLibraryId, setIsApplying, setSelectedIcon,
+            importIcon, importIconsFromPaths, importLibraryFromFolder, removeIcon, resyncLibrary, exportLibrary,
         }}>
             {children}
         </IconStudioContext.Provider>

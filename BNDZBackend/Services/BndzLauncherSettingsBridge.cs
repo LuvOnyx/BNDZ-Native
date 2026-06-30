@@ -13,8 +13,8 @@ public sealed class BndzLauncherSettingsBridge
 
     private static readonly Dictionary<string, string> ThemeMap = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Dark"] = "BndzRaycast",
-        ["DarkMica"] = "BndzRaycast",
+        ["Dark"] = "BndzLauncher",
+        ["DarkMica"] = "BndzLauncher",
         ["Light"] = "Win11Light",
         ["LightMica"] = "BlurWhite",
         ["LightRoundedFlat"] = "SlimLight",
@@ -23,15 +23,15 @@ public sealed class BndzLauncherSettingsBridge
         ["Nordic Frost"] = "Nord Darker",
         ["macOS Sonoma"] = "Midnight",
         ["macOS Light"] = "Win11Light",
-        ["Slate Workstation"] = "BndzRaycast",
-        ["Studio Obsidian"] = "BndzRaycast",
-        ["Monokai Minimal"] = "BndzRaycast",
-        ["Aurora Violet"] = "BndzRaycast",
-        ["Emerald Night"] = "BndzRaycast",
-        ["Sunset Ember"] = "BndzRaycast",
-        ["Graphite Pro"] = "BndzRaycast",
-        ["Ocean Deep"] = "BndzRaycast",
-        ["Nortorn"] = "BndzRaycast",
+        ["Slate Workstation"] = "BndzLauncher",
+        ["Studio Obsidian"] = "BndzLauncher",
+        ["Monokai Minimal"] = "BndzLauncher",
+        ["Aurora Violet"] = "BndzLauncher",
+        ["Emerald Night"] = "BndzLauncher",
+        ["Sunset Ember"] = "BndzLauncher",
+        ["Graphite Pro"] = "BndzLauncher",
+        ["Ocean Deep"] = "BndzLauncher",
+        ["Nortorn"] = "BndzLauncher",
         ["Neumorphic"] = "SlimLight",
     };
 
@@ -116,7 +116,7 @@ public sealed class BndzLauncherSettingsBridge
         settings["HideNotifyIcon"] = hideTray;
         settings["StartFlowLauncherOnSystemStartup"] = false;
         settings["UseLogonTaskForStartup"] = false;
-        settings["Theme"] = flowTheme;
+        settings["Theme"] = syncTheme && applyColors ? SyncThemeName : "BndzLauncher";
         settings["HideOnStartup"] = true;
         settings["ColorScheme"] = IsLightTheme(bg, text) ? "Light" : "Dark";
 
@@ -149,7 +149,7 @@ public sealed class BndzLauncherSettingsBridge
     }
 
     private static string ResolveFlowThemeName(string bndzTheme) =>
-        ThemeMap.TryGetValue(bndzTheme, out var mapped) ? mapped : "BndzRaycast";
+        ThemeMap.TryGetValue(bndzTheme, out var mapped) ? mapped : "BndzLauncher";
 
     private static void WriteBndzSyncTheme(string themesDir, string bg, string surface, string accent, string text)
     {
@@ -255,5 +255,5 @@ public sealed class LauncherSyncPlan
     public bool Enabled { get; set; } = true;
     public bool RequiresRestart { get; set; }
     public string Hotkey { get; set; } = "Alt + Space";
-    public string FlowTheme { get; set; } = "BndzRaycast";
+    public string FlowTheme { get; set; } = "BndzLauncher";
 }

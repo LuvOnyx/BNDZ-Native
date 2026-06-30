@@ -15,7 +15,12 @@ export function isTextEditableExt(ext: string): boolean {
 }
 
 export function isCodeExt(ext: string): boolean {
-  return CODE_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
+  return CODE_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, '')) && !isHtmlExt(ext);
+}
+
+export function isHtmlExt(ext: string): boolean {
+  const e = ext.toLowerCase().replace(/^\./, '');
+  return e === 'html' || e === 'htm';
 }
 
 export function prismLanguageForExt(ext: string): string {

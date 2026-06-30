@@ -8,7 +8,7 @@
     <system:String x:Key="flowlauncher_plugin_url_plugin_description">Abre la URL escrita desde BNDZ Launcher</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_plugin_choose">Elija</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">Aplicación(*.exe)|*.exe|Todos los archivos|*.*</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">AplicaciÃ³n(*.exe)|*.exe|Todos los archivos|*.*</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_use_custom_browser">Use custom instead of Flow's default web browser</system:String>
     <system:String x:Key="flowlauncher_plugin_url_browser_path">Browser path</system:String>

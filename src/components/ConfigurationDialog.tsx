@@ -11,10 +11,14 @@ import IconConfiguratorTab from './IconConfiguratorTab';
 import ContextMenuConfiguratorTab from './ContextMenuConfiguratorTab';
 import ThemesTabContent from './settings/ThemesTabContent';
 import LauncherTabContent from './settings/LauncherTabContent';
+import KeyboardShortcutsTab from './settings/KeyboardShortcutsTab';
 import ColorsTabContent from './settings/ColorsTabContent';
+import UdcEditorTab from './settings/UdcEditorTab';
+import CeaEditorTab from './settings/CeaEditorTab';
 import { SettingsTabHeader, SettingsSection } from './settings/SettingsPrimitives';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { searchJumpSettings } from '../lib/jumpToSettingIndex';
+import { mergeUserCommands } from '../lib/userCommands';
 
 const SectionHeader = ({ title }: { title: string }) => (
   <h3 className="text-[13px] font-bold text-white mt-6 mb-2 px-1 flex items-center gap-2 first:mt-0">
@@ -66,7 +70,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   };
 
   const categories = [
-    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "Safety Belts, Network", "Controls & More", "Startup & Exit", "BNDZ Launcher"] },
+    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "BNDZ Launcher", "Keyboard Shortcuts"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
     { name: "File Operations", items: ["File Operations", "Undo & Action Log"] },
@@ -195,6 +199,32 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                     <Checkbox label={<span>In network locations as <span className="underline decoration-1 underline-offset-[3px]">w</span>ell</span>} checked={localConfig.inNetworkLocationsAsWell ?? false} onChange={e => updateLocalConfig({ inNetworkLocationsAsWell: e.target.checked })} disabled={!localConfig.checkExistenceOfSubfoldersInTree} />
                  </div>
                  <Checkbox label={<span>Remembe<span className="underline decoration-1 underline-offset-[3px]">r</span> state of tree</span>} checked={localConfig.rememberStateOfTree ?? false} onChange={e => updateLocalConfig({ rememberStateOfTree: e.target.checked })} />
+                 <Checkbox
+                   label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">M</span>ini Tree module in sidebar</span>}
+                   checked={localConfig.showMiniTree === true}
+                   onChange={e => {
+                     const enabled = e.target.checked;
+                     const patch: Record<string, unknown> = { showMiniTree: enabled };
+                     if (enabled) {
+                       const order: string[] = [...(localConfig.sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])];
+                       if (!order.includes('miniTree')) {
+                         const treeIdx = order.indexOf('tree');
+                         patch.sidebarOrder = treeIdx >= 0
+                           ? [...order.slice(0, treeIdx), 'miniTree', ...order.slice(treeIdx)]
+                           : [...order, 'miniTree'];
+                       }
+                     }
+                     updateLocalConfig(patch);
+                   }}
+                 />
+                 <div className="ml-[20px]">
+                   <Checkbox
+                     label={<span>Allow zombies in the Mini Tree</span>}
+                     checked={localConfig.allowZombiesInTheMiniTree ?? false}
+                     onChange={e => updateLocalConfig({ allowZombiesInTheMiniTree: e.target.checked })}
+                     disabled={localConfig.showMiniTree !== true}
+                   />
+                 </div>
                  <Checkbox label={<span>S<span className="underline decoration-1 underline-offset-[3px]">h</span>ow localized folder names</span>} checked={localConfig.showLocalizedFolderNames ?? false} onChange={e => updateLocalConfig({ showLocalizedFolderNames: e.target.checked })} />
                  <Checkbox label={<span>Select parent of mo<span className="underline decoration-1 underline-offset-[3px]">v</span>ed folder</span>} checked={localConfig.selectParentOfMovedFolder ?? false} onChange={e => updateLocalConfig({ selectParentOfMovedFolder: e.target.checked })} />
                  <Checkbox label={<span>Select parent of <span className="underline decoration-1 underline-offset-[3px]">d</span>eleted folder</span>} checked={localConfig.selectParentOfDeletedFolder ?? false} onChange={e => updateLocalConfig({ selectParentOfDeletedFolder: e.target.checked })} />
@@ -226,12 +256,14 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                       ['created', 'Created'],
                       ['attributes', 'Attributes'],
                       ['tags', 'Tags'],
+                      ['label', 'Label'],
+                      ['comment', 'Comment'],
                       ['path', 'Path (global search)'],
                     ] as const).map(([key, label]) => (
                       <Checkbox
                         key={key}
                         label={<span>{label}</span>}
-                        checked={(localConfig.listColumnVisibility?.[key] ?? (key === 'created' || key === 'attributes' || key === 'path' ? false : true))}
+                        checked={(localConfig.listColumnVisibility?.[key] ?? (key === 'created' || key === 'attributes' || key === 'label' || key === 'comment' || key === 'path' ? false : true))}
                         onChange={e => updateLocalConfig({
                           listColumnVisibility: {
                             ...(localConfig.listColumnVisibility || {}),
@@ -457,92 +489,21 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             </TabsContent>
 
             <TabsContent value="Custom Event Actions" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Custom Event Actions</h1>
-              <p className="text-[12px] text-[#e0e0e0] mb-[12px] mt-1 ml-[2px]">To edit actions and scripts click into the cells.</p>
-              
-              <div className="border border-[#444] rounded-sm overflow-hidden mb-6 h-[460px] bg-[#111]">
-                 {/* Table Header */}
-                 <div className="flex bg-[#2a2a2a] text-[#ddd] text-[12px] py-1 border-b border-[#444] border-t border-[#444] pr-[14px]">
-                    <div className="flex-[3] pl-2">Event</div>
-                    <div className="flex-[2] pl-2 border-l border-[#444]">Action</div>
-                    <div className="flex-[2] pl-2 border-l border-[#444]">Script</div>
-                 </div>
-                 
-                 {/* Table Body - Placeholder Data Matching Screenshot */}
-                 <div className="overflow-y-auto h-full text-[12px] styled-scrollbar">
-                    <div className="bg-[#1e1e1e] text-white font-bold px-2 py-1">Clicking on White</div>
-                    {(localConfig.ceaGroup1 || [
-                       { event: "Double-click on white in folder tree", action: "Go up" },
-                       { event: "Double-click on white in file list", action: "Go up" },
-                       { event: "Double-click on white in tab bar", action: "New tab" },
-                       { event: "Double-click on white in breadcrumb bar", action: "None" },
-                       { event: "Middle-click on white in folder tree", action: "None" },
-                       { event: "Middle-click on white in file list", action: "None" },
-                       { event: "Middle-click on white in tab bar", action: "None" },
-                       { event: "Middle-click on white in breadcrumb bar", action: "None" },
-                       { event: "Right-click on white in folder tree", action: "Pop up favorite folders" },
-                       { event: "Right-click on white in file list", action: "Pop up Edit menu" },
-                    ]).map((row, i) => (
-                       <div key={i} className="flex hover:bg-[#264f78] text-[#ccc]">
-                          <div className="flex-[3] pl-6 py-0.5 whitespace-nowrap">{row.event}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap">{row.action}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap"></div>
-                       </div>
-                    ))}
-                    
-                    <div className="bg-[#1e1e1e] text-white font-bold px-2 py-1 mt-1">Clicking on Line Numbers</div>
-                    {(localConfig.ceaGroup1 || [
-                       { event: "Double-click on line number", action: "None" },
-                       { event: "Left-click on line number", action: "None" },
-                       { event: "Middle-click on line number", action: "None" },
-                       { event: "Right-click on line number", action: "None" },
-                       { event: "Double-click on line numbers header", action: "Autosize columns now" },
-                    ]).map((row, i) => (
-                       <div key={i} className="flex hover:bg-[#264f78] text-[#ccc]">
-                          <div className="flex-[3] pl-6 py-0.5 whitespace-nowrap">{row.event}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap">{row.action}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap"></div>
-                       </div>
-                    ))}
-                    
-                    <div className="bg-[#1e1e1e] text-white font-bold px-2 py-1 mt-1">Clicking on Tabs</div>
-                    {(localConfig.ceaGroup1 || [
-                       { event: "Double-click on tab", action: "None" },
-                       { event: "Middle-click on tab", action: "Close tab" },
-                       { event: "Right-click on tab", action: "Small menu" },
-                    ]).map((row, i) => (
-                       <div key={i} className="flex hover:bg-[#264f78] text-[#ccc]">
-                          <div className="flex-[3] pl-6 py-0.5 whitespace-nowrap">{row.event}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap">{row.action}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap"></div>
-                       </div>
-                    ))}
-                    
-                    <div className="bg-[#1e1e1e] text-white font-bold px-2 py-1 mt-1">Clicking on Status Bar</div>
-                    {(localConfig.ceaGroup1 || [
-                       { event: "Double-click on status bar", action: "None" },
-                       { event: "Left-click on status bar", action: "None" },
-                       { event: "Middle-click on status bar", action: "None" },
-                    ]).map((row, i) => (
-                       <div key={i} className="flex hover:bg-[#264f78] text-[#ccc]">
-                          <div className="flex-[3] pl-6 py-0.5 whitespace-nowrap">{row.event}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap">{row.action}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap"></div>
-                       </div>
-                    ))}
-                    
-                    <div className="bg-[#1e1e1e] text-white font-bold px-2 py-1 mt-1">Clicking on Items</div>
-                    {(localConfig.ceaGroup1 || [
-                       { event: "Middle-click on folder", action: "Open in new background tab" },
-                    ]).map((row, i) => (
-                       <div key={i} className="flex hover:bg-[#264f78] text-[#ccc]">
-                          <div className="flex-[3] pl-6 py-0.5 whitespace-nowrap">{row.event}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap">{row.action}</div>
-                          <div className="flex-[2] pl-2 py-0.5 border-l border-[#222] whitespace-nowrap"></div>
-                       </div>
-                    ))}
-                 </div>
-              </div>
+              <CeaEditorTab
+                actions={localConfig.customEventActions || []}
+                onChange={actions => updateLocalConfig({ customEventActions: actions })}
+              />
+            </TabsContent>
+
+            <TabsContent value="User Commands" className="m-0 border-0 p-0 outline-none">
+              <UdcEditorTab
+                commands={mergeUserCommands(localConfig.customUserCommands)}
+                onChange={cmds => updateLocalConfig({
+                  customUserCommands: cmds.filter(c =>
+                    !['udc-dual', 'udc-inspector', 'udc-finding', 'udc-tabset', 'udc-refresh'].includes(c.id),
+                  ),
+                })}
+              />
             </TabsContent>
 
             <TabsContent value="Safety Belts, Network" className="m-0 border-0 p-0 outline-none">
@@ -605,7 +566,6 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   <Checkbox label={<span>Copy paths to the clipboard with a trailing slash</span>} checked={localConfig.copyPathsToTheClipboardWithATrailingSlash ?? false} onChange={e => updateLocalConfig({ copyPathsToTheClipboardWithATrailingSlash: e.target.checked })} />
                   <Checkbox label={<span>Resol<span className="underline decoration-1 underline-offset-[3px]">v</span>e junctions</span>} checked={localConfig.resolveJunctions ?? false} onChange={e => updateLocalConfig({ resolveJunctions: e.target.checked })} />
                   <Checkbox label={<span>Open favorite files <span className="underline decoration-1 underline-offset-[3px]">d</span>irectly</span>} checked={localConfig.openFavoriteFilesDirectly ?? false} onChange={e => updateLocalConfig({ openFavoriteFilesDirectly: e.target.checked })} />
-                  <Checkbox label={<span>Allow zombies in the Mini Tree</span>} checked={localConfig.allowZombiesInTheMiniTree ?? false} onChange={e => updateLocalConfig({ allowZombiesInTheMiniTree: e.target.checked })} />
                   <Checkbox label={<span>Paste to selected list folder</span>} checked={localConfig.pasteToSelectedListFolder ?? false} onChange={e => updateLocalConfig({ pasteToSelectedListFolder: e.target.checked })} />
                   <Checkbox label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">m</span>essage when list is empty</span>} checked={localConfig.showMessageWhenListIsEmpty ?? false} onChange={e => updateLocalConfig({ showMessageWhenListIsEmpty: e.target.checked })} />
                   <Checkbox label={<span>Sho<span className="underline decoration-1 underline-offset-[3px]">w</span> version information in the Status Bar</span>} checked={localConfig.showVersionInformationInTheStatusBar ?? false} onChange={e => updateLocalConfig({ showVersionInformationInTheStatusBar: e.target.checked })} />
@@ -683,6 +643,9 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
 
             <TabsContent value="BNDZ Launcher" className="m-0 border-0 p-0 outline-none px-1">
               <LauncherTabContent localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
+            </TabsContent>
+            <TabsContent value="Keyboard Shortcuts" className="m-0 border-0 p-0 outline-none">
+              <KeyboardShortcutsTab />
             </TabsContent>
 
             <TabsContent value="Tags" className="m-0 border-0 p-0 outline-none">
@@ -1730,7 +1693,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                  <Checkbox label={<span>Sho<span className="underline decoration-1 underline-offset-[3px]">w</span> icons</span>} checked={localConfig.showIcons ?? false} onChange={e => updateLocalConfig({ showIcons: e.target.checked })} />
                  <Checkbox label={<span>Ma<span className="underline decoration-1 underline-offset-[3px]">k</span>e selected tab bold</span>} checked={localConfig.makeSelectedTabBold ?? false} onChange={e => updateLocalConfig({ makeSelectedTabBold: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">P</span>rompt on closing a locked tab</span>} checked={localConfig.promptOnClosingALockedTab ?? false} onChange={e => updateLocalConfig({ promptOnClosingALockedTab: e.target.checked })} />
-                 <Checkbox label={<span>Auto-select tabs on dr<span className="underline decoration-1 underline-offset-[3px]">a</span>g-over</span>} checked={localConfig.autoSelectTabsOnDragOver ?? false} onChange={e => updateLocalConfig({ autoSelectTabsOnDragOver: e.target.checked })} />
+                 <Checkbox label={<span>Auto-select tabs on dr<span className="underline decoration-1 underline-offset-[3px]">a</span>g-over</span>} checked={localConfig.autoSelectTabsOnDragOver ?? true} onChange={e => updateLocalConfig({ autoSelectTabsOnDragOver: e.target.checked })} />
                  <div className="flex items-center gap-2 ml-[20px]">
                     <div className="flex items-center gap-2">
                        <input type="number" 

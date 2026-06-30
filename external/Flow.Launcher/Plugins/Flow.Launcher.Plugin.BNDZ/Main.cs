@@ -12,37 +12,88 @@ namespace Flow.Launcher.Plugin.BNDZ
     {
         private static PluginInitContext _context;
         private static BndzClipboardStore? _clipboard;
+        private static BndzSnippetStore? _snippets;
+        private static BndzQuickLinkStore? _quickLinks;
 
         public void Init(PluginInitContext context)
         {
             _context = context;
             BndzBranding.ScheduleApply(context);
+            BndzShellBridge.ScheduleHandoff(context);
+            BndzFlowQueryBridge.Start(context);
+            BndzPendingActions.Process(context);
             try
             {
-                _clipboard = new BndzClipboardStore(ResolveUserDataDir());
+                var userData = ResolveUserDataDir();
+                _clipboard = new BndzClipboardStore(userData);
+                _snippets = new BndzSnippetStore(userData);
+                _quickLinks = new BndzQuickLinkStore(userData);
             }
             catch (Exception ex)
             {
-                context.API.LogError(nameof(Main), $"Clipboard store init failed: {ex.Message}");
+                context.API.LogError(nameof(Main), $"BNDZ store init failed: {ex.Message}");
             }
         }
 
         public List<Result> Query(Query query)
         {
+            BndzPendingActions.Process(_context);
             var search = (query.Search ?? string.Empty).Trim();
             var results = new List<Result>();
+            var home = query.IsHomeQuery || string.IsNullOrEmpty(search);
             var qLower = search.ToLowerInvariant();
 
-            // SuperCmd root commands + keyword routing
+            if (!home
+                && !qLower.Contains("bndz")
+                && !qLower.Contains("clip")
+                && !qLower.Contains("snippet")
+                && !qLower.Contains("quick")
+                && !qLower.Contains("link")
+                && !BndzSystemCommands.Match(search).Any())
+                return results;
+
             foreach (var cmd in BndzSystemCommands.Match(search))
             {
                 if (cmd.Id == "system-clipboard-manager")
                 {
-                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\bndz.png", cmd.Score, () => { }));
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\copylink.png", cmd.Score, () => { }));
                     AppendClipboardResults(results, search);
                     continue;
                 }
-                results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\bndz.png", cmd.Score, () => ShowComingSoon(cmd.Title)));
+                if (cmd.Id == "system-open-settings")
+                {
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\settings.png", cmd.Score,
+                        () => _context?.API.OpenSettingDialog()));
+                    continue;
+                }
+                if (cmd.Id == "system-search-snippets")
+                {
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\work.png", cmd.Score, () => { }));
+                    AppendSnippetResults(results, search);
+                    continue;
+                }
+                if (cmd.Id == "system-search-quicklinks")
+                {
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\Link.png", cmd.Score, () => { }));
+                    AppendQuickLinkResults(results, search);
+                    continue;
+                }
+                if (cmd.Id == "system-cursor-prompt" || cmd.Id == "system-ai-chat")
+                {
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\bndz.png", cmd.Score, () => { }));
+                    continue;
+                }
+                if (cmd.Id == "system-open-extensions" || cmd.Id == "system-open-plugin-store")
+                {
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\plugins.png", cmd.Score,
+                        () => _context?.API.OpenSettingDialog()));
+                    continue;
+                }
+                if (cmd.Id == "system-file-search" || cmd.Id == "system-search-files" || cmd.Id == "system-search-notes" || cmd.Id == "system-window-management")
+                {
+                    results.Add(MakeResult(cmd.Title, cmd.Subtitle, "Images\\bndz.png", cmd.Score, () => { }));
+                    continue;
+                }
             }
 
             if (string.IsNullOrEmpty(search) || search.Equals("bndz", StringComparison.OrdinalIgnoreCase))
@@ -65,7 +116,7 @@ namespace Flow.Launcher.Plugin.BNDZ
                 }
             }
 
-            if (results.Count == 0 && (qLower.Contains("bndz") || qLower.Contains("clip")))
+            if (results.Count == 0 && (qLower.Contains("bndz") || qLower.Contains("clip") || qLower.Contains("snippet") || qLower.Contains("quick")))
             {
                 if (qLower.Contains("bndz"))
                 {
@@ -76,9 +127,48 @@ namespace Flow.Launcher.Plugin.BNDZ
                 }
                 if (qLower.Contains("clip"))
                     AppendClipboardResults(results, search);
+                if (qLower.Contains("snippet"))
+                    AppendSnippetResults(results, search);
+                if (qLower.Contains("quick") || qLower.Contains("link"))
+                    AppendQuickLinkResults(results, search);
             }
 
             return results;
+        }
+
+        private static void AppendSnippetResults(List<Result> results, string search)
+        {
+            if (_snippets == null) return;
+            var q = search.StartsWith("snippet", StringComparison.OrdinalIgnoreCase)
+                ? search.Substring(7).Trim()
+                : search;
+            foreach (var item in _snippets.Search(q))
+            {
+                var id = item.Id;
+                results.Add(MakeResult(
+                    item.Name,
+                    string.IsNullOrEmpty(item.Keyword) ? "Snippet · click to paste" : $"Snippet · {item.Keyword}",
+                    "Images\\work.png",
+                    72,
+                    () => _snippets.PasteSnippet(id)));
+            }
+        }
+
+        private static void AppendQuickLinkResults(List<Result> results, string search)
+        {
+            if (_quickLinks == null) return;
+            var q = search;
+            foreach (var item in _quickLinks.Search(q))
+            {
+                var id = item.Id;
+                var queryArg = search.Contains(' ') ? search.Split(' ').Last() : "";
+                results.Add(MakeResult(
+                    item.Name,
+                    item.UrlTemplate,
+                    "Images\\Link.png",
+                    70,
+                    () => _quickLinks.Open(id, queryArg)));
+            }
         }
 
         private static void AppendClipboardResults(List<Result> results, string search)
@@ -189,6 +279,7 @@ namespace Flow.Launcher.Plugin.BNDZ
 
         public void Dispose()
         {
+            BndzFlowQueryBridge.Stop();
             _clipboard?.Dispose();
             _clipboard = null;
         }

@@ -21,10 +21,14 @@ namespace Flow.Launcher.Plugin.BNDZ
             new SystemCommand { Id = "system-clipboard-manager", Title = "Clipboard History", Subtitle = "SuperCmd-style clipboard manager", Keywords = new[] { "clip", "clipboard", "paste" }, Score = 100 },
             new SystemCommand { Id = "system-search-snippets", Title = "Search Snippets", Subtitle = "Text expansion snippets", Keywords = new[] { "snippet", "snippets", "expand" }, Score = 88 },
             new SystemCommand { Id = "system-search-quicklinks", Title = "Quick Links", Subtitle = "Bookmarked URLs from the launcher", Keywords = new[] { "quicklink", "quick", "link", "bookmark" }, Score = 86 },
-            new SystemCommand { Id = "system-search-files", Title = "Search Files", Subtitle = "Fast indexed file search", Keywords = new[] { "file", "files", "find" }, Score = 84 },
-            new SystemCommand { Id = "system-cursor-prompt", Title = "Ask AI", Subtitle = "Inline AI prompt (coming soon)", Keywords = new[] { "ai", "ask", "gpt", "chat" }, Score = 82 },
-            new SystemCommand { Id = "system-search-notes", Title = "Search Notes", Subtitle = "In-launcher notes (coming soon)", Keywords = new[] { "note", "notes" }, Score = 80 },
-            new SystemCommand { Id = "system-window-management", Title = "Window Management", Subtitle = "Tile and resize windows (coming soon)", Keywords = new[] { "window", "tile", "snap" }, Score = 78 },
+            new SystemCommand { Id = "system-open-settings", Title = "BNDZ Launcher Settings", Subtitle = "Configure launcher and hotkeys", Keywords = new[] { "settings", "config", "preferences" }, Score = 92 },
+            new SystemCommand { Id = "system-open-extensions", Title = "Extension Hub", Subtitle = "Browse installed Flow plugins", Keywords = new[] { "extension", "extensions", "plugin", "plugins" }, Score = 85 },
+            new SystemCommand { Id = "system-open-plugin-store", Title = "Plugin Store", Subtitle = "Install Flow plugins", Keywords = new[] { "store", "install", "marketplace" }, Score = 84 },
+            new SystemCommand { Id = "system-file-search", Title = "Search Files", Subtitle = "Fast indexed file search", Keywords = new[] { "file", "files", "find" }, Score = 84 },
+            new SystemCommand { Id = "system-cursor-prompt", Title = "Ask AI", Subtitle = "AI assistant powered by Gemini", Keywords = new[] { "ai", "ask", "gpt", "chat" }, Score = 82 },
+            new SystemCommand { Id = "system-ai-chat", Title = "AI Chat", Subtitle = "Multi-turn Gemini conversation", Keywords = new[] { "ai", "chat", "assistant", "gemini" }, Score = 81 },
+            new SystemCommand { Id = "system-search-notes", Title = "Search Notes", Subtitle = "Quick notes in BNDZ Launcher", Keywords = new[] { "note", "notes" }, Score = 80 },
+            new SystemCommand { Id = "system-window-management", Title = "Window Management", Subtitle = "Tile and resize the active window", Keywords = new[] { "window", "tile", "snap" }, Score = 78 },
         };
 
         public static IEnumerable<SystemCommand> Match(string search)

@@ -45,7 +45,8 @@ namespace BNDZ.Services
             string ext = Path.GetExtension(path).ToLowerInvariant();
             return ext switch
             {
-                ".txt" or ".md" or ".js" or ".json" or ".css" or ".csv" or ".cs" or ".xml" or ".html" or ".htm" => "text/plain; charset=utf-8",
+                ".html" or ".htm" => "text/html; charset=utf-8",
+                ".txt" or ".md" or ".js" or ".json" or ".css" or ".csv" or ".cs" or ".xml" => "text/plain; charset=utf-8",
                 ".png" => "image/png",
                 ".jpg" or ".jpeg" => "image/jpeg",
                 ".gif" => "image/gif",

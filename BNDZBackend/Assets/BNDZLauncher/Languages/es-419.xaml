@@ -41,11 +41,11 @@
     <system:String x:Key="unregisterHotkeyFailed">Failed to unregister hotkey &quot;{0}&quot;. Please try again or see log for details</system:String>
     <system:String x:Key="MessageBoxTitle">BNDZ Launcher</system:String>
     <system:String x:Key="couldnotStartCmd">No se pudo iniciar {0}</system:String>
-    <system:String x:Key="invalidFlowLauncherPluginFileFormat">Formato de archivo de plugin BNDZ Launcher inv�lido</system:String>
+    <system:String x:Key="invalidFlowLauncherPluginFileFormat">Formato de archivo de plugin BNDZ Launcher inválido</system:String>
     <system:String x:Key="setAsTopMostInThisQuery">Establecer como superior en esta consulta</system:String>
     <system:String x:Key="cancelTopMostInThisQuery">Quitar como superior en esta consulta</system:String>
     <system:String x:Key="executeQuery">Ejecutar consulta: {0}</system:String>
-    <system:String x:Key="lastExecuteTime">Fecha de �ltima ejecuci�n: {0}</system:String>
+    <system:String x:Key="lastExecuteTime">Fecha de última ejecución: {0}</system:String>
     <system:String x:Key="iconTrayOpen">Abrir</system:String>
     <system:String x:Key="iconTraySettings">Ajustes</system:String>
     <system:String x:Key="iconTrayAbout">Acerca de</system:String>
@@ -73,7 +73,7 @@
     <system:String x:Key="flowlauncher_settings">Ajustes</system:String>
     <system:String x:Key="general">General</system:String>
     <system:String x:Key="portableMode">Modo portable</system:String>
-    <system:String x:Key="portableModeToolTIp">Almacena todos los ajustes y datos de usuario en una sola carpeta (�til cuando se utiliza con unidades extra�bles o servicios en la nube).</system:String>
+    <system:String x:Key="portableModeToolTIp">Almacena todos los ajustes y datos de usuario en una sola carpeta (útil cuando se utiliza con unidades extraíbles o servicios en la nube).</system:String>
     <system:String x:Key="startFlowLauncherOnSystemStartup">Iniciar BNDZ Launcher al arrancar el sistema</system:String>
     <system:String x:Key="useLogonTaskForStartup">Use logon task instead of startup entry for faster startup experience</system:String>
     <system:String x:Key="useLogonTaskForStartupTooltip">After uninstallation, you need to manually remove this task (BNDZ.Launcher Startup) via Task Scheduler</system:String>
@@ -95,28 +95,28 @@
     <system:String x:Key="SearchWindowAlignRightTop">Right Top</system:String>
     <system:String x:Key="SearchWindowAlignCustom">Custom Position</system:String>
     <system:String x:Key="language">Idioma</system:String>
-    <system:String x:Key="lastQueryMode">Estilo de la �ltima consulta</system:String>
+    <system:String x:Key="lastQueryMode">Estilo de la última consulta</system:String>
     <system:String x:Key="lastQueryModeToolTip">Mostrar/Ocultar resultados anteriores cuando BNDZ Launcher es reactivado.</system:String>
-    <system:String x:Key="LastQueryPreserved">Conservar �ltima consulta</system:String>
-    <system:String x:Key="LastQuerySelected">Seleccionar �ltima consulta</system:String>
-    <system:String x:Key="LastQueryEmpty">Borrar �ltima consulta</system:String>
+    <system:String x:Key="LastQueryPreserved">Conservar última consulta</system:String>
+    <system:String x:Key="LastQuerySelected">Seleccionar última consulta</system:String>
+    <system:String x:Key="LastQueryEmpty">Borrar última consulta</system:String>
     <system:String x:Key="LastQueryActionKeywordPreserved">Preserve Last Action Keyword</system:String>
     <system:String x:Key="LastQueryActionKeywordSelected">Select Last Action Keyword</system:String>
-    <system:String x:Key="maxShowResults">M�ximo de resultados mostrados</system:String>
+    <system:String x:Key="maxShowResults">Máximo de resultados mostrados</system:String>
     <system:String x:Key="maxShowResultsToolTip">You can also quickly adjust this by using CTRL+Plus and CTRL+Minus.</system:String>
     <system:String x:Key="ignoreHotkeysOnFullscreen">Ignorar atajos de teclado en modo pantalla completa</system:String>
-    <system:String x:Key="ignoreHotkeysOnFullscreenToolTip">Deshabilitar BNDZ Launcher cuando una aplicaci�n de pantalla completa est� activa (Recomendado para juegos).</system:String>
+    <system:String x:Key="ignoreHotkeysOnFullscreenToolTip">Deshabilitar BNDZ Launcher cuando una aplicación de pantalla completa está activa (Recomendado para juegos).</system:String>
     <system:String x:Key="defaultFileManager">Gestor de archivos predeterminado</system:String>
     <system:String x:Key="defaultFileManagerToolTip">Seleccione el gestor de archivos a utilizar al abrir la carpeta.</system:String>
     <system:String x:Key="defaultBrowser">Navegador web predeterminado</system:String>
-    <system:String x:Key="defaultBrowserToolTip">Configuraci�n para Nueva Pesta�a, Nueva Ventana, Modo Privado.</system:String>
+    <system:String x:Key="defaultBrowserToolTip">Configuración para Nueva Pestaña, Nueva Ventana, Modo Privado.</system:String>
     <system:String x:Key="pythonFilePath">Python Path</system:String>
     <system:String x:Key="nodeFilePath">Node.js Path</system:String>
     <system:String x:Key="selectNodeExecutable">Please select the Node.js executable</system:String>
     <system:String x:Key="selectPythonExecutable">Please select pythonw.exe</system:String>
     <system:String x:Key="typingStartEn">Always Start Typing in English Mode</system:String>
     <system:String x:Key="typingStartEnTooltip">Temporarily change your input method to English mode when activating BNDZ.</system:String>
-    <system:String x:Key="autoUpdates">Actualizaci�n autom�tica</system:String>
+    <system:String x:Key="autoUpdates">Actualización automática</system:String>
     <system:String x:Key="autoUpdatesTooltip">Automatically check and update the app when available</system:String>
     <system:String x:Key="select">Seleccionar</system:String>
     <system:String x:Key="hideOnStartup">Ocultar BNDZ Launcher al arrancar el sistema</system:String>
@@ -126,8 +126,8 @@
     <system:String x:Key="ignoreAccents">Ignore accents when searching</system:String>
     <system:String x:Key="ignoreAccentsToolTip">Treat accented and unaccented characters as equivalent.</system:String>
     <system:String x:Key="promptIgnoreAccents">Would you like to turn on the option to ignore accents when searching?</system:String>
-    <system:String x:Key="querySearchPrecision">Precisi�n de la b�squeda</system:String>
-    <system:String x:Key="querySearchPrecisionToolTip">Cambia la puntuaci�n m�nima de similitud requerida para resultados.</system:String>
+    <system:String x:Key="querySearchPrecision">Precisión de la búsqueda</system:String>
+    <system:String x:Key="querySearchPrecisionToolTip">Cambia la puntuación mínima de similitud requerida para resultados.</system:String>
     <system:String x:Key="SearchPrecisionNone">None</system:String>
     <system:String x:Key="SearchPrecisionLow">Low</system:String>
     <system:String x:Key="SearchPrecisionRegular">Regular</system:String>
@@ -149,7 +149,7 @@
 
     <system:String x:Key="AlwaysPreview">Always Preview</system:String>
     <system:String x:Key="AlwaysPreviewToolTip">Always open preview panel when BNDZ activates. Press {0} to toggle preview.</system:String>
-    <system:String x:Key="shadowEffectNotAllowed">El efecto de sombra no est� permitido mientras el tema actual tenga el efecto de desenfoque habilitado</system:String>
+    <system:String x:Key="shadowEffectNotAllowed">El efecto de sombra no está permitido mientras el tema actual tenga el efecto de desenfoque habilitado</system:String>
     <system:String x:Key="searchDelay">Search Delay</system:String>
     <system:String x:Key="searchDelayToolTip">Adds a short delay while typing to reduce UI flicker and result load. Recommended if your typing speed is average.</system:String>
     <system:String x:Key="searchDelayNumberBoxToolTip">Enter the wait time (in ms) until input is considered complete. This can only be edited if Search Delay is enabled.</system:String>
@@ -187,7 +187,7 @@
     <system:String x:Key="executedHistory">Last opened history</system:String>
     <system:String x:Key="homeToggleBoxToolTip">This can only be edited if plugin supports Home feature and Home Page is enabled.</system:String>
     <system:String x:Key="showAtTopmost">Show Search Window at Foremost</system:String>
-    <system:String x:Key="showAtTopmostToolTip">Overrides other programs' 'Always on Top' setting and shows BNDZ in the foremost position.</system:String>
+    <system:String x:Key="showAtTopmostToolTip">Overrides other programs' 'Always on Top' setting and displays BNDZ in the foremost position.</system:String>
     <system:String x:Key="autoRestartAfterChanging">Restart after modifying plugin via Plugin Store</system:String>
     <system:String x:Key="autoRestartAfterChangingToolTip">Restart BNDZ Launcher automatically after installing/uninstalling/updating plugin via Plugin Store</system:String>
     <system:String x:Key="showUnknownSourceWarning">Show unknown source warning</system:String>
@@ -202,7 +202,7 @@
     <system:String x:Key="searchplugin_Noresult_Subtitle">Please try a different search.</system:String>
     <system:String x:Key="plugin">Plugin</system:String>
     <system:String x:Key="plugins">Plugins</system:String>
-    <system:String x:Key="browserMorePlugins">Encontrar m�s plugins</system:String>
+    <system:String x:Key="browserMorePlugins">Encontrar más plugins</system:String>
     <system:String x:Key="enable">Activado</system:String>
     <system:String x:Key="disable">Desactivado</system:String>
     <system:String x:Key="actionKeywordsTitle">Ajuste de palabra clave</system:String>
@@ -225,7 +225,7 @@
     <system:String x:Key="author">por</system:String>
     <system:String x:Key="plugin_init_time">Tiempo de inicio:</system:String>
     <system:String x:Key="plugin_query_time">Tiempo de consulta:</system:String>
-    <system:String x:Key="plugin_query_version">Versi�n</system:String>
+    <system:String x:Key="plugin_query_version">Versión</system:String>
     <system:String x:Key="plugin_query_web">Sitio web</system:String>
     <system:String x:Key="plugin_uninstall">Uninstall</system:String>
     <system:String x:Key="plugin_default_search_delay_time">Search delay time: default</system:String>
@@ -296,8 +296,8 @@
     <!--  Setting Theme  -->
     <system:String x:Key="theme">Tema</system:String>
     <system:String x:Key="appearance">Appearance</system:String>
-    <system:String x:Key="browserMoreThemes">Galer�a de Temas</system:String>
-    <system:String x:Key="howToCreateTheme">C�mo crear un tema</system:String>
+    <system:String x:Key="browserMoreThemes">Galería de Temas</system:String>
+    <system:String x:Key="howToCreateTheme">Cómo crear un tema</system:String>
     <system:String x:Key="hiThere">Hola</system:String>
     <system:String x:Key="SampleTitleExplorer">Explorer</system:String>
     <system:String x:Key="SampleSubTitleExplorer">Search for files, folders and file contents</system:String>
@@ -319,8 +319,8 @@
     <system:String x:Key="CustomizeToolTip">Customize</system:String>
     <system:String x:Key="windowMode">Modo Ventana</system:String>
     <system:String x:Key="opacity">Opacidad</system:String>
-    <system:String x:Key="theme_load_failure_path_not_exists">Tema {0} no existe, se usar� al tema predeterminado</system:String>
-    <system:String x:Key="theme_load_failure_parse_error">Error al cargar el tema {0}, se usar� al tema predeterminado</system:String>
+    <system:String x:Key="theme_load_failure_path_not_exists">Tema {0} no existe, se usará al tema predeterminado</system:String>
+    <system:String x:Key="theme_load_failure_parse_error">Error al cargar el tema {0}, se usará al tema predeterminado</system:String>
     <system:String x:Key="ThemeFolder">Carpeta de Temas</system:String>
     <system:String x:Key="OpenThemeFolder">Abrir Carpeta de Temas</system:String>
     <system:String x:Key="ColorScheme">Esquemas de Colores</system:String>
@@ -328,12 +328,12 @@
     <system:String x:Key="ColorSchemeLight">Claro</system:String>
     <system:String x:Key="ColorSchemeDark">Oscuro</system:String>
     <system:String x:Key="SoundEffect">Efectos de Sonido</system:String>
-    <system:String x:Key="SoundEffectTip">Reproducir un sonido al abrir la ventana de b�squeda</system:String>
+    <system:String x:Key="SoundEffectTip">Reproducir un sonido al abrir la ventana de búsqueda</system:String>
     <system:String x:Key="SoundEffectVolume">Sound Effect Volume</system:String>
     <system:String x:Key="SoundEffectVolumeTip">Adjust the volume of the sound effect</system:String>
     <system:String x:Key="SoundEffectWarning">Windows Media Player is unavailable and is required for BNDZ's volume adjustment. Please check your installation if you need to adjust volume.</system:String>
-    <system:String x:Key="Animation">Animaci�n</system:String>
-    <system:String x:Key="AnimationTip">Usar Animaci�n en la Interfaz</system:String>
+    <system:String x:Key="Animation">Animación</system:String>
+    <system:String x:Key="AnimationTip">Usar Animación en la Interfaz</system:String>
     <system:String x:Key="AnimationSpeed">Animation Speed</system:String>
     <system:String x:Key="AnimationSpeedTip">The speed of the UI animation</system:String>
     <system:String x:Key="AnimationSpeedSlow">Slow</system:String>
@@ -360,18 +360,18 @@
     <system:String x:Key="MaxShowResultsCannotWorkWithAlwaysPreview">Since Always Preview is on, maximum results shown may not take effect because preview panel requires a certain minimum height</system:String>
 
     <!--  Setting Hotkey  -->
-    <system:String x:Key="hotkey">Tecla R�pida</system:String>
-    <system:String x:Key="hotkeys">Tecla R�pida</system:String>
+    <system:String x:Key="hotkey">Tecla Rápida</system:String>
+    <system:String x:Key="hotkeys">Tecla Rápida</system:String>
     <system:String x:Key="flowlauncherHotkey">Open BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncherHotkeyToolTip">Introduzca el acceso directo para mostrar/ocultar BNDZ Launcher.</system:String>
     <system:String x:Key="previewHotkey">Toggle Preview</system:String>
     <system:String x:Key="previewHotkeyToolTip">Enter shortcut to show/hide preview in search window.</system:String>
     <system:String x:Key="hotkeyPresets">Hotkey Presets</system:String>
     <system:String x:Key="hotkeyPresetsToolTip">List of currently registered hotkeys</system:String>
-    <system:String x:Key="openResultModifiers">Abrir Tecla de Modificaci�n de Resultado</system:String>
-    <system:String x:Key="openResultModifiersToolTip">Seleccione una tecla de modificaci�n para abrir el resultado seleccionado v�a teclado.</system:String>
+    <system:String x:Key="openResultModifiers">Abrir Tecla de Modificación de Resultado</system:String>
+    <system:String x:Key="openResultModifiersToolTip">Seleccione una tecla de modificación para abrir el resultado seleccionado vía teclado.</system:String>
     <system:String x:Key="showOpenResultHotkey">Mostrar tecla de acceso directo</system:String>
-    <system:String x:Key="showOpenResultHotkeyToolTip">Mostrar tecla r�pida de selecci�n con resultados.</system:String>
+    <system:String x:Key="showOpenResultHotkeyToolTip">Mostrar tecla rápida de selección con resultados.</system:String>
     <system:String x:Key="autoCompleteHotkey">Auto Complete</system:String>
     <system:String x:Key="autoCompleteHotkeyToolTip">Runs autocomplete for the selected items.</system:String>
     <system:String x:Key="SelectNextItemHotkey">Select Next Item</system:String>
@@ -394,7 +394,7 @@
     <system:String x:Key="QuickHeightHotkey">Quick Adjust Window Height</system:String>
     <system:String x:Key="ReloadPluginHotkeyToolTip">Use when require plugins to reload and update their existing data.</system:String>
     <system:String x:Key="AdditionalHotkeyToolTip">You can add one more hotkey for this function.</system:String>
-    <system:String x:Key="customQueryHotkey">Tecla R�pida de Consulta Personalizada</system:String>
+    <system:String x:Key="customQueryHotkey">Tecla Rápida de Consulta Personalizada</system:String>
     <system:String x:Key="customQueryShortcut">Custom Query Shortcut</system:String>
     <system:String x:Key="builtinShortcuts">Built-in Shortcut</system:String>
     <system:String x:Key="customQuery">Consulta</system:String>
@@ -403,16 +403,16 @@
     <system:String x:Key="builtinShortcutDescription">Description</system:String>
     <system:String x:Key="delete">Eliminar</system:String>
     <system:String x:Key="edit">Editar</system:String>
-    <system:String x:Key="add">A�adir</system:String>
+    <system:String x:Key="add">Añadir</system:String>
     <system:String x:Key="none">None</system:String>
     <system:String x:Key="pleaseSelectAnItem">Por favor, seleccione un elemento</system:String>
-    <system:String x:Key="deleteCustomHotkeyWarning">�Est� seguro que desea eliminar la tecla de acceso directo del plugin {0}?</system:String>
+    <system:String x:Key="deleteCustomHotkeyWarning">¿Está seguro que desea eliminar la tecla de acceso directo del plugin {0}?</system:String>
     <system:String x:Key="deleteCustomShortcutWarning">Are you sure you want to delete shortcut: {0} with expansion {1}?</system:String>
     <system:String x:Key="shortcut_clipboard_description">Get text from clipboard.</system:String>
     <system:String x:Key="shortcut_active_explorer_path">Get path from active explorer.</system:String>
-    <system:String x:Key="queryWindowShadowEffect">Efecto de sombra de ventana de b�squeda</system:String>
+    <system:String x:Key="queryWindowShadowEffect">Efecto de sombra de ventana de búsqueda</system:String>
     <system:String x:Key="shadowEffectCPUUsage">El efecto sombra tiene un uso sustancial de GPU. No se recomienda si el rendimiento de su computadora es limitado.</system:String>
-    <system:String x:Key="windowWidthSize">Tama�o de Ancho de Ventana</system:String>
+    <system:String x:Key="windowWidthSize">Tamaño de Ancho de Ventana</system:String>
     <system:String x:Key="windowWidthSizeToolTip">You can also quickly adjust this by using Ctrl+[ and Ctrl+].</system:String>
     <system:String x:Key="useGlyphUI">Usar Iconos de Segoe Fluent</system:String>
     <system:String x:Key="useGlyphUIEffect">Usar iconos de Segoe Fluent para resultados de consultas que sean soportados</system:String>
@@ -449,37 +449,37 @@
     <system:String x:Key="server">Servidor HTTP</system:String>
     <system:String x:Key="port">Puerto</system:String>
     <system:String x:Key="userName">Nombre de Usuario</system:String>
-    <system:String x:Key="password">Contrase�a</system:String>
+    <system:String x:Key="password">Contraseña</system:String>
     <system:String x:Key="testProxy">Probar Proxy</system:String>
     <system:String x:Key="save">Guardar</system:String>
-    <system:String x:Key="serverCantBeEmpty">El campo del servidor no puede estar vac�o</system:String>
-    <system:String x:Key="portCantBeEmpty">El campo de puerto no puede estar vac�o</system:String>
-    <system:String x:Key="invalidPortFormat">Formato de puerto inv�lido</system:String>
-    <system:String x:Key="saveProxySuccessfully">Configuraci�n de proxy guardada correctamente</system:String>
+    <system:String x:Key="serverCantBeEmpty">El campo del servidor no puede estar vacío</system:String>
+    <system:String x:Key="portCantBeEmpty">El campo de puerto no puede estar vacío</system:String>
+    <system:String x:Key="invalidPortFormat">Formato de puerto inválido</system:String>
+    <system:String x:Key="saveProxySuccessfully">Configuración de proxy guardada correctamente</system:String>
     <system:String x:Key="proxyIsCorrect">Proxy configurado correctamente</system:String>
-    <system:String x:Key="proxyConnectFailed">Conexi�n con proxy fallida</system:String>
+    <system:String x:Key="proxyConnectFailed">Conexión con proxy fallida</system:String>
 
     <!--  Setting About  -->
     <system:String x:Key="about">Acerca de</system:String>
     <system:String x:Key="website">Sitio web</system:String>
     <system:String x:Key="github">GitHub</system:String>
-    <system:String x:Key="docs">Documentaci�n</system:String>
+    <system:String x:Key="docs">Documentación</system:String>
     <system:String x:Key="crowdin">Crowdin</system:String>
-    <system:String x:Key="version">Versi�n</system:String>
+    <system:String x:Key="version">Versión</system:String>
     <system:String x:Key="icons">Icons</system:String>
     <system:String x:Key="about_activate_times">Has activado BNDZ Launcher {0} veces</system:String>
     <system:String x:Key="checkUpdates">Buscar actualizaciones</system:String>
     <system:String x:Key="BecomeASponsor">Become a Sponsor</system:String>
-    <system:String x:Key="newVersionTips">La nueva versi�n {0} est� disponible, �desea reiniciar BNDZ Launcher para usar la actualizaci�n?</system:String>
-    <system:String x:Key="checkUpdatesFailed">Fall� la comprobaci�n de actualizaciones, compruebe su conexi�n y configuraci�n de proxy a api.github.com.</system:String>
+    <system:String x:Key="newVersionTips">La nueva versión {0} está disponible, ¿desea reiniciar BNDZ Launcher para usar la actualización?</system:String>
+    <system:String x:Key="checkUpdatesFailed">Falló la comprobación de actualizaciones, compruebe su conexión y configuración de proxy a api.github.com.</system:String>
     <system:String x:Key="downloadUpdatesFailed">
-        Fall� la descarga de actualizaciones, por favor compruebe su conexi�n y configuraci�n de proxy agithub-cloud.s3.amazonaws.com,
+        Falló la descarga de actualizaciones, por favor compruebe su conexión y configuración de proxy agithub-cloud.s3.amazonaws.com,
         o vaya a https://github.com/Flow-Launcher/Flow.Launcher/releases para descargar actualizaciones manualmente.
     </system:String>
-    <system:String x:Key="releaseNotes">Notas de la versi�n</system:String>
+    <system:String x:Key="releaseNotes">Notas de la versión</system:String>
     <system:String x:Key="documentation">Consejos de Uso</system:String>
     <system:String x:Key="devtool">Herramientas de desarrollo</system:String>
-    <system:String x:Key="settingfolder">Carpeta de Configuraci�n</system:String>
+    <system:String x:Key="settingfolder">Carpeta de Configuración</system:String>
     <system:String x:Key="logfolder">Carpeta de registros</system:String>
     <system:String x:Key="clearlogfolder">Clear Logs</system:String>
     <system:String x:Key="clearlogfolderMessage">Are you sure you want to delete all logs?</system:String>
@@ -526,12 +526,12 @@
 
     <!--  DefaultBrowser Setting Dialog  -->
     <system:String x:Key="defaultBrowserTitle">Navegador Web Predeterminado</system:String>
-    <system:String x:Key="defaultBrowser_tips">La configuraci�n predeterminada sigue la configuraci�n por defecto del navegador del sistema operativo. Si se especifica por separado, Flow utiliza ese navegador.</system:String>
+    <system:String x:Key="defaultBrowser_tips">La configuración predeterminada sigue la configuración por defecto del navegador del sistema operativo. Si se especifica por separado, Flow utiliza ese navegador.</system:String>
     <system:String x:Key="defaultBrowser_name">Navegador</system:String>
     <system:String x:Key="defaultBrowser_profile_name">Nombre del Navegador</system:String>
     <system:String x:Key="defaultBrowser_path">Ruta del Navegador</system:String>
     <system:String x:Key="defaultBrowser_newWindow">Nueva Ventana</system:String>
-    <system:String x:Key="defaultBrowser_newTab">Nueva Pesta�a</system:String>
+    <system:String x:Key="defaultBrowser_newTab">Nueva Pestaña</system:String>
     <system:String x:Key="defaultBrowser_parameter">Modo Privado</system:String>
     <system:String x:Key="defaultBrowser_extraArgs">Extra Args</system:String>
     <system:String x:Key="defaultBrowser_default">Default</system:String>
@@ -539,8 +539,8 @@
 
     <!--  Priority Setting Dialog  -->
     <system:String x:Key="changePriorityWindow">Cambiar Prioridad</system:String>
-    <system:String x:Key="priority_tips">Mayor el n�mero, mayor la clasificaci�n del resultado. Intente establecerlo como 5. Si desea que los resultados sean inferiores a cualquier otro plugin, proporcione un n�mero negativo</system:String>
-    <system:String x:Key="invalidPriority">�Por favor, proporcione un entero v�lido para la prioridad!</system:String>
+    <system:String x:Key="priority_tips">Mayor el número, mayor la clasificación del resultado. Intente establecerlo como 5. Si desea que los resultados sean inferiores a cualquier otro plugin, proporcione un número negativo</system:String>
+    <system:String x:Key="invalidPriority">¡Por favor, proporcione un entero válido para la prioridad!</system:String>
 
     <!--  Action Keyword Setting Dialog  -->
     <system:String x:Key="oldActionKeywords">Palabra Clave Antigua</system:String>
@@ -548,11 +548,11 @@
     <system:String x:Key="cancel">Cancelar</system:String>
     <system:String x:Key="done">Hecho</system:String>
     <system:String x:Key="cannotFindSpecifiedPlugin">No se puede encontrar el plugin especificado</system:String>
-    <system:String x:Key="newActionKeywordsCannotBeEmpty">La nueva palabra clave no puede estar vac�a</system:String>
-    <system:String x:Key="newActionKeywordsHasBeenAssigned">Esta palabra clave ya est� asignada a otro plugin, por favor elija una diferente</system:String>
+    <system:String x:Key="newActionKeywordsCannotBeEmpty">La nueva palabra clave no puede estar vacía</system:String>
+    <system:String x:Key="newActionKeywordsHasBeenAssigned">Esta palabra clave ya está asignada a otro plugin, por favor elija una diferente</system:String>
     <system:String x:Key="newActionKeywordsSameAsOld">This new Action Keyword is the same as old, please choose a different one</system:String>
-    <system:String x:Key="success">�xito</system:String>
-    <system:String x:Key="completedSuccessfully">Completado con �xito</system:String>
+    <system:String x:Key="success">Éxito</system:String>
+    <system:String x:Key="completedSuccessfully">Completado con éxito</system:String>
     <system:String x:Key="failedToCopy">Failed to copy</system:String>
     <system:String x:Key="actionkeyword_tips">Enter the action keywords you like to use to start the plugin and use whitespace to divide them. Use * if you don't want to specify any, and the plugin will be triggered without any action keywords.</system:String>
 
@@ -566,7 +566,7 @@
 
     <!--  Custom Query Hotkey Dialog  -->
     <system:String x:Key="customeQueryHotkeyTitle">Tecla de Acceso Personalizada</system:String>
-    <system:String x:Key="customeQueryHotkeyTips">Presione la tecla de acceso personalizada para insertar autom�ticamente la consulta especificada.</system:String>
+    <system:String x:Key="customeQueryHotkeyTips">Presione la tecla de acceso personalizada para insertar automáticamente la consulta especificada.</system:String>
     <system:String x:Key="preview">Vista previa</system:String>
     <system:String x:Key="hotkeyIsNotUnavailable">Tecla no disponible, por favor seleccione una nueva tecla de acceso directo</system:String>
     <system:String x:Key="invalidPluginHotkey">Hotkey is invalid</system:String>
@@ -601,14 +601,14 @@ If you add an '@' prefix while inputting a shortcut, it matches any position in 
     <system:String x:Key="commonBackground">Background</system:String>
 
     <!--  Crash Reporter  -->
-    <system:String x:Key="reportWindow_version">Versi�n</system:String>
+    <system:String x:Key="reportWindow_version">Versión</system:String>
     <system:String x:Key="reportWindow_time">Hora</system:String>
-    <system:String x:Key="reportWindow_reproduce">Por favor, d�ganos c�mo fall� la aplicaci�n para que podamos arreglarla</system:String>
+    <system:String x:Key="reportWindow_reproduce">Por favor, díganos cómo falló la aplicación para que podamos arreglarla</system:String>
     <system:String x:Key="reportWindow_send_report">Enviar Reporte</system:String>
     <system:String x:Key="reportWindow_cancel">Cancelar</system:String>
     <system:String x:Key="reportWindow_general">General</system:String>
     <system:String x:Key="reportWindow_exceptions">Excepciones</system:String>
-    <system:String x:Key="reportWindow_exception_type">Tipo de Excepci�n</system:String>
+    <system:String x:Key="reportWindow_exception_type">Tipo de Excepción</system:String>
     <system:String x:Key="reportWindow_source">Fuente</system:String>
     <system:String x:Key="reportWindow_stack_trace">Traza de Pila</system:String>
     <system:String x:Key="reportWindow_sending">Enviando</system:String>
@@ -633,25 +633,25 @@ If you add an '@' prefix while inputting a shortcut, it matches any position in 
     <system:String x:Key="pleaseWait">Por favor espere...</system:String>
 
     <!--  Update  -->
-    <system:String x:Key="update_flowlauncher_update_check">Buscando nueva actualizaci�n</system:String>
-    <system:String x:Key="update_flowlauncher_already_on_latest">Ya esta instalada la �ltima versi�n de BNDZ Launcher</system:String>
-    <system:String x:Key="update_flowlauncher_update_found">Actualizaci�n encontrada</system:String>
+    <system:String x:Key="update_flowlauncher_update_check">Buscando nueva actualización</system:String>
+    <system:String x:Key="update_flowlauncher_already_on_latest">Ya esta instalada la última versión de BNDZ Launcher</system:String>
+    <system:String x:Key="update_flowlauncher_update_found">Actualización encontrada</system:String>
     <system:String x:Key="update_flowlauncher_updating">Actualizando...</system:String>
     <system:String x:Key="update_flowlauncher_fail_moving_portable_user_profile_data">
-        BNDZ Launcher no pudo mover los datos de su perfil de usuario a la nueva versi�n de actualizaci�n.
+        BNDZ Launcher no pudo mover los datos de su perfil de usuario a la nueva versión de actualización.
         Por favor, mueva manualmente la carpeta de datos de su perfil de {0} a {1}
     </system:String>
-    <system:String x:Key="update_flowlauncher_new_update">Nueva Actualizaci�n</system:String>
-    <system:String x:Key="update_flowlauncher_update_new_version_available">La nueva versi�n {0} de BNDZ Launcher ya est� disponible</system:String>
-    <system:String x:Key="update_flowlauncher_update_error">Ocurri� un error mientras se instalaban actualizaciones de software</system:String>
+    <system:String x:Key="update_flowlauncher_new_update">Nueva Actualización</system:String>
+    <system:String x:Key="update_flowlauncher_update_new_version_available">La nueva versión {0} de BNDZ Launcher ya está disponible</system:String>
+    <system:String x:Key="update_flowlauncher_update_error">Ocurrió un error mientras se instalaban actualizaciones de software</system:String>
     <system:String x:Key="update_flowlauncher_update">Actualizar</system:String>
     <system:String x:Key="update_flowlauncher_update_cancel">Cancelar</system:String>
     <system:String x:Key="update_flowlauncher_fail">Error al actualizar</system:String>
-    <system:String x:Key="update_flowlauncher_check_connection">Compruebe su conexi�n e intente actualizar la configuraci�n del proxy a github-cloud.s3.amazonaws.com.</system:String>
-    <system:String x:Key="update_flowlauncher_update_restart_flowlauncher_tip">Esta actualizaci�n reiniciar� BNDZ Launcher</system:String>
-    <system:String x:Key="update_flowlauncher_update_update_files">Los siguientes archivos ser�n actualizados</system:String>
+    <system:String x:Key="update_flowlauncher_check_connection">Compruebe su conexión e intente actualizar la configuración del proxy a github-cloud.s3.amazonaws.com.</system:String>
+    <system:String x:Key="update_flowlauncher_update_restart_flowlauncher_tip">Esta actualización reiniciará BNDZ Launcher</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_files">Los siguientes archivos serán actualizados</system:String>
     <system:String x:Key="update_flowlauncher_update_files">Actualizar archivos</system:String>
-    <system:String x:Key="update_flowlauncher_update_update_description">Actualizar descripci�n</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_description">Actualizar descripción</system:String>
 
     <!--  Plugin Update Window  -->
     <system:String x:Key="restartAfterUpdating">Restart BNDZ Launcher after updating plugins</system:String>
@@ -661,26 +661,26 @@ If you add an '@' prefix while inputting a shortcut, it matches any position in 
     <!--  Welcome Window  -->
     <system:String x:Key="Skip">Omitir</system:String>
     <system:String x:Key="Welcome_Page1_Title">Bienvenido a BNDZ Launcher</system:String>
-    <system:String x:Key="Welcome_Page1_Text01">�Hola, esta es la primera vez que ejecutas BNDZ Launcher!</system:String>
-    <system:String x:Key="Welcome_Page1_Text02">Antes de comenzar, este asistente ayudar� a configurar BNDZ Launcher. Puedes saltarlo si quieres. Por favor, elige un idioma</system:String>
+    <system:String x:Key="Welcome_Page1_Text01">¡Hola, esta es la primera vez que ejecutas BNDZ Launcher!</system:String>
+    <system:String x:Key="Welcome_Page1_Text02">Antes de comenzar, este asistente ayudará a configurar BNDZ Launcher. Puedes saltarlo si quieres. Por favor, elige un idioma</system:String>
     <system:String x:Key="Welcome_Page2_Title">Busca y ejecuta todos los archivos y aplicaciones en tu PC</system:String>
-    <system:String x:Key="Welcome_Page2_Text01">Busca todo desde aplicaciones, archivos, marcadores, YouTube, Twitter y mucho m�s. Todo desde la comodidad de tu teclado sin tocar nunca el rat�n.</system:String>
-    <system:String x:Key="Welcome_Page2_Text02">BNDZ Launcher comienza con la tecla de acceso directo de abajo, pru�bala ahora. Para cambiarla, haga clic en la entrada y presione la tecla de acceso directo deseada.</system:String>
+    <system:String x:Key="Welcome_Page2_Text01">Busca todo desde aplicaciones, archivos, marcadores, YouTube, Twitter y mucho más. Todo desde la comodidad de tu teclado sin tocar nunca el ratón.</system:String>
+    <system:String x:Key="Welcome_Page2_Text02">BNDZ Launcher comienza con la tecla de acceso directo de abajo, pruébala ahora. Para cambiarla, haga clic en la entrada y presione la tecla de acceso directo deseada.</system:String>
     <system:String x:Key="Welcome_Page3_Title">Teclas De Acceso Directo</system:String>
     <system:String x:Key="Welcome_Page4_Title">Palabra Clave y Comandos</system:String>
-    <system:String x:Key="Welcome_Page4_Text01">Busca en la web, inicia aplicaciones o haz uso de varias funciones a trav�s de plugins en BNDZ Launcher. Algunas funciones necesitan una palabra clave, y si es necesario, pueden ser usadas sin palabras clave. Pruebe consultar lo siguiente en BNDZ Launcher.</system:String>
+    <system:String x:Key="Welcome_Page4_Text01">Busca en la web, inicia aplicaciones o haz uso de varias funciones a través de plugins en BNDZ Launcher. Algunas funciones necesitan una palabra clave, y si es necesario, pueden ser usadas sin palabras clave. Pruebe consultar lo siguiente en BNDZ Launcher.</system:String>
     <system:String x:Key="Welcome_Page5_Title">Comencemos BNDZ Launcher</system:String>
     <system:String x:Key="Welcome_Page5_Text01">Finalizado. Disfruta de BNDZ Launcher. No olvides la tecla de acceso directo para empezar :)</system:String>
 
     <!--  General Guide & Hotkey  -->
 
-    <system:String x:Key="HotkeyUpDownDesc">Atr�s / Men� Contextual</system:String>
-    <system:String x:Key="HotkeyLeftRightDesc">Navegaci�n de Elemento</system:String>
-    <system:String x:Key="HotkeyShiftEnterDesc">Abrir Men� Contextual</system:String>
+    <system:String x:Key="HotkeyUpDownDesc">Atrás / Menú Contextual</system:String>
+    <system:String x:Key="HotkeyLeftRightDesc">Navegación de Elemento</system:String>
+    <system:String x:Key="HotkeyShiftEnterDesc">Abrir Menú Contextual</system:String>
     <system:String x:Key="HotkeyCtrlEnterDesc">Abrir Carpeta Contenedora</system:String>
     <system:String x:Key="HotkeyCtrlShiftEnterDesc">Run as Admin / Open Folder in Default File Manager</system:String>
     <system:String x:Key="HotkeyCtrlHDesc">Historial de Consultas</system:String>
-    <system:String x:Key="HotkeyESCDesc">Volver al Resultado en el Men� Contextual</system:String>
+    <system:String x:Key="HotkeyESCDesc">Volver al Resultado en el Menú Contextual</system:String>
     <system:String x:Key="HotkeyTabDesc">Autocompletar</system:String>
     <system:String x:Key="HotkeyRunDesc">Abrir / Ejecutar Elemento Seleccionado</system:String>
     <system:String x:Key="HotkeyCtrlIDesc">Abrir Ventana de Ajustes</system:String>
@@ -697,7 +697,7 @@ If you add an '@' prefix while inputting a shortcut, it matches any position in 
     <system:String x:Key="RecommendShell">&gt; ping 8.8.8.8</system:String>
     <system:String x:Key="RecommendShellDesc">Comando de Shell</system:String>
     <system:String x:Key="RecommendBluetooth">s Bluetooth</system:String>
-    <system:String x:Key="RecommendBluetoothDesc">Bluetooth en configuraci�n de Windows</system:String>
+    <system:String x:Key="RecommendBluetoothDesc">Bluetooth en configuración de Windows</system:String>
     <system:String x:Key="RecommendAcronyms">sn</system:String>
     <system:String x:Key="RecommendAcronymsDesc">Notas adhesivas</system:String>
 

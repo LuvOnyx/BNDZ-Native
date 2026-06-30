@@ -7,14 +7,14 @@
     <system:String x:Key="flowlauncher_plugin_url_plugin_name">URL</system:String>
     <system:String x:Key="flowlauncher_plugin_url_plugin_description">Open the typed URL from BNDZ Launcher</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_plugin_choose">????????</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_choose">Выберите</system:String>
     <system:String x:Key="flowlauncher_plugin_url_plugin_filter">Application(*.exe)|*.exe|All files|*.*</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_use_custom_browser">Use custom instead of Flow's default web browser</system:String>
     <system:String x:Key="flowlauncher_plugin_url_browser_path">Browser path</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_new_tab">????? ???????</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_new_window">????? ????</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_tab">Новая вкладка</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_window">Новое окно</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_private_mode">Private mode</system:String>
 

@@ -4,17 +4,17 @@
     <system:String x:Key="flowlauncher_plugin_cmd_relace_winr">Nahradit Win+R</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_close_cmd_after_press">Close Command Prompt after pressing any key</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_press_any_key_to_close">Press any key to close this window...</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Po dokoncení príkazu príkazovı rádek nezavírejte</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">Vdy spustit jako správce</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_leave_cmd_open">Po dokonÄenÃ­ pÅ™Ã­kazu pÅ™Ã­kazovÃ½ Å™Ã¡dek nezavÃ­rejte</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_always_run_as_administrator">VÅ¾dy spustit jako sprÃ¡vce</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_use_windows_terminal">Use Windows Terminal</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Spustit jako jinı uivatel</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_different_user">Spustit jako jinÃ½ uÅ¾ivatel</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_plugin_name">Shell</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">Umoní spouštet systémové príkazy z BNDZ Launcheru</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">tento príkaz byl spušten {0} krát</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">spustit príkaz prostrednictvím príkazového rádku</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Spustit jako správce</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_copy">Kopírovat príkaz</system:String>
-    <system:String x:Key="flowlauncher_plugin_cmd_history">Zobrazit pouze pocet nejpouívanejších príkazu:</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_plugin_description">UmoÅ¾nÃ­ spouÅ¡tÄ›t systÃ©movÃ© pÅ™Ã­kazy z BNDZ Launcheru</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_cmd_has_been_executed_times">tento pÅ™Ã­kaz byl spuÅ¡tÄ›n {0} krÃ¡t</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_execute_through_shell">spustit pÅ™Ã­kaz prostÅ™ednictvÃ­m pÅ™Ã­kazovÃ©ho Å™Ã¡dku</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_run_as_administrator">Spustit jako sprÃ¡vce</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_copy">KopÃ­rovat pÅ™Ã­kaz</system:String>
+    <system:String x:Key="flowlauncher_plugin_cmd_history">Zobrazit pouze poÄet nejpouÅ¾Ã­vanÄ›jÅ¡Ã­ch pÅ™Ã­kazÅ¯:</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_command_not_found">Command not found: {0}</system:String>
     <system:String x:Key="flowlauncher_plugin_cmd_error_running_command">Error running the command: {0}</system:String>
 </ResourceDictionary>

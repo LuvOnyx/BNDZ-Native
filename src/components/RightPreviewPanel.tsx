@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
-import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate } from '../lib/pathUtils';
+import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath } from '../lib/pathUtils';
 import { isPreviewEnabledForExt, buildSettingsRuntime } from '../lib/settingsRuntime';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
 import ImageZoomPreview from './ImageZoomPreview';
-import { isTextEditableExt, isCodeExt } from '../lib/textFileTypes';
+import { isTextEditableExt, isCodeExt, isHtmlExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
@@ -22,9 +22,10 @@ type PreviewTab = 'preview' | 'details' | 'media';
 interface RightPreviewPanelProps {
   entity: FSEntity | null;
   path?: string | null;
+  onNavigate?: (path: string) => void;
 }
 
-export default function RightPreviewPanel({ entity, path }: RightPreviewPanelProps) {
+export default function RightPreviewPanel({ entity, path, onNavigate }: RightPreviewPanelProps) {
   const { config } = useAppConfig();
   const [thumbnailNative, setThumbnailNative] = useState<string | null>(null);
   const [shellIcon, setShellIcon] = useState<string | null>(null);
@@ -33,11 +34,22 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [folderStats, setFolderStats] = useState<{ files: number; folders: number; size: number } | null>(null);
+  const [folderChildren, setFolderChildren] = useState<Array<{ name: string; type: string; size?: number }>>([]);
+  const [browsePath, setBrowsePath] = useState<string | null>(null);
+  const [selectedChild, setSelectedChild] = useState<string | null>(null);
   const [extendedDetails, setExtendedDetails] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<PreviewTab>('preview');
   const [fileHashes, setFileHashes] = useState<{ md5?: string; sha256?: string } | null>(null);
   const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
+  const [htmlView, setHtmlView] = useState<'render' | 'source'>('render');
   const svgBlobUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setBrowsePath(path ?? null);
+    setSelectedChild(null);
+  }, [path, entity?.id]);
+
+  const folderBrowsePath = browsePath || path;
 
   // C# Wiring: hydrate high-resolution thumbnail and system info
   useEffect(() => {
@@ -78,18 +90,25 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
                }
            }
         });
-        if (shellIsDir && path) {
+        if (shellIsDir && folderBrowsePath) {
            import('../lib/ipcBridge').then(({ IPC }) => {
-              IPC.getDirContents(path).then(items => {
+              IPC.getDirContents(folderBrowsePath).then(items => {
                  if (!active || !items) return;
                  const files = items.filter((i: any) => i.type === 'file').length;
                  const folders = items.filter((i: any) => i.type === 'directory').length;
                  const size = items.reduce((sum: number, i: any) => sum + (i.type === 'file' ? (i.size || 0) : 0), 0);
                  setFolderStats({ files, folders, size });
-              }).catch(() => { if (active) setFolderStats(null); });
+                 setFolderChildren(
+                   items
+                     .slice(0, 48)
+                     .map((i: any) => ({ name: i.name, type: i.type, size: i.size }))
+                     .sort((a: any, b: any) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1))
+                 );
+              }).catch(() => { if (active) { setFolderStats(null); setFolderChildren([]); } });
            });
         } else {
            setFolderStats(null);
+           setFolderChildren([]);
         }
 
         return () => { active = false; };
@@ -98,8 +117,21 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
         setShellIcon(null);
         setExtendedDetails(null);
         setFolderStats(null);
+        setFolderChildren([]);
      }
-  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, path]);
+  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, path, folderBrowsePath]);
+
+  const openChild = (child: { name: string; type: string }, opts?: { navigateMain?: boolean }) => {
+    if (!folderBrowsePath) return;
+    const childPath = joinPanePath(folderBrowsePath, { name: child.name });
+    setSelectedChild(child.name);
+    if (child.type === 'directory') {
+      setBrowsePath(childPath);
+      if (opts?.navigateMain) onNavigate?.(childPath);
+    } else if (opts?.navigateMain) {
+      onNavigate?.(folderBrowsePath);
+    }
+  };
 
   const isDir = entity?.type === 'directory' || !!(entity as any)?.isVirtual;
   const heroPath = (entity as any)?.isVirtual ? getLocationIconPath(path) : path;
@@ -108,8 +140,9 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
   const isSvg = ext === 'svg';
   const isAudio = isAudioExt(ext);
   const isVideo = isVideoExt(ext);
-  const isTextRaw = isTextEditableExt(ext) && !isCodeExt(ext);
+  const isTextRaw = isTextEditableExt(ext) && !isCodeExt(ext) && !isHtmlExt(ext);
   const isCode = isCodeExt(ext);
+  const isHtml = isHtmlExt(ext);
   const isEditableText = isTextRaw || isCode;
   const isPdf = ext === 'pdf';
   const isBinary = ['exe', 'dll', 'sys', 'dat', 'bin'].includes(ext);
@@ -127,9 +160,10 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
 
   useEffect(() => {
     if (!entity) return;
+    if (isHtml) setHtmlView('render');
     if (isAudio || isVideo) setActiveTab('media');
     else setActiveTab('preview');
-  }, [entity?.id, isAudio, isVideo]);
+  }, [entity?.id, isAudio, isVideo, isHtml]);
 
   const previewRt = buildSettingsRuntime(config).preview;
 
@@ -150,6 +184,7 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
      setIsLoadingContent(false);
 
      if (!path || isDir || !previewAllowed || isArchive || isTorrent) return;
+     if (isHtml && htmlView === 'render') return;
 
      const fetchContent = async () => {
          setIsLoadingContent(true);
@@ -185,11 +220,11 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
          }
      };
 
-     if (isEditableText || isBinary || (!isImage && !isAudio && !isVideo && !isPdf)) {
+     if (isEditableText || isBinary || (isHtml && htmlView === 'source') || (!isImage && !isAudio && !isVideo && !isPdf && !isHtml)) {
          fetchContent();
      }
 
-  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isArchive, isTorrent, virtualUrl, previewAllowed]);
+  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isHtml, htmlView, isArchive, isTorrent, virtualUrl, previewAllowed]);
 
   useEffect(() => {
     if (!path || isDir || !isSvg || !previewAllowed) {
@@ -318,9 +353,42 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
       // 3. Document / PDF Frame
       if (isPdf) {
           return (
-              <div className="w-full h-full bndz-preview-stage">
-                 <iframe src={virtualUrl} className="w-full h-full border-none" title={entity.name} />
+              <div className="w-full h-full bndz-preview-stage flex flex-col">
+                 <iframe src={virtualUrl} className="w-full flex-1 border-none bg-[#525252]" title={entity.name} />
               </div>
+          );
+      }
+
+      // 3b. HTML live preview
+      if (isHtml && previewAllowed) {
+          return (
+            <div className="w-full h-full bndz-preview-stage flex flex-col min-h-0">
+              <div className="flex gap-1 p-1.5 border-b border-white/10 bg-black/20 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setHtmlView('render')}
+                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${htmlView === 'render' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHtmlView('source')}
+                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${htmlView === 'source' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                >
+                  Source
+                </button>
+              </div>
+              {htmlView === 'render' ? (
+                <iframe src={virtualUrl} sandbox="allow-same-origin allow-scripts" className="w-full flex-1 border-0 bg-white" title={entity.name} />
+              ) : (
+                fileContent != null && path ? (
+                  <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
+                ) : (
+                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source…</div>
+                )
+              )}
+            </div>
           );
       }
 
@@ -385,6 +453,45 @@ export default function RightPreviewPanel({ entity, path }: RightPreviewPanelPro
                  {isDir && folderStats && (
                     <div className="text-[11px] text-gray-400 text-center font-mono">
                        {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
+                    </div>
+                 )}
+                 {isDir && folderChildren.length > 0 && (
+                    <div className="w-full max-w-[280px] mt-2 max-h-[180px] overflow-y-auto bndz-scrollbar rounded-md border border-white/10 bg-black/30 text-left">
+                      <div className="text-[9px] uppercase tracking-wider text-gray-500 px-2 py-1 border-b border-white/5 flex items-center justify-between gap-2">
+                        <span>Contents preview</span>
+                        {browsePath && path && browsePath !== path && (
+                          <button
+                            type="button"
+                            className="text-sky-400/90 hover:text-sky-300 normal-case tracking-normal"
+                            onClick={() => {
+                              const parent = browsePath.replace(/\/[^/]+$/, '') || path;
+                              setBrowsePath(parent);
+                              setSelectedChild(null);
+                            }}
+                          >
+                            ↑ Back
+                          </button>
+                        )}
+                      </div>
+                      {folderChildren.map(c => (
+                        <button
+                          key={c.name}
+                          type="button"
+                          onClick={() => openChild(c)}
+                          onDoubleClick={() => openChild(c, { navigateMain: true })}
+                          className={`w-full flex items-center gap-2 px-2 py-1 text-[10px] text-gray-300 truncate text-left transition-colors ${
+                            selectedChild === c.name ? 'bg-sky-500/20 text-sky-100' : 'hover:bg-white/[0.06]'
+                          }`}
+                          title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
+                        >
+                          {c.type === 'directory' ? <Folder size={10} className="text-amber-400 shrink-0" /> : <File size={10} className="text-slate-400 shrink-0" />}
+                          <span className="truncate flex-1">{c.name}</span>
+                          {c.type === 'file' && c.size != null && <span className="text-gray-600 shrink-0">{formatSize(c.size)}</span>}
+                        </button>
+                      ))}
+                      {folderStats && folderStats.files + folderStats.folders > folderChildren.length && (
+                        <div className="text-[9px] text-gray-600 px-2 py-1">+ more items…</div>
+                      )}
                     </div>
                  )}
                  {isDrive && (entity as any).driveInfo && (

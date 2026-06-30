@@ -116,7 +116,7 @@ interface ContextMenuItemProps {
   verb?: string;
   icon?: LucideIcon;
   iconVerb?: string;
-  onClick: (e: React.MouseEvent) => void;
+  onClick?: (e: React.MouseEvent) => void;
   className?: string;
   disabled?: boolean;
 }
@@ -134,7 +134,7 @@ export function ContextMenuItem({
     <div
       role="menuitem"
       className={`${menuItemClass} ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}
-      onMouseDown={disabled ? undefined : runMenuAction(onClick)}
+      onMouseDown={disabled || !onClick ? undefined : runMenuAction(onClick)}
     >
       {Icon ? <Icon size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />}
       <span className="flex-1">{label}</span>

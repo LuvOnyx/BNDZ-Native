@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Database, Loader2, FileText, HardDrive } from 'lucide-react';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
+import PluginPanelShell from './PluginPanelShell';
 
 export const MetadataPluginDef = {
     id: 'metadata',
@@ -76,21 +77,45 @@ export default function MetadataPlugin({
 
     if (!path) {
         return (
-            <div className="flex items-center justify-center h-full text-gray-600 text-xs">
-                Select a file or folder to inspect metadata.
-            </div>
+            <PluginPanelShell
+                title="Metadata Inspector"
+                icon={Database}
+                iconColor="#38bdf8"
+                subtitle="No selection"
+            >
+                <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-gray-500 gap-3 p-6">
+                    <Database size={36} className="opacity-20 text-sky-400" />
+                    <p className="text-xs text-center max-w-[240px] leading-relaxed">
+                        Select a file or folder in the list to inspect extended metadata and hashes.
+                    </p>
+                </div>
+            </PluginPanelShell>
         );
     }
 
     return (
-        <div className="w-full h-full flex flex-col bg-[#0d0d0d] text-gray-300 min-h-0">
-            <div className="px-4 py-3 border-b border-[#222] bg-[#111] shrink-0 flex items-center gap-2">
-                <Database size={14} className="text-sky-400" />
-                <span className="font-bold text-sm text-white">Metadata Inspector</span>
-                {loading && <Loader2 size={12} className="animate-spin text-gray-500 ml-2" />}
-            </div>
-
-            <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-4 min-h-0">
+        <PluginPanelShell
+            title="Metadata Inspector"
+            icon={Database}
+            iconColor="#38bdf8"
+            subtitle={path.split(/[/\\]/).pop() || path}
+            status={loading ? (
+                <span className="flex items-center gap-2 text-gray-500"><Loader2 size={12} className="animate-spin" /> Loading…</span>
+            ) : undefined}
+        >
+            <div className="h-full overflow-y-auto bndz-scrollbar p-4 space-y-4">
+                <div className="p-3 bg-sky-950/30 border border-sky-700/30 rounded-lg flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                        Full ACL, tags, and hash analysis live in <strong className="text-white font-semibold">System Properties</strong>.
+                    </p>
+                    <button
+                        type="button"
+                        className="shrink-0 text-[10px] uppercase font-bold px-2 py-1 rounded bg-sky-700/50 text-sky-200 hover:bg-sky-600/50"
+                        onClick={() => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'properties' } }))}
+                    >
+                        Open Properties
+                    </button>
+                </div>
                 {error && (
                     <div className="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-400 text-xs">{error}</div>
                 )}
@@ -123,6 +148,6 @@ export default function MetadataPlugin({
                     ))}
                 </div>
             </div>
-        </div>
+        </PluginPanelShell>
     );
 }

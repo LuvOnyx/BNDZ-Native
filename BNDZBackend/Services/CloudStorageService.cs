@@ -26,7 +26,7 @@ public class CloudStorageService
             if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) return;
             var key = path.TrimEnd('\\', '/').ToLowerInvariant();
             if (!seen.Add(key)) return;
-            providers.Add(new { name, path = "/" + path.Replace("\\", "/"), icon });
+            providers.Add(new { name, path = "/" + path.Replace("\\", "/"), icon, syncStatus = ResolveSyncStatus(path) });
         }
 
         // Environment variables (most reliable for OneDrive)
@@ -120,5 +120,26 @@ public class CloudStorageService
                 return known.Icon;
         }
         return "cloud";
+    }
+
+    private static string ResolveSyncStatus(string path)
+    {
+        try
+        {
+            if (!Directory.Exists(path)) return "missing";
+            var attrs = File.GetAttributes(path);
+            const int recallOnAccess = 0x00400000;
+            const int pinned = 0x00080000;
+            var raw = (int)attrs;
+            if ((attrs & FileAttributes.Offline) != 0 || (raw & recallOnAccess) != 0)
+                return "online-only";
+            if ((raw & pinned) != 0)
+                return "pinned";
+            return "available";
+        }
+        catch
+        {
+            return "unknown";
+        }
     }
 }

@@ -11,7 +11,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using BNDZ.Services;
-// using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Core;
 
 namespace BNDZ
 {
@@ -42,7 +42,10 @@ namespace BNDZ
         private readonly FolderSizeService _folderSizeService = new();
         private readonly DuplicateFinderService _duplicateFinderService = new();
         private readonly NetworkLocationsService _networkLocationsService = new();
-        private string _currentPath = "C:\\";
+        private readonly BndzUpdateService _updateService = new();
+        private readonly BndzCatalogStore _catalogStore = new();
+        private readonly BndzTagSidecarStore _tagSidecarStore = new();
+        private readonly BndzActionLogService _actionLogService = new();
 
         private ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
         private ConcurrentQueue<object> _fseventBuffer = new();
@@ -55,6 +58,7 @@ namespace BNDZ
         private SystemTrayService? _trayService;
         private bool _allowClose;
         private string? _pendingOpenPath;
+        private string? _pendingStartupAction;
 
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, ShellIntegrationService shellIntegrationService)
         {
@@ -64,6 +68,7 @@ namespace BNDZ
             _shellIntegrationService = shellIntegrationService;
             _iconStudioService = new IconStudioService();
             _fileOperationService = new FileOperationService();
+            _fileOperationService.SetActionLog(_actionLogService);
             _settingsManager = new SettingsManager();
             _folderSyncService.SetProgressCallback(p =>
             {
@@ -114,6 +119,8 @@ namespace BNDZ
 
         public void SetPendingOpenPath(string path) => _pendingOpenPath = path;
 
+        public void SetPendingStartupAction(string action) => _pendingStartupAction = action;
+
         public void OpenPathInManager(string path)
         {
             try
@@ -144,6 +151,17 @@ namespace BNDZ
 
         private void FlushPendingOpenPath()
         {
+            if (!string.IsNullOrWhiteSpace(_pendingStartupAction))
+            {
+                var action = _pendingStartupAction;
+                _pendingStartupAction = null;
+                try
+                {
+                    MainWebView.CoreWebView2?.PostWebMessageAsJson(
+                        JsonSerializer.Serialize(new { type = "BNDZ_STARTUP_ACTION", payload = action }));
+                }
+                catch { }
+            }
             if (string.IsNullOrWhiteSpace(_pendingOpenPath)) return;
             var path = _pendingOpenPath;
             _pendingOpenPath = null;
@@ -355,8 +373,13 @@ namespace BNDZ
         {
             try
             {
-            // Explicitly await initialization before attaching message handler to prevent null references
-            await MainWebView.EnsureCoreWebView2Async(null);
+            // WebView2 uses D3D11 compositing by default; prefer explicit GPU rasterization for smooth panel resize/scroll
+            var webEnvOptions = new CoreWebView2EnvironmentOptions
+            {
+                AdditionalBrowserArguments = "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion"
+            };
+            var webEnv = await CoreWebView2Environment.CreateAsync(null, null, webEnvOptions);
+            await MainWebView.EnsureCoreWebView2Async(webEnv);
 
             // Suppress Edge/WebView2 default context menus — BNDZ uses custom React menus only
             MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
@@ -507,12 +530,12 @@ namespace BNDZ
 
                     if (action == "undo")
                     {
-                        _ = _fileOperationService.ExecuteUndoAsync();
+                        _ = HandleUndoRedoAsync(undo: true, idProp: root.TryGetProperty("id", out var uid) ? uid.GetString() : null);
                         return;
                     }
                     if (action == "redo")
                     {
-                        _ = _fileOperationService.ExecuteRedoAsync();
+                        _ = HandleUndoRedoAsync(undo: false, idProp: root.TryGetProperty("id", out var rid) ? rid.GetString() : null);
                         return;
                     }
                     if (action == "move" && sources.Count == 1)
@@ -524,6 +547,11 @@ namespace BNDZ
                         {
                             string newName = Path.GetFileName(target);
                             _shellIntegrationService.RenameItem(source, newName);
+                            _actionLogService.Record(BndzActionLogService.ForMove(
+                                new List<string> { source },
+                                new List<string> { target },
+                                $"Rename {Path.GetFileName(source)}"));
+                            Dispatcher.InvokeAsync(PostActionLogChanged);
                             return;
                         }
                     }
@@ -562,6 +590,7 @@ namespace BNDZ
                         if (!string.IsNullOrEmpty(target) && (action == "copy" || action == "move"))
                             QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
                         FlushFsEvents();
+                        await Dispatcher.InvokeAsync(PostActionLogChanged).Task.ConfigureAwait(false);
                     });
                 }
                 else if (type == "START_DRAG")
@@ -768,8 +797,9 @@ namespace BNDZ
                     _ = Task.Run(async () => 
                     {
                         var results = await _fileService.GetDirContentsAsync(path);
+                        var enriched = BndzTagSidecarStore.EnrichDirResults(results, _tagSidecarStore);
 
-                        var response = new { type = "DIR_CONTENTS_RESULT", id = idProp, payload = results };
+                        var response = new { type = "DIR_CONTENTS_RESULT", id = idProp, payload = enriched };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         var responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
@@ -873,6 +903,28 @@ namespace BNDZ
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
+                }
+                else if (type == "EXECUTE_UNDO")
+                {
+                    var idProp = root.TryGetProperty("id", out var uid) ? uid.GetString() : null;
+                    _ = HandleUndoRedoAsync(undo: true, idProp);
+                }
+                else if (type == "EXECUTE_REDO")
+                {
+                    var idProp = root.TryGetProperty("id", out var rid) ? rid.GetString() : null;
+                    _ = HandleUndoRedoAsync(undo: false, idProp);
+                }
+                else if (type == "GET_ACTION_LOG")
+                {
+                    var idProp = root.TryGetProperty("id", out var lid) ? lid.GetString() : null;
+                    var items = _actionLogService.GetRecent(64);
+                    var response = new
+                    {
+                        type = "ACTION_LOG_RESULT",
+                        id = idProp,
+                        payload = new { items, canUndo = _actionLogService.CanUndo, canRedo = _actionLogService.CanRedo },
+                    };
+                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
                 }
                 else if (type == "EXECUTE_CONTEXT_MENU_VERB")
                 {
@@ -979,6 +1031,14 @@ namespace BNDZ
                     bool enabled = payload.GetProperty("enabled").GetBoolean();
                     _folderSyncService.SetWatch(jobId, enabled);
                 }
+                else if (type == "FOLDER_SYNC_PREVIEW")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var jobId = root.GetProperty("payload").GetProperty("jobId").GetString() ?? "";
+                    var preview = _folderSyncService.PreviewSync(jobId);
+                    var response = new { type = "FOLDER_SYNC_PREVIEW_RESULT", id = idProp, payload = preview };
+                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                }
                 else if (type == "AI_BATCH_RENAME")
                 {
                     // Call the AI Service
@@ -1019,14 +1079,32 @@ namespace BNDZ
                     int limit = payload.TryGetProperty("limit", out var limitEl) && limitEl.ValueKind == JsonValueKind.Number ? limitEl.GetInt32() : 1000;
                     bool useRegex = payload.TryGetProperty("useRegex", out var regexEl) && regexEl.ValueKind == JsonValueKind.True;
                     bool useEverything = !payload.TryGetProperty("useEverything", out var evEl) || evEl.ValueKind != JsonValueKind.False;
+                    bool searchContent = payload.TryGetProperty("searchContent", out var scEl) && scEl.ValueKind == JsonValueKind.True;
+                    bool booleanMode = payload.TryGetProperty("booleanMode", out var bmEl) && bmEl.ValueKind == JsonValueKind.True;
                     string rootPath = payload.TryGetProperty("rootPath", out var rootEl) ? rootEl.GetString() ?? "" : "";
-                    if (!string.IsNullOrEmpty(rootPath)) rootPath = NormalizeFsPath(rootPath);
+                    var rootPaths = new List<string>();
+                    if (payload.TryGetProperty("rootPaths", out var rootsEl) && rootsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var rp in rootsEl.EnumerateArray())
+                        {
+                            var s = rp.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) rootPaths.Add(NormalizeFsPath(s));
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(rootPath))
+                    {
+                        rootPath = NormalizeFsPath(rootPath);
+                        if (!rootPaths.Contains(rootPath, StringComparer.OrdinalIgnoreCase))
+                            rootPaths.Insert(0, rootPath);
+                    }
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
 
                     _ = Task.Run(() => 
                     {
                         var searchSvc = new EverythingSearchService();
-                        var (results, engine) = searchSvc.Search(query, limit, useRegex, rootPath, useEverything);
+                        var (results, engine) = rootPaths.Count > 1 || booleanMode
+                            ? searchSvc.SearchAdvanced(query, limit, useRegex, rootPaths, useEverything, searchContent, booleanMode)
+                            : searchSvc.Search(query, limit, useRegex, rootPath, useEverything, searchContent);
 
                         var response = new { type = "GLOBAL_SEARCH_RESULT", id = idProp, payload = new { items = results, engine } };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -1073,36 +1151,7 @@ namespace BNDZ
                     {
                         var nativeSvc = new NativeShellService();
                         var meta = nativeSvc.GetExtendedMetadata(path);
-
-                        if (File.Exists(path))
-                        {
-                            try {
-                                var fi = new FileInfo(path);
-                                meta["File Size"] = fi.Length.ToString();
-                                meta["Created"] = fi.CreationTimeUtc.ToString("o");
-                                meta["Modified"] = fi.LastWriteTimeUtc.ToString("o");
-                                meta["Archive"] = fi.Attributes.HasFlag(FileAttributes.Archive).ToString().ToLower();
-                                meta["Hidden"] = fi.Attributes.HasFlag(FileAttributes.Hidden).ToString().ToLower();
-                                meta["System"] = fi.Attributes.HasFlag(FileAttributes.System).ToString().ToLower();
-                                meta["ReadOnly"] = fi.Attributes.HasFlag(FileAttributes.ReadOnly).ToString().ToLower();
-                                
-                                var acl = fi.GetAccessControl();
-                                meta["Owner"] = acl.GetOwner(typeof(System.Security.Principal.NTAccount))?.Value ?? "Unknown";
-                                
-                                // Simplified ACL
-                                bool canWrite = false;
-                                bool canExecute = false;
-                                foreach (System.Security.AccessControl.FileSystemAccessRule rule in acl.GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier)))
-                                {
-                                    if (rule.AccessControlType == System.Security.AccessControl.AccessControlType.Allow)
-                                    {
-                                        if ((rule.FileSystemRights & System.Security.AccessControl.FileSystemRights.WriteData) == System.Security.AccessControl.FileSystemRights.WriteData) canWrite = true;
-                                        if ((rule.FileSystemRights & System.Security.AccessControl.FileSystemRights.ExecuteFile) == System.Security.AccessControl.FileSystemRights.ExecuteFile) canExecute = true;
-                                    }
-                                }
-                                meta["ACL Rule"] = (canWrite ? "W" : "") + (canExecute ? "X" : "");
-                            } catch {}
-                        }
+                        EnrichMetadataWithAcl(path, meta);
 
                         var response = new { type = "EXTENDED_METADATA_RESULT", id = idProp, payload = meta };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -1331,13 +1380,20 @@ namespace BNDZ
                     var sources = new List<string>();
                     foreach (var el in payload.GetProperty("files").EnumerateArray())
                         sources.Add(NormalizeFsPath(el.GetString() ?? ""));
+                    List<string>? entryNames = null;
+                    if (payload.TryGetProperty("entryNames", out var namesEl) && namesEl.ValueKind == JsonValueKind.Array)
+                    {
+                        entryNames = new List<string>();
+                        foreach (var el in namesEl.EnumerateArray())
+                            entryNames.Add(el.GetString() ?? "");
+                    }
 
                     _ = Task.Run(() =>
                     {
                         object resultPayload;
                         try
                         {
-                            _archiveService.AddFilesToArchive(archivePath, sources);
+                            _archiveService.AddFilesToArchive(archivePath, sources, entryNames);
                             resultPayload = new { success = true };
                         }
                         catch (Exception ex)
@@ -1370,6 +1426,30 @@ namespace BNDZ
                             resultPayload = new { success = false, error = ex.Message };
                         }
                         var response = new { type = "ARCHIVE_EXTRACT_ENTRY_RESULT", id = idProp, payload = resultPayload };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "ARCHIVE_EXTRACT_ENTRY_TEMP")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    string archivePath = NormalizeFsPath(payload.GetProperty("archivePath").GetString() ?? "");
+                    string entryPath = payload.GetProperty("entryPath").GetString() ?? "";
+
+                    _ = Task.Run(() =>
+                    {
+                        object resultPayload;
+                        try
+                        {
+                            var extracted = _archiveService.ExtractEntryToTemp(archivePath, entryPath);
+                            resultPayload = new { success = true, path = extracted };
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { success = false, error = ex.Message };
+                        }
+                        var response = new { type = "ARCHIVE_EXTRACT_ENTRY_TEMP_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
@@ -1517,6 +1597,15 @@ namespace BNDZ
                     catch { }
 
                     var response = new { type = "SET_FILE_ATTRIBUTES_RESULT", id = idProp, payload = success };
+                    var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() => {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
+                    });
+                }
+                else if (type == "SET_FILE_ACL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "SET_FILE_ACL_RESULT", id = idProp, payload = false };
                     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     Dispatcher.InvokeAsync(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
@@ -2058,9 +2147,22 @@ namespace BNDZ
                                 string iconPath = action.TryGetProperty("icon", out var iconEl) ? iconEl.GetString() ?? "" : "";
                                 string targetMode = action.TryGetProperty("targetMode", out var tmEl) ? tmEl.GetString() ?? "all" : "all";
 
-                                string commandStr = !string.IsNullOrWhiteSpace(customCommand)
-                                    ? (customCommand.Contains("\"%1\"") ? customCommand : customCommand.Replace("%1", "\"%1\""))
-                                    : $"\"{exePath}\" --{actionId.ToLower().Replace(" ", "-")} \"%1\"";
+                                string commandStr;
+                                if (actionId.Equals("bndz-open-path", StringComparison.OrdinalIgnoreCase)
+                                    || actionLabel.Equals("Open in BNDZ", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    commandStr = $"\"{exePath}\" --open-path \"%1\"";
+                                }
+                                else if (!string.IsNullOrWhiteSpace(customCommand))
+                                {
+                                    commandStr = customCommand.Contains("\"%1\"")
+                                        ? customCommand
+                                        : customCommand.Replace("%1", "\"%1\"");
+                                }
+                                else
+                                {
+                                    commandStr = $"\"{exePath}\" --{actionId.ToLower().Replace(" ", "-")} \"%1\"";
+                                }
 
                                 switch (targetMode)
                                 {
@@ -2269,6 +2371,33 @@ namespace BNDZ
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
+                else if (type == "GET_APP_VERSION")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "APP_VERSION_RESULT", id = idProp, payload = BndzUpdateService.GetCurrentVersion() };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() => {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                    });
+                }
+                else if (type == "CHECK_FOR_UPDATES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string? manifestUrl = null;
+                    if (root.TryGetProperty("payload", out var updPayload)
+                        && updPayload.TryGetProperty("manifestUrl", out var urlEl))
+                        manifestUrl = urlEl.GetString();
+
+                    _ = Task.Run(async () =>
+                    {
+                        var result = await _updateService.CheckAsync(manifestUrl).ConfigureAwait(false);
+                        var response = new { type = "CHECK_FOR_UPDATES_RESULT", id = idProp, payload = result };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        Dispatcher.InvokeAsync(() => {
+                            MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                        });
+                    });
+                }
                 else if (type == "GET_SYSTEM_SHORTCUTS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
@@ -2322,6 +2451,23 @@ namespace BNDZ
                     {
                         var items = await DirectoryCompareService.CompareAsync(pathA, pathB, useHashing);
                         var response = new { type = "COMPARE_DIRECTORIES_RESULT", id = idProp, payload = items };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
+                        });
+                    });
+                }
+                else if (type == "COMPARE_FILES")
+                {
+                    var payload = root.GetProperty("payload");
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var pathA = payload.TryGetProperty("pathA", out var pa) ? pa.GetString() ?? "" : "";
+                    var pathB = payload.TryGetProperty("pathB", out var pb) ? pb.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        var result = await FileCompareService.CompareAsync(pathA, pathB);
+                        var response = new { type = "COMPARE_FILES_RESULT", id = idProp, payload = result };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         await Dispatcher.InvokeAsync(() =>
                         {
@@ -2387,6 +2533,109 @@ namespace BNDZ
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
+                else if (type == "APPLY_TAGS")
+                {
+                    var payload = root.GetProperty("payload");
+                    var paths = JsonSerializer.Deserialize<List<string>>(payload.GetProperty("paths").GetRawText()) ?? new List<string>();
+                    var tags = JsonSerializer.Deserialize<List<string>>(payload.GetProperty("tags").GetRawText()) ?? new List<string>();
+                    _tagSidecarStore.ApplyTags(paths, tags);
+                }
+                else if (type == "GET_TAG_SIDECAR")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var path = root.GetProperty("payload").GetProperty("path").GetString() ?? "";
+                    var entry = _tagSidecarStore.Get(path);
+                    var response = new { type = "TAG_SIDECAR_RESULT", id = idProp, payload = entry };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
+                else if (type == "SET_TAG_META")
+                {
+                    var payload = root.GetProperty("payload");
+                    var path = payload.GetProperty("path").GetString() ?? "";
+                    string? label = payload.TryGetProperty("label", out var lEl) ? lEl.GetString() : null;
+                    string? comment = payload.TryGetProperty("comment", out var cEl) ? cEl.GetString() : null;
+                    List<string>? tags = null;
+                    if (payload.TryGetProperty("tags", out var tEl) && tEl.ValueKind == JsonValueKind.Array)
+                        tags = JsonSerializer.Deserialize<List<string>>(tEl.GetRawText());
+                    _tagSidecarStore.SetMeta(path, label, comment, tags);
+                }
+                else if (type == "CATALOG_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var catalogs = _catalogStore.GetAll();
+                    var response = new { type = "CATALOG_LIST_RESULT", id = idProp, payload = catalogs };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
+                else if (type == "CATALOG_UPSERT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    string? id = payload.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    string name = payload.GetProperty("name").GetString() ?? "";
+                    var paths = payload.TryGetProperty("paths", out var pEl)
+                        ? JsonSerializer.Deserialize<List<string>>(pEl.GetRawText()) ?? new List<string>()
+                        : new List<string>();
+                    string? query = payload.TryGetProperty("query", out var qEl) ? qEl.GetString() : null;
+                    var entry = _catalogStore.Upsert(id, name, paths, query);
+                    var response = new { type = "CATALOG_UPSERT_RESULT", id = idProp, payload = entry };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
+                else if (type == "CATALOG_DELETE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var catalogId = root.GetProperty("payload").GetProperty("id").GetString() ?? "";
+                    var ok = _catalogStore.Delete(catalogId);
+                    var response = new { type = "CATALOG_DELETE_RESULT", id = idProp, payload = new { ok } };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
+                else if (type == "CATALOG_CONTENTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var catalogPath = root.GetProperty("payload").GetProperty("path").GetString() ?? "";
+                    var norm = catalogPath.Replace('\\', '/').TrimEnd('/');
+                    List<object> results;
+                    if (norm == "/vf" || norm == "vf://" || norm.Equals("vf:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        results = _catalogStore.ListAsVirtualFolders();
+                    }
+                    else
+                    {
+                        var slug = norm.StartsWith("/vf/", StringComparison.OrdinalIgnoreCase)
+                            ? norm.Substring(4)
+                            : norm.StartsWith("vf://", StringComparison.OrdinalIgnoreCase)
+                                ? norm.Substring(5)
+                                : norm;
+                        var entry = _catalogStore.GetById(slug) ?? _catalogStore.GetBySlug(slug);
+                        results = entry != null
+                            ? _catalogStore.ResolveContentsWithSearch(entry, _tagSidecarStore, new EverythingSearchService())
+                            : new List<object>();
+                    }
+                    var response = new { type = "CATALOG_CONTENTS_RESULT", id = idProp, payload = results };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
+                else if (type == "RUN_USER_SCRIPT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    string shell = payload.TryGetProperty("shell", out var sEl) ? sEl.GetString() ?? "powershell" : "powershell";
+                    string script = payload.GetProperty("script").GetString() ?? "";
+                    string? cwd = payload.TryGetProperty("cwd", out var cwdEl) ? cwdEl.GetString() : null;
+                    var (ok, output) = BndzUserScriptRunner.Run(shell, script, cwd);
+                    var response = new { type = "RUN_USER_SCRIPT_RESULT", id = idProp, payload = new { ok, output } };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    Dispatcher.InvokeAsync(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
             }
             catch (Exception ex)
             {
@@ -2427,6 +2676,38 @@ namespace BNDZ
         /// <summary>
         /// True asynchronous directory synchronizer utilizing non-blocking I/O streams to saturate NVMe/SSD throughput.
         /// </summary>
+        private async Task HandleUndoRedoAsync(bool undo, string? idProp)
+        {
+            var result = undo
+                ? await _actionLogService.UndoAsync(_fileOperationService).ConfigureAwait(false)
+                : await _actionLogService.RedoAsync(_fileOperationService).ConfigureAwait(false);
+
+            var response = new
+            {
+                type = "UNDO_REDO_RESULT",
+                id = idProp,
+                payload = new { ok = result.Ok, message = result.Message },
+            };
+            var json = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
+                PostActionLogChanged();
+            });
+        }
+
+        private void PostActionLogChanged()
+        {
+            if (MainWebView.CoreWebView2 == null) return;
+            var evt = new
+            {
+                type = "ACTION_LOG_CHANGED",
+                payload = new { canUndo = _actionLogService.CanUndo, canRedo = _actionLogService.CanRedo },
+            };
+            MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        }
+
         private async Task SyncDirectoriesTrueAsync(string sourceDir, string targetDir)
         {
             // Standardize paths (mock logic handles virtual-local normalization)
@@ -2470,6 +2751,63 @@ namespace BNDZ
             using var destinationStream = new FileStream(destinationFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
             
             await sourceStream.CopyToAsync(destinationStream);
+        }
+
+        private static void EnrichMetadataWithAcl(string path, Dictionary<string, string> meta)
+        {
+            try
+            {
+                System.Security.AccessControl.FileSystemSecurity? acl = null;
+                if (File.Exists(path))
+                {
+                    var fi = new FileInfo(path);
+                    meta["File Size"] = fi.Length.ToString();
+                    meta["Created"] = fi.CreationTimeUtc.ToString("o");
+                    meta["Modified"] = fi.LastWriteTimeUtc.ToString("o");
+                    meta["Archive"] = fi.Attributes.HasFlag(FileAttributes.Archive).ToString().ToLower();
+                    meta["Hidden"] = fi.Attributes.HasFlag(FileAttributes.Hidden).ToString().ToLower();
+                    meta["System"] = fi.Attributes.HasFlag(FileAttributes.System).ToString().ToLower();
+                    meta["ReadOnly"] = fi.Attributes.HasFlag(FileAttributes.ReadOnly).ToString().ToLower();
+                    acl = fi.GetAccessControl();
+                }
+                else if (Directory.Exists(path))
+                {
+                    var di = new DirectoryInfo(path);
+                    meta["Created"] = di.CreationTimeUtc.ToString("o");
+                    meta["Modified"] = di.LastWriteTimeUtc.ToString("o");
+                    meta["Archive"] = di.Attributes.HasFlag(FileAttributes.Archive).ToString().ToLower();
+                    meta["Hidden"] = di.Attributes.HasFlag(FileAttributes.Hidden).ToString().ToLower();
+                    meta["System"] = di.Attributes.HasFlag(FileAttributes.System).ToString().ToLower();
+                    meta["ReadOnly"] = di.Attributes.HasFlag(FileAttributes.ReadOnly).ToString().ToLower();
+                    acl = di.GetAccessControl();
+                }
+
+                if (acl == null) return;
+
+                meta["Owner"] = acl.GetOwner(typeof(System.Security.Principal.NTAccount))?.Value ?? "Unknown";
+
+                bool canWrite = false;
+                bool canExecute = false;
+                var rules = new List<string>();
+                foreach (System.Security.AccessControl.FileSystemAccessRule rule in acl.GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier)))
+                {
+                    var identity = rule.IdentityReference?.Translate(typeof(System.Security.Principal.NTAccount))?.Value
+                        ?? rule.IdentityReference?.Value ?? "Unknown";
+                    var rights = rule.FileSystemRights.ToString();
+                    var kind = rule.AccessControlType == System.Security.AccessControl.AccessControlType.Allow ? "Allow" : "Deny";
+                    rules.Add($"{identity}: {rights} ({kind})");
+
+                    if (rule.AccessControlType == System.Security.AccessControl.AccessControlType.Allow)
+                    {
+                        if ((rule.FileSystemRights & System.Security.AccessControl.FileSystemRights.WriteData) == System.Security.AccessControl.FileSystemRights.WriteData) canWrite = true;
+                        if ((rule.FileSystemRights & System.Security.AccessControl.FileSystemRights.ExecuteFile) == System.Security.AccessControl.FileSystemRights.ExecuteFile) canExecute = true;
+                    }
+                }
+
+                meta["ACL Rule"] = (canWrite ? "W" : "") + (canExecute ? "X" : "");
+                meta["ACL Rules"] = string.Join("\n", rules);
+            }
+            catch { }
         }
 
 

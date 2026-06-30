@@ -4,11 +4,11 @@
     <system:String x:Key="flowlauncher_plugin_processkiller_plugin_name">Terminador de processos</system:String>
     <system:String x:Key="flowlauncher_plugin_processkiller_plugin_description">Terminar todos os processos BNDZ Launcher</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_processkiller_kill_all">terminar todas as inst‚ncias de {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_processkiller_kill_all">terminar todas as inst√¢ncias de {0}</system:String>
     <system:String x:Key="flowlauncher_plugin_processkiller_kill_all_count">terminar {0} processos</system:String>
-    <system:String x:Key="flowlauncher_plugin_processkiller_kill_instances">terminar todas as inst‚ncias</system:String>
+    <system:String x:Key="flowlauncher_plugin_processkiller_kill_instances">terminar todas as inst√¢ncias</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_processkiller_show_window_title">Mostrar tÌtulo dos processos com janelas visÌveis</system:String>
-    <system:String x:Key="flowlauncher_plugin_processkiller_put_visible_window_process_top">Colocar processos com janelas visÌveis por cima</system:String>
+    <system:String x:Key="flowlauncher_plugin_processkiller_show_window_title">Mostrar t√≠tulo dos processos com janelas vis√≠veis</system:String>
+    <system:String x:Key="flowlauncher_plugin_processkiller_put_visible_window_process_top">Colocar processos com janelas vis√≠veis por cima</system:String>
 
 </ResourceDictionary>

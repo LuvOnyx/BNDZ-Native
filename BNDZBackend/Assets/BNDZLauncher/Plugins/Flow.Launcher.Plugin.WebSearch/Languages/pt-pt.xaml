@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <system:String x:Key="flowlauncher_plugin_websearch_window_title">DefiniÁ„o do motor de pesquisa</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_window_title">Defini√ß√£o do motor de pesquisa</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_open_search_in">Abrir pesquisa em:</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_new_window">Nova janela</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_new_tab">Novo separador</system:String>
@@ -15,39 +15,39 @@
     <system:String x:Key="flowlauncher_plugin_websearch_true">Ativo</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_false">Inativo</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_confirm">Confirmar</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword">Palavra-chave de aÁ„o</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword">Palavra-chave de a√ß√£o</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_url">URL</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_search">Pesquisar</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_enable_suggestion">Utilizar conclus„o autom·tica para as consultas</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_max_suggestions">M·ximo de sugestıes</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_enable_suggestion">Utilizar conclus√£o autom√°tica para as consultas</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_max_suggestions">M√°ximo de sugest√µes</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_enable_suggestion_provider">Preencher dados a partir de:</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_pls_select_web_search">Selecione uma pesquisa web</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_delete_warning">Tem a certeza de que deseja eliminar {0}?</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_guide_1">Se quiser adicionar uma pesquisa por um determinado site ao Flow, digite uma sequÍncia de texto fictÌcia na barra de pesquisa daquele site e inicie a pesquisa. Agora copie o conte˙do da barra de endereÁo do navegador e cole-o no campo URL abaixo. Substitua o texto fictÌcio por {q}. Por exemplo, se quiser procurar casino na Netflix, a cadeia ser·:</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_guide_1">Se quiser adicionar uma pesquisa por um determinado site ao Flow, digite uma sequ√™ncia de texto fict√≠cia na barra de pesquisa daquele site e inicie a pesquisa. Agora copie o conte√∫do da barra de endere√ßo do navegador e cole-o no campo URL abaixo. Substitua o texto fict√≠cio por {q}. Por exemplo, se quiser procurar casino na Netflix, a cadeia ser√°:</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_guide_2">https://www.netflix.com/search?q=Casino</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_guide_3">
         Agora, copie esta cadeia e cole-a no campo URL abaixo.
         De seguida, substitua casino por {q}.
-        Assim, a fÛrmula genÈrica de uma pesquisa na Netflix È https://www.netflix.com/search?q={q}
+        Assim, a f√≥rmula gen√©rica de uma pesquisa na Netflix √© https://www.netflix.com/search?q={q}
     </system:String>
 
     <system:String x:Key="flowlauncher_plugin_websearch_copyurl_title">Copiar URL</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_copyurl_subtitle">Copiar URL para a ·rea de transferÍncia</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_copyurl_subtitle">Copiar URL para a √°rea de transfer√™ncia</system:String>
 
     <!--  web search edit  -->
-    <system:String x:Key="flowlauncher_plugin_websearch_title">TÌtulo</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_title">T√≠tulo</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_enable">Estado</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_select_icon">Selecionar Ìcone</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_icon">Õcone</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_select_icon">Selecionar √≠cone</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_icon">√çcone</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_cancel">Cancelar</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_invalid_web_search">Pesquisa web inv·lida</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_input_title">Introduza um tÌtulo</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_input_action_keyword">Introduza a palavra-chave de aÁ„o</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_invalid_web_search">Pesquisa web inv√°lida</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_input_title">Introduza um t√≠tulo</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_input_action_keyword">Introduza a palavra-chave de a√ß√£o</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_input_url">Introduza um URL</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword_exist">Esta palavra-chave j· existe. Por favor escolha outra.</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword_exist">Esta palavra-chave j√° existe. Por favor escolha outra.</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_succeed">Sucesso</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_edit_failed">Falha ao atualizar a origem de pesquisa. O item pode ter sido removido.</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_iconpath_hint">Dica: n„o È preciso colocar imagens personalizadas nesta pasta pois se BNDZ Launcher for atualizado, ser„o perdidas. Flow ir· copiar todas as imagens que estejam fora desta pasta em todas as pesquisas Web.</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_iconpath_hint">Dica: n√£o √© preciso colocar imagens personalizadas nesta pasta pois se BNDZ Launcher for atualizado, ser√£o perdidas. Flow ir√° copiar todas as imagens que estejam fora desta pasta em todas as pesquisas Web.</system:String>
 
     <system:String x:Key="flowlauncher_plugin_websearch_plugin_name">Pesquisas web</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_plugin_description">Permite pesquisar diretamente na web</system:String>

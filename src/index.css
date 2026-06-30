@@ -431,6 +431,51 @@ html.theme-light .nav-tree-row:hover {
 .bndz-chrome-toolbar {
   background: linear-gradient(180deg, #1a1a1f 0%, #141418 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  overflow: visible;
+}
+
+/* File Pilot Direct3D parity — Chromium compositor + WebView2 GPU raster layers */
+.bndz-gpu-layer,
+.bndz-chrome-workspace,
+.bndz-chrome-menubar,
+.bndz-chrome-toolbar,
+.bndz-chrome-sidebar,
+.bndz-chrome-preview,
+.bndz-chrome-bottom,
+.bndz-file-list-scroll,
+.bndz-quick-actions-bar {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  contain: layout style paint;
+}
+
+/* Premium plugin panel harmonization tier */
+.bndz-plugin-tier {
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  -webkit-font-smoothing: antialiased;
+}
+.bndz-plugin-tier input,
+.bndz-plugin-tier textarea,
+.bndz-plugin-tier select {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bndz-plugin-tier input:focus,
+.bndz-plugin-tier textarea:focus,
+.bndz-plugin-tier select:focus {
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+.bndz-plugin-tier button:not(:disabled):hover {
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.bndz-chrome-toolbar > button,
+.bndz-chrome-toolbar > [role="button"] {
+  flex-shrink: 0;
+}
+
+.bndz-toolbar-zone {
+  overflow: visible;
 }
 
 .bndz-resize-handle-glow:hover {

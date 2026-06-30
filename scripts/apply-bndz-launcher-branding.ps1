@@ -116,11 +116,14 @@ foreach ($exeName in @("BNDZ.Launcher.exe", "Flow.Launcher.exe")) {
     }
 }
 
-# Copy BNDZ Raycast theme into staged launcher
-$raycastTheme = Join-Path $Root "external\Flow.Launcher\Flow.Launcher\Themes\BndzRaycast.xaml"
+# Copy BNDZ Launcher theme into staged launcher
+$launcherTheme = Join-Path $Root "external\Flow.Launcher\Flow.Launcher\Themes\BndzLauncher.xaml"
 $themesDest = Join-Path $LauncherDir "Themes"
-if ((Test-Path $raycastTheme) -and (Test-Path $themesDest)) {
-    Copy-Item $raycastTheme (Join-Path $themesDest "BndzRaycast.xaml") -Force
+if ((Test-Path $launcherTheme) -and (Test-Path $themesDest)) {
+    Copy-Item $launcherTheme (Join-Path $themesDest "BndzLauncher.xaml") -Force
+    if (Test-Path (Join-Path $themesDest "BndzRaycast.xaml")) {
+        Remove-Item (Join-Path $themesDest "BndzRaycast.xaml") -Force -ErrorAction SilentlyContinue
+    }
 }
 $textReplacements = @(
     @{ From = "Flow Launcher"; To = "BNDZ Launcher" },
@@ -158,6 +161,20 @@ $textReplacements = @(
 foreach ($pair in $textReplacements) {
     if ($pair.From -eq $pair.To) { continue }
     Replace-TextInXamlFiles -Root $LauncherDir -From $pair.From -To $pair.To
+}
+
+$pluginJsonFiles = Get-ChildItem -Path $LauncherDir -Recurse -Filter "plugin.json" -ErrorAction SilentlyContinue
+foreach ($file in $pluginJsonFiles) {
+    $text = Get-Content $file.FullName -Raw -Encoding UTF8
+    $changed = $false
+    foreach ($pair in $textReplacements) {
+        if ($text -notmatch [regex]::Escape($pair.From)) { continue }
+        $text = $text -replace [regex]::Escape($pair.From), $pair.To
+        $changed = $true
+    }
+    if ($changed) {
+        [System.IO.File]::WriteAllText($file.FullName, $text, [System.Text.UTF8Encoding]::new($false))
+    }
 }
 
 # Tray menu labels (unified BNDZ branding)

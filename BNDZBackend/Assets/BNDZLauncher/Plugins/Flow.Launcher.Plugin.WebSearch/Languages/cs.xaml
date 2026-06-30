@@ -1,55 +1,55 @@
 <?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <system:String x:Key="flowlauncher_plugin_websearch_window_title">Nastavení zdroje vyhledávání</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_open_search_in">Otevrít vyhledávání v:</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_new_window">Nové okno</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_new_tab">Nová karta</system:String>
-    <system:String x:Key="flowlaucnher_plugin_websearch_set_browser_path">Nastavte cestu k prohlíeci:</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_window_title">NastavenÃ­ zdroje vyhledÃ¡vÃ¡nÃ­</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_open_search_in">OtevÅ™Ã­t vyhledÃ¡vÃ¡nÃ­ v:</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_new_window">NovÃ© okno</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_new_tab">NovÃ¡ karta</system:String>
+    <system:String x:Key="flowlaucnher_plugin_websearch_set_browser_path">Nastavte cestu k prohlÃ­Å¾eÄi:</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_choose">Vybrat</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_delete">Smazat</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_edit">Editovat</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_add">Pridat</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_add">PÅ™idat</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_enabled_label">Povoleno</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_private_mode_label">Soukromı reim</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_private_mode_label">SoukromÃ½ reÅ¾im</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_true">Povoleno</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_false">Deaktivován</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_false">DeaktivovÃ¡n</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_confirm">Potvrdit</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword">Aktivacní príkaz</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword">AktivaÄnÃ­ pÅ™Ã­kaz</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_url">URL</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_search">Hledat</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_enable_suggestion">Use Search Query Autocomplete</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_max_suggestions">Max Suggestions</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_enable_suggestion_provider">Automatické doplnení údaju z:</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_pls_select_web_search">Vyberte webové vyhledávání</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_enable_suggestion_provider">AutomatickÃ© doplnÄ›nÃ­ ÃºdajÅ¯ z:</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_pls_select_web_search">Vyberte webovÃ© vyhledÃ¡vÃ¡nÃ­</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_delete_warning">Opravdu chcete odstranit {0}?</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_guide_1">Chcete-li do sluby Flow pridat vyhledávání na konkrétní webové stránce, zadejte nejprve do vyhledávacího pole této webové stránky testovací textovı retezec a spustte vyhledávání. Nyní zkopírujte obsah adresního rádku prohlíece a vlote jej do níe uvedeného pole URL. Nahradte svuj testovací retezec tímto {q}. Pokud napríklad hledáte kasino na Netflixu, bude adresa vypadat takto</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_guide_2">https://www.netflix.com/search?q=Kasíno</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_guide_1">Chcete-li do sluÅ¾by Flow pÅ™idat vyhledÃ¡vÃ¡nÃ­ na konkrÃ©tnÃ­ webovÃ© strÃ¡nce, zadejte nejprve do vyhledÃ¡vacÃ­ho pole tÃ©to webovÃ© strÃ¡nky testovacÃ­ textovÃ½ Å™etÄ›zec a spusÅ¥te vyhledÃ¡vÃ¡nÃ­. NynÃ­ zkopÃ­rujte obsah adresnÃ­ho Å™Ã¡dku prohlÃ­Å¾eÄe a vloÅ¾te jej do nÃ­Å¾e uvedenÃ©ho pole URL. NahraÄte svÅ¯j testovacÃ­ Å™etÄ›zec tÃ­mto {q}. Pokud napÅ™Ã­klad hledÃ¡te kasino na Netflixu, bude adresa vypadat takto</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_guide_2">https://www.netflix.com/search?q=KasÃ­no</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_guide_3">
-        Nyní celı tento retezec zkopírujte a vlote do pole URL níe.
-        Poté nahradte retezec casino retezcem {q}.
-        Obecnı vzorec pro vyhledávání Netflixu je tedy https://www.netflix.com/search?q={q}
+        NynÃ­ celÃ½ tento Å™etÄ›zec zkopÃ­rujte a vloÅ¾te do pole URL nÃ­Å¾e.
+        PotÃ© nahraÄte Å™etÄ›zec casino Å™etÄ›zcem {q}.
+        ObecnÃ½ vzorec pro vyhledÃ¡vÃ¡nÃ­ Netflixu je tedy https://www.netflix.com/search?q={q}
     </system:String>
 
     <system:String x:Key="flowlauncher_plugin_websearch_copyurl_title">Copy URL</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_copyurl_subtitle">Copy search URL to clipboard</system:String>
 
     <!--  web search edit  -->
-    <system:String x:Key="flowlauncher_plugin_websearch_title">Název</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_title">NÃ¡zev</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_enable">Stav</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_select_icon">Vybrat ikonu</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_icon">Ikona</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_cancel">Zrušit</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_invalid_web_search">Neplatné webové vyhledávání</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_input_title">Zadejte název</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_input_action_keyword">Zadejte aktivacní príkaz</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_cancel">ZruÅ¡it</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_invalid_web_search">NeplatnÃ© webovÃ© vyhledÃ¡vÃ¡nÃ­</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_input_title">Zadejte nÃ¡zev</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_input_action_keyword">Zadejte aktivaÄnÃ­ pÅ™Ã­kaz</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_input_url">Zadejte URL</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword_exist">Zadanı aktivacní príkaz ji existuje, zadejte jinı aktivacní príkaz</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_succeed">Úspešné</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_action_keyword_exist">ZadanÃ½ aktivaÄnÃ­ pÅ™Ã­kaz jiÅ¾ existuje, zadejte jinÃ½ aktivaÄnÃ­ pÅ™Ã­kaz</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_succeed">ÃšspÄ›Å¡nÃ©</system:String>
     <system:String x:Key="flowlauncher_plugin_websearch_edit_failed">Failed to update search source. The item may have been removed.</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_iconpath_hint">Poznámka: Obrázky do této sloky vkládat nemusíte, po aktualizaci BNDZ Launcheru zmizí. BNDZ Launcher automaticky zkopíruje obrázky mimo tuto sloku do vlastního umístení obrázku pluginu.</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_iconpath_hint">PoznÃ¡mka: ObrÃ¡zky do tÃ©to sloÅ¾ky vklÃ¡dat nemusÃ­te, po aktualizaci BNDZ Launcheru zmizÃ­. BNDZ Launcher automaticky zkopÃ­ruje obrÃ¡zky mimo tuto sloÅ¾ku do vlastnÃ­ho umÃ­stÄ›nÃ­ obrÃ¡zkÅ¯ pluginu.</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_websearch_plugin_name">Webové vyhledávání</system:String>
-    <system:String x:Key="flowlauncher_plugin_websearch_plugin_description">Umonuje vyhledávání na webu</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_plugin_name">WebovÃ© vyhledÃ¡vÃ¡nÃ­</system:String>
+    <system:String x:Key="flowlauncher_plugin_websearch_plugin_description">UmoÅ¾Åˆuje vyhledÃ¡vÃ¡nÃ­ na webu</system:String>
 
 </ResourceDictionary>

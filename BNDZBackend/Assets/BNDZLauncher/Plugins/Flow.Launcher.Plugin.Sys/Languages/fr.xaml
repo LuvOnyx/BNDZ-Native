@@ -9,79 +9,79 @@
     <system:String x:Key="flowlauncher_plugin_sys_desc">Description</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_command">Commande</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">Arrêter</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">Redémarrer</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">Redémarrer avec les options de démarrage avancées</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">Se déconnecter</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">ArrÃªter</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">RedÃ©marrer</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">RedÃ©marrer avec les options de dÃ©marrage avancÃ©es</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">Se dÃ©connecter</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">Verrouiller</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_sleep_cmd">Mettre en veille</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">Veille prolongée</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">Veille prolongÃ©e</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_indexoption_cmd">Options d'indexation</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin_cmd">Vider la corbeille</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin_cmd">Ouvrir la corbeille</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_exit_cmd">Quitter</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings_cmd">Sauvegarder les paramètres</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">Redémarrer BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_setting_cmd">Paramètres</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Recharger les données des plugins</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_check_for_update_cmd">Vérifier les mises à jour</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings_cmd">Sauvegarder les paramÃ¨tres</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">RedÃ©marrer BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_setting_cmd">ParamÃ¨tres</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Recharger les donnÃ©es des plugins</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_check_for_update_cmd">VÃ©rifier les mises Ã  jour</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">Ouvrir l'emplacement des logs</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips_cmd">Astuces pour BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location_cmd">Dossier des données utilisateur de BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location_cmd">Dossier des donnÃ©es utilisateur de BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">Basculer le mode de jeu</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_theme_selector_cmd">Définir le thème BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_theme_selector_cmd">DÃ©finir le thÃ¨me BNDZ Launcher</system:String>
 
     <system:String x:Key="flowlauncher_plugin_sys_edit">Modifier</system:String>
 
     <!--  Command Descriptions  -->
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">Éteindre l'ordinateur</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Redémarrer l'ordinateur</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Redémarrer l'ordinateur avec les options de démarrage avancées</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_log_off">Se déconnecter</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">Ã‰teindre l'ordinateur</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">RedÃ©marrer l'ordinateur</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">RedÃ©marrer l'ordinateur avec les options de dÃ©marrage avancÃ©es</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off">Se dÃ©connecter</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_lock">Verrouiller l'ordinateur</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_exit">Fermer BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart">Redémarrer BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_setting">Éditer les paramètres BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart">RedÃ©marrer BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_setting">Ã‰diter les paramÃ¨tres BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_sleep">Mettre en veille</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">Vider la corbeille</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">Ouvrir la corbeille</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_indexoption">Options d'indexation</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_hibernate">Hiberner l'ordinateur</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">Sauvegarder tous les paramètres BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">Rafraichir les données des plugins</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">Ouvrir le répertoire de logs BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_check_for_update">Vérifier de nouvelles mises à jour BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">Sauvegarder tous les paramÃ¨tres BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">Rafraichir les donnÃ©es des plugins</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">Ouvrir le rÃ©pertoire de logs BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_check_for_update">VÃ©rifier de nouvelles mises Ã  jour BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">Consultez la documentation de BNDZ Launcher pour plus d'aide et comment utiliser les conseils.</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">Ouvrez l'emplacement où les paramètres de BNDZ Launcher sont stockés</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">Ouvrez l'emplacement oÃ¹ les paramÃ¨tres de BNDZ Launcher sont stockÃ©s</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">Basculer le mode de jeu</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_theme_selector">Changez rapidement le thème BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_theme_selector">Changez rapidement le thÃ¨me BNDZ Launcher</system:String>
 
     <!--  Dialogs  -->
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">Ajouté avec succès</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">Tous les paramètres BNDZ Launcher ont été sauvés</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Toutes les données du plugin applicables ont été rechargés</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Êtes-vous sûr de vouloir éteindre l'ordinateur ?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">Êtes-vous sûr de vouloir redémarrer l'ordinateur ?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">Êtes-vous sûr de vouloir redémarrer l'ordinateur avec les options de démarrage avancées ?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">Êtes-vous sûr de vouloir vous déconnecter ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">AjoutÃ© avec succÃ¨s</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">Tous les paramÃ¨tres BNDZ Launcher ont Ã©tÃ© sauvÃ©s</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Toutes les donnÃ©es du plugin applicables ont Ã©tÃ© rechargÃ©s</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">ÃŠtes-vous sÃ»r de vouloir Ã©teindre l'ordinateur ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">ÃŠtes-vous sÃ»r de vouloir redÃ©marrer l'ordinateur ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">ÃŠtes-vous sÃ»r de vouloir redÃ©marrer l'ordinateur avec les options de dÃ©marrage avancÃ©es ?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">ÃŠtes-vous sÃ»r de vouloir vous dÃ©connecter ?</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_error">Erreur</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_empty_recycle_bin_failed">Impossible de vider la corbeille. Cela peut se produire si :{0}- Certains éléments sont actuellement en cours d'utilisation{0}- Certains éléments ne peuvent pas être supprimés en raison des permissions{0}. Veuillez fermer toutes les applications qui pourraient utiliser ces fichiers et réessayer.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_empty_recycle_bin_failed">Impossible de vider la corbeille. Cela peut se produire si :{0}- Certains Ã©lÃ©ments sont actuellement en cours d'utilisation{0}- Certains Ã©lÃ©ments ne peuvent pas Ãªtre supprimÃ©s en raison des permissions{0}. Veuillez fermer toutes les applications qui pourraient utiliser ces fichiers et rÃ©essayer.</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_command_keyword_setting_window_title">Réglage du mot-clé de commande</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword">Mot-clé de commande personnalisé</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword_tip">Entrez un mot-clé pour rechercher la commande : {0}. Ce mot-clé est utilisé pour répondre à votre requête.</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_command_keyword">Mot-clé de commande</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reset">Réinitialiser</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command_keyword_setting_window_title">RÃ©glage du mot-clÃ© de commande</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword">Mot-clÃ© de commande personnalisÃ©</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword_tip">Entrez un mot-clÃ© pour rechercher la commande : {0}. Ce mot-clÃ© est utilisÃ© pour rÃ©pondre Ã  votre requÃªte.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command_keyword">Mot-clÃ© de commande</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reset">RÃ©initialiser</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_confirm">Confirmer</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_cancel">Annuler</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_input_command_keyword">Veuillez saisir un mot-clé de commande non vide</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_input_command_keyword">Veuillez saisir un mot-clÃ© de commande non vide</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_plugin_name">Commandes système</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Fournit des commandes liées au système. Par exemple, arrêt, verrouillage, paramètres, etc.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_name">Commandes systÃ¨me</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Fournit des commandes liÃ©es au systÃ¨me. Par exemple, arrÃªt, verrouillage, paramÃ¨tres, etc.</system:String>
 
     <!--  Theme Selector  -->
-    <system:String x:Key="flowlauncher_plugin_sys_type_isdark_hasblur">Ce thème prend en charge deux modes (clair / sombre) et un fond transparent flou</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_type_isdark">Ce thème prend en charge deux modes (clair / sombre)</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_type_hasblur">Ce thème prend en charge un fond transparent flou</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_isdark_hasblur">Ce thÃ¨me prend en charge deux modes (clair / sombre) et un fond transparent flou</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_isdark">Ce thÃ¨me prend en charge deux modes (clair / sombre)</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_hasblur">Ce thÃ¨me prend en charge un fond transparent flou</system:String>
 
 </ResourceDictionary>

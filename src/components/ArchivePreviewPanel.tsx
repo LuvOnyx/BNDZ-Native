@@ -1,12 +1,33 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { Archive, Folder, File, Search, Download, Loader2, AlertCircle, HardDrive, Package, Upload, LogOut } from 'lucide-react';
-import { toWindowsPath } from '../lib/pathUtils';
-import { formatArchiveSize, ArchiveEntry } from '../lib/archiveTypes';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+  Archive, Folder, File, Search, Download, Loader2, AlertCircle,
+  ChevronRight, Home, Upload, FolderOpen, Image as ImageIcon, FileText, GripVertical,
+} from 'lucide-react';
+import { toWindowsPath, toVirtualStreamUrl } from '../lib/pathUtils';
+import {
+  formatArchiveSize,
+  ArchiveEntry,
+  listArchiveFolder,
+  archiveBreadcrumb,
+  normalizeArchivePath,
+} from '../lib/archiveTypes';
 
 interface ArchivePreviewPanelProps {
   path: string;
   format: string;
   onExtract?: () => void;
+}
+
+function entryIcon(entry: ArchiveEntry) {
+  if (entry.isDirectory) return <Folder size={14} className="text-amber-300 shrink-0" />;
+  const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+    return <ImageIcon size={14} className="text-sky-400 shrink-0" />;
+  }
+  if (['txt', 'md', 'html', 'htm', 'json', 'xml', 'css', 'js', 'ts'].includes(ext)) {
+    return <FileText size={14} className="text-emerald-400 shrink-0" />;
+  }
+  return <File size={14} className="text-slate-400 shrink-0" />;
 }
 
 export default function ArchivePreviewPanel({ path, format, onExtract }: ArchivePreviewPanelProps) {
@@ -18,13 +39,22 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const dragEntryRef = useRef<string | null>(null);
+  const [currentFolder, setCurrentFolder] = useState('');
+  const [selected, setSelected] = useState<ArchiveEntry | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const winPath = toWindowsPath(path);
+  const fmt = format.toLowerCase();
+  const isZip = fmt === 'zip';
+  const isRar = fmt === 'rar';
+  const canAddFiles = isZip || isRar;
+  const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
 
   const reload = useCallback(() => {
     setLoading(true);
     setError(null);
     import('../lib/ipcBridge').then(({ IPC }) => {
-      IPC.getArchiveContents(toWindowsPath(path)).then(data => {
+      IPC.getArchiveContents(winPath).then(data => {
         if (data?.error) {
           setError(data.error);
           setEntries([]);
@@ -42,18 +72,19 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         setLoading(false);
       });
     });
-  }, [path]);
+  }, [winPath]);
 
   useEffect(() => { reload(); }, [reload]);
 
-  const filtered = useMemo(() => {
+  const folderItems = useMemo(() => {
+    const items = listArchiveFolder(entries, currentFolder);
     const q = search.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(e => e.path.toLowerCase().includes(q) || e.name.toLowerCase().includes(q));
-  }, [entries, search]);
+    if (!q) return items;
+    return items.filter(e => e.name.toLowerCase().includes(q) || e.path.toLowerCase().includes(q));
+  }, [entries, currentFolder, search]);
 
+  const crumbs = useMemo(() => archiveBreadcrumb(currentFolder), [currentFolder]);
   const ratio = stats.totalSize > 0 ? Math.round((1 - stats.compressed / stats.totalSize) * 100) : 0;
-  const isZip = format.toLowerCase() === 'zip';
 
   const extractPathsFromDrop = (e: React.DragEvent): string[] => {
     const paths: string[] = [];
@@ -77,19 +108,24 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     e.preventDefault();
     e.stopPropagation();
     setDragOver(false);
-    if (!isZip) {
-      setStatus('Drag-in is supported for ZIP archives only.');
+    if (!canAddFiles) {
+      setStatus('Add files: ZIP or RAR (WinRAR required) only.');
       return;
     }
     const files = extractPathsFromDrop(e).filter(p => !p.toLowerCase().endsWith('.zip'));
     if (!files.length) return;
-    setBusy('Adding files…');
+    setBusy('Adding to archive…');
     setStatus(null);
     try {
       const { IPC } = await import('../lib/ipcBridge');
-      const result = await IPC.archiveAddFiles(toWindowsPath(path), files);
+      const prefix = currentFolder ? `${normalizeArchivePath(currentFolder)}/` : '';
+      const entryNames = files.map(f => {
+        const base = f.split(/[/\\]/).pop() || 'file';
+        return prefix + base;
+      });
+      const result = await IPC.archiveAddFiles(winPath, files, entryNames);
       if (result.success) {
-        setStatus(`Added ${files.length} file(s) to archive.`);
+        setStatus(`Added ${files.length} file(s).`);
         reload();
       } else {
         setStatus(result.error || 'Failed to add files.');
@@ -99,21 +135,61 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     }
   };
 
-  const handleEntryDragStart = (entry: ArchiveEntry, e: React.DragEvent) => {
-    if (entry.isDirectory) return;
-    dragEntryRef.current = entry.path;
-    e.dataTransfer.setData('text/bndz-archive-entry', entry.path);
-    e.dataTransfer.setData('text/plain', entry.path);
-    e.dataTransfer.effectAllowed = 'copy';
+  const openEntry = (entry: ArchiveEntry) => {
+    setSelected(entry);
+    setPreviewUrl(null);
+    if (entry.isDirectory) {
+      setCurrentFolder(normalizeArchivePath(entry.path));
+      setSelected(null);
+      return;
+    }
+    const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+    if (isNative && ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'pdf', 'html', 'htm', 'txt'].includes(ext)) {
+      void (async () => {
+        setBusy(`Loading ${entry.name}…`);
+        try {
+          const { IPC } = await import('../lib/ipcBridge');
+          const result = await IPC.archiveExtractEntryToTemp(winPath, entry.path);
+          if (result.success && result.path) {
+            setPreviewUrl(toVirtualStreamUrl(result.path));
+          }
+        } finally {
+          setBusy(null);
+        }
+      })();
+    }
   };
 
-  const handleEntryDoubleClick = async (entry: ArchiveEntry) => {
-    if (entry.isDirectory) return;
-    setBusy(`Extracting ${entry.name}…`);
+  const dragEntryOut = async (entry: ArchiveEntry) => {
+    if (entry.isDirectory || !isNative) return;
+    setBusy(`Preparing ${entry.name}…`);
     try {
       const { IPC } = await import('../lib/ipcBridge');
-      const dest = toWindowsPath(path).replace(/\\[^\\]+$/, '');
-      const result = await IPC.archiveExtractEntry(toWindowsPath(path), entry.path, dest);
+      const result = await IPC.archiveExtractEntryToTemp(winPath, entry.path);
+      if (result.success && result.path) {
+        IPC.startDrag([result.path]);
+        setStatus(`Dragging ${entry.name} — drop on desktop or folder.`);
+      } else {
+        setStatus(result.error || 'Could not extract for drag.');
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleEntryMouseDown = (entry: ArchiveEntry, e: React.MouseEvent) => {
+    if (entry.isDirectory || !isNative || e.button !== 0) return;
+    // Hold + drag initiates native OS drag (FilePilot / Explorer style)
+    void dragEntryOut(entry);
+  };
+
+  const extractSelected = async () => {
+    if (!selected || selected.isDirectory) return;
+    setBusy(`Extracting ${selected.name}…`);
+    try {
+      const { IPC } = await import('../lib/ipcBridge');
+      const dest = winPath.replace(/\\[^\\]+$/, '');
+      const result = await IPC.archiveExtractEntry(winPath, selected.path, dest);
       setStatus(result.success ? `Extracted to ${dest}` : (result.error || 'Extract failed'));
     } finally {
       setBusy(null);
@@ -122,92 +198,187 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
 
   return (
     <div
-      className={`w-full h-full flex flex-col bg-[#0a0a0a] text-gray-200 ${dragOver ? 'ring-2 ring-amber-500/40 ring-inset' : ''}`}
-      onDragOver={e => { if (isZip) { e.preventDefault(); setDragOver(true); } }}
+      className={`w-full h-full flex flex-col bg-gradient-to-b from-[#1a1f2e] to-[#0d1117] text-slate-200 ${dragOver ? 'ring-2 ring-amber-400/50 ring-inset' : ''}`}
+      onDragOver={e => { if (canAddFiles) { e.preventDefault(); setDragOver(true); } }}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDropIn}
     >
-      <div className="px-3 py-2 border-b border-[#333] bg-[#141414] shrink-0">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Archive size={16} className="text-amber-400 shrink-0" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300 truncate">
-              {format.toUpperCase()} Archive
-            </span>
+      {/* Toolbar — WinRAR / WinZip style */}
+      <div className="shrink-0 border-b border-white/10 bg-[#232b3b]/90 backdrop-blur-sm">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-600/20 flex items-center justify-center border border-amber-500/30">
+              <Archive size={16} className="text-amber-300" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[12px] font-semibold text-white truncate">{path.split(/[/\\]/).pop()}</div>
+              <div className="text-[10px] text-slate-400 font-mono">
+                {format.toUpperCase()} · {stats.count} items · {formatArchiveSize(stats.totalSize)}
+                {stats.compressed > 0 && ` · ${ratio}% compression`}
+              </div>
+            </div>
           </div>
           {onExtract && (
             <button
               type="button"
               onClick={onExtract}
-              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold bg-[#094771] hover:bg-[#0d5f8f] rounded-sm shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md bg-gradient-to-b from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white shadow-sm"
             >
-              <Download size={12} /> Extract All
+              <Download size={13} /> Extract All
             </button>
           )}
         </div>
-        <div className="flex gap-3 text-[10px] font-mono text-gray-400">
-          <span className="flex items-center gap-1"><Package size={10} /> {stats.count} items</span>
-          <span className="flex items-center gap-1"><HardDrive size={10} /> {formatArchiveSize(stats.totalSize)}</span>
-          {stats.compressed > 0 && <span>~{ratio}% saved</span>}
+
+        <div className="flex items-center gap-1 px-3 pb-2 flex-wrap text-[11px]">
+          {crumbs.map((c, i) => (
+            <React.Fragment key={c.path || 'root'}>
+              {i > 0 && <ChevronRight size={10} className="text-slate-500" />}
+              <button
+                type="button"
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/10 ${i === crumbs.length - 1 ? 'text-amber-200 font-medium' : 'text-slate-400'}`}
+                onClick={() => { setCurrentFolder(c.path); setSelected(null); setPreviewUrl(null); }}
+              >
+                {i === 0 ? <Home size={11} /> : <FolderOpen size={11} />}
+                {c.label}
+              </button>
+            </React.Fragment>
+          ))}
         </div>
-        {isZip && (
-          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-200/80 bg-amber-950/20 border border-amber-800/30 rounded px-2 py-1">
-            <Upload size={10} /> Drop files here to add · double-click entry to extract · drag entry out
+
+        <div className="px-3 pb-2 flex gap-2">
+          <div className="relative flex-1">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search in archive…"
+              className="w-full pl-8 pr-2 py-1.5 text-[11px] bg-black/30 border border-white/10 rounded-md outline-none focus:border-sky-500/50 text-slate-200 placeholder:text-slate-500"
+            />
+          </div>
+        </div>
+
+        {canAddFiles && (
+          <div className="mx-3 mb-2 flex items-center gap-2 text-[10px] text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-md px-2 py-1.5">
+            <Upload size={11} className="shrink-0" />
+            Drop to add · Double-click folders · Mousedown file to drag out
           </div>
         )}
         {(status || busy) && (
-          <div className="mt-1 text-[10px] text-gray-400 flex items-center gap-1">
-            {busy && <Loader2 size={10} className="animate-spin" />}
+          <div className="px-3 pb-2 text-[10px] text-slate-400 flex items-center gap-1.5">
+            {busy && <Loader2 size={11} className="animate-spin text-sky-400" />}
             {busy || status}
           </div>
         )}
-        <div className="relative mt-2">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Filter contents..."
-            className="w-full pl-7 pr-2 py-1 text-[11px] bg-[#1a1a1a] border border-[#333] rounded-sm outline-none focus:border-[#094771]"
-          />
-        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto styled-scrollbar">
-        {loading && (
-          <div className="flex items-center justify-center gap-2 p-8 text-gray-500 text-sm">
-            <Loader2 size={16} className="animate-spin" /> Reading archive...
-          </div>
-        )}
-        {error && (
-          <div className="flex items-center gap-2 p-4 text-red-400 text-xs">
-            <AlertCircle size={14} /> {error}
-          </div>
-        )}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="p-4 text-gray-500 text-xs italic">No entries found</div>
-        )}
-        {!loading && !error && filtered.map((entry, i) => (
-          <div
-            key={`${entry.path}-${i}`}
-            draggable={!entry.isDirectory}
-            onDragStart={e => handleEntryDragStart(entry, e)}
-            onDoubleClick={() => handleEntryDoubleClick(entry)}
-            className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#1a1a1a] border-b border-[#1a1a1a] text-[11px] font-mono cursor-pointer group"
-            title={entry.isDirectory ? entry.path : `${entry.path} — double-click to extract`}
-          >
-            {entry.isDirectory
-              ? <Folder size={12} className="text-[#dcb67a] shrink-0" />
-              : <File size={12} className="text-gray-400 shrink-0 group-hover:text-amber-300" />}
-            <span className="flex-1 truncate text-gray-300">{entry.path || entry.name}</span>
-            {!entry.isDirectory && (
-              <>
-                <span className="text-gray-500 shrink-0">{formatArchiveSize(entry.size)}</span>
-                <LogOut size={10} className="text-gray-600 opacity-0 group-hover:opacity-100 shrink-0" />
-              </>
-            )}
-          </div>
-        ))}
+      {/* Split: file list + preview */}
+      <div className="flex-1 flex min-h-0">
+        <div className="flex-1 min-w-0 overflow-y-auto bndz-scrollbar border-r border-white/5">
+          {loading && (
+            <div className="flex items-center justify-center gap-2 p-10 text-slate-500 text-sm">
+              <Loader2 size={18} className="animate-spin text-sky-400" /> Opening archive…
+            </div>
+          )}
+          {error && (
+            <div className="flex items-center gap-2 p-4 m-3 text-red-300 text-xs bg-red-950/30 rounded-lg border border-red-800/40">
+              <AlertCircle size={14} /> {error}
+            </div>
+          )}
+          {!loading && !error && folderItems.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-xs">This folder is empty</div>
+          )}
+          {!loading && !error && folderItems.map((entry, i) => {
+            const isSel = selected?.path === entry.path;
+            return (
+              <div
+                key={`${entry.path}-${i}`}
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-white/[0.03] group transition-colors ${isSel ? 'bg-sky-900/40 border-l-2 border-l-sky-400' : 'hover:bg-white/[0.04] border-l-2 border-l-transparent'}`}
+                onClick={() => openEntry(entry)}
+                onMouseDown={e => handleEntryMouseDown(entry, e)}
+                onDoubleClick={() => {
+                  if (entry.isDirectory) {
+                    openEntry(entry);
+                  } else {
+                    setSelected(entry);
+                    void (async () => {
+                      setBusy(`Extracting ${entry.name}…`);
+                      try {
+                        const { IPC } = await import('../lib/ipcBridge');
+                        const dest = winPath.replace(/\\[^\\]+$/, '');
+                        const result = await IPC.archiveExtractEntry(winPath, entry.path, dest);
+                        setStatus(result.success ? `Extracted to ${dest}` : (result.error || 'Extract failed'));
+                      } finally {
+                        setBusy(null);
+                      }
+                    })();
+                  }
+                }}
+              >
+                {entryIcon(entry)}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] text-slate-200 truncate font-medium">{entry.name}</div>
+                  {!entry.isDirectory && (
+                    <div className="text-[10px] text-slate-500 font-mono">{formatArchiveSize(entry.size)}</div>
+                  )}
+                </div>
+                {!entry.isDirectory && isNative && (
+                  <button
+                    type="button"
+                    title="Drag out to desktop"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/10 text-slate-400 hover:text-amber-300 transition-opacity"
+                    onClick={e => { e.stopPropagation(); void dragEntryOut(entry); }}
+                  >
+                    <GripVertical size={14} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="w-[42%] min-w-[140px] max-w-[280px] flex flex-col bg-black/20">
+          {selected && !selected.isDirectory ? (
+            <>
+              <div className="px-3 py-2 border-b border-white/5 text-[11px] font-semibold text-slate-300 truncate">
+                {selected.name}
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center p-2">
+                {previewUrl ? (
+                  selected.name.match(/\.(png|jpe?g|gif|webp|bmp|svg)$/i) ? (
+                    <img src={previewUrl} alt={selected.name} className="max-w-full max-h-full object-contain rounded shadow-lg" />
+                  ) : selected.name.match(/\.pdf$/i) ? (
+                    <iframe src={previewUrl} className="w-full h-full border-0 rounded" title={selected.name} />
+                  ) : selected.name.match(/\.html?$/i) ? (
+                    <iframe src={previewUrl} sandbox="allow-same-origin" className="w-full h-full border-0 rounded bg-white" title={selected.name} />
+                  ) : (
+                    <iframe src={previewUrl} className="w-full h-full border-0 rounded bg-[#0a0a0a]" title={selected.name} />
+                  )
+                ) : (
+                  <div className="text-center p-4 text-slate-500 text-[11px]">
+                    <File size={32} className="mx-auto mb-2 opacity-40" />
+                    {formatArchiveSize(selected.size)}
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <button type="button" onClick={() => void extractSelected()} className="px-3 py-1.5 rounded bg-sky-700/80 hover:bg-sky-600 text-white text-[10px] font-semibold">
+                        Extract Here
+                      </button>
+                      {isNative && (
+                        <button type="button" onClick={() => void dragEntryOut(selected)} className="px-3 py-1.5 rounded bg-amber-800/60 hover:bg-amber-700/80 text-amber-100 text-[10px] font-semibold">
+                          Drag Out…
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-[11px] p-4 text-center">
+              <Archive size={36} className="mb-3 opacity-30 text-amber-400" />
+              <p>Select a file to preview or extract. Navigate folders like a real archive manager.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

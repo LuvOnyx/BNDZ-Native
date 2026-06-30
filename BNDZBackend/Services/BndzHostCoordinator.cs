@@ -11,7 +11,11 @@ public sealed class BndzHostCoordinator
 
     public void RegisterMain(MainWindow main) => _main = main;
 
-    public void ShowLauncher() => BndzFlowLauncherService.Instance.Show();
+    public void ShowLauncher()
+    {
+        BndzFlowLauncherService.Instance.EnsureRunning();
+        BndzLauncherShellService.Instance.Show();
+    }
 
     public void EnsureLauncherRunning(string? bndzJson = null) =>
         BndzFlowLauncherService.Instance.ApplyConfigAndEnsureRunning(bndzJson);

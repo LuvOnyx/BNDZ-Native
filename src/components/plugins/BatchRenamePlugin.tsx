@@ -1,12 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { Replace, Search, Type, Hash, ArrowRight, CaseSensitive, FileInput, Plus, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Replace, Search, Hash, ArrowRight, FileInput, CaseSensitive, Calendar, Loader2 } from 'lucide-react';
 import { IPC } from '../../lib/ipcBridge';
+import { pushToast } from '../ToastHost';
+import PluginPanelShell from './PluginPanelShell';
 
 export const BatchRenamePluginDef = {
     id: "batch-rename",
     name: "Batch Rename",
     icon: Replace
 };
+
+type RenameTarget = {
+    sourcePath: string;
+    oldName: string;
+    parentDir: string;
+};
+
+function normalizeTargets(selectedItems: string[], focusedPath?: string): RenameTarget[] {
+    const parentFallback = (focusedPath || '').replace(/\//g, '\\').replace(/\\+$/, '');
+    return selectedItems.map(raw => {
+        const normalized = raw.replace(/\//g, '\\');
+        if (/^[A-Za-z]:\\/.test(normalized) || normalized.startsWith('\\\\')) {
+            const sep = normalized.lastIndexOf('\\');
+            return {
+                sourcePath: normalized,
+                oldName: sep >= 0 ? normalized.slice(sep + 1) : normalized,
+                parentDir: sep >= 0 ? normalized.slice(0, sep) : parentFallback,
+            };
+        }
+        return {
+            sourcePath: parentFallback ? `${parentFallback}\\${raw}` : raw,
+            oldName: raw,
+            parentDir: parentFallback,
+        };
+    });
+}
 
 export default function BatchRenamePlugin({ activeTab, drives, config, entity, focusedPath, selectedItems }: any) {
     const [findStr, setFindStr] = useState("");
@@ -20,9 +48,26 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
     const [seqStart, setSeqStart] = useState<number>(1);
     const [seqPad, setSeqPad] = useState<number>(3);
     const [seqSeparator, setSeqSeparator] = useState<string>("_");
-    
-    // Extracted targets
-    const items = selectedItems || [];
+    const [useDateTokens, setUseDateTokens] = useState(false);
+    const [committing, setCommitting] = useState(false);
+
+    const targets = useMemo(
+        () => normalizeTargets(selectedItems || [], focusedPath),
+        [selectedItems, focusedPath],
+    );
+
+    const expandTokens = (str: string, index: number) => {
+        if (!str) return str;
+        const now = new Date();
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        const time = `${pad(now.getHours())}${pad(now.getMinutes())}`;
+        return str
+            .replace(/\{date\}/g, date)
+            .replace(/\{time\}/g, time)
+            .replace(/\{datetime\}/g, `${date}_${time}`)
+            .replace(/\{index\}/g, String(seqStart + index).padStart(seqPad, '0'));
+    };
 
     const applyCasing = (str: string, type: string) => {
         if (type === "lower") return str.toLowerCase();
@@ -46,71 +91,118 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
 
         let newBase = baseName;
 
-        // 1. Find and Replace
         if (findStr) {
             if (useRegex) {
                 try {
                     const regex = new RegExp(findStr, 'g');
                     newBase = newBase.replace(regex, replaceStr);
-                } catch { /* Ignore invalid regex during typing */ }
+                } catch { /* invalid regex while typing */ }
             } else {
                 newBase = newBase.split(findStr).join(replaceStr);
             }
         }
 
-        // 2. Casing
         if (casing !== "none") {
             newBase = applyCasing(newBase, casing);
         }
 
-        // 3. Prepend / Append
         if (prefix) newBase = prefix + newBase;
         if (suffix) newBase = newBase + suffix;
 
-        // 4. Sequential Numbering
         if (useSequence) {
             const numStr = (seqStart + index).toString().padStart(seqPad, '0');
             newBase = newBase + seqSeparator + numStr;
         }
 
+        if (useDateTokens) {
+            newBase = expandTokens(newBase, index);
+            extension = expandTokens(extension, index);
+        }
+
         return newBase + extension;
     };
 
-    const previews = items.map((oldName: string, i: number) => ({
-        oldName,
-        newName: processItem(oldName, i)
+    const previews = targets.map((t, i) => ({
+        ...t,
+        newName: processItem(t.oldName, i),
     }));
 
-    const handleCommit = () => {
-        if (!focusedPath) return;
-        previews.forEach((p: any, idx: number) => {
-            if (p.oldName !== p.newName) {
-                IPC.executeFsOperation(`rename-batch-${idx}`, 'move', `${focusedPath}/${p.oldName}`, `${focusedPath}/${p.newName}`);
+    const collisions = useMemo(
+        () => previews.filter(p => p.oldName !== p.newName && p.newName),
+        [previews],
+    );
+
+    const batchNameConflicts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const p of previews) {
+            if (p.oldName === p.newName || !p.newName) continue;
+            const key = `${p.parentDir.toLowerCase()}\\${p.newName.toLowerCase()}`;
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([k]) => k));
+    }, [previews]);
+
+    const handleCommit = async () => {
+        if (!collisions.length || committing) return;
+        setCommitting(true);
+        let renamed = 0;
+        let skipped = 0;
+        let failed = 0;
+
+        try {
+            for (const p of collisions) {
+                if (!p.parentDir) { failed++; continue; }
+                const dest = `${p.parentDir}\\${p.newName}`;
+                if (dest.toLowerCase() === p.sourcePath.toLowerCase()) {
+                    skipped++;
+                    continue;
+                }
+                try {
+                    const exists = await IPC.checkPathExists(dest);
+                    if (exists) {
+                        skipped++;
+                        continue;
+                    }
+                    await IPC.executeFsOperation(`rename-batch-${renamed}`, 'move', p.sourcePath, dest);
+                    renamed++;
+                } catch {
+                    failed++;
+                }
             }
-        });
+            if (failed === 0 && skipped === 0) {
+                pushToast({ kind: 'success', title: 'Rename complete', message: `${renamed} item(s) renamed.` });
+            } else {
+                pushToast({
+                    kind: skipped > 0 && renamed === 0 ? 'warning' : 'info',
+                    title: 'Rename finished',
+                    message: `${renamed} renamed, ${skipped} skipped (collision/unchanged), ${failed} failed.`,
+                });
+            }
+        } finally {
+            setCommitting(false);
+        }
     };
 
     return (
-        <div className="w-full h-full flex flex-col bg-[#0a0a0a] text-gray-200 text-xs font-sans">
-            <div className="flex border-b border-[#222] bg-[#111] p-3 shrink-0 items-center justify-between shadow-sm">
-                <div className="flex items-center gap-2 text-[13px] font-bold tracking-tight text-white">
-                    <Replace size={16} className="text-emerald-400" /> Advanced Batch Rename
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="text-[11px] text-gray-500 font-mono bg-[#000] px-2 py-1 rounded border border-[#222]">
-                        {items.length} items selected
-                    </div>
-                    <button onClick={handleCommit} disabled={items.length === 0} className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900/30 disabled:text-gray-600 disabled:border-emerald-900/50 rounded text-white font-semibold transition-all shadow-sm border border-emerald-500">
-                        Apply Renames
-                    </button>
-                </div>
-            </div>
-            
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left Panel: Controls */}
+        <PluginPanelShell
+            title="Batch Rename"
+            icon={Replace}
+            iconColor="#34d399"
+            subtitle={`${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
+            toolbar={
+                <button
+                    type="button"
+                    onClick={() => void handleCommit()}
+                    disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
+                    className="px-3 py-1.5 text-[11px] bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900/30 disabled:text-gray-600 rounded text-white font-semibold border border-emerald-500/50 flex items-center gap-1.5"
+                >
+                    {committing ? <Loader2 size={12} className="animate-spin" /> : null}
+                    Apply Renames
+                </button>
+            }
+        >
+            <div className="w-full h-full flex text-gray-200 text-xs font-sans overflow-hidden">
                 <div className="w-[320px] bg-[#141414] border-r border-[#222] flex flex-col overflow-y-auto bndz-scrollbar">
-                    
-                    {/* Find & Replace */}
                     <div className="p-4 border-b border-[#222]">
                         <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Search size={12}/> Find & Replace</h3>
                         <div className="space-y-3">
@@ -130,7 +222,6 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                         </div>
                     </div>
 
-                    {/* Prepend & Append */}
                     <div className="p-4 border-b border-[#222]">
                         <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><FileInput size={12}/> Affixes</h3>
                         <div className="flex gap-3">
@@ -145,7 +236,6 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                         </div>
                     </div>
 
-                    {/* Transformations */}
                     <div className="p-4 border-b border-[#222]">
                         <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><CaseSensitive size={12}/> Formatting</h3>
                         <div>
@@ -160,7 +250,6 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                         </div>
                     </div>
 
-                    {/* Serialization */}
                     <div className="p-4">
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Hash size={12}/> Sequential Numbering</h3>
@@ -188,11 +277,25 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                             </div>
                         )}
                     </div>
+
+                    <div className="p-4 border-t border-[#222]">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Calendar size={12}/> Date tokens</h3>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={useDateTokens} onChange={e => setUseDateTokens(e.target.checked)} className="sr-only peer" />
+                                <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                        </div>
+                        {useDateTokens && (
+                            <p className="text-[10px] text-gray-500 leading-relaxed">
+                                Use <code className="text-emerald-400">{'{date}'}</code>, <code className="text-emerald-400">{'{time}'}</code>, <code className="text-emerald-400">{'{datetime}'}</code>, <code className="text-emerald-400">{'{index}'}</code> in prefix, suffix, or find/replace fields.
+                            </p>
+                        )}
+                    </div>
                 </div>
 
-                {/* Right Panel: Live Preview */}
                 <div className="flex-1 overflow-y-auto bg-[#0a0a0a] relative bndz-scrollbar">
-                    {items.length === 0 ? (
+                    {targets.length === 0 ? (
                         <div className="absolute inset-0 flex items-center justify-center text-gray-600 flex-col gap-2 pointer-events-none">
                             <Replace size={48} className="opacity-20" />
                             <span className="font-medium text-sm">Select files to preview renames</span>
@@ -208,17 +311,19 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                                 </tr>
                             </thead>
                             <tbody>
-                                {previews.map((p: any, i: number) => {
+                                {previews.map((p, i) => {
                                     const changed = p.oldName !== p.newName;
+                                    const conflictKey = `${p.parentDir.toLowerCase()}\\${p.newName.toLowerCase()}`;
+                                    const hasConflict = changed && batchNameConflicts.has(conflictKey);
                                     return (
-                                    <tr key={i} className="border-b border-[#181818] hover:bg-[#111] group">
-                                        <td className="p-2.5 truncate max-w-xs transition-colors" style={{ color: changed ? '#888' : '#ccc' }} title={p.oldName}>
+                                    <tr key={i} className={`border-b border-[#181818] hover:bg-[#111] group ${hasConflict ? 'bg-red-950/20' : ''}`}>
+                                        <td className="p-2.5 truncate max-w-xs transition-colors" style={{ color: changed ? '#888' : '#ccc' }} title={p.sourcePath}>
                                             <span className={changed ? 'line-through decoration-red-500/50' : ''}>{p.oldName}</span>
                                         </td>
                                         <td className="p-2.5 flex justify-center text-gray-600 group-hover:text-emerald-500/50 transition-colors">
                                             {changed ? <ArrowRight size={14} /> : <div className="w-3" />}
                                         </td>
-                                        <td className="p-2.5 truncate max-w-xs transition-colors" style={{ color: changed ? '#34d399' : '#ccc' }} title={p.newName}>
+                                        <td className="p-2.5 truncate max-w-xs transition-colors" style={{ color: changed ? '#34d399' : '#ccc' }} title={`${p.parentDir}\\${p.newName}`}>
                                             {p.newName}
                                         </td>
                                     </tr>
@@ -229,6 +334,6 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                     )}
                 </div>
             </div>
-        </div>
+        </PluginPanelShell>
     );
 }

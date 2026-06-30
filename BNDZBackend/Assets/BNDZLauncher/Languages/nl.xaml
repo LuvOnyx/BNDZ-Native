@@ -51,7 +51,7 @@
     <system:String x:Key="iconTrayAbout">Over</system:String>
     <system:String x:Key="iconTrayExit">Afsluiten</system:String>
     <system:String x:Key="closeWindow">Sluiten</system:String>
-    <system:String x:Key="copy">Kopi�ren</system:String>
+    <system:String x:Key="copy">Kopiëren</system:String>
     <system:String x:Key="cut">Knippen</system:String>
     <system:String x:Key="paste">Plakken</system:String>
     <system:String x:Key="undo">Ongedaan maken</system:String>
@@ -73,7 +73,7 @@
     <system:String x:Key="flowlauncher_settings">Instellingen</system:String>
     <system:String x:Key="general">Algemeen</system:String>
     <system:String x:Key="portableMode">Draagbare Modus</system:String>
-    <system:String x:Key="portableModeToolTIp">Alle instellingen en gebruikersgegevens opslaan in ��n map (Nuttig bij het gebruik van verwijderbare schijven of cloud services).</system:String>
+    <system:String x:Key="portableModeToolTIp">Alle instellingen en gebruikersgegevens opslaan in één map (Nuttig bij het gebruik van verwijderbare schijven of cloud services).</system:String>
     <system:String x:Key="startFlowLauncherOnSystemStartup">Start BNDZ Launcher als systeem opstart</system:String>
     <system:String x:Key="useLogonTaskForStartup">Use logon task instead of startup entry for faster startup experience</system:String>
     <system:String x:Key="useLogonTaskForStartupTooltip">After uninstallation, you need to manually remove this task (BNDZ.Launcher Startup) via Task Scheduler</system:String>
@@ -109,7 +109,7 @@
     <system:String x:Key="defaultFileManager">Standaard Bestandsbeheerder</system:String>
     <system:String x:Key="defaultFileManagerToolTip">Selecteer de bestandsbeheerder voor het openen van de map.</system:String>
     <system:String x:Key="defaultBrowser">Standaard webbrowser</system:String>
-    <system:String x:Key="defaultBrowserToolTip">Instelling voor Nieuw tabblad, Nieuw Venster, Priv�modus.</system:String>
+    <system:String x:Key="defaultBrowserToolTip">Instelling voor Nieuw tabblad, Nieuw Venster, Privémodus.</system:String>
     <system:String x:Key="pythonFilePath">Python pad</system:String>
     <system:String x:Key="nodeFilePath">Node.js pad</system:String>
     <system:String x:Key="selectNodeExecutable">Selecteer de Node.js uitvoerbare</system:String>
@@ -187,7 +187,7 @@
     <system:String x:Key="executedHistory">Last opened history</system:String>
     <system:String x:Key="homeToggleBoxToolTip">This can only be edited if plugin supports Home feature and Home Page is enabled.</system:String>
     <system:String x:Key="showAtTopmost">Show Search Window at Foremost</system:String>
-    <system:String x:Key="showAtTopmostToolTip">Overrides other programs' 'Always on Top' setting and shows BNDZ in the foremost position.</system:String>
+    <system:String x:Key="showAtTopmostToolTip">Overrides other programs' 'Always on Top' setting and displays BNDZ in the foremost position.</system:String>
     <system:String x:Key="autoRestartAfterChanging">Restart after modifying plugin via Plugin Store</system:String>
     <system:String x:Key="autoRestartAfterChangingToolTip">Restart BNDZ Launcher automatically after installing/uninstalling/updating plugin via Plugin Store</system:String>
     <system:String x:Key="showUnknownSourceWarning">Show unknown source warning</system:String>
@@ -250,7 +250,7 @@
     <system:String x:Key="pluginStore_NewRelease">Nieuwe Versie</system:String>
     <system:String x:Key="pluginStore_RecentlyUpdated">Recent bijgewerkt</system:String>
     <system:String x:Key="pluginStore_None">Plugins</system:String>
-    <system:String x:Key="pluginStore_Installed">Ge�nstalleerd</system:String>
+    <system:String x:Key="pluginStore_Installed">Geïnstalleerd</system:String>
     <system:String x:Key="PluginStoreSortModeDefault">Default</system:String>
     <system:String x:Key="PluginStoreSortModeName">Name</system:String>
     <system:String x:Key="PluginStoreSortModeReleaseDate">Release Date</system:String>
@@ -260,7 +260,7 @@
     <system:String x:Key="installbtn">Installeren</system:String>
     <system:String x:Key="uninstallbtn">Verwijderen</system:String>
     <system:String x:Key="updatebtn">Bijwerken</system:String>
-    <system:String x:Key="LabelInstalledToolTip">Plug-in is al ge�nstalleerd</system:String>
+    <system:String x:Key="LabelInstalledToolTip">Plug-in is al geïnstalleerd</system:String>
     <system:String x:Key="LabelNew">Nieuwe Versie</system:String>
     <system:String x:Key="LabelNewToolTip">Deze plug-in is in de laatste 7 dagen bijgewerkt</system:String>
     <system:String x:Key="LabelUpdateToolTip">Nieuwe update beschikbaar</system:String>
@@ -296,7 +296,7 @@
     <!--  Setting Theme  -->
     <system:String x:Key="theme">Thema</system:String>
     <system:String x:Key="appearance">Uiterlijk</system:String>
-    <system:String x:Key="browserMoreThemes">Zoek meer thema�s</system:String>
+    <system:String x:Key="browserMoreThemes">Zoek meer thema´s</system:String>
     <system:String x:Key="howToCreateTheme">Hoe maak je een thema</system:String>
     <system:String x:Key="hiThere">Hallo daar</system:String>
     <system:String x:Key="SampleTitleExplorer">Verkenner</system:String>
@@ -306,7 +306,7 @@
     <system:String x:Key="SampleTitleProgram">Programma</system:String>
     <system:String x:Key="SampleSubTitleProgram">Programma's starten als admin of een andere gebruiker</system:String>
     <system:String x:Key="SampleTitleProcessKiller">Procesdoder</system:String>
-    <system:String x:Key="SampleSubTitleProcessKiller">Ongewenste processen be�indigen</system:String>
+    <system:String x:Key="SampleSubTitleProcessKiller">Ongewenste processen beëindigen</system:String>
     <system:String x:Key="SearchBarHeight">Zoekbalk hoogte</system:String>
     <system:String x:Key="ItemHeight">Item hoogte</system:String>
     <system:String x:Key="queryBoxFont">Query Box lettertype</system:String>
@@ -489,7 +489,7 @@
     <system:String x:Key="clearfolderfailMessage">Failed to clear part of folders and files. Please see log file for more information</system:String>
     <system:String x:Key="welcomewindow">Wizard</system:String>
     <system:String x:Key="userdatapath">Gegevenslocatie van gebruiker</system:String>
-    <system:String x:Key="userdatapathToolTip">Gebruikersinstellingen en ge�nstalleerde plug-ins worden opgeslagen in de gebruikersgegevensmap. Deze locatie kan vari�ren afhankelijk van of het in draagbare modus is of niet.</system:String>
+    <system:String x:Key="userdatapathToolTip">Gebruikersinstellingen en geïnstalleerde plug-ins worden opgeslagen in de gebruikersgegevensmap. Deze locatie kan variëren afhankelijk van of het in draagbare modus is of niet.</system:String>
     <system:String x:Key="userdatapathButton">Map openen</system:String>
     <system:String x:Key="advanced">Advanced</system:String>
     <system:String x:Key="logLevel">Log Level</system:String>
@@ -532,7 +532,7 @@
     <system:String x:Key="defaultBrowser_path">Browser pad</system:String>
     <system:String x:Key="defaultBrowser_newWindow">Nieuw Venster</system:String>
     <system:String x:Key="defaultBrowser_newTab">Nieuw tabblad</system:String>
-    <system:String x:Key="defaultBrowser_parameter">Priv� modus</system:String>
+    <system:String x:Key="defaultBrowser_parameter">Privé modus</system:String>
     <system:String x:Key="defaultBrowser_extraArgs">Extra Args</system:String>
     <system:String x:Key="defaultBrowser_default">Default</system:String>
     <system:String x:Key="defaultBrowser_new_profile">New Profile</system:String>
@@ -649,7 +649,7 @@ Als u een '@' voorvoegsel toevoegt tijdens het invoeren van een snelkoppeling, m
     <system:String x:Key="update_flowlauncher_fail">Update Failed</system:String>
     <system:String x:Key="update_flowlauncher_check_connection">Check your connection and try updating proxy settings to github-cloud.s3.amazonaws.com.</system:String>
     <system:String x:Key="update_flowlauncher_update_restart_flowlauncher_tip">Deze upgrade zal BNDZ Launcher opnieuw opstarten</system:String>
-    <system:String x:Key="update_flowlauncher_update_update_files">Volgende bestanden zullen worden ge�pdatet</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_files">Volgende bestanden zullen worden geüpdatet</system:String>
     <system:String x:Key="update_flowlauncher_update_files">Update bestanden</system:String>
     <system:String x:Key="update_flowlauncher_update_update_description">Update beschrijving</system:String>
 

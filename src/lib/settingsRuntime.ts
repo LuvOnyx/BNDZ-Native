@@ -27,6 +27,7 @@ export interface SettingsRuntimeContext {
     useGenericIcons: boolean;
     applyColorFilters: boolean;
     showHiddenInList: boolean;
+    zebraRows: boolean;
   };
   sort: {
     method: string;
@@ -109,6 +110,7 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       useGenericIcons: !!config.useGenericIconsForSuperFastBrowsing,
       applyColorFilters: config.applyColorFiltersToTheList !== false && config.enableColorFilters !== false,
       showHiddenInList: !!config.showHiddenSystemFoldersInTree,
+      zebraRows: !!config.selectConfig5 && config.selectConfig5 !== 'Solid Color' && config.selectConfig5 !== false,
     },
     sort: {
       method: config.sortMethod || 'Natural',

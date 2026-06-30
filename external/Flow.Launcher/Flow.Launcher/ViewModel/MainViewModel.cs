@@ -1910,6 +1910,9 @@ namespace Flow.Launcher.ViewModel
 
         public void ToggleFlowLauncher()
         {
+            if (BndzShellRedirect.TryToggle?.Invoke() == true)
+                return;
+
             if (!MainWindowVisibilityStatus)
             {
                 Show();
@@ -2140,6 +2143,9 @@ namespace Flow.Launcher.ViewModel
         {
             // When application is exiting, we should not show the main window
             if (App.LoadingOrExiting) return;
+
+            if (BndzShellRedirect.TryRedirect?.Invoke() == true)
+                return;
 
             // When application is exiting, the Application.Current will be null
             Application.Current?.Dispatcher.Invoke(() =>

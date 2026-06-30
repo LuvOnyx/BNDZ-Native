@@ -33,15 +33,129 @@ public class EverythingSearchService
         int limit = 1000,
         bool useRegex = false,
         string rootPath = "",
-        bool preferEverything = true)
+        bool preferEverything = true,
+        bool searchContent = false)
+    {
+        return SearchAdvanced(query, limit, useRegex, string.IsNullOrEmpty(rootPath) ? [] : [rootPath], preferEverything, searchContent, false);
+    }
+
+    public (List<object> Results, string Engine) SearchAdvanced(
+        string query,
+        int limit,
+        bool useRegex,
+        IReadOnlyList<string> rootPaths,
+        bool preferEverything,
+        bool searchContent,
+        bool booleanMode)
     {
         var results = new List<object>();
         if (string.IsNullOrWhiteSpace(query)) return (results, "indexed");
 
-        if (preferEverything && TrySearchEverything(query, limit, rootPath, results))
+        var roots = rootPaths?.Where(p => !string.IsNullOrWhiteSpace(p)).ToList() ?? [];
+        var primaryRoot = roots.FirstOrDefault() ?? "";
+
+        if (booleanMode && !useRegex)
+        {
+            var ast = BndzBooleanSearchParser.Parse(query);
+            var evQuery = BndzBooleanSearchParser.ToEverythingQuery(ast);
+            if (searchContent && !evQuery.Contains(':'))
+                evQuery = $"content:{evQuery}";
+
+            if (preferEverything && TrySearchEverything(evQuery, limit, primaryRoot, results))
+                return (results.Take(limit).ToList(), "everything");
+
+            foreach (var root in roots.Count > 0 ? roots : [""])
+            {
+                var partial = SearchFilesystemBoolean(ast, limit - results.Count, useRegex, root);
+                results.AddRange(partial);
+                if (results.Count >= limit) break;
+            }
+            if (results.Count > 0) return (results.Take(limit).ToList(), "indexed-boolean");
+
+            if (searchContent)
+            {
+                var grepRoots = roots.Count > 0 ? roots : SearchRoots.ToList();
+                var grep = new BndzContentGrepService().Grep(grepRoots, query, limit, useRegex);
+                return (grep, "content-grep");
+            }
+            return (results, "indexed-boolean");
+        }
+
+        if (searchContent && !query.Contains(':', StringComparison.Ordinal))
+            query = $"content:{query}";
+
+        if (preferEverything && TrySearchEverything(query, limit, primaryRoot, results))
             return (results.Take(limit).ToList(), "everything");
 
-        return (SearchFilesystem(query, limit, useRegex, rootPath), "indexed");
+        var fs = SearchFilesystem(query, limit, useRegex, primaryRoot);
+        if (fs.Count > 0) return (fs, "indexed");
+
+        if (searchContent)
+        {
+            var grepRoots = roots.Count > 0 ? roots : SearchRoots.ToList();
+            var grep = new BndzContentGrepService().Grep(grepRoots, query, limit, useRegex);
+            return (grep, "content-grep");
+        }
+        return (fs, "indexed");
+    }
+
+    private List<object> SearchFilesystemBoolean(BndzBooleanSearchParser.Node ast, int limit, bool useRegex, string rootPath)
+    {
+        var results = new List<object>();
+        var roots = new List<string>();
+        int maxDepth = DefaultMaxDepth;
+
+        if (!string.IsNullOrEmpty(rootPath))
+        {
+            var normalized = rootPath.Replace("/", "\\");
+            if (normalized.StartsWith("\\") && normalized.Length > 2 && normalized[1] != ':')
+                normalized = normalized.TrimStart('\\');
+            if (Directory.Exists(normalized))
+            {
+                roots.Add(normalized);
+                if (IsDriveRoot(normalized)) maxDepth = DriveRootMaxDepth;
+            }
+        }
+        if (roots.Count == 0)
+        {
+            roots.AddRange(SearchRoots.Distinct().Where(Directory.Exists));
+            maxDepth = 6;
+        }
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var root in roots)
+        {
+            SearchDirectoryBoolean(root, ast, results, limit, useRegex, maxDepth, 0, sw);
+            if (results.Count >= limit || sw.ElapsedMilliseconds > TimeBudgetMs) break;
+        }
+        return results.Take(limit).ToList();
+    }
+
+    private static void SearchDirectoryBoolean(
+        string dir, BndzBooleanSearchParser.Node ast, List<object> results, int limit,
+        bool useRegex, int maxDepth, int depth, System.Diagnostics.Stopwatch sw)
+    {
+        if (results.Count >= limit || depth > maxDepth || sw.ElapsedMilliseconds > TimeBudgetMs) return;
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(dir))
+            {
+                if (results.Count >= limit || sw.ElapsedMilliseconds > TimeBudgetMs) return;
+                var name = Path.GetFileName(file);
+                if (BndzBooleanSearchParser.MatchesFilename(name, ast, useRegex))
+                    results.Add(new { name, path = "/" + file.Replace("\\", "/"), size = new FileInfo(file).Length });
+            }
+            foreach (var sub in Directory.EnumerateDirectories(dir))
+            {
+                if (results.Count >= limit || sw.ElapsedMilliseconds > TimeBudgetMs) return;
+                var name = Path.GetFileName(sub);
+                if (SkipDirs.Contains(name) || name.StartsWith('.')) continue;
+                if (BndzBooleanSearchParser.MatchesFilename(name, ast, useRegex))
+                    results.Add(new { name, path = "/" + sub.Replace("\\", "/"), isDirectory = true });
+                SearchDirectoryBoolean(sub, ast, results, limit, useRegex, maxDepth, depth + 1, sw);
+            }
+        }
+        catch { }
     }
 
     private static bool TrySearchEverything(string query, int limit, string rootPath, List<object> results)

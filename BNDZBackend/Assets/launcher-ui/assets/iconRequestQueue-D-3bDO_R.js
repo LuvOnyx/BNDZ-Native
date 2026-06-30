@@ -1,0 +1,1 @@
+let e=0;const t=[];function o(){for(;e<14&&t.length>0;){const n=t.shift();n&&n()}}function s(n){return new Promise((i,u)=>{const c=()=>{e++,n().then(i,u).finally(()=>{e--,o()})};t.push(c),o()})}export{s as enqueueIconRequest};

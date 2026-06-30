@@ -5,25 +5,25 @@
     <system:String x:Key="flowlauncher_plugin_sys_skip_confirm">Skip confirmation when Shutting down, Restarting, or Logging off</system:String>
 
     <!--  Command List  -->
-    <system:String x:Key="flowlauncher_plugin_sys_name">T�n</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_desc">M� T?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_command">L?nh</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_name">Tên</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_desc">Mô Tả</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command">Lệnh</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">T?t m�y</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">Kh?i d?ng l?i</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">Kh?i d?ng l?i v?i c�c t�y ch?n kh?i d?ng n�ng cao</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">�ang xu?t</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">Kh�a m�y</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_sleep_cmd">Ch? d? ng?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">Ch? d? ng? d�ng</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">Tắt máy</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">Khởi động lại</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">Khởi động lại với các tùy chọn khởi động nâng cao</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">Đăng xuất</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">Khóa máy</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_sleep_cmd">Chế độ ngủ</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">Chế độ ngủ đông</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_indexoption_cmd">Index Option</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin_cmd">Empty Recycle Bin</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin_cmd">Open Recycle Bin</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_exit_cmd">Tho�t</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_exit_cmd">Thoát</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_save_all_settings_cmd">Save Settings</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">B?t d?u Flow-Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_setting_cmd">C�i d?t</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">D? li?u plugin kh�ng t?i</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">Bắt đầu Flow-Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_setting_cmd">Cài đặt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Dữ liệu plugin không tải</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_check_for_update_cmd">Check For Update</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">Open Log Location</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips_cmd">BNDZ Launcher Tips</system:String>
@@ -31,53 +31,53 @@
     <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">Toggle Game Mode</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_theme_selector_cmd">Set the BNDZ Launcher Theme</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_edit">S?a</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_edit">Sửa</system:String>
 
     <!--  Command Descriptions  -->
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">shutdown m�y t�nh</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Kh?i d?ng l?i m�y t�nh</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Kh?i d?ng l?i m�y t�nh v?i T�y ch?n kh?i d?ng n�ng cao cho ch? d? An to�n v� G? l?i, cung nhu c�c t�y ch?n kh�c</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_log_off">�ang xu?t</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_lock">Kh�a m�y t�nh n�y</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_exit">Ch�o m?ng b?n d?n v?i Tr�nh kh?i ch?y lu?ng</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart">B?t d?u Flow-Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">shutdown máy tính</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Khởi động lại máy tính</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Khởi động lại máy tính với Tùy chọn khởi động nâng cao cho chế độ An toàn và Gỡ lỗi, cũng như các tùy chọn khác</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off">Đăng xuất</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock">Khóa máy tính này</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_exit">Chào mừng bạn đến với Trình khởi chạy luồng</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart">Bắt đầu Flow-Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_setting">Tweak BNDZ Launcher's settings</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_sleep">�?t m�y t�nh v�o ch? d? ng?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">D?n s?ch th�ng r�c</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_sleep">Đặt máy tính vào chế độ ngủ</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">Dọn sạch thùng rác</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">Open recycle bin</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_indexoption">T�y ch?n l?p ch? m?c</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_hibernate">M�y t�nh ng? d�ng</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">Luu t?t c? c�i d?t BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">L�m m?i d? li?u plugin v?i n?i dung m?i</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">M? v? tr� nh?t k� c?a BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_check_for_update">Ki?m tra b?n c?p nh?t BNDZ Launcher m?i</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">Truy c?p t�i li?u c?a BNDZ Launcher d? du?c tr? gi�p th�m v� c�ch s? d?ng c�c m?o</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">M? v? tr� luu tr? c�i d?t c?a BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_indexoption">Tùy chọn lập chỉ mục</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_hibernate">Máy tính ngủ đông</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">Lưu tất cả cài đặt BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">Làm mới dữ liệu plugin với nội dung mới</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">Mở vị trí nhật ký của BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_check_for_update">Kiểm tra bản cập nhật BNDZ Launcher mới</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">Truy cập tài liệu của BNDZ Launcher để được trợ giúp thêm và cách sử dụng các mẹo</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">Mở vị trí lưu trữ cài đặt của BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">Toggle Game Mode</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_theme_selector">Quickly change the BNDZ Launcher theme</system:String>
 
     <!--  Dialogs  -->
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">Th�nh c�ng</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">�� luu t?t c? c�i d?t c?a BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">�� t?i l?i t?t c? d? li?u plugin hi?n h�nh</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">B?n c� ch?c ch?n mu?n t?t m�y t�nh kh�ng?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">B?n c� ch?c mu?n kh?i d?ng l?i c?p n�y?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">B?n c� ch?c ch?n mu?n kh?i d?ng l?i m�y t�nh b?ng Advanced Boot Options kh�ng?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">Thành công</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">Đã lưu tất cả cài đặt của BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Đã tải lại tất cả dữ liệu plugin hiện hành</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Bạn có chắc chắn muốn tắt máy tính không?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">Bạn có chắc muốn khởi động lại cấp này?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">Bạn có chắc chắn muốn khởi động lại máy tính bằng Advanced Boot Options không?</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">Are you sure you want to log off?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_error">L?i</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_error">Lỗi</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtext_empty_recycle_bin_failed">Failed to empty the recycle bin. This might happen if:{0}- Some items are currently in use{0}- Some items can't be deleted due to permissions{0}Please close any applications that might be using these files and try again.</system:String>
 
     <system:String x:Key="flowlauncher_plugin_sys_command_keyword_setting_window_title">Command Keyword Setting</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword">Custom Command Keyword</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword_tip">Enter a keyword to search for command: {0}. This keyword is used to match your query.</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_command_keyword">Command Keyword</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reset">�?t l?i</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_confirm">X�c nh?n</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_cancel">H?y</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reset">Đặt lại</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_confirm">Xác nhận</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_cancel">Hủy</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_input_command_keyword">Please enter a non-empty command keyword</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_plugin_name">L?nh h? th?ng</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Cung c?p c�c l?nh li�n quan d?n H? th?ng. v� d?. t?t m�y, kh�a, c�i d?t, v.v.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_name">Lệnh hệ thống</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Cung cấp các lệnh liên quan đến Hệ thống. ví dụ. tắt máy, khóa, cài đặt, v.v.</system:String>
 
     <!--  Theme Selector  -->
     <system:String x:Key="flowlauncher_plugin_sys_type_isdark_hasblur">This theme supports two (light/dark) modes and Blur Transparent Background</system:String>

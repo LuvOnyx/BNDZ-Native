@@ -1,20 +1,20 @@
 <?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <system:String x:Key="flowlauncher_plugin_url_open_url">OtevrÌt URL:{0}</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_cannot_open_url">Nelze otevrÌt URL:{0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_open_url">Otev≈ô√≠t URL:{0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_cannot_open_url">Nelze otev≈ô√≠t URL:{0}</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_plugin_name">URL</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_plugin_description">OtevrenÌ zadanÈ adresy URL z n·stroje BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_description">Otev≈ôen√≠ zadan√© adresy URL z n√°stroje BNDZ Launcher</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_plugin_choose">Vybrat</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">Aplikace(*.exe)|*.exe|Vöechny soubory|*. *</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">Aplikace(*.exe)|*.exe|V≈°echny soubory|*. *</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_use_custom_browser">Use custom instead of Flow's default web browser</system:String>
     <system:String x:Key="flowlauncher_plugin_url_browser_path">Browser path</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_new_tab">Nov· z·loûka</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_new_window">NovÈ okno</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_tab">Nov√° z√°lo≈æka</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_window">Nov√© okno</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_private_mode">Private mode</system:String>
 

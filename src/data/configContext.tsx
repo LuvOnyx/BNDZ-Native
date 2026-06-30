@@ -2,13 +2,14 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { formatLibrariesForConfig } from '../lib/iconLibraryUtils';
 import { SETTINGS_DEFAULTS, SETTINGS_VALUE_PATCHES } from '../lib/settingsDefaults';
 import { applySettingsRuntime, applyBackendSettings } from '../lib/settingsRuntime';
-import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT } from '../lib/workspaceLayout';
+import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
+import type { CustomEventAction } from '../lib/customEventActions';
 
 export interface VisualFilter {
     id: string;
     isActive: boolean;
     name: string;
-    matchType: 'extension' | 'regex' | 'age' | 'size' | 'event';
+    matchType: 'extension' | 'regex' | 'age' | 'size' | 'event' | 'attribute';
     matchValue: string; // for event: 'modifiedToday', 'createdWithin24Hours', 'isReadOnly'
     hexColor?: string; // legacy support
     rowTint?: string; // Highly transparent background color (e.g. rgba(255,0,0,0.1))
@@ -68,6 +69,8 @@ export interface AppConfig {
     bottomPanelRememberTab?: boolean;
     bottomPanelLastTab?: string;
     bottomPanelShowTabIcons?: boolean;
+    customUserCommands?: Array<{ id: string; label: string; hint?: string; keywords?: string[]; action: string; shell?: 'powershell' | 'cmd' }>;
+    customEventActions?: CustomEventAction[];
     toolbarProfiles?: any[][];
     activeToolbarProfileIndex?: number;
     showHiddenSystemFoldersInTree: boolean;
@@ -80,8 +83,16 @@ export interface AppConfig {
 const defaultStructuredConfig: Partial<AppConfig> = {
     visualFilters: [],
     pinnedFavorites: [],
+    navigationHistory: [],
+    showMiniTree: false,
+    listIconSize: 16,
+    gridIconSize: 48,
+    pinnedContextActions: [] as Array<{ id: string; label: string; verb?: string }>,
+    customUserCommands: [] as Array<{ id: string; label: string; hint?: string; keywords?: string[]; action: string; shell?: 'powershell' | 'cmd' }>,
+    customEventActions: [] as CustomEventAction[],
+    mouseBindings: {} as Record<string, string>,
     sidebarOrder: ['storage', 'quick', 'cloud', 'tree'],
-    installedPlugins: ['properties', 'context-menu-manager', 'icon-studio', 'batch-rename', 'find', 'dropstack', 'filters', 'metadata'],
+    installedPlugins: ['properties', 'context-menu-manager', 'icon-studio', 'batch-rename', 'find', 'dropstack', 'filters', 'metadata', 'storage-cleanup', 'folder-sync', 'catalog'],
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
@@ -151,6 +162,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
     activeToolbarProfileIndex: 0,
     workspaceLayoutOuter: { ...DEFAULT_OUTER_LAYOUT },
     workspaceLayoutInner: { ...DEFAULT_INNER_LAYOUT },
+    workspaceLayoutVersion: WORKSPACE_LAYOUT_VERSION,
     previewPanelOpen: true,
     bottomPanelOpen: true,
     bottomPluginTabOrder: [],

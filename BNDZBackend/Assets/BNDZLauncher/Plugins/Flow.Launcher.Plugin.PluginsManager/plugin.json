@@ -4,7 +4,7 @@
     "pm"
   ],
   "Name": "Plugins Manager",
-  "Description": "Install, uninstall or update Flow Launcher plugins via the search window",
+  "Description": "Install, uninstall or update BNDZ Launcher plugins via the search window",
   "Author": "Jeremy Wu",
   "Version": "1.0.0",
   "Language": "csharp",

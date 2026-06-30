@@ -1,34 +1,54 @@
 import React, { useState } from 'react';
-import { Folder, RotateCcw, Target, CheckCircle2 } from 'lucide-react';
+import { Folder, RotateCcw, Target, ArrowRight, Paintbrush, Loader2 } from 'lucide-react';
 import { ShellNativeIcon } from '../../ShellNativeIcon';
-import { IPC } from '../../../lib/ipcBridge';
 import { toWindowsPath } from '../../../lib/pathUtils';
 import styles from './IconStudio.module.css';
-import { pushToast } from '../../ToastHost';
+import { useIconStudio } from './IconStudioContext';
+import { useAppConfig } from '../../../data/configContext';
+import IconPreviewImage from './IconPreviewImage';
+import { resolveIconFilePath } from '../../../lib/iconPathUtils';
+import { applyIconToTargets, restoreTargets } from './iconApply';
 
-export default function PreviewPane({ selectedItems }: { selectedItems: string[] }) {
+export default function PreviewPane({
+    selectedItems,
+    targetTypes,
+    focusedPath,
+}: {
+    selectedItems: string[];
+    targetTypes?: string[];
+    focusedPath: string;
+}) {
     const paths = selectedItems || [];
+    const { selectedIcon, activeLibraryId, libraries, isApplying, setIsApplying } = useIconStudio();
+    const { config } = useAppConfig();
+    const activeLibrary = libraries.find(l => l.id === activeLibraryId);
     const [restoring, setRestoring] = useState(false);
+
+    const selectedPreviewPath = selectedIcon
+        ? resolveIconFilePath(selectedIcon.icoStr, activeLibrary?.sourceFolder)
+        : '';
+
+    const runApply = async () => {
+        if (!selectedIcon) return;
+        setIsApplying(true);
+        try {
+            await applyIconToTargets({
+                icon: selectedIcon,
+                activeLibrary,
+                selectedItems: paths,
+                targetTypes,
+                focusedPath,
+                allowGlobalOverwrite: !!config.allowGlobalIconOverwrite,
+            });
+        } finally {
+            setIsApplying(false);
+        }
+    };
 
     const restoreAll = async () => {
         setRestoring(true);
-        let restored = 0;
-        let failed = 0;
         try {
-            for (const raw of paths) {
-                const p = toWindowsPath(raw);
-                const name = p.split(/[/\\]/).pop() || '';
-                const type = name.toLowerCase().endsWith('.lnk') ? 'shortcut' : !name.includes('.') ? 'folder' : 'file';
-                try {
-                    const ok = await IPC.restoreSystemIcon(p, type);
-                    if (ok === false) failed++; else restored++;
-                } catch {
-                    failed++;
-                }
-            }
-            await IPC.clearIconCache();
-            if (failed === 0) pushToast({ kind: 'success', title: 'Restored', message: `Default icon on ${restored} item(s).` });
-            else pushToast({ kind: 'warning', title: 'Partial restore', message: `Restored ${restored}, failed ${failed}.` });
+            await restoreTargets({ selectedItems: paths, targetTypes, focusedPath });
         } finally {
             setRestoring(false);
         }
@@ -39,7 +59,7 @@ export default function PreviewPane({ selectedItems }: { selectedItems: string[]
             <div className={styles.header}>
                 <div className="flex items-center gap-2">
                     <Target size={14} className="text-sky-400" />
-                    <span className="text-[13px] font-semibold text-white">Apply targets</span>
+                    <span className="text-[13px] font-semibold text-white">Preview & apply</span>
                 </div>
                 <span className="text-[10px] bg-white/5 text-gray-400 px-2 py-0.5 rounded-full border border-white/8">{paths.length}</span>
             </div>
@@ -52,28 +72,55 @@ export default function PreviewPane({ selectedItems }: { selectedItems: string[]
                         </div>
                         <p className="text-xs font-medium text-gray-400">Nothing selected</p>
                         <p className="text-[10px] text-gray-600 mt-2 leading-relaxed max-w-[200px]">
-                            Select folders or files in the file list, then click an icon to apply.
+                            Select folders or files in the list, pick an icon, then apply.
                         </p>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-3 h-full">
-                        <div className="text-[10px] text-emerald-300/90 bg-emerald-500/8 p-3 rounded-xl border border-emerald-500/15 flex gap-2 items-start">
-                            <CheckCircle2 size={14} className="shrink-0 mt-0.5 text-emerald-400" />
-                            <span className="leading-relaxed">Click any icon in the grid — changes write to <code className="text-emerald-200/70">desktop.ini</code> or shell registry.</span>
-                        </div>
+                        {selectedIcon ? (
+                            <div className="shrink-0 p-3 rounded-xl border border-pink-500/20 bg-pink-500/5">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-pink-300/80 mb-2">Selected icon</div>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-lg bg-black/30 flex items-center justify-center ring-1 ring-white/10">
+                                        <IconPreviewImage path={selectedPreviewPath} size={40} />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-[12px] font-semibold text-white truncate">{selectedIcon.name}</div>
+                                        <div className="text-[10px] text-gray-500">Before → after on each target</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="shrink-0 p-3 rounded-xl border border-white/8 bg-white/3 text-[10px] text-gray-500 text-center">
+                                Click an icon in the grid to preview changes
+                            </div>
+                        )}
 
-                        <div className="flex-1 overflow-y-auto bndz-scrollbar space-y-1.5 min-h-0">
+                        <div className="flex-1 overflow-y-auto bndz-scrollbar space-y-2 min-h-0">
                             {paths.map((item, i) => {
                                 const win = toWindowsPath(item);
                                 const name = win.split(/[/\\]/).pop() || item;
                                 const isDrive = /^[A-Za-z]:\\?$/.test(win) || win.endsWith(':\\');
                                 const isDir = isDrive || !name.includes('.');
                                 return (
-                                    <div key={i} className="bg-white/4 border border-white/6 hover:border-white/12 rounded-xl px-3 py-2.5 flex items-center gap-3 transition-colors">
-                                        <ShellNativeIcon path={win} isDir={isDir} size={30} eager />
-                                        <div className="min-w-0 flex-1">
-                                            <div className="text-[11px] font-semibold text-white truncate">{name}</div>
-                                            <div className="text-[9px] text-gray-600 font-mono truncate" title={win}>{win}</div>
+                                    <div key={i} className="bg-white/4 border border-white/6 rounded-xl px-3 py-2.5">
+                                        <div className="text-[10px] font-mono text-gray-600 truncate mb-2" title={win}>{name}</div>
+                                        <div className="flex items-center justify-center gap-3">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <ShellNativeIcon path={win} isDir={isDir} size={36} eager />
+                                                <span className="text-[9px] text-gray-600 uppercase">Now</span>
+                                            </div>
+                                            <ArrowRight size={14} className="text-pink-400/60 shrink-0" />
+                                            <div className="flex flex-col items-center gap-1">
+                                                <div className="w-9 h-9 rounded-lg bg-black/30 flex items-center justify-center ring-1 ring-pink-500/20">
+                                                    {selectedPreviewPath ? (
+                                                        <IconPreviewImage path={selectedPreviewPath} size={32} />
+                                                    ) : (
+                                                        <Paintbrush size={16} className="text-gray-600" />
+                                                    )}
+                                                </div>
+                                                <span className="text-[9px] text-pink-400/70 uppercase">After</span>
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -82,11 +129,21 @@ export default function PreviewPane({ selectedItems }: { selectedItems: string[]
 
                         <button
                             type="button"
-                            onClick={restoreAll}
-                            disabled={restoring}
-                            className="shrink-0 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-amber-500/20 bg-amber-500/8 hover:bg-amber-500/15 text-xs font-semibold text-amber-200/90 transition-colors disabled:opacity-50"
+                            onClick={() => void runApply()}
+                            disabled={!selectedIcon || isApplying}
+                            className="shrink-0 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-xs font-bold text-white shadow-lg shadow-pink-900/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {restoring ? <span className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" /> : <RotateCcw size={13} />}
+                            {isApplying ? <Loader2 size={14} className="animate-spin" /> : <Paintbrush size={13} />}
+                            {selectedIcon ? `Apply "${selectedIcon.name}"` : 'Select an icon'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => void restoreAll()}
+                            disabled={restoring || isApplying}
+                            className="shrink-0 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-amber-500/20 bg-amber-500/8 hover:bg-amber-500/15 text-xs font-semibold text-amber-200/90 transition-colors disabled:opacity-50"
+                        >
+                            {restoring ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
                             Restore default icons
                         </button>
                     </div>

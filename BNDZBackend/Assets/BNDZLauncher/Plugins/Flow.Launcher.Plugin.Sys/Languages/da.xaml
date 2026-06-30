@@ -57,7 +57,7 @@
     <system:String x:Key="flowlauncher_plugin_sys_theme_selector">Quickly change the BNDZ Launcher theme</system:String>
 
     <!--  Dialogs  -->
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">Fortsæt</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">FortsÃ¦t</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">All BNDZ Launcher settings saved</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Reloaded all applicable plugin data</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Are you sure you want to shut the computer down?</system:String>

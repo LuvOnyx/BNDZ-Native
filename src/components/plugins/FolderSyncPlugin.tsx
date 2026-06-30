@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FolderSync, Plus, Play, Pause, Trash2, ArrowRight, RefreshCw, Loader2,
-  CheckCircle2, AlertCircle, Eye, FolderInput, Zap, Clock,
+  CheckCircle2, AlertCircle, Eye, FolderInput, Zap, Clock, Pencil, ListTree, X,
 } from 'lucide-react';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import DestinationPickerModal from '../DestinationPickerModal';
+import PluginPanelShell from './PluginPanelShell';
+import { pushToast } from '../ToastHost';
 
 export const FolderSyncPluginDef = {
   id: 'folder-sync',
@@ -28,6 +30,30 @@ export interface FolderSyncJob {
   lastStatus: string;
   lastError?: string | null;
   filesCopied?: number;
+}
+
+interface FolderSyncPreviewResult {
+  wouldCopy?: string[];
+  wouldUpdate?: string[];
+  wouldSkip?: string[];
+  extraInDest?: string[];
+  summary?: string;
+}
+
+function normalizeJob(raw: Record<string, unknown>): FolderSyncJob {
+  return {
+    id: String(raw.id ?? raw.Id ?? ''),
+    name: String(raw.name ?? raw.Name ?? 'Folder Sync'),
+    sourcePath: String(raw.sourcePath ?? raw.SourcePath ?? ''),
+    destPath: String(raw.destPath ?? raw.DestPath ?? ''),
+    watchEnabled: Boolean(raw.watchEnabled ?? raw.WatchEnabled ?? false),
+    mirrorMode: Boolean(raw.mirrorMode ?? raw.MirrorMode ?? false),
+    enabled: raw.enabled !== false && raw.Enabled !== false,
+    lastSyncUtc: (raw.lastSyncUtc ?? raw.LastSyncUtc) as string | null | undefined,
+    lastStatus: String(raw.lastStatus ?? raw.LastStatus ?? 'idle'),
+    lastError: (raw.lastError ?? raw.LastError) as string | null | undefined,
+    filesCopied: Number(raw.filesCopied ?? raw.FilesCopied ?? 0),
+  };
 }
 
 function formatWhen(iso?: string | null) {
@@ -63,6 +89,9 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
   const [loading, setLoading] = useState(true);
   const [picker, setPicker] = useState<'source' | 'dest' | null>(null);
   const [draft, setDraft] = useState<Partial<FolderSyncJob> | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ jobId: string; data: FolderSyncPreviewResult } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, { percent: number; message?: string; file?: string }>>({});
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
@@ -70,7 +99,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
     setLoading(true);
     try {
       const list = await IPC.getFolderSyncJobs();
-      setJobs(list);
+      setJobs((list || []).map((j: Record<string, unknown>) => normalizeJob(j)));
     } catch {
       setJobs([]);
     } finally {
@@ -100,6 +129,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
   };
 
   const startNewJob = () => {
+    setEditingId(null);
     const src = currentPath ? toWindowsPath(currentPath) : '';
     setDraft({
       id: `job-${Date.now()}`,
@@ -113,21 +143,68 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
     });
   };
 
+  const startEditJob = (job: FolderSyncJob) => {
+    setEditingId(job.id);
+    setDraft({ ...job });
+    setPreview(null);
+  };
+
+  const usePaneAs = (side: 'source' | 'dest') => {
+    if (!currentPath) {
+      pushToast({ kind: 'warning', title: 'No folder open', message: 'Navigate to a folder in the file list first.' });
+      return;
+    }
+    const win = toWindowsPath(currentPath);
+    if (draft) {
+      setDraft(side === 'source' ? { ...draft, sourcePath: win } : { ...draft, destPath: win });
+      return;
+    }
+    setEditingId(null);
+    setDraft({
+      id: `job-${Date.now()}`,
+      name: 'My Sync',
+      sourcePath: side === 'source' ? win : '',
+      destPath: side === 'dest' ? win : '',
+      watchEnabled: true,
+      mirrorMode: false,
+      enabled: true,
+      lastStatus: 'idle',
+    });
+  };
+
+  const loadPreview = async (jobId: string) => {
+    setPreviewLoading(jobId);
+    try {
+      const data = await IPC.previewFolderSync(jobId);
+      setPreview({ jobId, data });
+    } catch (e: any) {
+      pushToast({ kind: 'error', title: 'Preview failed', message: e?.message || 'Could not compute diff.' });
+    } finally {
+      setPreviewLoading(null);
+    }
+  };
+
   const saveDraft = async () => {
     if (!draft?.sourcePath || !draft.destPath) return;
     const job: FolderSyncJob = {
-      id: draft.id || `job-${Date.now()}`,
+      id: editingId || draft.id || `job-${Date.now()}`,
       name: draft.name || 'Folder Sync',
       sourcePath: toWindowsPath(draft.sourcePath),
       destPath: toWindowsPath(draft.destPath),
       watchEnabled: draft.watchEnabled !== false,
       mirrorMode: !!draft.mirrorMode,
       enabled: draft.enabled !== false,
-      lastStatus: 'idle',
+      lastStatus: editingId ? (jobs.find(j => j.id === editingId)?.lastStatus ?? 'idle') : 'idle',
+      lastSyncUtc: editingId ? jobs.find(j => j.id === editingId)?.lastSyncUtc : undefined,
     };
-    await persistJobs([...jobs, job]);
+    const next = editingId
+      ? jobs.map(j => j.id === editingId ? { ...j, ...job, id: editingId } : j)
+      : [...jobs, job];
+    await persistJobs(next);
     if (job.watchEnabled) await IPC.setFolderSyncWatch(job.id, true);
     setDraft(null);
+    setEditingId(null);
+    pushToast({ kind: 'success', title: editingId ? 'Sync updated' : 'Sync created', message: job.name });
   };
 
   const runSync = async (jobId: string) => {
@@ -154,26 +231,30 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[#0e0e12] text-gray-200">
-      <div className="shrink-0 px-4 py-3 border-b border-white/[0.06] flex items-center justify-between gap-3 bg-gradient-to-r from-[#12121a] to-[#0c1628]">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-500/25 flex items-center justify-center">
-            <FolderSync size={18} className="text-sky-400" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-[13px] font-bold text-white tracking-tight">Folder Sync</h2>
-            <p className="text-[10px] text-gray-500 truncate">Auto-sync folders when new files appear — powered by robocopy</p>
-          </div>
+    <PluginPanelShell
+      title="Folder Sync"
+      icon={FolderSync}
+      iconColor="#38bdf8"
+      subtitle="Auto-sync folders via robocopy"
+      toolbar={
+        <div className="flex items-center gap-1.5">
+          {currentPath && (
+            <>
+              <button type="button" onClick={() => usePaneAs('source')} className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-white/10 text-gray-400 hover:text-sky-300 hover:border-sky-500/30" title="Use current folder as source">
+                <FolderInput size={12} /> Pane → source
+              </button>
+              <button type="button" onClick={() => usePaneAs('dest')} className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-white/10 text-gray-400 hover:text-sky-300 hover:border-sky-500/30" title="Use current folder as destination">
+                <FolderInput size={12} /> Pane → dest
+              </button>
+            </>
+          )}
+          <button type="button" onClick={startNewJob} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md bg-sky-600 hover:bg-sky-500 text-white">
+            <Plus size={14} /> New sync
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={startNewJob}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold transition-colors"
-        >
-          <Plus size={14} /> New sync
-        </button>
-      </div>
-
+      }
+    >
+    <div className="flex flex-col h-full min-h-0 bg-[#0e0e12] text-gray-200">
       <div className="flex-1 overflow-y-auto styled-scrollbar p-4 space-y-3">
         {loading && (
           <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
@@ -205,7 +286,9 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
               exit={{ opacity: 0, height: 0 }}
               className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-[#0c1929]/80 to-[#101014] p-4 space-y-3"
             >
-              <div className="text-[11px] font-bold uppercase tracking-widest text-sky-400/80">New sync pair</div>
+              <div className="text-[11px] font-bold uppercase tracking-widest text-sky-400/80">
+                {editingId ? 'Edit sync pair' : 'New sync pair'}
+              </div>
               <input
                 className="w-full bg-[#1a1a22] border border-[#444] rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-sky-500"
                 placeholder="Sync name"
@@ -240,14 +323,14 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                 </label>
               </div>
               <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={() => setDraft(null)} className="px-3 py-1.5 text-[11px] text-gray-400 hover:text-white">Cancel</button>
+                <button type="button" onClick={() => { setDraft(null); setEditingId(null); }} className="px-3 py-1.5 text-[11px] text-gray-400 hover:text-white">Cancel</button>
                 <button
                   type="button"
                   onClick={saveDraft}
                   disabled={!draft.sourcePath || !draft.destPath}
                   className="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-[11px] font-semibold"
                 >
-                  Save & enable
+                  {editingId ? 'Save changes' : 'Save & enable'}
                 </button>
               </div>
             </motion.div>
@@ -280,6 +363,23 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    title="Preview diff"
+                    disabled={previewLoading === job.id}
+                    onClick={() => void loadPreview(job.id)}
+                    className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-sky-300 disabled:opacity-40"
+                  >
+                    {previewLoading === job.id ? <Loader2 size={14} className="animate-spin" /> : <ListTree size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    title="Edit job"
+                    onClick={() => startEditJob(job)}
+                    className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-amber-300"
+                  >
+                    <Pencil size={14} />
+                  </button>
                   <button
                     type="button"
                     title="Sync now"
@@ -327,6 +427,44 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
         })}
       </div>
 
+      {preview && (
+        <div className="shrink-0 border-t border-white/10 bg-[#0c0c10] max-h-[40%] flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05]">
+            <div className="text-[11px] font-semibold text-sky-300 flex items-center gap-2">
+              <ListTree size={13} /> Sync preview
+              <span className="text-gray-500 font-normal">{preview.data.summary}</span>
+            </div>
+            <button type="button" onClick={() => setPreview(null)} className="p-1 rounded hover:bg-white/5 text-gray-500"><X size={14} /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto styled-scrollbar p-3 grid grid-cols-2 gap-3 text-[10px] font-mono">
+            {([
+              ['New files', preview.data.wouldCopy, 'text-emerald-400'],
+              ['Updates', preview.data.wouldUpdate, 'text-amber-300'],
+              ['Unchanged', preview.data.wouldSkip, 'text-gray-500'],
+              ['Extra (mirror)', preview.data.extraInDest, 'text-rose-300'],
+            ] as const).map(([label, items, color]) => (
+              <div key={label} className="rounded-lg border border-white/[0.06] bg-[#111116] p-2 min-h-[80px]">
+                <div className={`font-bold uppercase tracking-wider mb-1.5 ${color}`}>{label} ({items?.length ?? 0})</div>
+                <div className="space-y-0.5 max-h-28 overflow-y-auto styled-scrollbar text-gray-500">
+                  {(items || []).slice(0, 40).map(p => <div key={p} className="truncate" title={p}>{p}</div>)}
+                  {(items?.length ?? 0) > 40 && <div className="text-gray-600">…and {(items?.length ?? 0) - 40} more</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2 border-t border-white/[0.05] flex justify-end gap-2">
+            <button type="button" onClick={() => setPreview(null)} className="px-3 py-1.5 text-[11px] text-gray-400">Close</button>
+            <button
+              type="button"
+              onClick={() => { void runSync(preview.jobId); setPreview(null); }}
+              className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold flex items-center gap-1"
+            >
+              <Play size={12} /> Run sync
+            </button>
+          </div>
+        </div>
+      )}
+
       <DestinationPickerModal
         open={!!picker}
         title={picker === 'source' ? 'Source folder' : 'Destination folder'}
@@ -340,5 +478,6 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
         }}
       />
     </div>
+    </PluginPanelShell>
   );
 }

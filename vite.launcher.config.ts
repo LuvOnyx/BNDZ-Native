@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 
-/** Builds SuperCmd-derived BNDZ Raycast launcher shell for WebView2 host */
+/** Builds SuperCmd-derived BNDZ Launcher shell for WebView2 host */
 export default defineConfig({
   root: path.resolve(__dirname, 'src/launcher'),
   plugins: [react(), tailwindcss()],

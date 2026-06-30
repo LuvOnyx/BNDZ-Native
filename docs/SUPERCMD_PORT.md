@@ -1,8 +1,8 @@
 # SuperCmd → BNDZ Launcher port map
 
-Source: [SuperCmdLabs/SuperCmd](https://github.com/SuperCmdLabs/SuperCmd) (MIT, macOS Electron + Raycast shim)
+Source: [SuperCmdLabs/SuperCmd](https://github.com/SuperCmdLabs/SuperCmd) (MIT) — feature reference only.
 
-BNDZ uses **Flow Launcher (WPF/.NET)** as the engine with a **SuperCmd-derived React shell** for the Raycast UI phase.
+BNDZ uses **Flow Launcher (WPF/.NET)** as the plugin engine with a **SuperCmd-derived WebView2 shell** for the primary UI.
 
 ## Architecture
 
@@ -10,71 +10,45 @@ BNDZ uses **Flow Launcher (WPF/.NET)** as the engine with a **SuperCmd-derived R
 SuperCmd (reference)          BNDZ port
 ─────────────────────         ─────────────────────────────
 src/renderer/App.tsx      →   src/launcher/BndzLauncherApp.tsx
-LauncherSurface.tsx       →   src/launcher/components/* (adapted)
-src/main/clipboard-*.ts   →   Plugins/.../BndzClipboardStore.cs
-src/main/commands.ts      →   Plugins/.../BndzSystemCommands.cs
-preload.ts IPC sections   →   src/launcher/bridge/flowBridge.ts (WebView2)
-raycast-api/              →   Phase D (extension platform)
+LauncherSurface.tsx       →   src/launcher/components/*
+src/main/clipboard-*.ts   →   BndzClipboardStore.cs + LauncherCommandService.cs
+src/main/commands.ts      →   LauncherSystemCommands.cs / BndzSystemCommands.cs
+preload.ts IPC sections   →   src/launcher/bridge/flowBridge.ts
 ```
 
-Re-sync upstream SuperCmd UI files:
+Re-sync upstream SuperCmd reference files:
 
 ```powershell
 .\scripts\sync-supercmd-launcher-ui.ps1
 ```
 
-Build Raycast shell:
+Build launcher shell:
 
 ```powershell
 npm run build:launcher
 ```
 
-Output: `BNDZBackend/Assets/launcher-ui/` (WebView2 host, Phase A.2)
+Output: `BNDZBackend/Assets/launcher-ui/` — loaded by `LauncherShellWindow` (WebView2).
 
 ## Phase status
 
-| Phase | SuperCmd source | BNDZ target | Status |
-|-------|-----------------|-------------|--------|
-| **A Visual shell** | `LauncherMainView`, glass CSS | `BndzRaycast.xaml` + `src/launcher/` | In progress |
-| **B Clipboard** | `clipboard-manager.ts` | `BndzClipboardStore.cs` | Text history live |
-| **B Snippets** | `snippet-store.ts` | Flow plugin + JSON store | Planned |
-| **B Quick links** | `quicklink-store.ts` | Flow plugin | Planned |
-| **B File search** | `file-search-index.ts` | Flow Everything plugin | Exists |
-| **C AI chat** | `ai-provider.ts`, `AiChatView.tsx` | BNDZ Gemini bridge | Planned |
-| **C Whisper/TTS** | Swift natives | Windows Speech / Edge TTS | Planned |
-| **D Extensions** | `raycast-api/`, `extension-runner.ts` | WebView2 + Node shim | Planned |
-| **D Window tiling** | `window-adjust.swift` | Win32 plugin | Planned |
-
-## SuperCmd system commands ported
-
-| SuperCmd ID | BNDZ status |
-|-------------|-------------|
-| `system-clipboard-manager` | Live (text) |
-| `system-search-snippets` | Stub |
-| `system-search-quicklinks` | Stub |
-| `system-search-files` | Via Flow Everything |
-| `system-cursor-prompt` | Stub → BNDZ AI |
-| `system-search-notes` | Stub |
-| `system-window-management` | Stub |
+| Phase | Status |
+|-------|--------|
+| **A Visual shell** | WebView2 `LauncherShellWindow` + glass CSS |
+| **A.2 Flow handoff** | `BndzShellBridge` hides Flow, shows BNDZ shell |
+| **B Clipboard** | Live (text history) |
+| **B Snippets / Quick links** | Live — Raycast-style managers + JSON stores |
+| **C AI** | Live — SuperCmd AiChatView + Gemini streaming |
+| **D Extensions** | Live — Flow plugin aggregation + Extension Hub |
 
 ## Theme
 
-**BNDZ Raycast** (`Flow.Launcher/Themes/BndzRaycast.xaml`) uses SuperCmd design tokens:
+**BNDZ Launcher** (`Flow.Launcher/Themes/BndzLauncher.xaml`) — glass blur, `#2F6BFF` accent, 14px radius. Forced on settings sync. No third-party product naming in UI.
 
-- Accent `#2F6BFF`
-- 14px window radius, 8px result pills
-- Blur backdrop (Win11 DWM)
-- Compact 40px result rows
+## How to test
 
-Default for dark BNDZ themes via `BndzLauncherSettingsBridge`.
-
-## WebView2 bridge protocol
-
-`src/launcher/bridge/flowBridge.ts` mirrors SuperCmd `preload.ts` launcher section:
-
-- `LAUNCHER_READY` — shell loaded
-- `QUERY` / `QUERY_RESULT` — search Flow plugins
-- `EXECUTE` — run selected command
-- `THEME_SYNC` — BNDZ theme colors
-
-Phase A.2 wires this to Flow `MainViewModel` via BNDZ plugin IPC.
+1. Quit BNDZ + BNDZ Launcher completely
+2. `.\scripts\build-all-for-test.ps1`
+3. Run BNDZ — **Alt+Space** or tray **Open Launcher**
+4. You should see the **glass WebView2 panel**, not the old Flow window
+5. Set `GEMINI_API_KEY` or `BNDZLauncher/UserData/BNDZ/gemini-api-key.txt` for AI chat

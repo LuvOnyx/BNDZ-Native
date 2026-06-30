@@ -83,6 +83,8 @@ export const IPC = {
   _folderSyncProgressListeners: [] as Array<(progress: any) => void>,
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
   _openPathListeners: [] as Array<(path: string) => void>,
+  _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean }) => void>,
+  _startupActionListeners: [] as Array<(action: string) => void>,
 
   init() {
     if (this.isNative && !this._initialized) {
@@ -111,6 +113,15 @@ export const IPC = {
         } else if (data.type === 'BNDZ_OPEN_PATH') {
           const path = data.payload?.path ?? '';
           this._openPathListeners.forEach(cb => cb(path));
+        } else if (data.type === 'ACTION_LOG_CHANGED') {
+          const payload = data.payload ?? {};
+          this._actionLogListeners.forEach(cb => cb({
+            canUndo: !!payload.canUndo,
+            canRedo: !!payload.canRedo,
+          }));
+        } else if (data.type === 'BNDZ_STARTUP_ACTION') {
+          const action = data.payload ?? '';
+          if (action) this._startupActionListeners.forEach(cb => cb(String(action)));
         }
       });
       this._initialized = true;
@@ -274,6 +285,21 @@ export const IPC = {
     }
   },
 
+  previewFolderSync(jobId: string): Promise<{
+    wouldCopy?: string[];
+    wouldUpdate?: string[];
+    wouldSkip?: string[];
+    extraInDest?: string[];
+    summary?: string;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_folderSyncPreview`;
+      return _nativeCall<any>('FOLDER_SYNC_PREVIEW', 'FOLDER_SYNC_PREVIEW_RESULT', id, { jobId }, 120000).then(r => r || {});
+    }
+    return Promise.resolve({ summary: 'Preview requires the native host.', wouldCopy: [], wouldUpdate: [], wouldSkip: [], extraInDest: [] });
+  },
+
   scanFolderSizes(paths: string[], forceRescan = false): Promise<{
     sizes: Record<string, number>;
     cancelled?: boolean;
@@ -330,10 +356,10 @@ export const IPC = {
     }
   },
 
-  archiveAddFiles(archivePath: string, files: string[]): Promise<{ success: boolean; error?: string }> {
+  archiveAddFiles(archivePath: string, files: string[], entryNames?: string[]): Promise<{ success: boolean; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_archiveAdd`;
-      return _nativeCall<{ success: boolean; error?: string }>('ARCHIVE_ADD_FILES', 'ARCHIVE_ADD_FILES_RESULT', id, { archivePath, files }, 120000);
+      return _nativeCall<{ success: boolean; error?: string }>('ARCHIVE_ADD_FILES', 'ARCHIVE_ADD_FILES_RESULT', id, { archivePath, files, entryNames }, 120000);
     }
     return Promise.resolve({ success: false, error: 'Native only' });
   },
@@ -342,6 +368,14 @@ export const IPC = {
     if (this.isNative) {
       const id = `${Date.now()}_archiveExtract`;
       return _nativeCall<{ success: boolean; error?: string }>('ARCHIVE_EXTRACT_ENTRY', 'ARCHIVE_EXTRACT_ENTRY_RESULT', id, { archivePath, entryPath, destination }, 120000);
+    }
+    return Promise.resolve({ success: false, error: 'Native only' });
+  },
+
+  archiveExtractEntryToTemp(archivePath: string, entryPath: string): Promise<{ success: boolean; path?: string; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_archiveExtractTemp`;
+      return _nativeCall<{ success: boolean; path?: string; error?: string }>('ARCHIVE_EXTRACT_ENTRY_TEMP', 'ARCHIVE_EXTRACT_ENTRY_TEMP_RESULT', id, { archivePath, entryPath }, 120000);
     }
     return Promise.resolve({ success: false, error: 'Native only' });
   },
@@ -393,16 +427,41 @@ export const IPC = {
     }
   },
 
-  executeUndo() {
+  executeUndo(): Promise<{ ok: boolean; message: string }> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'EXECUTE_UNDO' });
+      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_UNDO', 'UNDO_REDO_RESULT', undefined);
     }
+    return Promise.resolve({ ok: false, message: 'Undo requires native host' });
   },
 
-  executeRedo() {
+  executeRedo(): Promise<{ ok: boolean; message: string }> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'EXECUTE_REDO' });
+      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_REDO', 'UNDO_REDO_RESULT', undefined);
     }
+    return Promise.resolve({ ok: false, message: 'Redo requires native host' });
+  },
+
+  getActionLog(): Promise<{ items: Array<{ id: string; kind: string; label: string; utc: string; canUndo: boolean }>; canUndo: boolean; canRedo: boolean }> {
+    if (this.isNative) {
+      return _nativeCall('GET_ACTION_LOG', 'ACTION_LOG_RESULT', undefined);
+    }
+    return Promise.resolve({ items: [], canUndo: false, canRedo: false });
+  },
+
+  onActionLogChanged(callback: (state: { canUndo: boolean; canRedo: boolean }) => void) {
+    this.init();
+    this._actionLogListeners.push(callback);
+    return () => {
+      this._actionLogListeners = this._actionLogListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onStartupAction(callback: (action: string) => void) {
+    this.init();
+    this._startupActionListeners.push(callback);
+    return () => {
+      this._startupActionListeners = this._startupActionListeners.filter(cb => cb !== callback);
+    };
   },
 
   compareDirectories(pathA: string, pathB: string, useHashing: boolean = false): Promise<any> {
@@ -411,6 +470,24 @@ export const IPC = {
       return _nativeCall<any>('COMPARE_DIRECTORIES', 'COMPARE_DIRECTORIES_RESULT', id, { pathA, pathB, useHashing });
     }
     return Promise.resolve([]);
+  },
+
+  compareFiles(pathA: string, pathB: string): Promise<{
+    ok: boolean;
+    identical?: boolean;
+    message?: string;
+    hashA?: string;
+    hashB?: string;
+    firstDiffOffset?: number;
+    previewA?: string;
+    previewB?: string;
+    sizeA?: number;
+    sizeB?: number;
+  }> {
+    if (this.isNative) {
+      return _nativeCall('COMPARE_FILES', 'COMPARE_FILES_RESULT', `${Date.now()}_compareFiles`, { pathA, pathB });
+    }
+    return Promise.resolve({ ok: false, message: 'Compare requires native host' });
   },
 
   executeContextMenuVerb(path: string | string[], verb: string, x?: number, y?: number, bypassRecycleBin: boolean = false, sendToTarget?: string) {
@@ -518,6 +595,41 @@ export const IPC = {
       return _nativeCall<any[]>('GET_NETWORK_LOCATIONS', 'NETWORK_LOCATIONS_RESULT', id).catch(() => []);
     }
     return Promise.resolve([]);
+  },
+
+  getAppVersion(): Promise<string> {
+    if (this.isNative) {
+      const id = `${Date.now()}_appVer`;
+      return _nativeCall<string>('GET_APP_VERSION', 'APP_VERSION_RESULT', id).catch(() => '1.0.0');
+    }
+    return Promise.resolve('1.0.0');
+  },
+
+  checkForUpdates(manifestUrl?: string): Promise<{
+    currentVersion: string;
+    latestVersion?: string | null;
+    updateAvailable: boolean;
+    releaseUrl?: string | null;
+    releaseNotes?: string | null;
+    error?: string | null;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_updates`;
+      return _nativeCall<{
+        currentVersion: string;
+        latestVersion?: string | null;
+        updateAvailable: boolean;
+        releaseUrl?: string | null;
+        releaseNotes?: string | null;
+        error?: string | null;
+      }>('CHECK_FOR_UPDATES', 'CHECK_FOR_UPDATES_RESULT', id, { manifestUrl: manifestUrl || '' }, 20000)
+        .catch(err => ({
+          currentVersion: '1.0.0',
+          updateAvailable: false,
+          error: String(err?.message || err),
+        }));
+    }
+    return Promise.resolve({ currentVersion: '1.0.0', updateAvailable: false, error: 'Updates require native host.' });
   },
 
   getSystemShortcuts(): Promise<any[]> {
@@ -647,10 +759,33 @@ export const IPC = {
     }).then(res => res.json()).then(data => data.items || []);
   },
 
-  performGlobalSearch(query: string, limit: number, useRegex = false, rootPath = '', useEverything = true): Promise<{ items: any[]; engine?: string }> {
+  performGlobalSearch(
+    query: string,
+    limit: number,
+    useRegex = false,
+    rootPath = '',
+    useEverything = true,
+    searchContent = false,
+    opts?: { booleanMode?: boolean; rootPaths?: string[] },
+  ): Promise<{ items: any[]; engine?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_globalSearch`;
-      return _nativeCall<{ items: any[]; engine?: string }>('PERFORM_GLOBAL_SEARCH', 'GLOBAL_SEARCH_RESULT', id, { query, limit, useRegex, rootPath, useEverything }, 45000)
+      return _nativeCall<{ items: any[]; engine?: string }>(
+        'PERFORM_GLOBAL_SEARCH',
+        'GLOBAL_SEARCH_RESULT',
+        id,
+        {
+          query,
+          limit,
+          useRegex,
+          rootPath,
+          useEverything,
+          searchContent,
+          booleanMode: !!opts?.booleanMode,
+          rootPaths: opts?.rootPaths,
+        },
+        45000,
+      )
         .then(payload => {
           if (Array.isArray(payload)) return { items: payload };
           return { items: payload?.items ?? [], engine: payload?.engine };
@@ -914,6 +1049,14 @@ export const IPC = {
     return Promise.resolve(false);
   },
 
+  setFileAcl(path: string, acl: { read?: boolean; write?: boolean; execute?: boolean }): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_setAcl`;
+      return _nativeCall<boolean>('SET_FILE_ACL', 'SET_FILE_ACL_RESULT', id, { path, acl });
+    }
+    return Promise.resolve(false);
+  },
+
   async getTagsConfig(): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_getTags`;
@@ -950,6 +1093,106 @@ export const IPC = {
     } else {
       console.log('Applying tags', tags, 'to', paths);
     }
+  },
+
+  getTagSidecar(path: string): Promise<{ path: string; tags?: string[]; label?: string; comment?: string } | null> {
+    if (this.isNative) {
+      const id = `${Date.now()}_tagSidecar`;
+      return _nativeCall<{ path: string; tags?: string[]; label?: string; comment?: string } | null>(
+        'GET_TAG_SIDECAR', 'TAG_SIDECAR_RESULT', id, { path }, 10000,
+      ).catch(() => null);
+    }
+    return Promise.resolve(null);
+  },
+
+  setTagMeta(path: string, label?: string, comment?: string, tags?: string[]): Promise<void> {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SET_TAG_META', payload: { path, label, comment, tags } });
+    }
+    return Promise.resolve();
+  },
+
+  listCatalogs(): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_catalogList`;
+      return _nativeCall<any[]>('CATALOG_LIST', 'CATALOG_LIST_RESULT', id, {}, 15000).then(r => r || []);
+    }
+    const raw = localStorage.getItem('bndz_catalog');
+    return Promise.resolve(raw ? JSON.parse(raw) : []);
+  },
+
+  upsertCatalog(entry: { id?: string; name: string; paths?: string[]; query?: string | null }): Promise<any> {
+    if (this.isNative) {
+      const id = `${Date.now()}_catalogUpsert`;
+      return _nativeCall<any>('CATALOG_UPSERT', 'CATALOG_UPSERT_RESULT', id, entry, 15000);
+    }
+    return this.listCatalogs().then(async list => {
+      const now = Date.now();
+      let saved: any;
+      if (entry.id) {
+        const idx = list.findIndex((c: any) => c.id === entry.id);
+        saved = { ...list[idx], ...entry, updatedAt: now };
+        if (idx >= 0) list[idx] = saved;
+        else list.push(saved);
+      } else {
+        saved = { id: `local-${now}`, ...entry, paths: entry.paths || [], createdAt: now, updatedAt: now };
+        list.push(saved);
+      }
+      localStorage.setItem('bndz_catalog', JSON.stringify(list));
+      return saved;
+    });
+  },
+
+  deleteCatalog(catalogId: string): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_catalogDelete`;
+      return _nativeCall<{ ok?: boolean }>('CATALOG_DELETE', 'CATALOG_DELETE_RESULT', id, { id: catalogId }, 15000)
+        .then(r => !!r?.ok);
+    }
+    return this.listCatalogs().then(list => {
+      localStorage.setItem('bndz_catalog', JSON.stringify(list.filter((c: any) => c.id !== catalogId)));
+      return true;
+    });
+  },
+
+  getCatalogContents(path: string): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_catalogContents`;
+      return _nativeCall<any[]>('CATALOG_CONTENTS', 'CATALOG_CONTENTS_RESULT', id, { path }, 30000).then(r => r || []);
+    }
+    return this.listCatalogs().then(catalogs => {
+      const norm = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+      if (norm === '/vf' || norm === 'vf://') {
+        return catalogs.map((c: any) => ({
+          id: `catalog-${c.id}`,
+          name: c.name,
+          type: 'directory',
+          path: `/vf/${c.id}`,
+          size: 0,
+          itemCount: (c.paths || []).length,
+        }));
+      }
+      const slug = norm.startsWith('/vf/') ? norm.slice(4).split('/')[0] : norm.startsWith('vf://') ? norm.slice(5).split('/')[0] : '';
+      const cat = catalogs.find((c: any) => c.id === slug || String(c.name).toLowerCase() === slug.toLowerCase());
+      if (!cat) return [];
+      return (cat.paths || []).map((p: string, i: number) => ({
+        id: `vf-${cat.id}-${i}`,
+        name: p.split(/[/\\]/).pop() || p,
+        type: 'file',
+        path: p.replace(/\\/g, '/'),
+        size: 0,
+      }));
+    });
+  },
+
+  runUserScript(shell: string, script: string, cwd?: string): Promise<{ ok: boolean; output: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_runScript`;
+      return _nativeCall<{ ok: boolean; output: string }>(
+        'RUN_USER_SCRIPT', 'RUN_USER_SCRIPT_RESULT', id, { shell, script, cwd }, 120000,
+      ).catch(err => ({ ok: false, output: String(err?.message || err) }));
+    }
+    return Promise.resolve({ ok: false, output: 'Script runner requires native host' });
   },
 
   windowChrome(action: 'minimize' | 'maximize' | 'close' | 'drag'): void {

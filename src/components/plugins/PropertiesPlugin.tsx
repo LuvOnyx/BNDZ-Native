@@ -1,8 +1,9 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import {
     Check, Settings, Loader2, Key, AlertCircle, Copy, ExternalLink, FolderOpen,
-    Layers, Shield,
+    Layers, Shield, Tag, Save,
 } from 'lucide-react';
+import PluginPanelShell from './PluginPanelShell';
 import { FSEntity } from '../../types';
 import { toWindowsPath, normalizePanePath, isRecycleBinPath } from '../../lib/pathUtils';
 import { formatPropertiesPath } from '../../lib/displayPath';
@@ -34,6 +35,14 @@ export default function PropertiesPlugin({
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<PropTab>('general');
     const [copied, setCopied] = useState(false);
+    const [sidecarLabel, setSidecarLabel] = useState('');
+    const [sidecarComment, setSidecarComment] = useState('');
+    const [sidecarTags, setSidecarTags] = useState<string[]>([]);
+    const [tagDraft, setTagDraft] = useState('');
+    const [sidecarDirty, setSidecarDirty] = useState(false);
+    const [sidecarSaving, setSidecarSaving] = useState(false);
+    const [hashCopied, setHashCopied] = useState<'md5' | 'sha256' | null>(null);
+    const [aclNotice, setAclNotice] = useState<string | null>(null);
 
     const selectionCount = selectedItems.length;
     const isMulti = selectionCount > 1;
@@ -112,6 +121,7 @@ export default function PropertiesPlugin({
                             ReadOnly: details["ReadOnly"] === "true",
                         },
                         acl: { read: true, write: details["ACL Rule"]?.includes("W"), execute: details["ACL Rule"]?.includes("X") },
+                        aclRules: details["ACL Rules"] ? details["ACL Rules"].split('\n').filter(Boolean) : [],
                         creation: details["Created"] || (entity?.created || ''),
                         modification: details["Modified"] || (entity?.modified || ''),
                         accessed: details["Accessed"] || '',
@@ -140,6 +150,41 @@ export default function PropertiesPlugin({
 
         return () => { shouldUpdate = false; };
     }, [targetPath, entity, isMulti, isDriveEntity, driveInfo]);
+
+    useEffect(() => {
+        if (!targetPath || isMulti || isDriveEntity) {
+            setSidecarLabel('');
+            setSidecarComment('');
+            setSidecarTags([]);
+            setSidecarDirty(false);
+            return;
+        }
+        let active = true;
+        import('../../lib/ipcBridge').then(({ IPC }) => {
+            const winPath = targetPath.replace(/\//g, '\\');
+            IPC.getTagSidecar(winPath).then(sc => {
+                if (!active) return;
+                setSidecarLabel(sc?.label || '');
+                setSidecarComment(sc?.comment || '');
+                setSidecarTags(Array.isArray(sc?.tags) ? sc!.tags! : []);
+                setSidecarDirty(false);
+            });
+        });
+        return () => { active = false; };
+    }, [targetPath, isMulti, isDriveEntity]);
+
+    const saveSidecarMeta = async () => {
+        if (!targetPath || sidecarSaving) return;
+        setSidecarSaving(true);
+        try {
+            const { IPC } = await import('../../lib/ipcBridge');
+            const winPath = targetPath.replace(/\//g, '\\');
+            await IPC.setTagMeta(winPath, sidecarLabel, sidecarComment, sidecarTags);
+            setSidecarDirty(false);
+        } finally {
+            setSidecarSaving(false);
+        }
+    };
 
     const formatSize = (bytes: number) => {
         if (bytes === undefined || bytes === null || isNaN(bytes)) return "-- B";
@@ -184,11 +229,45 @@ export default function PropertiesPlugin({
         runIpc(IPC => { if (IPC.isNative) IPC.setFileAttributes(targetPath, newAttributes); });
     };
 
-    const toggleAcl = (type: 'read' | 'write' | 'execute') => {
+    const toggleAcl = async (type: 'read' | 'write' | 'execute') => {
         if (!fileDetails || !targetPath) return;
         const newAcl = { ...fileDetails.acl, [type]: !fileDetails.acl?.[type] };
         setFileDetails({ ...fileDetails, acl: newAcl });
-        runIpc(IPC => { if (IPC.isNative && (IPC as any).setFileAcl) (IPC as any).setFileAcl(targetPath, newAcl); });
+        const { IPC } = await import('../../lib/ipcBridge');
+        if (IPC.isNative) {
+            const ok = await IPC.setFileAcl(targetPath, newAcl);
+            if (!ok) {
+                setAclNotice('ACL editing is preview-only in this build. Use Windows Security tab for full control.');
+                setFileDetails({ ...fileDetails, acl: fileDetails.acl });
+            }
+        }
+    };
+
+    const addTagChip = () => {
+        const t = tagDraft.trim().toLowerCase();
+        if (!t || sidecarTags.some(x => x.toLowerCase() === t)) { setTagDraft(''); return; }
+        setSidecarTags(prev => [...prev, t]);
+        setTagDraft('');
+        setSidecarDirty(true);
+    };
+
+    const removeTagChip = (tag: string) => {
+        setSidecarTags(prev => prev.filter(t => t !== tag));
+        setSidecarDirty(true);
+    };
+
+    const copyHash = async (kind: 'md5' | 'sha256') => {
+        const value = (hash as any)[kind];
+        if (!value || value === 'Pending...') return;
+        try {
+            await navigator.clipboard.writeText(value);
+            setHashCopied(kind);
+            setTimeout(() => setHashCopied(null), 1500);
+        } catch {
+            runIpc(IPC => IPC.shellExecute('copyPath', value));
+            setHashCopied(kind);
+            setTimeout(() => setHashCopied(null), 1500);
+        }
     };
 
     const heroIconPath = useMemo(() => {
@@ -201,10 +280,19 @@ export default function PropertiesPlugin({
 
     if (!targetPath && selectionCount === 0) {
         return (
-            <div className="flex-1 w-full flex flex-col items-center justify-center p-8 bg-[#0d0d0d] text-gray-500 select-none gap-3">
-                <Layers size={48} className="opacity-20" />
-                <span className="text-xs">Select items to inspect properties, attributes, and bulk actions.</span>
-            </div>
+            <PluginPanelShell
+                title="Properties"
+                icon={Layers}
+                iconColor="#38bdf8"
+                subtitle="No selection"
+            >
+                <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-gray-500 gap-3 p-6 select-none">
+                    <Layers size={40} className="opacity-20 text-sky-400" />
+                    <p className="text-xs text-center max-w-[260px] leading-relaxed">
+                        Select items to inspect properties, attributes, hashes, and BNDZ tags.
+                    </p>
+                </div>
+            </PluginPanelShell>
         );
     }
 
@@ -231,7 +319,21 @@ export default function PropertiesPlugin({
     ];
 
     return (
-        <div className="flex-1 w-full flex flex-col bg-[#0d0d0d] overflow-hidden text-gray-300">
+        <PluginPanelShell
+            title="Properties"
+            icon={Layers}
+            iconColor="#38bdf8"
+            subtitle={displayName}
+            toolbar={
+                <>
+                    {!isMulti && (
+                        <button type="button" onClick={openItem} className="px-2 py-1 text-[10px] font-semibold bg-sky-600/20 border border-sky-500/30 text-sky-400 rounded">Open</button>
+                    )}
+                    <button type="button" onClick={copyPath} className="px-2 py-1 text-[10px] font-semibold bg-[#1a1a1a] border border-[#333] text-gray-400 rounded">{copied ? 'Copied' : 'Copy Path'}</button>
+                </>
+            }
+        >
+        <div className="flex-1 w-full flex flex-col bg-[#0d0d0d] overflow-hidden text-gray-300 min-h-0">
             {/* Hero header — distinct from preview panel (actions + identity, not content) */}
             <div className="shrink-0 border-b border-[#222] bg-gradient-to-r from-[#141414] to-[#0f0f0f] px-5 py-4 flex gap-5 items-center">
                 <PreviewHeroIcon
@@ -361,6 +463,82 @@ export default function PropertiesPlugin({
                                 <div className="text-gray-300 font-mono text-[11px] break-all">{fileDetails?.owner || 'Loading...'}</div>
                             </div>
                         )}
+
+                        {!isMulti && !driveInfo && targetPath && (
+                            <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
+                                <div className="flex items-center justify-between gap-2 mb-4">
+                                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                                        <Tag size={13} className="text-violet-400" /> BNDZ Tags
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={!sidecarDirty || sidecarSaving}
+                                        onClick={() => void saveSidecarMeta()}
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border transition-colors ${
+                                            sidecarDirty
+                                                ? 'bg-violet-600/20 border-violet-500/40 text-violet-300 hover:bg-violet-600/30'
+                                                : 'bg-[#1a1a1a] border-[#333] text-gray-600 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        {sidecarSaving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                                        Save
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-[100px_1fr] gap-y-3 text-[12px] items-start">
+                                    <div className="text-gray-500 pt-1">Label</div>
+                                    <input
+                                        type="text"
+                                        value={sidecarLabel}
+                                        onChange={e => { setSidecarLabel(e.target.value); setSidecarDirty(true); }}
+                                        placeholder="Custom label for this item"
+                                        className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-gray-200 text-[11px] outline-none focus:border-violet-500/50 w-full"
+                                    />
+                                    <div className="text-gray-500 pt-1">Comment</div>
+                                    <textarea
+                                        value={sidecarComment}
+                                        onChange={e => { setSidecarComment(e.target.value); setSidecarDirty(true); }}
+                                        placeholder="Notes or description"
+                                        rows={3}
+                                        className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-gray-200 text-[11px] outline-none focus:border-violet-500/50 w-full resize-y min-h-[60px]"
+                                    />
+                                    <div className="text-gray-500 pt-1">Tags</div>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex flex-wrap gap-1.5 min-h-[24px]">
+                                            {sidecarTags.length > 0 ? sidecarTags.map(t => (
+                                                <button
+                                                    key={t}
+                                                    type="button"
+                                                    onClick={() => removeTagChip(t)}
+                                                    className="group bg-violet-500/10 text-[10px] px-2 py-0.5 rounded border border-violet-500/30 text-violet-200 uppercase tracking-wide hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-300 transition-colors"
+                                                    title="Remove tag"
+                                                >
+                                                    {t} <span className="opacity-0 group-hover:opacity-100">×</span>
+                                                </button>
+                                            )) : (
+                                                <span className="text-[11px] text-gray-600 italic">No tags yet</span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <input
+                                                type="text"
+                                                value={tagDraft}
+                                                onChange={e => setTagDraft(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTagChip(); } }}
+                                                placeholder="Add tag…"
+                                                className="flex-1 bg-[#0a0a0a] border border-[#333] rounded px-2 py-1 text-gray-200 text-[11px] outline-none focus:border-violet-500/50"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={addTagChip}
+                                                className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-[#444] text-gray-400 hover:text-violet-300 hover:border-violet-500/40"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -370,16 +548,20 @@ export default function PropertiesPlugin({
                             <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">
                                 <Shield size={13} className="text-pink-400" /> Access Control
                             </div>
-                            <div className="grid grid-cols-3 gap-2">
+                            <p className="text-[11px] text-gray-500 mb-3">Effective permissions preview. Full ACL editing uses Windows Security.</p>
+                            {aclNotice && (
+                                <p className="text-[11px] text-amber-400/90 mb-3">{aclNotice}</p>
+                            )}
+                            <div className="grid grid-cols-3 gap-2 mb-4">
                                 {(['read', 'write', 'execute'] as const).map(type => (
                                     <button
                                         key={type}
                                         type="button"
-                                        onClick={() => toggleAcl(type)}
-                                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${
+                                        onClick={() => void toggleAcl(type)}
+                                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-colors ${
                                             fileDetails?.acl?.[type]
                                                 ? 'bg-pink-500/10 border-pink-500 text-pink-400'
-                                                : 'bg-[#111] border-[#333] text-gray-400 hover:border-[#555]'
+                                                : 'bg-[#111] border-[#333] text-gray-400 hover:border-pink-500/30'
                                         }`}
                                     >
                                         <Check className={fileDetails?.acl?.[type] ? 'opacity-100' : 'opacity-0'} size={16} />
@@ -387,6 +569,16 @@ export default function PropertiesPlugin({
                                     </button>
                                 ))}
                             </div>
+                            {Array.isArray(fileDetails?.aclRules) && fileDetails.aclRules.length > 0 && (
+                                <div className="rounded-lg border border-[#222] bg-[#0a0a0a] p-3 max-h-40 overflow-y-auto">
+                                    <div className="text-[10px] uppercase font-bold tracking-wider text-gray-500 mb-2">NTFS rules</div>
+                                    <ul className="space-y-1">
+                                        {fileDetails.aclRules.map((rule: string, i: number) => (
+                                            <li key={i} className="text-[10px] font-mono text-gray-400 break-all leading-relaxed">{rule}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                         <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
                             <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">NTFS Attributes</div>
@@ -425,7 +617,18 @@ export default function PropertiesPlugin({
                         <div className="flex flex-col gap-4">
                             {['md5', 'sha256'].map(kind => (
                                 <div key={kind} className="flex flex-col gap-1.5">
-                                    <div className="text-[10px] uppercase font-bold tracking-wider text-gray-500">{kind.toUpperCase()}</div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-[10px] uppercase font-bold tracking-wider text-gray-500">{kind.toUpperCase()}</div>
+                                        <button
+                                            type="button"
+                                            disabled={!(hash as any)[kind] || (hash as any)[kind] === 'Pending...'}
+                                            onClick={() => void copyHash(kind as 'md5' | 'sha256')}
+                                            className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider text-emerald-500/80 hover:text-emerald-400 disabled:opacity-30"
+                                        >
+                                            <Copy size={11} />
+                                            {hashCopied === kind ? 'Copied' : 'Copy'}
+                                        </button>
+                                    </div>
                                     <input
                                         readOnly
                                         className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-3 py-2 text-[11px] text-gray-300 font-mono selection:bg-emerald-500/30"
@@ -438,5 +641,6 @@ export default function PropertiesPlugin({
                 )}
             </div>
         </div>
+        </PluginPanelShell>
     );
 }

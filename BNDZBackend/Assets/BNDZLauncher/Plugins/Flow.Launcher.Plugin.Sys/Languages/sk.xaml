@@ -2,86 +2,86 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
     <!--  Setting  -->
-    <system:String x:Key="flowlauncher_plugin_sys_skip_confirm">Preskocit potvrdenie pri vypínaní, reštartovaní alebo odhlasovaní</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_skip_confirm">PreskoÄiÅ¥ potvrdenie pri vypÃ­nanÃ­, reÅ¡tartovanÃ­ alebo odhlasovanÃ­</system:String>
 
     <!--  Command List  -->
-    <system:String x:Key="flowlauncher_plugin_sys_name">Názov</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_name">NÃ¡zov</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_desc">Popis</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_command">Príkaz</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command">PrÃ­kaz</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">Vypnút</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">Reštartovat</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">Reštartovat s rozšírenımi monostami spustenia</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">Odhlásit sa</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">Zamknút</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_sleep_cmd">Uspat</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">Hibernovat</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_indexoption_cmd">Monosti indexovania</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin_cmd">Vyprázdnit kôš</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin_cmd">Otvorit kôš</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_exit_cmd">Ukoncit</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings_cmd">Uloit nastavenia</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">Reštartovat BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer_cmd">VypnÃºÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer_cmd">ReÅ¡tartovaÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced_cmd">ReÅ¡tartovaÅ¥ s rozÅ¡Ã­renÃ½mi moÅ¾nosÅ¥ami spustenia</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off_cmd">OdhlÃ¡siÅ¥ sa</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock_cmd">ZamknÃºÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_sleep_cmd">UspaÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_hibernate_cmd">HibernovaÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_indexoption_cmd">MoÅ¾nosti indexovania</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin_cmd">VyprÃ¡zdniÅ¥ kÃ´Å¡</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin_cmd">OtvoriÅ¥ kÃ´Å¡</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_exit_cmd">UkonÄiÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings_cmd">UloÅ¾iÅ¥ nastavenia</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_cmd">ReÅ¡tartovaÅ¥ BNDZ Launcher</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_setting_cmd">Nastavenia</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Znova nacítat údaje pluginov</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_check_for_update_cmd">Skontrolovat aktualizácie</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">Otvorit umiestnenie logu</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data_cmd">Znova naÄÃ­taÅ¥ Ãºdaje pluginov</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_check_for_update_cmd">SkontrolovaÅ¥ aktualizÃ¡cie</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location_cmd">OtvoriÅ¥ umiestnenie logu</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips_cmd">Tipy pre BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location_cmd">Pouívatelskı priecinok BNDZ Launchera</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">Prepnút hernı reim</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_theme_selector_cmd">Nastavit motív pre Flow Laucher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location_cmd">PouÅ¾Ã­vateÄ¾skÃ½ prieÄinok BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode_cmd">PrepnÃºÅ¥ hernÃ½ reÅ¾im</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_theme_selector_cmd">NastaviÅ¥ motÃ­v pre Flow Laucher</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_edit">Upravit</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_edit">UpraviÅ¥</system:String>
 
     <!--  Command Descriptions  -->
-    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">Vypnút pocítac</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">Reštartovat pocítac</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">Reštartovat pocítac s rozšírenımi monostami spúštania pre núdzovı reim a reim ladenia, ako aj s dalšími monostami</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_log_off">Odhlásit</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_lock">Zamknút pocítac</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_exit">Zavriet BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_restart">Reštartovat BNDZ Launcher</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_setting">Úprava nastavení BNDZ Launchera</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_sleep">Uspat pocítac</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">Vysypat kôš</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">Otvorit kôš</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_indexoption">Monosti indexovania</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_hibernate">Hibernovat pocítac</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">Uloit všetky nastavenia BNDZ Launchera</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">Aktualizovat všetky nové dáta pluginov</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">Otvorit umiestnenie logu BNDZ Launchera</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_check_for_update">Skontrolovat aktualizácie BNDZ Launchera</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">V dokumentácii k aplikácii BNDZ Launcher nájdete dalšiu pomoc a tipy na pouívanie</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">Otvorit umiestnenie, kde sú uloené nastavenia BNDZ Launchera</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">Prepnút hernı reim</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_theme_selector">Rıchla zmena motívu BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_shutdown_computer">VypnÃºÅ¥ poÄÃ­taÄ</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_computer">ReÅ¡tartovaÅ¥ poÄÃ­taÄ</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart_advanced">ReÅ¡tartovaÅ¥ poÄÃ­taÄ s rozÅ¡Ã­renÃ½mi moÅ¾nosÅ¥ami spÃºÅ¡Å¥ania pre nÃºdzovÃ½ reÅ¾im a reÅ¾im ladenia, ako aj s ÄalÅ¡Ã­mi moÅ¾nosÅ¥ami</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_log_off">OdhlÃ¡siÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_lock">ZamknÃºÅ¥ poÄÃ­taÄ</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_exit">ZavrieÅ¥ BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_restart">ReÅ¡tartovaÅ¥ BNDZ Launcher</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_setting">Ãšprava nastavenÃ­ BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_sleep">UspaÅ¥ poÄÃ­taÄ</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_emptyrecyclebin">VysypaÅ¥ kÃ´Å¡</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_openrecyclebin">OtvoriÅ¥ kÃ´Å¡</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_indexoption">MoÅ¾nosti indexovania</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_hibernate">HibernovaÅ¥ poÄÃ­taÄ</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_save_all_settings">UloÅ¾iÅ¥ vÅ¡etky nastavenia BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reload_plugin_data">AktualizovaÅ¥ vÅ¡etky novÃ© dÃ¡ta pluginov</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_log_location">OtvoriÅ¥ umiestnenie logu BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_check_for_update">SkontrolovaÅ¥ aktualizÃ¡cie BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_docs_tips">V dokumentÃ¡cii k aplikÃ¡cii BNDZ Launcher nÃ¡jdete ÄalÅ¡iu pomoc a tipy na pouÅ¾Ã­vanie</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_open_userdata_location">OtvoriÅ¥ umiestnenie, kde sÃº uloÅ¾enÃ© nastavenia BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_toggle_game_mode">PrepnÃºÅ¥ hernÃ½ reÅ¾im</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_theme_selector">RÃ½chla zmena motÃ­vu BNDZ Launchera</system:String>
 
     <!--  Dialogs  -->
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">Úspešné</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">Všetky nastavenia BNDZ Launchera uloené</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">Všetky dáta pluginov aktualizované</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Naozaj chcete pocítac vypnút?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">Naozaj chcete pocítac reštartovat?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">Naozaj chcete pocítac reštartovat s pokrocilımi monostami spúštania?</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">Naozaj sa chcete odhlásit?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_success">ÃšspeÅ¡nÃ©</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_settings_saved">VÅ¡etky nastavenia BNDZ Launchera uloÅ¾enÃ©</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_all_applicableplugins_reloaded">VÅ¡etky dÃ¡ta pluginov aktualizovanÃ©</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_shutdown_computer">Naozaj chcete poÄÃ­taÄ vypnÃºÅ¥?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer">Naozaj chcete poÄÃ­taÄ reÅ¡tartovaÅ¥?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_restart_computer_advanced">Naozaj chcete poÄÃ­taÄ reÅ¡tartovaÅ¥ s pokroÄilÃ½mi moÅ¾nosÅ¥ami spÃºÅ¡Å¥ania?</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_logoff_computer">Naozaj sa chcete odhlÃ¡siÅ¥?</system:String>
     <system:String x:Key="flowlauncher_plugin_sys_dlgtitle_error">Chyba</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_empty_recycle_bin_failed">Nepodarilo sa vyprázdnit kôš. Môe sa to stat, ak:{0}– Niektoré poloky sa práve pouívajú{0}– Niektoré poloky sa nedajú odstránit pre nedostatocné oprávnenia{0}Prosím, ukoncite kadú aplikáciu, ktorá môe pouívat tieto súbory a skúste to znova.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_dlgtext_empty_recycle_bin_failed">Nepodarilo sa vyprÃ¡zdniÅ¥ kÃ´Å¡. MÃ´Å¾e sa to staÅ¥, ak:{0}â€“ NiektorÃ© poloÅ¾ky sa prÃ¡ve pouÅ¾Ã­vajÃº{0}â€“ NiektorÃ© poloÅ¾ky sa nedajÃº odstrÃ¡niÅ¥ pre nedostatoÄnÃ© oprÃ¡vnenia{0}ProsÃ­m, ukonÄite kaÅ¾dÃº aplikÃ¡ciu, ktorÃ¡ mÃ´Å¾e pouÅ¾Ã­vaÅ¥ tieto sÃºbory a skÃºste to znova.</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_command_keyword_setting_window_title">Nastavenia klúcového slova príkazu</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword">Vlastné klúcové slovo príkazu</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword_tip">Na vyhladanie príkazu zadajte klúcové slovo: {0}. Toto klúcové slovo sa pouije na vyhladnie príkazu.</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_command_keyword">Klúcové slovo príkazu</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_reset">Resetovat</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_confirm">Potvrdit</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_cancel">Zrušit</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_input_command_keyword">Prosím, zadajte neprázdne klúcové slovo príkazu</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command_keyword_setting_window_title">Nastavenia kÄ¾ÃºÄovÃ©ho slova prÃ­kazu</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword">VlastnÃ© kÄ¾ÃºÄovÃ© slovo prÃ­kazu</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_custom_command_keyword_tip">Na vyhÄ¾adanie prÃ­kazu zadajte kÄ¾ÃºÄovÃ© slovo: {0}. Toto kÄ¾ÃºÄovÃ© slovo sa pouÅ¾ije na vyhÄ¾adnie prÃ­kazu.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_command_keyword">KÄ¾ÃºÄovÃ© slovo prÃ­kazu</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_reset">ResetovaÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_confirm">PotvrdiÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_cancel">ZruÅ¡iÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_input_command_keyword">ProsÃ­m, zadajte neprÃ¡zdne kÄ¾ÃºÄovÃ© slovo prÃ­kazu</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_sys_plugin_name">Systémové príkazy</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Poskytuje príkazy súvisiace so systémom ako je vypnutie, uzamknutie pocítaca atd.</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_name">SystÃ©movÃ© prÃ­kazy</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_plugin_description">Poskytuje prÃ­kazy sÃºvisiace so systÃ©mom ako je vypnutie, uzamknutie poÄÃ­taÄa atÄ.</system:String>
 
     <!--  Theme Selector  -->
-    <system:String x:Key="flowlauncher_plugin_sys_type_isdark_hasblur">Tento motív podporuje 2 reimy (svetlı/tmavı) a rozostrenie priehladného pozadia</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_type_isdark">Tento motív podporuje 2 reimy (svetlı/tmavı)</system:String>
-    <system:String x:Key="flowlauncher_plugin_sys_type_hasblur">Tento motív podporuje rozostrenie priehladného pozadia</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_isdark_hasblur">Tento motÃ­v podporuje 2 reÅ¾imy (svetlÃ½/tmavÃ½) a rozostrenie priehÄ¾adnÃ©ho pozadia</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_isdark">Tento motÃ­v podporuje 2 reÅ¾imy (svetlÃ½/tmavÃ½)</system:String>
+    <system:String x:Key="flowlauncher_plugin_sys_type_hasblur">Tento motÃ­v podporuje rozostrenie priehÄ¾adnÃ©ho pozadia</system:String>
 
 </ResourceDictionary>

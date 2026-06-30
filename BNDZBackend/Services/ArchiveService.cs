@@ -245,6 +245,28 @@ public sealed class ArchiveService
         stream.CopyTo(fs);
     }
 
+    /// <summary>Extract a single entry to a temp folder for drag-out / preview. Returns absolute path to extracted file or folder.</summary>
+    public string ExtractEntryToTemp(string archivePath, string entryPath)
+    {
+        archivePath = NormalizePath(archivePath);
+        entryPath = entryPath.Replace('\\', '/').TrimStart('/');
+        var tempDir = Path.Combine(Path.GetTempPath(), "BNDZ", "archive-extract", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        ExtractEntry(archivePath, entryPath, tempDir);
+        var fileName = Path.GetFileName(entryPath.TrimEnd('/', '\\'));
+        if (string.IsNullOrEmpty(fileName))
+            fileName = entryPath.TrimEnd('/').Split('/').LastOrDefault() ?? "item";
+        var candidate = Path.Combine(tempDir, fileName);
+        if (File.Exists(candidate) || Directory.Exists(candidate))
+            return candidate;
+        // SharpCompress may preserve subpaths — find first extracted item
+        var files = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories);
+        if (files.Length > 0) return files[0];
+        var dirs = Directory.GetDirectories(tempDir, "*", SearchOption.AllDirectories);
+        if (dirs.Length > 0) return dirs[0];
+        return tempDir;
+    }
+
     public void AddFilesToArchive(string archivePath, IEnumerable<string> sourceFiles, IEnumerable<string>? entryNames = null)
     {
         archivePath = NormalizePath(archivePath);
@@ -254,7 +276,11 @@ public sealed class ArchiveService
 
         var ext = Path.GetExtension(archivePath).TrimStart('.').ToLowerInvariant();
         if (ext != "zip")
-            throw new NotSupportedException("Drag-in is supported for ZIP archives. Extract and re-pack for other formats.");
+        {
+            if (ext == "rar" && TryAddToRarViaWinRar(archivePath, sources, names))
+                return;
+            throw new NotSupportedException("Drag-in is supported for ZIP and RAR (WinRAR) archives. Extract and re-pack for other formats.");
+        }
 
         using var zip = ZipFile.Open(archivePath, ZipArchiveMode.Update);
         for (int i = 0; i < sources.Count; i++)
@@ -303,12 +329,7 @@ public sealed class ArchiveService
 
     private static bool TryCreateRarViaWinRar(List<string> sources, string target, Action<int, string>? onProgress)
     {
-        var candidates = new[]
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinRAR", "Rar.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinRAR", "Rar.exe"),
-        };
-        var rarExe = candidates.FirstOrDefault(File.Exists);
+        var rarExe = FindWinRarExe();
         if (rarExe == null) return false;
 
         if (File.Exists(target)) File.Delete(target);
@@ -324,6 +345,50 @@ public sealed class ArchiveService
         proc?.WaitForExit();
         onProgress?.Invoke(100, target);
         return proc?.ExitCode == 0;
+    }
+
+    private static bool TryAddToRarViaWinRar(string archivePath, List<string> sources, List<string>? entryNames)
+    {
+        var rarExe = FindWinRarExe();
+        if (rarExe == null) return false;
+        if (!File.Exists(archivePath)) return false;
+
+        var args = new System.Text.StringBuilder($"a -idq \"{archivePath}\"");
+        for (int i = 0; i < sources.Count; i++)
+        {
+            var src = sources[i];
+            if (!File.Exists(src)) continue;
+            if (entryNames != null && i < entryNames.Count && !string.IsNullOrWhiteSpace(entryNames[i]))
+            {
+                var entry = entryNames[i].Replace('/', '\\');
+                args.Append($" -ep \"{src}\" \"{entry}\"");
+            }
+            else
+            {
+                args.Append($" \"{src}\"");
+            }
+        }
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = rarExe,
+            Arguments = args.ToString(),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        using var proc = Process.Start(psi);
+        proc?.WaitForExit();
+        return proc?.ExitCode == 0;
+    }
+
+    private static string? FindWinRarExe()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinRAR", "Rar.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinRAR", "Rar.exe"),
+        };
+        return candidates.FirstOrDefault(File.Exists);
     }
 
     private static List<(string fullPath, string entryName)> CollectFiles(List<string> sources)

@@ -9,6 +9,9 @@ import FiltersPlugin, { FiltersPluginDef } from '../components/plugins/FiltersPl
 import MetadataPlugin, { MetadataPluginDef } from '../components/plugins/MetadataPlugin';
 import StorageCleanupPlugin, { StorageCleanupPluginDef } from '../components/plugins/StorageCleanupPlugin';
 import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/FolderSyncPlugin';
+import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
+import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
+import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
 import { Settings } from 'lucide-react';
 import { useAppConfig } from './configContext';
 
@@ -34,6 +37,11 @@ export const DEFAULT_INSTALLED_PLUGINS = [
     'dropstack',
     'filters',
     'metadata',
+    'storage-cleanup',
+    'folder-sync',
+    'catalog',
+    'action-log',
+    'compare',
 ];
 
 /** Advanced plugins installed on first use */
@@ -104,7 +112,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...StorageCleanupPluginDef,
         description: 'Smart folder organization, large-file discovery, and storage cleanup workflows.',
-        isInstalled: false,
+        isInstalled: true,
         isNative: true,
         targetPanel: 'bottom',
         component: StorageCleanupPlugin,
@@ -112,10 +120,34 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...FolderSyncPluginDef,
         description: 'Automatic folder sync with live watching — keeps backup folders up to date using robocopy.',
-        isInstalled: false,
+        isInstalled: true,
         isNative: true,
         targetPanel: 'bottom',
         component: FolderSyncPlugin,
+    },
+    {
+        ...CatalogPluginDef,
+        description: 'Virtual collections of paths — browse as /vf folders, add selections from any pane.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: CatalogPlugin,
+    },
+    {
+        ...ActionLogPluginDef,
+        description: 'Reversible operation history with undo/redo — XYplorer-style action log.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: ActionLogPlugin,
+    },
+    {
+        ...ComparePluginDef,
+        description: 'Binary file compare and recursive folder diff — XYplorer branch compare parity.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: ComparePlugin,
     },
 ];
 

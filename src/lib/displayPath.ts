@@ -1,5 +1,6 @@
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
 import { getPaneTabLabel } from './paneLabels';
+import { parseUserCatalogPath } from './virtualPaths';
 
 /** `C:` from `/C:` or `//C:` */
 export function formatDriveLetter(pathOrName: string): string {
@@ -23,9 +24,12 @@ export function formatPropertiesPath(path: string | null | undefined): string {
 /** Windows-style path for the address bar (`C:\Users\...`) */
 export function formatAddressBarPath(panePath: string): string {
   const p = normalizePanePath(panePath);
+  if (p.startsWith('/vf/')) return `vf://${p.slice(4)}`;
+  if (p === '/vf') return 'vf://';
   if (p === '/') return 'This PC';
   if (isRecycleBinPath(p)) return 'Recycle Bin';
   if (p === '//' || p === '\\\\') return 'Network';
+  if (p === '/shell:PortableDevices' || p.toLowerCase() === '/shell:portabledevices') return 'Portable Devices';
   const win = toWindowsPath(p);
   return win.replace(/^\\+([A-Za-z]:)/, '$1');
 }
@@ -36,11 +40,23 @@ export interface BreadcrumbSegment {
 }
 
 /** Breadcrumb segments with human-readable labels (no raw `/C:` or `\\C:`). */
-export function getBreadcrumbSegments(panePath: string): BreadcrumbSegment[] {
+export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<string, string>): BreadcrumbSegment[] {
   const p = normalizePanePath(panePath);
+  if (p === '/vf' || p === 'vf://') return [{ label: 'Catalog', path: '/vf' }];
+  if (p.startsWith('/vf/')) {
+    const id = p.slice(4).split('/')[0];
+    const name = catalogNames?.[id] || id;
+    return [
+      { label: 'Catalog', path: '/vf' },
+      { label: name, path: `/vf/${id}` },
+    ];
+  }
   if (p === '/' || p === '/this-pc') return [{ label: 'This PC', path: '/' }];
   if (isRecycleBinPath(p)) return [{ label: 'Recycle Bin', path: RECYCLE_BIN_PATH }];
   if (p === '//' || p === '\\\\') return [{ label: 'Network', path: '//' }];
+  if (p === '/shell:PortableDevices' || p.toLowerCase() === '/shell:portabledevices') {
+    return [{ label: 'Portable Devices', path: '/shell:PortableDevices' }];
+  }
 
   const segments: BreadcrumbSegment[] = [];
 
@@ -108,6 +124,8 @@ export function parseUserPathToPane(input: string): string | null {
   if (/^this\s*pc$/i.test(raw)) return '/';
   if (/^recycle\s*bin$/i.test(raw)) return RECYCLE_BIN_PATH;
   if (/^network$/i.test(raw)) return '//';
+  const catalogPath = parseUserCatalogPath(raw);
+  if (catalogPath) return catalogPath;
 
   let normalized = raw.replace(/\//g, '\\');
   if (/^[A-Za-z]:\\?/.test(normalized)) {

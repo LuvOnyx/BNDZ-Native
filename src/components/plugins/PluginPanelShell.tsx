@@ -9,6 +9,8 @@ interface PluginPanelShellProps {
   toolbar?: ReactNode;
   children: ReactNode;
   status?: ReactNode;
+  /** When embedded in bottom tab strip, skip duplicate title chrome */
+  variant?: 'default' | 'embedded';
 }
 
 /** Shared chrome for bottom panel plugins */
@@ -20,9 +22,19 @@ export default function PluginPanelShell({
   toolbar,
   children,
   status,
+  variant = 'default',
 }: PluginPanelShellProps) {
+  if (variant === 'embedded') {
+    return (
+      <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[#0a0a0a] text-gray-300">
+        {status && <div className="shrink-0 px-4 py-1.5 border-b border-[#1a1a1a] text-xs">{status}</div>}
+        <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col w-full h-full min-h-0 bg-[#0a0a0a] text-gray-300">
+    <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[#0a0a0a] text-gray-300">
       <div className="shrink-0 px-4 py-2.5 border-b border-[#222] bg-gradient-to-r from-[#141414] to-[#0f0f0f] flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

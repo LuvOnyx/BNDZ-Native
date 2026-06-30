@@ -89,7 +89,12 @@ namespace Flow.Launcher
             UpdateManager.RestartApp(Constant.ApplicationFileName);
         }
 
-        public void ShowMainWindow() => _mainVM.Show();
+        public void ShowMainWindow()
+        {
+            if (BndzShellRedirect.TryRedirect?.Invoke() == true)
+                return;
+            _mainVM.Show();
+        }
 
         public void FocusQueryTextBox() => _mainVM.FocusQueryTextBox();
 

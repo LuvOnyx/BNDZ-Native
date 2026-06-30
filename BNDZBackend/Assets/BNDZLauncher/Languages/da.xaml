@@ -42,18 +42,18 @@
     <system:String x:Key="MessageBoxTitle">BNDZ Launcher</system:String>
     <system:String x:Key="couldnotStartCmd">Kunne ikke starte {0}</system:String>
     <system:String x:Key="invalidFlowLauncherPluginFileFormat">Ugyldigt BNDZ Launcher plugin filformat</system:String>
-    <system:String x:Key="setAsTopMostInThisQuery">S�t �verst i denne s�gning</system:String>
-    <system:String x:Key="cancelTopMostInThisQuery">Annuller �verst i denne s�gning</system:String>
-    <system:String x:Key="executeQuery">Udf�r s�gning: {0}</system:String>
+    <system:String x:Key="setAsTopMostInThisQuery">Sæt øverst i denne søgning</system:String>
+    <system:String x:Key="cancelTopMostInThisQuery">Annuller øverst i denne søgning</system:String>
+    <system:String x:Key="executeQuery">Udfør søgning: {0}</system:String>
     <system:String x:Key="lastExecuteTime">Seneste afviklingstid: {0}</system:String>
-    <system:String x:Key="iconTrayOpen">�ben</system:String>
+    <system:String x:Key="iconTrayOpen">Åben</system:String>
     <system:String x:Key="iconTraySettings">Indstillinger</system:String>
     <system:String x:Key="iconTrayAbout">Om</system:String>
     <system:String x:Key="iconTrayExit">Afslut</system:String>
     <system:String x:Key="closeWindow">Luk</system:String>
     <system:String x:Key="copy">Copy</system:String>
     <system:String x:Key="cut">Klip</system:String>
-    <system:String x:Key="paste">Inds�t</system:String>
+    <system:String x:Key="paste">Indsæt</system:String>
     <system:String x:Key="undo">Undo</system:String>
     <system:String x:Key="selectAll">Select All</system:String>
     <system:String x:Key="fileTitle">File</system:String>
@@ -73,7 +73,7 @@
     <system:String x:Key="flowlauncher_settings">Indstillinger</system:String>
     <system:String x:Key="general">Generelt</system:String>
     <system:String x:Key="portableMode">Portable Mode</system:String>
-    <system:String x:Key="portableModeToolTIp">Gem alle indstillinger og brugerdata i �n mappe (nyttigt ved brug af flytbare drev eller cloud-tjenester).</system:String>
+    <system:String x:Key="portableModeToolTIp">Gem alle indstillinger og brugerdata i én mappe (nyttigt ved brug af flytbare drev eller cloud-tjenester).</system:String>
     <system:String x:Key="startFlowLauncherOnSystemStartup">Start BNDZ Launcher ved system start</system:String>
     <system:String x:Key="useLogonTaskForStartup">Use logon task instead of startup entry for faster startup experience</system:String>
     <system:String x:Key="useLogonTaskForStartupTooltip">After uninstallation, you need to manually remove this task (BNDZ.Launcher Startup) via Task Scheduler</system:String>
@@ -104,7 +104,7 @@
     <system:String x:Key="LastQueryActionKeywordSelected">Select Last Action Keyword</system:String>
     <system:String x:Key="maxShowResults">Maksimum antal resultater vist</system:String>
     <system:String x:Key="maxShowResultsToolTip">You can also quickly adjust this by using CTRL+Plus and CTRL+Minus.</system:String>
-    <system:String x:Key="ignoreHotkeysOnFullscreen">Ignorer genvejstaster i fuldsk�rmsmode</system:String>
+    <system:String x:Key="ignoreHotkeysOnFullscreen">Ignorer genvejstaster i fuldskærmsmode</system:String>
     <system:String x:Key="ignoreHotkeysOnFullscreenToolTip">Disable BNDZ Launcher activation when a full screen application is active (Recommended for games).</system:String>
     <system:String x:Key="defaultFileManager">Default File Manager</system:String>
     <system:String x:Key="defaultFileManagerToolTip">Select the file manager to use when opening the folder.</system:String>
@@ -118,7 +118,7 @@
     <system:String x:Key="typingStartEnTooltip">Temporarily change your input method to English mode when activating BNDZ.</system:String>
     <system:String x:Key="autoUpdates">Autoopdatering</system:String>
     <system:String x:Key="autoUpdatesTooltip">Automatically check and update the app when available</system:String>
-    <system:String x:Key="select">V�lg</system:String>
+    <system:String x:Key="select">Vælg</system:String>
     <system:String x:Key="hideOnStartup">Skjul BNDZ Launcher ved opstart</system:String>
     <system:String x:Key="hideOnStartupToolTip">BNDZ Launcher search window is hidden in the tray after starting up.</system:String>
     <system:String x:Key="hideNotifyIcon"></system:String>
@@ -149,7 +149,7 @@
 
     <system:String x:Key="AlwaysPreview">Always Preview</system:String>
     <system:String x:Key="AlwaysPreviewToolTip">Always open preview panel when BNDZ activates. Press {0} to toggle preview.</system:String>
-    <system:String x:Key="shadowEffectNotAllowed">Skyggeeffekt er ikke tilladt, n�r det aktuelle tema har sl�ringseffekt aktiveret</system:String>
+    <system:String x:Key="shadowEffectNotAllowed">Skyggeeffekt er ikke tilladt, når det aktuelle tema har sløringseffekt aktiveret</system:String>
     <system:String x:Key="searchDelay">Search Delay</system:String>
     <system:String x:Key="searchDelayToolTip">Adds a short delay while typing to reduce UI flicker and result load. Recommended if your typing speed is average.</system:String>
     <system:String x:Key="searchDelayNumberBoxToolTip">Enter the wait time (in ms) until input is considered complete. This can only be edited if Search Delay is enabled.</system:String>
@@ -172,7 +172,7 @@
     </system:String>
     <system:String x:Key="KoreanImeOpenLink">Open Language and Region System Settings</system:String>
     <system:String x:Key="KoreanImeOpenLinkToolTip">Opens the Korean IME setting location. Go to Korean &gt; Language Options &gt; Keyboard - Microsoft IME &gt; Compatibility</system:String>
-    <system:String x:Key="KoreanImeOpenLinkButton">�ben</system:String>
+    <system:String x:Key="KoreanImeOpenLinkButton">Åben</system:String>
     <system:String x:Key="KoreanImeRegistry">Use Previous Korean IME</system:String>
     <system:String x:Key="KoreanImeRegistryTooltip">You can change the Previous Korean IME settings directly from here</system:String>
     <system:String x:Key="KoreanImeSettingChangeFailTitle">Failed to change Korean IME setting</system:String>
@@ -187,7 +187,7 @@
     <system:String x:Key="executedHistory">Last opened history</system:String>
     <system:String x:Key="homeToggleBoxToolTip">This can only be edited if plugin supports Home feature and Home Page is enabled.</system:String>
     <system:String x:Key="showAtTopmost">Show Search Window at Foremost</system:String>
-    <system:String x:Key="showAtTopmostToolTip">Overrides other programs' 'Always on Top' setting and shows BNDZ in the foremost position.</system:String>
+    <system:String x:Key="showAtTopmostToolTip">Overrides other programs' 'Always on Top' setting and displays BNDZ in the foremost position.</system:String>
     <system:String x:Key="autoRestartAfterChanging">Restart after modifying plugin via Plugin Store</system:String>
     <system:String x:Key="autoRestartAfterChangingToolTip">Restart BNDZ Launcher automatically after installing/uninstalling/updating plugin via Plugin Store</system:String>
     <system:String x:Key="showUnknownSourceWarning">Show unknown source warning</system:String>
@@ -206,7 +206,7 @@
     <system:String x:Key="enable">Til</system:String>
     <system:String x:Key="disable">Deaktiver</system:String>
     <system:String x:Key="actionKeywordsTitle">Action keyword Setting</system:String>
-    <system:String x:Key="actionKeywords">N�gleord</system:String>
+    <system:String x:Key="actionKeywords">Nøgleord</system:String>
     <system:String x:Key="currentActionKeywords">Current action keyword</system:String>
     <system:String x:Key="newActionKeyword">New action keyword</system:String>
     <system:String x:Key="actionKeywordsTooltip">Change Action Keywords</system:String>
@@ -217,14 +217,14 @@
     <system:String x:Key="DisplayModePriority">Prioritet</system:String>
     <system:String x:Key="DisplayModeSearchDelay">Search Delay</system:String>
     <system:String x:Key="DisplayModeHomeOnOff">Home Page</system:String>
-    <system:String x:Key="currentPriority">Nuv�rende prioritet</system:String>
+    <system:String x:Key="currentPriority">Nuværende prioritet</system:String>
     <system:String x:Key="newPriority">Ny prioritet</system:String>
     <system:String x:Key="priority">Prioritet</system:String>
     <system:String x:Key="priorityToolTip">Change Plugin Results Priority</system:String>
     <system:String x:Key="pluginDirectory">Plugin bibliotek</system:String>
     <system:String x:Key="author">af</system:String>
     <system:String x:Key="plugin_init_time">Initaliseringstid:</system:String>
-    <system:String x:Key="plugin_query_time">S�getid:</system:String>
+    <system:String x:Key="plugin_query_time">Søgetid:</system:String>
     <system:String x:Key="plugin_query_version">Version</system:String>
     <system:String x:Key="plugin_query_web">Hjemmeside</system:String>
     <system:String x:Key="plugin_uninstall">Uninstall</system:String>
@@ -296,7 +296,7 @@
     <!--  Setting Theme  -->
     <system:String x:Key="theme">Tema</system:String>
     <system:String x:Key="appearance">Appearance</system:String>
-    <system:String x:Key="browserMoreThemes">S�g efter flere temaer</system:String>
+    <system:String x:Key="browserMoreThemes">Søg efter flere temaer</system:String>
     <system:String x:Key="howToCreateTheme">Hvordan man opretter et tema</system:String>
     <system:String x:Key="hiThere">Hejsa</system:String>
     <system:String x:Key="SampleTitleExplorer">Explorer</system:String>
@@ -309,7 +309,7 @@
     <system:String x:Key="SampleSubTitleProcessKiller">Terminate unwanted processes</system:String>
     <system:String x:Key="SearchBarHeight">Search Bar Height</system:String>
     <system:String x:Key="ItemHeight">Item Height</system:String>
-    <system:String x:Key="queryBoxFont">S�gefelt skrifttype</system:String>
+    <system:String x:Key="queryBoxFont">Søgefelt skrifttype</system:String>
     <system:String x:Key="resultItemFont">Result Title Font</system:String>
     <system:String x:Key="resultSubItemFont">Result Subtitle Font</system:String>
     <system:String x:Key="resetCustomize">Reset</system:String>
@@ -320,13 +320,13 @@
     <system:String x:Key="windowMode">Vindue mode</system:String>
     <system:String x:Key="opacity">Gennemsigtighed</system:String>
     <system:String x:Key="theme_load_failure_path_not_exists">Temaet {0} findes ikke. Falder tilbage til standardtema</system:String>
-    <system:String x:Key="theme_load_failure_parse_error">Kunne ikke indl�se temaet {0}. Falder tilbage til standardtema</system:String>
+    <system:String x:Key="theme_load_failure_parse_error">Kunne ikke indlæse temaet {0}. Falder tilbage til standardtema</system:String>
     <system:String x:Key="ThemeFolder">Temamappe</system:String>
-    <system:String x:Key="OpenThemeFolder">�bn temamappe</system:String>
+    <system:String x:Key="OpenThemeFolder">Åbn temamappe</system:String>
     <system:String x:Key="ColorScheme">Farveskema</system:String>
     <system:String x:Key="ColorSchemeSystem">Systemstandard</system:String>
     <system:String x:Key="ColorSchemeLight">Lys</system:String>
-    <system:String x:Key="ColorSchemeDark">M�rk</system:String>
+    <system:String x:Key="ColorSchemeDark">Mørk</system:String>
     <system:String x:Key="SoundEffect">Lydeffekt</system:String>
     <system:String x:Key="SoundEffectTip">Play a small sound when the search window opens</system:String>
     <system:String x:Key="SoundEffectVolume">Sound Effect Volume</system:String>
@@ -368,7 +368,7 @@
     <system:String x:Key="previewHotkeyToolTip">Enter shortcut to show/hide preview in search window.</system:String>
     <system:String x:Key="hotkeyPresets">Hotkey Presets</system:String>
     <system:String x:Key="hotkeyPresetsToolTip">List of currently registered hotkeys</system:String>
-    <system:String x:Key="openResultModifiers">�bn resultatmodifikatorer</system:String>
+    <system:String x:Key="openResultModifiers">Åbn resultatmodifikatorer</system:String>
     <system:String x:Key="openResultModifiersToolTip">Select a modifier key to open selected result via keyboard.</system:String>
     <system:String x:Key="showOpenResultHotkey">Vis hotkey</system:String>
     <system:String x:Key="showOpenResultHotkeyToolTip">Show result selection hotkey with results.</system:String>
@@ -394,7 +394,7 @@
     <system:String x:Key="QuickHeightHotkey">Quick Adjust Window Height</system:String>
     <system:String x:Key="ReloadPluginHotkeyToolTip">Use when require plugins to reload and update their existing data.</system:String>
     <system:String x:Key="AdditionalHotkeyToolTip">You can add one more hotkey for this function.</system:String>
-    <system:String x:Key="customQueryHotkey">Tilpasset s�gegenvejstast</system:String>
+    <system:String x:Key="customQueryHotkey">Tilpasset søgegenvejstast</system:String>
     <system:String x:Key="customQueryShortcut">Custom Query Shortcut</system:String>
     <system:String x:Key="builtinShortcuts">Built-in Shortcut</system:String>
     <system:String x:Key="customQuery">Query</system:String>
@@ -403,10 +403,10 @@
     <system:String x:Key="builtinShortcutDescription">Description</system:String>
     <system:String x:Key="delete">Slet</system:String>
     <system:String x:Key="edit">Rediger</system:String>
-    <system:String x:Key="add">Tilf�j</system:String>
+    <system:String x:Key="add">Tilføj</system:String>
     <system:String x:Key="none">None</system:String>
-    <system:String x:Key="pleaseSelectAnItem">V�lg venligst</system:String>
-    <system:String x:Key="deleteCustomHotkeyWarning">Er du sikker p� du vil slette {0} plugin genvejstast?</system:String>
+    <system:String x:Key="pleaseSelectAnItem">Vælg venligst</system:String>
+    <system:String x:Key="deleteCustomHotkeyWarning">Er du sikker på du vil slette {0} plugin genvejstast?</system:String>
     <system:String x:Key="deleteCustomShortcutWarning">Are you sure you want to delete shortcut: {0} with expansion {1}?</system:String>
     <system:String x:Key="shortcut_clipboard_description">Get text from clipboard.</system:String>
     <system:String x:Key="shortcut_active_explorer_path">Get path from active explorer.</system:String>
@@ -452,8 +452,8 @@
     <system:String x:Key="password">Adgangskode</system:String>
     <system:String x:Key="testProxy">Test Proxy</system:String>
     <system:String x:Key="save">Gem</system:String>
-    <system:String x:Key="serverCantBeEmpty">Server felt m� ikke v�re tomt</system:String>
-    <system:String x:Key="portCantBeEmpty">Port felt m� ikke v�re tomt</system:String>
+    <system:String x:Key="serverCantBeEmpty">Server felt må ikke være tomt</system:String>
+    <system:String x:Key="portCantBeEmpty">Port felt må ikke være tomt</system:String>
     <system:String x:Key="invalidPortFormat">Ugyldigt port format</system:String>
     <system:String x:Key="saveProxySuccessfully">Proxy konfiguration gemt</system:String>
     <system:String x:Key="proxyIsCorrect">Proxy konfiguret korrekt</system:String>
@@ -470,7 +470,7 @@
     <system:String x:Key="about_activate_times">Du har aktiveret BNDZ Launcher {0} gange</system:String>
     <system:String x:Key="checkUpdates">Tjek for opdateringer</system:String>
     <system:String x:Key="BecomeASponsor">Become a Sponsor</system:String>
-    <system:String x:Key="newVersionTips">Ny version {0} er tilg�ngelig, genstart venligst BNDZ Launcher</system:String>
+    <system:String x:Key="newVersionTips">Ny version {0} er tilgængelig, genstart venligst BNDZ Launcher</system:String>
     <system:String x:Key="checkUpdatesFailed">Check updates failed, please check your connection and proxy settings to api.github.com.</system:String>
     <system:String x:Key="downloadUpdatesFailed">
         Download updates failed, please check your connection and proxy settings to github-cloud.s3.amazonaws.com,
@@ -515,9 +515,9 @@
     <system:String x:Key="fileManager_learnMore">Learn more</system:String>
     <system:String x:Key="fileManager_tips">Please specify the file location of the file manager you using and add arguments as required. The &quot;%d&quot; represents the directory path to open for, used by the Arg for Folder field and for commands opening specific directories. The &quot;%f&quot; represents the file path to open for, used by the Arg for File field and for commands opening specific files.</system:String>
     <system:String x:Key="fileManager_tips2">For example, if the file manager uses a command such as &quot;totalcmd.exe /A c:\windows&quot; to open the c:\windows directory, the File Manager Path will be totalcmd.exe, and the Arg For Folder will be /A &quot;%d&quot;. Certain file managers like QTTabBar may just require a path to be supplied, in this instance use &quot;%d&quot; as the File Manager Path and leave the rest of the fields blank.</system:String>
-    <system:String x:Key="fileManager_name">Filh�ndtering</system:String>
+    <system:String x:Key="fileManager_name">Filhåndtering</system:String>
     <system:String x:Key="fileManager_profile_name">Profilnavn</system:String>
-    <system:String x:Key="fileManager_path">Sti til filh�ndtering</system:String>
+    <system:String x:Key="fileManager_path">Sti til filhåndtering</system:String>
     <system:String x:Key="fileManager_directory_arg">Arg for mappe</system:String>
     <system:String x:Key="fileManager_file_arg">Arg for fil</system:String>
     <system:String x:Key="fileManagerPathNotFound">The file manager '{0}' could not be located at '{1}'. Would you like to continue?</system:String>
@@ -543,15 +543,15 @@
     <system:String x:Key="invalidPriority">Please provide an valid integer for Priority!</system:String>
 
     <!--  Action Keyword Setting Dialog  -->
-    <system:String x:Key="oldActionKeywords">Gammelt n�gleord</system:String>
-    <system:String x:Key="newActionKeywords">Nyt n�gleord</system:String>
+    <system:String x:Key="oldActionKeywords">Gammelt nøgleord</system:String>
+    <system:String x:Key="newActionKeywords">Nyt nøgleord</system:String>
     <system:String x:Key="cancel">Annuller</system:String>
-    <system:String x:Key="done">F�rdig</system:String>
+    <system:String x:Key="done">Færdig</system:String>
     <system:String x:Key="cannotFindSpecifiedPlugin">Kan ikke finde det valgte plugin</system:String>
-    <system:String x:Key="newActionKeywordsCannotBeEmpty">Nyt n�gleord m� ikke v�re tomt</system:String>
-    <system:String x:Key="newActionKeywordsHasBeenAssigned">Nyt n�gleord er tilknyttet et andet plugin, tilknyt venligst et andet nyt n�geleord</system:String>
+    <system:String x:Key="newActionKeywordsCannotBeEmpty">Nyt nøgleord må ikke være tomt</system:String>
+    <system:String x:Key="newActionKeywordsHasBeenAssigned">Nyt nøgleord er tilknyttet et andet plugin, tilknyt venligst et andet nyt nøgeleord</system:String>
     <system:String x:Key="newActionKeywordsSameAsOld">This new Action Keyword is the same as old, please choose a different one</system:String>
-    <system:String x:Key="success">Forts�t</system:String>
+    <system:String x:Key="success">Fortsæt</system:String>
     <system:String x:Key="completedSuccessfully">Completed successfully</system:String>
     <system:String x:Key="failedToCopy">Failed to copy</system:String>
     <system:String x:Key="actionkeyword_tips">Enter the action keywords you like to use to start the plugin and use whitespace to divide them. Use * if you don't want to specify any, and the plugin will be triggered without any action keywords.</system:String>
@@ -565,10 +565,10 @@
     <system:String x:Key="homeTips">Enable the plugin home page state if you like to show the plugin results when query is empty.</system:String>
 
     <!--  Custom Query Hotkey Dialog  -->
-    <system:String x:Key="customeQueryHotkeyTitle">Tilpasset s�gegenvejstast</system:String>
+    <system:String x:Key="customeQueryHotkeyTitle">Tilpasset søgegenvejstast</system:String>
     <system:String x:Key="customeQueryHotkeyTips">Press a custom hotkey to open BNDZ Launcher and input the specified query automatically.</system:String>
     <system:String x:Key="preview">Vis</system:String>
-    <system:String x:Key="hotkeyIsNotUnavailable">Genvejstast er utilg�ngelig, v�lg venligst en ny genvejstast</system:String>
+    <system:String x:Key="hotkeyIsNotUnavailable">Genvejstast er utilgængelig, vælg venligst en ny genvejstast</system:String>
     <system:String x:Key="invalidPluginHotkey">Hotkey is invalid</system:String>
     <system:String x:Key="update">Opdater</system:String>
     <system:String x:Key="hotkeyRegTitle">Binding Hotkey</system:String>
@@ -603,7 +603,7 @@ If you add an '@' prefix while inputting a shortcut, it matches any position in 
     <!--  Crash Reporter  -->
     <system:String x:Key="reportWindow_version">Version</system:String>
     <system:String x:Key="reportWindow_time">Tid</system:String>
-    <system:String x:Key="reportWindow_reproduce">Beskriv venligst hvordan BNDZ Launcher crashede, s� vi kan rette det.</system:String>
+    <system:String x:Key="reportWindow_reproduce">Beskriv venligst hvordan BNDZ Launcher crashede, så vi kan rette det.</system:String>
     <system:String x:Key="reportWindow_send_report">Send rapport</system:String>
     <system:String x:Key="reportWindow_cancel">Annuller</system:String>
     <system:String x:Key="reportWindow_general">Generelt</system:String>
@@ -642,14 +642,14 @@ If you add an '@' prefix while inputting a shortcut, it matches any position in 
         Please manually move your profile data folder from {0} to {1}
     </system:String>
     <system:String x:Key="update_flowlauncher_new_update">New Update</system:String>
-    <system:String x:Key="update_flowlauncher_update_new_version_available">Ny BNDZ Launcher udgivelse {0} er nu tilg�ngelig</system:String>
+    <system:String x:Key="update_flowlauncher_update_new_version_available">Ny BNDZ Launcher udgivelse {0} er nu tilgængelig</system:String>
     <system:String x:Key="update_flowlauncher_update_error">Der skete en fejl ifm. opdatering af BNDZ Launcher</system:String>
     <system:String x:Key="update_flowlauncher_update">Opdater</system:String>
     <system:String x:Key="update_flowlauncher_update_cancel">Annuller</system:String>
     <system:String x:Key="update_flowlauncher_fail">Update Failed</system:String>
     <system:String x:Key="update_flowlauncher_check_connection">Check your connection and try updating proxy settings to github-cloud.s3.amazonaws.com.</system:String>
     <system:String x:Key="update_flowlauncher_update_restart_flowlauncher_tip">Denne opdatering vil genstarte BNDZ Launcher</system:String>
-    <system:String x:Key="update_flowlauncher_update_update_files">F�lgende filer bliver opdateret</system:String>
+    <system:String x:Key="update_flowlauncher_update_update_files">Følgende filer bliver opdateret</system:String>
     <system:String x:Key="update_flowlauncher_update_files">Opdatereringsfiler</system:String>
     <system:String x:Key="update_flowlauncher_update_update_description">Opdateringsbeskrivelse</system:String>
 

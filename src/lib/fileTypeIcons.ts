@@ -49,6 +49,20 @@ const DEVICON_EXT: Record<string, string> = {
 
 export const ICONIFY_PATH_PREFIX = 'iconify:';
 
+/** Known Iconify id renames / fallbacks when primary id 404s */
+const ICONIFY_ALIASES: Record<string, string[]> = {
+  'devicon:html5-plain': ['devicon:html5', 'logos:html-5'],
+  'devicon:less-plain-wordmark': ['devicon:less', 'logos:less'],
+  'devicon:go-original-wordmark': ['devicon:go', 'logos:go'],
+  'devicon:cplusplus-plain': ['devicon:cplusplus', 'logos:c-plusplus'],
+  'devicon:webassembly-plain': ['devicon:wasm', 'logos:webassembly-icon'],
+  'devicon:markdown-plain': ['devicon:markdown', 'logos:markdown'],
+  'devicon:json-plain': ['devicon:json', 'logos:json'],
+  'devicon:xml-plain': ['devicon:xml', 'logos:xml'],
+  'devicon:yaml-plain': ['devicon:yaml', 'logos:yaml'],
+  'devicon:toml-plain': ['devicon:toml'],
+};
+
 export function toIconifyLibraryPath(iconId: string): string {
   return `${ICONIFY_PATH_PREFIX}${iconId}`;
 }
@@ -246,12 +260,17 @@ export async function fetchIconifySvg(iconId: string): Promise<string | null> {
 
   const promise = (async () => {
     const idsToTry: string[] = [iconId];
+    const aliases = ICONIFY_ALIASES[iconId];
+    if (aliases) idsToTry.push(...aliases);
     if (iconId.startsWith('skill-icons:') && !iconId.endsWith('-dark') && !iconId.endsWith('-light')) {
       const base = iconId.replace('skill-icons:', '');
       idsToTry.unshift(`skill-icons:${base}-dark`, `skill-icons:${base}-light`);
     }
+    if (iconId.startsWith('devicon:') && iconId.includes('-plain')) {
+      idsToTry.push(iconId.replace('-plain', '').replace('-wordmark', ''));
+    }
 
-    for (const id of idsToTry) {
+    for (const id of [...new Set(idsToTry)]) {
       try {
         const res = await fetch(`https://api.iconify.design/${id}.svg`, { cache: 'force-cache' });
         if (res.ok) {

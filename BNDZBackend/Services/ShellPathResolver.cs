@@ -10,6 +10,7 @@ public static class ShellPathResolver
     public const string ThisPcClsid = "::{20D04FE0-3AEA-1069-A2D8-08002B30309D}";
     public const string NetworkClsid = "::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}";
     public const string LibrariesClsid = "::{031E4825-7B94-4DC3-B131-E946B44C8DD5}";
+    public const string PortableDevicesClsid = PortableDeviceService.PortableDevicesClsid;
 
     public static string NormalizeIncoming(string? path)
     {
@@ -52,6 +53,7 @@ public static class ShellPathResolver
             if (shellLower == "shell:libraries") return LibrariesClsid;
             if (shellLower is "shell:mycomputerfolder" or "shell:thispcfolder") return ThisPcClsid;
             if (shellLower == "shell:networkplacesfolder") return NetworkClsid;
+            if (shellLower is "shell:portabledevices" or "shell:portable devices") return PortableDevicesClsid;
             return MapShellKnownFolder(trimmed) ?? trimmed;
         }
 

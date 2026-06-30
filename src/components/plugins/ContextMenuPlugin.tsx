@@ -4,7 +4,9 @@ import {
     Menu, Plus, Trash2, Save, MonitorCheck, Image, Globe, KeyRound,
     Wand2, FileText, Terminal, FolderOpen, Copy, Sparkles, ChevronRight, HelpCircle,
 } from 'lucide-react';
+import { pushToast } from '../ToastHost';
 import { IPC } from '../../lib/ipcBridge';
+import PluginPanelShell from './PluginPanelShell';
 
 export const ContextMenuPluginDef = {
     id: 'context-menu-manager',
@@ -50,7 +52,7 @@ const GLOBAL_TEMPLATES: Array<{ label: string; desc: string; action: Omit<MenuAc
     {
         label: 'Open Folder in BNDZ',
         desc: 'Browse the folder inside BNDZ',
-        action: { name: 'Open in BNDZ', command: '"%ProgramFiles%\\BNDZ\\BNDZ.exe" "%1"', targetMode: 'directory', icon: '' },
+        action: { name: 'Open in BNDZ', command: 'bndz-open-path', targetMode: 'directory', icon: '' },
     },
 ];
 
@@ -94,13 +96,15 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
     };
 
     const addGlobalAction = (seed?: Partial<MenuAction>) => {
+        const stableId = seed?.command === 'bndz-open-path' ? 'bndz-open-path' : (seed?.id ?? `g_custom_${Date.now()}`);
         const newAction: MenuAction = {
-            id: `g_custom_${Date.now()}`,
             name: seed?.name || 'New Menu Item',
             command: seed?.command || '',
             icon: seed?.icon || '',
             targetMode: seed?.targetMode || 'all',
             hasSubmenu: false,
+            ...seed,
+            id: stableId,
         };
         setGlobalActions(prev => [...prev, newAction]);
         setExpandedId(newAction.id);
@@ -112,9 +116,9 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
 
     const saveGlobalActions = async () => {
         try {
-            updateConfig({ globalContextMenuActions: globalActions } as Partial<typeof config>);
+            updateConfig({ globalContextMenuActions: globalActions, injectGlobalContextMenu: true } as Partial<typeof config>);
             if (!IPC.updateGlobalContextMenu) {
-                alert('Shell menu deployment is only available in the native BNDZ app.');
+                pushToast({ kind: 'warning', title: 'Native host required', message: 'Shell menu deployment is only available in the BNDZ native app.' });
                 return;
             }
             const payload = globalActions.map(a => ({
@@ -126,11 +130,11 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                 targetMode: a.targetMode,
             }));
             const ok = await IPC.updateGlobalContextMenu(payload);
-            alert(ok
-                ? 'Deployed to Windows! Your new items appear in File Explorer right-click menus.'
-                : 'Registry write failed. Try running BNDZ as Administrator.');
-        } catch (err) {
-            alert(`Error saving: ${err}`);
+            pushToast(ok
+                ? { kind: 'success', title: 'Deployed', message: 'New items appear in File Explorer right-click menus.' }
+                : { kind: 'error', title: 'Deploy failed', message: 'Registry write failed. Try running BNDZ as Administrator.' });
+        } catch (err: any) {
+            pushToast({ kind: 'error', title: 'Deploy error', message: String(err?.message || err) });
         }
     };
 
@@ -274,16 +278,35 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
         : 'Select files or folders in the file list to test your menu actions.';
 
     return (
+        <PluginPanelShell
+            title="Shell Menus"
+            icon={Menu}
+            iconColor="#f472b6"
+            subtitle={selectionHint}
+            toolbar={
+                <>
+                    <button
+                        type="button"
+                        onClick={() => (tab === 'global' ? addGlobalAction() : addAppAction())}
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-[#222] hover:bg-[#2a2a2a] border border-[#333] rounded-md text-white"
+                    >
+                        <Plus size={13} className="text-pink-400" /> Add
+                    </button>
+                    {tab === 'global' ? (
+                        <button type="button" onClick={saveGlobalActions} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-pink-600/20 hover:bg-pink-600/30 border border-pink-500/40 rounded-md text-pink-300">
+                            <MonitorCheck size={13} /> Deploy
+                        </button>
+                    ) : (
+                        <button type="button" onClick={saveAppActions} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 rounded-md text-sky-400">
+                            <Save size={13} /> Save
+                        </button>
+                    )}
+                </>
+            }
+        >
         <div className="flex w-full h-full bg-[#0a0a0a] text-gray-200 overflow-hidden min-h-0">
             <div className="w-[220px] border-r border-[#222] bg-[#111] flex flex-col shrink-0">
-                <div className="p-4 border-b border-[#222]">
-                    <div className="flex items-center gap-2 text-white font-bold text-sm">
-                        <Menu size={16} className="text-pink-400" /> Shell Menus
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">Customize right-click menus — no scripting knowledge required.</p>
-                </div>
-
-                <div className="flex flex-col gap-1 p-2">
+                <div className="flex flex-col gap-1 p-2 pt-3">
                     <button
                         type="button"
                         onClick={() => setTab('global')}
@@ -317,33 +340,6 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
             </div>
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                <div className="h-14 border-b border-[#222] bg-gradient-to-b from-[#181818] to-[#121212] flex items-center justify-between px-5 shrink-0">
-                    <div>
-                        <div className="font-bold text-sm text-white">
-                            {tab === 'global' ? 'Windows right-click menus' : 'BNDZ right-click menu'}
-                        </div>
-                        <div className="text-[10px] text-gray-500">{selectionHint}</div>
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={() => (tab === 'global' ? addGlobalAction() : addAppAction())}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#222] hover:bg-[#2a2a2a] text-xs font-bold border border-[#333] rounded-lg text-white"
-                        >
-                            <Plus size={14} className="text-pink-400" /> Add item
-                        </button>
-                        {tab === 'global' ? (
-                            <button type="button" onClick={saveGlobalActions} className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-600/20 hover:bg-pink-600/30 text-xs font-bold border border-pink-500/40 rounded-lg text-pink-300">
-                                <MonitorCheck size={14} /> Deploy to OS
-                            </button>
-                        ) : (
-                            <button type="button" onClick={saveAppActions} className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/15 hover:bg-sky-500/25 text-xs font-bold border border-sky-500/30 rounded-lg text-sky-400">
-                                <Save size={14} /> Save
-                            </button>
-                        )}
-                    </div>
-                </div>
-
                 <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 space-y-5 min-h-0">
                     {tab === 'global' && (
                         <div className="text-[11px] text-sky-300/90 bg-sky-950/20 p-3 rounded-xl border border-sky-500/20 flex gap-2.5 items-start">
@@ -409,5 +405,6 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                 </div>
             </div>
         </div>
+        </PluginPanelShell>
     );
 }

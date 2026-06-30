@@ -1,15 +1,21 @@
-import React, { useState, useCallback } from 'react';
-import { Paintbrush, FolderOpen, Upload, Palette, FolderPlus, X } from 'lucide-react';
-import { useIconStudio } from './IconStudioContext';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Paintbrush, FolderOpen, Upload, Palette, FolderPlus, X, Search, Copy, Trash2, Check } from 'lucide-react';
+import { useIconStudio, type IconItem } from './IconStudioContext';
 import { useAppConfig } from '../../../data/configContext';
 import IconPreviewImage from './IconPreviewImage';
 import styles from './IconStudio.module.css';
+import { resolveIconFilePath } from '../../../lib/iconPathUtils';
+import { applyIconToTargets } from './iconApply';
 import { IPC } from '../../../lib/ipcBridge';
-import { toWindowsPath } from '../../../lib/pathUtils';
-import { prepareIconForApply, resolveIconFilePath } from '../../../lib/iconPathUtils';
 import { pushToast } from '../../ToastHost';
 
 const ICON_EXTENSIONS = ['.ico', '.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif'];
+const COL_MIN = 108;
+const GAP = 10;
+const ROW_HEIGHT = 118;
+
+type CtxMenu = { x: number; y: number; icon: IconItem };
 
 export default function IconGrid({
     selectedItems,
@@ -20,119 +26,87 @@ export default function IconGrid({
     targetTypes?: string[];
     focusedPath: string;
 }) {
-    const { libraries, activeLibraryId, isApplying, setIsApplying, importIconsFromPaths, importLibraryFromFolder, createLibrary, removeIcon } = useIconStudio();
+    const {
+        libraries, activeLibraryId, isApplying, isImporting, setIsApplying,
+        selectedIcon, setSelectedIcon,
+        importIconsFromPaths, importLibraryFromFolder, createLibrary, removeIcon,
+    } = useIconStudio();
     const { config } = useAppConfig();
     const activeLibrary = libraries.find(l => l.id === activeLibraryId);
+
     const [isDragOver, setIsDragOver] = useState(false);
-    const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const [search, setSearch] = useState('');
+    const [focusIndex, setFocusIndex] = useState(0);
+    const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
+    const [cols, setCols] = useState(4);
 
-    const resolveTargetType = (fullPath: string, hinted?: string): string => {
-        if (hinted === 'folder' || hinted === 'file' || hinted === 'shortcut') return hinted;
-        const normalized = toWindowsPath(fullPath);
-        if (/\.lnk$/i.test(normalized)) return 'shortcut';
-        const base = normalized.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
-        const dot = base.lastIndexOf('.');
-        if (dot > 0 && dot < base.length - 1) {
-            const ext = base.slice(dot + 1);
-            if (/^[A-Za-z0-9]{1,10}$/.test(ext)) return 'file';
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const gridRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
+
+    const filteredIcons = useMemo(() => {
+        const icons = activeLibrary?.icons || [];
+        const q = search.trim().toLowerCase();
+        if (!q) return icons;
+        return icons.filter(ic => ic.name.toLowerCase().includes(q) || ic.icoStr.toLowerCase().includes(q));
+    }, [activeLibrary?.icons, search]);
+
+    const rows = useMemo(() => {
+        const r: IconItem[][] = [];
+        for (let i = 0; i < filteredIcons.length; i += cols) {
+            r.push(filteredIcons.slice(i, i + cols));
         }
-        return 'folder';
-    };
+        return r;
+    }, [filteredIcons, cols]);
 
-    const normalizeTarget = (raw: string): string => {
-        if (raw.includes(':') || raw.startsWith('/') || raw.startsWith('\\')) {
-            return toWindowsPath(raw);
+    useEffect(() => {
+        setSearch('');
+        setFocusIndex(0);
+    }, [activeLibraryId]);
+
+    useEffect(() => {
+        const el = gridRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver(([entry]) => {
+            const w = entry.contentRect.width - 28;
+            setCols(Math.max(2, Math.floor((w + GAP) / (COL_MIN + GAP))));
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [activeLibrary?.id]);
+
+    useEffect(() => {
+        setFocusIndex(i => Math.min(i, Math.max(0, filteredIcons.length - 1)));
+    }, [filteredIcons.length, search]);
+
+    useEffect(() => {
+        if (focusIndex >= 0 && focusIndex < filteredIcons.length) {
+            setSelectedIcon(filteredIcons[focusIndex]);
         }
-        const base = focusedPath.replace(/\/$/, '');
-        return toWindowsPath(`${base}/${raw}`);
-    };
+    }, [focusIndex, filteredIcons, setSelectedIcon]);
 
-    const handleApplyIcon = async (iconInfo: { id: string; icoStr: string; name: string }) => {
-        if (selectedItems.length === 0) {
-            pushToast({ kind: 'warning', title: 'No targets', message: 'Select folders or files in the file list first.' });
-            return;
-        }
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => scrollRef.current,
+        estimateSize: () => ROW_HEIGHT,
+        overscan: 4,
+    });
 
-        const iconPath = resolveIconFilePath(iconInfo.icoStr, activeLibrary?.sourceFolder);
-        if (!iconPath || iconPath.startsWith('data:')) {
-            pushToast({ kind: 'error', title: 'Invalid icon', message: 'Could not resolve icon path.' });
-            return;
-        }
-
+    const runApply = useCallback(async (icon: IconItem) => {
         setIsApplying(true);
         try {
-            const icoPath = await prepareIconForApply(iconPath);
-            if (!icoPath) {
-                pushToast({ kind: 'error', title: 'Icon prepare failed', message: `Could not prepare "${iconInfo.name}" for apply.` });
-                return;
-            }
-
-            let applied = 0;
-            let failed = 0;
-            let lastError = '';
-
-            for (let i = 0; i < selectedItems.length; i++) {
-                const raw = selectedItems[i];
-                const target = normalizeTarget(raw);
-                try {
-                    const result = await IPC.setSystemIcon(
-                        target,
-                        resolveTargetType(target, targetTypes?.[i]),
-                        icoPath,
-                        !!config.allowGlobalIconOverwrite,
-                    );
-                    if (result.success) applied++;
-                    else {
-                        failed++;
-                        if (result.error) lastError = result.error;
-                    }
-                } catch (err: any) {
-                    failed++;
-                    lastError = err?.message || lastError;
-                }
-            }
-
-            await IPC.clearIconCache();
-
-            if (failed === 0) {
-                pushToast({ kind: 'success', title: 'Icon applied', message: `"${iconInfo.name}" applied to ${applied} item(s).` });
-            } else {
-                pushToast({
-                    kind: 'error',
-                    title: 'Apply incomplete',
-                    message: lastError || `Applied ${applied}, failed ${failed}.`,
-                });
-            }
-        } catch (err: any) {
-            pushToast({ kind: 'error', title: 'Apply failed', message: err?.message || 'The operation timed out or was interrupted.' });
+            await applyIconToTargets({
+                icon,
+                activeLibrary,
+                selectedItems,
+                targetTypes,
+                focusedPath,
+                allowGlobalOverwrite: !!config.allowGlobalIconOverwrite,
+            });
         } finally {
             setIsApplying(false);
         }
-    };
-
-    const handleRestoreIcons = async () => {
-        if (!selectedItems.length) return;
-        setIsApplying(true);
-        let restored = 0;
-        let failed = 0;
-        try {
-            for (let i = 0; i < selectedItems.length; i++) {
-                const raw = selectedItems[i];
-                const target = normalizeTarget(raw);
-                try {
-                    const ok = await IPC.restoreSystemIcon(target, resolveTargetType(target, targetTypes?.[i]));
-                    if (ok === false) failed++; else restored++;
-                } catch {
-                    failed++;
-                }
-            }
-            await IPC.clearIconCache();
-            if (failed === 0) pushToast({ kind: 'success', title: 'Icons restored', message: `Default icon restored on ${restored} item(s).` });
-            else pushToast({ kind: 'warning', title: 'Partial restore', message: `Restored ${restored}, failed ${failed}.` });
-        } finally {
-            setIsApplying(false);
-        }
-    };
+    }, [activeLibrary, selectedItems, targetTypes, focusedPath, config.allowGlobalIconOverwrite, setIsApplying]);
 
     const extractPathsFromDrop = (e: React.DragEvent): string[] => {
         const paths: string[] = [];
@@ -163,96 +137,190 @@ export default function IconGrid({
         }
     }, [activeLibraryId, importIconsFromPaths]);
 
+    const handleGridKeyDown = (e: React.KeyboardEvent) => {
+        if (!filteredIcons.length) return;
+        if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            searchRef.current?.focus();
+            return;
+        }
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            setFocusIndex(i => Math.min(i + 1, filteredIcons.length - 1));
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            setFocusIndex(i => Math.max(i - 1, 0));
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setFocusIndex(i => Math.min(i + cols, filteredIcons.length - 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setFocusIndex(i => Math.max(i - cols, 0));
+        } else if (e.key === 'Enter' && selectedIcon && selectedItems.length > 0) {
+            e.preventDefault();
+            void runApply(selectedIcon);
+        }
+    };
+
+    useEffect(() => {
+        const closeCtx = () => setCtxMenu(null);
+        window.addEventListener('click', closeCtx);
+        return () => window.removeEventListener('click', closeCtx);
+    }, []);
+
+    const renderTile = (icon: IconItem, index: number) => {
+        const isFocused = focusIndex === index;
+        const isSelected = selectedIcon?.id === icon.id;
+        const canApply = selectedItems.length > 0 && !isApplying;
+        const previewPath = resolveIconFilePath(icon.icoStr, activeLibrary?.sourceFolder);
+
+        return (
+            <div key={icon.id} className="relative group/tile">
+                <button
+                    type="button"
+                    onClick={() => { setFocusIndex(index); setSelectedIcon(icon); }}
+                    onDoubleClick={() => { if (canApply) void runApply(icon); }}
+                    onContextMenu={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCtxMenu({ x: e.clientX, y: e.clientY, icon });
+                        setFocusIndex(index);
+                        setSelectedIcon(icon);
+                    }}
+                    title={canApply ? `Apply to ${selectedItems.length} item(s) · Enter` : 'Select targets in file list'}
+                    disabled={isApplying}
+                    className={`${styles.iconTile} w-full flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${
+                        isFocused || isSelected ? 'ring-2 ring-pink-500/50 border-pink-500/40' : ''
+                    }`}
+                >
+                    <div className="w-14 h-14 rounded-xl bg-black/25 flex items-center justify-center ring-1 ring-white/5">
+                        <IconPreviewImage path={previewPath} size={48} />
+                    </div>
+                    <span className="font-medium text-[10px] text-gray-400 truncate w-full text-center">{icon.name}</span>
+                </button>
+                {isFocused && !isApplying && (
+                    <button
+                        type="button"
+                        title="Remove from library"
+                        onClick={(e) => { e.stopPropagation(); removeIcon(activeLibrary!.id, icon.id); }}
+                        className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full bg-[#1a1a22] border border-white/10 text-gray-400 hover:text-white hover:bg-rose-600/90 flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-all"
+                    >
+                        <X size={11} />
+                    </button>
+                )}
+            </div>
+        );
+    };
+
+    const overlayBusy = isApplying || isImporting;
+
     return (
-        <div className={styles.mainPanel}>
+        <div className={styles.mainPanel} ref={gridRef}>
             {activeLibrary ? (
                 <>
                     <div className={styles.header}>
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500/20 to-purple-600/20 flex items-center justify-center ring-1 ring-pink-500/20 shrink-0">
                                 <Palette size={15} className="text-pink-300" />
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                                 <div className="text-sm font-semibold text-white truncate">{activeLibrary.name}</div>
-                                <div className="text-[10px] text-gray-500">{activeLibrary.icons.length} icons</div>
+                                <div className="text-[10px] text-gray-500">
+                                    {filteredIcons.length}{search.trim() ? ` of ${activeLibrary.icons.length}` : ''} icons
+                                </div>
                             </div>
                         </div>
-                        <div className="flex gap-2 items-center shrink-0">
-                            <button
-                                type="button"
-                                onClick={handleRestoreIcons}
-                                disabled={!selectedItems.length || isApplying}
-                                className="text-[11px] text-gray-400 hover:text-white px-2.5 py-1.5 rounded-lg border border-white/8 hover:border-white/15 disabled:opacity-35 transition-colors"
-                            >
-                                Restore default
-                            </button>
-                            <button
-                                type="button"
-                                onClick={importLibraryFromFolder}
-                                disabled={isApplying}
-                                className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 px-3 py-1.5 rounded-lg shadow-lg shadow-pink-900/20 transition-all disabled:opacity-50"
-                            >
-                                <FolderOpen size={12} /> Import
-                            </button>
+                        <div className="relative shrink-0 w-[160px] mr-2 hidden sm:block">
+                            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                            <input
+                                ref={searchRef}
+                                type="text"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                placeholder="Filter icons…"
+                                className="w-full bg-black/30 border border-white/8 rounded-lg pl-7 pr-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-pink-500/40"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={importLibraryFromFolder}
+                            disabled={overlayBusy}
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 px-3 py-1.5 rounded-lg shadow-lg shadow-pink-900/20 transition-all disabled:opacity-50 shrink-0"
+                        >
+                            <FolderOpen size={12} /> Import
+                        </button>
+                    </div>
+
+                    <div className="px-3 pb-2 sm:hidden">
+                        <div className="relative">
+                            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                placeholder="Filter icons…"
+                                className="w-full bg-black/30 border border-white/8 rounded-lg pl-7 pr-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-pink-500/40"
+                            />
                         </div>
                     </div>
 
                     <div
-                        className={`${styles.content} bndz-scrollbar relative ${isDragOver ? 'ring-2 ring-inset ring-pink-500/30' : ''}`}
+                        ref={scrollRef}
+                        className={`${styles.content} bndz-scrollbar relative outline-none`}
+                        tabIndex={0}
+                        onKeyDown={handleGridKeyDown}
                         onDrop={handleDrop}
                         onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; setIsDragOver(true); }}
                         onDragLeave={() => setIsDragOver(false)}
                     >
-                        {isApplying && (
+                        {overlayBusy && (
                             <div className={styles.applyOverlay}>
                                 <div className="flex flex-col items-center gap-4">
                                     <div className={styles.spinnerRing} />
-                                    <span className="text-[11px] font-medium text-pink-200/80 tracking-wide">Applying icon…</span>
+                                    <span className="text-[11px] font-medium text-pink-200/80 tracking-wide">
+                                        {isImporting ? 'Importing icons…' : 'Applying icon…'}
+                                    </span>
                                 </div>
                             </div>
                         )}
 
-                        {isDragOver && !isApplying && (
+                        {isDragOver && !overlayBusy && (
                             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none rounded-lg m-2 border border-dashed border-pink-400/40">
                                 <Upload size={36} className="text-pink-400 mb-2" />
                                 <p className="text-sm font-medium text-white">Drop icons here</p>
                             </div>
                         )}
 
-                        {activeLibrary.icons.length > 0 ? (
-                            <div className="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-2.5">
-                                {activeLibrary.icons.map(icon => {
-                                    const canApply = selectedItems.length > 0 && !isApplying;
-                                    const isHovered = hoveredId === icon.id;
+                        {filteredIcons.length > 0 ? (
+                            <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+                                {virtualizer.getVirtualItems().map(vi => {
+                                    const row = rows[vi.index];
+                                    const baseIndex = vi.index * cols;
                                     return (
-                                        <div key={icon.id} className="relative group/tile">
-                                            {isHovered && !isApplying && (
-                                                <button
-                                                    type="button"
-                                                    title="Remove from library"
-                                                    onClick={(e) => { e.stopPropagation(); removeIcon(activeLibrary.id, icon.id); }}
-                                                    className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full bg-[#1a1a22] border border-white/10 text-gray-400 hover:text-white hover:bg-rose-600/90 hover:border-rose-400/50 flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-all"
-                                                >
-                                                    <X size={11} />
-                                                </button>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleApplyIcon(icon)}
-                                                onMouseEnter={() => setHoveredId(icon.id)}
-                                                onMouseLeave={() => setHoveredId(null)}
-                                                title={canApply ? `Apply to ${selectedItems.length} item(s)` : 'Select targets in file list'}
-                                                disabled={!canApply}
-                                                className={`${styles.iconTile} w-full flex flex-col items-center gap-2 p-3 rounded-xl disabled:opacity-45 disabled:cursor-not-allowed`}
+                                        <div
+                                            key={vi.index}
+                                            style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                width: '100%',
+                                                transform: `translateY(${vi.start}px)`,
+                                            }}
+                                        >
+                                            <div
+                                                className="grid gap-2.5"
+                                                style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
                                             >
-                                                <div className="w-14 h-14 rounded-xl bg-black/25 flex items-center justify-center ring-1 ring-white/5">
-                                                    <IconPreviewImage path={resolveIconFilePath(icon.icoStr, activeLibrary?.sourceFolder)} size={48} />
-                                                </div>
-                                                <span className="font-medium text-[10px] text-gray-400 truncate w-full text-center">{icon.name}</span>
-                                            </button>
+                                                {row.map((icon, ci) => renderTile(icon, baseIndex + ci))}
+                                            </div>
                                         </div>
                                     );
                                 })}
+                            </div>
+                        ) : activeLibrary.icons.length > 0 ? (
+                            <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-gray-500 gap-2">
+                                <Search size={24} className="opacity-30" />
+                                <p className="text-sm">No icons match &quot;{search.trim()}&quot;</p>
                             </div>
                         ) : (
                             <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-gray-500 gap-3">
@@ -283,6 +351,44 @@ export default function IconGrid({
                             <FolderOpen size={14} /> Import folder
                         </button>
                     </div>
+                </div>
+            )}
+
+            {ctxMenu && (
+                <div
+                    className="fixed z-[10000] min-w-[160px] py-1 rounded-lg border border-white/10 bg-[#1a1a22] shadow-xl text-[11px]"
+                    style={{ left: ctxMenu.x, top: ctxMenu.y }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <button
+                        type="button"
+                        className="w-full px-3 py-1.5 text-left hover:bg-pink-500/15 text-gray-200 flex items-center gap-2 disabled:opacity-40"
+                        disabled={!selectedItems.length}
+                        onClick={() => { void runApply(ctxMenu.icon); setCtxMenu(null); }}
+                    >
+                        <Check size={12} /> Apply to selection
+                    </button>
+                    <button
+                        type="button"
+                        className="w-full px-3 py-1.5 text-left hover:bg-white/5 text-gray-300 flex items-center gap-2"
+                        onClick={() => {
+                            const p = resolveIconFilePath(ctxMenu.icon.icoStr, activeLibrary?.sourceFolder);
+                            if (p) void IPC.shellExecute('copyPath', p);
+                            setCtxMenu(null);
+                        }}
+                    >
+                        <Copy size={12} /> Copy icon path
+                    </button>
+                    <button
+                        type="button"
+                        className="w-full px-3 py-1.5 text-left hover:bg-rose-500/15 text-rose-300 flex items-center gap-2"
+                        onClick={() => {
+                            if (activeLibrary) removeIcon(activeLibrary.id, ctxMenu.icon.id);
+                            setCtxMenu(null);
+                        }}
+                    >
+                        <Trash2 size={12} /> Remove from library
+                    </button>
                 </div>
             )}
         </div>

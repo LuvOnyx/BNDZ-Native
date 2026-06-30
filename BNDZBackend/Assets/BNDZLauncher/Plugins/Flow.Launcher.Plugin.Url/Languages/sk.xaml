@@ -1,22 +1,22 @@
 <?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <system:String x:Key="flowlauncher_plugin_url_open_url">Otvorit URL:{0}</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_cannot_open_url">Adresa URL sa nedá otvorit:{0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_open_url">OtvoriÅ¥ URL:{0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_cannot_open_url">Adresa URL sa nedÃ¡ otvoriÅ¥:{0}</system:String>
 
     <system:String x:Key="flowlauncher_plugin_url_plugin_name">Adresa URL</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_plugin_description">Otvorit zadanú adresu URL z BNDZ Launchera</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_description">OtvoriÅ¥ zadanÃº adresu URL z BNDZ Launchera</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_plugin_choose">Prehliadat</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">Aplikácie (*.exe)|*.exe|Všetky súbory|*.*</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_choose">PrehliadaÅ¥</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_plugin_filter">AplikÃ¡cie (*.exe)|*.exe|VÅ¡etky sÃºbory|*.*</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_use_custom_browser">Pouit vlastnı prehliadac namiesto predvoleného webového prehliadaca</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_browser_path">Cesta k prehliadacu</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_use_custom_browser">PouÅ¾iÅ¥ vlastnÃ½ prehliadaÄ namiesto predvolenÃ©ho webovÃ©ho prehliadaÄa</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_browser_path">Cesta k prehliadaÄu</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_new_tab">Nová karta</system:String>
-    <system:String x:Key="flowlauncher_plugin_url_new_window">Nové okno</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_tab">NovÃ¡ karta</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_new_window">NovÃ© okno</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_private_mode">Privátny reim</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_private_mode">PrivÃ¡tny reÅ¾im</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_url_usehttps">Uprednostnit https pred http</system:String>
+    <system:String x:Key="flowlauncher_plugin_url_usehttps">UprednostniÅ¥ https pred http</system:String>
 </ResourceDictionary>

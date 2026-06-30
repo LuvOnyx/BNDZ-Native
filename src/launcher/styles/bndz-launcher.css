@@ -1,4 +1,4 @@
-/* Ported from SuperCmd (MIT) — glass launcher tokens for BNDZ Raycast shell */
+/* Ported from SuperCmd (MIT) — glass launcher tokens for BNDZ Launcher shell */
 @import "tailwindcss";
 
 :root {
@@ -17,6 +17,15 @@
   --kbd-bg: rgba(118, 130, 149, 0.16);
   --footer-border: rgba(156, 164, 178, 0.22);
   --accent: #2f6bff;
+  --accent-soft: rgba(47, 107, 255, 0.18);
+  --ui-divider: rgba(156, 164, 178, 0.22);
+  --ui-segment-active-bg: rgba(118, 130, 149, 0.12);
+  --ui-segment-border: rgba(184, 190, 198, 0.18);
+  --ui-segment-hover-bg: rgba(118, 130, 149, 0.1);
+  --text-secondary: rgba(var(--on-surface-rgb), 0.78);
+  --text-disabled: rgba(var(--on-surface-rgb), 0.38);
+  --bg-scrim: rgba(0, 0, 0, 0.45);
+  --border-subtle: rgba(156, 164, 178, 0.15);
 }
 
 html, body, #root {
@@ -35,11 +44,15 @@ html, body, #root {
 .glass-effect {
   --glass-radius: 14px;
   background:
-    linear-gradient(180deg, rgba(var(--on-surface-rgb), 0.06), rgba(var(--on-surface-rgb), 0.02)),
-    rgba(var(--surface-base-rgb), 0.82);
-  backdrop-filter: blur(54px) saturate(170%);
+    linear-gradient(180deg, rgba(var(--on-surface-rgb), 0.08), rgba(var(--on-surface-rgb), 0.02)),
+    rgba(var(--surface-base-rgb), 0.78);
+  backdrop-filter: blur(64px) saturate(180%);
+  -webkit-backdrop-filter: blur(64px) saturate(180%);
   border-radius: var(--glass-radius);
-  box-shadow: 0 0 0 1.5px var(--glass-outline), 0 12px 40px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 0 1.5px var(--glass-outline),
+    0 18px 48px rgba(0, 0, 0, 0.34);
   position: relative;
   overflow: hidden;
 }
@@ -63,8 +76,9 @@ html, body, #root {
 }
 
 .command-item.selected {
-  background: var(--command-item-selected-bg);
+  background: linear-gradient(90deg, var(--accent-soft), var(--command-item-selected-bg));
   border-color: var(--command-item-selected-border);
+  box-shadow: inset 0 0 0 1px rgba(47, 107, 255, 0.12);
 }
 
 .bndz-search-input {
@@ -128,4 +142,294 @@ html, body, #root {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(118, 130, 149, 0.3);
   border-radius: 4px;
+}
+
+.launcher-shell-menu {
+  position: fixed;
+  z-index: 99999;
+  min-width: 220px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(28, 28, 30, 0.96);
+  border: 1px solid rgba(184, 190, 198, 0.22);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(24px);
+}
+
+.launcher-shell-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.launcher-shell-menu-item:hover {
+  background: var(--command-item-hover-bg);
+}
+
+/* SuperCmd AI + manager tokens */
+.sc-glass-footer,
+.sc-launcher-footer,
+.bndz-launcher-footer {
+  border-top: 1px solid var(--footer-border);
+  background: linear-gradient(180deg, rgba(var(--on-surface-rgb), 0.05), rgba(var(--on-surface-rgb), 0.01));
+}
+
+.bndz-icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--ui-segment-border);
+  background: var(--ui-segment-active-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.bndz-icon-btn:hover { background: var(--ui-segment-hover-bg); }
+
+.bndz-field {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--glass-outline);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+}
+.bndz-field:focus { box-shadow: 0 0 0 2px var(--accent-soft); }
+
+.bndz-chip-btn {
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--launcher-chip-border);
+  background: var(--launcher-chip-bg);
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+.bndz-chip-btn:hover { color: var(--text-primary); }
+
+.bndz-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.bndz-btn-ghost:hover { background: var(--command-item-hover-bg); color: var(--text-primary); }
+
+.bndz-btn-primary {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bndz-btn-primary:hover { filter: brightness(1.08); }
+
+.bndz-btn-danger {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #dc2626;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sc-ai-shimmer {
+  background: linear-gradient(90deg, rgba(118,130,149,0.08) 0%, rgba(118,130,149,0.22) 50%, rgba(118,130,149,0.08) 100%);
+  background-size: 200% 100%;
+  animation: sc-ai-shimmer-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes sc-ai-shimmer-slide {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes sc-ai-caret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+@keyframes sc-ai-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.ai-markdown pre { margin: 0; }
+.sc-ai-selectable, .sc-ai-selectable * { user-select: text; }
+
+/* Raycast-style compact → expanded launcher */
+.launcher-compact-shell .glass-effect {
+  --glass-radius: 12px;
+}
+
+.launcher-expanded-body {
+  animation: launcher-body-in 220ms ease-out;
+}
+
+@keyframes launcher-body-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.launcher-preview-panel {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), transparent);
+}
+
+.launcher-preview-media {
+  background: rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid var(--footer-border);
+}
+
+.launcher-preview-text {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  margin: 8px;
+}
+
+.launcher-preview-meta dt {
+  font-weight: 500;
+}
+
+.launcher-actions-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: var(--bg-scrim);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 48px;
+}
+
+.launcher-actions-sheet {
+  min-width: 320px;
+  max-width: 420px;
+  border-radius: 12px;
+  background: rgba(28, 28, 30, 0.96);
+  border: 1px solid var(--glass-outline);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(24px);
+  overflow: hidden;
+}
+
+.launcher-actions-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.launcher-actions-item:hover,
+.launcher-actions-item.selected {
+  background: var(--command-item-hover-bg);
+}
+
+.launcher-actions-item.selected {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.launcher-actions-overlay-enter {
+  animation: launcher-scrim-in 180ms ease-out;
+}
+
+.launcher-actions-sheet-enter {
+  animation: launcher-sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes launcher-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes launcher-sheet-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.launcher-background-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.launcher-background-image {
+  position: absolute;
+  inset: -8%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: var(--launcher-background-opacity, 0.46);
+  transform: scale(1.015);
+  filter: blur(var(--launcher-background-blur, 9px)) saturate(1.24) brightness(1.02);
+}
+
+.launcher-background-tint {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, rgba(var(--surface-base-rgb), 0.035), transparent 58%),
+    linear-gradient(180deg, rgba(var(--surface-base-rgb), 0.015), rgba(var(--surface-base-rgb), 0.08));
+}
+
+.dark {
+  --surface-base-rgb: 18, 18, 20;
+  --on-surface-rgb: 235, 238, 243;
+  --text-primary: rgba(var(--on-surface-rgb), 0.94);
+  --text-muted: rgba(var(--on-surface-rgb), 0.58);
+  --text-subtle: rgba(var(--on-surface-rgb), 0.46);
+  --glass-outline: rgba(120, 128, 140, 0.24);
+  --command-item-hover-bg: rgba(118, 130, 149, 0.12);
+  --command-item-selected-bg: rgba(118, 130, 149, 0.22);
+  --footer-border: rgba(120, 128, 140, 0.2);
+  --bg-scrim: rgba(0, 0, 0, 0.55);
+}
+
+.dark .glass-effect {
+  background:
+    linear-gradient(180deg, rgba(var(--on-surface-rgb), 0.06), rgba(var(--on-surface-rgb), 0.01)),
+    rgba(var(--surface-base-rgb), 0.82);
+}
+
+.dark .launcher-background-image {
+  filter: blur(var(--launcher-background-blur, 9px)) saturate(1.45) brightness(0.98);
+}
+
+.dark .launcher-actions-sheet {
+  background: rgba(22, 22, 24, 0.97);
 }

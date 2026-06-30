@@ -5,7 +5,7 @@
     <system:String x:Key="flowlauncher_plugin_program_reset">Reset Default</system:String>
     <system:String x:Key="flowlauncher_plugin_program_delete">Slet</system:String>
     <system:String x:Key="flowlauncher_plugin_program_edit">Rediger</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_add">Tilføj</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_add">TilfÃ¸j</system:String>
     <system:String x:Key="flowlauncher_plugin_program_name">Name</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable">Enable</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enabled">Enabled</system:String>
@@ -90,7 +90,7 @@
     <system:String x:Key="flowlauncher_plugin_program_tooltip_args">Enter the customized args you want to add for your customized explorer. %s for parent directory, %f for full path (which only works for win32). Check the explorer's website for details.</system:String>
 
     <!--  Dialogs  -->
-    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success">Fortsæt</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success">FortsÃ¦t</system:String>
     <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_error">Error</system:String>
     <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success_message">Successfully disabled this program from displaying in your query</system:String>
     <system:String x:Key="flowlauncher_plugin_program_run_as_administrator_not_supported_message">This app is not intended to be run as administrator</system:String>

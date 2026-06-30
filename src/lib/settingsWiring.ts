@@ -80,6 +80,9 @@ export function buildMouseRuntime(config: AppConfig) {
     fullRowSelect: readSettingBool(config, 'fullNameColumnSelect'),
     alsoFullRow: readSettingBool(config, 'alsoOnFullRowSelect'),
     dragByThumbnail: readSettingBool(config, 'allowDraggingItemsByTheThumbnail'),
+    disallowDragFromList: readSettingBool(config, 'disallowLeftDraggingFromFileList'),
+    disallowDragFromTree: readSettingBool(config, 'disallowLeftDraggingFromFolderTree'),
+    bindings: config.mouseBindings,
   };
 }
 
@@ -88,7 +91,8 @@ export function buildSearchRuntime(config: AppConfig) {
   return {
     globalPrefix: readSettingBool(config, 'enableGlobalSearchPrefix', true),
     limit: readSettingNumber(config, 'globalSearchLimit', 200),
-    typeAhead: readSettingBool(config, 'typeAheadFind'),
+    typeAhead: readSettingBool(config, 'enableTypeAheadFind'),
+    typeAheadMatch: readSettingString(config, 'typeAheadFindMatch', 'Match at beginning'),
     instantFilter: readSettingBool(config, 'instantFilterOnTyping'),
     ignoreDiacritics: readSettingBool(config, 'ignoreDiacritics'),
     searchSubfolders: readSettingBool(config, 'searchSubfolders'),
@@ -98,8 +102,10 @@ export function buildSearchRuntime(config: AppConfig) {
 
 /** Shell integration */
 export function buildShellRuntime(config: AppConfig) {
+  const useNativeOs = readSettingBool(config, 'useNativeOSContextMenu');
+  const useCustom = readSettingBool(config, 'useCustomContextMenu', true) && !useNativeOs;
   return {
-    useCustomContextMenu: readSettingBool(config, 'useCustomContextMenu'),
+    useCustomContextMenu: useCustom,
     enableSubmenus: readSettingBool(config, 'enableContextSubmenus'),
     injectGlobalMenu: readSettingBool(config, 'injectGlobalContextMenu'),
     isDefaultManager: readSettingBool(config, 'isDefaultFileManager') || readSettingBool(config, 'bndzIsDefaultFileManager'),
@@ -107,6 +113,7 @@ export function buildShellRuntime(config: AppConfig) {
     overrideWin11More: readSettingBool(config, 'overrideWin11MoreOptions'),
     confirmDelete: readSettingBool(config, 'confirmDeleteOperations', true),
     confirmMove: readSettingBool(config, 'confirmCopyAndMoveOperations'),
+    confirmDrag: readSettingBool(config, 'confirmDragAndDrop'),
     bypassRecycle: readSettingBool(config, 'bypassRecycleBin'),
     deleteToRecycle: readSettingBool(config, 'deleteToRecycleBin', true),
   };

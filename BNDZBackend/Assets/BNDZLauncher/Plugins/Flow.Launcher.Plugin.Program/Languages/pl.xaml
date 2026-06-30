@@ -2,98 +2,98 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
     <!--  Program setting  -->
-    <system:String x:Key="flowlauncher_plugin_program_reset">Przywr骳 domyslne</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_delete">Usun</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_reset">Przywr贸膰 domy艣lne</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete">Usu艅</system:String>
     <system:String x:Key="flowlauncher_plugin_program_edit">Edytuj</system:String>
     <system:String x:Key="flowlauncher_plugin_program_add">Dodaj</system:String>
     <system:String x:Key="flowlauncher_plugin_program_name">Nazwa</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable">Aktywne</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enabled">Aktywny</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_disable">Wylacz</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable">Wy艂膮cz</system:String>
     <system:String x:Key="flowlauncher_plugin_program_status">Status</system:String>
     <system:String x:Key="flowlauncher_plugin_program_true">Aktywny</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_false">Wylaczony</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_false">Wy艂膮czony</system:String>
     <system:String x:Key="flowlauncher_plugin_program_location">Lokalizacja</system:String>
     <system:String x:Key="flowlauncher_plugin_program_all_programs">Wszystkie programy</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes">Typ pliku</system:String>
     <system:String x:Key="flowlauncher_plugin_program_reindex">Re-indeksuj</system:String>
     <system:String x:Key="flowlauncher_plugin_program_indexing">Indeksowanie</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_source">Zr骴la indeksu</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_source">殴r贸d艂a indeksu</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_option">Opcje</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_uwp">Aplikacje UWP</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_uwp_tooltip">Po wlaczeniu Flow zaladuje aplikacje UWP</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_uwp_tooltip">Po w艂膮czeniu Flow za艂aduje aplikacje UWP</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_start">Menu Start</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_start_tooltip">Gdy opcja ta jest wlaczona, Flow bedzie ladowac programy z menu Start</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_start_tooltip">Gdy opcja ta jest w艂膮czona, Flow b臋dzie 艂adowa膰 programy z menu Start</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_registry">Rejestr</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_registry_tooltip">Gdy opcja ta jest wlaczona, Flow bedzie ladowac programy z rejestru</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_registry_tooltip">Gdy opcja ta jest w艂膮czona, Flow b臋dzie 艂adowa膰 programy z rejestru</system:String>
     <system:String x:Key="flowlauncher_plugin_program_index_PATH">PATH</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_index_PATH_tooltip">Gdy opcja ta jest wlaczona, Flow bedzie ladowac programy ze zmiennej srodowiskowej PATH</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath">Ukryj sciezke aplikacji</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath_tooltip">Dla plik體 wykonywalnych, takich jak UWP lub lnk, ukryj widoczna sciezke pliku</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_index_PATH_tooltip">Gdy opcja ta jest w艂膮czona, Flow b臋dzie 艂adowa膰 programy ze zmiennej 艣rodowiskowej PATH</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath">Ukryj 艣cie偶k臋 aplikacji</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hidelnkpath_tooltip">Dla plik贸w wykonywalnych, takich jak UWP lub lnk, ukryj widoczn膮 艣cie偶k臋 pliku</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_hideuninstallers">Ukryj deinstalatory</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_hideuninstallers_tooltip">Ukrywa programy z typowymi nazwami deinstalator體, takimi jak unins000.exe</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hideuninstallers_tooltip">Ukrywa programy z typowymi nazwami deinstalator贸w, takimi jak unins000.exe</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_description">Szukaj w opisie programu</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_description_tooltip">Flow bedzie przeszukiwac opisy program體</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_description_tooltip">Flow b臋dzie przeszukiwa膰 opisy program贸w</system:String>
     <system:String x:Key="flowlauncher_plugin_program_enable_hideduplicatedwindowsapp">Ukryj zduplikowane aplikacje</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_enable_hideduplicatedwindowsapp_tooltip">Ukryj zduplikowane programy Win32, kt髍e znajduja sie juz na liscie UWP</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_enable_hideduplicatedwindowsapp_tooltip">Ukryj zduplikowane programy Win32, kt贸re znajduj膮 si臋 ju偶 na li艣cie UWP</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes_header">Rozszerzenia</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_max_depth_header">Maksymalna glebokosc</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_max_depth_header">Maksymalna g艂臋boko艣膰</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_directory">Katalog:</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_browse">Przegladaj</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_file_suffixes">Rozszerzenia plik體:</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_max_search_depth">Maksymalna glebokosc wyszukiwania (-1 to nieograniczona):</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_browse">Przegl膮daj</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_file_suffixes">Rozszerzenia plik贸w:</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_max_search_depth">Maksymalna g艂臋boko艣膰 wyszukiwania (-1 to nieograniczona):</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_program_pls_select_program_source">Musisz wybrac katalog programu</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_delete_program_source">Czy na pewno chcesz usunac wybrane zr骴la program體?</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_not_user_added">Wybierz zr骴la program體, kt髍e nie zostaly dodane przez Ciebie</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_user_added">Wybierz zr骴la program體 dodane przez Ciebie</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_duplicate_program_source">Inne zr骴lo programu z ta sama lokalizacja juz istnieje.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_pls_select_program_source">Musisz wybra膰 katalog programu</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete_program_source">Czy na pewno chcesz usun膮膰 wybrane 藕r贸d艂a program贸w?</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_not_user_added">Wybierz 藕r贸d艂a program贸w, kt贸re nie zosta艂y dodane przez Ciebie</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_delete_program_source_select_user_added">Wybierz 藕r贸d艂a program贸w dodane przez Ciebie</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_duplicate_program_source">Inne 藕r贸d艂o programu z t膮 sam膮 lokalizacj膮 ju偶 istnieje.</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_program_edit_program_source_title">Zr骴lo programu</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_edit_program_source_tips">Edytuj katalog i status tego zr骴la programu.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_edit_program_source_title">殴r贸d艂o programu</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_edit_program_source_tips">Edytuj katalog i status tego 藕r贸d艂a programu.</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_update">Aktualizuj</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_only_index_tip">Wtyczka programu bedzie indeksowac tylko pliki z wybranymi sufiksami oraz pliki .url z wybranymi protokolami.</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_update_file_suffixes">Pomyslnie zaktualizowano rozszerzenia plik體</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_suffixes_cannot_empty">Musisz podac rozszerzenia plik體</system:String>
-    <system:String x:Key="flowlauncher_plugin_protocols_cannot_empty">Protokoly nie moga byc puste</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_only_index_tip">Wtyczka programu b臋dzie indeksowa膰 tylko pliki z wybranymi sufiksami oraz pliki .url z wybranymi protoko艂ami.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_update_file_suffixes">Pomy艣lnie zaktualizowano rozszerzenia plik贸w</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_cannot_empty">Musisz poda膰 rozszerzenia plik贸w</system:String>
+    <system:String x:Key="flowlauncher_plugin_protocols_cannot_empty">Protoko艂y nie mog膮 by膰 puste</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_program_suffixes_executable_types">Rozszerzenia indeksowanych plik體</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_types">Protokoly URL</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_executable_types">Rozszerzenia indeksowanych plik贸w</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_types">Protoko艂y URL</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_steam">Gry Steam</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_epic">Epic Games</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes_URL_http">Http/Https</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_suffixes_custom_urls">Niestandardowe protokoly URL</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_suffixes_custom_file_types">Niestandardowe rozszerzenia plik體</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_custom_urls">Niestandardowe protoko艂y URL</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_suffixes_custom_file_types">Niestandardowe rozszerzenia plik贸w</system:String>
     <system:String x:Key="flowlauncher_plugin_program_suffixes_tooltip">
-        Wpisz rozszerzenia plik體, kt髍e chcesz indeksowac. Rozszerzenia powinny byc oddzielone srednikiem ';'. (np. bat;py)
+        Wpisz rozszerzenia plik贸w, kt贸re chcesz indeksowa膰. Rozszerzenia powinny by膰 oddzielone 艣rednikiem ';'. (np. bat;py)
     </system:String>
     <system:String x:Key="flowlauncher_plugin_program_protocol_tooltip">
-        Wpisz protokoly plik體 .url, kt髍e chcesz indeksowac. Protokoly powinny byc oddzielone srednikiem ';' i konczyc sie &quot;://&quot;. (np. ftp://;mailto://)
+        Wpisz protoko艂y plik贸w .url, kt贸re chcesz indeksowa膰. Protoko艂y powinny by膰 oddzielone 艣rednikiem ';' i ko艅czy膰 si臋 &quot;://&quot;. (np. ftp://;mailto://)
     </system:String>
 
-    <system:String x:Key="flowlauncher_plugin_program_run_as_different_user">Uruchom jako inny uzytkownik</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_as_different_user">Uruchom jako inny u偶ytkownik</system:String>
     <system:String x:Key="flowlauncher_plugin_program_run_as_administrator">Uruchom jako administrator</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_open_containing_folder">Otw髍z folder nadrzedny</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_open_containing_folder">Otw贸rz folder nadrz臋dny</system:String>
     <system:String x:Key="flowlauncher_plugin_program_disable_program">Ukryj</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_open_target_folder">Otw髍z folder docelowy</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_open_target_folder">Otw贸rz folder docelowy</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_plugin_name">Programy</system:String>
     <system:String x:Key="flowlauncher_plugin_program_plugin_description">Szukaj i uruchamiaj programy z poziomu BNDZ Launchera</system:String>
 
-    <system:String x:Key="flowlauncher_plugin_program_invalid_path">Nieprawidlowa sciezka</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_invalid_path">Nieprawid艂owa 艣cie偶ka</system:String>
 
     <system:String x:Key="flowlauncher_plugin_program_customizedexplorer">Spersonalizowany Eksplorator</system:String>
     <system:String x:Key="flowlauncher_plugin_program_args">Args</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_tooltip_customizedexplorer">Mozesz dostosowac eksplorator uzywany do otwierania folderu nadrzednego, wprowadzajac zmienna srodowiskowa wybranego eksploratora. Warto uzyc wiersza polecen (CMD), aby sprawdzic, czy zmienna srodowiskowa jest dostepna.</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_tooltip_args">Wprowadz niestandardowe argumenty, kt髍e chcesz dodac do spersonalizowanego eksploratora. %s dla katalogu nadrzednego, %f dla pelnej sciezki (dziala tylko dla win32). Sprawdz strone internetowa eksploratora, aby uzyskac szczeg髄owe informacje.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_tooltip_customizedexplorer">Mo偶esz dostosowa膰 eksplorator u偶ywany do otwierania folderu nadrz臋dnego, wprowadzaj膮c zmienn膮 艣rodowiskow膮 wybranego eksploratora. Warto u偶y膰 wiersza polece艅 (CMD), aby sprawdzi膰, czy zmienna 艣rodowiskowa jest dost臋pna.</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_tooltip_args">Wprowad藕 niestandardowe argumenty, kt贸re chcesz doda膰 do spersonalizowanego eksploratora. %s dla katalogu nadrz臋dnego, %f dla pe艂nej 艣cie偶ki (dzia艂a tylko dla win32). Sprawd藕 stron臋 internetow膮 eksploratora, aby uzyska膰 szczeg贸艂owe informacje.</system:String>
 
     <!--  Dialogs  -->
     <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success">Sukces</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_error">Blad</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success_message">Pomyslnie wylaczono wyswietlanie tego programu w zapytaniu</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_error">B艂膮d</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_disable_dlgtitle_success_message">Pomy艣lnie wy艂膮czono wy艣wietlanie tego programu w zapytaniu</system:String>
     <system:String x:Key="flowlauncher_plugin_program_run_as_administrator_not_supported_message">Ta aplikacja nie jest przeznaczona do uruchomienia jako administrator</system:String>
-    <system:String x:Key="flowlauncher_plugin_program_run_failed">Nie mozna uruchomic {0}</system:String>
+    <system:String x:Key="flowlauncher_plugin_program_run_failed">Nie mo偶na uruchomi膰 {0}</system:String>
 
 </ResourceDictionary>

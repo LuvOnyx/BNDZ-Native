@@ -2,69 +2,69 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:system="clr-namespace:System;assembly=mscorlib">
 
     <!--  Dialogues  -->
-    <system:String x:Key="plugin_pluginsmanager_downloading_plugin">Stahovanie pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_download_success">Úspešne stiahnuté {0}</system:String>
-    <system:String x:Key="plugin_pluginsmanager_download_error">Chyba: Nepodarilo sa stiahnut plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt">{0} od {1} {2}{3}Chcete odinštalovat tento plugin? Po odinštalovaní sa Flow automaticky reštartuje.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt_no_restart">{0} od {1} {2}{2}Chcete odinštalovat tento plugin?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_prompt">{0} od {1} {2}{3}Chcete nainštalovat tento plugin? Po nainštalovaní sa Flow automaticky reštartuje.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_prompt_no_restart">{0} od {1} {2}{2}Chcete nainštalovat tento plugin?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_title">Inštalovat plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_installing_plugin">Inštaluje sa plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_from_web">Stiahnut a nainštalovat {0}</system:String>
-    <system:String x:Key="plugin_pluginsmanager_uninstall_title">Odinštalovat plugin</system:String>
-    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_title">Ponechat nastavenia pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_subtitle">Chcete zachovat nastavenia pluginu na dalšie pouitie?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_success_restart">Plugin {0} bol úspešne nainštalovanı. Reštartuje sa Flow, cakajte, prosím...</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_errormetadatafile">Inštalácia zlyhala: nepodarilo sa nájst metadáta súboru plugin.json z extrahovaného súboru ZIP.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_error_duplicate">Chyba: Plugin s rovnakou alebo vyššou verziou ako {0} u existuje.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_error_title">Chyba inštalácie pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_error_subtitle">Nastala chyba pocas inštalácie pluginu {0}</system:String>
-    <system:String x:Key="plugin_pluginsmanager_uninstall_error_title">Chyba odinštalácie pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_noresult_title">Nie je k dispozícii iadna aktualizácia</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_noresult_subtitle">Všetky pluginy sú aktuálne</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_prompt">{0} od {1} {2}{3}Chcete aktualizovat tento plugin? Po aktualizácii sa Flow automaticky reštartuje.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_prompt_no_restart">{0} od {1} {2}{2}Chcete aktualizovat tento plugin?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_title">Aktualizácia pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_alreadyexists">Tento plugin je u nainštalovanı</system:String>
+    <system:String x:Key="plugin_pluginsmanager_downloading_plugin">SÅ¥ahovanie pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_download_success">ÃšspeÅ¡ne stiahnutÃ© {0}</system:String>
+    <system:String x:Key="plugin_pluginsmanager_download_error">Chyba: Nepodarilo sa stiahnuÅ¥ plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt">{0} od {1} {2}{3}Chcete odinÅ¡talovaÅ¥ tento plugin? Po odinÅ¡talovanÃ­ sa Flow automaticky reÅ¡tartuje.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_prompt_no_restart">{0} od {1} {2}{2}Chcete odinÅ¡talovaÅ¥ tento plugin?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_prompt">{0} od {1} {2}{3}Chcete nainÅ¡talovaÅ¥ tento plugin? Po nainÅ¡talovanÃ­ sa Flow automaticky reÅ¡tartuje.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_prompt_no_restart">{0} od {1} {2}{2}Chcete nainÅ¡talovaÅ¥ tento plugin?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_title">InÅ¡talovaÅ¥ plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_installing_plugin">InÅ¡taluje sa plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_from_web">StiahnuÅ¥ a nainÅ¡talovaÅ¥ {0}</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_title">OdinÅ¡talovaÅ¥ plugin</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_title">PonechaÅ¥ nastavenia pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_keep_plugin_settings_subtitle">Chcete zachovaÅ¥ nastavenia pluginu na ÄalÅ¡ie pouÅ¾itie?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_success_restart">Plugin {0} bol ÃºspeÅ¡ne nainÅ¡talovanÃ½. ReÅ¡tartuje sa Flow, Äakajte, prosÃ­m...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_errormetadatafile">InÅ¡talÃ¡cia zlyhala: nepodarilo sa nÃ¡jsÅ¥ metadÃ¡ta sÃºboru plugin.json z extrahovanÃ©ho sÃºboru ZIP.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_duplicate">Chyba: Plugin s rovnakou alebo vyÅ¡Å¡ou verziou ako {0} uÅ¾ existuje.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_title">Chyba inÅ¡talÃ¡cie pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_error_subtitle">Nastala chyba poÄas inÅ¡talÃ¡cie pluginu {0}</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_error_title">Chyba odinÅ¡talÃ¡cie pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_title">Nie je k dispozÃ­cii Å¾iadna aktualizÃ¡cia</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_noresult_subtitle">VÅ¡etky pluginy sÃº aktuÃ¡lne</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_prompt">{0} od {1} {2}{3}Chcete aktualizovaÅ¥ tento plugin? Po aktualizÃ¡cii sa Flow automaticky reÅ¡tartuje.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_prompt_no_restart">{0} od {1} {2}{2}Chcete aktualizovaÅ¥ tento plugin?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_title">AktualizÃ¡cia pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_alreadyexists">Tento plugin je uÅ¾ nainÅ¡talovanÃ½</system:String>
     <system:String x:Key="plugin_pluginsmanager_update_failed_title">Stiahnutie manifestu pluginu zlyhalo</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_failed_subtitle">Skontrolujte, ci sa môete pripojit ku github.com. Táto chyba znamená, e pravdepodobne nemôete pluginy inštalovat alebo aktualizovat.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_all_title">Aktualizovat všetky pluginy</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_all_subtitle">Chcete aktualizovat všetky pluginy?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_all_prompt">Chcete aktualizovat pluginy ({0})?{1}Po aktualizácii všetkıch pluginov sa BNDZ Launcher reštartuje.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_all_prompt_no_restart">Chcete aktualizovat pluginy ({0})?</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_all_success_restart">Pluginy úspešne aktualizované ({0}). Flow sa reštartuje, cakajte…</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_success_restart">Plugin {0} bol úspešne aktualizovanı. Reštartuje sa Flow, cakajte, prosím...</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning_title">Inštalácia z neznámeho zdroja</system:String>
-    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning">Tento plugin inštalujete z neznámeho zdroja a môe obsahovat potenciálne riziká!{0}{0}Uistite sa, e rozumiete, odkial tento plugin pochádza, a e je bezpecnı.{0}{0}Chcete pokracovat?{0}{0}(Toto upozornenie môete vypnút v nastaveniach)</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_failed_subtitle">Skontrolujte, Äi sa mÃ´Å¾ete pripojiÅ¥ ku github.com. TÃ¡to chyba znamenÃ¡, Å¾e pravdepodobne nemÃ´Å¾ete pluginy inÅ¡talovaÅ¥ alebo aktualizovaÅ¥.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_title">AktualizovaÅ¥ vÅ¡etky pluginy</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_subtitle">Chcete aktualizovaÅ¥ vÅ¡etky pluginy?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_prompt">Chcete aktualizovaÅ¥ pluginy ({0})?{1}Po aktualizÃ¡cii vÅ¡etkÃ½ch pluginov sa BNDZ Launcher reÅ¡tartuje.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_prompt_no_restart">Chcete aktualizovaÅ¥ pluginy ({0})?</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_success_restart">Pluginy ÃºspeÅ¡ne aktualizovanÃ© ({0}). Flow sa reÅ¡tartuje, Äakajteâ€¦</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_success_restart">Plugin {0} bol ÃºspeÅ¡ne aktualizovanÃ½. ReÅ¡tartuje sa Flow, Äakajte, prosÃ­m...</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning_title">InÅ¡talÃ¡cia z neznÃ¡meho zdroja</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_unknown_source_warning">Tento plugin inÅ¡talujete z neznÃ¡meho zdroja a mÃ´Å¾e obsahovaÅ¥ potenciÃ¡lne rizikÃ¡!{0}{0}Uistite sa, Å¾e rozumiete, odkiaÄ¾ tento plugin pochÃ¡dza, a Å¾e je bezpeÄnÃ½.{0}{0}Chcete pokraÄovaÅ¥?{0}{0}(Toto upozornenie mÃ´Å¾ete vypnÃºÅ¥ v nastaveniach)</system:String>
 
-    <system:String x:Key="plugin_pluginsmanager_install_success_no_restart">Plugin {0} bol úspešne nainštalovanı. Prosím, reštartujte Flow.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_uninstall_success_no_restart">Plugin {0} bol úspešne odinštalovanı. Prosím, reštartujte Flow.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_success_no_restart">Plugin {0} bol úspešne aktualizovanı. Prosím, reštartujte Flow.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_update_all_success_no_restart">Pluginy úspešne aktualizované ({0}). Reštartuje Flow.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error">Plugin {0} u bol upravenı. Prosím, reštartujte Flow pred dalšími zmenami.</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_title">Plugin {0} u bol upravenı</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_message">Pred vykonaním dalších zmien reštartujte BNDZ Launcher</system:String>
+    <system:String x:Key="plugin_pluginsmanager_install_success_no_restart">Plugin {0} bol ÃºspeÅ¡ne nainÅ¡talovanÃ½. ProsÃ­m, reÅ¡tartujte Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_uninstall_success_no_restart">Plugin {0} bol ÃºspeÅ¡ne odinÅ¡talovanÃ½. ProsÃ­m, reÅ¡tartujte Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_success_no_restart">Plugin {0} bol ÃºspeÅ¡ne aktualizovanÃ½. ProsÃ­m, reÅ¡tartujte Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_update_all_success_no_restart">Pluginy ÃºspeÅ¡ne aktualizovanÃ© ({0}). ReÅ¡tartuje Flow.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error">Plugin {0} uÅ¾ bol upravenÃ½. ProsÃ­m, reÅ¡tartujte Flow pred ÄalÅ¡Ã­mi zmenami.</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_title">Plugin {0} uÅ¾ bol upravenÃ½</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_modified_error_message">Pred vykonanÃ­m ÄalÅ¡Ã­ch zmien reÅ¡tartujte BNDZ Launcher</system:String>
 
-    <system:String x:Key="plugin_pluginsmanager_invalid_zip_title">Neplatnı inštalacnı súbor zip</system:String>
-    <system:String x:Key="plugin_pluginsmanager_invalid_zip_subtitle">Skontrolujte, ci sa v {0} nachádza plugin.json</system:String>
+    <system:String x:Key="plugin_pluginsmanager_invalid_zip_title">NeplatnÃ½ inÅ¡talaÄnÃ½ sÃºbor zip</system:String>
+    <system:String x:Key="plugin_pluginsmanager_invalid_zip_subtitle">Skontrolujte, Äi sa v {0} nachÃ¡dza plugin.json</system:String>
 
     <!--  Plugin Infos  -->
-    <system:String x:Key="plugin_pluginsmanager_plugin_name">Správca pluginov</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_description">Inštalovat, odinštalovat alebo aktualizovat pluginy BNDZ Launchera cez vyhladávacie okno</system:String>
-    <system:String x:Key="plugin_pluginsmanager_unknown_author">Neznámy autor</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_name">SprÃ¡vca pluginov</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_description">InÅ¡talovaÅ¥, odinÅ¡talovaÅ¥ alebo aktualizovaÅ¥ pluginy BNDZ Launchera cez vyhÄ¾adÃ¡vacie okno</system:String>
+    <system:String x:Key="plugin_pluginsmanager_unknown_author">NeznÃ¡my autor</system:String>
 
     <!--  Context menu items  -->
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_title">Prejst na webovú stránku</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_subtitle">Prejst na webovú stránku pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_title">Zobrazit zdrojovı kód</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_subtitle">Zobrazit zdrojovı kód pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_title">Navrhnút vylepšenie alebo nahlásit chybu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_subtitle">Navrhnút vylepšenie alebo nahlásit chybu vıvojárovi pluginu</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_title">Prejst na repozitár pluginov spúštaca Flow</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_subtitle">Prejst na repozitár pluginov spúštaca Flow a zobrazit príspevky komunity</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_title">PrejsÅ¥ na webovÃº strÃ¡nku</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_openwebsite_subtitle">PrejsÅ¥ na webovÃº strÃ¡nku pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_title">ZobraziÅ¥ zdrojovÃ½ kÃ³d</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_gotosourcecode_subtitle">ZobraziÅ¥ zdrojovÃ½ kÃ³d pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_title">NavrhnÃºÅ¥ vylepÅ¡enie alebo nahlÃ¡siÅ¥ chybu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_newissue_subtitle">NavrhnÃºÅ¥ vylepÅ¡enie alebo nahlÃ¡siÅ¥ chybu vÃ½vojÃ¡rovi pluginu</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_title">PrejsÅ¥ na repozitÃ¡r pluginov spÃºÅ¡Å¥aÄa Flow</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_contextmenu_pluginsmanifest_subtitle">PrejsÅ¥ na repozitÃ¡r pluginov spÃºÅ¡Å¥aÄa Flow a zobraziÅ¥ prÃ­spevky komunity</system:String>
 
     <!--  Settings menu items  -->
-    <system:String x:Key="plugin_pluginsmanager_plugin_settings_unknown_source">Upozornenie na inštaláciu z neznámeho zdroja</system:String>
-    <system:String x:Key="plugin_pluginsmanager_plugin_settings_auto_restart">Automaticky reštartovat BNDZ Launcher po inštalácii/odinštalácii/aktualizácii pluginu cez Správcu pluginov</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_settings_unknown_source">Upozornenie na inÅ¡talÃ¡ciu z neznÃ¡meho zdroja</system:String>
+    <system:String x:Key="plugin_pluginsmanager_plugin_settings_auto_restart">Automaticky reÅ¡tartovaÅ¥ BNDZ Launcher po inÅ¡talÃ¡cii/odinÅ¡talÃ¡cii/aktualizÃ¡cii pluginu cez SprÃ¡vcu pluginov</system:String>
 </ResourceDictionary>

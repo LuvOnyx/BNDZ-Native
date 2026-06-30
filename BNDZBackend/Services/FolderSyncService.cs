@@ -35,6 +35,15 @@ public class FolderSyncProgress
     public string? Message { get; set; }
 }
 
+public class FolderSyncPreview
+{
+    public List<string> WouldCopy { get; set; } = [];
+    public List<string> WouldUpdate { get; set; } = [];
+    public List<string> WouldSkip { get; set; } = [];
+    public List<string> ExtraInDest { get; set; } = [];
+    public string Summary { get; set; } = "";
+}
+
 /// <summary>
 /// Watches source folders and syncs to destinations using robocopy (incremental) with debounced triggers.
 /// </summary>
@@ -96,6 +105,54 @@ public sealed class FolderSyncService : IDisposable
         Persist();
         if (enabled) StartWatcher(job);
         else StopWatcher(jobId);
+    }
+
+    public FolderSyncPreview? PreviewSync(string jobId)
+    {
+        var job = _jobs.FirstOrDefault(j => j.Id == jobId);
+        if (job == null) return null;
+
+        var src = Normalize(job.SourcePath);
+        var dest = Normalize(job.DestPath);
+        var preview = new FolderSyncPreview();
+        if (string.IsNullOrEmpty(src) || !Directory.Exists(src))
+        {
+            preview.Summary = $"Source not found: {src}";
+            return preview;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(src, file).Replace('\\', '/');
+            var destFile = Path.Combine(dest, rel.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(destFile))
+            {
+                preview.WouldCopy.Add(rel);
+                continue;
+            }
+            var srcInfo = new FileInfo(file);
+            var destInfo = new FileInfo(destFile);
+            if (srcInfo.Length != destInfo.Length || srcInfo.LastWriteTimeUtc > destInfo.LastWriteTimeUtc)
+                preview.WouldUpdate.Add(rel);
+            else
+                preview.WouldSkip.Add(rel);
+        }
+
+        if (job.MirrorMode && Directory.Exists(dest))
+        {
+            foreach (var file in Directory.EnumerateFiles(dest, "*", SearchOption.AllDirectories))
+            {
+                var rel = Path.GetRelativePath(dest, file).Replace('\\', '/');
+                var srcFile = Path.Combine(src, rel.Replace('/', Path.DirectorySeparatorChar));
+                if (!File.Exists(srcFile))
+                    preview.ExtraInDest.Add(rel);
+            }
+        }
+
+        preview.Summary =
+            $"{preview.WouldCopy.Count} new, {preview.WouldUpdate.Count} updated, {preview.WouldSkip.Count} unchanged" +
+            (job.MirrorMode ? $", {preview.ExtraInDest.Count} extra in destination" : "");
+        return preview;
     }
 
     private void LoadJobs()

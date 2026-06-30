@@ -171,30 +171,8 @@ namespace Flow.Launcher.Plugin.WindowsSettings.Helper
         /// <returns><see langword="true"/> if the settings could be opened, otherwise <see langword="false"/>.</returns>
         private static bool DoOpenSettingsAction(WindowsSetting entry)
         {
-            ProcessStartInfo processStartInfo;
-
-            var command = entry.Command;
-
-            command = Environment.ExpandEnvironmentVariables(command);
-
-            if (command.Contains(' '))
-            {
-                var commandSplit = command.Split(' ');
-                var file = commandSplit.First();
-                var arguments = command[file.Length..].TrimStart();
-
-                processStartInfo = new ProcessStartInfo(file, arguments)
-                {
-                    UseShellExecute = false,
-                };
-            }
-            else
-            {
-                processStartInfo = new ProcessStartInfo(command)
-                {
-                    UseShellExecute = true,
-                };
-            }
+            var command = Environment.ExpandEnvironmentVariables(entry.Command);
+            var processStartInfo = BuildProcessStartInfo(command);
 
             try
             {
@@ -221,6 +199,41 @@ namespace Flow.Launcher.Plugin.WindowsSettings.Helper
                 Log.Exception("can't open settings", exception, typeof(ResultHelper));
                 return false;
             }
+        }
+
+        private static ProcessStartInfo BuildProcessStartInfo(string command)
+        {
+            command = command.Replace("\0", string.Empty).Trim();
+
+            if (command.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+                || command.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ProcessStartInfo("explorer.exe", command) { UseShellExecute = true };
+            }
+
+            if (command.StartsWith("explorer ", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ProcessStartInfo("explorer.exe", command[8..].TrimStart()) { UseShellExecute = true };
+            }
+
+            if (command.StartsWith("explorer.exe ", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ProcessStartInfo("explorer.exe", command[12..].TrimStart()) { UseShellExecute = true };
+            }
+
+            if (command.Contains(' '))
+            {
+                var splitAt = command.IndexOf(' ');
+                var file = command[..splitAt];
+                var arguments = command[(splitAt + 1)..];
+                var useShell = file.EndsWith(".msc", StringComparison.OrdinalIgnoreCase)
+                    || file.EndsWith(".cpl", StringComparison.OrdinalIgnoreCase)
+                    || arguments.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+                    || arguments.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase);
+                return new ProcessStartInfo(file, arguments) { UseShellExecute = useShell };
+            }
+
+            return new ProcessStartInfo(command) { UseShellExecute = true };
         }
     }
 }

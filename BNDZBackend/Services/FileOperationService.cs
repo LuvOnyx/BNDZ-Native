@@ -31,6 +31,10 @@ public class FileOperationService
     private const ushort FOF_NOCONFIRMATION = 0x0010;
     private const ushort FOF_SILENT = 0x0004;
 
+    private BndzActionLogService? _actionLog;
+
+    public void SetActionLog(BndzActionLogService? actionLog) => _actionLog = actionLog;
+
     public Task ExecuteUndoAsync() => Task.CompletedTask;
     public Task ExecuteRedoAsync() => Task.CompletedTask;
 
@@ -41,7 +45,8 @@ public class FileOperationService
         string target,
         bool bypassRecycleBin,
         Action<string, int, string, long, long, double, int, int>? onProgress = null,
-        Func<string, string, string, string, Task<string>>? onConflict = null)
+        Func<string, string, string, string, Task<string>>? onConflict = null,
+        bool recordActionLog = true)
     {
         sources = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
         target = NormalizePath(target);
@@ -54,6 +59,10 @@ public class FileOperationService
                 case "create-dir":
                     if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
                     else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
+                    {
+                        var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                        if (!string.IsNullOrEmpty(dir) && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(dir));
+                    }
                     onProgress?.Invoke(operationId, 100, target, 0, 0, 0, 1, 1);
                     break;
 
@@ -65,21 +74,32 @@ public class FileOperationService
                         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                             Directory.CreateDirectory(dir);
                         if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
+                        if (recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(filePath));
                     }
                     onProgress?.Invoke(operationId, 100, filePath, 0, 0, 0, 1, 1);
                     break;
 
                 case "delete":
                     await DeleteItemsAsync(operationId, sources, bypassRecycleBin, onProgress);
+                    if (sources.Count > 0 && recordActionLog)
+                        _actionLog?.Record(BndzActionLogService.ForDelete(sources, !bypassRecycleBin));
                     break;
 
                 case "copy":
-                    await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict);
+                {
+                    var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict).ConfigureAwait(false);
+                    if (created.Count > 0 && recordActionLog)
+                        _actionLog?.Record(BndzActionLogService.ForCopy(sources, created));
                     break;
+                }
 
                 case "move":
-                    await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict);
+                {
+                    var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict).ConfigureAwait(false);
+                    if (movedTo.Count > 0 && recordActionLog)
+                        _actionLog?.Record(BndzActionLogService.ForMove(sources, movedTo));
                     break;
+                }
 
                 default:
                     onProgress?.Invoke(operationId, 100, sources.FirstOrDefault() ?? "", 0, 0, 0, 1, 1);
@@ -137,7 +157,7 @@ public class FileOperationService
         SHFileOperation(ref fileop);
     }
 
-    private static async Task CopyOrMoveAsync(
+    private static async Task<List<string>> CopyOrMoveAsync(
         string operationId,
         List<string> sources,
         string targetDir,
@@ -145,8 +165,28 @@ public class FileOperationService
         Action<string, int, string, long, long, double, int, int>? onProgress,
         Func<string, string, string, string, Task<string>>? onConflict)
     {
+        var createdPaths = new List<string>();
         if (string.IsNullOrEmpty(targetDir))
             targetDir = Path.GetDirectoryName(sources.FirstOrDefault() ?? "") ?? "";
+
+        if (move && sources.Count == 1 && !string.IsNullOrEmpty(targetDir))
+        {
+            var singleSrc = sources[0];
+            if (File.Exists(singleSrc) && !Directory.Exists(targetDir))
+            {
+                var destFile = targetDir;
+                if (!destFile.EndsWith(Path.GetFileName(singleSrc), StringComparison.OrdinalIgnoreCase)
+                    && !File.Exists(destFile))
+                    destFile = Path.Combine(targetDir, Path.GetFileName(singleSrc));
+                var destDir = Path.GetDirectoryName(destFile);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                    Directory.CreateDirectory(destDir);
+                File.Move(singleSrc, destFile, overwrite: true);
+                createdPaths.Add(destFile);
+                onProgress?.Invoke(operationId, 100, singleSrc, 0, 0, 0, 1, 1);
+                return createdPaths;
+            }
+        }
 
         if (!Directory.Exists(targetDir))
             Directory.CreateDirectory(targetDir);
@@ -193,6 +233,7 @@ public class FileOperationService
             if (move && i == 0 && work.Count == 1 && File.Exists(src) && !File.Exists(dest))
             {
                 File.Move(src, dest, overwrite: true);
+                createdPaths.Add(dest);
             }
             else if (move && Directory.Exists(src) && work.Count > 1)
             {
@@ -201,6 +242,7 @@ public class FileOperationService
             else
             {
                 await CopyFileBufferedAsync(src, dest).ConfigureAwait(false);
+                createdPaths.Add(dest);
                 if (move) try { File.Delete(src); } catch { /* best effort */ }
             }
 
@@ -227,6 +269,7 @@ public class FileOperationService
         }
 
         onProgress?.Invoke(operationId, 100, sources.LastOrDefault() ?? "", transferred, totalBytes, 0, work.Count, work.Count);
+        return createdPaths;
     }
 
     private static async Task CopyFileBufferedAsync(string sourceFile, string destinationFile)
