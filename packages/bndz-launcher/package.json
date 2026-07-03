@@ -1,0 +1,12 @@
+{
+  "name": "bndz-launcher",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Standalone BNDZ Launcher package (WebView2 shell + Flow engine)",
+  "type": "module",
+  "scripts": {
+    "build:ui": "vite build --config vite.launcher.config.ts",
+    "build:host": "dotnet build -c Release BNDZ.Launcher.Host/BNDZ.Launcher.Host.csproj",
+    "build": "npm run build:ui && npm run build:host"
+  }
+}

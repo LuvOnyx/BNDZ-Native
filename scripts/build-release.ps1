@@ -73,15 +73,6 @@ try {
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "npm run build failed" }
 
-    $LauncherScript = Join-Path $Root "scripts\build-bndz-launcher.ps1"
-    if (Test-Path $LauncherScript) {
-        Write-Host "==> Building BNDZ Launcher (Flow Launcher)" -ForegroundColor Yellow
-        & $LauncherScript -Configuration $Configuration -Root $Root
-        if ($LASTEXITCODE -ne 0) { throw "BNDZ Launcher build failed" }
-    } else {
-        Write-Warning "scripts/build-bndz-launcher.ps1 not found — skipping launcher build"
-    }
-
     if (-not (Test-Path (Join-Path $Backend "Assets\ui\index.html"))) {
         throw "Missing Assets\ui\index.html - frontend build did not output to BNDZBackend/Assets/ui"
     }
@@ -109,16 +100,6 @@ try {
     }
     if (-not (Test-Path (Join-Path $PublishDir "Assets\ui\index.html"))) {
         throw "Assets\ui not copied to publish output"
-    }
-
-    $LauncherSource = Join-Path $Backend "Assets\BNDZLauncher"
-    if (Test-Path (Join-Path $LauncherSource "BNDZ.Launcher.exe")) {
-        $LauncherDest = Join-Path $PublishDir "BNDZLauncher"
-        if (Test-Path $LauncherDest) { Remove-Item $LauncherDest -Recurse -Force }
-        Copy-Item $LauncherSource $LauncherDest -Recurse -Force
-        Write-Host "==> Bundled BNDZ Launcher into publish output" -ForegroundColor Green
-    } else {
-        Write-Warning "BNDZ Launcher not built — run scripts/build-bndz-launcher.ps1 or full package build"
     }
 
     if ($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH) {

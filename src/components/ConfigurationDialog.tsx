@@ -11,7 +11,6 @@ import IconConfiguratorTab from './IconConfiguratorTab';
 import ContextMenuConfiguratorTab from './ContextMenuConfiguratorTab';
 import ThemesTabContent from './settings/ThemesTabContent';
 import AppearanceTabContent from './settings/AppearanceTabContent';
-import LauncherTabContent from './settings/LauncherTabContent';
 import KeyboardShortcutsTab from './settings/KeyboardShortcutsTab';
 import ColorsTabContent from './settings/ColorsTabContent';
 import UdcEditorTab from './settings/UdcEditorTab';
@@ -71,7 +70,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   };
 
   const categories = [
-    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "BNDZ Launcher", "Keyboard Shortcuts"] },
+    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "Keyboard Shortcuts"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
     { name: "File Operations", items: ["File Operations", "Undo & Action Log"] },
@@ -608,11 +607,6 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   <Checkbox label={<span>Minimize to tray</span>} checked={localConfig.minimizeToTray ?? false} onChange={e => updateLocalConfig({ minimizeToTray: e.target.checked })} />
                   <Checkbox label={<span>Minimize to tray on <span className="underline decoration-1 underline-offset-[3px]">X</span> close</span>} checked={localConfig.minimizeToTrayOnXClose ?? false} onChange={e => updateLocalConfig({ minimizeToTrayOnXClose: e.target.checked })} />
 
-                  <div className="h-2" />
-                  <div className="text-[11px] text-[#888] ml-[2px] leading-relaxed">
-                    BNDZ Launcher (hotkey, theme sync, tray): see the <button type="button" className="text-violet-300 hover:underline" onClick={() => setActiveTab('BNDZ Launcher')}>BNDZ Launcher</button> settings tab.
-                  </div>
-                  
                   <div className="h-2"></div>
                   <Checkbox label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">s</span>plash screen while loading</span>} checked={localConfig.showSplashScreenWhileLoading ?? false} onChange={e => updateLocalConfig({ showSplashScreenWhileLoading: e.target.checked })} />
                   <Checkbox label={<span>Chec<span className="underline decoration-1 underline-offset-[3px]">k</span> for updates at startup</span>} checked={localConfig.checkForUpdatesAtStartup ?? false} onChange={e => updateLocalConfig({ checkForUpdatesAtStartup: e.target.checked })} />
@@ -642,11 +636,8 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               </div>
             </TabsContent>
 
-            <TabsContent value="BNDZ Launcher" className="m-0 border-0 p-0 outline-none px-1">
-              <LauncherTabContent localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
-            </TabsContent>
             <TabsContent value="Keyboard Shortcuts" className="m-0 border-0 p-0 outline-none">
-              <KeyboardShortcutsTab />
+              <KeyboardShortcutsTab localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
             </TabsContent>
 
             <TabsContent value="Tags" className="m-0 border-0 p-0 outline-none">
@@ -2208,14 +2199,14 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                         <span className="text-[12px] text-[#e0e0e0]"><span className="underline decoration-1 underline-offset-[3px]">I</span>ncremental affix (e.g. -01, (b), _000, or Copy of *-01)</span>
                      </div>
                      <div className="flex gap-2 items-center">
-                        <input type="text" defaultValue="*-<date yyyymmdd value={localConfig.unwiredConfig9 || ''} onChange={e => updateLocalConfig({ unwiredConfig9: e.target.value })} />" className="w-[200px] bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[2px] outline-none" />
+                        <input type="text" value={localConfig.unwiredConfig9 ?? "*-<date yyyymmdd>"} onChange={e => updateLocalConfig({ unwiredConfig9: e.target.value })} className="w-[200px] bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[2px] outline-none" />
                         <span className="text-[12px] text-[#e0e0e0]"><span className="underline decoration-1 underline-offset-[3px]">D</span>ate affix (e.g. *-&lt;date yyyymmdd&gt;)</span>
                      </div>
                   </div>
                   
                   <div>
                      <span className="text-[12px] font-bold text-white mb-[8px] block">Dropped Messages</span>
-                     <input type="text" defaultValue="<from value={localConfig.unwiredConfig10 || ''} onChange={e => updateLocalConfig({ unwiredConfig10: e.target.value })} />_<to>_<subject>_<date yyyy-mm-dd_hh-nn-ss>" className="w-full bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[4px] outline-none mb-1 font-mono" />
+                     <input type="text" value={localConfig.unwiredConfig10 ?? "<from>_<to>_<subject>_<date yyyy-mm-dd_hh-nn-ss>"} onChange={e => updateLocalConfig({ unwiredConfig10: e.target.value })} className="w-full bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[4px] outline-none mb-1 font-mono" />
                      <p className="text-[12px] text-[#e0e0e0] mb-[8px]">Filename templa<span className="underline decoration-1 underline-offset-[3px]">t</span>e, e.g. &lt;from&gt;_&lt;to&gt;_&lt;subject&gt;?_&lt;date&gt;.</p>
                      
                      <div className="flex gap-2 items-center mb-1 mt-3">
@@ -2231,13 +2222,13 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   
                   <div>
                      <span className="text-[12px] font-bold text-white mb-[8px] block">Title Bar</span>
-                     <input type="text" defaultValue="<path value={localConfig.unwiredConfig13 || ''} onChange={e => updateLocalConfig({ unwiredConfig13: e.target.value })} /> - <app> <ver>" className="w-full bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[4px] outline-none mb-1 font-mono" />
+                     <input type="text" value={localConfig.unwiredConfig13 ?? "<path> - <app> <ver>"} onChange={e => updateLocalConfig({ unwiredConfig13: e.target.value })} className="w-full bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[4px] outline-none mb-1 font-mono" />
                      <p className="text-[12px] text-[#e0e0e0] mb-[4px]">Ti<span className="underline decoration-1 underline-offset-[3px]">t</span>le bar template, e.g. &lt;path&gt; - &lt;app&gt; @ &lt;ini&gt; - &lt;ver&gt;. &lt;app&gt; is mandatory.</p>
                   </div>
                   
                   <div>
                      <span className="text-[12px] font-bold text-white mb-[8px] block">Status Bar</span>
-                     <input type="text" defaultValue="<s:dimension value={localConfig.unwiredConfig14 || ''} onChange={e => updateLocalConfig({ unwiredConfig14: e.target.value })} /> <s:duration>" className="w-full bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[4px] outline-none mb-[6px] font-mono" />
+                     <input type="text" value={localConfig.unwiredConfig14 ?? "<s:dimension> <s:duration>"} onChange={e => updateLocalConfig({ unwiredConfig14: e.target.value })} className="w-full bg-[#1e1e1e] border border-[#555] text-white text-[12px] px-2 py-[4px] outline-none mb-[6px] font-mono" />
                      <Checkbox label={<span>Use status <span className="underline decoration-1 underline-offset-[3px]">b</span>ar template</span>} checked={localConfig.useStatusBarTemplate ?? false} onChange={e => updateLocalConfig({ useStatusBarTemplate: e.target.checked })} />
                   </div>
                   

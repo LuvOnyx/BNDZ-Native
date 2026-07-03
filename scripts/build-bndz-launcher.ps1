@@ -1,7 +1,8 @@
 # Builds the rebranded Flow Launcher as BNDZ Launcher and stages it for BNDZ packaging.
 param(
     [string]$Configuration = "Release",
-    [string]$Root = ""
+    [string]$Root = "",
+    [string]$StageDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,9 +12,12 @@ if (-not $Root) {
 
 $FlowRoot = Join-Path $Root "external\Flow.Launcher"
 $Solution = Join-Path $FlowRoot "Flow.Launcher.sln"
+$LauncherProject = Join-Path $FlowRoot "Flow.Launcher\Flow.Launcher.csproj"
 $PluginProject = Join-Path $FlowRoot "Plugins\Flow.Launcher.Plugin.BNDZ\Flow.Launcher.Plugin.BNDZ.csproj"
 $OutputDir = Join-Path $FlowRoot "Output\$Configuration"
-$StageDir = Join-Path $Root "BNDZBackend\Assets\BNDZLauncher"
+if (-not $StageDir) {
+    $StageDir = Join-Path $Root "BNDZBackend\Assets\BNDZLauncher"
+}
 $BndzIcon = Join-Path $Root "BNDZBackend\Assets\BNDZ-light.png"
 
 if (-not (Test-Path $Solution)) {
@@ -57,10 +61,11 @@ try {
         dotnet sln $Solution add $PluginProject | Out-Null
     }
 
-    dotnet restore $Solution --force
+    dotnet restore $LauncherProject --force
     if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed for Flow Launcher" }
 
-    dotnet build $Solution -c $Configuration --no-restore
+    # Build main launcher + plugin refs only (skip Flow.Launcher.Test — spurious FLSG0002)
+    dotnet build $LauncherProject -c $Configuration --no-restore
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed for Flow Launcher" }
 
     Write-Host "==> Building BNDZ plugin" -ForegroundColor Yellow

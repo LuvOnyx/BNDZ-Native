@@ -4,6 +4,12 @@ import fs from "fs/promises";
 import fsSync from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import {
+  executeFsOperation,
+  listDirectory,
+  resolveFsPath,
+  scanDuplicates,
+} from "./server/fsWebBackend";
 
 async function startServer() {
   const app = express();
@@ -47,34 +53,38 @@ Output EXACTLY valid JSON matching this schema:
   app.post('/api/fs/list', async (req, res) => {
       try {
           const dirPath = req.body.path || process.cwd();
-          
+
           if (dirPath === '/' || dirPath === '') {
-              // Root return drives simulation
-              return res.json([
-                  { name: '/', type: 'directory', path: '/', size: 0, modified: Date.now() }
-              ]);
+              return res.json({
+                  items: [{ name: '/', type: 'directory', path: '/', size: 0, modified: Date.now() }],
+                  parent: '/',
+              });
           }
 
-          const resolvedPath = path.resolve(dirPath);
-          const entries = await fs.readdir(resolvedPath, { withFileTypes: true });
-          const result = [];
+          const result = await listDirectory(dirPath);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err.message });
+      }
+  });
 
-          for (const entry of entries) {
-              try {
-                  const stat = await fs.stat(path.join(resolvedPath, entry.name));
-                  result.push({
-                      id: path.join(resolvedPath, entry.name),
-                      name: entry.name,
-                      type: entry.isDirectory() ? 'directory' : 'file',
-                      size: stat.size,
-                      modified: stat.mtimeMs,
-                      extension: entry.isDirectory() ? '' : path.extname(entry.name).replace('.', '')
-                  });
-              } catch (err) {
-                  // Skip items that error on stat (e.g. broken symlinks)
-              }
-          }
-          res.json({ items: result, parent: path.dirname(resolvedPath) });
+  app.post('/api/fs/operation', async (req, res) => {
+      try {
+          const { action, source, target } = req.body ?? {};
+          if (!action) return res.status(400).json({ error: 'Missing action' });
+          await executeFsOperation(action, source, target ?? '');
+          res.json({ ok: true });
+      } catch (err: any) {
+          res.status(500).json({ error: err.message });
+      }
+  });
+
+  app.post('/api/fs/scan-duplicates', async (req, res) => {
+      try {
+          const { rootPath, recursive = true, minSizeBytes = 1024 } = req.body ?? {};
+          if (!rootPath) return res.status(400).json({ error: 'Missing rootPath' });
+          const result = await scanDuplicates(rootPath, recursive, minSizeBytes);
+          res.json(result);
       } catch (err: any) {
           res.status(500).json({ error: err.message });
       }
@@ -84,7 +94,7 @@ Output EXACTLY valid JSON matching this schema:
       try {
           const filePath = req.body.path;
           if (!filePath) return res.status(400).json({ error: "No path" });
-          const content = await fs.readFile(path.resolve(filePath), 'utf-8');
+          const content = await fs.readFile(resolveFsPath(filePath), 'utf-8');
           res.json({ content });
       } catch (err: any) {
           res.status(500).json({ error: err.message });

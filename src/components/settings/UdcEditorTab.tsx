@@ -16,7 +16,6 @@ const BUILTIN_ACTIONS = [
   { value: 'tabset', label: 'Save tabset' },
   { value: 'refresh', label: 'Refresh folder' },
   { value: 'find', label: 'Open find plugin' },
-  { value: 'launcher', label: 'Open launcher' },
   { value: 'script', label: 'Run PowerShell script' },
 ];
 

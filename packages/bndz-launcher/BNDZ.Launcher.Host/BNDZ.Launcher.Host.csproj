@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>BNDZ</RootNamespace>
+    <AssemblyName>BNDZ.Launcher.Host</AssemblyName>
+    <ApplicationIcon Condition="Exists('..\..\..\BNDZBackend\Assets\BNDZ.ico')">..\..\..\BNDZBackend\Assets\BNDZ.ico</ApplicationIcon>
+    <Platforms>AnyCPU</Platforms>
+    <Version>1.0.0</Version>
+    <Product>BNDZ Launcher</Product>
+    <Company>BNDZ</Company>
+    <Description>Standalone BNDZ Launcher host (WebView2 shell + Flow engine)</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Include="..\..\..\BNDZBackend\LauncherShellWindow.xaml" Link="LauncherShellWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzFileManagerBridge.cs" Link="Services\BndzFileManagerBridge.cs" />
+    <Compile Include="..\..\..\BNDZBackend\LauncherShellWindow.xaml.cs" Link="LauncherShellWindow.xaml.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzActivationSound.cs" Link="Services\BndzActivationSound.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzBrandingText.cs" Link="Services\BndzBrandingText.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzFlowLauncherService.cs" Link="Services\BndzFlowLauncherService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzGeminiClient.cs" Link="Services\BndzGeminiClient.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzHostCoordinator.cs" Link="Services\BndzHostCoordinator.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzInstalledAppsIndex.cs" Link="Services\BndzInstalledAppsIndex.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzLauncherAiChatStore.cs" Link="Services\BndzLauncherAiChatStore.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzLauncherIpcService.cs" Link="Services\BndzLauncherIpcService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzLauncherPendingActions.cs" Link="Services\BndzLauncherPendingActions.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzLauncherSettingsBridge.cs" Link="Services\BndzLauncherSettingsBridge.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzLauncherShellService.cs" Link="Services\BndzLauncherShellService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzNoteStore.cs" Link="Services\BndzNoteStore.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzQuickLinkStore.cs" Link="Services\BndzQuickLinkStore.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzShellExecute.cs" Link="Services\BndzShellExecute.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzShellQueryClient.cs" Link="Services\BndzShellQueryClient.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzSnippetStore.cs" Link="Services\BndzSnippetStore.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\BndzWindowLayoutService.cs" Link="Services\BndzWindowLayoutService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\FilePreviewMetaService.cs" Link="Services\FilePreviewMetaService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\IniSettingsService.cs" Link="Services\IniSettingsService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\LauncherCommandService.cs" Link="Services\LauncherCommandService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\LauncherShellBridge.cs" Link="Services\LauncherShellBridge.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\LauncherSystemCommands.cs" Link="Services\LauncherSystemCommands.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\LauncherWindowCommands.cs" Link="Services\LauncherWindowCommands.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\LocalStreamService.cs" Link="Services\LocalStreamService.cs" />
+    <Compile Include="..\..\..\BNDZBackend\Services\SettingsManager.cs" Link="Services\SettingsManager.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

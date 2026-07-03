@@ -23,6 +23,15 @@ export function isHtmlExt(ext: string): boolean {
   return e === 'html' || e === 'htm';
 }
 
+export function isMarkdownExt(ext: string): boolean {
+  const e = ext.toLowerCase().replace(/^\./, '');
+  return e === 'md' || e === 'markdown';
+}
+
+export function isDocxExt(ext: string): boolean {
+  return ext.toLowerCase().replace(/^\./, '') === 'docx';
+}
+
 export function prismLanguageForExt(ext: string): string {
   const e = ext.toLowerCase().replace(/^\./, '');
   const map: Record<string, string> = {

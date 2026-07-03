@@ -13,7 +13,6 @@ namespace Flow.Launcher.Plugin.BNDZ
     /// <summary>Applies BNDZ icons at runtime (tray, title bars) without modifying Flow core source.</summary>
     internal static class BndzBranding
     {
-        private static bool _applied;
         private static Icon? _trayIcon;
 
         public static void ScheduleApply(PluginInitContext context)
@@ -53,8 +52,6 @@ namespace Flow.Launcher.Plugin.BNDZ
 
                 foreach (Window window in Application.Current.Windows)
                     ApplyToWindow(window, icoPath, pngPath);
-
-                _applied = true;
             }
             catch (Exception ex)
             {

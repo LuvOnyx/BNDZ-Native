@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Microsoft.WindowsAPICodePack.Shell;
+using Vanara.PInvoke;
+using Vanara.Windows.Shell;
 
 namespace BNDZ.Services;
 
@@ -32,41 +33,40 @@ public static class ShellFolderEnumerator
 
         try
         {
-            using var folder = ShellObject.FromParsingName(shellParsingName) as ShellContainer;
-            if (folder == null) return results;
-
-            foreach (var child in folder)
+            using var folder = new ShellFolder(shellParsingName);
+            foreach (ShellItem item in folder)
             {
-                if (child is not ShellObject item) continue;
-
-                var name = item.Name ?? "Unknown";
-                var parsingName = (item.ParsingName ?? name).Replace('\\', '/');
-                var isFolder = item is ShellFolder;
-                long size = 0;
-                try
+                using (item)
                 {
-                    if (item.Properties.System.Size.Value.HasValue)
-                        size = (long)item.Properties.System.Size.Value.Value;
-                }
-                catch { }
+                    var name = item.Name ?? "Unknown";
+                    var parsingName = (item.ParsingName ?? name).Replace('\\', '/');
+                    var isFolder = item.IsFolder;
+                    long size = 0;
+                    try
+                    {
+                        if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.Size, out var sizeVal) && sizeVal is ulong ul)
+                            size = (long)ul;
+                    }
+                    catch { }
 
-                var modified = DateTime.UtcNow;
-                try
-                {
-                    if (item.Properties.System.DateModified.Value.HasValue)
-                        modified = item.Properties.System.DateModified.Value.Value.ToUniversalTime();
-                }
-                catch { }
+                    var modified = DateTime.UtcNow;
+                    try
+                    {
+                        if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.DateModified, out var modVal) && modVal is DateTime dt)
+                            modified = dt.ToUniversalTime();
+                    }
+                    catch { }
 
-                results.Add(new ShellChildItem(
-                    Id: parsingName,
-                    Name: name,
-                    Type: isFolder ? "directory" : "file",
-                    Path: parsingName,
-                    Size: size,
-                    Extension: isFolder ? "" : Path.GetExtension(name).TrimStart('.').ToLowerInvariant(),
-                    Modified: modified.ToString("O"),
-                    IsShellItem: true));
+                    results.Add(new ShellChildItem(
+                        Id: parsingName,
+                        Name: name,
+                        Type: isFolder ? "directory" : "file",
+                        Path: parsingName,
+                        Size: size,
+                        Extension: isFolder ? "" : Path.GetExtension(name).TrimStart('.').ToLowerInvariant(),
+                        Modified: modified.ToString("O"),
+                        IsShellItem: true));
+                }
             }
         }
         catch (Exception ex)

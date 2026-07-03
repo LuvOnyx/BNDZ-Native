@@ -39,11 +39,11 @@ namespace BNDZ.Services
             }
         }
 
-        public string LoadSettings()
+        public string? LoadSettings()
         {
             try
             {
-                string json = null;
+                string? json = null;
                 if (File.Exists(_configFilePath))
                     json = File.ReadAllText(_configFilePath);
 

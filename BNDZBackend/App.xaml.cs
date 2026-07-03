@@ -7,7 +7,7 @@ namespace BNDZ
 {
     public partial class App : System.Windows.Application
     {
-        public static ServiceProvider ServiceProvider { get; private set; }
+        public static ServiceProvider ServiceProvider { get; private set; } = null!;
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
@@ -49,10 +49,9 @@ namespace BNDZ
             {
                 string iconPath = e.Args[1];
                 string targetPath = e.Args[2];
-                if (iconPath.Contains("[ASSETS]")) {
-                    string exeDir = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-                    iconPath = iconPath.Replace("[ASSETS]", System.IO.Path.Combine(exeDir, "Assets"));
-                }
+                string? exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                if (!string.IsNullOrEmpty(exeDir))
+                    iconPath = iconPath.Replace("[ASSETS]", Path.Combine(exeDir, "Assets"));
                 try {
                     var iconSvc = new IconStudioService();
                     if (Directory.Exists(targetPath)) {
@@ -79,15 +78,8 @@ namespace BNDZ
                 mainWindow.SetPendingStartupAction(startupAction);
             mainWindow.Show();
 
-            BndzLauncherIpcService.Instance.Start();
-
-            if (!Array.Exists(e.Args, a => a == "--no-launcher"))
-            {
-                var settingsManager = new SettingsManager();
-                var bndzJson = settingsManager.LoadSettings();
-                if (BndzLauncherSettingsBridge.IsLauncherEnabled(bndzJson))
-                    BndzHostCoordinator.Instance.EnsureLauncherRunning(bndzJson);
-            }
+            BndzFileManagerIpcService.Instance.RegisterMain(mainWindow);
+            BndzFileManagerIpcService.Instance.Start();
         }
 
         /// <summary>Accepts --open-path or a bare path from Explorer context menus ("BNDZ.exe" "%1").</summary>
@@ -131,6 +123,7 @@ namespace BNDZ
         {
             // Core Application Services
             services.AddSingleton<FileManagementService>();
+            services.AddSingleton<LocalAiService>();
             services.AddSingleton<AiAssistantService>();
             services.AddSingleton<ShellIntegrationService>();
             services.AddSingleton<NativeShellService>();

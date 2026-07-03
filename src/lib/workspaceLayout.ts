@@ -10,15 +10,16 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 27;
+export const WORKSPACE_LAYOUT_VERSION = 28;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
+ * Preview default ~50% narrower than v27 (12% vs 25%).
  */
 export const DEFAULT_OUTER_LAYOUT: Layout = {
     sidebar: 17,
-    workspace: 58,
-    preview: 25,
+    workspace: 71,
+    preview: 12,
 };
 
 export const DEFAULT_INNER_LAYOUT: Layout = {

@@ -33,8 +33,6 @@ export const JUMP_SETTING_INDEX: JumpSettingEntry[] = [
   { tab: 'Tags', label: 'File tagging', keywords: ['tag', 'color'] },
   { tab: 'Icon Configurator', label: 'Icons', keywords: ['icon', 'library', 'studio'] },
   { tab: 'Startup & Exit', label: 'Startup', keywords: ['startup', 'launch', 'exit'] },
-  { tab: 'BNDZ Launcher', label: 'Launcher hotkey', keywords: ['launcher', 'hotkey', 'alt space', 'flow', 'command palette'] },
-  { tab: 'BNDZ Launcher', label: 'Launcher theme sync', keywords: ['launcher', 'theme', 'sync'] },
 ];
 
 export function searchJumpSettings(query: string, categoryTabs: string[]): JumpSettingEntry[] {

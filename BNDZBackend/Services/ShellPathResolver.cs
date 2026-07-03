@@ -89,6 +89,8 @@ public static class ShellPathResolver
             "shell:my music" => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
             "shell:my video" => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
             "shell:profile" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "shell:home" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "shell:pictureslibrary" => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
             "shell:downloads" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
             _ => null,
         };

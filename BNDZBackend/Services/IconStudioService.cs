@@ -168,7 +168,7 @@ namespace BNDZ.Services
                 using var classKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{ext}");
                 if (classKey != null)
                 {
-                    string progId = classKey.GetValue("") as string;
+                    string? progId = classKey.GetValue("") as string;
                     string targetKey = string.IsNullOrEmpty(progId) ? ext : progId;
                     
                     using var defaultIconKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{targetKey}\DefaultIcon");
@@ -187,10 +187,10 @@ namespace BNDZ.Services
         {
             try
             {
-                Type wscriptShellType = Type.GetTypeFromProgID("WScript.Shell");
+                Type? wscriptShellType = Type.GetTypeFromProgID("WScript.Shell");
                 if (wscriptShellType == null) return;
-                object shell = Activator.CreateInstance(wscriptShellType);
-                object shortcut = wscriptShellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
+                object shell = Activator.CreateInstance(wscriptShellType)!;
+                object shortcut = wscriptShellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath })!;
                 shortcut.GetType().InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { ",0" });
                 shortcut.GetType().InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
                 SHChangeNotify(0x08000000, 0x1000, IntPtr.Zero, IntPtr.Zero);
@@ -223,11 +223,11 @@ namespace BNDZ.Services
         {
             try
             {
-                Type wscriptShellType = Type.GetTypeFromProgID("WScript.Shell");
+                Type? wscriptShellType = Type.GetTypeFromProgID("WScript.Shell");
                 if (wscriptShellType == null) return;
                 
-                object shell = Activator.CreateInstance(wscriptShellType);
-                object shortcut = wscriptShellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
+                object shell = Activator.CreateInstance(wscriptShellType)!;
+                object shortcut = wscriptShellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath })!;
                 
                 shortcut.GetType().InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { iconPath + ",0" });
                 shortcut.GetType().InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);

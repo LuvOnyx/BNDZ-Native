@@ -612,27 +612,6 @@ export function applySettingsRuntime(config: AppConfig): void {
   applyBackendSettings(config);
 }
 
-/** Push native-relevant settings to C# backend */
-let lastLauncherSyncKey = '';
-
-function launcherSettingsKey(config: AppConfig): string {
-  return JSON.stringify({
-    launcherEnabled: config.launcherEnabled,
-    launcherHotkey: config.launcherHotkey,
-    launcherSyncTheme: config.launcherSyncTheme,
-    launcherHideTrayIcon: config.launcherHideTrayIcon,
-    launcherExitWithBndz: config.launcherExitWithBndz,
-    theme: config.theme,
-    applyColors: config.applyColors,
-    appearanceChromePalette: config.appearanceChromePalette,
-    appearanceSurfaceStyle: config.appearanceSurfaceStyle,
-    bgMain: config.bgMain,
-    accent: config.accent,
-    textMain: config.textMain,
-    bgSurface: config.bgSurface,
-  });
-}
-
 export function applyBackendSettings(config: AppConfig): void {
   import('./ipcBridge').then(({ IPC }) => {
     if (!IPC.isNative) return;
@@ -655,17 +634,6 @@ export function applyBackendSettings(config: AppConfig): void {
         icon: a.icon || '',
         targetMode: a.targetMode || 'all',
       })));
-    }
-
-    if (config.launcherEnabled !== false) {
-      const syncKey = launcherSettingsKey(config);
-      if (syncKey !== lastLauncherSyncKey) {
-        lastLauncherSyncKey = syncKey;
-        IPC.syncLauncherSettings(config);
-      }
-    } else if (lastLauncherSyncKey !== 'disabled') {
-      lastLauncherSyncKey = 'disabled';
-      IPC.syncLauncherSettings({ ...config, launcherEnabled: false });
     }
   });
 }

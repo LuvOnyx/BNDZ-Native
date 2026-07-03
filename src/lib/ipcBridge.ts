@@ -85,6 +85,7 @@ export const IPC = {
   _openPathListeners: [] as Array<(path: string) => void>,
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean }) => void>,
   _startupActionListeners: [] as Array<(action: string) => void>,
+  _aiDownloadProgressListeners: [] as Array<(progress: { percent: number }) => void>,
 
   init() {
     if (this.isNative && !this._initialized) {
@@ -122,6 +123,8 @@ export const IPC = {
         } else if (data.type === 'BNDZ_STARTUP_ACTION') {
           const action = data.payload ?? '';
           if (action) this._startupActionListeners.forEach(cb => cb(String(action)));
+        } else if (data.type === 'AI_DOWNLOAD_PROGRESS') {
+          this._aiDownloadProgressListeners.forEach(cb => cb(data.payload));
         }
       });
       this._initialized = true;
@@ -208,33 +211,6 @@ export const IPC = {
       }
       (window as any).chrome.webview.postMessage({ type: 'REQUEST_CLOSE', payload: { source } });
     }
-  },
-
-  showLauncher(): void {
-    if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'SHOW_LAUNCHER' });
-    }
-  },
-
-  syncLauncherSettings(settings: Record<string, unknown>): Promise<void> {
-    if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'SYNC_LAUNCHER', payload: settings });
-    }
-    return Promise.resolve();
-  },
-
-  getLauncherState(): Promise<{ installed?: boolean; running?: boolean; hotkey?: string }> {
-    if (this.isNative) {
-      const id = `${Date.now()}_launcherState`;
-      return _nativeCall<{ installed?: boolean; running?: boolean; hotkey?: string }>(
-        'GET_LAUNCHER_STATE',
-        'GET_LAUNCHER_STATE_RESULT',
-        id,
-        {},
-        8000,
-      ).then(r => r || {});
-    }
-    return Promise.resolve({});
   },
 
   windowCloseResolve(action: 'cancel' | 'tray' | 'quit', rememberTray = false): void {
@@ -347,7 +323,19 @@ export const IPC = {
         error: r?.error,
       }));
     }
-    return Promise.resolve({ groups: [] });
+    return fetch('/api/fs/scan-duplicates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rootPath, recursive, minSizeBytes }),
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return { groups: [], error: err.error || res.statusText };
+        }
+        return res.json();
+      })
+      .catch(err => ({ groups: [], error: err instanceof Error ? err.message : 'Scan failed' }));
   },
 
   cancelDuplicateScan(): void {
@@ -380,38 +368,31 @@ export const IPC = {
     return Promise.resolve({ success: false, error: 'Native only' });
   },
 
-  executeFsOperation(
+  async executeFsOperation(
     operationId: string,
     action: 'copy' | 'move' | 'delete' | 'create-dir' | 'create-file' | 'undo' | 'redo',
     source: string | string[],
     target: string,
     bypassRecycleBin: boolean = false
-  ) {
+  ): Promise<void> {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({
         type: 'EXECUTE_FS_OPERATION',
         payload: { operationId, action, source, target, bypassRecycleBin }
       });
-    } else {
-      // Mock progress for web preview
-      if (action !== 'delete') {
-        setTimeout(() => {
-          this._progressListeners.forEach(cb => cb({
-            operationId, percentage: 50,
-            currentFile: typeof source === 'string' ? source : source[0] || '',
-            bytesTransferred: 5000000, totalBytes: 10000000,
-            speedBytesPerSecond: 10000000, itemsCompleted: 1, totalItems: 2
-          }));
-        }, 500);
-        setTimeout(() => {
-          this._progressListeners.forEach(cb => cb({
-            operationId, percentage: 100,
-            currentFile: typeof source === 'string' ? source : source[source.length - 1] || '',
-            bytesTransferred: 10000000, totalBytes: 10000000,
-            speedBytesPerSecond: 10000000, itemsCompleted: 2, totalItems: 2
-          }));
-        }, 1000);
-      }
+      return;
+    }
+    if (action === 'undo' || action === 'redo' || action === 'copy') {
+      return;
+    }
+    const res = await fetch('/api/fs/operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, source, target }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `FS operation failed (${res.status})`);
     }
   },
 
@@ -536,8 +517,61 @@ export const IPC = {
     }
   },
 
+  onAiDownloadProgress(callback: (progress: { percent: number }) => void) {
+    this.init();
+    this._aiDownloadProgressListeners.push(callback);
+    return () => {
+      this._aiDownloadProgressListeners = this._aiDownloadProgressListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  async getAiModelStatus(): Promise<{
+    present: boolean;
+    loaded: boolean;
+    downloading: boolean;
+    progress?: number;
+    modelName: string;
+    sizeLabel: string;
+  }> {
+    if (!this.isNative) {
+      return { present: false, loaded: false, downloading: false, modelName: '', sizeLabel: '' };
+    }
+    const id = `${Date.now()}_aiModelStatus`;
+    return await _nativeCall('AI_MODEL_STATUS', 'AI_MODEL_STATUS_RESULT', id, {}, 15000);
+  },
+
+  async downloadAiModel(): Promise<boolean> {
+    if (!this.isNative) return false;
+    const id = `${Date.now()}_aiDownload`;
+    try {
+      const result = await _nativeCall<{ ok?: boolean }>('AI_DOWNLOAD_MODEL', 'AI_DOWNLOAD_MODEL_RESULT', id, {}, 7_200_000);
+      return !!result?.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async aiGenerate(prompt: string, timeoutMs = 120000): Promise<string> {
+    if (this.isNative) {
+      const { ensureAiModelReady } = await import('./aiModelGate');
+      const ready = await ensureAiModelReady();
+      if (!ready) return '';
+      const id = `${Date.now()}_aiGenerate`;
+      try {
+        const result = await _nativeCall<{ text?: string }>('AI_GENERATE', 'AI_GENERATE_RESULT', id, { prompt }, timeoutMs);
+        return result?.text ?? '';
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  },
+
   async aiBatchRename(filenames: string[], instructions: string): Promise<RenameOperation[]> {
     if (this.isNative) {
+      const { ensureAiModelReady } = await import('./aiModelGate');
+      const ready = await ensureAiModelReady();
+      if (!ready) return [];
       const id = `${Date.now()}_aiBatchRename`;
       try {
         return await _nativeCall<RenameOperation[]>('AI_BATCH_RENAME', 'AI_BATCH_RENAME_RESULT', id, { filenames, instructions }, 30000);

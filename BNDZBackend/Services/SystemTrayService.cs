@@ -46,7 +46,6 @@ public sealed class SystemTrayService : IDisposable
 
             _notifyIcon.DoubleClick += (_, _) => RestoreMainWindow();
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Open Launcher", null, (_, _) => RequestLauncher());
             menu.Items.Add("Open File Manager", null, (_, _) => RestoreMainWindow());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Exit BNDZ", null, (_, _) => RequestQuit());
@@ -80,16 +79,10 @@ public sealed class SystemTrayService : IDisposable
     }
 
     public event Action? QuitRequested;
-    public event Action? LauncherRequested;
 
     private void RequestQuit()
     {
         QuitRequested?.Invoke();
-    }
-
-    private void RequestLauncher()
-    {
-        LauncherRequested?.Invoke();
     }
 
     public void Dispose()

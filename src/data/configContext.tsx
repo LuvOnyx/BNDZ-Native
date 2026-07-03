@@ -100,10 +100,12 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if ('dualPane' in raw) merged.dualPaneFeature = raw.dualPane !== false;
     if ('showTopMenuBar' in raw) merged.showTopMenubar = !!raw.showTopMenuBar;
     if ('enableSubmenus' in raw) merged.enableContextSubmenus = !!raw.enableSubmenus;
+    // NOTE: `useCustomContextMenu` is independent and defaults true — the rich BNDZ
+    // menu is always primary. The legacy `nativeContextMenu` flag must NOT force it
+    // false (that caused the tiny native-only menu to preempt the rich one in the
+    // file list). Only an explicit `useNativeOSContextMenu` preference influences it.
     if ('useNativeOSContextMenu' in raw && !('useCustomContextMenu' in raw))
         merged.useCustomContextMenu = !raw.useNativeOSContextMenu;
-    if ('nativeContextMenu' in raw && !('useCustomContextMenu' in raw))
-        merged.useCustomContextMenu = !raw.nativeContextMenu;
     if ('keepFoldersOnTop' in raw || 'sortFoldersApart' in raw) {
         merged.sortFoldersFirst = !!(raw.keepFoldersOnTop ?? raw.sortFoldersApart ?? merged.sortFoldersFirst);
     }

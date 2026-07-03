@@ -42,6 +42,13 @@ BNDZBackend/Assets/BNDZLauncher/UserData/
 .npm/
 .pnpm-store/
 
+# Playwright / E2E
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+e2e/.work/
+
 # Reference clone (sync via scripts/sync-supercmd-launcher-ui.ps1)
 external/SuperCmd/
 

@@ -226,7 +226,7 @@ public static class LauncherCommandService
         {
             query = local.query,
             commands = all,
-            sections = sections.Count > 0 ? sections : local.sections,
+            sections = sections.Count > 0 ? sections : (local.sections ?? []),
         };
     }
 

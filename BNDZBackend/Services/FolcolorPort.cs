@@ -8,7 +8,7 @@ namespace BNDZ.Services
     public static class FolcolorPort
     {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        private static extern bool WritePrivateProfileStringW(string lpAppName, string lpKeyName, string lpString, string lpFileName);
+        private static extern bool WritePrivateProfileStringW(string? lpAppName, string? lpKeyName, string? lpString, string lpFileName);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         private static extern uint GetPrivateProfileSectionW(string lpAppName, IntPtr lpReturnedString, uint nSize, string lpFileName);

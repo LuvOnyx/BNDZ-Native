@@ -20,6 +20,20 @@ export default defineConfig(() => {
             if (id.includes('node_modules/framer-motion') || id.includes('node_modules/motion')) {
               return 'motion';
             }
+            if (id.includes('node_modules/pdfjs-dist')) {
+              return 'pdf';
+            }
+            if (id.includes('node_modules/mammoth')) {
+              return 'docx';
+            }
+            if (
+              id.includes('node_modules/react-markdown') ||
+              id.includes('node_modules/remark') ||
+              id.includes('node_modules/rehype') ||
+              id.includes('node_modules/micromark')
+            ) {
+              return 'markdown';
+            }
             if (id.includes('node_modules/react-syntax-highlighter')) {
               return 'syntax';
             }

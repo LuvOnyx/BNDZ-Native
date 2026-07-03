@@ -198,7 +198,7 @@ namespace Flow.Launcher.Plugin.BNDZ
                                     openPath = filePath,
                                     previewPath = filePath,
                                     previewKind = File.Exists(filePath) || Directory.Exists(filePath)
-                                        ? FilePreviewMetaService.InferKind(filePath)
+                                        ? BndzPreviewKind.Infer(filePath)
                                         : "unknown",
                                 }, score + 9000));
                             }
@@ -407,7 +407,7 @@ namespace Flow.Launcher.Plugin.BNDZ
                     {
                         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2500));
                         var task = pair.Plugin.QueryAsync(query, cts.Token);
-                        var results = task.AsTask().GetAwaiter().GetResult();
+                        var results = task.GetAwaiter().GetResult();
                         foreach (var r in results)
                         {
                             var id = StableCommandId(pair, r);

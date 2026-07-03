@@ -17,8 +17,6 @@
     <Product>BNDZ File Manager</Product>
     <Company>BNDZ</Company>
     <Description>Modern Windows file manager with WebView2 UI</Description>
-    <!-- Legacy nullable patterns in WPF/WebView handlers -->
-    <NoWarn>$(NoWarn);NU1701;CS4014;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8622;CS8625</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -27,12 +25,47 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LLamaSharp" Version="0.24.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.24.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
-    <PackageReference Include="Microsoft.WindowsAPICodePack-Shell" Version="1.1.0" />
+    <PackageReference Include="Ookii.Dialogs.Wpf" Version="5.0.1" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
-    <PackageReference Include="Vanara.PInvoke.Shell32" Version="4.0.4" />
     <PackageReference Include="SharpCompress" Version="0.48.0" />
+    <PackageReference Include="Vanara.Windows.Shell" Version="4.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="LauncherShellWindow.xaml.cs" />
+    <Compile Remove="Services\BndzActivationSound.cs" />
+    <Compile Remove="Services\BndzBrandingText.cs" />
+    <Compile Remove="Services\BndzFlowLauncherService.cs" />
+    <Compile Remove="Services\BndzGeminiClient.cs" />
+    <Compile Remove="Services\BndzHostCoordinator.cs" />
+    <Compile Remove="Services\BndzInstalledAppsIndex.cs" />
+    <Compile Remove="Services\BndzLauncherAiChatStore.cs" />
+    <Compile Remove="Services\BndzLauncherIpcService.cs" />
+    <Compile Remove="Services\BndzLauncherPendingActions.cs" />
+    <Compile Remove="Services\BndzLauncherSettingsBridge.cs" />
+    <Compile Remove="Services\BndzLauncherShellService.cs" />
+    <Compile Remove="Services\BndzNoteStore.cs" />
+    <Compile Remove="Services\BndzQuickLinkStore.cs" />
+    <Compile Remove="Services\BndzShellQueryClient.cs" />
+    <Compile Remove="Services\BndzSnippetStore.cs" />
+    <Compile Remove="Services\BndzWindowLayoutService.cs" />
+    <Compile Remove="Services\FilePreviewMetaService.cs" />
+    <Compile Remove="Services\LauncherCommandService.cs" />
+    <Compile Remove="Services\LauncherShellBridge.cs" />
+    <Compile Remove="Services\LauncherSystemCommands.cs" />
+    <Compile Remove="Services\LauncherWindowCommands.cs" />
+    <Compile Remove="Services\BndzShellExecute.cs" />
+    <Compile Remove="Services\BndzFileManagerBridge.cs" />
+    <Page Remove="LauncherShellWindow.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="Assets\BNDZLauncher\**\*" />
+    <Content Remove="Assets\launcher-ui\**\*" />
   </ItemGroup>
 
   <ItemGroup>

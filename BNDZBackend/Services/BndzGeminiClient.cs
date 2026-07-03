@@ -26,6 +26,46 @@ public sealed class BndzGeminiClient
             cts.Cancel();
     }
 
+    /// <summary>
+    /// Non-streaming single-shot completion. Returns the full model text, or throws
+    /// with a readable message if the key is missing or the API call fails.
+    /// </summary>
+    public static async Task<string> GenerateContentAsync(
+        string prompt,
+        double temperature = 0.2,
+        CancellationToken cancellationToken = default)
+    {
+        var apiKey = ResolveApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new InvalidOperationException(
+                "Gemini API key not configured. Set GEMINI_API_KEY or UserData/BNDZ/gemini-api-key.txt");
+
+        var url =
+            $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(apiKey)}";
+
+        var body = new
+        {
+            contents = new[]
+            {
+                new { role = "user", parts = new[] { new { text = prompt } } },
+            },
+            generationConfig = new { temperature, maxOutputTokens = 4096 },
+        };
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"),
+        };
+        using var resp = await Http.SendAsync(req, cancellationToken);
+        var payload = await resp.Content.ReadAsStringAsync(cancellationToken);
+        if (!resp.IsSuccessStatusCode)
+            throw new HttpRequestException(ParseGeminiError(payload) ?? $"Gemini HTTP {(int)resp.StatusCode}");
+
+        var sb = new StringBuilder();
+        ExtractTextChunks(payload, chunk => sb.Append(chunk));
+        return sb.ToString();
+    }
+
     public static async Task StreamChatAsync(
         string requestId,
         IReadOnlyList<GeminiChatMessage> messages,

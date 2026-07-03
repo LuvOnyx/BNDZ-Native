@@ -17,10 +17,11 @@ import {
   type GridSelectionStyle,
 } from '../../lib/appearanceVariants';
 import { applySettingsRuntime } from '../../lib/settingsRuntime';
+import type { AppConfig } from '../../data/configContext';
 
 type Props = {
-  localConfig: Record<string, any>;
-  updateLocalConfig: (patch: Record<string, any>) => void;
+  localConfig: AppConfig;
+  updateLocalConfig: (patch: Partial<AppConfig>) => void;
 };
 
 function VariantSelect<T extends string>({
@@ -58,7 +59,7 @@ function VariantSelect<T extends string>({
 }
 
 export default function AppearanceTabContent({ localConfig, updateLocalConfig }: Props) {
-  const patch = (updates: Record<string, any>) => {
+  const patch = (updates: Partial<AppConfig>) => {
     updateLocalConfig(updates);
     applySettingsRuntime({ ...localConfig, ...updates });
   };
@@ -67,7 +68,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
     <div className="p-1">
       <SettingsTabHeader
         title="Appearance"
-        subtitle="Global UI variants — selection chrome, surfaces, density. Inspired by XYplorer / FilePilot (file manager) and Raycast (launcher)."
+        description="Global UI variants — selection chrome, surfaces, density. Inspired by XYplorer / FilePilot (file manager) and Raycast (launcher)."
       />
 
       <SettingsSection title="Selection & focus">

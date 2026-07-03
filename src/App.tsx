@@ -8,6 +8,7 @@ import BNDZUI from './components/BNDZUI';
 import { ConfigProvider } from './data/configContext';
 import { ClipboardProvider } from './data/ClipboardContext';
 import ModalProvider from './components/ModalProvider';
+import { AiModelGateProvider } from './components/AiModelGateProvider';
 import ToastHost from './components/ToastHost';
 import { PluginRegistryProvider } from './data/PluginRegistryContext';
 import { initGlobalEscapeListener } from './lib/globalEscape';
@@ -36,11 +37,13 @@ export default function App() {
       <ClipboardProvider>
         <PluginRegistryProvider>
           <ModalProvider>
+            <AiModelGateProvider>
             {!splashDone && <LaunchSplash onDone={handleSplashDone} />}
             <Suspense fallback={null}>
               <BNDZUI />
             </Suspense>
             <ToastHost />
+            </AiModelGateProvider>
           </ModalProvider>
         </PluginRegistryProvider>
       </ClipboardProvider>

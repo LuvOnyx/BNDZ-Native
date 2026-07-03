@@ -1,0 +1,1 @@
+import{IPC as t}from"./ipcBridge-DBlttSu7.js";import"./index-Cv8-wQ9T.js";async function a(){if(!t.isNative)return!1;try{if((await t.getAiModelStatus()).present)return!0}catch{return!1}return!1}export{a as ensureAiModelReady};

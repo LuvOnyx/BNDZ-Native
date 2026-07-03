@@ -27,33 +27,6 @@ function resolveSelectedPaths(props: SmartToolsDialogProps): string[] {
     return [];
 }
 
-/** Rule-based organizer when AI backend is unavailable */
-async function organizeByCategory(paths: string[]): Promise<number> {
-    const categories: Record<string, string[]> = {
-        Images: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'],
-        Documents: ['pdf', 'doc', 'docx', 'txt', 'md', 'rtf', 'odt', 'xlsx', 'pptx'],
-        Audio: ['mp3', 'wav', 'flac', 'ogg', 'aac', 'm4a'],
-        Video: ['mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv'],
-        Archives: ['zip', 'rar', '7z', 'tar', 'gz'],
-        Code: ['js', 'ts', 'jsx', 'tsx', 'py', 'cs', 'java', 'cpp', 'c', 'h', 'html', 'css', 'json'],
-    };
-
-    let moved = 0;
-    for (const fullPath of paths) {
-        const ext = (fullPath.split('.').pop() || '').toLowerCase();
-        const folder = Object.entries(categories).find(([, exts]) => exts.includes(ext))?.[0];
-        if (!folder) continue;
-
-        const base = fullPath.substring(0, fullPath.lastIndexOf('\\'));
-        const fileName = fullPath.substring(fullPath.lastIndexOf('\\') + 1);
-        const targetDir = `${base}\\${folder}`;
-        await IPC.executeFsOperation(`mkdir-${Date.now()}`, 'create-dir', targetDir, '');
-        await IPC.executeFsOperation(`move-${Date.now()}`, 'move', fullPath, `${targetDir}\\${fileName}`);
-        moved++;
-    }
-    return moved;
-}
-
 export default function SmartToolsDialog({ isOpen = true, onClose, selectedItems, selectedFiles, currentPath }: SmartToolsDialogProps) {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState('');
@@ -77,64 +50,23 @@ export default function SmartToolsDialog({ isOpen = true, onClose, selectedItems
                 const combined = texts.filter(Boolean).join('\n\n---\n\n');
 
                 if (IPC.isNative) {
-                    try {
-                        const summary = await IPC.aiBatchRename(
-                            texts.map((t, i) => `FILE_${i}: ${t.slice(0, 500)}`),
-                            'Summarize these file excerpts into a concise bullet-point summary.'
-                        );
-                        setResult(Array.isArray(summary) ? summary.join('\n') : String(summary));
+                    const summary = await IPC.aiGenerate(
+                        `Summarize the following file excerpts into concise bullet points:\n\n${combined.slice(0, 12000)}`
+                    );
+                    if (!summary) {
+                        setResult('AI download cancelled or unavailable. Select files and try again when ready.');
                         return;
-                    } catch { /* fall through to web */ }
-                }
-
-                const response = await fetch('/api/gemini', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: `Summarize:\n${combined}`, intent: 'summarize' })
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setResult(data.text || 'No summary returned.');
-                } else {
-                    setResult('AI summarize unavailable. Configure GEMINI_API_KEY or use native AI bridge.');
-                }
-            } else if (action === 'organize') {
-                if (paths.length === 0) {
-                    setResult('Select files in the current folder, then run Auto-Organize.');
+                    }
+                    setResult(summary);
                     return;
                 }
 
-                const files = paths.map(p => p.split('\\').pop() || p);
-                let organized = 0;
-
-                try {
-                    const response = await fetch('/api/gemini', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ files, intent: 'organize' })
-                    });
-                    if (response.ok) {
-                        const data = await response.json();
-                        const ops = data.result?.operations || [];
-                        for (const op of ops) {
-                            const fullPath = paths.find(p => p.endsWith('\\' + op.file) || p.endsWith('/' + op.file) || p.endsWith(op.file));
-                            if (!fullPath) continue;
-                            const basePath = fullPath.substring(0, Math.max(fullPath.lastIndexOf('\\'), fullPath.lastIndexOf('/')));
-                            const sep = fullPath.includes('\\') ? '\\' : '/';
-                            const newFolderPath = `${basePath}${sep}${op.newFolder}`;
-                            await IPC.executeFsOperation('auto-mkdir', 'create-dir', newFolderPath, '');
-                            await IPC.executeFsOperation('auto-move', 'move', fullPath, `${newFolderPath}${sep}${op.file}`);
-                            organized++;
-                        }
-                        setResult(`AI organized ${organized} file(s) into category folders.`);
-                        return;
-                    }
-                } catch { /* use rule-based fallback */ }
-
-                organized = await organizeByCategory(paths);
-                setResult(organized > 0
-                    ? `Smart organize complete — moved ${organized} file(s) into category subfolders (Images, Documents, Audio, etc.).`
-                    : 'No matching file types to organize. Try selecting images, documents, or media files.');
+                setResult('Summarize requires the native BNDZ app with local AI.');
+            } else if (action === 'organize') {
+                window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
+                window.dispatchEvent(new CustomEvent('bndz-storage-wizard', { detail: { mode: 'organize' } }));
+                setResult('Opened Storage Cleanup — use the wizard to pick a folder, preview, and confirm.');
+                onClose();
             }
         } catch (e: any) {
             setResult(`Error: ${e.message}`);
@@ -195,7 +127,7 @@ export default function SmartToolsDialog({ isOpen = true, onClose, selectedItems
                         </div>
 
                         <div className="flex items-center gap-2 text-[10px] text-gray-600 uppercase tracking-widest">
-                            <Wand2 size={12} /> Uses AI when configured; falls back to smart category rules
+                            <Wand2 size={12} /> Local AI (offline after first download) · smart rules fallback
                         </div>
 
                         {(loading || result) && (

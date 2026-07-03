@@ -4,12 +4,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 
 namespace BNDZ.Services;
 
 public class FileOperationService
 {
+    private const long MaxVerifyHashBytes = 256L * 1024 * 1024;
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct SHFILEOPSTRUCT
     {
@@ -178,6 +180,12 @@ public class FileOperationService
                 if (!destFile.EndsWith(Path.GetFileName(singleSrc), StringComparison.OrdinalIgnoreCase)
                     && !File.Exists(destFile))
                     destFile = Path.Combine(targetDir, Path.GetFileName(singleSrc));
+                if (File.Exists(destFile) && onConflict != null)
+                {
+                    var resolution = await onConflict(operationId, Path.GetFileName(destFile), singleSrc, destFile);
+                    if (resolution == "skip") return createdPaths;
+                    if (resolution == "keepboth") destFile = GetUniquePath(destFile);
+                }
                 var destDir = Path.GetDirectoryName(destFile);
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
                     Directory.CreateDirectory(destDir);
@@ -242,6 +250,8 @@ public class FileOperationService
             else
             {
                 await CopyFileBufferedAsync(src, dest).ConfigureAwait(false);
+                if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
+                    throw new IOException($"Copy verification failed for {Path.GetFileName(src)}");
                 createdPaths.Add(dest);
                 if (move) try { File.Delete(src); } catch { /* best effort */ }
             }
@@ -282,6 +292,36 @@ public class FileOperationService
             destinationFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         await sourceStream.CopyToAsync(destinationStream, bufferSize).ConfigureAwait(false);
+        await destinationStream.FlushAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<bool> VerifyCopyAsync(string sourceFile, string destinationFile)
+    {
+        try
+        {
+            var srcInfo = new FileInfo(sourceFile);
+            var dstInfo = new FileInfo(destinationFile);
+            if (!srcInfo.Exists || !dstInfo.Exists) return false;
+            if (srcInfo.Length != dstInfo.Length) return false;
+            if (srcInfo.Length == 0) return true;
+            if (srcInfo.Length > MaxVerifyHashBytes) return true;
+
+            static async Task<byte[]> HashFileAsync(string path)
+            {
+                await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                using var sha = SHA256.Create();
+                return await sha.ComputeHashAsync(stream).ConfigureAwait(false);
+            }
+
+            var srcHash = await HashFileAsync(sourceFile).ConfigureAwait(false);
+            var dstHash = await HashFileAsync(destinationFile).ConfigureAwait(false);
+            return srcHash.AsSpan().SequenceEqual(dstHash);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Copy verify failed: {ex.Message}");
+            return false;
+        }
     }
 
     private static string GetUniquePath(string path)

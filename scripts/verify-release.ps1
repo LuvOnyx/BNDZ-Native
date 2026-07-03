@@ -34,7 +34,6 @@ Write-Host "`nPublish folder:" -ForegroundColor Yellow
 Test-Artifact (Join-Path $PublishDir "BNDZ.exe") "BNDZ.exe" | Out-Null
 Test-Artifact (Join-Path $PublishDir "Assets\ui\index.html") "UI bundle" | Out-Null
 Test-Artifact (Join-Path $PublishDir "Assets\BNDZ.ico") "App icon" | Out-Null
-Test-Artifact (Join-Path $PublishDir "BNDZLauncher\BNDZ.Launcher.exe") "BNDZ Launcher" | Out-Null
 
 $exe = Join-Path $PublishDir "BNDZ.exe"
 if (Test-Path $exe) {

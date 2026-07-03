@@ -11,6 +11,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using BNDZ.Services;
+using BNDZ.Utilities;
 using Microsoft.Web.WebView2.Core;
 
 namespace BNDZ
@@ -26,6 +27,7 @@ namespace BNDZ
 
         private readonly FileManagementService _fileService;
         private readonly AiAssistantService _aiService;
+        private readonly LocalAiService _localAi;
         private readonly ShellIntegrationService _shellIntegrationService;
         private readonly IconStudioService _iconStudioService;
         private readonly FileOperationService _fileOperationService;
@@ -49,7 +51,7 @@ namespace BNDZ
 
         private ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
         private ConcurrentQueue<object> _fseventBuffer = new();
-        private System.Timers.Timer _debounceTimer;
+        private System.Timers.Timer _debounceTimer = null!;
 
         // Using TaskCompletionSource to wait for frontend conflict resolution
         private ConcurrentDictionary<string, TaskCompletionSource<string>> _conflictResolvers = new();
@@ -60,11 +62,12 @@ namespace BNDZ
         private string? _pendingOpenPath;
         private string? _pendingStartupAction;
 
-        public MainWindow(FileManagementService fileService, AiAssistantService aiService, ShellIntegrationService shellIntegrationService)
+        public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
             InitializeComponent();
             _fileService = fileService;
             _aiService = aiService;
+            _localAi = localAi;
             _shellIntegrationService = shellIntegrationService;
             _iconStudioService = new IconStudioService();
             _fileOperationService = new FileOperationService();
@@ -73,7 +76,7 @@ namespace BNDZ
             _folderSyncService.SetProgressCallback(p =>
             {
                 var evt = new { type = "FOLDER_SYNC_PROGRESS", payload = p };
-                Dispatcher.InvokeAsync(() =>
+                PostToUi(() =>
                 {
                     try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)); }
                     catch { }
@@ -82,11 +85,9 @@ namespace BNDZ
             AppIconService.ApplyToWindow(this);
             _trayService = new SystemTrayService(this);
             _trayService.QuitRequested += () => Dispatcher.Invoke(() => RequestCloseFromUI("tray"));
-            _trayService.LauncherRequested += () => Dispatcher.Invoke(() => BndzHostCoordinator.Instance.ShowLauncher());
             _trayService.EnsureVisible();
             Closing += OnMainWindowClosing;
             StateChanged += (_, _) => PostWindowStateChanged();
-            BndzHostCoordinator.Instance.RegisterMain(this);
             
             SetupDebouncedWatcher();
             InitializeWebViewAsync();
@@ -120,6 +121,10 @@ namespace BNDZ
         public void SetPendingOpenPath(string path) => _pendingOpenPath = path;
 
         public void SetPendingStartupAction(string action) => _pendingStartupAction = action;
+
+        private void PostToUi(Action action) => UiThread.Marshal(Dispatcher, action);
+
+        private Task PostToUiAsync(Action action) => UiThread.MarshalAsync(Dispatcher, action);
 
         public void OpenPathInManager(string path)
         {
@@ -170,8 +175,7 @@ namespace BNDZ
 
         protected override void OnClosed(EventArgs e)
         {
-            BndzLauncherIpcService.Instance.Dispose();
-            BndzHostCoordinator.Instance.Shutdown(_settingsManager.LoadSettings());
+            BndzFileManagerIpcService.Instance.Dispose();
             _trayService?.Dispose();
             base.OnClosed(e);
         }
@@ -226,12 +230,68 @@ namespace BNDZ
             return path;
         }
 
+        /// <summary>Ask the AI service to propose new names for a batch of files, returning
+        /// {originalName, newName, reason} operations. Returns an empty list if AI is
+        /// unavailable or the response cannot be parsed.</summary>
+        private async Task<List<object>> GenerateBatchRenameAsync(List<string> filenames, string instructions)
+        {
+            var results = new List<object>();
+            if (filenames.Count == 0) return results;
+
+            var sb = new StringBuilder();
+            sb.AppendLine("You are a file renaming assistant. Given a list of filenames and instructions, propose a new name for each file.");
+            sb.AppendLine("Respond with ONLY a JSON array (no markdown fences) of objects with keys: originalName, newName, reason.");
+            sb.AppendLine("Keep file extensions unless the instructions say otherwise. Do not include paths, only file names.");
+            sb.AppendLine();
+            sb.AppendLine("Instructions: " + (string.IsNullOrWhiteSpace(instructions) ? "Clean up and standardize the names." : instructions));
+            sb.AppendLine();
+            sb.AppendLine("Filenames:");
+            foreach (var name in filenames) sb.AppendLine("- " + name);
+
+            var raw = await _aiService.GenerateResponseAsync(sb.ToString());
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var json = ExtractJsonArray(raw);
+                if (json != null)
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(json);
+                        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var el in doc.RootElement.EnumerateArray())
+                            {
+                                var originalName = el.TryGetProperty("originalName", out var o) ? o.GetString() ?? "" : "";
+                                var newName = el.TryGetProperty("newName", out var n) ? n.GetString() ?? "" : "";
+                                var reason = el.TryGetProperty("reason", out var r) ? r.GetString() ?? "" : "";
+                                if (originalName.Length == 0 || newName.Length == 0) continue;
+                                results.Add(new { originalName, newName, reason });
+                            }
+                            if (results.Count > 0) return results;
+                        }
+                    }
+                    catch { /* fall through to rules */ }
+                }
+            }
+
+            return AiRulesEngine.BatchRename(filenames, instructions);
+        }
+
+        /// <summary>Extract the first JSON array from a model response, tolerating ```json fences.</summary>
+        private static string? ExtractJsonArray(string text)
+        {
+            var start = text.IndexOf('[');
+            var end = text.LastIndexOf(']');
+            if (start < 0 || end <= start) return null;
+            return text.Substring(start, end - start + 1);
+        }
+
         private void PostExternalFileDrop(string[] paths)
         {
             if (paths == null || paths.Length == 0) return;
             var msg = new { type = "EXTERNAL_FILES_DROPPED", payload = new { paths } };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(json));
+            PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(json));
         }
 
         private void SetupNativeFileDrop()
@@ -275,7 +335,7 @@ namespace BNDZ
             var response = new { type = "SHELL_ICON_RESULT", id, payload };
             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-            Dispatcher.InvokeAsync(() => {
+            PostToUi(() => {
                 try {
                     MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson);
                 } catch { }
@@ -296,7 +356,7 @@ namespace BNDZ
             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             string json = JsonSerializer.Serialize(evt, jsonOptions);
 
-            Dispatcher.InvokeAsync(() => {
+            PostToUi(() => {
                 try {
                     MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
                 } catch { }
@@ -344,7 +404,7 @@ namespace BNDZ
             try { System.IO.File.AppendAllText("ipc_log.txt", line + "\n"); } catch { }
         }
 
-        private void QueueFsEvent(string type, string dir, string name, string oldName = null)
+        private void QueueFsEvent(string type, string dir, string? name, string? oldName = null)
         {
             _fseventBuffer.Enqueue(new { type, dir = dir.Replace("\\", "/"), name, oldName });
         }
@@ -362,7 +422,7 @@ namespace BNDZ
             var payload = new { type = "FS_EVENT_BATCH", payload = batch };
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-            Dispatcher.InvokeAsync(() => 
+            PostToUi(() => 
             {
                 // Send batched payload back to the React frontend
                 MainWebView.CoreWebView2.PostWebMessageAsJson(json);
@@ -474,9 +534,9 @@ namespace BNDZ
             }
         }
 
-        private void CoreWebView2_ProcessFailed(object sender, Microsoft.Web.WebView2.Core.CoreWebView2ProcessFailedEventArgs e)
+        private void CoreWebView2_ProcessFailed(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2ProcessFailedEventArgs e)
         {
-            Dispatcher.InvokeAsync(() => {
+            PostToUi(() => {
                 System.Windows.MessageBox.Show($"WebView2 Process Failed: {e.ProcessFailedKind}\nReason: {e.Reason}", "Renderer Crash or IPC Bridge Timeout", MessageBoxButton.OK, MessageBoxImage.Error);
                 // Attempt recovery by reloading
                 try
@@ -487,7 +547,7 @@ namespace BNDZ
             });
         }
 
-        private async void CoreWebView2_WebMessageReceived(object sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
+        private async void CoreWebView2_WebMessageReceived(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
         {
             try
             {
@@ -495,16 +555,18 @@ namespace BNDZ
                 
                 // If it was sent as a JSON string instead of an object, it'll have double quotes around it and be escaped
                 if (messageStr.StartsWith("\"") && messageStr.EndsWith("\"")) {
-                    try { messageStr = System.Text.Json.JsonSerializer.Deserialize<string>(messageStr); } catch { }
+                    try { messageStr = System.Text.Json.JsonSerializer.Deserialize<string>(messageStr) ?? messageStr; } catch { }
                 }
                 
+                if (string.IsNullOrEmpty(messageStr)) return;
                 IpcDebugLog($"[RECV] {messageStr}");
 
                 using var doc = JsonDocument.Parse(messageStr);
                 var root = doc.RootElement;
                 if (!root.TryGetProperty("type", out var typeProp)) return;
 
-                string type = typeProp.GetString();
+                string? type = typeProp.GetString();
+                if (string.IsNullOrEmpty(type)) return;
                 if (type == "EXECUTE_FS_OPERATION")
                 {
                     var payload = root.GetProperty("payload");
@@ -541,9 +603,9 @@ namespace BNDZ
                     if (action == "move" && sources.Count == 1)
                     {
                         string source = sources[0];
-                        string srcDir = Path.GetDirectoryName(source);
-                        string destDir = Path.GetDirectoryName(target);
-                        if (string.Equals(srcDir, destDir, StringComparison.OrdinalIgnoreCase))
+                        string? srcDir = Path.GetDirectoryName(source);
+                        string? destDir = Path.GetDirectoryName(target);
+                        if (!string.IsNullOrEmpty(srcDir) && string.Equals(srcDir, destDir, StringComparison.OrdinalIgnoreCase))
                         {
                             string newName = Path.GetFileName(target);
                             _shellIntegrationService.RenameItem(source, newName);
@@ -551,7 +613,7 @@ namespace BNDZ
                                 new List<string> { source },
                                 new List<string> { target },
                                 $"Rename {Path.GetFileName(source)}"));
-                            Dispatcher.InvokeAsync(PostActionLogChanged);
+                            PostToUi(PostActionLogChanged);
                             return;
                         }
                     }
@@ -563,7 +625,7 @@ namespace BNDZ
                             onProgress: (opId, percentage, currentFile, bytesTransferred, totalBytes, speedBytesPerSecond, itemsCompleted, totalItems) =>
                             {
                                 var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId = opId, percentage, currentFile, bytesTransferred, totalBytes, speedBytesPerSecond, itemsCompleted, totalItems } };
-                                Dispatcher.InvokeAsync(() => {
+                                PostToUi(() => {
                                     MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
                                 });
                             },
@@ -574,7 +636,7 @@ namespace BNDZ
                                 string conflictKey = $"{opId}:{fileName}";
                                 _conflictResolvers[conflictKey] = tcs;
 
-                                Dispatcher.InvokeAsync(() => {
+                                PostToUi(() => {
                                     MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
                                 });
 
@@ -590,7 +652,7 @@ namespace BNDZ
                         if (!string.IsNullOrEmpty(target) && (action == "copy" || action == "move"))
                             QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
                         FlushFsEvents();
-                        await Dispatcher.InvokeAsync(PostActionLogChanged).Task.ConfigureAwait(false);
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
                     });
                 }
                 else if (type == "START_DRAG")
@@ -613,7 +675,7 @@ namespace BNDZ
                     if (paths.Count == 0) return;
                     var pathArray = paths.ToArray();
 
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         try
                         {
                             var dataObject = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, pathArray);
@@ -624,7 +686,7 @@ namespace BNDZ
                 }
                 else if (type == "CLEAR_THUMBNAIL_CACHE")
                 {
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         Console.WriteLine("[Mock] Native thumbnail cache cleared.");
                     });
                 }
@@ -727,7 +789,7 @@ namespace BNDZ
                     else if (action == "openWith")
                     {
                         // Launch the shell Open With dialog natively
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             try {
                                 var processInfo = new System.Diagnostics.ProcessStartInfo("Rundll32.exe", $"shell32.dll,OpenAs_RunDLL {path}");
                                 processInfo.UseShellExecute = true;
@@ -783,7 +845,7 @@ namespace BNDZ
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     var responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         IpcDebugLog($"[SEND] {responseJson}");
                         MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                     });
@@ -803,7 +865,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         var responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                              IpcDebugLog($"[SEND] {responseJson}");
                              MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
@@ -856,7 +918,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -899,7 +961,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -971,7 +1033,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -1015,12 +1077,12 @@ namespace BNDZ
                         {
                             var job = await _folderSyncService.RunSyncAsync(jobId);
                             var response = new { type = "FOLDER_SYNC_RUN_RESULT", id = idProp, payload = job };
-                            Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response)));
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response)));
                         }
                         catch (Exception ex)
                         {
                             var response = new { type = "FOLDER_SYNC_RUN_RESULT", id = idProp, payload = new { error = ex.Message } };
-                            Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response)));
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response)));
                         }
                     });
                 }
@@ -1041,7 +1103,75 @@ namespace BNDZ
                 }
                 else if (type == "AI_BATCH_RENAME")
                 {
-                    // Call the AI Service
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var filenames = payload.TryGetProperty("filenames", out var fnEl) && fnEl.ValueKind == JsonValueKind.Array
+                        ? fnEl.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList()
+                        : new List<string>();
+                    var instructions = payload.TryGetProperty("instructions", out var insEl)
+                        ? insEl.GetString() ?? ""
+                        : "";
+
+                    _ = Task.Run(async () =>
+                    {
+                        var operations = await GenerateBatchRenameAsync(filenames, instructions);
+                        var response = new { type = "AI_BATCH_RENAME_RESULT", id = idProp, payload = operations };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)));
+                    });
+                }
+                else if (type == "AI_GENERATE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var prompt = payload.TryGetProperty("prompt", out var pEl) ? pEl.GetString() ?? "" : "";
+
+                    _ = Task.Run(async () =>
+                    {
+                        var text = await _aiService.GenerateResponseAsync(prompt);
+                        var response = new { type = "AI_GENERATE_RESULT", id = idProp, payload = new { text } };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)));
+                    });
+                }
+                else if (type == "AI_MODEL_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var statusPayload = new
+                    {
+                        present = _localAi.IsModelPresent,
+                        loaded = _localAi.IsLoaded,
+                        downloading = _localAi.IsDownloading,
+                        progress = _localAi.DownloadProgress,
+                        modelName = LocalAiService.ModelDisplayName,
+                        sizeLabel = LocalAiService.ModelSizeLabel,
+                    };
+                    var response = new { type = "AI_MODEL_STATUS_RESULT", id = idProp, payload = statusPayload };
+                    var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)));
+                }
+                else if (type == "AI_DOWNLOAD_MODEL")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        var ok = false;
+                        try
+                        {
+                            var progress = new Progress<double>(p =>
+                            {
+                                var evt = new { type = "AI_DOWNLOAD_PROGRESS", payload = new { percent = p } };
+                                var evtJson = JsonSerializer.Serialize(evt, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(evtJson));
+                            });
+                            ok = await _localAi.DownloadModelAsync(progress);
+                        }
+                        catch { ok = false; }
+
+                        var response = new { type = "AI_DOWNLOAD_MODEL_RESULT", id = idProp, payload = new { ok } };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)));
+                    });
                 }
                 else if (type == "WATCH_DIR")
                 {
@@ -1066,7 +1196,7 @@ namespace BNDZ
                     var response = new { type = "DRIVES_RESULT", id = idProp, payload = drives };
                     var jsonOptsDrives = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     var responseJson = JsonSerializer.Serialize(response, jsonOptsDrives);
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                     {
                         IpcDebugLog($"[SEND] {responseJson}");
                         MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
@@ -1110,7 +1240,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -1133,7 +1263,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -1157,7 +1287,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -1201,7 +1331,7 @@ namespace BNDZ
                         var response = new { type = "GET_MEDIA_BLOB_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -1237,7 +1367,7 @@ namespace BNDZ
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -1254,7 +1384,7 @@ namespace BNDZ
                         var result = _archiveService.ListContents(path, limit);
                         var response = new { type = "ARCHIVE_CONTENTS_RESULT", id = idProp, payload = result };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "GET_TORRENT_INFO")
@@ -1268,7 +1398,7 @@ namespace BNDZ
                         var result = _torrentParserService.Parse(path);
                         var response = new { type = "TORRENT_INFO_RESULT", id = idProp, payload = result };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "SCAN_FOLDER_SIZES")
@@ -1292,7 +1422,7 @@ namespace BNDZ
                             {
                                 var evt = new { type = "FOLDER_SIZE_PROGRESS", payload = prog };
                                 var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                                Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt, jsonOpts)));
+                                PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt, jsonOpts)));
                             });
                             resultPayload = scanResult;
                         }
@@ -1307,7 +1437,7 @@ namespace BNDZ
 
                         var response = new { type = "FOLDER_SIZE_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "CANCEL_FOLDER_SIZE_SCAN")
@@ -1349,7 +1479,7 @@ namespace BNDZ
                                     },
                                 };
                                 var progressJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                                Dispatcher.InvokeAsync(() =>
+                                PostToUi(() =>
                                     MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(progressEvt, progressJson)));
                             });
                             resultPayload = scanResult;
@@ -1365,7 +1495,7 @@ namespace BNDZ
 
                         var response = new { type = "DUPLICATE_SCAN_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "CANCEL_DUPLICATE_SCAN")
@@ -1402,7 +1532,7 @@ namespace BNDZ
                         }
                         var response = new { type = "ARCHIVE_ADD_FILES_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "ARCHIVE_EXTRACT_ENTRY")
@@ -1427,7 +1557,7 @@ namespace BNDZ
                         }
                         var response = new { type = "ARCHIVE_EXTRACT_ENTRY_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "ARCHIVE_EXTRACT_ENTRY_TEMP")
@@ -1451,7 +1581,7 @@ namespace BNDZ
                         }
                         var response = new { type = "ARCHIVE_EXTRACT_ENTRY_TEMP_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "CREATE_ARCHIVE")
@@ -1471,15 +1601,15 @@ namespace BNDZ
                             await _archiveService.CreateArchiveAsync(sources, target, format, (pct, file) =>
                             {
                                 var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
-                                Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
+                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
                             });
                             var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = target, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
-                            Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
                         }
                         catch (Exception ex)
                         {
                             var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
-                            Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
                         }
                     });
                 }
@@ -1497,13 +1627,13 @@ namespace BNDZ
                             await _archiveService.ExtractArchiveAsync(archivePath, dest, (pct, file) =>
                             {
                                 var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
-                                Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
+                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
                             });
                         }
                         catch (Exception ex)
                         {
                             var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
-                            Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
                         }
                     });
                 }
@@ -1520,7 +1650,7 @@ namespace BNDZ
                         var result = _linkService.CreateLink(linkPath, targetPath, linkType);
                         var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = result };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "SHELL_INTEGRATION")
@@ -1556,7 +1686,7 @@ namespace BNDZ
                         var response = new { type = "ICON_LIBRARIES_RESULT", id = idProp, payload = libs };
                         var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOpts);
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
@@ -1567,7 +1697,7 @@ namespace BNDZ
                     PushDrivesUpdate();
                     var response = new { type = "REFRESH_WORKSPACE_RESULT", id = idProp, payload = true };
                     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
                     });
                 }
@@ -1598,7 +1728,7 @@ namespace BNDZ
 
                     var response = new { type = "SET_FILE_ATTRIBUTES_RESULT", id = idProp, payload = success };
                     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
                     });
                 }
@@ -1607,7 +1737,7 @@ namespace BNDZ
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var response = new { type = "SET_FILE_ACL_RESULT", id = idProp, payload = false };
                     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
                     });
                 }
@@ -1618,64 +1748,29 @@ namespace BNDZ
                         var payload = root.GetProperty("payload");
                         string jsonString = payload.GetRawText();
                         _settingsManager.SaveSettings(jsonString);
-                        BndzHostCoordinator.Instance.SyncLauncherSettings(jsonString);
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"Error saving settings: {ex.Message}");
                     }
                 }
-                else if (type == "SYNC_LAUNCHER")
-                {
-                    try
-                    {
-                        var payload = root.GetProperty("payload");
-                        string jsonString = payload.GetRawText();
-                        BndzHostCoordinator.Instance.SyncLauncherSettings(jsonString);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error syncing launcher: {ex.Message}");
-                    }
-                }
-                else if (type == "GET_LAUNCHER_STATE")
-                {
-                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var svc = BndzFlowLauncherService.Instance;
-                    var response = new
-                    {
-                        type = "GET_LAUNCHER_STATE_RESULT",
-                        id = idProp,
-                        payload = new
-                        {
-                            installed = svc.IsInstalled,
-                            running = svc.IsRunning,
-                            hotkey = "Alt + Space",
-                        },
-                    };
-                    Dispatcher.InvokeAsync(() =>
-                    {
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(
-                            JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                    });
-                }
                 else if (type == "LOAD_SETTINGS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     try
                     {
-                        string settingsJson = _settingsManager.LoadSettings();
+                        string? settingsJson = _settingsManager.LoadSettings();
                         if (string.IsNullOrEmpty(settingsJson)) settingsJson = "null";
                         
                         var responseJson = "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":\"" + idProp + "\",\"payload\":" + settingsJson + "}";
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     }
                     catch (Exception)
                     {
                         var responseJson = "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":\"" + idProp + "\",\"payload\":null}";
-                        Dispatcher.InvokeAsync(() => { MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson); });
+                        PostToUi(() => { MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson); });
                     }
                 }
                 else if (type == "GET_CLOUD_PROVIDERS")
@@ -1685,7 +1780,7 @@ namespace BNDZ
 
                     var response = new { type = "CLOUD_PROVIDERS_RESULT", id = idProp, payload = providers };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
@@ -1716,7 +1811,7 @@ namespace BNDZ
                                 cacheKey = ext.ToLowerInvariant();
                         }
 
-                        if (_iconCacheDb.TryGetValue(cacheKey, out string cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
+                        if (_iconCacheDb.TryGetValue(cacheKey, out string? cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
                         {
                             PostIconResult(idProp, cachedBase64);
                             return;
@@ -1771,7 +1866,7 @@ namespace BNDZ
                                             cacheKey = ext.ToLowerInvariant();
                                     }
 
-                                    if (_iconCacheDb.TryGetValue(cacheKey, out string cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
+                                    if (_iconCacheDb.TryGetValue(cacheKey, out string? cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
                                     {
                                         results[path] = cachedBase64;
                                         continue;
@@ -1799,7 +1894,7 @@ namespace BNDZ
                         var response = new { type = "SHELL_ICONS_BATCH_RESULT", id = idProp, payload = results };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                        Dispatcher.InvokeAsync(() =>
+                        PostToUi(() =>
                         {
                             try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
                             catch { }
@@ -1812,7 +1907,7 @@ namespace BNDZ
                     _iconCacheDb.Clear();
                     var response = new { type = "CLEAR_ICON_CACHE_RESULT", id = idProp };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
@@ -1901,7 +1996,7 @@ namespace BNDZ
                         } finally {
                             var response = new { type = "SET_SYSTEM_ICON_RESULT", id = idProp, payload = new { success, error } };
                             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            await Dispatcher.InvokeAsync(() => {
+                            await PostToUiAsync(() => {
                                 try {
                                     MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                                 } catch { }
@@ -1946,7 +2041,7 @@ namespace BNDZ
                         } finally {
                             var response = new { type = "RESTORE_SYSTEM_ICON_RESULT", id = idProp, payload = success };
                             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            await Dispatcher.InvokeAsync(() => {
+                            await PostToUiAsync(() => {
                                 try {
                                     MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                                 } catch { }
@@ -1994,7 +2089,6 @@ namespace BNDZ
                                 break;
                             case "quit":
                                 _allowClose = true;
-                                BndzHostCoordinator.Instance.Shutdown(_settingsManager.LoadSettings());
                                 Close();
                                 break;
                         }
@@ -2009,10 +2103,6 @@ namespace BNDZ
                     var payload = root.GetProperty("payload");
                     string source = payload.TryGetProperty("source", out var src) ? src.GetString() ?? "menu" : "menu";
                     Dispatcher.Invoke(() => RequestCloseFromUI(source));
-                }
-                else if (type == "SHOW_LAUNCHER")
-                {
-                    Dispatcher.Invoke(() => BndzHostCoordinator.Instance.ShowLauncher());
                 }
                 else if (type == "GET_WINDOW_STATE")
                 {
@@ -2046,7 +2136,7 @@ namespace BNDZ
                             resultPayload = new { error = ex.Message };
                         }
                         var response = new { type = "READ_TEXT_FILE_RESULT", id = idProp, payload = resultPayload };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })));
                     });
                 }
                 else if (type == "WRITE_TEXT_FILE")
@@ -2071,7 +2161,7 @@ namespace BNDZ
                             System.Diagnostics.Debug.WriteLine($"WRITE_TEXT_FILE failed: {ex.Message}");
                         }
                         var response = new { type = "WRITE_TEXT_FILE_RESULT", id = idProp, payload = ok };
-                        Dispatcher.InvokeAsync(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })));
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })));
                     });
                 }
                 else if (type == "SYNC_ICON_LIBRARIES")
@@ -2101,7 +2191,7 @@ namespace BNDZ
 
                         var response = new { type = "SYNC_ICON_LIBRARIES_RESULT", id = idProp, payload = success };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                         });
                     });
@@ -2131,7 +2221,9 @@ namespace BNDZ
                             try { Microsoft.Win32.Registry.ClassesRoot.DeleteSubKeyTree(AllRoot, false); } catch { }
                             try { Microsoft.Win32.Registry.ClassesRoot.DeleteSubKeyTree(DirRoot, false); } catch { }
 
-                            string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                            string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                                ?? Environment.ProcessPath
+                                ?? AppDomain.CurrentDomain.FriendlyName;
                             var byRoot = new Dictionary<string, List<(string Label, string Command, string Icon)>>
                             {
                                 [AllRoot] = new(),
@@ -2202,7 +2294,7 @@ namespace BNDZ
                             }
                             success = true;
                         } catch (UnauthorizedAccessException) {
-                            Dispatcher.InvokeAsync(() => {
+                            PostToUi(() => {
                                 System.Windows.MessageBox.Show("Could not write the context menu registry entries. Please restart BNDZ as an Administrator and try again.", "Permission Denied", MessageBoxButton.OK, MessageBoxImage.Warning);
                             });
                             success = false; 
@@ -2212,7 +2304,7 @@ namespace BNDZ
 
                         var response = new { type = "UPDATE_GLOBAL_CONTEXT_MENU_RESULT", id = idProp, payload = success };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                         });
                     });
@@ -2260,7 +2352,7 @@ namespace BNDZ
 
                         var response = new { type = "MATERIALIZE_ICONIFY_RESULT", id = idProp, payload = icoPath?.Replace("\\", "/") };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
                         });
                     });
@@ -2289,7 +2381,7 @@ namespace BNDZ
 
                         var response = new { type = "CONVERT_TO_ICO_RESULT", id = idProp, payload = icoPath?.Replace("\\", "/") };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        await Dispatcher.InvokeAsync(() => {
+                        await PostToUiAsync(() => {
                             try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
                         });
                     });
@@ -2299,7 +2391,7 @@ namespace BNDZ
                     var payload = root.GetProperty("payload");
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         var openFileDialog = new Microsoft.Win32.OpenFileDialog();
                         openFileDialog.Multiselect = true;
                         openFileDialog.Filter = payload.TryGetProperty("filter", out var filterElement) ? filterElement.GetString() : "All files (*.*)|*.*";
@@ -2328,16 +2420,14 @@ namespace BNDZ
                         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                         Activate();
                         NativeDialogHelper.FocusOwner(hwnd);
-                        var dialog = new Microsoft.WindowsAPICodePack.Dialogs.CommonOpenFileDialog
+                        var dialog = new Ookii.Dialogs.Wpf.VistaFolderBrowserDialog
                         {
-                            Title = description,
-                            IsFolderPicker = true,
-                            Multiselect = false,
-                            EnsurePathExists = true,
-                            AddToMostRecentlyUsedList = false,
+                            Description = description,
+                            UseDescriptionForTitle = true,
+                            ShowNewFolderButton = true,
                         };
-                        if (dialog.ShowDialog() == Microsoft.WindowsAPICodePack.Dialogs.CommonFileDialogResult.Ok)
-                            selectedPath = dialog.FileName ?? "";
+                        if (dialog.ShowDialog(hwnd) == true)
+                            selectedPath = dialog.SelectedPath ?? "";
 
                         var response = new { type = "OPEN_FOLDER_DIALOG_RESULT", id = idProp, payload = selectedPath };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -2356,7 +2446,7 @@ namespace BNDZ
                         var icons = _iconLibraryScanner.ScanFolder(folderPath, autoConvert);
                         var response = new { type = "SCAN_ICON_FOLDER_RESULT", id = idProp, payload = icons };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                         });
                     });
@@ -2367,7 +2457,7 @@ namespace BNDZ
                     var nodes = _networkLocationsService.GetTreeNodes();
                     var response = new { type = "NETWORK_LOCATIONS_RESULT", id = idProp, payload = nodes };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
@@ -2376,7 +2466,7 @@ namespace BNDZ
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var response = new { type = "APP_VERSION_RESULT", id = idProp, payload = BndzUpdateService.GetCurrentVersion() };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
@@ -2393,7 +2483,7 @@ namespace BNDZ
                         var result = await _updateService.CheckAsync(manifestUrl).ConfigureAwait(false);
                         var response = new { type = "CHECK_FOR_UPDATES_RESULT", id = idProp, payload = result };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        Dispatcher.InvokeAsync(() => {
+                        PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                         });
                     });
@@ -2421,7 +2511,7 @@ namespace BNDZ
                     };
                     var response = new { type = "SYSTEM_SHORTCUTS_RESULT", id = idProp, payload = shortcuts };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
@@ -2434,7 +2524,7 @@ namespace BNDZ
                         var ok = RecycleBinService.Empty(hwnd);
                         var response = new { type = "EMPTY_RECYCLE_BIN_RESULT", id = idProp, payload = new { success = ok } };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        await Dispatcher.InvokeAsync(() =>
+                        await PostToUiAsync(() =>
                         {
                             try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
                         });
@@ -2452,7 +2542,7 @@ namespace BNDZ
                         var items = await DirectoryCompareService.CompareAsync(pathA, pathB, useHashing);
                         var response = new { type = "COMPARE_DIRECTORIES_RESULT", id = idProp, payload = items };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        await Dispatcher.InvokeAsync(() =>
+                        await PostToUiAsync(() =>
                         {
                             try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
                         });
@@ -2469,7 +2559,7 @@ namespace BNDZ
                         var result = await FileCompareService.CompareAsync(pathA, pathB);
                         var response = new { type = "COMPARE_FILES_RESULT", id = idProp, payload = result };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        await Dispatcher.InvokeAsync(() =>
+                        await PostToUiAsync(() =>
                         {
                             try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
                         });
@@ -2490,7 +2580,7 @@ namespace BNDZ
                         };
                     var response = new { type = "LICENSE_STATUS_RESULT", id = idProp, payload };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "ACTIVATE_LICENSE")
@@ -2503,7 +2593,7 @@ namespace BNDZ
                     var (success, message) = LicenseService.Activate(serial, email, name);
                     var response = new { type = "ACTIVATE_LICENSE_RESULT", id = idProp, payload = new { success, message } };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "DEACTIVATE_LICENSE")
@@ -2512,7 +2602,7 @@ namespace BNDZ
                     LicenseService.Deactivate();
                     var response = new { type = "DEACTIVATE_LICENSE_RESULT", id = idProp, payload = new { success = true } };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "GET_TAGS_CONFIG")
@@ -2529,7 +2619,7 @@ namespace BNDZ
                     };
                     var response = new { type = "TAGS_CONFIG_RESULT", id = idProp, payload = defaultTags };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() => {
+                    PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
@@ -2547,7 +2637,7 @@ namespace BNDZ
                     var entry = _tagSidecarStore.Get(path);
                     var response = new { type = "TAG_SIDECAR_RESULT", id = idProp, payload = entry };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "SET_TAG_META")
@@ -2567,7 +2657,7 @@ namespace BNDZ
                     var catalogs = _catalogStore.GetAll();
                     var response = new { type = "CATALOG_LIST_RESULT", id = idProp, payload = catalogs };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "CATALOG_UPSERT")
@@ -2583,7 +2673,7 @@ namespace BNDZ
                     var entry = _catalogStore.Upsert(id, name, paths, query);
                     var response = new { type = "CATALOG_UPSERT_RESULT", id = idProp, payload = entry };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "CATALOG_DELETE")
@@ -2593,7 +2683,7 @@ namespace BNDZ
                     var ok = _catalogStore.Delete(catalogId);
                     var response = new { type = "CATALOG_DELETE_RESULT", id = idProp, payload = new { ok } };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "CATALOG_CONTENTS")
@@ -2620,7 +2710,7 @@ namespace BNDZ
                     }
                     var response = new { type = "CATALOG_CONTENTS_RESULT", id = idProp, payload = results };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "RUN_USER_SCRIPT")
@@ -2633,7 +2723,7 @@ namespace BNDZ
                     var (ok, output) = BndzUserScriptRunner.Run(shell, script, cwd);
                     var response = new { type = "RUN_USER_SCRIPT_RESULT", id = idProp, payload = new { ok, output } };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    Dispatcher.InvokeAsync(() =>
+                    PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
             }
@@ -2643,7 +2733,7 @@ namespace BNDZ
             }
         }
         
-        private void CoreWebView2_WebResourceRequested(object sender, Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestedEventArgs e)
+        private void CoreWebView2_WebResourceRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestedEventArgs e)
         {
             try
             {
@@ -2690,7 +2780,7 @@ namespace BNDZ
             };
             var json = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-            await Dispatcher.InvokeAsync(() =>
+            await PostToUiAsync(() =>
             {
                 MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
                 PostActionLogChanged();
@@ -2726,7 +2816,7 @@ namespace BNDZ
                 string refPath = Path.GetRelativePath(sourceDir, file);
                 string destPath = Path.Combine(targetDir, refPath);
                 
-                string destDir = Path.GetDirectoryName(destPath);
+                string? destDir = Path.GetDirectoryName(destPath);
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
                     Directory.CreateDirectory(destDir);
 

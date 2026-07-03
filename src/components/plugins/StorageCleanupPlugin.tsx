@@ -2,12 +2,22 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   HardDrive, Trash2, FolderSearch, Sparkles, Loader2, PieChart, ArrowRight,
-  Copy, FolderInput, CheckCircle2, AlertCircle, X, FileStack, Zap, Eye,
-  ChevronDown, ChevronRight, Shield,
+  Copy, FolderInput, CheckCircle2, X, FileStack, Zap, Eye,
+  ChevronDown, ChevronRight, Shield, Wand2,
 } from 'lucide-react';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { StorageUsageBar } from '../StorageUsageBar';
 import PluginPanelShell from './PluginPanelShell';
+import StorageCleanupWizard, { type StorageWizardMode } from './StorageCleanupWizard';
+import {
+  ORGANIZE_BUCKETS,
+  bucketForFile,
+  formatStorageSize,
+  panePathFromWin,
+  pickKeepIndex,
+  type DupKeepRule,
+  type DupGroup,
+} from '../../lib/storageOrganize';
 
 export const StorageCleanupPluginDef = {
   id: 'storage-cleanup',
@@ -18,65 +28,6 @@ export const StorageCleanupPluginDef = {
 };
 
 type TabId = 'overview' | 'duplicates' | 'organize';
-
-type DupKeepRule = 'first' | 'newest' | 'oldest' | 'shortest';
-
-interface DupGroup {
-  hash: string;
-  size: number;
-  paths: string[];
-}
-
-interface OrganizePlan {
-  file: string;
-  name: string;
-  bucket: string;
-  dest: string;
-}
-
-function formatSize(bytes: number) {
-  if (!bytes || bytes < 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(i > 1 ? 2 : 0))} ${sizes[i]}`;
-}
-
-function panePathFromWin(winPath: string): string {
-  const norm = winPath.replace(/\\/g, '/');
-  if (/^[A-Za-z]:/.test(norm)) return `/${norm}`;
-  return norm.startsWith('/') ? norm : `/${norm}`;
-}
-
-function pickKeepIndex(paths: string[], rule: DupKeepRule): number {
-  if (paths.length < 2) return 0;
-  if (rule === 'first') return 0;
-  if (rule === 'shortest') {
-    let best = 0;
-    for (let i = 1; i < paths.length; i++) {
-      if (paths[i].length < paths[best].length) best = i;
-    }
-    return best;
-  }
-  const sorted = paths.map((p, i) => ({ p, i })).sort((a, b) => a.p.localeCompare(b.p));
-  return (rule === 'oldest' ? sorted[0] : sorted[sorted.length - 1]).i;
-}
-
-const ORGANIZE_BUCKETS: Record<string, { re: RegExp; color: string; icon: string }> = {
-  Images: { re: /\.(png|jpe?g|gif|bmp|webp|svg|ico|heic|tiff?|raw)$/i, color: '#f472b6', icon: '🖼' },
-  Videos: { re: /\.(mp4|mkv|avi|mov|wmv|webm|m4v)$/i, color: '#a78bfa', icon: '🎬' },
-  Audio: { re: /\.(mp3|wav|flac|aac|ogg|m4a|wma)$/i, color: '#38bdf8', icon: '🎵' },
-  Documents: { re: /\.(pdf|docx?|xlsx?|pptx?|txt|rtf|odt|csv|md)$/i, color: '#fbbf24', icon: '📄' },
-  Archives: { re: /\.(zip|rar|7z|tar|gz|bz2)$/i, color: '#fb923c', icon: '📦' },
-  Code: { re: /\.(js|ts|jsx|tsx|py|cs|java|cpp|c|h|html|css|json|xml|sql)$/i, color: '#34d399', icon: '💻' },
-};
-
-function bucketForFile(name: string): string {
-  for (const [bucket, cfg] of Object.entries(ORGANIZE_BUCKETS)) {
-    if (cfg.re.test(name)) return bucket;
-  }
-  return 'Other';
-}
 
 function StatCard({ label, value, sub, icon: Icon, accent }: {
   label: string; value: string; sub?: string; icon: React.ElementType; accent: string;
@@ -97,6 +48,7 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
 
 export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap }: any) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [wizardMode, setWizardMode] = useState<StorageWizardMode | null>(null);
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<Date | null>(null);
   const [dupScanning, setDupScanning] = useState(false);
@@ -105,10 +57,6 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   const [dupMinKb, setDupMinKb] = useState(4);
   const [dupProgress, setDupProgress] = useState<{ percent: number; currentPath: string; filesScanned: number; totalFiles: number } | null>(null);
   const [expandedDup, setExpandedDup] = useState<string | null>(null);
-  const [organizing, setOrganizing] = useState(false);
-  const [organizeResult, setOrganizeResult] = useState<string | null>(null);
-  const [showOrganizePreview, setShowOrganizePreview] = useState(false);
-  const [organizePlan, setOrganizePlan] = useState<OrganizePlan[]>([]);
   const [deletingDupes, setDeletingDupes] = useState<string | null>(null);
   const [dupKeepRule, setDupKeepRule] = useState<DupKeepRule>('first');
 
@@ -119,9 +67,20 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: panePathFromWin(target) } }));
   };
 
-  const openFindDuplicates = () => {
-    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'find' } }));
+  const openWizard = (mode: StorageWizardMode) => {
+    setWizardMode(mode);
+    if (mode === 'organize') setActiveTab('organize');
+    else setActiveTab('duplicates');
   };
+
+  useEffect(() => {
+    const onWizard = (e: Event) => {
+      const mode = (e as CustomEvent).detail?.mode as StorageWizardMode | undefined;
+      if (mode === 'organize' || mode === 'cleanup') openWizard(mode);
+    };
+    window.addEventListener('bndz-storage-wizard', onWizard);
+    return () => window.removeEventListener('bndz-storage-wizard', onWizard);
+  }, []);
 
   const items = pathContentsCache?.[currentPath] || [];
 
@@ -163,9 +122,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   useEffect(() => {
     let unsub: (() => void) | undefined;
     import('../../lib/ipcBridge').then(({ IPC }) => {
-      if (IPC.isNative) {
-        unsub = IPC.onDuplicateScanProgress(p => setDupProgress(p));
-      }
+      if (IPC.isNative) unsub = IPC.onDuplicateScanProgress(p => setDupProgress(p));
     });
     return () => unsub?.();
   }, []);
@@ -193,9 +150,6 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       const { IPC } = await import('../../lib/ipcBridge');
       const root = toWindowsPath(currentPath);
       const result = await IPC.scanDuplicates(root, dupRecursive, dupMinKb * 1024);
-      if (result.error) {
-        setOrganizeResult(result.error);
-      }
       setDupGroups(result.groups || []);
     } finally {
       setDupScanning(false);
@@ -221,58 +175,6 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       setDupGroups(prev => prev.filter(g => g.hash !== group.hash));
     } finally {
       setDeletingDupes(null);
-    }
-  };
-
-  const buildOrganizePlan = (): OrganizePlan[] => {
-    const root = toWindowsPath(currentPath);
-    return items
-      .filter((e: any) => e.type === 'file')
-      .map((file: any) => {
-        const name = file.name || '';
-        const bucket = bucketForFile(name);
-        const src = toWindowsPath(file.path || `${currentPath}/${name}`);
-        const dest = `${root}\\${bucket}\\${name}`;
-        return { file: src, name, bucket, dest };
-      })
-      .filter(p => p.file.toLowerCase() !== p.dest.toLowerCase());
-  };
-
-  const previewOrganize = () => {
-    const plan = buildOrganizePlan();
-    setOrganizePlan(plan);
-    setShowOrganizePreview(true);
-    setOrganizeResult(null);
-  };
-
-  const runSmartOrganize = async () => {
-    const plan = organizePlan.length ? organizePlan : buildOrganizePlan();
-    if (!plan.length) {
-      setOrganizeResult('No files to organize in the current folder.');
-      return;
-    }
-    setOrganizing(true);
-    setOrganizeResult(null);
-    let moved = 0;
-    try {
-      const { IPC } = await import('../../lib/ipcBridge');
-      const mkdirDone = new Set<string>();
-      for (const entry of plan) {
-        const destDir = entry.dest.replace(/\\[^\\]+$/, '');
-        if (!mkdirDone.has(destDir.toLowerCase())) {
-          await IPC.executeFsOperation(`org-mkdir-${destDir}`, 'create-dir', destDir, '');
-          mkdirDone.add(destDir.toLowerCase());
-        }
-        await IPC.executeFsOperation(`org-move-${entry.name}`, 'move', entry.file, entry.dest);
-        moved++;
-      }
-      setOrganizeResult(`Organized ${moved} file(s) into category folders.`);
-      setShowOrganizePreview(false);
-      setOrganizePlan([]);
-    } catch (err: any) {
-      setOrganizeResult(err?.message || 'Organize failed.');
-    } finally {
-      setOrganizing(false);
     }
   };
 
@@ -308,13 +210,49 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
         </div>
       }
     >
-    <div className="h-full flex flex-col bg-[#09090d] text-gray-200 overflow-hidden">
+    <div className="h-full flex flex-col bg-[#09090d] text-gray-200 overflow-hidden relative">
+      {wizardMode && (
+        <StorageCleanupWizard
+          mode={wizardMode}
+          initialFolderPanePath={currentPath}
+          onClose={() => setWizardMode(null)}
+        />
+      )}
+
       <div className="flex-1 overflow-y-auto bndz-scrollbar p-5">
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (
             <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+              <div className="rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-950/20 to-[#0e0e14] p-5 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="text-[13px] font-bold text-white flex items-center gap-2">
+                    <Wand2 size={16} className="text-sky-400" />
+                    Guided workflows
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1 max-w-md">
+                    Pick any folder, preview changes, then confirm. Same safe flow for cleanup and organize.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openWizard('cleanup')}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/35 border border-violet-500/30 text-violet-200 text-[10px] font-bold uppercase tracking-wider transition-all"
+                  >
+                    <Copy size={13} /> Cleanup Wizard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openWizard('organize')}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-200 text-[10px] font-bold uppercase tracking-wider transition-all"
+                  >
+                    <FolderInput size={13} /> Organize Wizard
+                  </button>
+                </div>
+              </div>
+
               <div className="flex justify-between items-center">
-                <p className="text-[11px] text-gray-500">Analyze folder weight and file-type distribution</p>
+                <p className="text-[11px] text-gray-500">Quick analysis of the current folder</p>
                 <button
                   type="button"
                   onClick={() => void runFolderScan()}
@@ -327,9 +265,9 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                <StatCard label="Largest item" value={largeCandidates[0] ? formatSize(largeCandidates[0].computedSize) : '—'} sub={largeCandidates[0]?.name} icon={Zap} accent="#f43f5e" />
-                <StatCard label="Tracked bulk" value={formatSize(totalVisible)} sub={`${largeCandidates.length} items`} icon={HardDrive} accent="#38bdf8" />
-                <StatCard label="Duplicate waste" value={dupGroups.length ? formatSize(duplicateWaste) : '—'} sub={dupGroups.length ? `${dupGroups.length} groups` : 'Scan duplicates tab'} icon={Copy} accent="#a78bfa" />
+                <StatCard label="Largest item" value={largeCandidates[0] ? formatStorageSize(largeCandidates[0].computedSize) : '—'} sub={largeCandidates[0]?.name} icon={Zap} accent="#f43f5e" />
+                <StatCard label="Tracked bulk" value={formatStorageSize(totalVisible)} sub={`${largeCandidates.length} items`} icon={HardDrive} accent="#38bdf8" />
+                <StatCard label="Duplicate waste" value={dupGroups.length ? formatStorageSize(duplicateWaste) : '—'} sub={dupGroups.length ? `${dupGroups.length} groups` : 'Use cleanup wizard'} icon={Copy} accent="#a78bfa" />
               </div>
 
               {typeBreakdown.length > 0 && (
@@ -345,7 +283,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                         <div key={bucket}>
                           <div className="flex justify-between text-[11px] mb-1">
                             <span className="text-gray-300">{cfg?.icon || '📁'} {bucket}</span>
-                            <span className="font-mono text-gray-500">{formatSize(size)}</span>
+                            <span className="font-mono text-gray-500">{formatStorageSize(size)}</span>
                           </div>
                           <div className="h-1.5 rounded-full bg-[#1a1a22] overflow-hidden">
                             <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(2, pct)}%`, background: cfg?.color || '#6b7280' }} />
@@ -383,7 +321,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                           <div className="text-[12px] font-medium truncate text-gray-200">{item.name}</div>
                           <StorageUsageBar usedPct={(item.computedSize / maxItemSize) * 100} height={4} className="mt-1.5 max-w-[200px]" />
                         </div>
-                        <div className="text-[12px] font-mono text-emerald-400 shrink-0">{formatSize(item.computedSize)}</div>
+                        <div className="text-[12px] font-mono text-emerald-400 shrink-0">{formatStorageSize(item.computedSize)}</div>
                         <ArrowRight size={12} className="text-gray-700 group-hover:text-sky-400 shrink-0 transition-colors" />
                       </button>
                     ))}
@@ -395,10 +333,24 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
           {activeTab === 'duplicates' && (
             <motion.div key="duplicates" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+              <div className="rounded-2xl border border-violet-500/25 bg-violet-950/15 p-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[12px] font-bold text-violet-200">Recommended: Cleanup Wizard</div>
+                  <p className="text-[10px] text-gray-500 mt-1">Select any folder → preview duplicates → confirm delete</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openWizard('cleanup')}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600/30 hover:bg-violet-600/45 border border-violet-500/40 text-violet-100 text-[10px] font-bold uppercase tracking-wider"
+                >
+                  <Eye size={13} /> Open Cleanup Wizard
+                </button>
+              </div>
+
               <div className="rounded-2xl border border-violet-500/20 bg-violet-950/15 p-4 flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer">
                   <input type="checkbox" checked={dupRecursive} onChange={e => setDupRecursive(e.target.checked)} className="accent-violet-500 rounded" />
-                  Recursive scan
+                  Recursive (current folder)
                 </label>
                 <label className="flex items-center gap-2 text-[11px] text-gray-400">
                   Keep rule
@@ -409,9 +361,6 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     <option value="shortest">Shortest path</option>
                   </select>
                 </label>
-                <button type="button" onClick={openFindDuplicates} className="text-[10px] text-violet-300/90 hover:text-violet-200 underline underline-offset-2">
-                  Open in Fast Search →
-                </button>
                 <label className="flex items-center gap-2 text-[11px] text-gray-400">
                   Min size
                   <select value={dupMinKb} onChange={e => setDupMinKb(Number(e.target.value))} className="bg-[#1a1a22] border border-[#333] rounded-lg px-2 py-1 text-[11px] text-gray-300 outline-none">
@@ -431,7 +380,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600/25 hover:bg-violet-600/40 border border-violet-500/35 text-violet-200 text-[11px] font-bold uppercase tracking-wider disabled:opacity-50 transition-all"
                   >
                     {dupScanning ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />}
-                    {dupScanning ? 'Scanning…' : 'Find Duplicates'}
+                    Quick scan (current folder)
                   </button>
                 </div>
               </div>
@@ -452,17 +401,16 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
               {dupGroups.length > 0 && !dupScanning && (
                 <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/20 px-4 py-3 flex items-center justify-between">
                   <div className="text-[12px] text-emerald-200">
-                    <strong>{dupGroups.length}</strong> duplicate groups · reclaim up to <strong>{formatSize(duplicateWaste)}</strong>
+                    <strong>{dupGroups.length}</strong> duplicate groups · reclaim up to <strong>{formatStorageSize(duplicateWaste)}</strong>
                   </div>
                   <Shield size={16} className="text-emerald-500/60" />
                 </div>
               )}
 
               {!dupScanning && dupGroups.length === 0 && !dupProgress && (
-                <div className="py-16 text-center">
+                <div className="py-12 text-center">
                   <Copy size={36} className="mx-auto mb-4 text-gray-700" />
-                  <p className="text-gray-500 text-sm">Scan the current folder to find identical files by content hash.</p>
-                  <p className="text-gray-600 text-[11px] mt-1">MD5 comparison · safe keep-one-delete-rest workflow</p>
+                  <p className="text-gray-500 text-sm">Use the Cleanup Wizard to pick any folder and preview before deleting.</p>
                 </div>
               )}
 
@@ -480,7 +428,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                         {expanded ? <ChevronDown size={14} className="text-gray-500" /> : <ChevronRight size={14} className="text-gray-500" />}
                         <div className="flex-1 min-w-0">
                           <div className="text-[12px] font-semibold text-gray-200">{group.paths.length} identical copies</div>
-                          <div className="text-[10px] text-gray-500">{formatSize(group.size)} each · {formatSize(waste)} recoverable</div>
+                          <div className="text-[10px] text-gray-500">{formatStorageSize(group.size)} each · {formatStorageSize(waste)} recoverable</div>
                         </div>
                         <button
                           type="button"
@@ -489,7 +437,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                           className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/35 border border-rose-500/30 text-rose-300 text-[10px] font-bold uppercase tracking-wide disabled:opacity-50 flex items-center gap-1.5"
                         >
                           {deletingDupes === group.hash ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                          Keep {dupKeepRule === 'first' ? '1st' : dupKeepRule}, delete rest
+                          Keep 1, delete rest
                         </button>
                       </button>
                       {expanded && (
@@ -516,76 +464,35 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
           {activeTab === 'organize' && (
             <motion.div key="organize" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#14141a] to-[#0e0e14] p-5">
+              <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#14141a] to-[#0e0e14] p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
-                    <FolderInput size={20} className="text-emerald-400" />
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
+                    <FolderInput size={22} className="text-emerald-400" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-[14px] font-bold text-white">Smart Organize</div>
-                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                      Sort loose files into category subfolders. Preview the plan before moving — folders are never touched.
+                    <div className="text-[15px] font-bold text-white">Smart Organize Wizard</div>
+                    <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+                      Choose any folder on your PC, preview exactly which files move into category subfolders, then confirm.
+                      Nothing moves until you approve the plan.
                     </p>
-                    <div className="flex flex-wrap gap-2 mt-3">
+                    <div className="flex flex-wrap gap-2 mt-4">
                       {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: '📁' }]]).map(([bucket, cfg]) => (
                         <span key={bucket} className="px-2.5 py-1 rounded-full text-[10px] font-medium border border-white/[0.06]" style={{ color: cfg.color, background: `${cfg.color}12` }}>
                           {cfg.icon} {bucket}
                         </span>
                       ))}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => openWizard('organize')}
+                      className="mt-5 flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600/40 to-teal-600/30 hover:from-emerald-600/55 border border-emerald-500/40 text-emerald-100 text-[11px] font-bold uppercase tracking-wider transition-all"
+                    >
+                      <Wand2 size={14} />
+                      Start Organize Wizard
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={previewOrganize}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-sky-500/30 bg-sky-600/15 hover:bg-sky-600/25 text-sky-300 text-[11px] font-bold uppercase tracking-wider transition-all"
-                >
-                  <Eye size={14} /> Preview Plan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void runSmartOrganize()}
-                  disabled={organizing}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-500/35 text-emerald-300 text-[11px] font-bold uppercase tracking-wider disabled:opacity-50 transition-all"
-                >
-                  {organizing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                  {organizing ? 'Organizing…' : 'Organize Now'}
-                </button>
-              </div>
-
-              {showOrganizePreview && organizePlan.length > 0 && (
-                <div className="rounded-2xl border border-sky-500/20 bg-[#111116] overflow-hidden max-h-[220px] overflow-y-auto bndz-scrollbar">
-                  <div className="px-4 py-2 border-b border-white/[0.05] text-[11px] font-bold text-sky-400 uppercase tracking-wider sticky top-0 bg-[#111116]">
-                    {organizePlan.length} files will move
-                  </div>
-                  {organizePlan.map(entry => {
-                    const cfg = ORGANIZE_BUCKETS[entry.bucket];
-                    return (
-                      <div key={entry.file} className="px-4 py-2 flex items-center gap-2 text-[11px] border-b border-white/[0.03] last:border-0">
-                        <span style={{ color: cfg?.color || '#6b7280' }}>{cfg?.icon || '📁'}</span>
-                        <span className="text-gray-300 truncate flex-1">{entry.name}</span>
-                        <ArrowRight size={10} className="text-gray-600 shrink-0" />
-                        <span className="text-gray-500 shrink-0">{entry.bucket}/</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {organizeResult && (
-                <div className={`flex items-center gap-2 text-[11px] px-4 py-3 rounded-xl border ${
-                  organizeResult.includes('Organized') || organizeResult.includes('Moved')
-                    ? 'border-emerald-500/30 bg-emerald-950/30 text-emerald-300'
-                    : 'border-amber-500/30 bg-amber-950/30 text-amber-300'
-                }`}>
-                  {organizeResult.includes('Organized') || organizeResult.includes('Moved') ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                  {organizeResult}
-                  <button type="button" onClick={() => setOrganizeResult(null)} className="ml-auto p-1 hover:text-white"><X size={12} /></button>
-                </div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>

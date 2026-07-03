@@ -38,6 +38,39 @@ export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   return eventKey.toLowerCase() === normalized || eventCode === normalized;
 }
 
+/**
+ * Serialize a KeyboardEvent into a canonical shortcut string ("Ctrl+Shift+P",
+ * "F2", "Alt+P", "Delete") that {@link matchesShortcut} can parse back.
+ * Returns null while only modifier keys are held (so capture UIs can wait).
+ */
+export function eventToShortcut(e: KeyboardEvent): string | null {
+  const key = e.key;
+  if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta' || key === 'OS') {
+    return null;
+  }
+
+  const parts: string[] = [];
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.altKey) parts.push('Alt');
+  if (e.metaKey) parts.push('Meta');
+
+  let main: string;
+  if (key === ' ' || e.code === 'Space') main = 'Space';
+  else if (key === 'Escape') main = 'Escape';
+  else if (key === 'Delete') main = 'Delete';
+  else if (key.length === 1) main = key.toUpperCase();
+  else main = key; // F2, Enter, Tab, ArrowUp, etc.
+
+  parts.push(main);
+  return parts.join('+');
+}
+
+/** Human-friendly display of a stored shortcut string (empty -> "Unbound"). */
+export function formatShortcut(shortcut: string): string {
+  return shortcut?.trim() ? shortcut.trim() : 'Unbound';
+}
+
 function normalizeTypeAheadText(value: string, ignoreDiacritics: boolean): string {
   let text = value.toLowerCase();
   if (ignoreDiacritics) text = text.normalize('NFD').replace(/\p{M}/gu, '');

@@ -1,10 +1,11 @@
 using System;
 using System.Drawing;
-using Microsoft.WindowsAPICodePack.Shell;
 using System.IO;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Runtime.InteropServices;
+using Vanara.PInvoke;
+using Vanara.Windows.Shell;
 
 namespace BNDZ.Services
 {
@@ -24,14 +25,10 @@ namespace BNDZ.Services
                 if (string.IsNullOrEmpty(filePath))
                     return "";
 
-                using var fileObj = ShellObject.FromParsingName(filePath);
-                using var bitmap = fileObj.Thumbnail.ExtraLargeBitmap;
-                if (bitmap != null)
-                {
-                    using var ms = new MemoryStream();
-                    bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                    return Convert.ToBase64String(ms.ToArray());
-                }
+                using var item = new ShellItem(filePath);
+                var imageBase64 = TryGetShellImageBase64(item, ShellItemGetImageOptions.ResizeToFit);
+                if (!string.IsNullOrEmpty(imageBase64))
+                    return imageBase64;
             }
             catch
             {
@@ -193,11 +190,12 @@ namespace BNDZ.Services
 
             try
             {
-                using var fileObj = ShellObject.FromParsingName(filePath);
-                fileObj.Thumbnail.FormatOption = ShellThumbnailFormatOption.IconOnly;
-                using var bitmap = fileObj.Thumbnail.ExtraLargeBitmap;
-                if (bitmap != null)
-                    return BitmapToBase64Png(bitmap);
+                using var item = new ShellItem(filePath);
+                var imageBase64 = TryGetShellImageBase64(
+                    item,
+                    ShellItemGetImageOptions.IconOnly | ShellItemGetImageOptions.ResizeToFit);
+                if (!string.IsNullOrEmpty(imageBase64))
+                    return imageBase64;
             }
             catch { }
 
@@ -252,23 +250,52 @@ namespace BNDZ.Services
                     }
                 } catch { }
 
-                using var fileObj = ShellObject.FromParsingName(filePath);
+                using var item = new ShellItem(filePath);
+                var props = item.Properties;
 
-                var bitRate = fileObj.Properties.System.Audio.EncodingBitrate.Value;
-                if (bitRate != null) meta["Audio Bitrate"] = $"{bitRate / 1000} kbps";
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Audio.EncodingBitrate, out var bitRate) && bitRate is uint br)
+                    meta["Audio Bitrate"] = $"{br / 1000} kbps";
 
-                var dims = fileObj.Properties.System.Image.Dimensions.Value;
-                if (dims != null) meta["Dimensions"] = dims;
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Image.Dimensions, out var dims) && dims is string dimStr)
+                    meta["Dimensions"] = dimStr;
 
-                var duration = fileObj.Properties.System.Media.Duration.Value;
-                if (duration != null) meta["Duration"] = TimeSpan.FromTicks((long)duration).ToString(@"hh\:mm\:ss");
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Media.Duration, out var duration) && duration is ulong dur)
+                    meta["Duration"] = TimeSpan.FromTicks((long)dur).ToString(@"hh\:mm\:ss");
 
-                var authors = fileObj.Properties.System.Author.Value;
-                if (authors != null && authors.Length > 0) meta["Authors"] = string.Join(", ", authors);
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Author, out var authors) && authors is string[] authorList && authorList.Length > 0)
+                    meta["Authors"] = string.Join(", ", authorList);
 
             }
             catch {}
             return meta;
+        }
+
+        private static string TryGetShellImageBase64(ShellItem item, ShellItemGetImageOptions flags)
+        {
+            try
+            {
+                using var hbmp = item.GetImage(new SIZE(256, 256), flags);
+                if (hbmp == null || hbmp.IsInvalid)
+                    return "";
+                using var bitmap = hbmp.ToBitmap();
+                return BitmapToBase64Png(bitmap);
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static bool TryGetProperty(PropertyStore props, Ole32.PROPERTYKEY key, out object? value)
+        {
+            value = null;
+            try
+            {
+                if (props.TryGetValue(key, out value))
+                    return value != null;
+            }
+            catch { }
+            return false;
         }
     }
 }

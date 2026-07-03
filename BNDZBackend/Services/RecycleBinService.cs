@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using Microsoft.WindowsAPICodePack.Shell;
+using Vanara.PInvoke;
+using Vanara.Windows.Shell;
 
 namespace BNDZ.Services;
 
@@ -34,46 +35,46 @@ public static class RecycleBinService
             var results = new List<object>();
             try
             {
-                using var recycleBin = (ShellContainer)ShellObject.FromParsingName(ShellParsingName);
-                foreach (var child in recycleBin)
+                foreach (var item in RecycleBin.GetItems())
                 {
-                    if (child is not ShellObject item) continue;
-
-                    var rawName = item.Name ?? "Unknown";
-                    var name = rawName;
-                    if (name.Contains('\\') || name.Contains('/'))
-                        name = Path.GetFileName(name.TrimEnd('\\', '/'));
-                    if (string.IsNullOrWhiteSpace(name))
-                        name = rawName;
-                    var parsingName = (item.ParsingName ?? rawName).Replace('\\', '/');
-                    var isFolder = item is ShellFolder;
-                    long size = 0;
-                    try
+                    using (item)
                     {
-                        if (item.Properties.System.Size.Value.HasValue)
-                            size = (long)item.Properties.System.Size.Value.Value;
+                        var rawName = item.Name ?? "Unknown";
+                        var name = rawName;
+                        if (name.Contains('\\') || name.Contains('/'))
+                            name = Path.GetFileName(name.TrimEnd('\\', '/'));
+                        if (string.IsNullOrWhiteSpace(name))
+                            name = rawName;
+                        var parsingName = (item.ParsingName ?? rawName).Replace('\\', '/');
+                        var isFolder = item.IsFolder;
+                        long size = 0;
+                        try
+                        {
+                            if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.Size, out var sizeVal) && sizeVal is ulong ul)
+                                size = (long)ul;
+                        }
+                        catch { /* optional shell property */ }
+
+                        var modified = DateTime.UtcNow;
+                        try
+                        {
+                            if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.DateModified, out var modVal) && modVal is DateTime dt)
+                                modified = dt.ToUniversalTime();
+                        }
+                        catch { }
+
+                        results.Add(new
+                        {
+                            id = parsingName,
+                            name,
+                            type = isFolder ? "directory" : "file",
+                            path = parsingName,
+                            size,
+                            extension = isFolder ? "" : Path.GetExtension(name).TrimStart('.').ToLowerInvariant(),
+                            modified = modified.ToString("O"),
+                            isRecycleItem = true,
+                        });
                     }
-                    catch { /* optional shell property */ }
-
-                    var modified = DateTime.UtcNow;
-                    try
-                    {
-                        if (item.Properties.System.DateModified.Value.HasValue)
-                            modified = item.Properties.System.DateModified.Value.Value.ToUniversalTime();
-                    }
-                    catch { }
-
-                    results.Add(new
-                    {
-                        id = parsingName,
-                        name,
-                        type = isFolder ? "directory" : "file",
-                        path = parsingName,
-                        size,
-                        extension = isFolder ? "" : Path.GetExtension(name).TrimStart('.').ToLowerInvariant(),
-                        modified = modified.ToString("O"),
-                        isRecycleItem = true,
-                    });
                 }
             }
             catch (Exception ex)
