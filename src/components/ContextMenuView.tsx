@@ -9,6 +9,8 @@ import {
   resolveContextTargetPaths,
   resolveContextTargetPanePaths,
   filterSupplementalNativeItems,
+  isContextMenuBackground,
+  contextMenuRefreshLabel,
 } from '../lib/contextMenuActions';
 import { toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, normalizePanePath } from '../lib/pathUtils';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
@@ -31,7 +33,8 @@ interface ContextMenuViewProps {
   executePaste: (targetDir: string) => Promise<void>;
   onDeletePaths: (paths: string[]) => void;
   onEmptyRecycleBin?: () => void;
-  onRefresh?: () => void;
+  onRefreshList?: () => void;
+  onRefreshTree?: () => void;
   onCopyTo?: (sources: string[]) => void | Promise<void>;
   onMoveTo?: (sources: string[]) => void | Promise<void>;
 }
@@ -39,12 +42,18 @@ interface ContextMenuViewProps {
 export default function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
   setIsSmartToolsOpen, setToastMessage, setInlineRename,
-  setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefresh,
+  setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo,
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
   const targetPaths = resolveContextTargetPaths(menu);
-  const isBackground = menu.entityId === null && !menu.entityName;
+  const isBackground = isContextMenuBackground(menu);
+  const refreshLabel = contextMenuRefreshLabel(menu.surface);
+  const runRefresh = () => {
+    const surface = menu.surface;
+    if (surface === 'tree-background' || surface === 'tree-item') onRefreshTree?.();
+    else onRefreshList?.();
+  };
   const supplementalNative = filterSupplementalNativeItems(menu.nativeContextItems);
   const [iconLibs, setIconLibs] = useState<any[]>(config.iconLibraries || []);
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
@@ -99,6 +108,28 @@ export default function ContextMenuView({
     })();
     return () => { active = false; };
   }, [menu.entityId, menu.path, isBackground, targetPaths[0]]);
+
+  // Close the menu when the pointer leaves the menu (and any of its portaled
+  // submenu flyouts) for a short grace period.
+  useEffect(() => {
+    const SELECTOR = '[data-bndz-context-menu], [data-bndz-submenu-flyout]';
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
+    const clear = () => { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } };
+    const onPointerMove = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.(SELECTOR)) { clear(); return; }
+      if (!closeTimer) closeTimer = setTimeout(() => onClose(), 320);
+    };
+    // Delay attaching so the initial open (pointer may momentarily be off-menu) doesn't self-close.
+    const attach = setTimeout(() => {
+      document.addEventListener('mousemove', onPointerMove, true);
+    }, 120);
+    return () => {
+      clearTimeout(attach);
+      clear();
+      document.removeEventListener('mousemove', onPointerMove, true);
+    };
+  }, [onClose]);
 
   const handleShareItem = async (item: import('../lib/ipcBridge').ShareMenuItem) => {
     const wins = targetPaths.filter(isValidShellTarget).map(p => toWindowsPath(p));
@@ -213,23 +244,11 @@ export default function ContextMenuView({
     return combined.replace(/\//g, '\\');
   };
 
-  const useCustomMenu = rt.shell.useCustomContextMenu;
-  const allNative = menu.nativeContextItems || [];
-
-  // Always show custom menu immediately; native items merge in when ready (no blocking wait)
-  if (!useCustomMenu && allNative.length > 0) {
-    return (
-      <ClampedFixedMenu
-        x={menu.x}
-        y={menu.y}
-        className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[220px] text-sm bndz-scrollbar"
-        onMouseDown={e => e.stopPropagation()}
-        onClick={e => e.stopPropagation()}
-      >
-        {allNative.map(renderNativeItem)}
-      </ClampedFixedMenu>
-    );
-  }
+  // The rich BNDZ context menu is ALWAYS the primary menu (file list, tree, sidebar,
+  // preview). Native OS shell verbs never render as a standalone menu that could
+  // preempt/replace it after an async fetch — they only appear MERGED into the rich
+  // menu via `filterSupplementalNativeItems` (rendered as `supplementalNative` below).
+  // This guarantees the tree and listview show identical structure with no swap/flicker.
 
   if (isBackground) {
     if (isRecycleBinPath(menu.path)) {
@@ -249,7 +268,7 @@ export default function ContextMenuView({
             onClick={() => { onEmptyRecycleBin?.(); onClose(); }}
           />
           <div className="bndz-context-menu-sep" />
-          <ContextMenuItem label="Refresh" iconVerb="refresh" onClick={() => { onRefresh?.(); onClose(); }} />
+          <ContextMenuItem label={refreshLabel} iconVerb="refresh" onClick={() => { runRefresh(); onClose(); }} />
         </ClampedFixedMenu>
       );
     }
@@ -262,7 +281,7 @@ export default function ContextMenuView({
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
       >
-        <ContextMenuItem label="Refresh" iconVerb="refresh" onClick={() => { onRefresh?.(); onClose(); }} />
+        <ContextMenuItem label={refreshLabel} iconVerb="refresh" onClick={() => { runRefresh(); onClose(); }} />
 
         {config.enableContextSubmenus !== false && (
           <>
@@ -296,7 +315,7 @@ export default function ContextMenuView({
                   e.stopPropagation();
                   const IPC = await runIpc();
                   IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(menu.path, 'New folder'), '');
-                  onRefresh?.();
+                  runRefresh();
                   onClose();
                 }}
               />
@@ -308,7 +327,7 @@ export default function ContextMenuView({
                   e.stopPropagation();
                   const IPC = await runIpc();
                   IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(menu.path, 'New Text Document.txt'), '');
-                  onRefresh?.();
+                  runRefresh();
                   onClose();
                 }}
               />
@@ -583,7 +602,7 @@ export default function ContextMenuView({
               else if (action.id === 'os-paste') await executePaste(menu.path);
               else if (action.id === 'os-delete') onDeletePaths(targetPaths);
               // Shell Menus plugin command-based actions
-              else if (cmd === 'refresh') onRefresh?.();
+              else if (cmd === 'refresh') runRefresh();
               else if (cmd === 'copyPath') IPC.shellExecute('copyPath', targetPaths);
               else if (cmd === 'openTerminal') IPC.shellExecute('openTerminal', targetPaths);
               else if (cmd === 'openExplorer') IPC.shellExecute('openExplorer', targetPaths);
@@ -703,7 +722,7 @@ export default function ContextMenuView({
               const IPC = await runIpc();
               const res = await IPC.createLink(linkPath, target, 'shortcut');
               setToastMessage(res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.'));
-              onRefresh?.();
+              runRefresh();
               onClose();
             }}
           />
@@ -784,7 +803,7 @@ export default function ContextMenuView({
                       setToastMessage(result.success ? 'Icon applied successfully.' : (result.error || 'Failed to apply icon.'));
                       await IPC.clearIconCache();
                       updateConfig({ iconCacheBuster: Date.now() });
-                      onRefresh?.();
+                      runRefresh();
                       onClose();
                     }}
                   >

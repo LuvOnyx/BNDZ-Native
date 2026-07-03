@@ -51,19 +51,19 @@
 }
 
 .bndz-storage-track {
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--bndz-radius-sm);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .bndz-storage-fill {
-  border-radius: 2px;
+  border-radius: var(--bndz-radius-sm);
   transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .bndz-storage-fill-healthy {
-  background: linear-gradient(90deg, #3b9fd9 0%, #5ec4f0 100%);
+  background: linear-gradient(90deg, #38bdf8 0%, #7dd3fc 100%);
   box-shadow: none;
 }
 
@@ -252,6 +252,45 @@
   .bndz-preview-tab-active {
     background: linear-gradient(180deg, rgba(14, 165, 233, 0.35) 0%, rgba(14, 165, 233, 0.12) 100%);
     box-shadow: inset 0 -2px 0 #38bdf8;
+    border-radius: var(--bndz-radius-sm);
+  }
+
+  /* View-mode buttons: glow stays fully INSIDE the button box (inset only) so
+     nothing spills out of the toolbar container or changes layout size. */
+  .bndz-view-mode-btn {
+    border-radius: var(--bndz-radius-sm);
+    transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  /* Every view button glows in its own color when it is the active view. */
+  .bndz-view-mode-btn--details.bndz-view-mode-btn--active {
+    color: #7dd3fc;
+    background: rgba(56, 189, 248, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.55), inset 0 0 7px rgba(56, 189, 248, 0.4);
+  }
+
+  .bndz-view-mode-btn--grid.bndz-view-mode-btn--active {
+    color: #6ee7b7;
+    background: rgba(52, 211, 153, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.55), inset 0 0 7px rgba(52, 211, 153, 0.4);
+  }
+
+  .bndz-view-mode-btn--list.bndz-view-mode-btn--active {
+    color: #fcd34d;
+    background: rgba(251, 191, 36, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55), inset 0 0 7px rgba(251, 191, 36, 0.4);
+  }
+
+  .bndz-view-mode-btn--columns.bndz-view-mode-btn--active {
+    color: #c4b5fd;
+    background: rgba(167, 139, 250, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.55), inset 0 0 7px rgba(167, 139, 250, 0.4);
+  }
+
+  .bndz-view-lock-btn--active {
+    color: #fcd34d;
+    background: rgba(251, 191, 36, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55), inset 0 0 7px rgba(251, 191, 36, 0.4);
   }
 
   .bndz-bottom-panel {

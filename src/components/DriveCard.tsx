@@ -8,12 +8,13 @@ export type DriveCardData = {
   totalSpace: number;
   freeSpace: number;
   type?: string;
+  format?: string;
   path?: string;
 };
 
 type Props = {
   drive: DriveCardData;
-  layout?: 'compact' | 'grid' | 'details';
+  layout?: 'compact' | 'grid' | 'details' | 'list';
   selected?: boolean;
 };
 
@@ -32,16 +33,38 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
     : 0;
   const letter = drive.name.replace(/^\//, '');
   const displayLabel = drive.label || letter;
+  const freeOfTotal = `${formatBytes(drive.freeSpace)} free of ${formatBytes(drive.totalSpace)}`;
 
   if (layout === 'grid') {
     return (
-      <div className={`flex flex-col items-center justify-center w-full h-full min-h-0 gap-1.5 px-1 ${selected ? 'opacity-100' : ''}`}>
-        <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={36} eager />
-        <div className="text-[11px] font-medium text-center truncate w-full text-white/90">{displayLabel}</div>
-        <div className="w-full max-w-[120px]">
-          <StorageUsageBar usedPct={usedPct} height={5} />
+      <div
+        className={`flex flex-col items-center w-full gap-2 p-2.5 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-sky-500/50 bg-sky-500/10' : 'border-white/[0.06]'}`}
+      >
+        <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={40} eager />
+        <div className="text-[11px] font-medium text-center truncate w-full text-white/90" title={displayLabel}>
+          {displayLabel} <span className="text-white/40">({letter})</span>
         </div>
-        <div className="text-[9px] text-white/45 text-center truncate w-full">{formatBytes(drive.freeSpace)} free</div>
+        <StorageUsageBar usedPct={usedPct} height={6} className="w-full" />
+        <div className="text-[9px] text-white/45 text-center truncate w-full">{freeOfTotal}</div>
+      </div>
+    );
+  }
+
+  if (layout === 'list') {
+    return (
+      <div
+        className={`flex items-center gap-2.5 w-full min-w-0 p-2 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-sky-500/50 bg-sky-500/10' : 'border-white/[0.06]'}`}
+      >
+        <div className="shrink-0">
+          <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={28} eager />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-medium truncate text-white/90" title={displayLabel}>
+            {displayLabel} <span className="text-white/40">({letter})</span>
+          </div>
+          <StorageUsageBar usedPct={usedPct} height={5} className="mt-1" />
+          <div className="text-[9px] text-white/45 mt-1 truncate">{freeOfTotal}</div>
+        </div>
       </div>
     );
   }
@@ -49,17 +72,14 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
   if (layout === 'details') {
     return (
       <div className="flex-1 flex items-center min-w-0 gap-3">
-        <div className="w-[38%] max-w-[280px] px-2 truncate text-[11px]">
+        <div className="w-[30%] min-w-[110px] max-w-[280px] px-2 truncate text-[11px] text-white/90">
           {displayLabel} <span className="text-white/35">({letter})</span>
         </div>
-        <div className="w-[14%] max-w-[100px] px-2 text-[11px] text-white/50 truncate">{drive.type || 'Local Disk'}</div>
-        <div className="w-[12%] max-w-[90px] px-2 text-right text-[11px] text-white/50">
-          {formatBytes(drive.totalSpace)}
-        </div>
-        <div className="flex-1 min-w-[140px] max-w-[220px] px-2">
+        <div className="w-[14%] max-w-[110px] px-2 text-[11px] text-white/50 truncate">{drive.type || drive.format || 'Local Disk'}</div>
+        <div className="flex-1 min-w-[160px] max-w-[280px] px-2">
           <StorageUsageBar usedPct={usedPct} height={6} />
           <div className="text-[9px] text-white/45 mt-0.5 truncate">
-            {formatBytes(drive.freeSpace)} free of {formatBytes(drive.totalSpace)}
+            {freeOfTotal}
           </div>
         </div>
       </div>

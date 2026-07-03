@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Command, ArrowRight, FolderOpen, Settings, Replace, LayoutGrid, Sparkles,
   Database, Bookmark, Filter, ScrollText, RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { fuzzyFilterByName } from '../lib/fuzzyFilter';
 
 export type PaletteAction = {
   id: string;
@@ -22,6 +23,8 @@ type Props = {
 
 export default function CommandPalette({ isOpen, onClose, actions = [] }: Props) {
   const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) setQuery('');
@@ -35,15 +38,36 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Ranked fuzzy match using the same engine (uFuzzy) the rest of the app uses,
+  // over a composite of label + keywords + hint for strong recall.
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) return actions;
-    return actions.filter(a =>
-      a.label.toLowerCase().includes(q)
-      || a.hint?.toLowerCase().includes(q)
-      || a.keywords?.some(k => k.toLowerCase().includes(q))
-    );
+    const withHay = actions.map(a => ({
+      ...a,
+      name: [a.label, ...(a.keywords ?? []), a.hint ?? ''].join(' '),
+    }));
+    return fuzzyFilterByName(withHay, q) as PaletteAction[];
   }, [actions, query]);
+
+  // Keep the highlighted item valid as the result set changes.
+  useEffect(() => { setSelectedIndex(0); }, [query, isOpen]);
+  useEffect(() => {
+    if (selectedIndex > filtered.length - 1) setSelectedIndex(Math.max(0, filtered.length - 1));
+  }, [filtered.length, selectedIndex]);
+
+  // Scroll the highlighted item into view when navigating with the keyboard.
+  useEffect(() => {
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-palette-idx="${selectedIndex}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
+
+  const runAt = (idx: number) => {
+    const action = filtered[idx];
+    if (!action) return;
+    action.onRun();
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -63,6 +87,7 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
           exit={{ scale: 0.98, opacity: 0, y: -8 }}
           transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
           className="bndz-command-palette w-full max-w-xl rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/60"
+          data-testid="command-palette"
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <div className="flex items-center px-4 py-3.5 border-b border-white/8 bg-gradient-to-r from-[#1a1a22]/98 to-[#14141a]/98">
@@ -75,10 +100,21 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter' && filtered[0]) {
+                if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  filtered[0].onRun();
-                  onClose();
+                  setSelectedIndex(i => Math.min(i + 1, filtered.length - 1));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setSelectedIndex(i => Math.max(i - 1, 0));
+                } else if (e.key === 'Home') {
+                  e.preventDefault();
+                  setSelectedIndex(0);
+                } else if (e.key === 'End') {
+                  e.preventDefault();
+                  setSelectedIndex(Math.max(0, filtered.length - 1));
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  runAt(selectedIndex);
                 }
               }}
             />
@@ -86,27 +122,34 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
               <Command size={10} /> ⇧P
             </div>
           </div>
-          <div className="p-2 min-h-[150px] max-h-[320px] overflow-y-auto styled-scrollbar bg-gradient-to-b from-[#121218]/98 to-[#0e0e14]/98">
+          <div ref={listRef} className="p-2 min-h-[150px] max-h-[320px] overflow-y-auto styled-scrollbar bg-gradient-to-b from-[#121218]/98 to-[#0e0e14]/98">
             {filtered.length === 0 && (
               <div className="px-3 py-6 text-center text-gray-500 text-sm">No matching commands</div>
             )}
-            {filtered.map(action => {
+            {filtered.map((action, idx) => {
               const Icon = action.icon;
+              const isSelected = idx === selectedIndex;
               return (
                 <button
                   key={action.id}
                   type="button"
-                  className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-sky-500/10 rounded-lg text-left text-gray-300 transition-colors group border border-transparent hover:border-sky-500/20"
-                  onClick={() => { action.onRun(); onClose(); }}
+                  data-palette-idx={idx}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors group border ${
+                    isSelected
+                      ? 'bg-sky-500/15 border-sky-500/30 text-white'
+                      : 'text-gray-300 border-transparent hover:bg-sky-500/10 hover:border-sky-500/20'
+                  }`}
+                  onMouseMove={() => setSelectedIndex(idx)}
+                  onClick={() => runAt(idx)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Icon size={14} className="text-gray-600 group-hover:text-sky-400 transition-colors shrink-0" />
+                    <Icon size={14} className={`shrink-0 transition-colors ${isSelected ? 'text-sky-400' : 'text-gray-600 group-hover:text-sky-400'}`} />
                     <div className="min-w-0">
                       <div className="text-sm truncate">{action.label}</div>
                       {action.hint && <div className="text-[10px] text-gray-500 truncate">{action.hint}</div>}
                     </div>
                   </div>
-                  <ArrowRight size={12} className="text-gray-600 opacity-0 group-hover:opacity-100 shrink-0" />
+                  <ArrowRight size={12} className={`shrink-0 transition-opacity ${isSelected ? 'text-sky-400 opacity-100' : 'text-gray-600 opacity-0 group-hover:opacity-100'}`} />
                 </button>
               );
             })}
@@ -125,7 +168,6 @@ export function buildDefaultPaletteActions(handlers: {
   onOpenFind: () => void;
   onOpenIconStudio: () => void;
   onTogglePreview: () => void;
-  onOpenLauncher: () => void;
   onOpenMetadata?: () => void;
   onSaveTabset?: () => void;
   onFocusFilter?: () => void;
@@ -146,7 +188,6 @@ export function buildDefaultPaletteActions(handlers: {
     { id: 'refresh', label: 'Refresh Folder', hint: 'Reload active directory', icon: RefreshCw, onRun: handlers.onRefresh ?? (() => {}) },
     { id: 'syncscroll', label: 'Toggle Sync Scroll', hint: 'Mirror scroll in dual pane', icon: ScrollText, onRun: handlers.onToggleSyncScroll ?? (() => {}), keywords: ['dual', 'pane'] },
     { id: 'finding', label: 'New Finding Tab', hint: 'XYplorer search-in-tab (uses filter query)', icon: Search, onRun: handlers.onNewFindingTab ?? (() => {}), keywords: ['search', 'find'] },
-    { id: 'launcher', label: 'BNDZ Launcher', hint: 'Alt+Space command palette', icon: Command, onRun: handlers.onOpenLauncher, keywords: ['raycast', 'flow'] },
   ];
   return actions.filter(a => {
     if (a.id === 'filter' && !handlers.onFocusFilter) return false;

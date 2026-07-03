@@ -10,7 +10,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
 import ImageZoomPreview from './ImageZoomPreview';
-import { isTextEditableExt, isCodeExt, isHtmlExt } from '../lib/textFileTypes';
+import PdfPreviewPanel from './PdfPreviewPanel';
+import MarkdownPreviewPanel from './MarkdownPreviewPanel';
+import DocxPreviewPanel from './DocxPreviewPanel';
+import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
@@ -44,6 +47,7 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
   const [catalogs, setCatalogs] = useState<CatalogEntry[]>([]);
   const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
   const [htmlView, setHtmlView] = useState<'render' | 'source'>('render');
+  const [mdView, setMdView] = useState<'render' | 'source'>('render');
   const svgBlobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -159,10 +163,12 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
   const isSvg = ext === 'svg';
   const isAudio = isAudioExt(ext);
   const isVideo = isVideoExt(ext);
-  const isTextRaw = isTextEditableExt(ext) && !isCodeExt(ext) && !isHtmlExt(ext);
+  const isTextRaw = isTextEditableExt(ext) && !isCodeExt(ext) && !isHtmlExt(ext) && !isMarkdownExt(ext);
   const isCode = isCodeExt(ext);
   const isHtml = isHtmlExt(ext);
-  const isEditableText = isTextRaw || isCode;
+  const isMarkdown = isMarkdownExt(ext);
+  const isDocx = isDocxExt(ext);
+  const isEditableText = isTextRaw || isCode || isMarkdown;
   const isPdf = ext === 'pdf';
   const isBinary = ['exe', 'dll', 'sys', 'dat', 'bin'].includes(ext);
   const isArchive = isArchiveExt(ext);
@@ -180,6 +186,7 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
   useEffect(() => {
     if (!entity) return;
     if (isHtml) setHtmlView('render');
+    if (isMarkdown) setMdView('render');
     if (isAudio || isVideo) setActiveTab('media');
     else setActiveTab('preview');
   }, [entity?.id, isAudio, isVideo, isHtml]);
@@ -204,6 +211,7 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
 
      if (!path || isDir || !previewAllowed || isArchive || isTorrent) return;
      if (isHtml && htmlView === 'render') return;
+     if (isDocx || isPdf) return;
 
      const delayMs = previewRt.delayMs || 0;
      let cancelled = false;
@@ -224,7 +232,7 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
                      const text = await response.text();
                      setFileContent(text.length > 500000 ? text.substring(0, 500000) + '\n... [TRUNCATED]' : text);
                  }
-             } else if (isBinary || (!isImage && !isAudio && !isVideo && !isPdf)) {
+             } else if (isBinary || (!isImage && !isAudio && !isVideo && !isPdf && !isDocx)) {
                  const response = await fetch(virtualUrl);
                  if (!response.ok) throw new Error("Failed to load local file via virtual host.");
                  const buffer = await response.arrayBuffer();
@@ -243,13 +251,13 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
          }
      };
 
-     if (isEditableText || isBinary || (isHtml && htmlView === 'source') || (!isImage && !isAudio && !isVideo && !isPdf && !isHtml)) {
+     if (isEditableText || isBinary || (isHtml && htmlView === 'source') || isMarkdown || (!isImage && !isAudio && !isVideo && !isPdf && !isHtml && !isMarkdown && !isDocx)) {
          const timer = setTimeout(() => { void fetchContent(); }, delayMs);
          return () => { cancelled = true; clearTimeout(timer); };
      }
      return () => { cancelled = true; };
 
-  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isHtml, htmlView, isArchive, isTorrent, virtualUrl, previewAllowed, previewRt.delayMs]);
+  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isDocx, isHtml, isMarkdown, htmlView, mdView, isArchive, isTorrent, virtualUrl, previewAllowed, previewRt.delayMs]);
 
   useEffect(() => {
     if (!path || isDir || !isSvg || !previewAllowed) {
@@ -459,12 +467,52 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
           );
       }
 
-      // 3. Document / PDF Frame
-      if (isPdf) {
+      // 3. Document / PDF
+      if (isPdf && previewAllowed) {
+          return <PdfPreviewPanel url={virtualUrl} title={entity.name} />;
+      }
+
+      // 3a. Word (.docx)
+      if (isDocx && previewAllowed) {
+          return <DocxPreviewPanel url={virtualUrl} title={entity.name} />;
+      }
+
+      // 3b. Markdown preview
+      if (isMarkdown && previewAllowed) {
           return (
-              <div className="w-full h-full bndz-preview-stage flex flex-col">
-                 <iframe src={virtualUrl} className="w-full flex-1 border-none bg-[#525252]" title={entity.name} />
+            <div className="w-full h-full bndz-preview-stage flex flex-col min-h-0">
+              <div className="flex gap-1 p-1.5 border-b border-white/10 bg-black/20 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMdView('render')}
+                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${mdView === 'render' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMdView('source')}
+                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${mdView === 'source' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                >
+                  Source
+                </button>
               </div>
+              {mdView === 'render' ? (
+                isLoadingContent ? (
+                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading markdown…</div>
+                ) : contentError ? (
+                  <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 m-2 rounded">{contentError}</div>
+                ) : fileContent != null ? (
+                  <MarkdownPreviewPanel content={fileContent} />
+                ) : null
+              ) : (
+                fileContent != null && path ? (
+                  <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
+                ) : (
+                  <div className="p-4 text-xs text-gray-400 animate-pulse">Loading source…</div>
+                )
+              )}
+            </div>
           );
       }
 
@@ -614,7 +662,7 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
                   key={t.id}
                   type="button"
                   onClick={() => setActiveTab(t.id)}
-                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all duration-150 ${
+                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[var(--bndz-radius-sm)] transition-all duration-150 ${
                     activeTab === t.id ? 'bndz-preview-tab-active text-sky-100' : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.04]'
                   }`}
                 >

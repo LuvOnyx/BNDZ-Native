@@ -36,6 +36,7 @@ interface VirtualizedNavTreeProps {
   onNavigate: (path: string) => void;
   onStaticNavigate?: () => void;
   onContextMenu: (e: React.MouseEvent, path: string | undefined, label: string) => void;
+  onBackgroundContextMenu?: (e: React.MouseEvent) => void;
   inlineRename: { path: string; entityId: string; currentName: string } | null;
   setInlineRename: (v: VirtualizedNavTreeProps['inlineRename']) => void;
   navTreeOrder?: string[];
@@ -270,6 +271,7 @@ export function VirtualizedNavTree({
   onNavigate,
   onStaticNavigate,
   onContextMenu,
+  onBackgroundContextMenu,
   inlineRename,
   setInlineRename,
   navTreeOrder,
@@ -578,6 +580,13 @@ export function VirtualizedNavTree({
         ref={scrollRef}
         className="flex-1 min-h-[200px] overflow-y-auto styled-scrollbar nav-tree-scroll"
         style={{ maxHeight: Math.max(height, 240) }}
+        onContextMenu={e => {
+          if ((e.target as HTMLElement).closest('.nav-tree-row')) return;
+          if (!onBackgroundContextMenu) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onBackgroundContextMenu(e);
+        }}
       >
         {flatRows.length === 0 ? (
           <div className="px-3 py-4 text-[11px] text-gray-500 text-center">No locations</div>

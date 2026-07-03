@@ -1,6 +1,14 @@
 import { toWindowsPath, isValidShellTarget, isRecycleBinPath, normalizePanePath, joinPanePath } from './pathUtils';
 import { resolveShellPropertiesPath } from './shellPaths';
 
+export type ContextMenuSurface =
+  | 'list-background'
+  | 'list-item'
+  | 'tree-background'
+  | 'tree-item'
+  | 'sidebar-item'
+  | 'preview';
+
 export interface ContextMenuState {
   x: number;
   y: number;
@@ -8,8 +16,22 @@ export interface ContextMenuState {
   path: string;
   entityName: string | null;
   isDirectory: boolean;
+  surface?: ContextMenuSurface;
   nativeContextItems?: any[];
   selectedPaths?: string[];
+}
+
+export function isContextMenuBackground(menu: ContextMenuState): boolean {
+  if (menu.surface) {
+    return menu.surface === 'list-background' || menu.surface === 'tree-background';
+  }
+  return menu.entityId === null && !menu.entityName;
+}
+
+export function contextMenuRefreshLabel(surface?: ContextMenuSurface): string {
+  if (surface === 'tree-background' || surface === 'tree-item') return 'Refresh Tree';
+  if (surface === 'list-background' || surface === 'list-item') return 'Refresh List';
+  return 'Refresh';
 }
 
 function looksLikeFullPath(value: string): boolean {

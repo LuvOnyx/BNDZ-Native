@@ -66,6 +66,11 @@ export function buildKeyboardMap(config: AppConfig): Record<string, string> {
     newFolder: readSettingString(config, 'newFolderShortcut', 'Ctrl+Shift+N'),
     preview: readSettingString(config, 'previewShortcut', 'Alt+P'),
     dualPane: readSettingString(config, 'dualPaneShortcut', 'Ctrl+\\'),
+    commandPalette: readSettingString(config, 'commandPaletteShortcut', 'Ctrl+Shift+P'),
+    inspector: readSettingString(config, 'inspectorShortcut', 'Ctrl+I'),
+    undo: readSettingString(config, 'undoShortcut', 'Ctrl+Z'),
+    redo: readSettingString(config, 'redoShortcut', 'Ctrl+Y'),
+    openInNewPane: readSettingString(config, 'openInNewPaneShortcut', 'Alt+P'),
   };
 }
 

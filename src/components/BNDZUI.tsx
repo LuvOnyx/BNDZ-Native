@@ -28,10 +28,12 @@ import { recordNavVisit, buildMiniTreeFromVisits } from '../lib/navigationHistor
 import { buildPathSuggestions } from '../lib/addressAutocomplete';
 import { summarizeSelection, formatSelectionSummaryLine } from '../lib/selectionSummary';
 import { highlightNameMatch } from '../lib/liveFilterHighlight';
+import { filterByName } from '../lib/fuzzyFilter';
 import MiniTreePanel from './MiniTreePanel';
 import AddressAutocompleteDropdown from './AddressAutocompleteDropdown';
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
+import type { ContextMenuSurface } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
 import { prefetchIconsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
@@ -77,7 +79,7 @@ import {
 } from '../lib/listColumns';
 import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath } from '../lib/pathUtils';
 import { hasBndzFileDrag } from '../lib/bndzDrag';
-import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL } from '../lib/shellPaths';
+import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory } from '../lib/shellPaths';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { pushToast, dismissToast, type ToastKind } from './ToastHost';
 import { getPaneTabLabel } from '../lib/paneLabels';
@@ -88,7 +90,6 @@ import { listCatalogs } from '../lib/catalog';
 import { dispatchCustomEvent } from '../lib/customEventActions';
 import { dispatchMouseItemBinding, resolveMouseBindingKey } from '../lib/mouseBindings';
 import { applyNavTreeOrder, mergeNavTreeOrder, type NavTreeBuildNode } from '../lib/navTreeOrder';
-import { StorageUsageBar } from './StorageUsageBar';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { runMenubarAction } from '../lib/menubarUtils';
 import {
@@ -303,7 +304,7 @@ export default function BNDZUI() {
 
   useEffect(() => {
     applySettingsRuntime(config);
-  }, [config.theme, config.applyColors, config.accent, config.bgMain, config.launcherSyncTheme,
+  }, [config.theme, config.applyColors, config.accent, config.bgMain,
     config.appearanceChromePalette, config.appearanceSurfaceStyle, config.appearanceSelectionStyle]);
 
   /** One-time upgrade for panel defaults + sidebar cloud section */
@@ -409,7 +410,9 @@ export default function BNDZUI() {
   const [isPluginStoreOpen, setIsPluginStoreOpen] = useState(false);
   const [bottomPluginTab, setBottomPluginTab] = useState<string | null>(null);
   const contextMenuBlockRef = React.useRef(false);
+  const contextMenuRequestRef = React.useRef(0);
   const contextMenuRootRef = React.useRef<HTMLDivElement>(null);
+  const [treeRefreshNonce, setTreeRefreshNonce] = useState(0);
   const menubarRef = React.useRef<HTMLDivElement>(null);
   const menubarAnchors = React.useRef<Record<string, HTMLDivElement | null>>({});
   const menubarAnchorCallbacks = React.useRef<Record<string, (el: HTMLDivElement | null) => void>>({});
@@ -517,7 +520,7 @@ export default function BNDZUI() {
   const [panes, setPanes] = useState<PaneState[]>([
      { 
        id: 'pane1', 
-       tabs: [{ id: 't1', path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: config.defaultViewMode || 'details' }],
+       tabs: [{ id: 't1', path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
        activeTabIndex: 0,
        sortColumn: 'name',
        sortDirection: 'asc'
@@ -570,8 +573,6 @@ export default function BNDZUI() {
           return;
         }
 
-        if (!IPC.isNative) return;
-
         dirFetchInFlightRef.current.add(path);
         setLoadingPaths(prev => new Set(prev).add(path));
 
@@ -597,7 +598,6 @@ export default function BNDZUI() {
     const path = normalizePanePath(rawPath);
     if (!path) return;
     const { IPC } = await import('../lib/ipcBridge');
-    if (!IPC.isNative && !isVirtualCatalogPath(path)) return;
     setLoadingPaths(prev => new Set(prev).add(path));
     try {
       const data = isVirtualCatalogPath(path)
@@ -682,9 +682,7 @@ export default function BNDZUI() {
     const norm = normalizePanePath(path);
     if (norm === '/' || norm === '/this-pc') return null;
     if (pathContentsCache[norm] !== undefined) return pathContentsCache[norm];
-    const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
-    if (!isNative) return getDirContents(fs, path);
-    return null; // loading state - will show spinner
+    return null;
   };
 
 
@@ -788,8 +786,15 @@ export default function BNDZUI() {
     const ts = (config.savedTabsets || []).find(t => t.id === config.lastActiveTabsetId);
     if (ts?.panes?.length) {
       restoredTabsetRef.current = true;
-      setPanes(ts.panes);
-      setIsDualPane((ts.panes as PaneState[]).length > 1);
+      const restored = (ts.panes as PaneState[]).map(pane => ({
+        ...pane,
+        tabs: pane.tabs.map(tab => ({
+          ...tab,
+          viewMode: tab.viewMode === 'details' ? undefined : tab.viewMode,
+        })),
+      }));
+      setPanes(restored);
+      setIsDualPane(restored.length > 1);
     }
   }, [config.restoreLastTabsetOnStartup, config.lastActiveTabsetId, config.savedTabsets]);
 
@@ -803,7 +808,7 @@ export default function BNDZUI() {
       panes[0],
       {
         id: `pane-${Date.now()}`,
-        tabs: [{ id: `t-${Date.now()}`, path: '/workspace', history: ['/workspace'], historyIndex: 0, selectedItems: [], viewMode: config.defaultViewMode || 'details' }],
+        tabs: [{ id: `t-${Date.now()}`, path: '/workspace', history: ['/workspace'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
         activeTabIndex: 0,
         sortColumn: 'name',
         sortDirection: 'asc',
@@ -829,7 +834,7 @@ export default function BNDZUI() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
-      if (e.key === 'p' && e.ctrlKey && e.shiftKey) {
+      if (!isInput && matchesShortcut(e, keyboardMap.commandPalette)) {
          e.preventDefault();
          setIsCommandPaletteOpen(prev => !prev);
       }
@@ -843,8 +848,8 @@ export default function BNDZUI() {
             updateConfig({ previewPanelOpen: true });
          }
       }
-      // FilePilot Ctrl+I inspector alias
-      if (!isInput && e.key === 'i' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+      // FilePilot inspector toggle (rebindable, default Ctrl+I)
+      if (!isInput && matchesShortcut(e, keyboardMap.inspector)) {
          e.preventDefault();
          setIsPreviewPanelOpen(prev => {
            const next = !prev;
@@ -863,17 +868,18 @@ export default function BNDZUI() {
          }
          setToastMessage('Refreshed.');
       }
-      if (e.key === 'z' && e.ctrlKey && !e.shiftKey && !isInput) {
+      if (!isInput && matchesShortcut(e, keyboardMap.undo)) {
          e.preventDefault();
          void runUndoRedo(false);
       }
-      if (((e.key === 'y' && e.ctrlKey) || (e.key === 'z' && e.ctrlKey && e.shiftKey)) && !isInput) {
+      if (!isInput && (matchesShortcut(e, keyboardMap.redo) || matchesShortcut(e, 'Ctrl+Shift+Z'))) {
          e.preventDefault();
          void runUndoRedo(true);
       }
-      
-      // Cut / Copy / Paste intercept
-      if (!isInput && e.ctrlKey && (e.key === 'c' || e.key === 'x')) {
+
+      // Cut / Copy intercept (rebindable)
+      const isCutShortcut = matchesShortcut(e, keyboardMap.cut);
+      if (!isInput && (matchesShortcut(e, keyboardMap.copy) || isCutShortcut)) {
           const activePane = panes.find(p => p.id === activePaneId);
           if (activePane) {
               const tab = activePane.tabs[activePane.activeTabIndex];
@@ -888,18 +894,32 @@ export default function BNDZUI() {
                  if (selectedEntities.length > 0) {
                      setClipboardState(
                        selectedEntities.map((ent: any) => joinPanePath(tab.path, ent)),
-                       e.key === 'x' ? 'cut' : 'copy'
+                       isCutShortcut ? 'cut' : 'copy'
                      );
                  }
               }
           }
       }
 
-      if (!isInput && e.ctrlKey && e.key === 'v') {
+      if (!isInput && matchesShortcut(e, keyboardMap.paste)) {
           const activePane = panes.find(p => p.id === activePaneId);
           if (activePane) {
               const tab = activePane.tabs[activePane.activeTabIndex];
               executePaste(tab.path);
+          }
+      }
+
+      // Open focused/selected directory in the opposite pane (rebindable, default Alt+P)
+      if (!isInput && matchesShortcut(e, keyboardMap.openInNewPane)) {
+          const activePane = panes.find(p => p.id === activePaneId);
+          const tab = activePane?.tabs[activePane.activeTabIndex];
+          if (tab) {
+              const targetId = focusedItemId || tab.selectedItems[0];
+              const entity = (safeGetDirContents(fileSystem, tab.path) || []).find((x: any) => x.id === targetId);
+              if (entity && entity.type === 'directory') {
+                  e.preventDefault();
+                  openFolderInOppositePane(joinPanePath(tab.path, entity), activePaneId);
+              }
           }
       }
 
@@ -922,12 +942,21 @@ export default function BNDZUI() {
 
   // Context Menu State
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, isDirectory: boolean, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, isDirectory: boolean, surface?: ContextMenuSurface, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; paneId: string; tabIndex: number } | null>(null);
 
-  const handleContextMenuRequest = async (e: React.MouseEvent, targetPath: string, entityId: string | null, isDirectory: boolean, entityName: string | null, selectedPaths?: string[]) => {
+  const handleContextMenuRequest = async (
+    e: React.MouseEvent,
+    targetPath: string,
+    entityId: string | null,
+    isDirectory: boolean,
+    entityName: string | null,
+    selectedPaths?: string[],
+    surface?: ContextMenuSurface,
+  ) => {
       e.preventDefault();
       e.stopPropagation();
+      const requestId = ++contextMenuRequestRef.current;
       setLastClickData(null);
       setInlineRename(null);
       contextMenuBlockRef.current = true;
@@ -942,6 +971,8 @@ export default function BNDZUI() {
       const { getCachedNativeContextMenu, setCachedNativeContextMenu } = await import('../lib/nativeContextMenuCache');
       const cachedNative = getCachedNativeContextMenu(winPath) as any[] | null;
 
+      if (requestId !== contextMenuRequestRef.current) return;
+
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
@@ -949,6 +980,7 @@ export default function BNDZUI() {
           path: targetPath,
           entityName,
           isDirectory,
+          surface,
           nativeContextItems: cachedNative || [],
           selectedPaths
       });
@@ -960,8 +992,11 @@ export default function BNDZUI() {
       try {
           const { IPC } = await import('../lib/ipcBridge');
           const nativeItems = await IPC.fetchNativeContextMenuItems(winPath);
+          if (requestId !== contextMenuRequestRef.current) return;
           if (nativeItems?.length) setCachedNativeContextMenu(winPath, nativeItems);
-          setContextMenu(prev => prev ? { ...prev, nativeContextItems: nativeItems } : null);
+          setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+            ? { ...prev, nativeContextItems: nativeItems }
+            : prev);
       } catch (err) {
           console.error("Failed to fetch native context menu items", err);
       }
@@ -1438,8 +1473,11 @@ export default function BNDZUI() {
   const homeTreePath = useMemo(() => {
     const p = homeShortcut?.path;
     if (p && !String(p).toLowerCase().includes('workspace')) return toPanePath(p);
+    if (windowsUsername && windowsUsername !== 'Public') {
+      return toPanePath(`C:/Users/${windowsUsername}`);
+    }
     return '/shell:Profile';
-  }, [homeShortcut]);
+  }, [homeShortcut, windowsUsername]);
 
   const libraryFolderItems = useMemo(() => {
     const order = ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'];
@@ -1501,13 +1539,34 @@ export default function BNDZUI() {
   const networkOnlyNodes = useMemo(
     () => networkNodes.filter((n: { kind?: string; name?: string }) => {
       if (!config.detectPortableDevices && (n.kind === 'portable-device' || n.kind === 'portable-root')) return false;
-      return n.kind !== 'wsl-root' && n.kind !== 'wsl-distro' && n.kind !== 'wsl-legacy'
+      return n.kind !== 'network' && n.kind !== 'wsl-root' && n.kind !== 'wsl-distro' && n.kind !== 'wsl-legacy'
       && n.name !== 'Linux (WSL)' && n.name !== 'WSL (legacy)';
     }),
     [networkNodes, config.detectPortableDevices],
   );
 
   const wslLinuxPath = wslRootNode ? toPanePath(wslRootNode.path) : '//wsl.localhost/';
+
+  const rapidAccessItems = useMemo(() => {
+    const pins = config.pinnedFavorites || [];
+    if (pins.length > 0) return pins;
+    const order = ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'];
+    const items: { name: string; path: string; iconPath?: string }[] = [];
+    for (const name of order) {
+      const s = shortcuts.find(sc => sc.name === name);
+      const raw = s?.path || (windowsUsername !== 'Public' ? `C:/Users/${windowsUsername}/${name}` : '');
+      if (!raw) continue;
+      items.push({ name, path: toPanePath(raw), iconPath: KNOWN_FOLDER_SHELL[name] });
+    }
+    if (galleryShortcut?.path) {
+      items.push({ name: 'Gallery', path: toPanePath(galleryShortcut.path), iconPath: KNOWN_FOLDER_SHELL.Gallery });
+    }
+    return items;
+  }, [config.pinnedFavorites, shortcuts, windowsUsername, galleryShortcut]);
+
+  useEffect(() => {
+    if (wslDistroNodes.length > 0) setLinuxExpanded(true);
+  }, [wslDistroNodes.length]);
 
   const treeData = useMemo(() => {
     const raw: NavTreeBuildNode[] = [
@@ -1564,6 +1623,7 @@ export default function BNDZUI() {
         draggable: true,
         label: 'Linux',
         path: wslLinuxPath,
+        iconPath: wslLinuxPath,
         icon: Server,
         iconColor: '#34d399',
         isDynamic: true,
@@ -1659,7 +1719,7 @@ export default function BNDZUI() {
     } else {
        setPanes([panes[0], { 
          id: `pane-${Date.now()}`, 
-         tabs: [{ id: `t-${Date.now()}`, path: '/workspace', history: ['/workspace'], historyIndex: 0, selectedItems: [], viewMode: 'details' }],
+         tabs: [{ id: `t-${Date.now()}`, path: '/workspace', history: ['/workspace'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
          activeTabIndex: 0,
          sortColumn: 'name',
          sortDirection: 'asc'
@@ -1776,7 +1836,6 @@ export default function BNDZUI() {
       openInspector: () => { setIsPreviewPanelOpen(true); updateConfig({ previewPanelOpen: true }); },
       openFindPlugin: () => openBottomPlugin('find'),
       openBatchRename: () => openBottomPlugin('batch-rename'),
-      openLauncher: () => import('../lib/ipcBridge').then(({ IPC }) => IPC.showLauncher()),
       syncPanes: syncPanesToSamePath,
       saveTabset: () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
       focusFilter: () => omniFilterRef.current?.focus(),
@@ -1913,7 +1972,7 @@ export default function BNDZUI() {
     scheduleTabEnter(tabId);
     setPanes(prev => prev.map(p => {
       if (p.id === paneId) {
-        const newTab: TabState = { id: tabId, path, history: [path], historyIndex: 0, selectedItems: [], viewMode: 'details' };
+        const newTab: TabState = { id: tabId, path, history: [path], historyIndex: 0, selectedItems: [], viewMode: undefined };
         return { ...p, tabs: [...p.tabs, newTab], activeTabIndex: p.tabs.length };
       }
       return p;
@@ -2373,7 +2432,7 @@ export default function BNDZUI() {
           setPanes(prev => {
               const newPane = { 
                   id: `pane${Date.now()}`,
-                  tabs: [{ id: `t${Date.now()}`, path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: config.defaultViewMode || 'details' }],
+                  tabs: [{ id: `t${Date.now()}`, path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
                   activeTabIndex: 0,
                   sortColumn: 'name' as const,
                   sortDirection: 'asc' as const
@@ -2427,17 +2486,35 @@ export default function BNDZUI() {
       setSyncResults({});
   };
 
+  const refreshNavigationTree = () => {
+    setTreeRefreshNonce(n => n + 1);
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      IPC.getSystemDrives().then(setDrives);
+      IPC.getCloudProviders().then(setCloudProviders);
+    });
+  };
+
+  const refreshActiveList = () => {
+    const pane = panes.find(p => p.id === activePaneId);
+    const tabPath = pane?.tabs[pane.activeTabIndex]?.path;
+    if (tabPath) void refetchPath(tabPath);
+    refreshPathsForPanes();
+  };
+
+  // View-mode buttons are explicit toggles. `undefined` = the neutral default
+  // (no button lit) and renders using the configured default layout. Clicking a
+  // button lights it; clicking the lit button returns to the unlit default.
   const setViewMode = (mode: 'details' | 'grid' | 'list' | 'columns', paneId: string = activePaneId) => {
     setPanes(prev => prev.map(p => {
       if (p.id === paneId) {
          const newTabs = [...p.tabs];
          const tab = newTabs[p.activeTabIndex];
-         newTabs[p.activeTabIndex] = { ...tab, viewMode: mode };
+         const nextMode = tab.viewMode === mode ? undefined : mode;
+         newTabs[p.activeTabIndex] = { ...tab, viewMode: nextMode };
          return { ...p, tabs: newTabs };
       }
       return p;
     }));
-    updateConfig({ defaultViewMode: mode });
   };
 
   const toggleSort = (paneId: string, column: SortColumnId) => {
@@ -2481,12 +2558,7 @@ export default function BNDZUI() {
     if (isGlobal) {
       contents = globalSearchResults || [];
     } else if (filterText.trim() !== '') {
-      try {
-        const regex = new RegExp(filterText, 'i');
-        contents = contents.filter((item: any) => regex.test(item.name));
-      } catch {
-        contents = contents.filter((item: any) => item.name.toLowerCase().includes(filterText.toLowerCase()));
-      }
+      contents = filterByName(contents, filterText);
     }
 
     if (pane.filterRegex?.trim()) {
@@ -2539,7 +2611,7 @@ export default function BNDZUI() {
       void refetchPath(p?.tabs[p?.activeTabIndex ?? 0]?.path || '/');
     },
     openFavorites: () => setToastMessage('Favorites — use Rapid access in sidebar'),
-    openEditMenu: () => setToastMessage('Edit menu'),
+    openEditMenu: () => setOpenMenuId('Edit'),
     openSmallTabMenu: (x: number, y: number) => setTabContextMenu({ x, y, paneId, tabIndex: tabIndex ?? 0 }),
     autosizeColumns: () => setToastMessage('Columns autosized'),
     runScript: (shell: string, script: string) => {
@@ -2595,9 +2667,6 @@ export default function BNDZUI() {
            const nextIdx = (activePaneIndex + 1) % panes.length;
            setActivePaneId(panes[nextIdx].id);
         }
-      } else if (e.key === 'l' && (e.ctrlKey || e.metaKey) && e.shiftKey && !isInput) {
-        e.preventDefault();
-        import('../lib/ipcBridge').then(({ IPC }) => IPC.showLauncher());
       } else if (e.key === 't' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         addTab(activePaneId, activeTab.path);
@@ -2640,12 +2709,7 @@ export default function BNDZUI() {
         if (isGlobal) {
             paneContents = globalSearchResults || [];
         } else if (filterText.trim() !== '') {
-            try {
-                const regex = new RegExp(filterText, 'i');
-                paneContents = paneContents.filter((item: any) => regex.test(item.name)) as any;
-            } catch (err) {
-                paneContents = paneContents.filter((item: any) => item.name.toLowerCase().includes(filterText.toLowerCase())) as any;
-            }
+            paneContents = filterByName(paneContents, filterText) as any;
         }
 
         if (paneContents.length === 0) return;
@@ -2672,12 +2736,7 @@ export default function BNDZUI() {
            if (isGlobal) {
                paneContents = globalSearchResults || [];
            } else if (filterText.trim() !== '') {
-               try {
-                   const regex = new RegExp(filterText, 'i');
-                   paneContents = paneContents.filter((item: any) => regex.test(item.name)) as any;
-               } catch (err) {
-                   paneContents = paneContents.filter((item: any) => item.name.toLowerCase().includes(filterText.toLowerCase())) as any;
-               }
+               paneContents = filterByName(paneContents, filterText) as any;
            }
            const selectedItem = paneContents?.find((c: any) => c.id === activeTab.selectedItems[0]) as any;
            if (selectedItem?.type === 'directory') {
@@ -2726,6 +2785,7 @@ export default function BNDZUI() {
         if (match) {
           setFocusedItemId(match.id);
           setSelectedItems([match.id], activePaneId);
+          scheduleSelectionChrome([match.id], true);
           const el = document.getElementById(`fs-item-${match.id}`);
           if (el) el.scrollIntoView({ block: 'nearest' });
         }
@@ -2803,7 +2863,6 @@ export default function BNDZUI() {
       onOpenFind: () => openBottomPlugin('find'),
       onOpenIconStudio: () => openBottomPlugin('icon-studio'),
       onTogglePreview: togglePreviewPanel,
-      onOpenLauncher: () => import('../lib/ipcBridge').then(({ IPC }) => IPC.showLauncher()),
       onOpenMetadata: () => openBottomPlugin('metadata'),
       onSaveTabset: () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
       onFocusFilter: () => omniFilterRef.current?.focus(),
@@ -2832,7 +2891,6 @@ export default function BNDZUI() {
       openInspector: () => { setIsPreviewPanelOpen(true); updateConfig({ previewPanelOpen: true }); },
       openFindPlugin: () => openBottomPlugin('find'),
       openBatchRename: () => openBottomPlugin('batch-rename'),
-      openLauncher: () => import('../lib/ipcBridge').then(({ IPC }) => IPC.showLauncher()),
       syncPanes: syncPanesToSamePath,
       saveTabset: () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
       focusFilter: () => omniFilterRef.current?.focus(),
@@ -2852,7 +2910,12 @@ export default function BNDZUI() {
   const renderPane = (pane: PaneState, index: number) => {
     const isActive = pane.id === activePaneId;
     const currentTab = pane.tabs[pane.activeTabIndex];
-    const computedViewMode = currentTab.viewMode || config.defaultViewMode || 'details';
+    const isNeutralDefault = currentTab.viewMode === undefined;
+    const computedViewMode = currentTab.viewMode || 'details';
+    const compactRowHeight = buildSettingsRuntime(config).ui.rowHeight;
+    const detailsRowHeight = isNeutralDefault ? compactRowHeight : 28;
+    const detailsIconSize = isNeutralDefault ? 14 : listIconSz;
+    const detailsIconColClass = isNeutralDefault ? 'w-5' : 'w-6';
     const panePath = currentTab.path;
     const isFindingTabActive = isFindingTab(currentTab);
     const isGlobal = isFindingTabActive || (isActive && config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> '));
@@ -2884,14 +2947,7 @@ export default function BNDZUI() {
             contents = [];
         }
     } else if (contents && isActive && filterText.trim() !== '') {
-        try {
-            // Attempt Regex matching first
-            const regex = new RegExp(filterText, 'i');
-            contents = contents.filter(item => regex.test(item.name));
-        } catch (e) {
-            // Fallback to standard string checking if regex is invalid
-            contents = contents.filter(item => item.name.toLowerCase().includes(filterText.toLowerCase()));
-        }
+        contents = filterByName(contents, filterText);
     }
 
     if (contents && pane.filterRegex && pane.filterRegex.trim() !== '') {
@@ -3049,10 +3105,13 @@ export default function BNDZUI() {
     };
 
     const handleEntityMiddleClick = (e: React.MouseEvent, entity: any) => {
+      // auxclick fires for BOTH middle (1) and right (2) buttons; only act on middle.
+      // Right-click must fall through to the context-menu handler, never open a pane.
+      if (e.button !== 1) return;
       e.preventDefault();
       if (entity.type !== 'directory') return;
       const newPath = buildEntityPath(entity);
-      const bindingKey = resolveMouseBindingKey(1, { ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey });
+      const bindingKey = resolveMouseBindingKey(e.button, { ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey });
       if (bindingKey) {
         const handled = dispatchMouseItemBinding(
           config, bindingKey, entity, mouseItemHandlers, buildCeaHandlers(pane.id),
@@ -3496,51 +3555,54 @@ export default function BNDZUI() {
             </div>
             <ToolbarButton
               icon={Lock}
-              className={`w-5 ${currentTab.viewLocked ? 'text-amber-400' : 'opacity-50'}`}
+              className={`w-5 bndz-view-mode-btn ${currentTab.viewLocked ? 'bndz-view-lock-btn--active text-amber-400' : 'opacity-50'}`}
               title={currentTab.viewLocked ? 'Unlock view (sort/filter frozen)' : 'Lock view'}
               onClick={() => toggleViewLock(pane.id)}
             />
-            <div className="flex bg-[#222] border border-[#444] rounded items-center px-1 text-[11px] shrink-0 mx-2">
-                 <button onClick={() => setViewMode('details', pane.id)} className={`p-1 rounded ${computedViewMode === 'details' ? 'bg-[#444]' : 'hover:bg-[#333]'}`} title="Details View">
+            <div className="flex bg-[#222] border border-[#444] rounded-[var(--bndz-radius-sm)] items-center p-[2px] text-[11px] shrink-0 mx-2 gap-[2px]">
+                 <button onClick={() => setViewMode('details', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--details w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'details' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Details View (click again for default)">
                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
                  </button>
-                 <button onClick={() => setViewMode('grid', pane.id)} className={`p-1 rounded ${computedViewMode === 'grid' ? 'bg-[#444]' : 'hover:bg-[#333]'}`} title="Grid View">
+                 <button onClick={() => setViewMode('grid', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--grid w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'grid' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Grid View (click again for default)">
                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                  </button>
-                 <button onClick={() => setViewMode('list', pane.id)} className={`p-1 rounded ${computedViewMode === 'list' ? 'bg-[#444]' : 'hover:bg-[#333]'}`} title="List View">
+                 <button onClick={() => setViewMode('list', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--list w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'list' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="List View (click again for default)">
                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                  </button>
-                 <button onClick={() => setViewMode('columns', pane.id)} className={`p-1 rounded ${computedViewMode === 'columns' ? 'bg-[#444]' : 'hover:bg-[#333]'}`} title="Columns View (Miller)">
+                 <button onClick={() => setViewMode('columns', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--columns w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'columns' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Columns View (click again for default)">
                      <Columns size={12} />
                  </button>
             </div>
-            {computedViewMode === 'details' && (
-              <select
-                value={listGroupBy}
-                onChange={e => updateConfig({ listGroupBy: e.target.value as ListGroupBy })}
-                className="bg-[#222] border border-[#444] rounded text-[10px] px-1.5 py-0.5 mx-1 shrink-0 text-gray-300"
-                title="Group by"
-              >
-                {LIST_GROUP_BY_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>Group: {o.label}</option>
-                ))}
-              </select>
-            )}
-            {(computedViewMode === 'grid' || computedViewMode === 'list') && (
-              <input
-                type="range"
-                min={12}
-                max={72}
-                value={computedViewMode === 'grid' ? gridIconSz : listIconSz}
-                onChange={e => {
-                  const v = Number(e.target.value);
-                  if (computedViewMode === 'grid') updateConfig({ gridIconSize: v });
-                  else updateConfig({ listIconSize: v });
-                }}
-                className="w-14 h-1 accent-sky-500 mx-1 shrink-0"
-                title="Icon size"
-              />
-            )}
+            {/* Fixed-width slot keeps the filter box from shifting when the view changes */}
+            <div className="w-[124px] shrink-0 mx-1 flex items-center">
+              {computedViewMode === 'details' && (
+                <select
+                  value={listGroupBy}
+                  onChange={e => updateConfig({ listGroupBy: e.target.value as ListGroupBy })}
+                  className="bg-[#222] border border-[#444] rounded-[var(--bndz-radius-sm)] text-[10px] px-1.5 py-0.5 w-full text-gray-300"
+                  title="Group by"
+                >
+                  {LIST_GROUP_BY_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>Group: {o.label}</option>
+                  ))}
+                </select>
+              )}
+              {(computedViewMode === 'grid' || computedViewMode === 'list') && (
+                <input
+                  type="range"
+                  min={12}
+                  max={72}
+                  value={computedViewMode === 'grid' ? gridIconSz : listIconSz}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (computedViewMode === 'grid') updateConfig({ gridIconSize: v });
+                    else updateConfig({ listIconSize: v });
+                  }}
+                  className="w-full h-1 accent-sky-500"
+                  title="Icon size"
+                />
+              )}
+            </div>
             <div className="flex bg-[#222] border border-[#444] rounded items-center px-2 py-0.5 mx-2 text-[11px] shrink-0 w-[140px] focus-within:w-[200px] focus-within:border-sky-500 transition-all duration-200">
                <Search size={12} className="text-gray-400 mr-1.5" />
                <input
@@ -3565,7 +3627,7 @@ export default function BNDZUI() {
         {/* Grid Header */}
         {(computedViewMode === 'details') && buildSettingsRuntime(config).list.showSortHeaders && (
         <div className={`fs-list-header flex text-[#9ca3af] text-[11px] py-1.5 shrink-0 px-1 select-none ${!buildSettingsRuntime(config).list.verticalGridLines ? '[&>div]:border-r-0' : ''}`}>
-           <div className="w-6 border-r border-[#333]"></div>
+           <div className={`${detailsIconColClass} border-r border-[#333]`}></div>
            {getVisibleListColumns(config, { isGlobalSearch: isGlobal }).map(col => (
              <div
                key={col.id}
@@ -3592,7 +3654,10 @@ export default function BNDZUI() {
            className="flex-1 overflow-y-auto p-1 focus:outline-none relative bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer"
            style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
            onScroll={e => handlePaneScroll(pane.id, e)}
-           onContextMenu={(e) => handleContextMenuRequest(e, panePath, null, true, null)}
+           onContextMenu={(e) => {
+             if ((e.target as HTMLElement).closest('.fs-item-wrapper')) return;
+             void handleContextMenuRequest(e, panePath, null, true, null, undefined, 'list-background');
+           }}
            onClick={(e) => {
               if (e.defaultPrevented) return;
               // if marquee was active and dragged, we shouldn't clear. 
@@ -3666,7 +3731,11 @@ export default function BNDZUI() {
               items={listRows || []}
               enabled={computedViewMode === 'details' || computedViewMode === 'grid'}
               mode={computedViewMode === 'grid' ? 'grid' : 'list'}
-              rowHeight={computedViewMode === 'details' ? 28 : 26}
+              rowHeight={
+                computedViewMode === 'grid' ? 26 :
+                computedViewMode === 'list' ? 26 :
+                detailsRowHeight
+              }
               className={
                 computedViewMode === 'grid' ? "w-full" :
                 computedViewMode === 'list' ? "flex flex-wrap gap-2" :
@@ -3762,13 +3831,13 @@ export default function BNDZUI() {
 
                 const listRt = buildSettingsRuntime(config).list;
                 const zebraAlt = listRt.zebraRows && !showSelectionChrome && rowIndex % 2 === 1;
-                const isGridLike = currentTab.viewMode === 'grid' || currentTab.viewMode === 'list';
+                const isGridLike = computedViewMode === 'grid' || computedViewMode === 'list';
 
                 const rowNode = (
                   <div 
                     id={`fs-item-${entity.id}`}
                     data-id={entity.id}
-                    className={`fs-item-wrapper ${isGridLike ? 'fs-grid-item' : 'fs-list-item'} ${currentTab.viewMode === 'grid' ? `flex flex-col items-center justify-center p-2 rounded w-full ${isDrive ? 'min-h-[128px] h-auto' : 'h-[100px]'}` : currentTab.viewMode === 'list' ? `flex items-center text-[12px] py-1 px-2 ${isDrive ? 'w-[280px]' : 'w-[220px]'} rounded` : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : "py-[3px]"}`} border border-transparent cursor-pointer 
+                    className={`fs-item-wrapper ${isGridLike ? 'fs-grid-item' : 'fs-list-item'} ${computedViewMode === 'grid' ? `flex flex-col items-center justify-center p-2 rounded w-full ${isDrive ? 'min-h-[128px] h-auto' : 'h-[100px]'}` : computedViewMode === 'list' ? `flex items-center text-[12px] py-1 px-2 ${isDrive ? 'w-[280px]' : 'w-[220px]'} rounded` : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : isNeutralDefault ? "py-[1px]" : "py-[3px]"}`} border border-transparent cursor-pointer 
                       ${showSelectionChrome ? `fs-item-selected ${buildSettingsRuntime(config).list.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : mouseRt.highlightHovered ? 'hover:bg-[#2a2d2e]' : ''}
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
                       ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-sky-400 bg-sky-900/40" : ""}
@@ -3796,7 +3865,7 @@ export default function BNDZUI() {
                       window.addEventListener('pointermove', onMove);
                       window.addEventListener('pointerup', onUp);
                     }}
-                    onAuxClick={(e) => { e.preventDefault(); handleEntityMiddleClick(e, entity); }}
+                    onAuxClick={(e) => { if (e.button !== 1) return; e.preventDefault(); handleEntityMiddleClick(e, entity); }}
                     onMouseEnter={(e) => {
                       tipHandlers.onMouseEnter?.(e);
                       if (mouseRt.hoverSelect) {
@@ -3840,7 +3909,7 @@ export default function BNDZUI() {
                          contextPaths = [joinPanePath(panePath, entity)];
                        }
 
-                       handleContextMenuRequest(e, panePath, entity.id, isDir, entity.name, contextPaths);
+                       handleContextMenuRequest(e, panePath, entity.id, isDir, entity.name, contextPaths, 'list-item');
                     }}
                     draggable={!mouseRt.disallowDragFromList}
                     onDragStart={(e) => {
@@ -3878,19 +3947,11 @@ export default function BNDZUI() {
                         computedViewMode === 'grid' ? (
                           <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="grid" selected={showSelectionChrome} />
                         ) : computedViewMode === 'list' ? (
-                          <>
-                            <div className="w-6 flex justify-center shrink-0">
-                              <ShellNativeIcon path={entity.path || drive.name} isDir={false} size={20} eager />
-                            </div>
-                            <div className="flex-1 min-w-0 px-1">
-                              <div className="text-[11px] truncate font-medium">{drive.label}</div>
-                              <StorageUsageBar usedPct={((drive.totalSpace - drive.freeSpace) / drive.totalSpace) * 100} height={4} className="mt-0.5" />
-                            </div>
-                          </>
+                          <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="list" selected={showSelectionChrome} />
                         ) : (
                         <>
-                           <div className="w-6 flex justify-center shrink-0">
-                              <ShellNativeIcon path={entity.path || drive.name} isDir={false} size={16} eager />
+                           <div className={`${detailsIconColClass} flex justify-center shrink-0`}>
+                              <ShellNativeIcon path={entity.path || drive.name} isDir={false} size={detailsIconSize} eager />
                            </div>
                            <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="details" />
                         </>
@@ -3926,8 +3987,8 @@ export default function BNDZUI() {
                              </>
                            ) : (
                              <>
-                               <div className="w-6 flex justify-center shrink-0">
-                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={listIconSz} />
+                               <div className={`${detailsIconColClass} flex justify-center shrink-0`}>
+                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={detailsIconSize} />
                                </div>
                                <div className="flex-1 flex items-center min-w-0">
                                  {visibleListColumns.map(col => (
@@ -4071,6 +4132,7 @@ export default function BNDZUI() {
 
   return (
     <div
+      data-testid="bndz-app"
       style={{
         ...customStyles,
         fontFamily: config.uiFontFamily || undefined,
@@ -4380,13 +4442,6 @@ export default function BNDZUI() {
              >Tools</div>
              {config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tools'} anchorEl={menubarAnchors.current['Tools']} minWidth={200}>
-                    <div className="px-3 py-1 hover:bg-violet-700/50 cursor-pointer text-sm text-violet-100 flex items-center gap-2" onMouseDown={menuAct(() => {
-                        import('../lib/ipcBridge').then(({ IPC }) => IPC.showLauncher());
-                    })}>
-                       <Rocket size={14} className="text-violet-300" /> BNDZ Launcher
-                       <span className="ml-auto text-[10px] text-[#888]">{config.launcherHotkey || 'Alt+Space'}</span>
-                    </div>
-                    <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => scanCurrentFolderSizes(true, { manual: true }))}>
                        <FolderSearch size={14} className="text-emerald-400" /> Get Folder Sizes
                     </div>
@@ -4601,13 +4656,20 @@ export default function BNDZUI() {
              {config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Help'} anchorEl={menubarAnchors.current['Help']} minWidth={220}>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowHelpTopics(true))}>Help Topics</div>
-                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setToastMessage('F2 Rename · Ctrl+C/X/V · Del Delete · / Fuzzy filter · Ctrl+Tab Switch pane · Alt+Space Launcher · Ctrl+Shift+L Launcher (in BNDZ)'))}>Keyboard Shortcuts</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setToastMessage('F2 Rename · Ctrl+C/X/V · Del Delete · / Fuzzy filter · Ctrl+Tab Switch pane'))}>Keyboard Shortcuts</div>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Settings Reference...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1.5 hover:bg-emerald-700/80 cursor-pointer text-sm text-emerald-100 flex items-center gap-2" onMouseDown={menuAct(() => setShowRegisterDialog(true))}>
                       <Lock size={13} className="opacity-80" /> Register Product...
                     </div>
-                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setToastMessage('You are on the latest version.'))}>Check for Updates...</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      setToastMessage('Checking for updates…');
+                      void IPC.checkForUpdates().then(r => {
+                        if (r.error) setToastMessage(`Update check failed: ${r.error}`);
+                        else if (r.updateAvailable) setToastMessage(`Update available: v${r.latestVersion}. See About BNDZ to download.`);
+                        else setToastMessage(`You are on the latest version (v${r.currentVersion}).`);
+                      });
+                    })}>Check for Updates...</div>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowAboutDialog(true))}>About BNDZ</div>
                  </MenubarPortalMenu>
              )}
@@ -5013,24 +5075,26 @@ export default function BNDZUI() {
                      <div
                         key={drive.name}
                         onClick={() => guardedSetCurrentPath(drive.name)}
-                        onContextMenu={(e) => handleContextMenuRequest(e, drive.name, null, true, drive.label)}
+                        onContextMenu={(e) => handleContextMenuRequest(e, drive.name, drive.name, true, drive.label, undefined, 'sidebar-item')}
                      >
                         <DriveCard drive={{ ...drive, path: drive.name }} layout="compact" />
                      </div>
                   ))}
                   quickAccessContent={
-                     (config.pinnedFavorites || []).length > 0 ? (
-                        (config.pinnedFavorites || []).map((s: any) => {
+                     rapidAccessItems.length > 0 ? (
+                        rapidAccessItems.map((s) => {
                            const qaPath = s.path?.startsWith('/') ? s.path : `/${(s.path || '').replace(/\\/g, '/')}`;
+                           const iconFetch = s.iconPath || qaPath;
                            return (
                               <div 
                                  key={s.path}
                                  className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-amber-400/70 transition-all rounded-r-sm mx-1"
                                  onClick={() => guardedSetCurrentPath(s.path)}
-                                 onContextMenu={(e) => handleContextMenuRequest(e, s.path, null, true, s.name)}
+                                 onContextMenu={(e) => handleContextMenuRequest(e, s.path, s.path, true, s.name, undefined, 'sidebar-item')}
                               >
                                  <ShellNativeIcon
-                                    path={toWindowsPath(qaPath)}
+                                    path={iconFetch}
+                                    isDir={shellIconIsDirectory(iconFetch)}
                                     size={14}
                                     eager
                                  />
@@ -5052,7 +5116,7 @@ export default function BNDZUI() {
                           key={item.path || item.label}
                           className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-sky-400/70 transition-all rounded-r-sm mx-1"
                           onClick={() => item.path && guardedSetCurrentPath(item.path)}
-                          onContextMenu={(e) => item.path && handleContextMenuRequest(e, item.path, null, true, item.label)}
+                          onContextMenu={(e) => item.path && handleContextMenuRequest(e, item.path, item.path, true, item.label, undefined, 'sidebar-item')}
                         >
                           <ShellNativeIcon
                             path={item.path}
@@ -5084,11 +5148,13 @@ export default function BNDZUI() {
                   }
                   treeContent={
                     <VirtualizedNavTree
+                      key={treeRefreshNonce}
                       nodes={treeData}
                       config={config}
                       currentPath={currentPath}
                       onNavigate={guardedSetCurrentPath}
-                      onContextMenu={(e, path, name) => handleContextMenuRequest(e, path ?? '', null, true, name)}
+                      onContextMenu={(e, path, name) => path && handleContextMenuRequest(e, path, path, true, name, undefined, 'tree-item')}
+                      onBackgroundContextMenu={(e) => handleContextMenuRequest(e, currentPath, null, true, null, undefined, 'tree-background')}
                       inlineRename={inlineRename}
                       setInlineRename={setInlineRename}
                       navTreeOrder={config.navTreeOrder}
@@ -5232,7 +5298,9 @@ export default function BNDZUI() {
                            currentPath,
                            focusedEntity.id,
                            focusedEntity.type === 'directory',
-                           focusedEntity.name
+                           focusedEntity.name,
+                           undefined,
+                           'preview'
                         );
                      } else {
                         e.preventDefault();
@@ -5525,7 +5593,8 @@ export default function BNDZUI() {
           executePaste={executePaste}
           onDeletePaths={handleDeletePaths}
           onEmptyRecycleBin={handleEmptyRecycleBin}
-          onRefresh={refreshWorkspace}
+          onRefreshList={refreshActiveList}
+          onRefreshTree={refreshNavigationTree}
           onCopyTo={sources => void copyOrMoveToTarget('copy', undefined, sources)}
           onMoveTo={sources => void copyOrMoveToTarget('move', undefined, sources)}
         />

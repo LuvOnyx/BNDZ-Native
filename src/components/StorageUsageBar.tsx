@@ -5,12 +5,13 @@ interface StorageUsageBarProps {
   height?: number;
   className?: string;
   warnAbove?: number;
+  critAbove?: number;
   showLabels?: boolean;
 }
 
-function tier(pct: number, warnAbove: number) {
-  if (pct >= warnAbove) return 'critical';
-  if (pct >= warnAbove - 15) return 'warn';
+function tier(pct: number, warnAbove: number, critAbove: number) {
+  if (pct >= critAbove) return 'critical';
+  if (pct >= warnAbove) return 'warn';
   return 'healthy';
 }
 
@@ -19,12 +20,13 @@ export function StorageUsageBar({
   usedPct,
   height = 6,
   className = '',
-  warnAbove = 90,
+  warnAbove = 85,
+  critAbove = 95,
   showLabels = false,
 }: StorageUsageBarProps) {
   const pct = Math.min(100, Math.max(0, usedPct));
   const freePct = 100 - pct;
-  const level = tier(pct, warnAbove);
+  const level = tier(pct, warnAbove, critAbove);
 
   const fillClass =
     level === 'critical'
