@@ -137,6 +137,27 @@ export default function AboutDialog({
             <li>· Cross-pane drag &amp; drop · Everything search · Virtualized tree &amp; list</li>
             <li>· Rich preview panel · Background file queue · Offline license activation</li>
           </ul>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 text-[10px]">
+            {(['eula', 'privacy', 'third-party'] as const).map(key => {
+              const labels = { eula: 'EULA', privacy: 'Privacy', 'third-party': 'Third-party licenses' };
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className="text-sky-400/90 hover:text-sky-300 hover:underline"
+                  onClick={() => {
+                    void import('../lib/ipcBridge').then(({ IPC }) =>
+                      IPC.openLegalDoc(key).then(r => {
+                        if (!r.ok && r.error) alert(r.error);
+                      }),
+                    );
+                  }}
+                >
+                  {labels[key]}
+                </button>
+              );
+            })}
+          </div>
           <div className="flex items-center gap-2 text-[10px] text-violet-300/80 pt-1">
             <Sparkles size={12} />
             <span>© {new Date().getFullYear()} BNDZ. All rights reserved.</span>

@@ -1,6 +1,7 @@
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
 import { getPaneTabLabel } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
+import { BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel } from './bndzVirtualViews';
 
 /** `C:` from `/C:` or `//C:` */
 export function formatDriveLetter(pathOrName: string): string {
@@ -26,6 +27,9 @@ export function formatAddressBarPath(panePath: string): string {
   const p = normalizePanePath(panePath);
   if (p.startsWith('/vf/')) return `vf://${p.slice(4)}`;
   if (p === '/vf') return 'vf://';
+  if (p === BNDZ_VIEWS_ROOT) return 'Smart views';
+  const bndzView = parseBndzVirtualView(p);
+  if (bndzView) return bndzVirtualLabel(bndzView);
   if (p === '/') return 'This PC';
   if (isRecycleBinPath(p)) return 'Recycle Bin';
   if (p === '//' || p === '\\\\') return 'Network';
@@ -98,7 +102,7 @@ export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<st
 /** List / tree display name — strips paths for recycle bin items. */
 export function getEntityDisplayName(
   entity: { name?: string; path?: string; extension?: string; type?: string; isRecycleItem?: boolean },
-  config: { showFileExtensions?: boolean },
+  config: { showFileExtensions?: boolean; hideShortcutExtensions?: boolean },
   panePath?: string,
 ): string {
   const isDir = entity.type === 'directory';
@@ -111,7 +115,10 @@ export function getEntityDisplayName(
   }
 
   const ext = entity.extension;
-  if (!isDir && ext && config.showFileExtensions === false) {
+  const hideShortcutExtension = !isDir
+    && String(ext || '').toLowerCase() === 'lnk'
+    && config.hideShortcutExtensions !== false;
+  if (!isDir && ext && (config.showFileExtensions === false || hideShortcutExtension)) {
     return name.replace(new RegExp(`\\.${ext}$`, 'i'), '');
   }
   return name;
@@ -124,6 +131,10 @@ export function parseUserPathToPane(input: string): string | null {
   if (/^this\s*pc$/i.test(raw)) return '/';
   if (/^recycle\s*bin$/i.test(raw)) return RECYCLE_BIN_PATH;
   if (/^network$/i.test(raw)) return '//';
+  if (/^recent\s*files?$/i.test(raw)) return '/bndz/recent';
+  if (/^photos?\s*&?\s*videos?$/i.test(raw) || /^media$/i.test(raw)) return '/bndz/media';
+  if (/^large\s*files?$/i.test(raw)) return '/bndz/large';
+  if (/^smart\s*views?$/i.test(raw)) return BNDZ_VIEWS_ROOT;
   const catalogPath = parseUserCatalogPath(raw);
   if (catalogPath) return catalogPath;
 

@@ -34,9 +34,10 @@ public class EverythingSearchService
         bool useRegex = false,
         string rootPath = "",
         bool preferEverything = true,
-        bool searchContent = false)
+        bool searchContent = false,
+        bool preferBndzIndex = true)
     {
-        return SearchAdvanced(query, limit, useRegex, string.IsNullOrEmpty(rootPath) ? [] : [rootPath], preferEverything, searchContent, false);
+        return SearchAdvanced(query, limit, useRegex, string.IsNullOrEmpty(rootPath) ? [] : [rootPath], preferEverything, searchContent, false, preferBndzIndex);
     }
 
     public (List<object> Results, string Engine) SearchAdvanced(
@@ -46,13 +47,53 @@ public class EverythingSearchService
         IReadOnlyList<string> rootPaths,
         bool preferEverything,
         bool searchContent,
-        bool booleanMode)
+        bool booleanMode,
+        bool preferBndzIndex = true)
     {
         var results = new List<object>();
         if (string.IsNullOrWhiteSpace(query)) return (results, "indexed");
 
         var roots = rootPaths?.Where(p => !string.IsNullOrWhiteSpace(p)).ToList() ?? [];
         var primaryRoot = roots.FirstOrDefault() ?? "";
+
+        if (preferBndzIndex && !useRegex && !booleanMode)
+        {
+            try
+            {
+                var scopePane = string.IsNullOrEmpty(primaryRoot) ? "" : "/" + primaryRoot.Replace("\\", "/").TrimStart('/');
+                var indexed = BndzFileIndexService.Instance.Search(query, limit, scopePane);
+
+                if (!preferEverything)
+                    return (indexed.Take(limit).ToList(), indexed.Count > 0 ? "indexed" : "indexed");
+
+                if (indexed.Count >= limit)
+                    return (indexed.Take(limit).ToList(), "indexed");
+
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in indexed)
+                {
+                    var p = ExtractResultPath(item);
+                    if (!string.IsNullOrEmpty(p)) seen.Add(p);
+                }
+
+                var everythingHits = new List<object>();
+                if (TrySearchEverything(query, limit, primaryRoot, everythingHits))
+                {
+                    foreach (var hit in everythingHits)
+                    {
+                        var p = ExtractResultPath(hit);
+                        if (string.IsNullOrEmpty(p) || seen.Contains(p)) continue;
+                        indexed.Add(hit);
+                        seen.Add(p);
+                        if (indexed.Count >= limit) break;
+                    }
+                }
+
+                if (indexed.Count > 0)
+                    return (indexed.Take(limit).ToList(), everythingHits.Count > 0 ? "indexed+everything" : "indexed");
+            }
+            catch { /* fall through */ }
+        }
 
         if (booleanMode && !useRegex)
         {
@@ -347,5 +388,16 @@ public class EverythingSearchService
     {
         if (regex != null) return regex.IsMatch(name);
         return name.Contains(query, comparison);
+    }
+
+    private static string? ExtractResultPath(object item)
+    {
+        if (item == null) return null;
+        try
+        {
+            var prop = item.GetType().GetProperty("path");
+            return prop?.GetValue(item) as string;
+        }
+        catch { return null; }
     }
 }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Replace, Search, Hash, ArrowRight, FileInput, CaseSensitive, Calendar, Loader2 } from 'lucide-react';
+import { Replace, Search, Hash, ArrowRight, FileInput, CaseSensitive, Calendar, Loader2, Sparkles } from 'lucide-react';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
@@ -50,6 +50,9 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
     const [seqSeparator, setSeqSeparator] = useState<string>("_");
     const [useDateTokens, setUseDateTokens] = useState(false);
     const [committing, setCommitting] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiOverrides, setAiOverrides] = useState<Record<string, string>>({});
 
     const targets = useMemo(
         () => normalizeTargets(selectedItems || [], focusedPath),
@@ -81,6 +84,8 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
     };
 
     const processItem = (oldName: string, index: number) => {
+        if (aiOverrides[oldName]) return aiOverrides[oldName];
+
         let baseName = oldName;
         let extension = "";
         const dotIndex = oldName.lastIndexOf('.');
@@ -180,6 +185,28 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             }
         } finally {
             setCommitting(false);
+        }
+    };
+
+    const runAiRename = async () => {
+        if (!targets.length || !aiPrompt.trim() || aiLoading) return;
+        setAiLoading(true);
+        try {
+            const ops = await IPC.aiBatchRename(targets.map(t => t.oldName), aiPrompt.trim());
+            if (!ops.length) {
+                pushToast({ kind: 'warning', title: 'AI rename', message: 'No suggestions returned. Load the AI model in Smart Tools → Assistant.' });
+                return;
+            }
+            const map: Record<string, string> = {};
+            for (const op of ops) {
+                if (op.originalName && op.newName) map[op.originalName] = op.newName;
+            }
+            setAiOverrides(map);
+            pushToast({ kind: 'success', title: 'AI rename', message: `${ops.length} suggestion(s) applied to preview.` });
+        } catch (err: any) {
+            pushToast({ kind: 'error', title: 'AI rename failed', message: err?.message || 'Request failed.' });
+        } finally {
+            setAiLoading(false);
         }
     };
 
@@ -291,6 +318,27 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                                 Use <code className="text-emerald-400">{'{date}'}</code>, <code className="text-emerald-400">{'{time}'}</code>, <code className="text-emerald-400">{'{datetime}'}</code>, <code className="text-emerald-400">{'{index}'}</code> in prefix, suffix, or find/replace fields.
                             </p>
                         )}
+                    </div>
+
+                    <div className="p-4 border-t border-[#222]">
+                        <h3 className="text-gray-400 font-semibold mb-2 flex items-center gap-1 uppercase tracking-wider text-[10px]">
+                            <Sparkles size={12} /> AI rename
+                        </h3>
+                        <textarea
+                            value={aiPrompt}
+                            onChange={e => setAiPrompt(e.target.value)}
+                            placeholder="e.g. Add date prefix, lowercase, remove spaces…"
+                            className="w-full min-h-[64px] bg-[#090909] border border-[#333] px-2 py-1.5 text-[11px] outline-none focus:border-emerald-500 text-white resize-y"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => void runAiRename()}
+                            disabled={!targets.length || !aiPrompt.trim() || aiLoading}
+                            className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] disabled:opacity-40 text-white"
+                        >
+                            {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            Generate AI names
+                        </button>
                     </div>
                 </div>
 

@@ -4,16 +4,15 @@ import { ChevronRight, LucideIcon } from 'lucide-react';
 import { ContextMenuIcon } from './ContextMenuIcon';
 
 export const menuItemClass =
-  'bndz-context-menu-item px-3 py-1.5 flex items-center gap-2.5 cursor-pointer text-[13px] select-none';
+  'bndz-context-menu-item px-2 py-[3px] flex items-center gap-2 cursor-default text-[12px] select-none leading-[22px]';
 
 export const submenuPanelClass =
-  'bndz-context-submenu absolute top-0 py-1 min-w-[200px] z-[500] max-h-[calc(100vh-24px)] overflow-visible bndz-scrollbar';
+  'bndz-context-submenu absolute top-0 py-[2px] min-w-[196px] z-[500] max-h-[calc(100vh-24px)] overflow-visible';
 
-/** Fire action on mouseDown so WebView2 dismiss handlers cannot cancel the click. */
+/** Wrap a menu item action so it stops event propagation after firing. */
 export function runMenuAction(handler: (e: React.MouseEvent) => void | Promise<void>) {
   return (e: React.MouseEvent) => {
     if (e.button !== 0) return;
-    e.preventDefault();
     e.stopPropagation();
     void Promise.resolve(handler(e));
   };
@@ -26,6 +25,7 @@ interface ContextSubmenuProps {
   groupClass?: string;
   children: React.ReactNode;
   showChevron?: boolean;
+  onOpen?: () => void;
 }
 
 /** Hover-open submenu — CSS group-hover is unreliable in WebView2. */
@@ -35,6 +35,7 @@ export function ContextSubmenu({
   iconVerb,
   children,
   showChevron = true,
+  onOpen,
 }: ContextSubmenuProps) {
   const [open, setOpen] = useState(false);
   const [flyoutStyle, setFlyoutStyle] = useState<React.CSSProperties>({ left: '100%', marginLeft: 2 });
@@ -63,19 +64,22 @@ export function ContextSubmenu({
       marginLeft: 0,
       zIndex: 500,
     });
-  }, [open, children]);
+  }, [open]);
 
   const keepOpen = () => {
     if (closeTimer.current) {
       clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
-    setOpen(true);
+    setOpen(prev => {
+      if (!prev) onOpen?.();
+      return true;
+    });
   };
 
   const scheduleClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), 180);
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
   };
 
   return (
@@ -121,7 +125,7 @@ interface ContextMenuItemProps {
   disabled?: boolean;
 }
 
-export function ContextMenuItem({
+export const ContextMenuItem = React.memo(function ContextMenuItem({
   label,
   verb,
   icon: Icon,
@@ -134,13 +138,13 @@ export function ContextMenuItem({
     <div
       role="menuitem"
       className={`${menuItemClass} ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}
-      onMouseDown={disabled || !onClick ? undefined : runMenuAction(onClick)}
+      onClick={disabled || !onClick ? undefined : runMenuAction(onClick)}
     >
       {Icon ? <Icon size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />}
       <span className="flex-1">{label}</span>
     </div>
   );
-}
+});
 
 /** Nested flyout — opens to the right/left so it does not cover items below in the parent menu. */
 export function ContextNestedSubmenu({
@@ -148,11 +152,13 @@ export function ContextNestedSubmenu({
   iconVerb,
   children,
   panelClassName = 'min-w-[160px]',
+  onOpen,
 }: {
   label: React.ReactNode;
   iconVerb?: string;
   children: React.ReactNode;
   panelClassName?: string;
+  onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [flyoutStyle, setFlyoutStyle] = useState<React.CSSProperties>({ left: '100%', marginLeft: 2 });
@@ -181,15 +187,18 @@ export function ContextNestedSubmenu({
       marginLeft: 0,
       zIndex: 560,
     });
-  }, [open, children]);
+  }, [open]);
 
   const keepOpen = () => {
     if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
-    setOpen(true);
+    setOpen(prev => {
+      if (!prev) onOpen?.();
+      return true;
+    });
   };
   const scheduleClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), 180);
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
   };
 
   return (

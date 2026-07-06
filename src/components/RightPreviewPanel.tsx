@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
 import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath } from '../lib/pathUtils';
@@ -12,7 +12,7 @@ import TextPreviewEditor from './TextPreviewEditor';
 import ImageZoomPreview from './ImageZoomPreview';
 import PdfPreviewPanel from './PdfPreviewPanel';
 import MarkdownPreviewPanel from './MarkdownPreviewPanel';
-import DocxPreviewPanel from './DocxPreviewPanel';
+const DocxPreviewPanel = lazy(() => import('./DocxPreviewPanel'));
 import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
@@ -474,7 +474,11 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
 
       // 3a. Word (.docx)
       if (isDocx && previewAllowed) {
-          return <DocxPreviewPanel url={virtualUrl} title={entity.name} />;
+          return (
+            <Suspense fallback={<div className="p-4 text-gray-500 text-sm">Loading document preview…</div>}>
+              <DocxPreviewPanel url={virtualUrl} title={entity.name} />
+            </Suspense>
+          );
       }
 
       // 3b. Markdown preview
@@ -654,8 +658,8 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
   ];
 
   return (
-    <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 shadow-[-6px_0_24px_rgba(0,0,0,0.35)] z-10 overflow-hidden">
-       <div className="bndz-preview-tabstrip border-b border-white/[0.06] px-3 py-2 flex justify-between items-center z-10 shrink-0 select-none gap-2 backdrop-blur-md">
+    <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 overflow-hidden">
+       <div className="bndz-preview-tabstrip border-b border-[#3a3a3a] px-2 py-1 flex justify-between items-center z-10 shrink-0 select-none gap-2">
           <div className="flex gap-1">
              {tabs.filter(t => t.show).map(t => (
                 <button

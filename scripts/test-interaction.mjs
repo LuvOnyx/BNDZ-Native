@@ -49,3 +49,10 @@ const norm = normalizeDirEntries([{ id: 'x' }, { label: 'Docs', type: 'directory
 assert.equal(norm[0].name, 'x');
 assert.equal(norm[1].name, 'Docs');
 console.log('normalize dir entry tests passed');
+
+import { resolveDropOperation } from '../src/lib/dropOperation.ts';
+assert.equal(resolveDropOperation({ ctrlKey: true }), 'copy');
+assert.equal(resolveDropOperation({ payloadCopy: true }), 'copy');
+assert.equal(resolveDropOperation({}), 'move');
+assert.equal(resolveDropOperation({ dropModifierCopy: true, ctrlKey: false }), 'copy');
+console.log('drop operation tests passed');

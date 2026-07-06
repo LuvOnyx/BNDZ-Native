@@ -28,6 +28,7 @@ export function VirtualizedFileList<T>({
 }: VirtualizedFileListProps<T>) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const [scrollMinHeight, setScrollMinHeight] = useState<number | undefined>(undefined);
   const [gridCols, setGridCols] = useState(6);
   const useVirtual = enabled && items.length >= threshold;
 
@@ -40,6 +41,18 @@ export function VirtualizedFileList<T>({
       setScrollEl(prev => (prev === parent ? prev : parent));
     }
   }, []);
+
+  useEffect(() => {
+    if (!scrollEl) return;
+    const syncMinHeight = () => {
+      const h = scrollEl.clientHeight;
+      if (h > 0) setScrollMinHeight(prev => (prev === h ? prev : h));
+    };
+    syncMinHeight();
+    const ro = new ResizeObserver(syncMinHeight);
+    ro.observe(scrollEl);
+    return () => ro.disconnect();
+  }, [scrollEl]);
 
   useEffect(() => {
     if (mode !== 'grid' || !useVirtual || !scrollEl) return;
@@ -62,7 +75,7 @@ export function VirtualizedFileList<T>({
     count: virtualCount,
     getScrollElement: () => scrollEl,
     estimateSize,
-    overscan: mode === 'grid' ? 4 : 16,
+    overscan: mode === 'grid' ? 3 : 8,
     enabled: useVirtual && !!scrollEl,
   });
 
@@ -73,7 +86,11 @@ export function VirtualizedFileList<T>({
   }, [scrollEl, useVirtual, items.length, virtualCount]);
 
   if (!items.length) {
-    return <>{emptyState ?? null}</>;
+    return (
+      <div ref={hostRef} className="w-full min-h-0" style={scrollMinHeight ? { minHeight: scrollMinHeight } : undefined}>
+        {emptyState ?? null}
+      </div>
+    );
   }
 
   const renderBody = () => {
@@ -82,7 +99,10 @@ export function VirtualizedFileList<T>({
         return (
           <div
             className="grid gap-2 w-full"
-            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinItemWidth}px, 1fr))` }}
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinItemWidth}px, 1fr))`,
+              minHeight: scrollMinHeight,
+            }}
           >
             {items.map((item, i) => (
               <div key={i}>{renderItem(item, i)}</div>
@@ -90,14 +110,19 @@ export function VirtualizedFileList<T>({
           </div>
         );
       }
-      return <div className={className}>{items.map((item, i) => renderItem(item, i))}</div>;
+      return (
+        <div className={className} style={{ minHeight: scrollMinHeight, width: '100%' }}>
+          {items.map((item, i) => renderItem(item, i))}
+        </div>
+      );
     }
 
     if (mode === 'grid') {
+      const bodyHeight = Math.max(virtualizer.getTotalSize(), scrollMinHeight ?? 0);
       return (
         <div
           className={className}
-          style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}
+          style={{ height: bodyHeight, minHeight: scrollMinHeight, position: 'relative', width: '100%' }}
         >
           {virtualizer.getVirtualItems().map(vi => {
             const startIdx = vi.index * gridCols;
@@ -107,18 +132,18 @@ export function VirtualizedFileList<T>({
                 key={vi.key}
                 style={{
                   position: 'absolute',
-                  top: 0,
+                  top: vi.start,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${vi.start}px)`,
+                  pointerEvents: 'none',
                 }}
               >
                 <div
                   className="grid gap-2 w-full"
-                  style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+                  style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, pointerEvents: 'none' }}
                 >
                   {rowItems.map((item, i) => (
-                    <div key={startIdx + i}>{renderItem(item, startIdx + i)}</div>
+                    <div key={startIdx + i} style={{ pointerEvents: 'auto' }}>{renderItem(item, startIdx + i)}</div>
                   ))}
                 </div>
               </div>
@@ -128,10 +153,11 @@ export function VirtualizedFileList<T>({
       );
     }
 
+    const bodyHeight = Math.max(virtualizer.getTotalSize(), scrollMinHeight ?? 0);
     return (
       <div
         className={className}
-        style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}
+        style={{ height: bodyHeight, minHeight: scrollMinHeight, position: 'relative', width: '100%' }}
       >
         {virtualizer.getVirtualItems().map(vi => (
           <div
@@ -139,19 +165,23 @@ export function VirtualizedFileList<T>({
             data-index={vi.index}
             style={{
               position: 'absolute',
-              top: 0,
+              top: vi.start,
               left: 0,
               width: '100%',
               height: rowHeight,
-              transform: `translateY(${vi.start}px)`,
+              pointerEvents: 'none',
             }}
           >
-            {renderItem(items[vi.index], vi.index)}
+            <div style={{ pointerEvents: 'auto', width: '100%' }}>
+              {renderItem(items[vi.index], vi.index)}
+            </div>
           </div>
         ))}
       </div>
     );
   };
 
-  return <div ref={hostRef} className="w-full min-h-0">{renderBody()}</div>;
+  const nonVirtualMinH = scrollMinHeight ? { minHeight: scrollMinHeight } : undefined;
+
+  return <div ref={hostRef} className="w-full min-h-0" style={nonVirtualMinH}>{renderBody()}</div>;
 }

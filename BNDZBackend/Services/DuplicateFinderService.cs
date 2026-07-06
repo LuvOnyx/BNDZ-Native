@@ -97,7 +97,7 @@ public sealed class DuplicateFinderService
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    string hash = await ComputeMd5Async(path, ct);
+                    string hash = await ComputeSha256Async(path, ct);
                     if (!hashGroups.TryGetValue(hash, out var group))
                     {
                         group = new DuplicateGroup { Hash = hash, Size = kv.Key, Paths = new List<string>() };
@@ -136,11 +136,11 @@ public sealed class DuplicateFinderService
         return files;
     }
 
-    private static async Task<string> ComputeMd5Async(string path, CancellationToken ct)
+    private static async Task<string> ComputeSha256Async(string path, CancellationToken ct)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
-        using var md5 = MD5.Create();
-        var hash = await md5.ComputeHashAsync(stream, ct);
+        using var sha = SHA256.Create();
+        var hash = await sha.ComputeHashAsync(stream, ct);
         return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
     }
 

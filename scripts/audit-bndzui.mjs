@@ -38,7 +38,7 @@ for (const m of src.matchAll(/<([A-Z][A-Za-z0-9]*)\b/g)) jsx.add(m[1]);
 
 const skip = new Set([
   'React', 'Suspense', 'Fragment', 'AnimatePresence', 'motion',
-  'ToolbarButton', 'Spinner', 'Icon',
+  'ToolbarButton', 'Spinner', 'InlineRenameInput', 'Icon',
   'HTMLDivElement', 'HTMLInputElement', 'HTMLUListElement',
   'Record', 'Set', 'ReturnType', 'PaneState', 'KeyboardEvent', 'MouseEvent',
   'RenameOperation', 'VisualFilter', 'TabState', 'DriveInfo', 'ShortcutInfo',

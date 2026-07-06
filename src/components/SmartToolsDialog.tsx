@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Sparkles, FileText, CheckCircle2, FolderTree, Wand2 } from 'lucide-react';
-import { IPC } from '../lib/ipcBridge';
+import { X, Sparkles, FolderTree, Wand2, Copy } from 'lucide-react';
 import { toWindowsPath } from '../lib/pathUtils';
+import BndzAssistantPanel from './assistant/BndzAssistantPanel';
+import BndzDuplicatesPanel from './duplicates/BndzDuplicatesPanel';
+
+export type SmartToolsTab = 'assistant' | 'organize' | 'duplicates';
 
 interface SmartToolsDialogProps {
     isOpen?: boolean;
@@ -10,6 +13,9 @@ interface SmartToolsDialogProps {
     selectedItems?: string[];
     selectedFiles?: Array<{ path?: string; name?: string }>;
     currentPath?: string;
+    initialPrompt?: string;
+    initialTab?: SmartToolsTab | 'agent' | 'organize' | 'tasks' | 'memories';
+    onNavigate?: (path: string) => void;
 }
 
 function resolveSelectedPaths(props: SmartToolsDialogProps): string[] {
@@ -27,52 +33,37 @@ function resolveSelectedPaths(props: SmartToolsDialogProps): string[] {
     return [];
 }
 
-export default function SmartToolsDialog({ isOpen = true, onClose, selectedItems, selectedFiles, currentPath }: SmartToolsDialogProps) {
-    const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState('');
+function normalizeTab(tab?: SmartToolsDialogProps['initialTab']): SmartToolsTab {
+    if (tab === 'agent' || tab === 'tasks' || tab === 'memories') return 'assistant';
+    if (tab === 'duplicates') return 'duplicates';
+    if (tab === 'assistant') return 'assistant';
+    return 'assistant';
+}
+
+export default function SmartToolsDialog({
+    isOpen = true,
+    onClose,
+    selectedItems,
+    selectedFiles,
+    currentPath,
+    initialPrompt,
+    initialTab = 'assistant',
+    onNavigate,
+}: SmartToolsDialogProps) {
+    const [tab, setTab] = useState<SmartToolsTab>(normalizeTab(initialTab));
+
+    useEffect(() => {
+        if (isOpen) setTab(normalizeTab(initialTab));
+    }, [isOpen, initialTab]);
 
     if (!isOpen) return null;
 
     const paths = resolveSelectedPaths({ isOpen, onClose, selectedItems, selectedFiles, currentPath });
 
-    const handleRunAIAction = async (action: string) => {
-        setLoading(true);
-        setResult('');
-
-        try {
-            if (action === 'summarize') {
-                if (paths.length === 0) {
-                    setResult('Select one or more text files to summarize.');
-                    return;
-                }
-                const textPromises = paths.map(p => IPC.readFileContent(p).catch(() => ''));
-                const texts = await Promise.all(textPromises);
-                const combined = texts.filter(Boolean).join('\n\n---\n\n');
-
-                if (IPC.isNative) {
-                    const summary = await IPC.aiGenerate(
-                        `Summarize the following file excerpts into concise bullet points:\n\n${combined.slice(0, 12000)}`
-                    );
-                    if (!summary) {
-                        setResult('AI download cancelled or unavailable. Select files and try again when ready.');
-                        return;
-                    }
-                    setResult(summary);
-                    return;
-                }
-
-                setResult('Summarize requires the native BNDZ app with local AI.');
-            } else if (action === 'organize') {
-                window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
-                window.dispatchEvent(new CustomEvent('bndz-storage-wizard', { detail: { mode: 'organize' } }));
-                setResult('Opened Storage Cleanup — use the wizard to pick a folder, preview, and confirm.');
-                onClose();
-            }
-        } catch (e: any) {
-            setResult(`Error: ${e.message}`);
-        } finally {
-            setLoading(false);
-        }
+    const handleOrganize = () => {
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
+        window.dispatchEvent(new CustomEvent('bndz-storage-wizard', { detail: { mode: 'organize' } }));
+        onClose();
     };
 
     return (
@@ -81,67 +72,116 @@ export default function SmartToolsDialog({ isOpen = true, onClose, selectedItems
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
                 onClick={onClose}
             >
                 <motion.div
-                    initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                    className="w-full max-w-2xl bg-[#0d0d0d] border border-[#222] shadow-2xl rounded-2xl flex flex-col overflow-hidden"
+                    initial={{ scale: 0.98, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.98, opacity: 0 }}
+                    transition={{ duration: 0.12 }}
+                    className="w-full max-w-2xl bg-[#2b2b2b] border border-[#454545] shadow-[0_8px_32px_rgba(0,0,0,0.55)] flex flex-col overflow-hidden max-h-[88vh]"
                     onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 >
-                    <div className="bg-gradient-to-r from-purple-500/10 to-[#111] px-6 py-4 flex justify-between items-center border-b border-[#222]">
-                        <div className="flex items-center gap-3">
-                            <Sparkles size={18} className="text-purple-400" />
-                            <h2 className="text-sm font-bold text-gray-200 tracking-wide uppercase">AI Smart Tools</h2>
+                    <div className="bg-[#323232] px-4 py-2.5 flex justify-between items-center border-b border-[#454545] shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Wand2 size={16} className="text-sky-400" />
+                            <h2 className="text-[13px] font-semibold text-gray-100">Smart Tools</h2>
                             {paths.length > 0 && (
-                                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">{paths.length} selected</span>
+                                <span className="text-[10px] bg-[#094771] text-white px-2 py-0.5">{paths.length} selected</span>
                             )}
                         </div>
-                        <button onClick={onClose} className="p-1.5 text-gray-500 hover:text-white hover:bg-[#222] rounded-lg transition-colors">
-                            <X size={16} />
+                        <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
+                            <X size={14} />
                         </button>
                     </div>
 
-                    <div className="p-6 flex flex-col gap-6">
-                        <div className="grid grid-cols-2 gap-4">
-                            <button onClick={() => handleRunAIAction('summarize')} className="bg-[#141414] hover:bg-[#1a1a1a] border border-[#222] hover:border-purple-500/50 rounded-xl p-4 flex flex-col items-center gap-3 transition-all group">
-                                <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <FileText size={18} className="text-purple-400" />
-                                </div>
-                                <div className="text-center">
-                                    <h3 className="text-sm font-bold text-gray-200">Summarize Documents</h3>
-                                    <p className="text-[11px] text-gray-500 mt-1">Read selected text files and generate a summary.</p>
-                                </div>
+                    <div className="flex border-b border-[#454545] bg-[#2b2b2b]">
+                        {([
+                            { id: 'organize' as const, label: 'Organize', icon: FolderTree },
+                            { id: 'assistant' as const, label: 'Assistant', icon: Sparkles },
+                            { id: 'duplicates' as const, label: 'Duplicates', icon: Copy },
+                        ]).map(t => (
+                            <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setTab(t.id)}
+                                className={`flex items-center gap-1.5 px-4 py-2 text-[12px] border-b-2 ${
+                                    tab === t.id ? 'border-sky-500 text-white bg-[#333]' : 'border-transparent text-gray-500 hover:text-gray-300'
+                                }`}
+                            >
+                                <t.icon size={12} /> {t.label}
                             </button>
-                            <button onClick={() => handleRunAIAction('organize')} className="bg-[#141414] hover:bg-[#1a1a1a] border border-[#222] hover:border-sky-500/50 rounded-xl p-4 flex flex-col items-center gap-3 transition-all group">
-                                <div className="w-10 h-10 rounded-full bg-sky-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <FolderTree size={18} className="text-sky-400" />
-                                </div>
-                                <div className="text-center">
-                                    <h3 className="text-sm font-bold text-gray-200">Auto-Organize Folder</h3>
-                                    <p className="text-[11px] text-gray-500 mt-1">Sort files into Images, Documents, Audio, Video, and more.</p>
-                                </div>
-                            </button>
-                        </div>
+                        ))}
+                    </div>
 
-                        <div className="flex items-center gap-2 text-[10px] text-gray-600 uppercase tracking-widest">
-                            <Wand2 size={12} /> Local AI (offline after first download) · smart rules fallback
-                        </div>
-
-                        {(loading || result) && (
-                            <div className="bg-[#111] border border-[#333] rounded-xl p-4 mt-2">
-                                {loading ? (
-                                    <div className="flex justify-center items-center gap-2 text-purple-400 text-xs font-mono py-4 animate-pulse">
-                                        <Sparkles size={14} className="animate-spin" /> Processing...
+                    <div className="p-4 flex flex-col gap-3 overflow-y-auto flex-1 min-h-0">
+                        {tab === 'organize' && (
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleOrganize}
+                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                >
+                                    <div className="w-9 h-9 bg-[#094771]/30 flex items-center justify-center shrink-0">
+                                        <FolderTree size={18} className="text-sky-400" />
                                     </div>
-                                ) : (
-                                    <div className="text-gray-300 text-sm whitespace-pre-wrap font-sans leading-relaxed">
-                                        {result}
+                                    <div>
+                                        <h3 className="text-[13px] font-semibold text-gray-100">Auto-Organize Folder</h3>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">Sort into Images, Documents, Audio, Video, and more.</p>
                                     </div>
-                                )}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'batch-rename' } }));
+                                        onClose();
+                                    }}
+                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                >
+                                    <div className="w-9 h-9 bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                        <Sparkles size={18} className="text-emerald-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-[13px] font-semibold text-gray-100">Batch Rename</h3>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">Pattern rename and AI-assisted renaming for selected files.</p>
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
+                                        onClose();
+                                    }}
+                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                >
+                                    <div className="w-9 h-9 bg-amber-900/20 flex items-center justify-center shrink-0">
+                                        <Copy size={18} className="text-amber-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-[13px] font-semibold text-gray-100">Storage Cleanup</h3>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">Find large files, empty folders, and reclaim disk space.</p>
+                                    </div>
+                                </button>
                             </div>
+                        )}
+
+                        {tab === 'assistant' && (
+                            <BndzAssistantPanel
+                                selectedPaths={paths}
+                                currentPath={currentPath ? toWindowsPath(currentPath) : undefined}
+                                initialPrompt={initialPrompt}
+                            />
+                        )}
+
+                        {tab === 'duplicates' && (
+                            <BndzDuplicatesPanel
+                                folderPath={currentPath || '/'}
+                                onReveal={p => {
+                                    onNavigate?.(p.startsWith('/') ? p : `/${p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:')}`);
+                                    onClose();
+                                }}
+                            />
                         )}
                     </div>
                 </motion.div>

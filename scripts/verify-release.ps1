@@ -6,7 +6,8 @@
 param(
     [string]$Runtime = "win-x64",
     [string]$Version = "1.0.0",
-    [switch]$RequireInstaller
+    [switch]$RequireInstaller,
+    [switch]$RequireSigned
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,11 +35,29 @@ Write-Host "`nPublish folder:" -ForegroundColor Yellow
 Test-Artifact (Join-Path $PublishDir "BNDZ.exe") "BNDZ.exe" | Out-Null
 Test-Artifact (Join-Path $PublishDir "Assets\ui\index.html") "UI bundle" | Out-Null
 Test-Artifact (Join-Path $PublishDir "Assets\BNDZ.ico") "App icon" | Out-Null
+foreach ($legal in @("EULA.md", "PRIVACY.md", "THIRD_PARTY_LICENSES.md")) {
+    Test-Artifact (Join-Path $PublishDir "Assets\legal\$legal") "Legal: $legal" | Out-Null
+}
+
+$coreClr = Join-Path $PublishDir "coreclr.dll"
+if (Test-Path $coreClr) {
+    Write-Host "  OK  Self-contained .NET runtime (coreclr.dll)" -ForegroundColor Green
+} else {
+    $failures += "Missing coreclr.dll — publish was not self-contained. Use npm run package:installer (includes -SelfContained)."
+}
 
 $exe = Join-Path $PublishDir "BNDZ.exe"
 if (Test-Path $exe) {
     $vi = (Get-Item $exe).VersionInfo
     Write-Host "  ver FileVersion=$($vi.FileVersion) ProductVersion=$($vi.ProductVersion)" -ForegroundColor DarkGray
+    if ($RequireSigned) {
+        $sig = Get-AuthenticodeSignature $exe
+        if ($sig.Status -eq 'Valid') {
+            Write-Host "  OK  BNDZ.exe Authenticode signature valid" -ForegroundColor Green
+        } else {
+            $failures += "BNDZ.exe is not Authenticode-signed (status: $($sig.Status))"
+        }
+    }
 }
 
 Write-Host "`nPortable package:" -ForegroundColor Yellow
@@ -68,6 +87,14 @@ Write-Host "`nInstaller output:" -ForegroundColor Yellow
 if (Test-Path $SetupExe) {
     $mb = [math]::Round((Get-Item $SetupExe).Length / 1MB, 1)
     Write-Host "  OK  BNDZ-Setup-$Version.exe ($mb MB)" -ForegroundColor Green
+    if ($RequireSigned) {
+        $sig = Get-AuthenticodeSignature $SetupExe
+        if ($sig.Status -eq 'Valid') {
+            Write-Host "  OK  Installer Authenticode signature valid" -ForegroundColor Green
+        } else {
+            $failures += "Installer is not Authenticode-signed (status: $($sig.Status))"
+        }
+    }
 } else {
     if ($RequireInstaller) {
         $failures += "Missing installer: $SetupExe"

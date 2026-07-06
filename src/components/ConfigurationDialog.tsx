@@ -20,6 +20,10 @@ import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { searchJumpSettings } from '../lib/jumpToSettingIndex';
 import { mergeUserCommands } from '../lib/userCommands';
 
+const DevOnly = ({ children }: { children: React.ReactNode }) => (
+  import.meta.env.DEV ? <>{children}</> : null
+);
+
 const SectionHeader = ({ title }: { title: string }) => (
   <h3 className="text-[13px] font-bold text-white mt-6 mb-2 px-1 flex items-center gap-2 first:mt-0">
     <span className="w-1 h-4 rounded-full bg-gradient-to-b from-sky-400 to-violet-500 shrink-0" />
@@ -77,7 +81,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
     { name: "Find and Filter", items: ["Find Files & Branch View", "Filters & Type Ahead Find"] },
     { name: "Preview", items: ["Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up"] },
     { name: "Tabs and Panes", items: ["Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel"] },
-    { name: "Other", items: ["Shell Integration", "Features"] }
+    { name: "Other", items: ["Shell Integration", "Rapid access", "Features"] }
   ];
 
   const jumpResults = searchJumpSettings(jumpQuery, categories.flatMap(c => c.items));
@@ -1056,6 +1060,10 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               <SectionHeader title="Find Files" />
               <div className="ml-2 mb-6 space-y-[6px]">
                   <Checkbox label={<span>Enable Omni-Filter EverythingNet <span className="underline decoration-1 underline-offset-[3px]">G</span>lobal Search Prefix (&gt; )</span>} checked={localConfig.enableGlobalSearchPrefix ?? true} onChange={e => updateLocalConfig({ enableGlobalSearchPrefix: e.target.checked })} />
+                  <Checkbox label={<span>Use BNDZ indexed search for &gt; global search</span>} checked={localConfig.enableBndzIndexedSearch !== false} onChange={e => updateLocalConfig({ enableBndzIndexedSearch: e.target.checked })} />
+                  <Checkbox label={<span>Use Everything search when available</span>} checked={localConfig.enableEverythingSearch !== false} onChange={e => updateLocalConfig({ enableEverythingSearch: e.target.checked })} />
+                  <Checkbox label={<span>Search inside file contents (slower)</span>} checked={localConfig.searchFileContent === true} onChange={e => updateLocalConfig({ searchFileContent: e.target.checked })} />
+                  <p className="text-[11px] text-gray-500 ml-[20px]">Right-click any folder → <span className="text-gray-400">Index folder for search</span> to add it to the local cache.</p>
                   <div className="ml-[20px]">
                      <div className="flex items-center gap-2 mb-1">
                         <input type="number" 
@@ -1880,6 +1888,26 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               </div>
             </TabsContent>
 
+            <TabsContent value="Rapid access" className="m-0 border-0 p-0 outline-none mt-1">
+              <h1 className="text-[22px] font-bold text-white mb-6 tracking-tight">Rapid access</h1>
+              <p className="text-[12px] text-[#e0e0e0] leading-relaxed mb-6 w-[580px]">
+                Pin folders from the context menu or sidebar. Hidden default locations (Desktop, Documents, etc.) can be restored below.
+              </p>
+              <SectionHeader title="Defaults" />
+              <div className="ml-[10px] mb-6 space-y-3">
+                <p className="text-[11px] text-[#888]">
+                  {(localConfig.hiddenRapidAccess || []).length > 0
+                    ? `${(localConfig.hiddenRapidAccess || []).length} default location(s) hidden.`
+                    : 'All default Rapid access locations are visible.'}
+                </p>
+                <ActionBtn
+                  label="Restore hidden defaults"
+                  onClick={() => updateLocalConfig({ hiddenRapidAccess: [] })}
+                  className={!(localConfig.hiddenRapidAccess || []).length ? 'opacity-50 pointer-events-none' : ''}
+                />
+              </div>
+            </TabsContent>
+
             <TabsContent value="Features" className="m-0 border-0 p-0 outline-none flex flex-col h-full">
               <h1 className="text-[22px] font-bold text-white mb-6 tracking-tight">Features</h1>
               <p className="text-[12px] text-[#e0e0e0] leading-relaxed mb-10 w-[580px]">
@@ -2192,6 +2220,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Templates</h1>
                
                <div className="max-w-[550px] space-y-[24px]">
+                  <DevOnly>
                   <div>
                      <span className="text-[12px] font-bold text-white mb-[8px] block">Filename Affixes</span>
                      <div className="flex gap-2 items-center mb-1">
@@ -2243,6 +2272,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                      </div>
                      <p className="text-[12px] text-[#e0e0e0] ml-[20px] mt-1">Use &lt;command&gt; as placeholder for address bar input (!-escape).</p>
                   </div>
+                  </DevOnly>
                </div>
             </TabsContent>
 

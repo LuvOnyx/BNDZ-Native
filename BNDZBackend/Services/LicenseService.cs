@@ -14,20 +14,50 @@ public sealed class LicenseRecord
     public bool IsValid { get; set; }
 }
 
+public sealed class TrialRecord
+{
+    public DateTime FirstRunUtc { get; set; }
+    public string Integrity { get; set; } = "";
+}
+
+public sealed class LicenseStatusDto
+{
+    public bool Activated { get; set; }
+    public bool CanUseApp { get; set; }
+    public bool TrialExpired { get; set; }
+    public int TrialDaysTotal { get; set; }
+    public int TrialDaysRemaining { get; set; }
+    public string? TrialEndsAt { get; set; }
+    public string? Email { get; set; }
+    public string? Name { get; set; }
+    public string? SerialMasked { get; set; }
+}
+
 /// <summary>
-/// Offline license activation — replace LicenseSecret before shipping builds.
-/// Serial format: BNDZ-XXXX-XXXX-CCCC where CCCC is an HMAC checksum of the middle segments.
+/// Offline license + 14-day trial. Set BNDZ_LICENSE_SECRET env var for retail builds.
+/// Serial format: BNDZ-XXXX-XXXX-CCCC
 /// </summary>
 public static class LicenseService
 {
-    private const string LicenseSecret = "BNDZ-36-Commercial-Key-Seed-CHANGE-ME";
+    public const int TrialDays = 14;
+    private const string DefaultDevSecret = "BNDZ-36-Commercial-Key-Seed-CHANGE-ME";
 
-    private static string LicensePath => Path.Combine(
+    private static string AppDataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "BNDZ64",
-        "license.json");
+        "BNDZ64");
 
-    public static LicenseRecord? GetStatus()
+    private static string LicensePath => Path.Combine(AppDataDir, "license.json");
+    private static string TrialPath => Path.Combine(AppDataDir, "trial.json");
+
+    private static string LicenseSecret =>
+        Environment.GetEnvironmentVariable("BNDZ_LICENSE_SECRET")?.Trim() is { Length: > 0 } s
+            ? s
+            : DefaultDevSecret;
+
+    public static bool IsUsingDefaultSecret =>
+        string.Equals(LicenseSecret, DefaultDevSecret, StringComparison.Ordinal);
+
+    public static LicenseRecord? GetActivatedRecord()
     {
         try
         {
@@ -36,12 +66,47 @@ public static class LicenseService
             var rec = JsonSerializer.Deserialize<LicenseRecord>(json);
             if (rec == null) return null;
             rec.IsValid = ValidateSerial(rec.Serial);
-            return rec;
+            return rec.IsValid ? rec : null;
         }
         catch
         {
             return null;
         }
+    }
+
+    public static LicenseStatusDto GetStatus()
+    {
+        var activated = GetActivatedRecord();
+        if (activated != null)
+        {
+            return new LicenseStatusDto
+            {
+                Activated = true,
+                CanUseApp = true,
+                TrialExpired = false,
+                TrialDaysTotal = TrialDays,
+                TrialDaysRemaining = TrialDays,
+                Email = activated.Email,
+                Name = activated.Name,
+                SerialMasked = MaskSerial(activated.Serial),
+            };
+        }
+
+        var trial = EnsureTrialRecord();
+        var endsAt = trial.FirstRunUtc.AddDays(TrialDays);
+        var remaining = (int)Math.Ceiling((endsAt - DateTime.UtcNow).TotalDays);
+        if (remaining < 0) remaining = 0;
+        var expired = DateTime.UtcNow >= endsAt;
+
+        return new LicenseStatusDto
+        {
+            Activated = false,
+            CanUseApp = !expired,
+            TrialExpired = expired,
+            TrialDaysTotal = TrialDays,
+            TrialDaysRemaining = remaining,
+            TrialEndsAt = endsAt.ToString("o"),
+        };
     }
 
     public static (bool success, string message) Activate(string serial, string email, string name)
@@ -66,10 +131,7 @@ public static class LicenseService
             IsValid = true,
         };
 
-        var dir = Path.GetDirectoryName(LicensePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
+        Directory.CreateDirectory(AppDataDir);
         File.WriteAllText(LicensePath, JsonSerializer.Serialize(rec, new JsonSerializerOptions { WriteIndented = true }));
         return (true, "BNDZ has been activated. Thank you for your purchase!");
     }
@@ -109,6 +171,47 @@ public static class LicenseService
         if (string.IsNullOrEmpty(serial) || serial.Length < 12)
             return "BNDZ-****-****-****";
         return $"{serial[..9]}****{serial[^4..]}";
+    }
+
+    private static TrialRecord EnsureTrialRecord()
+    {
+        try
+        {
+            if (File.Exists(TrialPath))
+            {
+                var existing = JsonSerializer.Deserialize<TrialRecord>(File.ReadAllText(TrialPath));
+                if (existing != null && ValidateTrialIntegrity(existing))
+                    return existing;
+            }
+        }
+        catch
+        {
+            // fall through to create fresh trial
+        }
+
+        var trial = new TrialRecord
+        {
+            FirstRunUtc = DateTime.UtcNow,
+        };
+        trial.Integrity = SignTrial(trial.FirstRunUtc);
+        Directory.CreateDirectory(AppDataDir);
+        File.WriteAllText(TrialPath, JsonSerializer.Serialize(trial, new JsonSerializerOptions { WriteIndented = true }));
+        return trial;
+    }
+
+    private static bool ValidateTrialIntegrity(TrialRecord trial)
+    {
+        if (trial.FirstRunUtc > DateTime.UtcNow.AddDays(1))
+            return false;
+        var expected = SignTrial(trial.FirstRunUtc);
+        return string.Equals(trial.Integrity, expected, StringComparison.Ordinal);
+    }
+
+    private static string SignTrial(DateTime firstRunUtc)
+    {
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(LicenseSecret));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(firstRunUtc.Ticks.ToString()));
+        return Convert.ToHexString(hash.AsSpan(0, 8));
     }
 
     private static string ComputeChecksum(string payload)

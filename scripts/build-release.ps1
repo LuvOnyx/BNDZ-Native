@@ -11,6 +11,9 @@ param(
     [switch]$SelfContained,
     [switch]$BuildInstaller,
     [switch]$Sign,
+    [switch]$BuildRustSidecars,
+    [switch]$RequireRustSidecars,
+    [switch]$BuildSpacedriveWeb,
     [switch]$SkipWebView2Download,
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
@@ -69,6 +72,28 @@ function Invoke-CodeSign {
 
 Push-Location $Root
 try {
+    if ($BuildInstaller -and -not $env:BNDZ_LICENSE_SECRET) {
+        Write-Warning "BNDZ_LICENSE_SECRET is not set — retail builds should use a unique secret before generating customer serials."
+    }
+    if ($BuildInstaller -and $env:BNDZ_LICENSE_SECRET -eq "BNDZ-36-Commercial-Key-Seed-CHANGE-ME") {
+        Write-Warning "BNDZ_LICENSE_SECRET is still the development placeholder. Rotate before shipping installers."
+    }
+
+    Write-Host "==> Copying legal documents" -ForegroundColor Yellow
+    & (Join-Path $Root "scripts\copy-legal-docs.ps1") -Root $Root
+
+    if ($BuildRustSidecars) {
+        Write-Host "==> Building vendored Rust sidecars from source" -ForegroundColor Yellow
+        & (Join-Path $Root "scripts\build-rust-sidecars.ps1") -Root $Root -Configuration $Configuration -BuildSpacedriveWeb:$BuildSpacedriveWeb
+        if ($LASTEXITCODE -ne 0) { throw "Rust sidecar build failed" }
+    } elseif ($RequireRustSidecars) {
+        Write-Host "==> Verifying staged Rust sidecars" -ForegroundColor Yellow
+        & (Join-Path $Root "scripts\stage-rust-sidecars.ps1") -Root $Root -Configuration $Configuration -RequireSpacedrive -RequireSpacebot
+        if ($LASTEXITCODE -ne 0) { throw "Rust sidecar staging failed" }
+    } else {
+        Write-Host "==> Skipping Rust sidecars (use -RequireRustSidecars to package staged Spacedrive/Spacebot)" -ForegroundColor DarkGray
+    }
+
     Write-Host "==> Building frontend (Vite -> BNDZBackend/Assets/ui)" -ForegroundColor Yellow
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "npm run build failed" }
@@ -150,7 +175,8 @@ try {
     if (Test-Path $VerifyScript) {
         Write-Host "==> Verifying release artifacts" -ForegroundColor Yellow
         $requireInstaller = if ($BuildInstaller) { [bool]$builtInstaller } else { $false }
-        & $VerifyScript -Runtime $Runtime -Version $Version -RequireInstaller:$requireInstaller
+        $requireSigned = [bool]($Sign -or $env:BNDZ_SIGN_CERT_THUMBPRINT -or $env:BNDZ_SIGN_PFX_PATH)
+        & $VerifyScript -Runtime $Runtime -Version $Version -RequireInstaller:$requireInstaller -RequireSigned:$requireSigned
         if ($LASTEXITCODE -ne 0) { throw "Release verification failed" }
     }
 }

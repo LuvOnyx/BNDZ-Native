@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Threading.Tasks;
@@ -95,7 +96,10 @@ namespace BNDZ
 
         private void OnMainWindowClosing(object? sender, CancelEventArgs e)
         {
-            if (_allowClose) return;
+            if (_allowClose)
+            {
+                return;
+            }
             e.Cancel = true;
             RequestCloseFromUI("x");
         }
@@ -417,6 +421,23 @@ namespace BNDZ
             while (_fseventBuffer.TryDequeue(out var ev))
             {
                 batch.Add(ev);
+            }
+
+            foreach (var raw in batch)
+            {
+                try
+                {
+                    var evJson = JsonSerializer.Serialize(raw);
+                    using var doc = JsonDocument.Parse(evJson);
+                    var root = doc.RootElement;
+                    var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                    var dir = root.TryGetProperty("dir", out var d) ? d.GetString() : null;
+                    var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+                    var oldName = root.TryGetProperty("oldName", out var o) ? o.GetString() : null;
+                    if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(name))
+                        BndzFileIndexService.Instance.ApplyFsEvent(type, dir, name, oldName);
+                }
+                catch { }
             }
 
             var payload = new { type = "FS_EVENT_BATCH", payload = batch };
@@ -1211,6 +1232,7 @@ namespace BNDZ
                     bool useEverything = !payload.TryGetProperty("useEverything", out var evEl) || evEl.ValueKind != JsonValueKind.False;
                     bool searchContent = payload.TryGetProperty("searchContent", out var scEl) && scEl.ValueKind == JsonValueKind.True;
                     bool booleanMode = payload.TryGetProperty("booleanMode", out var bmEl) && bmEl.ValueKind == JsonValueKind.True;
+                    bool preferBndzIndex = !payload.TryGetProperty("preferBndzIndex", out var biEl) || biEl.ValueKind != JsonValueKind.False;
                     string rootPath = payload.TryGetProperty("rootPath", out var rootEl) ? rootEl.GetString() ?? "" : "";
                     var rootPaths = new List<string>();
                     if (payload.TryGetProperty("rootPaths", out var rootsEl) && rootsEl.ValueKind == JsonValueKind.Array)
@@ -1233,10 +1255,11 @@ namespace BNDZ
                     {
                         var searchSvc = new EverythingSearchService();
                         var (results, engine) = rootPaths.Count > 1 || booleanMode
-                            ? searchSvc.SearchAdvanced(query, limit, useRegex, rootPaths, useEverything, searchContent, booleanMode)
-                            : searchSvc.Search(query, limit, useRegex, rootPath, useEverything, searchContent);
+                            ? searchSvc.SearchAdvanced(query, limit, useRegex, rootPaths, useEverything, searchContent, booleanMode, preferBndzIndex)
+                            : searchSvc.Search(query, limit, useRegex, rootPath, useEverything, searchContent, preferBndzIndex);
 
-                        var response = new { type = "GLOBAL_SEARCH_RESULT", id = idProp, payload = new { items = results, engine } };
+                        var enrichedResults = BndzTagSidecarStore.EnrichDirResults(results, _tagSidecarStore);
+                        var response = new { type = "GLOBAL_SEARCH_RESULT", id = idProp, payload = new { items = enrichedResults, engine } };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         string responseJson = JsonSerializer.Serialize(response, jsonOptions);
 
@@ -2488,6 +2511,124 @@ namespace BNDZ
                         });
                     });
                 }
+                else if (type == "GET_INDEXED_ENTRY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string panePath = "";
+                    if (root.TryGetProperty("payload", out var idxPayload) && idxPayload.TryGetProperty("path", out var pathEl))
+                        panePath = pathEl.GetString() ?? "";
+
+                    _ = Task.Run(() =>
+                    {
+                        var meta = BndzFileIndexService.Instance.GetEntry(panePath);
+                        var response = new { type = "INDEXED_ENTRY_RESULT", id = idProp, payload = meta };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                        });
+                    });
+                }
+                else if (type == "GET_VIRTUAL_VIEW_CONTENTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string view = "";
+                    int limit = 500;
+                    if (root.TryGetProperty("payload", out var viewPayload))
+                    {
+                        if (viewPayload.TryGetProperty("view", out var viewEl))
+                            view = viewEl.GetString() ?? "";
+                        if (viewPayload.TryGetProperty("limit", out var limEl) && limEl.ValueKind == JsonValueKind.Number)
+                            limit = limEl.GetInt32();
+                    }
+
+                    _ = Task.Run(() =>
+                    {
+                        var svc = BndzFileIndexService.Instance;
+                        List<object> rawItems = view switch
+                        {
+                            "recent" => svc.GetRecentFiles(limit),
+                            "media" => svc.GetMediaFiles(limit),
+                            "large" => svc.GetLargeFiles(limit),
+                            _ => [],
+                        };
+                        var items = BndzTagSidecarStore.EnrichDirResults(rawItems, _tagSidecarStore);
+                        var response = new { type = "VIRTUAL_VIEW_CONTENTS_RESULT", id = idProp, payload = new { items } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                        });
+                    });
+                }
+                else if (type == "INDEX_BNDZ_LOCATION")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string panePath = "";
+                    if (root.TryGetProperty("payload", out var idxPayload) && idxPayload.TryGetProperty("path", out var pathEl))
+                        panePath = pathEl.GetString() ?? "";
+
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var win = panePath.Replace("/", "\\").TrimStart('\\');
+                            if (win.Length >= 2 && win[0] == '\\' && char.IsLetter(win[1]) && win.Length >= 3 && win[2] == ':')
+                                win = win.Substring(1);
+                            if (!string.IsNullOrWhiteSpace(win) && Directory.Exists(win))
+                                BndzFileIndexService.Instance.IndexLocation(win, CancellationToken.None, maxDepth: 8);
+                            var response = new { type = "INDEX_BNDZ_LOCATION_RESULT", id = idProp, payload = new { ok = true } };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new { type = "INDEX_BNDZ_LOCATION_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                    });
+                }
+                else if (type == "GET_INDEX_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var status = BndzFileIndexService.Instance.GetIndexStatus();
+                            var response = new { type = "INDEX_STATUS_RESULT", id = idProp, payload = status };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new { type = "INDEX_STATUS_RESULT", id = idProp, payload = new { error = ex.Message } };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                    });
+                }
+                else if (type == "REINDEX_BNDZ_DEFAULTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            BndzFileIndexService.Instance.EnsureDefaultLocationsIndexedAsync(CancellationToken.None);
+                            var response = new { type = "REINDEX_BNDZ_DEFAULTS_RESULT", id = idProp, payload = new { ok = true } };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new { type = "REINDEX_BNDZ_DEFAULTS_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                    });
+                }
                 else if (type == "GET_SYSTEM_SHORTCUTS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
@@ -2565,19 +2706,71 @@ namespace BNDZ
                         });
                     });
                 }
+                else if (type == "OPEN_LEGAL_DOC")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string docKey = "";
+                    if (root.TryGetProperty("payload", out var legalPayload)
+                        && legalPayload.TryGetProperty("doc", out var docEl))
+                        docKey = docEl.GetString() ?? "";
+
+                    var fileName = docKey switch
+                    {
+                        "eula" => "EULA.md",
+                        "privacy" => "PRIVACY.md",
+                        "third-party" => "THIRD_PARTY_LICENSES.md",
+                        _ => ""
+                    };
+
+                    bool ok = false;
+                    string? error = null;
+                    if (string.IsNullOrEmpty(fileName))
+                    {
+                        error = "Unknown legal document.";
+                    }
+                    else
+                    {
+                        var legalPath = Path.Combine(AppContext.BaseDirectory, "Assets", "legal", fileName);
+                        if (!File.Exists(legalPath))
+                            error = $"Document not found: {fileName}";
+                        else
+                        {
+                            try
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(legalPath)
+                                {
+                                    UseShellExecute = true
+                                });
+                                ok = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                error = ex.Message;
+                            }
+                        }
+                    }
+
+                    var response = new { type = "OPEN_LEGAL_DOC_RESULT", id = idProp, payload = new { ok, error } };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
                 else if (type == "GET_LICENSE_STATUS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var rec = LicenseService.GetStatus();
-                    object payload = rec == null
-                        ? new { activated = false }
-                        : new
-                        {
-                            activated = rec.IsValid,
-                            email = rec.Email,
-                            name = rec.Name,
-                            serialMasked = LicenseService.MaskSerial(rec.Serial),
-                        };
+                    var status = LicenseService.GetStatus();
+                    var payload = new
+                    {
+                        activated = status.Activated,
+                        canUseApp = status.CanUseApp,
+                        trialExpired = status.TrialExpired,
+                        trialDaysTotal = status.TrialDaysTotal,
+                        trialDaysRemaining = status.TrialDaysRemaining,
+                        trialEndsAt = status.TrialEndsAt,
+                        email = status.Email,
+                        name = status.Name,
+                        serialMasked = status.SerialMasked,
+                    };
                     var response = new { type = "LICENSE_STATUS_RESULT", id = idProp, payload };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() =>
@@ -2608,20 +2801,61 @@ namespace BNDZ
                 else if (type == "GET_TAGS_CONFIG")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var defaultTags = new List<object>
+                    var tagsConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BNDZ64", "tags-config.json");
+                    List<object> tags;
+                    try
                     {
-                        new { id = "red", label = "Important", color = "#ff4444" },
-                        new { id = "orange", label = "Work", color = "#ff9900" },
-                        new { id = "yellow", label = "Personal", color = "#ffdd00" },
-                        new { id = "green", label = "Approved", color = "#00cc44" },
-                        new { id = "blue", label = "To Review", color = "#0088ff" },
-                        new { id = "purple", label = "Archive", color = "#aa00ff" }
-                    };
-                    var response = new { type = "TAGS_CONFIG_RESULT", id = idProp, payload = defaultTags };
+                        if (File.Exists(tagsConfigPath))
+                        {
+                            var saved = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(File.ReadAllText(tagsConfigPath));
+                            tags = (saved ?? new List<Dictionary<string, string>>())
+                                .Select(t => {
+                                    var n = t.TryGetValue("name", out var nv) ? nv : (t.TryGetValue("id", out var iv) ? iv : "");
+                                    var l = t.TryGetValue("label", out var lv) ? lv : n;
+                                    var c = t.TryGetValue("color", out var cv) ? cv : "#888888";
+                                    return (object)new { name = n, id = n, label = l, color = c };
+                                }).ToList<object>();
+                        }
+                        else
+                        {
+                            tags = new List<object>
+                            {
+                                new { name = "red",    id = "red",    label = "Important", color = "#ff4444" },
+                                new { name = "orange", id = "orange", label = "Work",      color = "#ff9900" },
+                                new { name = "yellow", id = "yellow", label = "Personal",  color = "#ffdd00" },
+                                new { name = "green",  id = "green",  label = "Approved",  color = "#00cc44" },
+                                new { name = "blue",   id = "blue",   label = "To Review", color = "#0088ff" },
+                                new { name = "purple", id = "purple", label = "Archive",   color = "#aa00ff" },
+                            };
+                        }
+                    }
+                    catch
+                    {
+                        tags = new List<object>
+                        {
+                            new { name = "red",    id = "red",    label = "Important", color = "#ff4444" },
+                            new { name = "orange", id = "orange", label = "Work",      color = "#ff9900" },
+                            new { name = "yellow", id = "yellow", label = "Personal",  color = "#ffdd00" },
+                            new { name = "green",  id = "green",  label = "Approved",  color = "#00cc44" },
+                            new { name = "blue",   id = "blue",   label = "To Review", color = "#0088ff" },
+                            new { name = "purple", id = "purple", label = "Archive",   color = "#aa00ff" },
+                        };
+                    }
+                    var response = new { type = "TAGS_CONFIG_RESULT", id = idProp, payload = tags };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
+                }
+                else if (type == "SAVE_TAGS_CONFIG")
+                {
+                    try
+                    {
+                        var tagsConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BNDZ64", "tags-config.json");
+                        var tagsEl = root.GetProperty("payload").GetProperty("tags");
+                        File.WriteAllText(tagsConfigPath, tagsEl.GetRawText());
+                    }
+                    catch { /* non-critical */ }
                 }
                 else if (type == "APPLY_TAGS")
                 {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useAppConfig } from '../data/configContext';
+import { tagChipId } from '../lib/tagUtils';
 import {
   DndContext,
   closestCenter,
@@ -146,7 +147,7 @@ export function resolveToolbarItem(id: string, tags?: Array<{ id?: string; name?
 
 export function buildTagToolbarItems(tags: Array<{ id?: string; name?: string; label?: string; color?: string }>): ToolbarItemDef[] {
   return (tags || []).map(t => ({
-    id: `tag__${t.id || t.name}`,
+    id: `tag__${tagChipId(t)}`,
     label: `Apply ${t.label || t.name}`,
     icon: Tag,
     color: t.color || '#fbbf24',

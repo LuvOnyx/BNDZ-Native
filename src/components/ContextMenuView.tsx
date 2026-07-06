@@ -12,10 +12,13 @@ import {
   isContextMenuBackground,
   contextMenuRefreshLabel,
 } from '../lib/contextMenuActions';
-import { toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, normalizePanePath } from '../lib/pathUtils';
+import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath } from '../lib/pathUtils';
+import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
+import { resolveTagKey } from '../lib/tagUtils';
+import { dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
-import { buildSettingsRuntime } from '../lib/settingsRuntime';
+import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
 import type { ClipboardAction } from '../data/ClipboardContext';
 
@@ -26,6 +29,7 @@ interface ContextMenuViewProps {
   updateConfig: (patch: any) => void;
   activePaneId: string;
   addTab: (paneId: string, path: string) => void;
+  onOpenBatchRename?: () => void;
   setIsSmartToolsOpen: (v: boolean) => void;
   setToastMessage: (msg: string) => void;
   setInlineRename: (v: { path: string; entityId: string; currentName: string } | null) => void;
@@ -37,13 +41,17 @@ interface ContextMenuViewProps {
   onRefreshTree?: () => void;
   onCopyTo?: (sources: string[]) => void | Promise<void>;
   onMoveTo?: (sources: string[]) => void | Promise<void>;
+  availableTags?: Array<{ id?: string; name?: string; label?: string; color?: string }>;
+  onToggleTag?: (tag: { id?: string; name?: string; label?: string; color?: string }) => void | Promise<void>;
+  /** Paths of sidebar items that are default (non-pinned) rapid-access entries, used to show Hide option. */
+  rapidAccessDefaultPaths?: string[];
 }
 
-export default function ContextMenuView({
+function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
-  setIsSmartToolsOpen, setToastMessage, setInlineRename,
+  onOpenBatchRename, setIsSmartToolsOpen, setToastMessage, setInlineRename,
   setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
-  onCopyTo, onMoveTo,
+  onCopyTo, onMoveTo, availableTags, onToggleTag, rapidAccessDefaultPaths,
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
   const targetPaths = resolveContextTargetPaths(menu);
@@ -56,8 +64,10 @@ export default function ContextMenuView({
   };
   const supplementalNative = filterSupplementalNativeItems(menu.nativeContextItems);
   const [iconLibs, setIconLibs] = useState<any[]>(config.iconLibraries || []);
+  const [iconLibsLoaded, setIconLibsLoaded] = useState(false);
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
   const [shareLoading, setShareLoading] = useState(false);
+  const [shareRequested, setShareRequested] = useState(false);
   const [menuFilter, setMenuFilter] = useState('');
 
   const staticShareMain: import('../lib/ipcBridge').ShareMenuItem[] = !isBackground && targetPaths.length > 0
@@ -72,6 +82,13 @@ export default function ContextMenuView({
   const runIpc = async () => (await import('../lib/ipcBridge')).IPC;
 
   useEffect(() => {
+    setShareRequested(false);
+    setShareItems([]);
+    setShareLoading(false);
+  }, [menu.entityId, menu.path, menu.x, menu.y]);
+
+  useEffect(() => {
+    if (!iconLibsLoaded) return;
     let active = true;
     (async () => {
       try {
@@ -85,10 +102,14 @@ export default function ContextMenuView({
       }
     })();
     return () => { active = false; };
-  }, [menu.x, menu.y, config.iconLibraries]);
+  }, [menu.x, menu.y, config.iconLibraries, iconLibsLoaded]);
+
+  const ensureIconLibraries = () => {
+    if (!iconLibsLoaded) setIconLibsLoaded(true);
+  };
 
   useEffect(() => {
-    if (isBackground || !targetPaths.length) {
+    if (isBackground || !targetPaths.length || !shareRequested) {
       setShareItems([]);
       setShareLoading(false);
       return;
@@ -107,29 +128,7 @@ export default function ContextMenuView({
       }
     })();
     return () => { active = false; };
-  }, [menu.entityId, menu.path, isBackground, targetPaths[0]]);
-
-  // Close the menu when the pointer leaves the menu (and any of its portaled
-  // submenu flyouts) for a short grace period.
-  useEffect(() => {
-    const SELECTOR = '[data-bndz-context-menu], [data-bndz-submenu-flyout]';
-    let closeTimer: ReturnType<typeof setTimeout> | null = null;
-    const clear = () => { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } };
-    const onPointerMove = (e: MouseEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (el?.closest?.(SELECTOR)) { clear(); return; }
-      if (!closeTimer) closeTimer = setTimeout(() => onClose(), 320);
-    };
-    // Delay attaching so the initial open (pointer may momentarily be off-menu) doesn't self-close.
-    const attach = setTimeout(() => {
-      document.addEventListener('mousemove', onPointerMove, true);
-    }, 120);
-    return () => {
-      clearTimeout(attach);
-      clear();
-      document.removeEventListener('mousemove', onPointerMove, true);
-    };
-  }, [onClose]);
+  }, [menu.entityId, menu.path, isBackground, targetPaths[0], shareRequested]);
 
   const handleShareItem = async (item: import('../lib/ipcBridge').ShareMenuItem) => {
     const wins = targetPaths.filter(isValidShellTarget).map(p => toWindowsPath(p));
@@ -175,12 +174,25 @@ export default function ContextMenuView({
       return;
     }
     if (v === 'paste') {
+      if (isBndzVirtualPath(menu.path)) {
+        setToastMessage('Smart views are read-only. Open a folder to paste.');
+        onClose();
+        return;
+      }
       await executePaste(menu.path);
       onClose();
       return;
     }
     if (v === 'rename' && menu.entityId && menu.entityName) {
-      setInlineRename({ path: menu.path, entityId: menu.entityId, currentName: menu.entityName });
+      setInlineRename({
+        path: menu.path,
+        entityId: menu.entityId,
+        currentName: getRenameInitialValue({
+          name: menu.entityName,
+          extension: menu.entityExtension || undefined,
+          type: menu.isDirectory ? 'directory' : 'file',
+        }, config),
+      });
       onClose();
       return;
     }
@@ -286,6 +298,46 @@ export default function ContextMenuView({
         {config.enableContextSubmenus !== false && (
           <>
             <ContextSubmenu label="Smart Tools" iconVerb="sparkles" groupClass="bg-smart">
+              {targetPaths.length > 0 && (
+                <ContextMenuItem
+                  label="Ask about selection"
+                  iconVerb="sparkles"
+                  onClick={e => {
+                    e.stopPropagation();
+                    const prompt = `What can you tell me about these ${targetPaths.length} item(s)?\n${targetPaths.slice(0, 8).map(p => toWindowsPath(p)).join('\n')}`;
+                    window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'assistant', prompt } }));
+                    onClose();
+                  }}
+                />
+              )}
+              <ContextMenuItem
+                label="Assistant"
+                iconVerb="sparkles"
+                onClick={e => {
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'assistant' } }));
+                  onClose();
+                }}
+              />
+              <ContextMenuItem
+                label="Find duplicates"
+                iconVerb="copy"
+                onClick={e => {
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'duplicates' } }));
+                  onClose();
+                }}
+              />
+              <ContextMenuItem
+                label="Auto-organize folder"
+                iconVerb="folder"
+                onClick={e => {
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'organize' } }));
+                  onClose();
+                }}
+              />
+              <div className="bndz-context-menu-sep" />
               {[
                 ['Create folders 01-12.bat', 'Assets/Resources/Scripts/Create folders 01-12.bat'],
                 ['Example parsing selection with PowerShell.ps1', 'Assets/Resources/Scripts/Example parsing selection with PowerShell.ps1'],
@@ -344,6 +396,56 @@ export default function ContextMenuView({
             {supplementalNative.map(renderNativeItem)}
           </>
         )}
+      </ClampedFixedMenu>
+    );
+  }
+
+  if (menu.surface === 'sidebar-item') {
+    const itemPath = normalizePanePath(menu.path);
+    const norm = itemPath.replace(/\\/g, '/').toLowerCase();
+    const pinned = config.pinnedFavorites || [];
+    const isPinned = pinned.some((p: any) => normalizePanePath(p.path).replace(/\\/g, '/').toLowerCase() === norm);
+    const isHidden = (config.hiddenRapidAccess || []).some((p: string) => normalizePanePath(p).replace(/\\/g, '/').toLowerCase() === norm);
+    const isDefault = (rapidAccessDefaultPaths || []).some(p => normalizePanePath(p).replace(/\\/g, '/').toLowerCase() === norm);
+
+    return (
+      <ClampedFixedMenu
+        x={menu.x}
+        y={menu.y}
+        className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[200px] bndz-scrollbar"
+        onMouseDown={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
+      >
+        <ContextMenuItem
+          label="Open"
+          iconVerb="open"
+          className="font-semibold"
+          onClick={() => handleVerb('open')}
+        />
+        {isPinned && (
+          <ContextMenuItem
+            label="Unpin from Rapid access"
+            icon={Star}
+            onClick={() => {
+              updateConfig({ pinnedFavorites: dedupePinnedFavorites(pinned.filter((p: any) => normalizePanePath(p.path).replace(/\\/g, '/').toLowerCase() !== norm)) });
+              setToastMessage(`Unpinned "${menu.entityName || 'folder'}" from Rapid access.`);
+              onClose();
+            }}
+          />
+        )}
+        {isDefault && !isHidden && (
+          <ContextMenuItem
+            label="Hide from Rapid access"
+            iconVerb="delete"
+            onClick={() => {
+              updateConfig({ hiddenRapidAccess: [...(config.hiddenRapidAccess || []), itemPath] });
+              setToastMessage(`Hidden "${menu.entityName || 'folder'}" from Rapid access. Restore in Settings → Rapid access.`);
+              onClose();
+            }}
+          />
+        )}
+        <div className="bndz-context-menu-sep" />
+        <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
       </ClampedFixedMenu>
     );
   }
@@ -426,35 +528,16 @@ export default function ContextMenuView({
 
       <div className="bndz-context-menu-sep" />
 
-      <ContextSubmenu label="Pin to menu" iconVerb="pin">
-        {[
-          { verb: 'cut', label: 'Cut' },
-          { verb: 'copy', label: 'Copy' },
-          { verb: 'paste', label: 'Paste' },
-          { verb: 'delete', label: 'Delete' },
-          { verb: 'properties', label: 'Properties' },
-        ].map(({ verb, label }) => {
-          const pinned = (config.pinnedContextActions || []).some((p: { verb?: string }) => p.verb === verb);
-          return (
-            <ContextMenuItem
-              key={verb}
-              label={`${pinned ? '✓ ' : ''}${label}`}
-              iconVerb={verb as any}
-              onClick={() => {
-                const pins = config.pinnedContextActions || [];
-                const next = pinned
-                  ? pins.filter((p: { verb?: string }) => p.verb !== verb)
-                  : [...pins, { id: `pin-${verb}`, label, verb }];
-                updateConfig({ pinnedContextActions: next });
-                setToastMessage(pinned ? `Unpinned ${label}` : `Pinned ${label} to menu`);
-                onClose();
-              }}
-            />
-          );
-        })}
-      </ContextSubmenu>
-
-      <div className="bndz-context-menu-sep" />
+      {!isBackground && targetPaths.length > 0 && (
+        <ContextMenuItem
+          label="Ask Agent about selection"
+          iconVerb="sparkles"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'agent' } }));
+            onClose();
+          }}
+        />
+      )}
 
       {/* Standard file operations */}
       <ContextMenuItem label="Cut" iconVerb="cut" onClick={() => handleVerb('cut')} />
@@ -486,7 +569,7 @@ export default function ContextMenuView({
       <ContextMenuItem label="Rename" iconVerb="rename" onClick={() => handleVerb('rename')} />
 
       {!isBackground && showShareMenu && (
-        <ContextSubmenu label="Share" iconVerb="share">
+        <ContextSubmenu label="Share" iconVerb="share" onOpen={() => setShareRequested(true)}>
           {effectiveShareMain.map(item => (
             <ContextMenuItem
               key={item.id || item.label}
@@ -536,24 +619,56 @@ export default function ContextMenuView({
       <div className="bndz-context-menu-sep" />
 
       {/* BNDZ features */}
+      {!isBackground && availableTags && availableTags.length > 0 && onToggleTag && (
+        <ContextSubmenu label="Tags">
+          {availableTags.map(tag => {
+            const key = resolveTagKey(tag);
+            const label = tag.label || tag.name || key;
+            return (
+              <ContextMenuItem
+                key={key}
+                label={`#${label}`}
+                onClick={() => { void onToggleTag(tag); onClose(); }}
+              />
+            );
+          })}
+        </ContextSubmenu>
+      )}
+
       {menu.isDirectory ? (
+        <>
         <ContextMenuItem
           label={isPinned ? 'Unpin from Rapid access' : 'Pin to Rapid access'}
           icon={Star}
           onClick={() => {
             if (isPinned) {
-              updateConfig({ pinnedFavorites: pinned.filter((p: any) => normalizePanePath(p.path) !== normEntityPath) });
+              updateConfig({ pinnedFavorites: dedupePinnedFavorites(pinned.filter((p: any) => normalizePanePath(p.path) !== normEntityPath)) });
+              setToastMessage(`Unpinned "${menu.entityName || 'folder'}" from Rapid access.`);
             } else if (menu.entityName) {
-              updateConfig({ pinnedFavorites: [...pinned, { name: menu.entityName, path: entityPath, icon: 'folder' }] });
+              updateConfig({ pinnedFavorites: dedupePinnedFavorites([...pinned, { name: menu.entityName, path: normEntityPath, icon: 'folder' }]) });
+              setToastMessage(`Pinned "${menu.entityName}" to Rapid access.`);
             }
             onClose();
           }}
         />
+        <ContextMenuItem
+          label="Index folder for search"
+          iconVerb="search"
+          onClick={() => {
+            void import('../lib/ipcBridge').then(({ IPC }) => {
+              IPC.indexBndzLocation(normEntityPath).then(res => {
+                setToastMessage(res.ok ? 'Folder indexed for BNDZ search.' : (res.error || 'Indexing failed.'));
+              });
+            });
+            onClose();
+          }}
+        />
+        </>
       ) : (
         <ContextMenuItem
           label="Smart Rename"
           iconVerb="sparkles"
-          onClick={() => { setIsSmartToolsOpen(true); onClose(); }}
+          onClick={() => { onOpenBatchRename?.(); onClose(); }}
         />
       )}
 
@@ -596,7 +711,7 @@ export default function ContextMenuView({
             onClick={async () => {
               const IPC = await runIpc();
               // Legacy hard-coded ids
-              if (action.id === 'smart-rename') setIsSmartToolsOpen(true);
+              if (action.id === 'smart-rename') onOpenBatchRename?.();
               else if (action.id === 'copy-path') IPC.shellExecute('copyPath', targetPaths);
               else if (action.id === 'os-copy') setClipboardState(targetPaths, 'copy');
               else if (action.id === 'os-paste') await executePaste(menu.path);
@@ -766,12 +881,15 @@ export default function ContextMenuView({
       <div className="bndz-context-menu-sep" />
       <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
 
-      {config.enableIconContextSubmenu && iconLibs.length > 0 && targetPaths.length === 1 && (
+      {config.enableIconContextSubmenu && targetPaths.length === 1 && (
         <ContextNestedSubmenu
           label={<><Type size={14} className="text-sky-400" /> Change Icon</>}
           panelClassName="min-w-[180px]"
+          onOpen={ensureIconLibraries}
         >
-          {iconLibs.map((lib: any) => (
+          {iconLibs.length === 0 ? (
+            <div className={`${menuItemClass} text-gray-500`}>Loading icon libraries…</div>
+          ) : iconLibs.map((lib: any) => (
             <ContextNestedSubmenu
               key={lib.id}
               label={<><ContextMenuIcon verb="layers" />{lib.name}</>}
@@ -825,3 +943,5 @@ export default function ContextMenuView({
     </ClampedFixedMenu>
   );
 }
+
+export default React.memo(ContextMenuView);

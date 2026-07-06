@@ -53,6 +53,7 @@ export interface AppConfig {
     isDefaultFileManager: boolean;
     inContextMenu: boolean;
     enableEverythingSearch: boolean;
+    enableBndzIndexedSearch: boolean;
     enableNativeThumbnails: boolean;
     clearThumbnailCacheOnExit: boolean;
     bypassRecycleBin: boolean;
@@ -61,6 +62,8 @@ export interface AppConfig {
     syncUseHashing?: boolean;
     syncDefaultDirection?: 'leftToRight' | 'rightToLeft' | 'bidirectional';
     pinnedFavorites?: Array<{ name: string, path: string, icon: string }>;
+    /** Default Rapid access paths the user chose to hide (Desktop, Documents, etc.) */
+    hiddenRapidAccess?: string[];
     sidebarOrder?: string[];
     navTreeOrder?: string[];
     installedPlugins?: string[];
@@ -83,6 +86,7 @@ export interface AppConfig {
 const defaultStructuredConfig: Partial<AppConfig> = {
     visualFilters: [],
     pinnedFavorites: [],
+    hiddenRapidAccess: [],
     navigationHistory: [],
     showMiniTree: false,
     listIconSize: 16,
@@ -240,6 +244,23 @@ export const defaultConfig: AppConfig = normalizeConfig({
     ],
 });
 
+let settingsSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingSettingsSave: AppConfig | null = null;
+
+function scheduleSettingsSave(merged: AppConfig) {
+    pendingSettingsSave = merged;
+    if (settingsSaveTimer) return;
+    settingsSaveTimer = setTimeout(() => {
+        settingsSaveTimer = null;
+        const payload = pendingSettingsSave;
+        pendingSettingsSave = null;
+        if (!payload) return;
+        import('../lib/ipcBridge').then(({ IPC }) => {
+            IPC.saveSettings(payload);
+        }).catch(() => {});
+    }, 250);
+}
+
 const ConfigContext = createContext<{ config: AppConfig; updateConfig: (v: Partial<AppConfig>) => void }>({
     config: defaultConfig,
     updateConfig: () => {}
@@ -280,13 +301,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
     const updateConfig = (newVals: Partial<AppConfig>) => {
         setConfig(prev => {
             const merged = normalizeConfig({ ...prev, ...newVals });
-            try {
-                import('../lib/ipcBridge').then(({ IPC }) => {
-                    IPC.saveSettings(merged);
-                });
-            } catch {
-                alert('Fatal IPC Communication Error: Unable to synchronize settings to backend.');
-            }
+            scheduleSettingsSave(merged);
             applySettingsRuntime(merged);
             applyBackendSettings(merged);
             return merged;

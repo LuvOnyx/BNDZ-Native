@@ -10,7 +10,7 @@ param(
     [int]$Count = 1,
     [string]$Segment1 = "",
     [string]$Segment2 = "",
-    [string]$Secret = "BNDZ-36-Commercial-Key-Seed-CHANGE-ME"
+    [string]$Secret = $(if ($env:BNDZ_LICENSE_SECRET) { $env:BNDZ_LICENSE_SECRET } else { "BNDZ-36-Commercial-Key-Seed-CHANGE-ME" })
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +34,7 @@ function New-RandomSegment {
 
 Write-Host "BNDZ License Serial Generator" -ForegroundColor Cyan
 if ($Secret -eq "BNDZ-36-Commercial-Key-Seed-CHANGE-ME") {
-    Write-Host "WARNING: Using default secret — change LicenseSecret in LicenseService.cs before retail release." -ForegroundColor Yellow
+    Write-Host "WARNING: Set BNDZ_LICENSE_SECRET env var (must match retail build) before generating customer serials." -ForegroundColor Yellow
 }
 
 for ($n = 0; $n -lt $Count; $n++) {

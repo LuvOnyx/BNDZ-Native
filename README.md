@@ -16,8 +16,13 @@ BNDZ is a modern, dual-pane file manager for Windows 10/11 with native shell int
 | Component | Notes |
 |-----------|--------|
 | Windows 10/11 x64 | Primary target |
-| .NET 8 Runtime | Framework-dependent publish |
 | WebView2 | Installed automatically by setup |
+| .NET 8 Runtime | Bundled (self-contained publish) — no separate install |
+
+## Trial and licensing
+
+- **14-day trial** on first launch; activate via Help → Register Product with your serial.
+- Set `BNDZ_LICENSE_SECRET` when building retail installers and generating customer serials (`npm run license:generate`).
 
 ## Development
 
@@ -53,9 +58,10 @@ See [docs/LAUNCH.md](docs/LAUNCH.md) for the full launch checklist.
 
 ## License keys (vendor)
 
-Generate serials for customers (match `LicenseSecret` in `BNDZBackend/Services/LicenseService.cs`):
+Generate serials for customers (secret must match retail build via `BNDZ_LICENSE_SECRET`):
 
 ```powershell
+$env:BNDZ_LICENSE_SECRET = "your-retail-secret-here"
 .\scripts\generate-license.ps1 -Count 10
 ```
 

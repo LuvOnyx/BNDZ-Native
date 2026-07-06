@@ -3,7 +3,7 @@ import {
   ArrowLeft, ArrowRight, ArrowUp, Monitor, FolderSearch, File, 
   Scissors, Copy, Clipboard, Undo, Redo, Search, RefreshCw, 
   Filter, Settings, Wrench, Menu, HardDrive, Network,
-  FolderOpen, Server, Star, Tag, Database, PlayCircle, Folder, ArrowDownCircle, Sparkles, Wand2, Columns, X, AlertTriangle, Archive, Trash2, Eye, FileText, ChevronDown, ChevronRight, PanelBottom, Type, Loader2, Cloud, Puzzle, CheckSquare, LayoutGrid, List, Command, Home, Images, Lock, Rocket } from 'lucide-react';
+  FolderOpen, Server, Star, Tag, PlayCircle, Folder, ArrowDownCircle, Sparkles, Wand2, Columns, X, AlertTriangle, Archive, Trash2, Eye, FileText, ChevronDown, ChevronRight, PanelBottom, Type, Loader2, Cloud, Puzzle, CheckSquare, LayoutGrid, List, Command, Home, Images, Lock, Rocket, Clock, Film, PieChart } from 'lucide-react';
 import { normalizeDirEntries } from '../lib/normalizeDirEntry';
 import { createInitialFileSystem, getDirContents, getEntityByPath, updateFileSystem } from '../data/initialFS';
 import { VirtualDirectory, FSEntity, DriveInfo, ShortcutInfo } from '../types';
@@ -15,8 +15,8 @@ import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
 import DriveCard from './DriveCard';
 import {
-  setMarqueeActive, beginDragSession, trackDragPointer, shouldAllowDragStart,
-  clearDragSession, markPointerDown,
+  setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
+  clearDragSession, markPointerDown, hasMetDragThreshold,
 } from '../lib/dragController';
 import { executeUndoWithTimeout, executeRedoWithTimeout } from '../lib/undoRedo';
 import CommandPalette, { buildDefaultPaletteActions } from './CommandPalette';
@@ -33,7 +33,7 @@ import MiniTreePanel from './MiniTreePanel';
 import AddressAutocompleteDropdown from './AddressAutocompleteDropdown';
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
-import type { ContextMenuSurface } from '../lib/contextMenuActions';
+import { filterSupplementalNativeItems, type ContextMenuSurface } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
 import { prefetchIconsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
@@ -48,6 +48,7 @@ import { hideFloatingTooltip, getFloatingTooltip, isShiftKeyHeld, subscribeShift
 import { registerEscapeLayer } from '../lib/globalEscape';
 import FloatingTooltipHost from './FloatingTooltipHost';
 import LicenseBanner from './LicenseBanner';
+import TrialExpiredGate from './TrialExpiredGate';
 
 const AboutDialog = lazy(() => import('./AboutDialog'));
 const RegisterDialog = lazy(() => import('./RegisterDialog'));
@@ -56,6 +57,7 @@ const ConfigurationDialog = lazy(() => import('./ConfigurationDialog'));
 const PluginStoreDialog = lazy(() => import('./PluginStoreDialog').then(m => ({ default: m.PluginStoreDialog })));
 const TagManagerDialog = lazy(() => import('./TagManagerDialog').then(m => ({ default: m.TagManagerDialog })));
 const SmartToolsDialog = lazy(() => import('./SmartToolsDialog'));
+const TagAssignmentMode = lazy(() => import('../spacedrive/port/TagAssignmentMode'));
 import { IPC, RenameOperation } from '../lib/ipcBridge';
 import { toLocalStreamUrl } from '../lib/iconLibraryUtils';
 import { formatFolderSizeLabel } from '../lib/folderSizeDisplay';
@@ -69,6 +71,17 @@ import TutorialOverlay from './TutorialOverlay';
 import DestinationPickerModal from './DestinationPickerModal';
 import QuitConfirmDialog from './QuitConfirmDialog';
 import RightPreviewPanel from './RightPreviewPanel';
+import SearchToolbar, { type SearchScope, type SearchKindFilter } from '../spacedrive/port/SearchToolbar';
+import FolderSizeTreemap from './views/FolderSizeTreemap';
+import BndzMediaView from './views/BndzMediaView';
+import BndzHubView from './views/BndzHubView';
+import BndzRecentsView from './views/BndzRecentsView';
+import BndzQuickPreview from './preview/BndzQuickPreview';
+import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
+import TagBadge from './TagBadge';
+import { resolveTagKey, entityHasTag, tagChipId } from '../lib/tagUtils';
+import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
+import { buildGlobalSearchArgs, normalizeSearchResults } from '../lib/globalSearchCall';
 import {
   getVisibleListColumns,
   getColumnStyle,
@@ -78,6 +91,7 @@ import {
   type SortColumnId,
 } from '../lib/listColumns';
 import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath } from '../lib/pathUtils';
+import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
 import { hasBndzFileDrag } from '../lib/bndzDrag';
 import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory } from '../lib/shellPaths';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
@@ -99,13 +113,15 @@ import {
   wrapListIndex,
   getDisplayName,
   getRenameInitialValue,
+  resolveRenameTargetName,
+  applyRenameInputSelection,
   buildSettingsRuntime,
 } from '../lib/settingsRuntime';
 import { matchesShortcut, matchesTypeAhead } from '../lib/keyboardShortcuts';
 import { useBndzPanelMotion } from '../hooks/useBndzPanelMotion';
 import { useBndzTabMotion } from '../hooks/useBndzTabMotion';
 import { useLatest } from '../hooks/useLatest';
-import { useAppConfig, VisualFilter } from '../data/configContext';
+import { useAppConfig, VisualFilter, type AppConfig } from '../data/configContext';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -157,6 +173,12 @@ function formatSize(bytes: number | null | undefined) {
   return `${parseFloat((n / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
+function nativeContextSignature(items: any[] | undefined): string {
+  return filterSupplementalNativeItems(items)
+    .map((item: any) => String(item.id || item.verb || item.label || ''))
+    .join('|');
+}
+
 interface PaneState {
   id: string;
   tabs: TabState[];
@@ -174,11 +196,66 @@ const Spinner = () => (
   </div>
 );
 
+function InlineRenameInput({
+  value,
+  entity,
+  config,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  value: string;
+  entity: any;
+  config: AppConfig;
+  onChange: (value: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (input) applyRenameInputSelection(input, entity, config);
+  }, [entity?.id, entity?.name, entity?.extension, config.hideExtensionsFromRenameEditBox, config.hideShortcutExtensions, config.excludeFileExtensionFromInitialSelection, config.preselectName]);
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      className="bg-[#111] text-white border border-[#007acc] px-1 outline-none w-[90%]"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onBlur={() => {
+        if (cancelledRef.current) {
+          cancelledRef.current = false;
+          return;
+        }
+        onCommit();
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          cancelledRef.current = true;
+          onCancel();
+        }
+      }}
+      onClick={e => e.stopPropagation()}
+      onDoubleClick={e => e.stopPropagation()}
+    />
+  );
+}
+
 export default function BNDZUI() {
   const { showModal } = useModal();
   const { clipboard, setClipboardState, executePaste } = useClipboard();
   const { config, updateConfig } = useAppConfig();
   const keyboardMap = useMemo(() => buildSettingsRuntime(config).keyboard, [config]);
+  const settingsRt = useMemo(() => buildSettingsRuntime(config), [config]);
   const { ensurePluginInstalled } = usePluginRegistry();
 
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
@@ -203,7 +280,15 @@ export default function BNDZUI() {
   const [isSaveTabsetOpen, setIsSaveTabsetOpen] = useState(false);
   const [tabsetNameInput, setTabsetNameInput] = useState('');
   const [isLoadTabsetOpen, setIsLoadTabsetOpen] = useState(false);
-  const [marquee, setMarquee] = useState<{ activePane: string, startX: number, startY: number, currX: number, currY: number, scrollLeft: number, scrollTop: number } | null>(null);
+  const [marquee, setMarquee] = useState<{
+    activePane: string;
+    startX: number;
+    startY: number;
+    currX: number;
+    currY: number;
+    additive: boolean;
+    baseSelection: string[];
+  } | null>(null);
 
   const marqueePointInList = (listEl: HTMLElement, clientX: number, clientY: number) => {
     const rect = listEl.getBoundingClientRect();
@@ -212,11 +297,114 @@ export default function BNDZUI() {
       y: clientY - rect.top + listEl.scrollTop,
     };
   };
+
+  type MarqueeSelectMeta = { rowHeight: number; items: Array<{ id: string; rowIndex: number }> };
+
+  const marqueeOpsRef = useRef({
+    setSelectedItems: (_ids: string[] | ((prev: string[]) => string[]), _paneId: string) => {},
+    scheduleSelectionChrome: (_ids: string[], _immediate: boolean) => {},
+    scheduleQuickActionsBar: (_show: boolean, _immediate?: boolean) => {},
+  });
+
+  const beginMarqueeGesture = React.useCallback((
+    paneId: string,
+    listEl: HTMLElement,
+    clientX: number,
+    clientY: number,
+    additive: boolean,
+    baseSelection: string[],
+    selectMeta?: MarqueeSelectMeta,
+  ) => {
+    const pt = marqueePointInList(listEl, clientX, clientY);
+    const marqueeState = {
+      activePane: paneId,
+      startX: pt.x,
+      startY: pt.y,
+      currX: pt.x,
+      currY: pt.y,
+      additive,
+      baseSelection,
+    };
+    setMarquee(marqueeState);
+    setMarqueeActive(true);
+    (window as any)._marqueeDragOccurred = false;
+
+    const applyMarqueeSelection = (state: typeof marqueeState) => {
+      const mLeft = Math.min(state.startX, state.currX);
+      const mTop = Math.min(state.startY, state.currY);
+      const mRight = Math.max(state.startX, state.currX);
+      const mBottom = Math.max(state.startY, state.currY);
+      const selected: string[] = [];
+      if (selectMeta?.items?.length) {
+        const rh = selectMeta.rowHeight;
+        for (const { id, rowIndex } of selectMeta.items) {
+          const rowTop = rowIndex * rh;
+          const rowBottom = rowTop + rh;
+          if (rowBottom >= mTop && rowTop <= mBottom) selected.push(id);
+        }
+      } else {
+        const listRect = listEl.getBoundingClientRect();
+        const screenLeft = listRect.left + mLeft - listEl.scrollLeft;
+        const screenTop = listRect.top + mTop - listEl.scrollTop;
+        const screenRight = listRect.left + mRight - listEl.scrollLeft;
+        const screenBottom = listRect.top + mBottom - listEl.scrollTop;
+        listEl.querySelectorAll('.fs-item-wrapper').forEach(el => {
+          const r = (el as HTMLElement).getBoundingClientRect();
+          if (r.right >= screenLeft && r.left <= screenRight && r.bottom >= screenTop && r.top <= screenBottom) {
+            const id = el.getAttribute('data-id');
+            if (id) selected.push(id);
+          }
+        });
+      }
+      const finalSelected = state.additive
+        ? [...new Set([...state.baseSelection, ...selected])]
+        : selected;
+      const ops = marqueeOpsRef.current;
+      ops.setSelectedItems(finalSelected, state.activePane);
+      ops.scheduleSelectionChrome(finalSelected, true);
+      ops.scheduleQuickActionsBar(finalSelected.length > 0, true);
+    };
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientX - clientX) > 3 || Math.abs(ev.clientY - clientY) > 3) {
+        (window as any)._marqueeDragOccurred = true;
+      }
+      const p = marqueePointInList(listEl, ev.clientX, ev.clientY);
+      const next = { ...marqueeState, currX: p.x, currY: p.y };
+      marqueeState.currX = p.x;
+      marqueeState.currY = p.y;
+      setMarquee(next);
+      applyMarqueeSelection(next);
+      const edge = 48;
+      const rect = listEl.getBoundingClientRect();
+      if (ev.clientY > rect.bottom - edge) listEl.scrollTop += 12;
+      else if (ev.clientY < rect.top + edge) listEl.scrollTop -= 12;
+    };
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      const moved = Math.abs(marqueeState.currX - marqueeState.startX) > 3
+        || Math.abs(marqueeState.currY - marqueeState.startY) > 3;
+      if (moved) applyMarqueeSelection(marqueeState);
+      setMarquee(null);
+      setMarqueeActive(false);
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [drives, setDrives] = useState<DriveInfo[]>([]);
   const [cloudProviders, setCloudProviders] = useState<CloudProvider[]>([]);
   const [shortcuts, setShortcuts] = useState<ShortcutInfo[]>([]);
   const [networkNodes, setNetworkNodes] = useState<any[]>([]);
   const [availableTags, setAvailableTags] = useState<any[]>([]);
+  const [indexedSearchScope, setIndexedSearchScope] = useState<SearchScope>('library');
+  const [globalSearchKindFilter, setGlobalSearchKindFilter] = useState<SearchKindFilter>('all');
+  const [listKindFilter, setListKindFilter] = useState<ListKindFilter>('all');
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
+  const [smartViewsExpanded, setSmartViewsExpanded] = useState(true);
+  const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
+  const [quickPreviewIndex, setQuickPreviewIndex] = useState(0);
   const [fileSystem, setFileSystem] = useState<VirtualDirectory>(() => createInitialFileSystem());
   const [isSyncMode, setIsSyncMode] = useState(false);
   const [syncResults, setSyncResults] = useState<{ [path: string]: { id: string, statusA?: string, statusB?: string, status?: string } }>({});
@@ -286,6 +474,8 @@ export default function BNDZUI() {
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(["/", "/workspace"]));
   const [isSmartToolsOpen, setIsSmartToolsOpen] = useState(false);
+  const [smartToolsTab, setSmartToolsTab] = useState<'assistant' | 'organize' | 'duplicates' | 'agent'>('assistant');
+  const [smartToolsPrompt, setSmartToolsPrompt] = useState<string | undefined>();
   const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState(config.previewPanelOpen !== false);
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(config.bottomPanelOpen !== false);
   const bottomPanelRef = usePanelRef();
@@ -315,16 +505,8 @@ export default function BNDZUI() {
       patches.workspaceLayoutOuter = { ...DEFAULT_OUTER_LAYOUT };
       patches.workspaceLayoutInner = { ...DEFAULT_INNER_LAYOUT };
     }
-    const order = config.sidebarOrder || [];
     if ((config.sidebarOrderVersion ?? 0) < 1) {
       patches.sidebarOrderVersion = 1;
-      const merged = order.length ? [...order] : ['storage', 'quick', 'cloud', 'tree'];
-      if (!merged.includes('miniTree') && config.showMiniTree !== false) {
-        const treeIdx = merged.indexOf('tree');
-        if (treeIdx >= 0) merged.splice(treeIdx, 0, 'miniTree');
-        else merged.push('miniTree');
-      }
-      if (merged.join(',') !== order.join(',')) patches.sidebarOrder = merged;
     }
     if ((config.tooltipBehaviorVersion ?? 0) < 1) {
       patches.tooltipBehaviorVersion = 1;
@@ -355,6 +537,9 @@ export default function BNDZUI() {
   const effectivePreviewOpen = uiRuntime.previewPanel && isPreviewPanelOpen && config.rightSidebarEnabled !== false;
   const effectiveBottomOpen = uiRuntime.bottomPanel && isBottomPanelOpen;
 
+  const outerLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const innerLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const saveOuterLayout = (layout: Record<string, number>) => {
     const previewVal = effectivePreviewOpen
       ? (layout.preview ?? outerDefaultLayout.preview)
@@ -362,25 +547,31 @@ export default function BNDZUI() {
     const sidebarVal = uiRuntime.treePanel
       ? (layout.sidebar ?? outerDefaultLayout.sidebar)
       : (config.workspaceLayoutOuter?.sidebar ?? outerDefaultLayout.sidebar);
-    updateConfig({
-      workspaceLayoutOuter: normalizeOuterLayout({
-        sidebar: sidebarVal,
-        workspace: layout.workspace ?? outerDefaultLayout.workspace,
-        preview: previewVal,
-      }),
+    const nextOuter = normalizeOuterLayout({
+      sidebar: sidebarVal,
+      workspace: layout.workspace ?? outerDefaultLayout.workspace,
+      preview: previewVal,
     });
+    if (outerLayoutSaveTimerRef.current) clearTimeout(outerLayoutSaveTimerRef.current);
+    outerLayoutSaveTimerRef.current = setTimeout(() => {
+      updateConfig({ workspaceLayoutOuter: nextOuter });
+      outerLayoutSaveTimerRef.current = null;
+    }, 200);
   };
 
   const saveInnerLayout = (layout: Record<string, number>) => {
     const bottom = effectiveBottomOpen
       ? (layout.bottom ?? innerDefaultLayout.bottom)
       : (config.workspaceLayoutInner?.bottom ?? innerDefaultLayout.bottom);
-    updateConfig({
-      workspaceLayoutInner: {
-        main: layout.main ?? innerDefaultLayout.main,
-        bottom,
-      },
-    });
+    const nextInner = {
+      main: layout.main ?? innerDefaultLayout.main,
+      bottom,
+    };
+    if (innerLayoutSaveTimerRef.current) clearTimeout(innerLayoutSaveTimerRef.current);
+    innerLayoutSaveTimerRef.current = setTimeout(() => {
+      updateConfig({ workspaceLayoutInner: nextInner });
+      innerLayoutSaveTimerRef.current = null;
+    }, 200);
   };
 
   useEffect(() => {
@@ -400,6 +591,7 @@ export default function BNDZUI() {
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  const [licenseEpoch, setLicenseEpoch] = useState(0);
   const [showHelpTopics, setShowHelpTopics] = useState(false);
   const [, setUiHintTick] = useState(0);
   useEffect(() => {
@@ -434,6 +626,7 @@ export default function BNDZUI() {
     setBottomPluginTab(pluginId);
   };
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+  const [tagAssignmentActive, setTagAssignmentActive] = useState(false);
   const [inlineRename, setInlineRename] = useState<{ path: string, entityId: string, currentName: string } | null>(null);
   const [lastClickData, setLastClickData] = useState<{ id: string, time: number } | null>(null);
   const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -454,6 +647,9 @@ export default function BNDZUI() {
       selectionChromeTimerRef.current = null;
     }, 200);
   };
+  const beginInlineRename = React.useCallback((path: string, entityId: string, entity: any) => {
+    setInlineRename({ path, entityId, currentName: getRenameInitialValue(entity, config) });
+  }, [config]);
   const [showQuickActionsBar, setShowQuickActionsBar] = useState(false);
   const quickActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -476,7 +672,10 @@ export default function BNDZUI() {
       quickActionsTimerRef.current = null;
     }, 320);
   };
+  marqueeOpsRef.current.scheduleSelectionChrome = scheduleSelectionChrome;
+  marqueeOpsRef.current.scheduleQuickActionsBar = scheduleQuickActionsBar;
   const internalDragRef = useRef(false);
+  const dropModifierRef = useRef({ copy: false });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [editingAddressBarPaneId, setEditingAddressBarPaneId] = useState<string | null>(null);
   const [addressBarInput, setAddressBarInput] = useState<string>('');
@@ -550,6 +749,25 @@ export default function BNDZUI() {
   pathContentsCacheRef.current = pathContentsCache;
 
   useEffect(() => {
+    setListKindFilter('all');
+    setActiveTagFilter(null);
+  }, [activePanePathsKey]);
+
+  useEffect(() => {
+    const onOpenSmartTools = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ prompt?: string; tab?: 'agent' | 'assistant' | 'organize' | 'duplicates' | 'tasks' | 'memories' }>).detail;
+      if (detail?.tab) {
+        const t = detail.tab;
+        setSmartToolsTab(t === 'agent' || t === 'tasks' || t === 'memories' ? 'assistant' : t === 'duplicates' ? 'duplicates' : t === 'organize' ? 'organize' : 'assistant');
+      }
+      if (detail?.prompt) setSmartToolsPrompt(detail.prompt);
+      setIsSmartToolsOpen(true);
+    };
+    window.addEventListener('bndz-open-smart-tools', onOpenSmartTools);
+    return () => window.removeEventListener('bndz-open-smart-tools', onOpenSmartTools);
+  }, []);
+
+  useEffect(() => {
     import('../lib/ipcBridge').then(({ IPC }) => {
       panes.forEach(pane => {
         const tab = pane.tabs[pane.activeTabIndex];
@@ -571,6 +789,23 @@ export default function BNDZUI() {
             setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
           });
           return;
+        }
+
+        if (isBndzVirtualPath(path)) {
+          const view = parseBndzVirtualView(path);
+          if (view) {
+            dirFetchInFlightRef.current.add(path);
+            setLoadingPaths(prev => new Set(prev).add(path));
+            IPC.getVirtualViewContents(view, config.globalSearchLimit || 500).then(items => {
+              setPathContentsCache(prev => ({ ...prev, [path]: normalizeDirEntries(items || []) }));
+            }).catch(() => {
+              setPathContentsCache(prev => ({ ...prev, [path]: [] }));
+            }).finally(() => {
+              dirFetchInFlightRef.current.delete(path);
+              setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+            });
+            return;
+          }
         }
 
         dirFetchInFlightRef.current.add(path);
@@ -600,9 +835,15 @@ export default function BNDZUI() {
     const { IPC } = await import('../lib/ipcBridge');
     setLoadingPaths(prev => new Set(prev).add(path));
     try {
-      const data = isVirtualCatalogPath(path)
-        ? await IPC.getCatalogContents(path)
-        : await IPC.getDirContents(path);
+      let data: any[];
+      if (isVirtualCatalogPath(path)) {
+        data = await IPC.getCatalogContents(path);
+      } else if (isBndzVirtualPath(path)) {
+        const view = parseBndzVirtualView(path);
+        data = view ? await IPC.getVirtualViewContents(view, config.globalSearchLimit || 500) : [];
+      } else {
+        data = await IPC.getDirContents(path);
+      }
       const normalized = normalizeDirEntries(data);
       setPathContentsCache(prev => ({ ...prev, [path]: normalized }));
     } catch {
@@ -626,13 +867,12 @@ export default function BNDZUI() {
       };
     }));
     try {
+      const args = buildGlobalSearchArgs(config, query, 'library', root);
       const { items, engine } = await IPC.performGlobalSearch(
-        query,
-        config.globalSearchLimit || 1000,
-        false,
-        root,
-        config.enableEverythingSearch !== false,
+        args.query, args.limit, args.useRegex, args.rootPath,
+        args.useEverything, args.searchContent, args.opts,
       );
+      const normalizedItems = normalizeSearchResults(items);
       setPanes(prev => prev.map(p => {
         if (p.id !== paneId) return p;
         return {
@@ -640,7 +880,7 @@ export default function BNDZUI() {
           tabs: p.tabs.map(t => t.id === tabId ? {
             ...t,
             findingLoading: false,
-            findingResults: items || [],
+            findingResults: normalizedItems || [],
             findingEngine: engine === 'everything' ? 'everything' : 'indexed',
           } : t),
         };
@@ -654,7 +894,7 @@ export default function BNDZUI() {
         };
       }));
     }
-  }, [config.globalSearchLimit, config.enableEverythingSearch]);
+  }, [config.globalSearchLimit, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent]);
 
   const refreshFindingTabRef = useLatest(refreshFindingTab);
 
@@ -688,6 +928,26 @@ export default function BNDZUI() {
 
   const [activePaneId, setActivePaneId] = useState('pane1');
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const selectionAnchorRef = useRef<{ paneId: string; itemId: string } | null>(null);
+  const listGestureRef = useRef<{
+    paneId: string;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    entityId: string;
+    wasSelected: boolean;
+    ctrlKey: boolean;
+    shiftKey: boolean;
+    altKey: boolean;
+    moved: boolean;
+    mode: 'pending' | 'marquee' | 'drag';
+    copyDrag: boolean;
+    dragSelection: string[];
+    listEl: HTMLElement;
+  } | null>(null);
+  const listGestureClickRef = useRef<((e: React.MouseEvent, id: string) => void) | null>(null);
+  const nativeOleDragRef = useRef(false);
+  const suppressRowClickRef = useRef(false);
 
   // File Operations State
   const [transferProgress, setTransferProgress] = useState<{ [opId: string]: { percentage: number, file: string, bytesTransferred: number, totalBytes: number, speedBytesPerSecond: number, itemsCompleted: number, totalItems: number } }>({});
@@ -745,27 +1005,24 @@ export default function BNDZUI() {
          if (query.length > 0) {
              setIsGlobalSearchLoading(true);
              const timer = setTimeout(() => {
-                 import('../lib/ipcBridge').then(({ IPC }) => {
-                     const activePane = panes.find(p => p.id === activePaneId) || panes[0];
-                     const searchRoot = activePane?.tabs[activePane.activeTabIndex]?.path || '';
-                     IPC.performGlobalSearch(
-                         query,
-                         config.globalSearchLimit || 1000,
-                         false,
-                         searchRoot,
-                         config.enableEverythingSearch !== false,
-                     )
-                         .then(({ items, engine }) => {
-                             setGlobalSearchResults(items);
-                             setGlobalSearchEngine(engine === 'everything' ? 'everything' : 'indexed');
-                             setIsGlobalSearchLoading(false);
-                         })
-                         .catch(() => {
-                             setGlobalSearchResults([]);
-                             setGlobalSearchEngine(null);
-                             setIsGlobalSearchLoading(false);
-                         });
-                 });
+                 const activePane = panes.find(p => p.id === activePaneId) || panes[0];
+                 const tabPath = activePane?.tabs[activePane.activeTabIndex]?.path || '';
+                 const args = buildGlobalSearchArgs(config, query, indexedSearchScope, tabPath);
+
+                 import('../lib/ipcBridge').then(({ IPC }) =>
+                   IPC.performGlobalSearch(
+                     args.query, args.limit, args.useRegex, args.rootPath,
+                     args.useEverything, args.searchContent, args.opts,
+                   ).then(({ items, engine }) => {
+                     setGlobalSearchResults(normalizeSearchResults(items));
+                     setGlobalSearchEngine(engine === 'everything' || engine === 'indexed+everything' ? 'everything' : 'indexed');
+                     setIsGlobalSearchLoading(false);
+                   }).catch(() => {
+                     setGlobalSearchResults([]);
+                     setGlobalSearchEngine(null);
+                     setIsGlobalSearchLoading(false);
+                   }),
+                 );
              }, 300);
              return () => clearTimeout(timer);
          } else {
@@ -777,7 +1034,7 @@ export default function BNDZUI() {
          setGlobalSearchEngine(null);
          setIsGlobalSearchLoading(false);
      }
-  }, [filterText, config.enableGlobalSearchPrefix, config.enableEverythingSearch, config.globalSearchLimit, panes, activePaneId]);
+  }, [filterText, config.enableGlobalSearchPrefix, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent, config.globalSearchLimit, panes, activePaneId, indexedSearchScope]);
 
   // Restore last tabset on startup (XYplorer tabsets++)
   useEffect(() => {
@@ -838,14 +1095,14 @@ export default function BNDZUI() {
          e.preventDefault();
          setIsCommandPaletteOpen(prev => !prev);
       }
-      // FilePilot-style Quick Look — Space toggles inspector on selection
+      // Quick Look overlay (Space) — Spacedrive QuickPreview pattern, BNDZ-native
       if (!isInput && e.code === 'Space' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
          const activePane = panes.find(p => p.id === activePaneId);
          const tab = activePane?.tabs[activePane.activeTabIndex];
          if (tab && (tab.selectedItems.length > 0 || focusedItemId)) {
             e.preventDefault();
-            setIsPreviewPanelOpen(true);
-            updateConfig({ previewPanelOpen: true });
+            setQuickPreviewIndex(0);
+            setQuickPreviewOpen(true);
          }
       }
       // FilePilot inspector toggle (rebindable, default Ctrl+I)
@@ -923,29 +1180,36 @@ export default function BNDZUI() {
           }
       }
 
+      // Smart Tools agent (Ctrl+Shift+A)
+      if (!isInput && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSmartToolsTab('assistant');
+        setIsSmartToolsOpen(true);
+      }
+
       // Inline rename
-      if (matchesShortcut(e, keyboardMap.rename) && focusedItemId && !isToolbarConfigOpen && !isSmartToolsOpen) {
+      if (!isInput && matchesShortcut(e, keyboardMap.rename) && focusedItemId && !isToolbarConfigOpen && !isSmartToolsOpen) {
          e.preventDefault();
          const activePane = panes.find(p => p.id === activePaneId);
          if (activePane) {
              const tab = activePane.tabs[activePane.activeTabIndex];
              const entity = safeGetDirContents(fileSystem, tab.path)?.find((x: any) => x.id === focusedItemId);
              if (entity) {
-                 setInlineRename({ path: tab.path, entityId: focusedItemId, currentName: getRenameInitialValue(entity, config) });
+                 beginInlineRename(tab.path, focusedItemId, entity);
              }
          }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedItemId, panes, activePaneId, fileSystem, isToolbarConfigOpen, isSmartToolsOpen, setClipboardState, executePaste, keyboardMap, config, refetchPath]);
+  }, [focusedItemId, panes, activePaneId, fileSystem, isToolbarConfigOpen, isSmartToolsOpen, setClipboardState, executePaste, keyboardMap, config, refetchPath, beginInlineRename]);
 
   // Context Menu State
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, isDirectory: boolean, surface?: ContextMenuSurface, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, entityExtension?: string | null, isDirectory: boolean, surface?: ContextMenuSurface, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; paneId: string; tabIndex: number } | null>(null);
 
-  const handleContextMenuRequest = async (
+  const handleContextMenuRequest = (
     e: React.MouseEvent,
     targetPath: string,
     entityId: string | null,
@@ -953,6 +1217,7 @@ export default function BNDZUI() {
     entityName: string | null,
     selectedPaths?: string[],
     surface?: ContextMenuSurface,
+    entityExtension?: string | null,
   ) => {
       e.preventDefault();
       e.stopPropagation();
@@ -968,37 +1233,55 @@ export default function BNDZUI() {
           : targetPath;
       const winPath = toWindowsPath(menuItemPath);
 
-      const { getCachedNativeContextMenu, setCachedNativeContextMenu } = await import('../lib/nativeContextMenuCache');
-      const cachedNative = getCachedNativeContextMenu(winPath) as any[] | null;
-
-      if (requestId !== contextMenuRequestRef.current) return;
-
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
           entityId,
           path: targetPath,
           entityName,
+          entityExtension,
           isDirectory,
           surface,
-          nativeContextItems: cachedNative || [],
+          nativeContextItems: [],
           selectedPaths
       });
 
-      const shellRt = buildSettingsRuntime(config).shell;
+      void import('../lib/nativeContextMenuCache').then(({ getCachedNativeContextMenu, setCachedNativeContextMenu }) => {
+        if (requestId !== contextMenuRequestRef.current) return;
+        const cachedNative = getCachedNativeContextMenu(winPath) as any[] | null;
+        if (cachedNative?.length) {
+          setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+            ? { ...prev, nativeContextItems: cachedNative }
+            : prev);
+        }
+      });
+
+      const shellRt = settingsRt.shell;
       const needNative = !shellRt.useCustomContextMenu || shellRt.enableSubmenus;
       if (!needNative) return;
 
-      try {
-          const { IPC } = await import('../lib/ipcBridge');
-          const nativeItems = await IPC.fetchNativeContextMenuItems(winPath);
-          if (requestId !== contextMenuRequestRef.current) return;
-          if (nativeItems?.length) setCachedNativeContextMenu(winPath, nativeItems);
-          setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
-            ? { ...prev, nativeContextItems: nativeItems }
-            : prev);
-      } catch (err) {
-          console.error("Failed to fetch native context menu items", err);
+      const runFetch = () => {
+        void (async () => {
+          try {
+            const { IPC } = await import('../lib/ipcBridge');
+            const { setCachedNativeContextMenu } = await import('../lib/nativeContextMenuCache');
+            const nativeItems = await IPC.fetchNativeContextMenuItems(winPath);
+            if (requestId !== contextMenuRequestRef.current) return;
+            if (nativeItems?.length) setCachedNativeContextMenu(winPath, nativeItems);
+            setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
+              && nativeContextSignature(prev.nativeContextItems) !== nativeContextSignature(nativeItems)
+              ? { ...prev, nativeContextItems: nativeItems }
+              : prev);
+          } catch (err) {
+            console.error("Failed to fetch native context menu items", err);
+          }
+        })();
+      };
+
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(runFetch, { timeout: 400 });
+      } else {
+        setTimeout(runFetch, 0);
       }
   };
 
@@ -1007,6 +1290,12 @@ export default function BNDZUI() {
       setCurrentPath(p);
   };
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
+  const dragTargetIdRef = useRef<string | null>(null);
+  const setDragTargetHighlight = (id: string | null) => {
+    if (dragTargetIdRef.current === id) return;
+    dragTargetIdRef.current = id;
+    setDragTargetId(id);
+  };
   const handleDeleteRequest = (items: any[], path: string, isFromTree: boolean = false) => {
     if (items.length === 0) return;
     const rt = buildSettingsRuntime(config);
@@ -1125,19 +1414,26 @@ export default function BNDZUI() {
 
   useEffect(() => {
     const handleDismiss = (e: MouseEvent) => {
-      if (contextMenuBlockRef.current) return;
       const target = e.target as Element | null;
       if (target?.closest?.('[data-bndz-context-menu], [data-bndz-submenu-flyout], [data-bndz-tab-context-menu], [data-bndz-menubar-menu]')) return;
-      if (contextMenuRootRef.current?.contains(e.target as Node)) return;
       if (menubarRef.current?.contains(e.target as Node)) return;
-      if (e.button !== 0) return;
-      if (target?.closest?.('.fs-item-wrapper')) return;
       setContextMenu(null);
       setTabContextMenu(null);
       setOpenMenuId(null);
     };
-    window.addEventListener('mousedown', handleDismiss, true);
-    return () => window.removeEventListener('mousedown', handleDismiss, true);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setContextMenu(null);
+        setTabContextMenu(null);
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('click', handleDismiss);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('click', handleDismiss);
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, []);
 
   const activePaneIndex = panes.findIndex(p => p.id === activePaneId);
@@ -1548,21 +1844,21 @@ export default function BNDZUI() {
   const wslLinuxPath = wslRootNode ? toPanePath(wslRootNode.path) : '//wsl.localhost/';
 
   const rapidAccessItems = useMemo(() => {
-    const pins = config.pinnedFavorites || [];
-    if (pins.length > 0) return pins;
-    const order = ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'];
-    const items: { name: string; path: string; iconPath?: string }[] = [];
-    for (const name of order) {
-      const s = shortcuts.find(sc => sc.name === name);
-      const raw = s?.path || (windowsUsername !== 'Public' ? `C:/Users/${windowsUsername}/${name}` : '');
-      if (!raw) continue;
-      items.push({ name, path: toPanePath(raw), iconPath: KNOWN_FOLDER_SHELL[name] });
-    }
-    if (galleryShortcut?.path) {
-      items.push({ name: 'Gallery', path: toPanePath(galleryShortcut.path), iconPath: KNOWN_FOLDER_SHELL.Gallery });
-    }
-    return items;
-  }, [config.pinnedFavorites, shortcuts, windowsUsername, galleryShortcut]);
+    const defaults = buildRapidAccessDefaults(
+      windowsUsername,
+      shortcuts,
+      galleryShortcut?.path,
+      config.hiddenRapidAccess || [],
+      KNOWN_FOLDER_SHELL,
+    );
+    const pins = dedupePinnedFavorites(config.pinnedFavorites || []).map((p: any) => ({
+      name: p.name,
+      path: normalizePanePath(p.path),
+      iconPath: p.iconPath,
+      isDefault: false,
+    }));
+    return mergeRapidAccessItems(pins, defaults);
+  }, [config.pinnedFavorites, config.hiddenRapidAccess, shortcuts, windowsUsername, galleryShortcut]);
 
   useEffect(() => {
     if (wslDistroNodes.length > 0) setLinuxExpanded(true);
@@ -1595,6 +1891,23 @@ export default function BNDZUI() {
         expanded: librariesExpanded,
         onToggle: () => setLibrariesExpanded(!librariesExpanded),
         childrenItems: libraryFolderItems,
+      },
+      {
+        treeKey: 'smart-views',
+        draggable: true,
+        label: 'Smart views',
+        path: BNDZ_VIEWS_ROOT,
+        icon: Sparkles,
+        iconColor: '#38bdf8',
+        expanded: smartViewsExpanded,
+        onClick: () => setCurrentPath(bndzVirtualPath('recent')),
+        onToggle: () => setSmartViewsExpanded(!smartViewsExpanded),
+        childrenItems: (['recent', 'media', 'large'] as const).map(view => ({
+          label: bndzVirtualLabel(view),
+          path: bndzVirtualPath(view),
+          icon: view === 'recent' ? Clock : view === 'media' ? Film : HardDrive,
+          iconColor: '#38bdf8',
+        })),
       },
       {
         treeKey: 'this-pc',
@@ -1683,7 +1996,7 @@ export default function BNDZUI() {
     drives, currentPath, thisPcExpanded, libraryFolderItems,
     networkOnlyNodes, networkExpanded, homeTreePath, wslLinuxPath,
     wslRootNode, wslDistroNodes,
-    linuxExpanded, librariesExpanded, config.navTreeOrder,
+    linuxExpanded, librariesExpanded, smartViewsExpanded, config.navTreeOrder,
   ]);
 
   useEffect(() => {
@@ -1851,11 +2164,14 @@ export default function BNDZUI() {
     const pane = panes.find(p => p.id === activePaneId);
     if (!pane) return [];
     const tab = pane.tabs[pane.activeTabIndex];
-    const dir = getDirContents(fileSystem, tab.path || '') || [];
+    const dir = pathContentsCache[tab.path] || getDirContents(fileSystem, tab.path || '') || [];
     return tab.selectedItems
       .map(id => dir.find((x: any) => x.id === id))
       .filter(Boolean)
-      .map((ent: any) => joinPanePath(tab.path, ent));
+      .map((ent: any) => {
+        if (ent.path) return normalizePanePath(ent.path);
+        return joinPanePath(tab.path, ent);
+      });
   };
 
   const copyOrMoveToTarget = async (mode: 'copy' | 'move', targetDir?: string, sourcesOverride?: string[]) => {
@@ -1914,20 +2230,19 @@ export default function BNDZUI() {
   };
 
   const toggleFavoriteFolder = () => {
-    const path = currentTab.path;
+    const path = normalizePanePath(currentTab.path);
     if (!path || path === '/') {
       setToastMessage('Navigate to a folder to pin to Rapid access.');
       return;
     }
     const pinned = config.pinnedFavorites || [];
-    const norm = path.replace(/\\/g, '/');
-    const exists = pinned.some((p: any) => p.path.replace(/\\/g, '/') === norm);
+    const exists = pinned.some((p: any) => normalizePanePath(p.path) === path);
     if (exists) {
-      updateConfig({ pinnedFavorites: pinned.filter((p: any) => p.path.replace(/\\/g, '/') !== norm) });
+      updateConfig({ pinnedFavorites: dedupePinnedFavorites(pinned.filter((p: any) => normalizePanePath(p.path) !== path)) });
       setToastMessage('Removed from Rapid access.');
     } else {
       const name = path.split('/').filter(Boolean).pop() || 'Folder';
-      updateConfig({ pinnedFavorites: [...pinned, { name, path: norm, icon: 'folder' }] });
+      updateConfig({ pinnedFavorites: dedupePinnedFavorites([...pinned, { name, path, icon: 'folder' }]) });
       setToastMessage('Pinned to Rapid access.');
     }
   };
@@ -1936,7 +2251,7 @@ export default function BNDZUI() {
   const menuAct = (fn: () => void) => runMenubarAction(() => { fn(); closeMenu(); });
 
   const applyTagToSelection = async (tag: { name?: string; label?: string; color?: string }) => {
-    const tagKey = tag.name || (tag.label || '').toLowerCase().replace(/\s+/g, '-');
+    const tagKey = resolveTagKey(tag);
     if (!tagKey) return;
     let paths = getSelectedEntityPaths().map(p => toWindowsPath(p));
     if (!paths.length && focusedItemId) {
@@ -1949,7 +2264,30 @@ export default function BNDZUI() {
       return;
     }
     const { IPC } = await import('../lib/ipcBridge');
-    await IPC.applyTags(paths, [tagKey]);
+
+    let allHaveTag = true;
+    for (const p of paths) {
+      const side = await IPC.getTagSidecar(p);
+      if (!entityHasTag(side?.tags, tagKey)) {
+        allHaveTag = false;
+        break;
+      }
+    }
+
+    for (const p of paths) {
+      const side = await IPC.getTagSidecar(p);
+      const current: string[] = Array.isArray(side?.tags) ? [...side.tags] : [];
+      let next: string[];
+      if (allHaveTag) {
+        next = current.filter(t => !entityHasTag([t], tagKey));
+      } else if (!entityHasTag(current, tagKey)) {
+        next = [...current, tagKey];
+      } else {
+        next = current;
+      }
+      await IPC.setTagMeta(p, side?.label, side?.comment, next);
+    }
+
     const newCache = { ...pathContentsCache };
     const tabItems = [...(newCache[currentPath] || [])];
     const selectedIds = new Set(activeTab.selectedItems);
@@ -1957,13 +2295,20 @@ export default function BNDZUI() {
     tabItems.forEach((item: any) => {
       const itemPath = toWindowsPath(joinPanePath(currentPath, item)).toLowerCase();
       if (selectedIds.has(item.id) || pathSet.has(itemPath) || pathSet.has(item.id?.toLowerCase?.())) {
-        if (!item.tags) item.tags = [];
-        if (!item.tags.includes(tagKey)) item.tags.push(tagKey);
+        const current: string[] = Array.isArray(item.tags) ? [...item.tags] : [];
+        if (allHaveTag) {
+          item.tags = current.filter(t => !entityHasTag([t], tagKey));
+        } else if (!entityHasTag(current, tagKey)) {
+          item.tags = [...current, tagKey];
+        }
       }
     });
     newCache[currentPath] = tabItems;
     setPathContentsCache(newCache);
-    setToastMessage(`Applied tag "${tag.label || tagKey}" to ${paths.length} item(s).`);
+    void refetchPath(currentPath);
+    setToastMessage(allHaveTag
+      ? `Removed "${tag.label || tagKey}" from ${paths.length} item(s). Click again to re-apply.`
+      : `Tagged ${paths.length} item(s) as "${tag.label || tagKey}". Click again to remove.`);
     closeMenu();
   };
 
@@ -2139,6 +2484,12 @@ export default function BNDZUI() {
 
   const setCurrentPath = (path: string, paneId: string = activePaneId, updateHistory: boolean = true) => {
     const norm = normalizePanePath(path);
+    const bndzView = parseBndzVirtualView(norm);
+    const linkedViewMode: TabState['viewMode'] | undefined =
+      bndzView === 'recent' ? 'recents' :
+      bndzView === 'media' ? 'media' :
+      bndzView === 'large' ? 'size' :
+      undefined;
     setPanes(prev => prev.map(p => {
       if (p.id === paneId) {
         const newTabs = [...p.tabs];
@@ -2150,8 +2501,19 @@ export default function BNDZUI() {
             newHistory.push(norm);
             newHistoryIndex = newHistory.length - 1;
         }
-        newTabs[p.activeTabIndex] = { ...tab, path: norm, history: newHistory, historyIndex: newHistoryIndex, selectedItems: [] };
-        return { ...p, tabs: newTabs };
+        newTabs[p.activeTabIndex] = {
+          ...tab,
+          path: norm,
+          history: newHistory,
+          historyIndex: newHistoryIndex,
+          selectedItems: [],
+          viewMode: linkedViewMode ?? (bndzView ? undefined : tab.viewMode),
+        };
+        return {
+          ...p,
+          tabs: newTabs,
+          ...(bndzView === 'large' ? { sortColumn: 'size' as const, sortDirection: 'desc' as const } : {}),
+        };
       }
       return p;
     }));
@@ -2160,6 +2522,13 @@ export default function BNDZUI() {
       navHistoryTimerRef.current = setTimeout(() => {
         updateConfig({ navigationHistory: recordNavVisit(config.navigationHistory, norm) });
       }, 500);
+      if (norm !== '/' && !norm.startsWith('/vf/') && !norm.startsWith('/shell:') && !norm.includes('>')) {
+        const prev = (config.recentFiles as string[] | undefined) || [];
+        const next = [norm, ...prev.filter(p => p !== norm)].slice(0, 15);
+        if (next[0] !== prev[0] || next.length !== prev.length) {
+          updateConfig({ recentFiles: next });
+        }
+      }
     }
   };
 
@@ -2391,40 +2760,16 @@ export default function BNDZUI() {
       return p;
     }));
   };
+  marqueeOpsRef.current.setSelectedItems = setSelectedItems;
 
   useEffect(() => {
-     if (!marquee) return;
-     let raf = 0;
-     raf = requestAnimationFrame(() => {
-     const listEl = document.querySelector(`[data-pane-id="${marquee.activePane}"]`) as HTMLElement | null;
-     if (!listEl) return;
-
-     const left = Math.min(marquee.startX, marquee.currX);
-     const top = Math.min(marquee.startY, marquee.currY);
-     const right = Math.max(marquee.startX, marquee.currX);
-     const bottom = Math.max(marquee.startY, marquee.currY);
-
-     const elements = document.querySelectorAll(`[data-pane-id="${marquee.activePane}"] .fs-item-wrapper`);
-     const selected: string[] = [];
-
-     elements.forEach(el => {
-         const item = el as HTMLElement;
-         const itemLeft = item.offsetLeft;
-         const itemTop = item.offsetTop;
-         const itemRight = itemLeft + item.offsetWidth;
-         const itemBottom = itemTop + item.offsetHeight;
-         if (!(itemRight < left || itemLeft > right || itemBottom < top || itemTop > bottom)) {
-             const id = item.getAttribute('data-id');
-             if (id) selected.push(id);
-         }
-     });
-
-     setSelectedItems(selected, marquee.activePane);
-     scheduleSelectionChrome(selected, true);
-     scheduleQuickActionsBar(selected.length > 0, true);
-     });
-     return () => cancelAnimationFrame(raf);
-  }, [marquee?.currX, marquee?.currY]);
+    const pinned = config.pinnedFavorites || [];
+    const deduped = dedupePinnedFavorites(pinned);
+    if (deduped.length !== pinned.length) {
+      updateConfig({ pinnedFavorites: deduped });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const startFolderCompare = async () => {
       // Create pane 2 if it doesn't exist
@@ -2504,7 +2849,7 @@ export default function BNDZUI() {
   // View-mode buttons are explicit toggles. `undefined` = the neutral default
   // (no button lit) and renders using the configured default layout. Clicking a
   // button lights it; clicking the lit button returns to the unlit default.
-  const setViewMode = (mode: 'details' | 'grid' | 'list' | 'columns', paneId: string = activePaneId) => {
+  const setViewMode = (mode: 'details' | 'grid' | 'list' | 'columns' | 'size' | 'recents' | 'media', paneId: string = activePaneId) => {
     setPanes(prev => prev.map(p => {
       if (p.id === paneId) {
          const newTabs = [...p.tabs];
@@ -2585,6 +2930,12 @@ export default function BNDZUI() {
     if (norm === '/vf' || norm.startsWith('/vf/')) {
       if (norm === '/vf') return;
       setCurrentPath('/vf', paneId);
+      return;
+    }
+    if (isBndzVirtualPath(norm)) {
+      if (norm === BNDZ_VIEWS_ROOT) setCurrentPath('/', paneId);
+      else setCurrentPath(BNDZ_VIEWS_ROOT, paneId);
+      setSelectedItems([], paneId);
       return;
     }
     if (cPath === "/" || cPath === "") {
@@ -2670,37 +3021,13 @@ export default function BNDZUI() {
       } else if (e.key === 't' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         addTab(activePaneId, activeTab.path);
-      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        void runUndoRedo(false);
-        return;
-      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-        e.preventDefault();
-        void runUndoRedo(true);
-        return;
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        setClipboardState(getSelectedEntityPaths(), 'copy');
-        return;
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
-        e.preventDefault();
-        setClipboardState(getSelectedEntityPaths(), 'cut');
-        return;
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        void executePaste(activeTab.path);
-        return;
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         const items = getSortedContentsForActivePane();
         setSelectedItems(items.map((x: any) => x.id), activePaneId);
+        if (items[0]) selectionAnchorRef.current = { paneId: activePaneId, itemId: items[0].id };
         scheduleQuickActionsBar(true, true);
         return;
-      } else if (e.key === 'F2') {
-        e.preventDefault();
-        if (activeTab.selectedItems.length > 0) {
-           setIsSmartToolsOpen(true);
-        }
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const isGlobal = config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ');
@@ -2722,6 +3049,7 @@ export default function BNDZUI() {
         const nextItem = paneContents[idx] as any;
         if (nextItem) {
            setFocusedItemId(nextItem.id);
+           selectionAnchorRef.current = { paneId: activePaneId, itemId: nextItem.id };
            setSelectedItems([nextItem.id], activePaneId);
            scheduleSelectionChrome([nextItem.id], true);
            scheduleQuickActionsBar(true, true);
@@ -2744,21 +3072,11 @@ export default function BNDZUI() {
                setCurrentPath(newPath, activePaneId);
                setFilterText(''); // Clear filter when opening directory
                omniFilterRef.current?.blur();
-           } else if (selectedItem?.type === 'file') {
-               // Optional: If it's a file, execute it or open directory (if the path is known)
-               if (isGlobal && selectedItem.path) {
-                    const dirPath = selectedItem.path.substring(0, selectedItem.path.lastIndexOf('/'));
-                    setCurrentPath(dirPath, activePaneId);
-                    setFilterText('');
-                    omniFilterRef.current?.blur();
-                    // maybe focus this item?
-                    setTimeout(() => {
-                        setFocusedItemId(selectedItem.id);
-                        setSelectedItems([selectedItem.id], activePaneId);
-                        const el = document.getElementById(`fs-item-${selectedItem.id}`);
-                        if (el) el.scrollIntoView({ block: 'nearest' });
-                    }, 50);
-               }
+           } else if (selectedItem) {
+               const target = isGlobal && selectedItem.path
+                 ? selectedItem.path
+                 : joinPanePath(activeTab.path, selectedItem);
+               IPC.executeContextMenuVerb(toWindowsPath(target), 'open');
            }
         }
       }
@@ -2912,7 +3230,7 @@ export default function BNDZUI() {
     const currentTab = pane.tabs[pane.activeTabIndex];
     const isNeutralDefault = currentTab.viewMode === undefined;
     const computedViewMode = currentTab.viewMode || 'details';
-    const compactRowHeight = buildSettingsRuntime(config).ui.rowHeight;
+    const compactRowHeight = settingsRt.ui.rowHeight;
     const detailsRowHeight = isNeutralDefault ? compactRowHeight : 28;
     const detailsIconSize = isNeutralDefault ? 14 : listIconSz;
     const detailsIconColClass = isNeutralDefault ? 'w-5' : 'w-6';
@@ -2926,9 +3244,10 @@ export default function BNDZUI() {
     if (!isThisPc && pathContentsCache[normPanePath]?.length) {
       contents = pathContentsCache[normPanePath];
     }
-    const isPaneLoading = !isThisPc
+    let isPaneLoading = !isThisPc
       && loadingPaths.has(normPanePath)
       && pathContentsCache[normPanePath] === undefined;
+
     if (isPaneLoading) contents = null; // show spinner only when no cached data yet
 
     if (isFindingTabActive) {
@@ -2942,12 +3261,30 @@ export default function BNDZUI() {
             // Render loading indicator
             contents = [];
         } else if (globalSearchResults) {
-            contents = globalSearchResults;
+            contents = globalSearchResults.filter((item: any) => {
+              if (globalSearchKindFilter === 'all') return true;
+              if (globalSearchKindFilter === 'folders') return item.type === 'directory' || item.isDirectory === true;
+              if (globalSearchKindFilter === 'files') return item.type !== 'directory';
+              if (globalSearchKindFilter === 'media') {
+                const ext = String(item.name || '').split('.').pop()?.toLowerCase() || '';
+                return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v'].includes(ext);
+              }
+              return true;
+            });
         } else {
             contents = [];
         }
     } else if (contents && isActive && filterText.trim() !== '') {
         contents = filterByName(contents, filterText);
+    }
+
+    if (contents && !isGlobal && !isFindingTabActive) {
+      if (listKindFilter !== 'all') {
+        contents = contents.filter((item: any) => matchesListKindFilter(item, listKindFilter));
+      }
+      if (activeTagFilter) {
+        contents = contents.filter((item: any) => matchesTagFilter(item, activeTagFilter));
+      }
     }
 
     if (contents && pane.filterRegex && pane.filterRegex.trim() !== '') {
@@ -2973,10 +3310,15 @@ export default function BNDZUI() {
       ? flattenGroupedList(contents, listGroupBy)
       : (contents || []);
 
-    const mouseRt = buildSettingsRuntime(config).mouse;
+    const mouseRt = settingsRt.mouse;
 
     const buildEntityPath = (ent: any) => {
-      if (ent?.isShellItem && ent.path) return toPanePath(ent.path);
+      if (ent?.path && (isGlobal || isBndzVirtualPath(panePath) || filterText.trimStart().startsWith('> '))) {
+        return toPanePath(ent.path);
+      }
+      if (ent?.isShellItem && ent.path) {
+        return toPanePath(ent.path);
+      }
       if (ent.type === 'directory') {
         let newPath = isGlobal && ent.path ? ent.path :
           panePath === '/' ? (ent.name.startsWith('/') ? ent.name : `/${ent.name}`) :
@@ -3038,18 +3380,31 @@ export default function BNDZUI() {
         setSelectedItems(next, pane.id);
         scheduleSelectionChrome(next, true);
         scheduleQuickActionsBar(next.length > 0, true);
+        selectionAnchorRef.current = { paneId: pane.id, itemId: id };
         setLastClickData(null);
       } else if (e.shiftKey) {
-        setSelectedItems([id], pane.id);
-        scheduleSelectionChrome([id], true);
+        const visibleItems = (listRows || []).filter((item: any) => !isGroupHeaderRow(item));
+        const anchor = selectionAnchorRef.current?.paneId === pane.id
+          ? selectionAnchorRef.current.itemId
+          : (focusedItemId || currentTab.selectedItems[0] || id);
+        const anchorIndex = visibleItems.findIndex((item: any) => item.id === anchor);
+        const targetIndex = visibleItems.findIndex((item: any) => item.id === id);
+        const next = anchorIndex >= 0 && targetIndex >= 0
+          ? visibleItems
+              .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+              .map((item: any) => item.id)
+          : [id];
+        setSelectedItems(next, pane.id);
+        scheduleSelectionChrome(next, true);
         scheduleQuickActionsBar(true, true);
         setLastClickData(null);
       } else {
         setSelectedItems([id], pane.id);
         scheduleSelectionChrome([id], false);
         scheduleQuickActionsBar(true, false);
+        selectionAnchorRef.current = { paneId: pane.id, itemId: id };
 
-        if (mouseRt.singleClickOpen && entity) {
+        if (mouseRt.singleClickOpen && entity?.type === 'directory') {
           openEntity(entity);
           return;
         }
@@ -3065,7 +3420,7 @@ export default function BNDZUI() {
             if (entity) {
               renameTimerRef.current = setTimeout(() => {
                 renameTimerRef.current = null;
-                setInlineRename({ path: panePath, entityId: id, currentName: getRenameInitialValue(entity, config) });
+                beginInlineRename(panePath, id, entity);
               }, 350);
               setLastClickData({ id, time: now });
               return;
@@ -3075,6 +3430,7 @@ export default function BNDZUI() {
         setLastClickData({ id, time: now });
       }
     };
+    listGestureClickRef.current = handleEntityClicked;
 
     /** Right-click selection only — never open/navigate (avoids dual-pane surprise opens). */
     const selectEntityForContextMenu = (entityId: string) => {
@@ -3126,7 +3482,9 @@ export default function BNDZUI() {
       e.preventDefault();
       e.stopPropagation();
       if (!isActive && isDualPane) setActivePaneId(pane.id);
-      e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
+      const copy = e.ctrlKey || e.altKey;
+      dropModifierRef.current.copy = copy;
+      e.dataTransfer.dropEffect = copy ? 'copy' : 'move';
     };
 
     const visibleListColumns = getVisibleListColumns(config, { isGlobalSearch: isGlobal });
@@ -3150,16 +3508,11 @@ export default function BNDZUI() {
         case 'name':
           return (
             <div key={colId} className="px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none flex items-center gap-1.5" style={textStyle}>
-              {entityTags.length > 0 && buildSettingsRuntime(config).list.showTags && (
+              {settingsRt.list.showTags && entityTags.length > 0 && (
                 <span className="flex items-center gap-0.5 shrink-0">
-                  {entityTags.slice(0, 3).map(t => {
-                    const meta = availableTags.find((x: any) => x.name === t || x.label === t);
-                    return (
-                      <span key={t} title={meta?.label || t} className="inline-flex shrink-0">
-                        <Tag size={11} style={{ color: meta?.color || '#888' }} fill={meta?.color || '#888'} aria-hidden />
-                      </span>
-                    );
-                  })}
+                  {entityTags.slice(0, 3).map(t => (
+                    <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
+                  ))}
                 </span>
               )}
               {renameInput || displayName}
@@ -3209,8 +3562,8 @@ export default function BNDZUI() {
         case 'tags':
           return (
             <div key={colId} className="px-2 flex gap-1 h-full items-center flex-wrap">
-              {buildSettingsRuntime(config).list.showTags && entityTags.map(t => (
-                <span key={t} className="bg-[#333] text-[9px] px-[4px] rounded-sm text-gray-300 border border-[#444] uppercase tracking-wide leading-none py-[2px]">{t}</span>
+              {entityTags.map(t => (
+                <TagBadge key={t} tagKey={t} catalog={availableTags} />
               ))}
             </div>
           );
@@ -3237,11 +3590,32 @@ export default function BNDZUI() {
       }
     };
 
+    const buildDragPaths = (anchorEntityId: string, selectionOverride?: string[]): string[] => {
+      const anchorEntity = contents?.find((c: any) => c.id === anchorEntityId);
+      if (!anchorEntity) return [];
+      const selection = selectionOverride ?? currentTab.selectedItems;
+      let paths: string[];
+      if (selection.includes(anchorEntityId) && selection.length > 0) {
+        paths = selection.map((sid: string) => {
+          const se = contents?.find((c: any) => c.id === sid);
+          if (!se) return null;
+          return isGlobal && se.path ? se.path : joinPanePath(panePath, se);
+        }).filter(Boolean) as string[];
+      } else {
+        paths = [joinPanePath(panePath, anchorEntity)];
+      }
+      return paths.map(p => toWindowsPath(p));
+    };
+
     const handleDrop = (e: React.DragEvent, dropTargetIdOverride?: string | null, destPanePathOverride?: string) => {
       e.preventDefault();
       e.stopPropagation();
-      setDragTargetId(null);
+      setDragTargetHighlight(null);
       setActivePaneId(pane.id);
+      if (isBndzVirtualPath(panePath)) {
+        setToastMessage('Smart views are read-only. Open a folder to move or copy files.');
+        return;
+      }
       try {
         let destPath = destPanePathOverride ?? panePath;
         if (dropTargetIdOverride) {
@@ -3251,7 +3625,12 @@ export default function BNDZUI() {
           }
         }
         const destWin = toWindowsPath(destPath);
-        const op = e.ctrlKey || e.altKey ? 'copy' : 'move';
+        const dataStr = e.dataTransfer.getData('application/bndz-file');
+        let payloadCopy = false;
+        if (dataStr) {
+          try { payloadCopy = !!JSON.parse(dataStr).copy; } catch { /* ignore */ }
+        }
+        const op = (payloadCopy || dropModifierRef.current.copy || e.ctrlKey || e.altKey) ? 'copy' : 'move';
         const shellRt = buildSettingsRuntime(config).shell;
 
         const runDrop = (sourcePaths: string[], sourcePath?: string) => {
@@ -3271,7 +3650,6 @@ export default function BNDZUI() {
           return;
         }
 
-        const dataStr = e.dataTransfer.getData('application/bndz-file');
         if (!dataStr) return;
         const data = JSON.parse(dataStr);
         const sourcePaths: string[] = (data.paths || []).map((p: string) => toWindowsPath(p)).filter(Boolean);
@@ -3334,7 +3712,9 @@ export default function BNDZUI() {
                    e.stopPropagation();
                    const hasFileDrag = hasBndzFileDrag(e) || (e.dataTransfer.files?.length ?? 0) > 0;
                    if (hasFileDrag) {
-                     e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
+                     const copy = e.ctrlKey || e.altKey;
+                     dropModifierRef.current.copy = copy;
+                     e.dataTransfer.dropEffect = copy ? 'copy' : 'move';
                      setTabFileDropTarget({ paneId: pane.id, tabIndex: idx });
                      scheduleTabSwitchOnFileDrag(pane.id, idx);
                      return;
@@ -3481,16 +3861,17 @@ export default function BNDZUI() {
                               setEditingAddressBarPaneId(null);
                               return;
                             }
-                            const catalogPath = parseUserPathToPane(raw);
-                            if (catalogPath && isVirtualCatalogPath(catalogPath)) {
-                              setCurrentPath(catalogPath, pane.id);
+                            const parsedPath = parseUserPathToPane(raw);
+                            if (parsedPath && isVirtualCatalogPath(parsedPath)) {
+                              setCurrentPath(parsedPath, pane.id);
                               setEditingAddressBarPaneId(null);
                               return;
                             }
                             // XYplorer-style: path ? filter pattern
                             if (raw.includes('?')) {
                               const [pathPart, filterPart] = raw.split('?').map(s => s.trim());
-                              let newPath = (pathPart || currentTab.path).replace(/\\/g, '/');
+                              const pathFromPart = parseUserPathToPane(pathPart || '') || currentTab.path;
+                              let newPath = pathFromPart.replace(/\\/g, '/');
                               if (!newPath.startsWith('/')) newPath = '/' + newPath;
                               import('../lib/ipcBridge').then(async ({ IPC }) => {
                                 const exists = await IPC.checkPathExists(newPath);
@@ -3504,16 +3885,18 @@ export default function BNDZUI() {
                               });
                               return;
                             }
-                            let newPath = raw.replace(/\\/g, '/');
-                            if (!newPath.startsWith('/')) newPath = '/' + newPath;
-                            import('../lib/ipcBridge').then(async ({IPC}) => {
+                            const newPath = parsedPath;
+                            if (!newPath) {
+                              setEditingAddressBarPaneId(null);
+                              return;
+                            }
+                            import('../lib/ipcBridge').then(async ({ IPC }) => {
                                 const exists = await IPC.checkPathExists(newPath);
                                 if (exists) {
                                   setCurrentPath(newPath, pane.id);
                                   setEditingAddressBarPaneId(null);
                                 } else {
                                   setEditingAddressBarPaneId(null);
-                                  // Revert smoothly as requested
                                 }
                             });
                         }
@@ -3571,6 +3954,9 @@ export default function BNDZUI() {
                  </button>
                  <button onClick={() => setViewMode('columns', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--columns w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'columns' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Columns View (click again for default)">
                      <Columns size={12} />
+                 </button>
+                 <button onClick={() => setViewMode('size', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--size w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'size' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Size map (treemap)">
+                     <PieChart size={12} />
                  </button>
             </div>
             {/* Fixed-width slot keeps the filter box from shifting when the view changes */}
@@ -3648,10 +4034,28 @@ export default function BNDZUI() {
         </div>
         )}
 
+        {isGlobal && config.enableBndzIndexedSearch !== false && (
+          <SearchToolbar
+            scope={indexedSearchScope}
+            onScopeChange={setIndexedSearchScope}
+            onClear={() => setFilterText('')}
+            showFilters
+            kindFilter={globalSearchKindFilter}
+            onKindFilterChange={setGlobalSearchKindFilter}
+          />
+        )}
+
+        {!isGlobal && !isFindingTabActive && (
+          <ListFilterChips
+            value={listKindFilter}
+            onChange={setListKindFilter}
+          />
+        )}
+
         {/* List Items */}
         <div 
            data-pane-id={pane.id}
-           className="flex-1 overflow-y-auto p-1 focus:outline-none relative bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer"
+           className={`flex-1 overflow-y-auto p-1 focus:outline-none relative bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer ${marquee && marquee.activePane === pane.id ? 'cursor-crosshair' : 'cursor-default'}`}
            style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
            onScroll={e => handlePaneScroll(pane.id, e)}
            onContextMenu={(e) => {
@@ -3660,48 +4064,219 @@ export default function BNDZUI() {
            }}
            onClick={(e) => {
               if (e.defaultPrevented) return;
-              // if marquee was active and dragged, we shouldn't clear. 
-              // A simple way is to check a ref or just see if the mouse moved during pointerdown.
-              // We'll rely on the fact that we can set a flag on the event or use a ref.
-              // Actually, since React resets e, we will rely on a generic check.
               if ((window as any)._marqueeDragOccurred) {
                   (window as any)._marqueeDragOccurred = false;
                   return;
               }
               setSelectedItems([], pane.id);
+              selectionAnchorRef.current = null;
               scheduleSelectionChrome([], true);
               scheduleQuickActionsBar(false);
               setLastClickData(null);
               setInlineRename(null);
            }}
-           onPointerDown={(e) => {
-              if (!(e.target as HTMLElement).closest('.fs-item-wrapper')) {
-                 const listEl = e.currentTarget as HTMLElement;
-                 const pt = marqueePointInList(listEl, e.clientX, e.clientY);
-                 setMarquee({ activePane: pane.id, startX: pt.x, startY: pt.y, currX: pt.x, currY: pt.y, scrollLeft: 0, scrollTop: 0 });
-                 setMarqueeActive(true);
-                 (window as any)._marqueeDragOccurred = false;
+           onPointerDownCapture={(e) => {
+              if (e.button !== 0) return;
+              if ((e.target as HTMLElement).closest('input, textarea, button, select, a')) return;
 
-                 const onPointerMove = (ev: PointerEvent) => {
-                     if (Math.abs(ev.clientX - e.clientX) > 3 || Math.abs(ev.clientY - e.clientY) > 3) {
-                         (window as any)._marqueeDragOccurred = true;
-                     }
-                     const p = marqueePointInList(listEl, ev.clientX, ev.clientY);
-                     setMarquee(prev => prev ? { ...prev, currX: p.x, currY: p.y } : null);
-                     const edge = 48;
-                     const rect = listEl.getBoundingClientRect();
-                     if (ev.clientY > rect.bottom - edge) listEl.scrollTop += 12;
-                     else if (ev.clientY < rect.top + edge) listEl.scrollTop -= 12;
-                 };
-                 const onPointerUp = () => {
-                     window.removeEventListener('pointermove', onPointerMove);
-                     window.removeEventListener('pointerup', onPointerUp);
-                     setMarquee(null);
-                     setMarqueeActive(false);
-                 };
-                 window.addEventListener('pointermove', onPointerMove);
-                 window.addEventListener('pointerup', onPointerUp);
+              const listEl = e.currentTarget as HTMLElement;
+              const ctrlKey = e.ctrlKey || e.metaKey;
+              const shiftKey = e.shiftKey;
+              (window as any)._marqueeDragOccurred = false;
+
+              const buildSelectMeta = (): MarqueeSelectMeta | undefined =>
+                computedViewMode === 'details' && (listRows?.length ?? 0) >= 80
+                  ? {
+                      rowHeight: detailsRowHeight,
+                      items: (listRows || []).flatMap((item: any, rowIndex: number) =>
+                        isGroupHeaderRow(item) ? [] : [{ id: item.id, rowIndex }],
+                      ),
+                    }
+                  : undefined;
+
+              const rowEl = (e.target as HTMLElement).closest('.fs-item-wrapper') as HTMLElement | null;
+
+              if (!rowEl) {
+                // Empty space → start marquee immediately
+                beginMarqueeGesture(
+                  pane.id, listEl, e.clientX, e.clientY,
+                  ctrlKey || shiftKey, (ctrlKey || shiftKey) ? [...currentTab.selectedItems] : [],
+                  buildSelectMeta(),
+                );
+                return;
               }
+
+              // Row hit → pending: disambiguate drag vs marquee on movement
+              const entityId = rowEl.getAttribute('data-id');
+              if (!entityId) return;
+              const wasSelected = currentTab.selectedItems.includes(entityId);
+              const startX = e.clientX;
+              const startY = e.clientY;
+              const capturePointerId = e.pointerId;
+              const altKey = e.altKey;
+
+              listGestureRef.current = {
+                paneId: pane.id,
+                pointerId: capturePointerId,
+                startX, startY,
+                entityId,
+                wasSelected,
+                ctrlKey,
+                shiftKey,
+                altKey,
+                moved: false,
+                mode: 'pending',
+                copyDrag: false,
+                dragSelection: wasSelected ? [...currentTab.selectedItems] : [entityId],
+                listEl,
+              };
+
+              try { listEl.setPointerCapture(capturePointerId); } catch { /* ignore */ }
+              beginDragSession(capturePointerId, startX, startY, 0);
+              let oleDragStarted = false;
+
+              const resolveDropTarget = (clientX: number, clientY: number) => {
+                const hit = document.elementFromPoint(clientX, clientY);
+                const dropRow = hit?.closest('.fs-item-wrapper') as HTMLElement | null;
+                const dropId = dropRow?.getAttribute('data-id');
+                if (!dropId) {
+                  setDragTargetHighlight(null);
+                  return null;
+                }
+                const dropEnt = contents?.find((c: any) => c.id === dropId);
+                if (dropEnt?.type === 'directory') {
+                  setDragTargetHighlight(dropId);
+                  return dropEnt;
+                }
+                setDragTargetHighlight(null);
+                return null;
+              };
+
+              const onMove = (ev: PointerEvent) => {
+                if (ev.pointerId !== capturePointerId) return;
+                if (!listGestureRef.current) return;
+                trackDragPointer(ev.clientX, ev.clientY);
+                const dx = Math.abs(ev.clientX - startX);
+                const dy = Math.abs(ev.clientY - startY);
+                const copyHeld = ev.ctrlKey || ev.metaKey || ev.altKey;
+
+                if (listGestureRef.current.mode === 'pending') {
+                  if (dx < 8 && dy < 8) return;
+
+                  suppressRowClickRef.current = true;
+                  (window as any)._marqueeDragOccurred = true;
+
+                  // Shift+drag from a row → additive marquee (empty space marquee starts on pointer down).
+                  if (shiftKey) {
+                    listGestureRef.current = null;
+                    window.removeEventListener('pointermove', onMove);
+                    beginMarqueeGesture(
+                      pane.id, listEl, startX, startY,
+                      true,
+                      [...currentTab.selectedItems],
+                      buildSelectMeta(),
+                    );
+                    return;
+                  }
+
+                  if (mouseRt.disallowDragFromList) {
+                    clearDragSession();
+                    return;
+                  }
+
+                  // Explorer one-motion grab: drag row immediately; auto-select if it wasn't selected.
+                  const copyDrag = copyHeld;
+                  let dragSelection = listGestureRef.current.dragSelection;
+                  if (!wasSelected) {
+                    dragSelection = [entityId];
+                    listGestureRef.current.dragSelection = dragSelection;
+                    const ops = marqueeOpsRef.current;
+                    ops.setSelectedItems(dragSelection, pane.id);
+                    ops.scheduleSelectionChrome(dragSelection, true);
+                    ops.scheduleQuickActionsBar(true, true);
+                    setFocusedItemId(entityId);
+                    selectionAnchorRef.current = { paneId: pane.id, itemId: entityId };
+                  }
+
+                  listGestureRef.current.mode = 'drag';
+                  listGestureRef.current.copyDrag = copyDrag;
+                  dropModifierRef.current.copy = copyDrag;
+                  internalDragRef.current = true;
+                }
+
+                if (listGestureRef.current.mode === 'drag') {
+                  dropModifierRef.current.copy = listGestureRef.current.copyDrag || copyHeld;
+                  resolveDropTarget(ev.clientX, ev.clientY);
+
+                  if (!oleDragStarted) {
+                    const listRect = listEl.getBoundingClientRect();
+                    const leftList =
+                      ev.clientX < listRect.left || ev.clientX > listRect.right ||
+                      ev.clientY < listRect.top || ev.clientY > listRect.bottom;
+                    if (leftList) {
+                      const dragPaths = buildDragPaths(entityId, listGestureRef.current.dragSelection);
+                      if (dragPaths.length) {
+                        oleDragStarted = true;
+                        nativeOleDragRef.current = true;
+                        internalDragRef.current = false;
+                        listGestureRef.current = null;
+                        window.removeEventListener('pointermove', onMove);
+                        import('../lib/ipcBridge').then(m => m.IPC.startDrag(dragPaths));
+                      }
+                    }
+                  }
+                }
+              };
+
+              const onUp = (ev: PointerEvent) => {
+                if (ev.pointerId !== capturePointerId) return;
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+                try { listEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
+
+                const gesture = listGestureRef.current;
+                const copyHeld = ev.ctrlKey || ev.metaKey || ev.altKey;
+
+                if (gesture?.mode === 'drag' && !oleDragStarted) {
+                  const dropEnt = resolveDropTarget(ev.clientX, ev.clientY);
+                  const dragPaths = buildDragPaths(entityId, gesture.dragSelection);
+                  if (dragPaths.length) {
+                    const destPath = dropEnt ? joinPanePath(panePath, dropEnt) : panePath;
+                    const op = (gesture.copyDrag || copyHeld) ? 'copy' : 'move';
+                    const destWin = toWindowsPath(destPath);
+                    const sameLocation = dragPaths.every(sp => {
+                      const parent = sp.replace(/[/\\][^/\\]+$/, '');
+                      return parent.toLowerCase() === destWin.toLowerCase();
+                    });
+                    if (!sameLocation) {
+                      executeInternalDrop(op, dragPaths, destWin, panePath);
+                    }
+                  }
+                  setDragTargetHighlight(null);
+                  suppressRowClickRef.current = true;
+                  internalDragRef.current = false;
+                } else if (gesture?.mode === 'pending' && !hasMetDragThreshold() && !oleDragStarted) {
+                  const synthetic = {
+                    ctrlKey: gesture.ctrlKey,
+                    shiftKey: gesture.shiftKey,
+                    metaKey: gesture.ctrlKey,
+                    altKey: gesture.altKey,
+                    stopPropagation: () => {},
+                    preventDefault: () => {},
+                  } as React.MouseEvent;
+                  listGestureClickRef.current?.(synthetic, entityId);
+                  suppressRowClickRef.current = true;
+                  clearDragSession();
+                } else if (gesture?.mode === 'pending') {
+                  if (!hasMetDragThreshold()) clearDragSession();
+                }
+
+                listGestureRef.current = null;
+                if (!oleDragStarted) nativeOleDragRef.current = false;
+              };
+
+              window.addEventListener('pointermove', onMove);
+              window.addEventListener('pointerup', onUp);
            }}
         >
           {isPaneLoading && (
@@ -3713,10 +4288,16 @@ export default function BNDZUI() {
           {!isPaneLoading && isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading)) && (
              <div className="flex flex-col items-center justify-center h-full gap-3 text-amber-400/80 min-h-[200px]">
                <Loader2 className="animate-spin" size={22} />
-               <span className="text-[11px]">Searching{config.enableEverythingSearch !== false ? ' with Everything' : ''}…</span>
+               <span className="text-[11px]">Searching{globalSearchEngine === 'indexed' ? ' local cache' : config.enableEverythingSearch !== false ? ' with Everything' : ''}…</span>
              </div>
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && normPanePath === BNDZ_VIEWS_ROOT && (
+            <BndzHubView
+              onNavigate={p => setCurrentPath(p, pane.id)}
+              onRefresh={() => void refetchPath(BNDZ_VIEWS_ROOT)}
+            />
+          )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && (
             <MillerColumnsView
               rootPath={isThisPc ? '/' : panePath}
               selectedPath={panePath}
@@ -3726,7 +4307,54 @@ export default function BNDZUI() {
               onOpen={(entity, colPath) => openEntity({ ...entity, path: joinPanePath(colPath, entity as any) })}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode !== 'columns' && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'size' && normPanePath !== BNDZ_VIEWS_ROOT && (
+            <FolderSizeTreemap
+              items={(contents || []).map((ent: any) => {
+                const p = buildEntityPath(ent);
+                const folderKey = ent.type === 'directory' ? toWindowsPath(p).toLowerCase() : '';
+                return {
+                  name: ent.name,
+                  type: ent.type,
+                  size: ent.type === 'directory' ? (folderSizeMap[folderKey] ?? ent.size ?? 4096) : (ent.size || 0),
+                  path: p,
+                };
+              })}
+              onNavigate={p => setCurrentPath(p, pane.id)}
+            />
+          )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'media' && (
+            <BndzMediaView
+              items={contents || []}
+              selectedIds={currentTab.selectedItems}
+              buildPath={buildEntityPath}
+              onItemClick={(e, entity) => handleEntityClicked(e, entity.id)}
+              onItemDoubleClick={openEntity}
+              onContextMenu={(e, entity) => {
+                void handleContextMenuRequest(
+                  e, buildEntityPath(entity), entity.id,
+                  entity.type === 'directory', entity.name, undefined, 'list-item',
+                );
+              }}
+              onIndexBuilt={() => void refetchPath(normPanePath)}
+            />
+          )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'recents' && (
+            <BndzRecentsView
+              items={contents || []}
+              selectedIds={currentTab.selectedItems}
+              buildPath={buildEntityPath}
+              onItemClick={(e, entity) => handleEntityClicked(e, entity.id)}
+              onItemDoubleClick={openEntity}
+              onContextMenu={(e, entity) => {
+                void handleContextMenuRequest(
+                  e, buildEntityPath(entity), entity.id,
+                  entity.type === 'directory', entity.name, undefined, 'list-item',
+                );
+              }}
+              onIndexBuilt={() => void refetchPath(normPanePath)}
+            />
+          )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode !== 'columns' && computedViewMode !== 'size' && computedViewMode !== 'media' && computedViewMode !== 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && (
             <VirtualizedFileList
               items={listRows || []}
               enabled={computedViewMode === 'details' || computedViewMode === 'grid'}
@@ -3742,10 +4370,12 @@ export default function BNDZUI() {
                 "flex flex-col w-full"
               }
               emptyState={
-                <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-gray-500 gap-2">
+                <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-gray-500 gap-2 px-4 text-center">
                   <FolderOpen size={28} className="opacity-40" />
                   <span className="text-[11px]">
-                    {isFindingTabActive ? `No results for "${currentTab.findingQuery}".` : isGlobal ? 'No global search results.' : 'This folder is empty.'}
+                    {isFindingTabActive ? `No results for "${currentTab.findingQuery}".`
+                      : isGlobal ? 'No global search results.'
+                      : 'This folder is empty.'}
                   </span>
                 </div>
               }
@@ -3793,28 +4423,41 @@ export default function BNDZUI() {
                 const displayName = getDisplayName(entity, config, panePath);
                 const cloudBadge = cloudBadgeForPath(toWindowsPath(joinPanePath(panePath, entity)), cloudProviders);
                     
+                const commitInlineRename = () => {
+                  if (!inlineRename || inlineRename.entityId !== entity.id || inlineRename.path !== panePath) return;
+                  const targetName = resolveRenameTargetName(entity, inlineRename.currentName, config);
+                  if (!targetName) {
+                    setToastMessage('Name cannot be empty.', 'warning');
+                    setInlineRename(null);
+                    return;
+                  }
+                  if (/[<>:"\/\\|?*\x00-\x1F]/.test(targetName)) {
+                    setToastMessage('Name contains characters Windows does not allow.', 'warning');
+                    setInlineRename(null);
+                    return;
+                  }
+                  if (targetName === entity.name) {
+                    setInlineRename(null);
+                    return;
+                  }
+
+                  const sourcePath = isGlobal && entity.path ? entity.path : joinPanePath(panePath, entity);
+                  const targetDir = sourcePath.replace(/[/\\][^/\\]+$/, '');
+                  const targetPath = targetDir ? `${targetDir}/${targetName}` : joinPanePath(panePath, { name: targetName });
+                  void import("../lib/ipcBridge").then(({ IPC }) =>
+                    IPC.executeFsOperation(`rename-${Date.now()}`, "move", toWindowsPath(sourcePath), toWindowsPath(targetPath)),
+                  );
+                  setInlineRename(null);
+                };
+
                 const renameInput = inlineRename?.entityId === entity.id && inlineRename?.path === panePath ? (
-                    <input 
-                       type="text" 
-                       className="bg-[#111] text-white border border-[#007acc] px-1 outline-none w-[90%]"
-                       autoFocus 
+                    <InlineRenameInput
                        value={inlineRename.currentName}
-                       onChange={e => setInlineRename({ ...inlineRename, currentName: e.target.value })}
-                       onBlur={() => {
-                           if (inlineRename.currentName !== entity.name) {
-                               import("../lib/ipcBridge").then(({ IPC }) => IPC.executeFsOperation(`rename-${Date.now()}`, "move", `${panePath}/${entity.name}`, `${panePath}/${inlineRename.currentName}`));
-                           }
-                           setInlineRename(null);
-                       }}
-                       onKeyDown={e => {
-                           if (e.key === "Enter") {
-                               e.currentTarget.blur();
-                           } else if (e.key === "Escape") {
-                               setInlineRename(null);
-                           }
-                       }}
-                       onClick={e => e.stopPropagation()}
-                       onDoubleClick={e => e.stopPropagation()}
+                       entity={entity}
+                       config={config}
+                       onChange={value => setInlineRename({ ...inlineRename, currentName: value })}
+                       onCommit={commitInlineRename}
+                       onCancel={() => setInlineRename(null)}
                     />
                 ) : null;
 
@@ -3829,7 +4472,7 @@ export default function BNDZUI() {
                 const tipHandlers = bindFloatingTooltipHandlers(tooltipContent, config);
                 const suppressNativeTitle = shouldSuppressNativeEntityTitle(config);
 
-                const listRt = buildSettingsRuntime(config).list;
+                const listRt = settingsRt.list;
                 const zebraAlt = listRt.zebraRows && !showSelectionChrome && rowIndex % 2 === 1;
                 const isGridLike = computedViewMode === 'grid' || computedViewMode === 'list';
 
@@ -3837,8 +4480,8 @@ export default function BNDZUI() {
                   <div 
                     id={`fs-item-${entity.id}`}
                     data-id={entity.id}
-                    className={`fs-item-wrapper ${isGridLike ? 'fs-grid-item' : 'fs-list-item'} ${computedViewMode === 'grid' ? `flex flex-col items-center justify-center p-2 rounded w-full ${isDrive ? 'min-h-[128px] h-auto' : 'h-[100px]'}` : computedViewMode === 'list' ? `flex items-center text-[12px] py-1 px-2 ${isDrive ? 'w-[280px]' : 'w-[220px]'} rounded` : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : isNeutralDefault ? "py-[1px]" : "py-[3px]"}`} border border-transparent cursor-pointer 
-                      ${showSelectionChrome ? `fs-item-selected ${buildSettingsRuntime(config).list.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : mouseRt.highlightHovered ? 'hover:bg-[#2a2d2e]' : ''}
+                    className={`fs-item-wrapper ${isGridLike ? 'fs-grid-item' : 'fs-list-item'} ${computedViewMode === 'grid' ? `flex flex-col items-center justify-center p-2 rounded w-full ${isDrive ? 'min-h-[128px] h-auto' : 'h-[100px]'}` : computedViewMode === 'list' ? `flex items-center text-[12px] py-1 px-2 ${isDrive ? 'w-[280px]' : 'w-[220px]'} rounded` : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : isNeutralDefault ? "py-[1px]" : "py-[3px]"}`} border border-transparent cursor-default
+                      ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : mouseRt.highlightHovered ? 'hover:bg-[#2a2d2e]' : ''}
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
                       ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-sky-400 bg-sky-900/40" : ""}
                       ${isCut || syncOpacity ? "opacity-50 grayscale" : ""}`}
@@ -3850,25 +4493,33 @@ export default function BNDZUI() {
                         ...(filterResult?.rowTint && !showSelectionChrome ? { backgroundColor: filterResult.rowTint } : filterColor && !showSelectionChrome ? { backgroundColor: `${filterColor}1A` } : {}),
                         ...(!showSelectionChrome && colorFilterResult?.inlineStyle ? colorFilterResult.inlineStyle : {})
                     }}
-                    onClick={(e) => { markPointerDown(); handleEntityClicked(e, entity.id); }}
-                    onDoubleClick={() => { clearDragSession(); handleEntityDoubleClicked(entity); }}
-                    onPointerDown={(e) => {
+                    onMouseDown={(e) => {
                       if (e.button !== 0) return;
-                      markPointerDown();
-                      beginDragSession(e.pointerId, e.clientX, e.clientY, mouseRt.disallowDragFromList ? 99999 : 0);
-                      const onMove = (ev: PointerEvent) => trackDragPointer(ev.clientX, ev.clientY);
-                      const onUp = () => {
-                        window.removeEventListener('pointermove', onMove);
-                        window.removeEventListener('pointerup', onUp);
-                        clearDragSession();
-                      };
-                      window.addEventListener('pointermove', onMove);
-                      window.addEventListener('pointerup', onUp);
+                      // Gesture (drag session + pointer tracking) is managed in onPointerDownCapture.
+                      // No eager selection here — onClick → handleEntityClicked handles all selection.
                     }}
+                    onClick={(e) => {
+                      if (suppressRowClickRef.current) {
+                        suppressRowClickRef.current = false;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      if ((window as any)._marqueeDragOccurred) {
+                        (window as any)._marqueeDragOccurred = false;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      markPointerDown();
+                      handleEntityClicked(e, entity.id);
+                    }}
+                    onDoubleClick={() => { clearDragSession(); handleEntityDoubleClicked(entity); }}
                     onAuxClick={(e) => { if (e.button !== 1) return; e.preventDefault(); handleEntityMiddleClick(e, entity); }}
                     onMouseEnter={(e) => {
                       tipHandlers.onMouseEnter?.(e);
-                      if (mouseRt.hoverSelect) {
+                      if (listGestureRef.current || isMarqueeActive()) return;
+                      if (mouseRt.hoverSelect && !inlineRename) {
                         setFocusedItemId(entity.id);
                         setSelectedItems([entity.id], pane.id);
                         scheduleSelectionChrome([entity.id], true);
@@ -3877,17 +4528,17 @@ export default function BNDZUI() {
                     }}
                     onMouseMove={tipHandlers.onMouseMove}
                     onMouseLeave={tipHandlers.onMouseLeave}
-                    onDragEnter={(e) => { e.preventDefault(); if (isDir) setDragTargetId(entity.id); }}
-                    onDragLeave={(e) => { e.preventDefault(); if (dragTargetId === entity.id) setDragTargetId(null); }}
+                    onDragEnter={(e) => { e.preventDefault(); if (isDir) setDragTargetHighlight(entity.id); }}
+                    onDragLeave={(e) => { e.preventDefault(); if (dragTargetId === entity.id) setDragTargetHighlight(null); }}
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      dropModifierRef.current.copy = e.ctrlKey || e.altKey;
                       if (isDir) {
-                        e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
-                        setDragTargetId(entity.id);
+                        e.dataTransfer.dropEffect = dropModifierRef.current.copy ? 'copy' : 'move';
                       }
                     }}
-                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDragTargetId(null); if (isDir) { handleDrop(e, entity.id); } else { handleDrop(e); } }}
+                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDragTargetHighlight(null); if (isDir) { handleDrop(e, entity.id); } else { handleDrop(e); } }}
                     onContextMenu={(e) => {
                        e.preventDefault();
                        e.stopPropagation();
@@ -3909,38 +4560,21 @@ export default function BNDZUI() {
                          contextPaths = [joinPanePath(panePath, entity)];
                        }
 
-                       handleContextMenuRequest(e, panePath, entity.id, isDir, entity.name, contextPaths, 'list-item');
+                       handleContextMenuRequest(e, panePath, entity.id, isDir, entity.name, contextPaths, 'list-item', entity.extension || null);
                     }}
-                    draggable={!mouseRt.disallowDragFromList}
+                    draggable={false}
                     onDragStart={(e) => {
-                      if (!shouldAllowDragStart(mouseRt.disallowDragFromList)) { e.preventDefault(); return; }
-                      let dragPaths = [joinPanePath(panePath, entity)];
-                      if (pane.tabs[pane.activeTabIndex].selectedItems.includes(entity.id)) {
-                          dragPaths = pane.tabs[pane.activeTabIndex].selectedItems.map((sid: string) => {
-                             const se = contents.find(c => c.id === sid);
-                             if (!se) return null;
-                             return isGlobal && se.path ? se.path : joinPanePath(panePath, se);
-                          }).filter(Boolean) as string[];
-                      }
-                      dragPaths = dragPaths.map(p => toWindowsPath(p));
-                      const payload = {
-                        sourcePaneId: pane.id,
-                        sourcePath: panePath,
-                        entityId: entity.id,
-                        paths: dragPaths,
-                      };
-                      e.dataTransfer.setData('application/bndz-file', JSON.stringify(payload));
-                      e.dataTransfer.setData('text/plain', dragPaths.join('\n'));
-                      e.dataTransfer.effectAllowed = 'copyMove';
-                      internalDragRef.current = true;
-                      if (e.altKey) {
-                        e.preventDefault();
-                        import('../lib/ipcBridge').then(m => m.IPC.startDrag(dragPaths));
-                      }
+                      // List drags are handled via pointer capture (marquee vs move/copy drag).
+                      e.preventDefault();
+                    }}
+                    onDrag={(e) => {
+                      dropModifierRef.current.copy = e.ctrlKey || e.altKey;
+                      if (e.dataTransfer) e.dataTransfer.dropEffect = dropModifierRef.current.copy ? 'copy' : 'move';
                     }}
                     onDragEnd={() => {
                       internalDragRef.current = false;
-                      setDragTargetId(null);
+                      setDragTargetHighlight(null);
+                      clearDragSession();
                     }}
                   >
                      {isDrive && drive ? (
@@ -3953,7 +4587,7 @@ export default function BNDZUI() {
                            <div className={`${detailsIconColClass} flex justify-center shrink-0`}>
                               <ShellNativeIcon path={entity.path || drive.name} isDir={false} size={detailsIconSize} eager />
                            </div>
-                           <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="details" />
+                           <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="details" selected={showSelectionChrome} />
                         </>
                         )
                      ) : (
@@ -3964,6 +4598,13 @@ export default function BNDZUI() {
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={gridIconSz} />
                                   {filterResult?.badgeColor && (
                                       <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full ring-1 ring-black" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
+                                  )}
+                                  {listRt.showTags && entityTags.length > 0 && (
+                                    <span className="absolute bottom-0 left-0 flex gap-0.5 flex-wrap p-0.5">
+                                      {entityTags.slice(0, 3).map(t => (
+                                        <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
+                                      ))}
+                                    </span>
                                   )}
                                </div>
                                <div className="text-center line-clamp-2 w-full break-words text-[11px] leading-tight" title={suppressNativeTitle ? undefined : entity.name} style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
@@ -3978,6 +4619,13 @@ export default function BNDZUI() {
                                <div className="flex-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
                                   {displayLabel}
                                </div>
+                               {listRt.showTags && entityTags.length > 0 && (
+                                 <span className="flex items-center gap-0.5 shrink-0 mr-1">
+                                   {entityTags.slice(0, 3).map(t => (
+                                     <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
+                                   ))}
+                                 </span>
+                               )}
                                {cloudBadge && (
                                  <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-sky-400/80'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
                                )}
@@ -4075,11 +4723,27 @@ export default function BNDZUI() {
   const previewPath = useMemo(() => {
     if (currentTab.selectedItems.length > 0) {
       const ent = getResolvedEntity(currentTab.selectedItems[0]);
-      if (ent) return joinPanePath(currentTab.path, ent);
+      if (ent) {
+        if ((ent as any).path) return toPanePath((ent as any).path);
+        return joinPanePath(currentTab.path, ent);
+      }
     }
     if (focusedFullPath) return focusedFullPath;
     return currentTab.path;
   }, [currentTab.selectedItems, currentTab.path, focusedFullPath, pathContentsCache]);
+
+  const quickPreviewItems = useMemo(() => {
+    const ids = currentTab.selectedItems.length > 0
+      ? currentTab.selectedItems
+      : (focusedItemId ? [focusedItemId] : []);
+    if (!ids.length || !activeContents) return [];
+    return ids.map(id => {
+      const ent = activeContents.find((c: any) => c.id === id);
+      if (!ent) return null;
+      const p = (ent as any).path ? toPanePath((ent as any).path) : joinPanePath(currentTab.path, ent);
+      return { entity: ent, path: p };
+    }).filter(Boolean) as Array<{ entity: any; path: string }>;
+  }, [currentTab.selectedItems, focusedItemId, activeContents, currentTab.path]);
 
   const bottomSelectionTargets = useMemo(() => {
     const paths: string[] = [];
@@ -4145,6 +4809,7 @@ export default function BNDZUI() {
       onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
     >
       <LicenseBanner onRegister={() => setShowRegisterDialog(true)} />
+      <TrialExpiredGate key={licenseEpoch} onRegister={() => setShowRegisterDialog(true)}>
       {/* Menu Bar + window controls (replaces native title bar) */}
       {config.showTopMenubar !== false && (
       <div
@@ -4199,7 +4864,7 @@ export default function BNDZUI() {
                       const sel = currentTab.selectedItems[0];
                       if (!sel) { setToastMessage('Select an item to rename.'); return; }
                       const entity = pathContentsCache[currentTab.path]?.find((x: any) => x.id === sel);
-                      if (entity) setInlineRename({ path: currentTab.path, entityId: sel, currentName: getRenameInitialValue(entity, config) });
+                      if (entity) beginInlineRename(currentTab.path, sel, entity);
                     })}><Type size={14} /> Rename</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       setClipboardState(getSelectedEntityPaths(), 'cut');
@@ -4211,7 +4876,20 @@ export default function BNDZUI() {
                     <div className="h-[1px] bg-[#444] my-1"></div>
 
                     <MenubarSubmenu label="Recent Files">
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-400 italic">(Empty)</div>
+                      {((config.recentFiles as string[] | undefined) || []).length === 0 ? (
+                            <div className="px-3 py-1 text-sm text-gray-500 italic">(Empty)</div>
+                      ) : (
+                        ((config.recentFiles as string[]) || []).map(rp => (
+                          <div
+                            key={rp}
+                            className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 truncate max-w-[320px]"
+                            title={rp}
+                            onMouseDown={menuAct(() => setCurrentPath(rp))}
+                          >
+                            {rp.replace(/^\//, '').replace(/\//g, ' › ') || 'This PC'}
+                          </div>
+                        ))
+                      )}
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -4332,7 +5010,7 @@ export default function BNDZUI() {
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => setIsSmartToolsOpen(true)}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => openBottomPlugin('batch-rename')}>
                        <Sparkles size={14} className="text-yellow-400" /> Smart Rename
                     </div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -4522,6 +5200,9 @@ export default function BNDZUI() {
                         </div>
                     ))}
                     <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { setTagAssignmentActive(true); closeMenu(); }}>
+                      <Tag size={12} className="text-sky-400" /> Tag assignment mode…
+                    </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { setIsTagManagerOpen(true); closeMenu(); }}>
                       <Tag size={12} className="text-pink-400" /> Manage Tags...
                     </div>
@@ -4659,17 +5340,30 @@ export default function BNDZUI() {
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setToastMessage('F2 Rename · Ctrl+C/X/V · Del Delete · / Fuzzy filter · Ctrl+Tab Switch pane'))}>Keyboard Shortcuts</div>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Settings Reference...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                      await import('../lib/settingsExport').then(m => m.exportSettingsBundle(config as Record<string, unknown>));
+                      setToastMessage('Settings exported.');
+                    })}>Export Settings...</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                      const r = await import('../lib/settingsExport').then(m => m.importSettingsBundle(s => updateConfig(s as any)));
+                      setToastMessage(r.message);
+                    })}>Import Settings...</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1.5 hover:bg-emerald-700/80 cursor-pointer text-sm text-emerald-100 flex items-center gap-2" onMouseDown={menuAct(() => setShowRegisterDialog(true))}>
                       <Lock size={13} className="opacity-80" /> Register Product...
                     </div>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                       setToastMessage('Checking for updates…');
-                      void IPC.checkForUpdates().then(r => {
+                      void IPC.checkForUpdates(config.updateCheckUrl).then(r => {
                         if (r.error) setToastMessage(`Update check failed: ${r.error}`);
                         else if (r.updateAvailable) setToastMessage(`Update available: v${r.latestVersion}. See About BNDZ to download.`);
                         else setToastMessage(`You are on the latest version (v${r.currentVersion}).`);
                       });
                     })}>Check for Updates...</div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('eula').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open EULA.'); }))}>License Agreement (EULA)</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('privacy').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open Privacy Policy.'); }))}>Privacy Policy</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => void IPC.openLegalDoc('third-party').then(r => { if (!r.ok) setToastMessage(r.error || 'Could not open third-party licenses.'); }))}>Third-Party Licenses</div>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowAboutDialog(true))}>About BNDZ</div>
                  </MenubarPortalMenu>
              )}
@@ -4928,7 +5622,7 @@ export default function BNDZUI() {
                            default:
                                if (item.id.startsWith('tag__')) {
                                  const tagId = item.id.slice(5);
-                                 const tag = availableTags.find((t: any) => (t.id || t.name) === tagId);
+                                 const tag = availableTags.find((t: any) => tagChipId(t) === tagId);
                                  if (tag) void applyTagToSelection(tag);
                                }
                                break;
@@ -4999,8 +5693,8 @@ export default function BNDZUI() {
         count={activeTab.selectedItems.length}
         actions={buildDefaultQuickActions({
           onQuickLook: () => {
-            setIsPreviewPanelOpen(true);
-            updateConfig({ previewPanelOpen: true });
+            setQuickPreviewIndex(0);
+            setQuickPreviewOpen(true);
           },
           onCopy: () => {
             const selectedEntities = activeContents?.filter((x: any) => activeTab.selectedItems.includes(x.id)) || [];
@@ -5083,14 +5777,16 @@ export default function BNDZUI() {
                   quickAccessContent={
                      rapidAccessItems.length > 0 ? (
                         rapidAccessItems.map((s) => {
-                           const qaPath = s.path?.startsWith('/') ? s.path : `/${(s.path || '').replace(/\\/g, '/')}`;
+                           const qaPath = normalizePanePath(s.path);
                            const iconFetch = s.iconPath || qaPath;
                            return (
                               <div 
-                                 key={s.path}
+                                 key={qaPath}
                                  className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-amber-400/70 transition-all rounded-r-sm mx-1"
                                  onClick={() => guardedSetCurrentPath(s.path)}
-                                 onContextMenu={(e) => handleContextMenuRequest(e, s.path, s.path, true, s.name, undefined, 'sidebar-item')}
+                                 onContextMenu={(e) => {
+                                   handleContextMenuRequest(e, s.path, s.path, true, s.name, undefined, 'sidebar-item');
+                                 }}
                               >
                                  <ShellNativeIcon
                                     path={iconFetch}
@@ -5327,7 +6023,7 @@ export default function BNDZUI() {
            )}
            {isGlobal && !isGlobalSearchLoading && globalSearchEngine && (
              <span className="text-amber-400/70 ml-2">
-               Global · {globalSearchEngine === 'everything' ? 'Everything' : 'Indexed walk'}
+               Global · {globalSearchEngine === 'indexed' ? 'Indexed search' : globalSearchEngine === 'everything' ? 'Everything' : 'Filesystem'}
              </span>
            )}
            {folderSizeSync?.active && (
@@ -5441,9 +6137,12 @@ export default function BNDZUI() {
         <Suspense fallback={null}>
           <SmartToolsDialog
             isOpen={isSmartToolsOpen}
-            onClose={() => setIsSmartToolsOpen(false)}
+            onClose={() => { setIsSmartToolsOpen(false); setSmartToolsPrompt(undefined); }}
             selectedItems={activeFilesMap.map((e: any) => e.path || joinPanePath(currentTab.path, e))}
             currentPath={currentTab.path}
+            initialPrompt={smartToolsPrompt}
+            initialTab={smartToolsTab}
+            onNavigate={p => setCurrentPath(p)}
           />
         </Suspense>
       )}
@@ -5458,6 +6157,8 @@ export default function BNDZUI() {
         </Suspense>
       )}
 
+      </TrialExpiredGate>
+
       <AnimatePresence>
         {showAboutDialog && (
           <Suspense fallback={null}>
@@ -5468,7 +6169,11 @@ export default function BNDZUI() {
           <Suspense fallback={null}>
             <RegisterDialog
               onClose={() => setShowRegisterDialog(false)}
-              onActivated={() => setToastMessage('License activated successfully.')}
+              onActivated={() => {
+                setLicenseEpoch(e => e + 1);
+                setShowRegisterDialog(false);
+                setToastMessage('License activated successfully.');
+              }}
             />
           </Suspense>
         )}
@@ -5586,6 +6291,7 @@ export default function BNDZUI() {
           updateConfig={updateConfig}
           activePaneId={activePaneId}
           addTab={addTab}
+          onOpenBatchRename={() => openBottomPlugin('batch-rename')}
           setIsSmartToolsOpen={setIsSmartToolsOpen}
           setToastMessage={setToastMessage}
           setInlineRename={setInlineRename}
@@ -5597,6 +6303,9 @@ export default function BNDZUI() {
           onRefreshTree={refreshNavigationTree}
           onCopyTo={sources => void copyOrMoveToTarget('copy', undefined, sources)}
           onMoveTo={sources => void copyOrMoveToTarget('move', undefined, sources)}
+          availableTags={availableTags}
+          onToggleTag={applyTagToSelection}
+          rapidAccessDefaultPaths={rapidAccessItems.filter(i => i.isDefault).map(i => i.path)}
         />
         </div>
       )}
@@ -5634,11 +6343,41 @@ export default function BNDZUI() {
       />
 
       <TutorialOverlay forceShow={showTutorial} onClose={() => setShowTutorial(false)} />
+      <BndzQuickPreview
+        open={quickPreviewOpen && quickPreviewItems.length > 0}
+        items={quickPreviewItems}
+        index={Math.min(quickPreviewIndex, Math.max(0, quickPreviewItems.length - 1))}
+        onClose={() => setQuickPreviewOpen(false)}
+        onIndexChange={setQuickPreviewIndex}
+        onNavigate={p => setCurrentPath(p)}
+      />
       <CommandPalette 
           isOpen={isCommandPaletteOpen} 
           onClose={() => setIsCommandPaletteOpen(false)} 
           actions={paletteActions}
       />
+      {tagAssignmentActive && (
+        <div className="fixed inset-x-0 bottom-8 z-[60] pointer-events-none flex justify-center px-4">
+          <div className="pointer-events-auto w-full max-w-3xl relative">
+            <Suspense fallback={null}>
+              <TagAssignmentMode
+                isActive={tagAssignmentActive}
+                onExit={() => setTagAssignmentActive(false)}
+                tags={availableTags}
+                selectedCount={currentTab.selectedItems.length}
+                onToggleTag={(tag) => void applyTagToSelection(tag)}
+                tagActiveOnSelection={(tag) => {
+                  const key = resolveTagKey(tag);
+                  if (!key || !currentTab.selectedItems.length) return false;
+                  const items = pathContentsCache[normalizePanePath(currentPath)] || [];
+                  const selected = items.filter((x: any) => currentTab.selectedItems.includes(x.id));
+                  return selected.length > 0 && selected.every((x: any) => entityHasTag((x as any).tags, key));
+                }}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
       <FloatingTooltipHost />
     </div>
   );

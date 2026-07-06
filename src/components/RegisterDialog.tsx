@@ -2,17 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, KeyRound, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { IPC } from '../lib/ipcBridge';
+import { EMPTY_LICENSE_STATUS } from '../lib/licenseTypes';
 
 export default function RegisterDialog({ onClose, onActivated }: { onClose: () => void; onActivated?: () => void }) {
   const [serial, setSerial] = useState('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [status, setStatus] = useState<{ activated: boolean; email?: string; name?: string; serialMasked?: string } | null>(null);
+  const [status, setStatus] = useState<import('../lib/licenseTypes').LicenseStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
-    IPC.getLicenseStatus().then(setStatus).catch(() => setStatus({ activated: false }));
+    IPC.getLicenseStatus().then(setStatus).catch(() => setStatus(EMPTY_LICENSE_STATUS));
   }, []);
 
   const activate = async () => {
@@ -39,7 +40,8 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
     setBusy(true);
     try {
       await IPC.deactivateLicense();
-      setStatus({ activated: false });
+      const next = await IPC.getLicenseStatus();
+      setStatus(next);
       setSerial('');
       setMessage({ kind: 'ok', text: 'License removed from this device.' });
     } finally {
@@ -87,6 +89,17 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
             </div>
           ) : (
             <>
+              {!status?.trialExpired && status && (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-[11px] text-amber-100/90 mb-1">
+                  {status.trialDaysRemaining} day{status.trialDaysRemaining === 1 ? '' : 's'} left in your trial.
+                  Enter your license key to activate permanently.
+                </div>
+              )}
+              {status?.trialExpired && (
+                <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-[11px] text-rose-200 mb-1">
+                  Your 14-day trial has ended. Activate to continue using BNDZ.
+                </div>
+              )}
               <label className="block text-[11px] text-gray-400">Serial number</label>
               <input
                 value={serial}

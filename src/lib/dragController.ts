@@ -21,6 +21,11 @@ type DragSession = {
 let marqueeActive = false;
 let lastPointerDownAt = 0;
 let session: DragSession | null = null;
+let dragThresholdMet = false;
+
+export function hasMetDragThreshold() {
+  return dragThresholdMet;
+}
 
 export function setMarqueeActive(active: boolean) {
   marqueeActive = active;
@@ -52,6 +57,7 @@ export function beginDragSession(
   delayMs = DEFAULT_DRAG_DELAY_MS,
 ) {
   clearDragSession();
+  dragThresholdMet = false;
   session = {
     pointerId,
     startX: clientX,
@@ -75,6 +81,7 @@ export function trackDragPointer(clientX: number, clientY: number): boolean {
   const dy = Math.abs(clientY - session.startY);
   if (dx > DRAG_THRESHOLD_PX || dy > DRAG_THRESHOLD_PX) {
     session.moved = true;
+    dragThresholdMet = true;
   }
   return session.moved;
 }
@@ -83,17 +90,18 @@ export function isDragSessionReady(): boolean {
   return !!session?.ready;
 }
 
+/** Block HTML5 drag until pointer movement exceeds threshold (Explorer-style). */
 export function shouldAllowDragStart(disallowDrag?: boolean): boolean {
   if (!canStartDragFromList(disallowDrag)) return false;
-  if (!session) return false;
-  if (!session.ready) return false;
-  if (!session.moved) return false;
+  if (!dragThresholdMet) return false;
+  if (!session?.ready) return false;
   return true;
 }
 
 export function clearDragSession() {
   if (session?.timer) clearTimeout(session.timer);
   session = null;
+  dragThresholdMet = false;
 }
 
 export const DRAG_THRESHOLD = DRAG_THRESHOLD_PX;

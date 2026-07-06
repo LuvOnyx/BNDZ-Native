@@ -60,18 +60,35 @@ if (pwInstall.status !== 0) {
 run('Playwright E2E', ['run', 'test:e2e'], { env: pwEnv });
 
 console.log('\n▶ .NET backend build (Release)');
+const userNuget = path.join(process.env.USERPROFILE || process.env.HOME || '', '.nuget', 'packages');
 const dotnetEnv = {
   ...process.env,
-  NUGET_PACKAGES: process.env.NUGET_PACKAGES || path.join(process.env.USERPROFILE || process.env.HOME || '', '.nuget', 'packages'),
+  NUGET_PACKAGES: userNuget,
 };
-const dotnet = process.platform === 'win32'
-  ? spawnSync('cmd.exe', ['/d', '/s', '/c', 'dotnet', 'build', '-c', 'Release'], {
-      cwd: path.join(ROOT, 'BNDZBackend'),
+const backendDir = path.join(ROOT, 'BNDZBackend');
+const dotnetRestore = process.platform === 'win32'
+  ? spawnSync('cmd.exe', ['/d', '/s', '/c', 'dotnet', 'restore'], {
+      cwd: backendDir,
       stdio: 'inherit',
       env: dotnetEnv,
     })
-  : spawnSync('dotnet', ['build', '-c', 'Release'], {
-      cwd: path.join(ROOT, 'BNDZBackend'),
+  : spawnSync('dotnet', ['restore'], {
+      cwd: backendDir,
+      stdio: 'inherit',
+      env: dotnetEnv,
+    });
+if (dotnetRestore.status !== 0) {
+  console.error(`\n✗ .NET restore failed (exit ${dotnetRestore.status})`);
+  process.exit(dotnetRestore.status ?? 1);
+}
+const dotnet = process.platform === 'win32'
+  ? spawnSync('cmd.exe', ['/d', '/s', '/c', 'dotnet', 'build', '-c', 'Release', '--no-restore'], {
+      cwd: backendDir,
+      stdio: 'inherit',
+      env: dotnetEnv,
+    })
+  : spawnSync('dotnet', ['build', '-c', 'Release', '--no-restore'], {
+      cwd: backendDir,
       stdio: 'inherit',
       env: dotnetEnv,
     });

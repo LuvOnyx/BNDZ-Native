@@ -68,6 +68,8 @@ SolidCompression=yes
 
 WizardStyle=modern
 
+LicenseFile={#SourcePath}\docs\EULA.md
+
 PrivilegesRequired=lowest
 
 ArchitecturesAllowed=x64compatible

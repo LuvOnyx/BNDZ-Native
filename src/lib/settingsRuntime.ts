@@ -301,7 +301,10 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
     if (inMatch) name = inMatch[1].trim();
   }
   const ext = entity.extension;
-  if (!isDir && ext && config.showFileExtensions === false) {
+  const hideShortcutExtension = !isDir
+    && String(ext || '').toLowerCase() === 'lnk'
+    && config.hideShortcutExtensions !== false;
+  if (!isDir && ext && (config.showFileExtensions === false || hideShortcutExtension)) {
     return name.replace(new RegExp(`\\.${ext}$`, 'i'), '');
   }
   return name;
@@ -310,10 +313,60 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
 /** Initial rename field value */
 export function getRenameInitialValue(entity: any, config: AppConfig): string {
   const name = entity.name || '';
-  if (config.hideExtensionsFromRenameEditBox && entity.extension) {
-    return name.replace(new RegExp(`\\.${entity.extension}$`, 'i'), '');
+  if (shouldHideRenameExtension(entity, config)) {
+    return stripEntityExtension(name, entity.extension);
   }
   return name;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function stripEntityExtension(name: string, extension: string | undefined): string {
+  if (!extension) return name;
+  return name.replace(new RegExp(`\\.${escapeRegExp(extension)}$`, 'i'), '');
+}
+
+function shouldHideRenameExtension(entity: any, config: AppConfig): boolean {
+  const ext = String(entity?.extension || '').toLowerCase();
+  if (!ext || entity?.type === 'directory') return false;
+  if (ext === 'lnk' && config.hideShortcutExtensions !== false) return true;
+  return !!config.hideExtensionsFromRenameEditBox;
+}
+
+/** Resolve the actual filesystem name represented by the rename edit box. */
+export function resolveRenameTargetName(entity: any, editedValue: string, config: AppConfig): string {
+  const ext = String(entity?.extension || '');
+  const raw = String(editedValue || '').trim();
+  if (!raw || entity?.type === 'directory' || !shouldHideRenameExtension(entity, config)) {
+    return raw;
+  }
+
+  const suffix = `.${ext}`;
+  if (raw.toLowerCase().endsWith(suffix.toLowerCase())) {
+    return raw;
+  }
+  return `${raw}${suffix}`;
+}
+
+/** Explorer-style initial selection for inline rename fields. */
+export function applyRenameInputSelection(input: HTMLInputElement, entity: any, config: AppConfig): void {
+  if (!input || config.preselectName === false) return;
+  requestAnimationFrame(() => {
+    try {
+      const value = input.value;
+      const ext = String(entity?.extension || '');
+      const shouldSelectBase = entity?.type !== 'directory'
+        && ext
+        && (config.excludeFileExtensionFromInitialSelection !== false || shouldHideRenameExtension(entity, config));
+      const end = shouldSelectBase ? stripEntityExtension(value, ext).length : value.length;
+      input.focus();
+      input.setSelectionRange(0, Math.max(0, end));
+    } catch {
+      input.select();
+    }
+  });
 }
 
 /** Keyboard list navigation index with optional wrap-around */

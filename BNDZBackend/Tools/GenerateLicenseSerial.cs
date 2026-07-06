@@ -8,7 +8,10 @@ namespace BNDZ.Tools;
 
 public static class GenerateLicenseSerial
 {
-    private const string LicenseSecret = "BNDZ-36-Commercial-Key-Seed-CHANGE-ME";
+    private static string LicenseSecret =>
+        Environment.GetEnvironmentVariable("BNDZ_LICENSE_SECRET")?.Trim() is { Length: > 0 } s
+            ? s
+            : "BNDZ-36-Commercial-Key-Seed-CHANGE-ME";
 
     public static string Create(string segmentA, string segmentB)
     {

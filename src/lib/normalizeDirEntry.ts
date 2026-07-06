@@ -4,11 +4,13 @@ export function normalizeDirEntry(item: any, index = 0): any {
     return { id: `item-${index}`, name: 'Unknown', type: 'file' };
   }
   const name = item.name ?? item.label ?? item.displayName ?? item.id;
+  const isDir = item.type === 'directory' || item.isDirectory === true;
   return {
     ...item,
-    id: item.id ?? name ?? `item-${index}`,
+    id: item.id ?? item.path ?? name ?? `item-${index}`,
     name: name != null ? String(name) : `Item ${index + 1}`,
-    size: item.size != null ? Number(item.size) : (item.type === 'directory' ? 0 : undefined),
+    type: isDir ? 'directory' : (item.type || 'file'),
+    size: item.size != null ? Number(item.size) : (isDir ? 0 : undefined),
     tags: Array.isArray(item.tags) ? item.tags : [],
   };
 }

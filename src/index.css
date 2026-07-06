@@ -246,13 +246,106 @@
   }
 
   .bndz-preview-panel {
-    background: linear-gradient(165deg, #16161c 0%, #111114 45%, #0d0d10 100%);
+    background: #2a2a2a;
+    border-left: 1px solid #3a3a3a;
   }
 
   .bndz-preview-tab-active {
-    background: linear-gradient(180deg, rgba(14, 165, 233, 0.35) 0%, rgba(14, 165, 233, 0.12) 100%);
-    box-shadow: inset 0 -2px 0 #38bdf8;
-    border-radius: var(--bndz-radius-sm);
+    background: #094771;
+    color: #fff;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .bndz-preview-metadata-strip {
+    background: #2a2a2a;
+  }
+
+  .bndz-preview-kind-pill {
+    background: #3a3a3a;
+    color: #e5e7eb;
+    padding: 1px 6px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .bndz-preview-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    background: #3a3a3a;
+    border: 1px solid #454545;
+    color: #e5e7eb;
+  }
+
+  .bndz-preview-action-btn:hover {
+    background: #094771;
+    border-color: #094771;
+    color: #fff;
+  }
+
+  .bndz-quick-preview-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .bndz-quick-preview-panel {
+    width: min(920px, 96vw);
+    height: min(640px, 88vh);
+    background: #2a2a2a;
+    border: 1px solid #454545;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .bndz-quick-preview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px;
+    border-bottom: 1px solid #3a3a3a;
+    background: #252525;
+  }
+
+  .bndz-quick-preview-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+    color: #d1d5db;
+    background: transparent;
+    border: none;
+  }
+
+  .bndz-quick-preview-nav:hover:not(:disabled) {
+    background: #094771;
+    color: #fff;
+  }
+
+  .bndz-quick-preview-nav:disabled {
+    opacity: 0.35;
+  }
+
+  .bndz-quick-preview-stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1e1e1e;
+    overflow: auto;
   }
 
   /* View-mode buttons: glow stays fully INSIDE the button box (inset only) so
@@ -285,6 +378,12 @@
     color: #c4b5fd;
     background: rgba(167, 139, 250, 0.16);
     box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.55), inset 0 0 7px rgba(167, 139, 250, 0.4);
+  }
+
+  .bndz-view-mode-btn--size.bndz-view-mode-btn--active {
+    color: #f9a8d4;
+    background: rgba(244, 114, 182, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(244, 114, 182, 0.55), inset 0 0 7px rgba(244, 114, 182, 0.4);
   }
 
   .bndz-view-lock-btn--active {
@@ -550,17 +649,32 @@ html.theme-light .nav-tree-row:hover {
   overflow: visible;
 }
 
-/* File Pilot Direct3D parity — Chromium compositor + WebView2 GPU raster layers */
+/* GPU promotion for static chrome only — avoid will-change/contain on scroll surfaces (breaks HTML5 drag in WebView2). */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
 .bndz-chrome-toolbar,
 .bndz-chrome-bottom,
-.bndz-file-list-scroll,
 .bndz-quick-actions-bar {
   transform: translate3d(0, 0, 0);
-  will-change: transform;
   backface-visibility: hidden;
-  contain: layout style paint;
+}
+
+.bndz-file-list-scroll {
+  -webkit-overflow-scrolling: touch;
+  cursor: default;
+}
+
+.bndz-file-list-scroll.cursor-crosshair {
+  cursor: crosshair;
+}
+
+.fs-item-wrapper {
+  cursor: default;
+}
+
+.fs-item-wrapper[draggable="true"] {
+  cursor: default;
+  -webkit-user-drag: element;
 }
 
 .bndz-chrome-menubar {
@@ -1027,38 +1141,36 @@ html[data-theme] .bndz-destination-picker-footer {
   }
 }
 
-/* Theme-aware context menus */
+/* Theme-aware context menus — Windows Explorer flat style */
 .bndz-context-menu,
 .bndz-context-submenu {
-  background: var(--menu-bg, #252526);
+  background: var(--menu-bg, #2b2b2b);
   color: var(--menu-text, #f3f4f6);
-  border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.12));
-  box-shadow:
-    0 16px 48px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
+  border: 1px solid var(--menu-border, #454545);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  padding: 2px 0;
+  border-radius: 0;
 }
 
 .bndz-context-menu-item {
   color: var(--menu-text, #f3f4f6);
-  transition: background 0.1s ease, color 0.1s ease;
+  transition: background-color 0ms;
 }
 
 .bndz-context-menu-item:hover,
 .bndz-context-menu-item-active {
-  background: var(--menu-hover, rgba(9, 71, 113, 0.55));
-  color: var(--menu-text, #fff);
+  background: var(--menu-hover, #094771);
+  color: #fff;
 }
 
 .bndz-context-menu-icon {
-  color: var(--menu-muted, rgba(255, 255, 255, 0.65));
+  color: var(--menu-muted, rgba(255, 255, 255, 0.72));
 }
 
 .bndz-context-menu-sep {
   height: 1px;
-  margin: 4px 10px;
-  background: var(--menu-border, rgba(255, 255, 255, 0.12));
+  margin: 2px 28px 2px 28px;
+  background: var(--menu-border, #454545);
 }
 
 .bndz-quit-dialog {

@@ -6,7 +6,7 @@ export interface TabState {
   history: string[];
   historyIndex: number;
   selectedItems: string[];
-  viewMode?: 'details' | 'grid' | 'list' | 'columns';
+  viewMode?: 'details' | 'grid' | 'list' | 'columns' | 'size' | 'recents' | 'media';
   locked?: boolean;
   color?: string;
   /** XYplorer-style persistent search tab */
@@ -23,6 +23,6 @@ export interface TabState {
     sortDirection?: 'asc' | 'desc';
     filterRegex?: string;
     liveFilter?: string;
-    viewMode?: 'details' | 'grid' | 'list' | 'columns';
+    viewMode?: 'details' | 'grid' | 'list' | 'columns' | 'size' | 'recents' | 'media';
   };
 }

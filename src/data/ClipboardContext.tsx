@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { toWindowsPath } from '../lib/pathUtils';
+import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
 
 export type ClipboardAction = 'copy' | 'cut' | '';
 
@@ -36,6 +37,8 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
 
   const executePaste = useCallback(async (targetDir: string) => {
     if (!clipboard.items.length || !clipboard.action) return;
+    const panePath = targetDir.replace(/\\/g, '/');
+    if (isBndzVirtualPath(panePath)) return;
     const dest = toWindowsPath(targetDir).replace(/\\$/, '');
     if (!dest) return;
 

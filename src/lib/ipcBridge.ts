@@ -5,6 +5,9 @@
 
 import { nativeCall, dedupeInFlight } from './ipcCore';
 import { normalizePanePath } from './pathUtils';
+import { EMPTY_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
+
+export type { LicenseStatus };
 
 export interface RenameOperation {
   originalName: string;
@@ -666,6 +669,76 @@ export const IPC = {
     return Promise.resolve({ currentVersion: '1.0.0', updateAvailable: false, error: 'Updates require native host.' });
   },
 
+  getIndexedEntry(panePath: string): Promise<Record<string, unknown> | null> {
+    if (this.isNative) {
+      const id = `${Date.now()}_indexedEntry`;
+      return _nativeCall<Record<string, unknown> | null>(
+        'GET_INDEXED_ENTRY',
+        'INDEXED_ENTRY_RESULT',
+        id,
+        { path: panePath },
+        10000,
+      ).catch(() => null);
+    }
+    return Promise.resolve(null);
+  },
+
+  getVirtualViewContents(view: 'recent' | 'media' | 'large', limit = 500): Promise<any[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_virtualView`;
+      return _nativeCall<{ items: any[] }>(
+        'GET_VIRTUAL_VIEW_CONTENTS',
+        'VIRTUAL_VIEW_CONTENTS_RESULT',
+        id,
+        { view, limit },
+        20000,
+      ).then(r => r?.items ?? []).catch(() => []);
+    }
+    return Promise.resolve([]);
+  },
+
+  indexBndzLocation(panePath: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_indexLoc`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'INDEX_BNDZ_LOCATION',
+        'INDEX_BNDZ_LOCATION_RESULT',
+        id,
+        { path: panePath },
+        120000,
+      ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+    }
+    return Promise.resolve({ ok: false, error: 'Indexing requires native host.' });
+  },
+
+  getIndexStatus(): Promise<{ fileCount: number; folderCount: number; locations: Array<{ path: string; lastIndexed: number }> }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_indexStatus`;
+      return _nativeCall('GET_INDEX_STATUS', 'INDEX_STATUS_RESULT', id, {}, 15000)
+        .then((payload: any) => ({
+          fileCount: payload?.fileCount ?? 0,
+          folderCount: payload?.folderCount ?? 0,
+          locations: payload?.locations ?? [],
+        }))
+        .catch(() => ({ fileCount: 0, folderCount: 0, locations: [] }));
+    }
+    return Promise.resolve({ fileCount: 0, folderCount: 0, locations: [] });
+  },
+
+  reindexBndzDefaults(): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_reindexDefaults`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'REINDEX_BNDZ_DEFAULTS',
+        'REINDEX_BNDZ_DEFAULTS_RESULT',
+        id,
+        {},
+        300000,
+      ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+    }
+    return Promise.resolve({ ok: false, error: 'Indexing requires native host.' });
+  },
+
   getSystemShortcuts(): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_shortcuts`;
@@ -800,7 +873,7 @@ export const IPC = {
     rootPath = '',
     useEverything = true,
     searchContent = false,
-    opts?: { booleanMode?: boolean; rootPaths?: string[] },
+    opts?: { booleanMode?: boolean; rootPaths?: string[]; preferBndzIndex?: boolean },
   ): Promise<{ items: any[]; engine?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_globalSearch`;
@@ -817,6 +890,7 @@ export const IPC = {
           searchContent,
           booleanMode: !!opts?.booleanMode,
           rootPaths: opts?.rootPaths,
+          preferBndzIndex: opts?.preferBndzIndex !== false,
         },
         45000,
       )
@@ -1267,25 +1341,46 @@ export const IPC = {
     return Promise.resolve(false);
   },
 
-  getLicenseStatus(): Promise<{ activated: boolean; email?: string; name?: string; serialMasked?: string }> {
+  getLicenseStatus(): Promise<LicenseStatus> {
     if (this.isNative) {
       const id = `${Date.now()}_licenseStatus`;
-      return _nativeCall<{ activated: boolean; email?: string; name?: string; serialMasked?: string }>(
+      return _nativeCall<LicenseStatus>(
         'GET_LICENSE_STATUS', 'LICENSE_STATUS_RESULT', id, undefined, 10000,
-      ).catch(() => ({ activated: false }));
+      ).then(s => ({ ...EMPTY_LICENSE_STATUS, ...s }))
+        .catch(() => ({ ...EMPTY_LICENSE_STATUS }));
     }
     try {
-      const raw = localStorage.getItem('bndz_license');
-      if (!raw) return Promise.resolve({ activated: false });
-      const rec = JSON.parse(raw);
+      const licRaw = localStorage.getItem('bndz_license');
+      if (licRaw) {
+        const rec = JSON.parse(licRaw);
+        if (rec.serial) {
+          return Promise.resolve({
+            ...EMPTY_LICENSE_STATUS,
+            activated: true,
+            canUseApp: true,
+            trialExpired: false,
+            email: rec.email,
+            name: rec.name,
+            serialMasked: `${String(rec.serial).slice(0, 9)}****`,
+          });
+        }
+      }
+      const trialStart = localStorage.getItem('bndz_trial_start');
+      const firstRun = trialStart ? new Date(trialStart) : new Date();
+      if (!trialStart) localStorage.setItem('bndz_trial_start', firstRun.toISOString());
+      const endsAt = new Date(firstRun.getTime() + 14 * 86400000);
+      const remaining = Math.max(0, Math.ceil((endsAt.getTime() - Date.now()) / 86400000));
+      const expired = Date.now() >= endsAt.getTime();
       return Promise.resolve({
-        activated: !!rec.serial,
-        email: rec.email,
-        name: rec.name,
-        serialMasked: rec.serial ? `${String(rec.serial).slice(0, 9)}****` : undefined,
+        ...EMPTY_LICENSE_STATUS,
+        activated: false,
+        canUseApp: !expired,
+        trialExpired: expired,
+        trialDaysRemaining: remaining,
+        trialEndsAt: endsAt.toISOString(),
       });
     } catch {
-      return Promise.resolve({ activated: false });
+      return Promise.resolve({ ...EMPTY_LICENSE_STATUS });
     }
   },
 
@@ -1309,5 +1404,15 @@ export const IPC = {
     }
     localStorage.removeItem('bndz_license');
     return Promise.resolve();
+  },
+
+  openLegalDoc(doc: 'eula' | 'privacy' | 'third-party'): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_openLegal`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'OPEN_LEGAL_DOC', 'OPEN_LEGAL_DOC_RESULT', id, { doc }, 10000,
+      ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+    }
+    return Promise.resolve({ ok: false, error: 'Legal documents are included with the installed app.' });
   },
 };

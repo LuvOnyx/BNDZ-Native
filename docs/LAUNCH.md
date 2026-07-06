@@ -112,18 +112,25 @@ Upload to your release channel:
 - `BNDZ-Setup-1.0.0.exe` (primary)
 - `BNDZ-win-x64-portable.zip` (optional, unsigned portable)
 
-Generate customer license serials (must match `LicenseSecret` in `LicenseService.cs`):
+Generate customer license serials (must use the same `BNDZ_LICENSE_SECRET` as the retail build):
 
 ```powershell
+$env:BNDZ_LICENSE_SECRET = "your-retail-secret-here"
 npm run license:generate
 # or: .\scripts\generate-license.ps1 -Count 25
 ```
 
 Include in release notes:
 
-- .NET 8 runtime required (framework-dependent publish)
+- .NET 8 runtime bundled in the installer (self-contained publish)
 - WebView2 installed automatically by the setup package
 - Windows 10/11 x64
+- 14-day trial; serial activation required after trial
+- EULA shown during setup; Privacy + third-party licenses in Help → About
+
+### Auto-update manifest (optional)
+
+Host a `version.json` (see `docs/version.json.example`) and set `updateCheckUrl` in BNDZ settings or ship a default in your retail config backup. Users can check from **Help → Check for Updates** or **About BNDZ**.
 
 ## 6. Build commands reference
 

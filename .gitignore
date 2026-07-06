@@ -52,6 +52,17 @@ e2e/.work/
 # Reference clone (sync via scripts/sync-supercmd-launcher-ui.ps1)
 external/SuperCmd/
 
+# Spacedrive/Spacebot reference clones (UX patterns only — not shipped)
+external/spacebot/
+external/spacedrive/
+
+# Rust sidecars (stage via scripts/stage-rust-sidecars.ps1)
+BNDZBackend/Assets/RustSidecars/**/*.exe
+
+# Cursor IDE / temp
+.cursor/
+diff_bndzui.txt
+
 agent-transcripts/
 agent-tools/
 

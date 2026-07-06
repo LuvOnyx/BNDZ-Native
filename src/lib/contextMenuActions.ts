@@ -15,6 +15,7 @@ export interface ContextMenuState {
   entityId: string | null;
   path: string;
   entityName: string | null;
+  entityExtension?: string | null;
   isDirectory: boolean;
   surface?: ContextMenuSurface;
   nativeContextItems?: any[];

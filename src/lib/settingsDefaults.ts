@@ -153,6 +153,9 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   enableColorFilters: false,
   enableExtendedPatternMatching: false,
   enableGlobalSearchPrefix: true,
+  enableBndzIndexedSearch: true,
+  enableEverythingSearch: true,
+  searchFileContent: false,
   enableNativeThumbnails: true,
   enableNavigationKeys: false,
   enableServerMappings: false,
@@ -191,7 +194,8 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   fullNameColumnSelect: false,
   globalSearchLimit: 1000,
   goingHomeAlsoRestoresTheListLayout: false,
-  hideExtensionsFromRenameEditBox: false,
+  hideExtensionsFromRenameEditBox: true,
+  hideShortcutExtensions: true,
   hideShellExtensionsFromShellContextMenu: false,
   highQualityImageResampling: false,
   highResNativeWindowsThumbnails: false,
@@ -404,7 +408,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   showSortHeadersInAllViews: false,
   showSplashScreenWhileLoading: false,
   showTabListButton: false,
-  showTagsInFileList: false,
+  showTagsInFileList: true,
   showTheseFields: false,
   showThumbnailsForNonImages: false,
   showThumbnailsForRawFiles: false,
@@ -505,6 +509,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   wrapAroundList: false,
   zoomToFill: false,
   zoomToFit: false,
+  recentFiles: [] as string[],
 };
 
 /** Non-boolean defaults the dialog expects as numbers/strings */
