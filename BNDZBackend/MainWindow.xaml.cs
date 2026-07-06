@@ -94,6 +94,7 @@ namespace BNDZ
                         filesIndexed = p.FilesIndexed,
                         done = p.Done,
                         root = p.Root,
+                        error = p.Error,
                     },
                 };
                 PostToUi(() =>
@@ -1172,6 +1173,35 @@ namespace BNDZ
                         var response = new { type = "AI_GENERATE_RESULT", id = idProp, payload = new { text } };
                         var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)));
+                    });
+                }
+                else if (type == "AI_GENERATE_STREAM")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var prompt = payload.TryGetProperty("prompt", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var requestId = idProp ?? Guid.NewGuid().ToString("N");
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _aiService.StreamResponseAsync(
+                                prompt,
+                                chunk =>
+                                {
+                                    var evt = new { type = "AI_STREAM_CHUNK", requestId, chunk };
+                                    PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
+                                },
+                                CancellationToken.None);
+                            var done = new { type = "AI_STREAM_DONE", requestId };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
+                        }
+                        catch (Exception ex)
+                        {
+                            var err = new { type = "AI_STREAM_ERROR", requestId, error = ex.Message };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
+                        }
                     });
                 }
                 else if (type == "AI_MODEL_STATUS")
@@ -2587,26 +2617,31 @@ namespace BNDZ
                     if (root.TryGetProperty("payload", out var idxPayload) && idxPayload.TryGetProperty("path", out var pathEl))
                         panePath = pathEl.GetString() ?? "";
 
-                    _ = Task.Run(() =>
+                    var win = panePath.Replace("/", "\\").TrimStart('\\');
+                    if (win.Length >= 2 && win[0] == '\\' && char.IsLetter(win[1]) && win.Length >= 3 && win[2] == ':')
+                        win = win.Substring(1);
+
+                    if (string.IsNullOrWhiteSpace(win) || !Directory.Exists(win))
                     {
-                        try
+                        var bad = new { type = "INDEX_BNDZ_LOCATION_RESULT", id = idProp, payload = new { ok = false, error = "Folder not found." } };
+                        var badOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(bad, badOpts)));
+                    }
+                    else
+                    {
+                        var ack = new { type = "INDEX_BNDZ_LOCATION_RESULT", id = idProp, payload = new { ok = true, started = true } };
+                        var ackOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(ack, ackOpts)));
+
+                        _ = Task.Run(() =>
                         {
-                            var win = panePath.Replace("/", "\\").TrimStart('\\');
-                            if (win.Length >= 2 && win[0] == '\\' && char.IsLetter(win[1]) && win.Length >= 3 && win[2] == ':')
-                                win = win.Substring(1);
-                            if (!string.IsNullOrWhiteSpace(win) && Directory.Exists(win))
+                            try
+                            {
                                 BndzFileIndexService.Instance.IndexLocation(win, CancellationToken.None, maxDepth: 8);
-                            var response = new { type = "INDEX_BNDZ_LOCATION_RESULT", id = idProp, payload = new { ok = true } };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
-                        }
-                        catch (Exception ex)
-                        {
-                            var response = new { type = "INDEX_BNDZ_LOCATION_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
-                        }
-                    });
+                            }
+                            catch { /* progress event carries error */ }
+                        });
+                    }
                 }
                 else if (type == "GET_INDEX_STATUS")
                 {
@@ -2631,22 +2666,19 @@ namespace BNDZ
                 else if (type == "REINDEX_BNDZ_DEFAULTS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    _ = Task.Run(() =>
+                    try
                     {
-                        try
-                        {
-                            BndzFileIndexService.Instance.EnsureDefaultLocationsIndexedAsync(CancellationToken.None);
-                            var response = new { type = "REINDEX_BNDZ_DEFAULTS_RESULT", id = idProp, payload = new { ok = true } };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
-                        }
-                        catch (Exception ex)
-                        {
-                            var response = new { type = "REINDEX_BNDZ_DEFAULTS_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
-                        }
-                    });
+                        var started = BndzFileIndexService.Instance.TryStartDefaultReindex(CancellationToken.None);
+                        var response = new { type = "REINDEX_BNDZ_DEFAULTS_RESULT", id = idProp, payload = new { ok = started, skipped = !started, error = started ? (string?)null : "Indexing already in progress." } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "REINDEX_BNDZ_DEFAULTS_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
                 }
                 else if (type == "GET_SYSTEM_SHORTCUTS")
                 {

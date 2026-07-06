@@ -16,6 +16,7 @@ type RecentRow =
 
 type Props = {
   items: BndzRecentEntity[];
+  fetchError?: string;
   selectedIds: string[];
   buildPath: (entity: BndzRecentEntity) => string;
   onItemClick: (e: React.MouseEvent, entity: BndzRecentEntity) => void;
@@ -59,6 +60,7 @@ function buildRows(items: BndzRecentEntity[]): RecentRow[] {
 
 export default function BndzRecentsView({
   items,
+  fetchError,
   selectedIds,
   buildPath,
   onItemClick,
@@ -68,6 +70,15 @@ export default function BndzRecentsView({
 }: Props) {
   const rows = useMemo(() => buildRows(items), [items]);
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-gray-500 gap-2 px-6 text-center">
+        <span className="text-[13px] text-red-300/90">{fetchError}</span>
+        <span className="text-[10px] text-gray-600">Check that the search index is built and try refreshing.</span>
+      </div>
+    );
+  }
 
   if (!items.length) {
     return (

@@ -20,6 +20,7 @@ public sealed class BndzFileIndexService : IDisposable
         public int FilesIndexed { get; init; }
         public bool Done { get; init; }
         public string? Root { get; init; }
+        public string? Error { get; init; }
     }
 
     /// <summary>UI bridge — set from MainWindow to emit INDEX_PROGRESS events.</summary>
@@ -100,27 +101,54 @@ public sealed class BndzFileIndexService : IDisposable
         if (Interlocked.CompareExchange(ref _indexing, 1, 0) != 0) return;
         try
         {
-            var roots = new[]
-            {
-                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
-                Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
-                Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } profile
-                    ? Path.Combine(profile, "Downloads") : "",
-            }.Where(p => !string.IsNullOrWhiteSpace(p) && Directory.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var root in roots)
-            {
-                ct.ThrowIfCancellationRequested();
-                IndexLocation(root, ct, maxDepth: 6);
-                Thread.Sleep(50);
-            }
+            IndexDefaultLocations(ct);
         }
         finally
         {
             Interlocked.Exchange(ref _indexing, 0);
+        }
+    }
+
+    /// <summary>Queue default-library reindex; returns false if a job is already running.</summary>
+    public bool TryStartDefaultReindex(CancellationToken ct)
+    {
+        if (Interlocked.CompareExchange(ref _indexing, 1, 0) != 0) return false;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                IndexDefaultLocations(ct);
+            }
+            catch (Exception ex)
+            {
+                EmitProgress("", 0, true, null, ex.Message);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _indexing, 0);
+            }
+        });
+        return true;
+    }
+
+    private void IndexDefaultLocations(CancellationToken ct)
+    {
+        var roots = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } profile
+                ? Path.Combine(profile, "Downloads") : "",
+        }.Where(p => !string.IsNullOrWhiteSpace(p) && Directory.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var root in roots)
+        {
+            ct.ThrowIfCancellationRequested();
+            IndexLocation(root, ct, maxDepth: 6);
+            Thread.Sleep(50);
         }
     }
 
@@ -130,6 +158,7 @@ public sealed class BndzFileIndexService : IDisposable
         if (!Directory.Exists(root)) return;
 
         _writeLock.Wait(ct);
+        var batch = 0;
         try
         {
             EmitProgress(root, 0, false, root);
@@ -147,15 +176,19 @@ public sealed class BndzFileIndexService : IDisposable
             upsert.Parameters.Add("$d", SqliteType.Integer);
             upsert.Parameters.Add("$k", SqliteType.Text);
 
-            var batch = 0;
             IndexDir(conn, root, root, 0, maxDepth, upsert, ref batch, ct);
 
             using var loc = conn.CreateCommand();
             loc.CommandText = "INSERT INTO locations(path,last_indexed) VALUES($p,$t) ON CONFLICT(path) DO UPDATE SET last_indexed=$t";
-            loc.Parameters.AddWithValue("$p", root);
+            loc.Parameters.AddWithValue("$p", ToPanePath(root));
             loc.Parameters.AddWithValue("$t", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             loc.ExecuteNonQuery();
             EmitProgress(root, batch, true, root);
+        }
+        catch (Exception ex)
+        {
+            EmitProgress(root, batch, true, root, ex.Message);
+            throw;
         }
         finally
         {
@@ -163,7 +196,7 @@ public sealed class BndzFileIndexService : IDisposable
         }
     }
 
-    private void EmitProgress(string path, int filesIndexed, bool done, string? root = null)
+    private void EmitProgress(string path, int filesIndexed, bool done, string? root = null, string? error = null)
     {
         try
         {
@@ -173,6 +206,7 @@ public sealed class BndzFileIndexService : IDisposable
                 FilesIndexed = filesIndexed,
                 Done = done,
                 Root = root,
+                Error = error,
             });
         }
         catch { /* ignore UI errors */ }

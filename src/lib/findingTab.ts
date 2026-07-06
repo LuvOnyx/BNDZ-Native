@@ -9,7 +9,9 @@ export function findingTabLabel(tab: TabState): string {
   if (!isFindingTab(tab)) return '';
   const q = tab.findingQuery || 'Search';
   const base = q.length > 22 ? `${q.slice(0, 20)}…` : q;
-  const engine = tab.findingEngine === 'everything' ? ' · EV' : tab.findingEngine === 'indexed' ? ' · IDX' : '';
+  const engine = tab.findingEngine === 'everything' ? ' · EV'
+    : tab.findingEngine === 'indexed+everything' ? ' · IDX+EV'
+    : tab.findingEngine === 'indexed' ? ' · IDX' : '';
   return `🔍 ${base}${engine}`;
 }
 

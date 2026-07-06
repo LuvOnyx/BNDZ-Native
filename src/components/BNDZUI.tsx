@@ -13,6 +13,7 @@ import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
+import IndexProgressChip from './IndexProgressChip';
 import DriveCard from './DriveCard';
 import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
@@ -84,6 +85,7 @@ import TagBadge from './TagBadge';
 import { resolveTagKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
 import { buildGlobalSearchArgs, normalizeSearchResults, type IndexedSearchScope } from '../lib/globalSearchCall';
+import { mapFindingEngine } from '../lib/indexedRoots';
 import {
   getVisibleListColumns,
   getColumnStyle,
@@ -413,10 +415,15 @@ export default function BNDZUI() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [folderSizeMap, setFolderSizeMap] = useState<Record<string, number>>({});
   const [indexedRoots, setIndexedRoots] = useState<string[]>([]);
+  const [indexProgress, setIndexProgress] = useState<{
+    currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string;
+  } | null>(null);
+  const [virtualViewErrors, setVirtualViewErrors] = useState<Record<string, string>>({});
   const [folderSizeSync, setFolderSizeSync] = useState<{
     active: boolean; current: number; total: number; path: string; percent: number;
   } | null>(null);
   const folderSizeScanGen = useRef(0);
+  const findingSearchGenRef = useRef<Record<string, number>>({});
   const folderSizeToastCooldownRef = useRef(0);
   const folderSizeSessionScannedRef = useRef(0);
 
@@ -800,8 +807,10 @@ export default function BNDZUI() {
             dirFetchInFlightRef.current.add(path);
             setLoadingPaths(prev => new Set(prev).add(path));
             IPC.getVirtualViewContents(view, config.globalSearchLimit || 500).then(items => {
+              setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
               setPathContentsCache(prev => ({ ...prev, [path]: normalizeDirEntries(items || []) }));
-            }).catch(() => {
+            }).catch((err: unknown) => {
+              setVirtualViewErrors(prev => ({ ...prev, [path]: err instanceof Error ? err.message : 'Failed to load smart view.' }));
               setPathContentsCache(prev => ({ ...prev, [path]: [] }));
             }).finally(() => {
               dirFetchInFlightRef.current.delete(path);
@@ -844,12 +853,19 @@ export default function BNDZUI() {
       } else if (isBndzVirtualPath(path)) {
         const view = parseBndzVirtualView(path);
         data = view ? await IPC.getVirtualViewContents(view, config.globalSearchLimit || 500) : [];
+        setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
       } else {
         data = await IPC.getDirContents(path);
       }
       const normalized = normalizeDirEntries(data);
       setPathContentsCache(prev => ({ ...prev, [path]: normalized }));
-    } catch {
+    } catch (err: unknown) {
+      if (isBndzVirtualPath(path)) {
+        setVirtualViewErrors(prev => ({
+          ...prev,
+          [path]: err instanceof Error ? err.message : 'Failed to load smart view.',
+        }));
+      }
       setPathContentsCache(prev => ({ ...prev, [path]: [] }));
     } finally {
       setLoadingPaths(prev => {
@@ -867,19 +883,33 @@ export default function BNDZUI() {
     root: string,
     tabOpts?: Pick<TabState, 'findingScope' | 'findingUseRegex' | 'findingSearchContent' | 'findingBooleanMode'>,
   ) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setPanes(prev => prev.map(p => p.id !== paneId ? p : {
+        ...p,
+        tabs: p.tabs.map(t => t.id === tabId ? {
+          ...t, findingLoading: false, findingResults: [], findingEngine: null, findingError: 'Enter a search query.',
+        } : t),
+      }));
+      return;
+    }
+
+    const gen = (findingSearchGenRef.current[tabId] ?? 0) + 1;
+    findingSearchGenRef.current[tabId] = gen;
+
     const { IPC } = await import('../lib/ipcBridge');
     setPanes(prev => prev.map(p => {
       if (p.id !== paneId) return p;
       return {
         ...p,
-        tabs: p.tabs.map(t => t.id === tabId ? { ...t, findingLoading: true } : t),
+        tabs: p.tabs.map(t => t.id === tabId ? { ...t, findingLoading: true, findingError: undefined } : t),
       };
     }));
     try {
       const scope = (tabOpts?.findingScope ?? (
         !root || root === '/C:' || root === '/' ? 'library' : 'folder'
       )) as IndexedSearchScope;
-      const args = buildGlobalSearchArgs(config, query, scope, root || '/', {
+      const args = buildGlobalSearchArgs(config, trimmed, scope, root || '/', {
         useRegex: tabOpts?.findingUseRegex,
         searchContent: tabOpts?.findingSearchContent,
         booleanMode: tabOpts?.findingBooleanMode,
@@ -888,6 +918,8 @@ export default function BNDZUI() {
         args.query, args.limit, args.useRegex, args.rootPath || root,
         args.useEverything, args.searchContent, args.opts,
       );
+      if (findingSearchGenRef.current[tabId] !== gen) return;
+
       const normalizedItems = normalizeSearchResults(items);
       setPanes(prev => prev.map(p => {
         if (p.id !== paneId) return p;
@@ -897,20 +929,25 @@ export default function BNDZUI() {
             ...t,
             findingLoading: false,
             findingResults: normalizedItems || [],
-            findingEngine: engine === 'everything' || engine === 'indexed+everything' ? 'everything' : 'indexed',
+            findingEngine: mapFindingEngine(engine),
+            findingError: undefined,
           } : t),
         };
       }));
-    } catch {
+    } catch (err: unknown) {
+      if (findingSearchGenRef.current[tabId] !== gen) return;
+      const message = err instanceof Error ? err.message : 'Search failed.';
       setPanes(prev => prev.map(p => {
         if (p.id !== paneId) return p;
         return {
           ...p,
-          tabs: p.tabs.map(t => t.id === tabId ? { ...t, findingLoading: false, findingResults: [], findingEngine: null } : t),
+          tabs: p.tabs.map(t => t.id === tabId ? {
+            ...t, findingLoading: false, findingResults: [], findingEngine: null, findingError: message,
+          } : t),
         };
       }));
     }
-  }, [config.globalSearchLimit, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent, config.enableExtendedPatternMatching]);
+  }, [config]);
 
   const refreshIndexedRoots = React.useCallback(async () => {
     if (!IPC.isNative) return;
@@ -924,8 +961,24 @@ export default function BNDZUI() {
     void refreshIndexedRoots();
     if (!IPC.isNative) return;
     return IPC.onIndexProgress(p => {
-      if (p.done) void refreshIndexedRoots();
+      if (p.done) {
+        if (p.error) {
+          setIndexProgress({ ...p });
+          window.setTimeout(() => setIndexProgress(null), 5000);
+        } else {
+          setIndexProgress(null);
+          void refreshIndexedRoots();
+        }
+      } else {
+        setIndexProgress(p);
+      }
     });
+  }, [refreshIndexedRoots]);
+
+  useEffect(() => {
+    const onRootsChanged = () => { void refreshIndexedRoots(); };
+    window.addEventListener('bndz-index-roots-changed', onRootsChanged);
+    return () => window.removeEventListener('bndz-index-roots-changed', onRootsChanged);
   }, [refreshIndexedRoots]);
 
   const refreshFindingTabRef = useLatest(refreshFindingTab);
@@ -3735,13 +3788,14 @@ export default function BNDZUI() {
             tab={currentTab}
             config={config}
             loading={!!currentTab.findingLoading}
+            indexedRoots={indexedRoots}
             onChange={(patch) => {
               const merged = { ...currentTab, ...patch };
               setPanes(prev => prev.map(p => p.id !== pane.id ? p : {
                 ...p,
                 tabs: p.tabs.map(t => t.id !== currentTab.id ? t : merged),
               }));
-              const affectsSearch = ['findingScope', 'findingUseRegex', 'findingSearchContent', 'findingBooleanMode'].some(k => k in patch);
+              const affectsSearch = ['findingScope', 'findingUseRegex', 'findingSearchContent', 'findingBooleanMode', 'findingQuery'].some(k => k in patch);
               if (affectsSearch && merged.findingQuery) {
                 void refreshFindingTab(
                   pane.id, currentTab.id, merged.findingQuery,
@@ -4400,6 +4454,7 @@ export default function BNDZUI() {
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'media' && (
             <BndzMediaView
               items={contents || []}
+              fetchError={virtualViewErrors[normPanePath]}
               selectedIds={currentTab.selectedItems}
               buildPath={buildEntityPath}
               onItemClick={(e, entity) => handleEntityClicked(e, entity.id)}
@@ -4416,6 +4471,7 @@ export default function BNDZUI() {
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'recents' && (
             <BndzRecentsView
               items={contents || []}
+              fetchError={virtualViewErrors[normPanePath]}
               selectedIds={currentTab.selectedItems}
               buildPath={buildEntityPath}
               onItemClick={(e, entity) => handleEntityClicked(e, entity.id)}
@@ -4448,7 +4504,8 @@ export default function BNDZUI() {
                 <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-gray-500 gap-2 px-4 text-center">
                   <FolderOpen size={28} className="opacity-40" />
                   <span className="text-[11px]">
-                    {isFindingTabActive ? `No results for "${currentTab.findingQuery}".`
+                    {isFindingTabActive && currentTab.findingError ? currentTab.findingError
+                      : isFindingTabActive ? `No results for "${currentTab.findingQuery}".`
                       : isGlobal ? 'No global search results.'
                       : 'This folder is empty.'}
                   </span>
@@ -6101,6 +6158,14 @@ export default function BNDZUI() {
              <span className="text-amber-400/70 ml-2">
                Global · {globalSearchEngine === 'indexed' ? 'Indexed search' : globalSearchEngine === 'everything' ? 'Everything' : 'Filesystem'}
              </span>
+           )}
+           {indexProgress && (!indexProgress.done || !!indexProgress.error) && (
+             <IndexProgressChip
+               filesIndexed={indexProgress.filesIndexed}
+               currentPath={indexProgress.currentPath}
+               root={indexProgress.root}
+               error={indexProgress.error}
+             />
            )}
            {folderSizeSync?.active && (
              <FolderSizeSyncChip

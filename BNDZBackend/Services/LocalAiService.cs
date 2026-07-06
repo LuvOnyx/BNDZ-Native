@@ -127,6 +127,42 @@ public sealed class LocalAiService : IDisposable
         }
     }
 
+    public async Task<string> GenerateStreamAsync(
+        string prompt,
+        Action<string> onChunk,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(prompt) || !IsModelPresent) return string.Empty;
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            await EnsureLoadedAsync(cancellationToken);
+            if (_weights == null || _parameters == null) return string.Empty;
+
+            var executor = new StatelessExecutor(_weights, _parameters);
+            var sb = new System.Text.StringBuilder();
+            var inferParams = new InferenceParams
+            {
+                MaxTokens = 768,
+                AntiPrompts = new List<string> { "\n\nUser:", "\n\nFilenames:", "```" }
+            };
+
+            var formatted = FormatInstructPrompt(prompt);
+            await foreach (var token in executor.InferAsync(formatted, inferParams, cancellationToken))
+            {
+                sb.Append(token);
+                if (!string.IsNullOrEmpty(token)) onChunk(token);
+            }
+
+            return sb.ToString().Trim();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task EnsureLoadedAsync(CancellationToken cancellationToken)
     {
         if (_weights != null) return;

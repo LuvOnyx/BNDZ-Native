@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -33,5 +34,25 @@ public class AiAssistantService
         }
 
         return AiRulesEngine.TryRulesResponse(prompt) ?? string.Empty;
+    }
+
+    public async Task<string> StreamResponseAsync(
+        string prompt,
+        Action<string> onChunk,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var local = await _localAi.GenerateStreamAsync(prompt, onChunk, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(local)) return local;
+        }
+        catch
+        {
+            // fall through to rules
+        }
+
+        var fallback = AiRulesEngine.TryRulesResponse(prompt) ?? string.Empty;
+        if (!string.IsNullOrEmpty(fallback)) onChunk(fallback);
+        return fallback;
     }
 }

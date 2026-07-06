@@ -39,6 +39,22 @@ for (const call of [...new Set(nativeCalls)].slice(0, 80)) {
 }
 ok(`Checked ${new Set(nativeCalls).size} native IPC entry points`);
 
+const fmUi = fs.readFileSync(path.join(ROOT, 'src/components/BNDZUI.tsx'), 'utf8');
+for (const marker of ['INDEX_PROGRESS', 'GET_INDEX_STATUS', 'PERFORM_GLOBAL_SEARCH', 'AI_GENERATE_STREAM']) {
+  if (!mainCs.includes(`"${marker}"`) && !mainCs.includes(`type == "${marker}"`)) {
+    fail(`Missing backend handler: ${marker}`);
+  } else if (!ipc.includes(marker)) {
+    fail(`Missing ipcBridge reference: ${marker}`);
+  } else {
+    ok(`Wired: ${marker}`);
+  }
+}
+if (!ipc.includes('onIndexProgress') || !fmUi.includes('onIndexProgress')) {
+  fail('Missing onIndexProgress listener wiring');
+} else {
+  ok('Wired: onIndexProgress');
+}
+
 const pluginsDir = path.join(ROOT, 'src/components/plugins');
 for (const file of fs.readdirSync(pluginsDir, { recursive: true })) {
   if (!String(file).endsWith('.tsx')) continue;

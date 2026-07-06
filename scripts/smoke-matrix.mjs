@@ -26,7 +26,11 @@ function run(label, args, opts = {}) {
 
 function runNode(label, script, extraArgs = []) {
   console.log(`\n▶ ${label}`);
-  const r = spawnSync(process.execPath, [script, ...extraArgs], { cwd: ROOT, stdio: 'inherit' });
+  const runner = script.includes('test-index-finding') ? process.platform === 'win32'
+    ? ['npx.cmd', 'tsx', script, ...extraArgs]
+    : ['npx', 'tsx', script, ...extraArgs]
+    : [process.execPath, script, ...extraArgs];
+  const r = spawnSync(runner[0], runner.slice(1), { cwd: ROOT, stdio: 'inherit', shell: script.includes('test-index-finding') });
   if (r.status !== 0) {
     console.error(`\n✗ ${label} failed (exit ${r.status})`);
     process.exit(r.status ?? 1);
@@ -41,6 +45,7 @@ run('BNDZUI audit', ['run', 'audit:ui']);
 run('Production build (FM)', ['run', 'build']);
 
 runNode('Interaction smoke tests', 'scripts/test-interaction.mjs');
+runNode('Index/finding unit tests', 'scripts/test-index-finding.mjs');
 runNode('Storage organize unit tests', 'scripts/test-storage-organize.mjs');
 
 console.log('\n▶ Playwright E2E (critical paths)');

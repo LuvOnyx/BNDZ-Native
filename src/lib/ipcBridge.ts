@@ -89,7 +89,10 @@ export const IPC = {
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean }) => void>,
   _startupActionListeners: [] as Array<(action: string) => void>,
   _aiDownloadProgressListeners: [] as Array<(progress: { percent: number }) => void>,
-  _indexProgressListeners: [] as Array<(progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string }) => void>,
+  _indexProgressListeners: [] as Array<(progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string }) => void>,
+  _aiStreamChunkListeners: new Map<string, (chunk: string) => void>(),
+  _aiStreamDoneListeners: new Map<string, () => void>(),
+  _aiStreamErrorListeners: new Map<string, (error: string) => void>(),
 
   init() {
     if (this.isNative && !this._initialized) {
@@ -131,6 +134,18 @@ export const IPC = {
           this._aiDownloadProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'INDEX_PROGRESS') {
           this._indexProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'AI_STREAM_CHUNK' && data.requestId && typeof data.chunk === 'string') {
+          this._aiStreamChunkListeners.get(data.requestId)?.(data.chunk);
+        } else if (data.type === 'AI_STREAM_DONE' && data.requestId) {
+          this._aiStreamDoneListeners.get(data.requestId)?.();
+          this._aiStreamChunkListeners.delete(data.requestId);
+          this._aiStreamDoneListeners.delete(data.requestId);
+          this._aiStreamErrorListeners.delete(data.requestId);
+        } else if (data.type === 'AI_STREAM_ERROR' && data.requestId && typeof data.error === 'string') {
+          this._aiStreamErrorListeners.get(data.requestId)?.(data.error);
+          this._aiStreamChunkListeners.delete(data.requestId);
+          this._aiStreamDoneListeners.delete(data.requestId);
+          this._aiStreamErrorListeners.delete(data.requestId);
         }
       });
       this._initialized = true;
@@ -177,7 +192,7 @@ export const IPC = {
     };
   },
 
-  onIndexProgress(callback: (progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string }) => void) {
+  onIndexProgress(callback: (progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string }) => void) {
     this.init();
     this._indexProgressListeners.push(callback);
     return () => {
@@ -581,6 +596,44 @@ export const IPC = {
     return '';
   },
 
+  aiGenerateStream(prompt: string, onChunk?: (chunk: string) => void, timeoutMs = 120000): Promise<string> {
+    if (!this.isNative) return Promise.resolve('');
+    this.init();
+    const id = `${Date.now()}_aiStream`;
+    return new Promise(async (resolve, reject) => {
+      const { ensureAiModelReady } = await import('./aiModelGate');
+      const ready = await ensureAiModelReady();
+      if (!ready) {
+        resolve('');
+        return;
+      }
+      const chunks: string[] = [];
+      const timer = window.setTimeout(() => {
+        cleanup();
+        reject(new Error('AI stream timed out'));
+      }, timeoutMs);
+      const cleanup = () => {
+        window.clearTimeout(timer);
+        this._aiStreamChunkListeners.delete(id);
+        this._aiStreamDoneListeners.delete(id);
+        this._aiStreamErrorListeners.delete(id);
+      };
+      this._aiStreamChunkListeners.set(id, chunk => {
+        chunks.push(chunk);
+        onChunk?.(chunk);
+      });
+      this._aiStreamDoneListeners.set(id, () => {
+        cleanup();
+        resolve(chunks.join(''));
+      });
+      this._aiStreamErrorListeners.set(id, err => {
+        cleanup();
+        reject(new Error(err));
+      });
+      (window as any).chrome.webview.postMessage({ type: 'AI_GENERATE_STREAM', id, payload: { prompt } });
+    });
+  },
+
   async aiBatchRename(filenames: string[], instructions: string): Promise<RenameOperation[]> {
     if (this.isNative) {
       const { ensureAiModelReady } = await import('./aiModelGate');
@@ -722,29 +775,32 @@ export const IPC = {
     return Promise.resolve({ ok: false, error: 'Indexing requires native host.' });
   },
 
-  getIndexStatus(): Promise<{ fileCount: number; folderCount: number; locations: Array<{ path: string; lastIndexed: number }> }> {
+  getIndexStatus(): Promise<{ fileCount: number; folderCount: number; locations: Array<{ path: string; lastIndexed: number }>; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_indexStatus`;
       return _nativeCall('GET_INDEX_STATUS', 'INDEX_STATUS_RESULT', id, {}, 15000)
-        .then((payload: any) => ({
-          fileCount: payload?.fileCount ?? 0,
-          folderCount: payload?.folderCount ?? 0,
-          locations: payload?.locations ?? [],
-        }))
-        .catch(() => ({ fileCount: 0, folderCount: 0, locations: [] }));
+        .then((payload: any) => {
+          if (payload?.error) throw new Error(payload.error);
+          return {
+            fileCount: payload?.fileCount ?? 0,
+            folderCount: payload?.folderCount ?? 0,
+            locations: payload?.locations ?? [],
+          };
+        })
+        .catch(err => ({ fileCount: 0, folderCount: 0, locations: [], error: String(err?.message || err) }));
     }
     return Promise.resolve({ fileCount: 0, folderCount: 0, locations: [] });
   },
 
-  reindexBndzDefaults(): Promise<{ ok: boolean; error?: string }> {
+  reindexBndzDefaults(): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_reindexDefaults`;
-      return _nativeCall<{ ok: boolean; error?: string }>(
+      return _nativeCall<{ ok: boolean; skipped?: boolean; error?: string }>(
         'REINDEX_BNDZ_DEFAULTS',
         'REINDEX_BNDZ_DEFAULTS_RESULT',
         id,
         {},
-        300000,
+        30000,
       ).catch(err => ({ ok: false, error: String(err?.message || err) }));
     }
     return Promise.resolve({ ok: false, error: 'Indexing requires native host.' });

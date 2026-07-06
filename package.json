@@ -29,7 +29,7 @@
     "audit:wiring": "node scripts/wiring-audit.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "node scripts/test-interaction.mjs && node scripts/test-storage-organize.mjs"
+    "test:unit": "node scripts/test-interaction.mjs && node scripts/test-storage-organize.mjs && npx tsx scripts/test-index-finding.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -70,7 +70,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
     setProgress(null);
     try {
       const res = await IPC.reindexBndzDefaults();
-      notify(res.ok ? 'Re-indexing default libraries…' : (res.error || 'Re-index failed'));
+      notify(res.ok ? (res.skipped ? 'Indexing already in progress.' : 'Re-indexing default libraries…') : (res.error || 'Re-index failed'));
       if (!res.ok) setIndexing(false);
     } catch {
       setIndexing(false);

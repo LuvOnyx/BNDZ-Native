@@ -11,6 +11,7 @@ export type BndzMediaEntity = FSEntity & { path?: string; modified?: number };
 
 type Props = {
   items: BndzMediaEntity[];
+  fetchError?: string;
   selectedIds: string[];
   buildPath: (entity: BndzMediaEntity) => string;
   onItemClick: (e: React.MouseEvent, entity: BndzMediaEntity) => void;
@@ -82,6 +83,7 @@ function MediaTile({
 
 export default function BndzMediaView({
   items,
+  fetchError,
   selectedIds,
   buildPath,
   onItemClick,
@@ -92,6 +94,15 @@ export default function BndzMediaView({
   const groups = useMemo(() => groupByDate(items), [items]);
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const useVirtualGrid = items.length >= 80;
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-gray-500 gap-2 px-6 text-center">
+        <span className="text-[13px] text-red-300/90">{fetchError}</span>
+        <span className="text-[10px] text-gray-600">Check that the search index is built and try refreshing.</span>
+      </div>
+    );
+  }
 
   if (!items.length) {
     return (

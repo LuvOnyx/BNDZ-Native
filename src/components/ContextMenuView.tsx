@@ -657,7 +657,8 @@ function ContextMenuView({
           onClick={() => {
             void import('../lib/ipcBridge').then(({ IPC }) => {
               IPC.indexBndzLocation(normEntityPath).then(res => {
-                setToastMessage(res.ok ? 'Folder indexed for BNDZ search.' : (res.error || 'Indexing failed.'));
+                setToastMessage(res.ok ? 'Indexing folder for BNDZ search…' : (res.error || 'Indexing failed.'));
+                if (res.ok) window.dispatchEvent(new CustomEvent('bndz-index-roots-changed'));
               });
             });
             onClose();

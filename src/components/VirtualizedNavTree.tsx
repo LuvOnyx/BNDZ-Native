@@ -16,7 +16,8 @@ import {
   setBndzFileDragData,
   type BndzFileDragPayload,
 } from '../lib/bndzDrag';
-import { toWindowsPath, normalizePanePath } from '../lib/pathUtils';
+import { toWindowsPath } from '../lib/pathUtils';
+import { isPathUnderIndexedRoot } from '../lib/indexedRoots';
 import {
   flattenNavTree,
   dirEntryToTreeNode,
@@ -49,15 +50,6 @@ interface VirtualizedNavTreeProps {
   onGliderMove?: (path: string) => void;
   onGliderPaste?: (path: string) => void;
   indexedRoots?: string[];
-}
-
-function isPathUnderIndexedRoot(path: string | undefined, roots: string[]): boolean {
-  if (!path || !roots.length) return false;
-  const norm = normalizePanePath(path).toLowerCase().replace(/\/$/, '');
-  return roots.some(r => {
-    const root = normalizePanePath(r).toLowerCase().replace(/\/$/, '');
-    return norm === root || norm.startsWith(`${root}/`);
-  });
 }
 
 async function loadDirectoryChildren(

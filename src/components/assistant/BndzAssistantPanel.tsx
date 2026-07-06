@@ -68,7 +68,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
   } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentInitial = useRef(false);
-  const streamTimerRef = useRef<number | null>(null);
+  const streamGenRef = useRef(0);
 
   const refreshStatus = useCallback(() => {
     if (!IPC.isNative) return;
@@ -84,10 +84,6 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
-
-  useEffect(() => () => {
-    if (streamTimerRef.current != null) window.clearInterval(streamTimerRef.current);
-  }, []);
 
   const runAction = (verb: string, path?: string) => {
     const target = path || contextPaths[0];
@@ -107,45 +103,60 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
     } else if (action.path) runAction(action.verb, action.path);
   };
 
-  const streamAssistantReply = useCallback((fullText: string) => {
-    if (streamTimerRef.current != null) window.clearInterval(streamTimerRef.current);
-    setMessages(prev => [...prev, { role: 'assistant', text: '', streaming: true }]);
-    let pos = 0;
-    const step = Math.max(1, Math.ceil(fullText.length / 48));
-    streamTimerRef.current = window.setInterval(() => {
-      pos = Math.min(fullText.length, pos + step);
-      const slice = fullText.slice(0, pos);
-      setMessages(prev => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (!last || last.role !== 'assistant') return prev;
-        next[next.length - 1] = { ...last, text: slice, streaming: pos < fullText.length };
-        return next;
-      });
-      if (pos >= fullText.length) {
-        if (streamTimerRef.current != null) window.clearInterval(streamTimerRef.current);
-        streamTimerRef.current = null;
-      }
-    }, 16);
-  }, []);
-
   const send = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
-    setMessages(prev => [...prev, { role: 'user', text: trimmed }]);
+    const gen = ++streamGenRef.current;
+    setMessages(prev => [...prev, { role: 'user', text: trimmed }, { role: 'assistant', text: '', streaming: true }]);
     setInput('');
     setBusy(true);
     try {
       const prompt = await buildEnrichedContext(contextPaths, currentPath, trimmed);
-      const reply = await IPC.aiGenerate(prompt);
-      streamAssistantReply(reply || 'No response — try downloading the local model below.');
+      if (streamGenRef.current !== gen) return;
+
+      const appendChunk = (chunk: string) => {
+        if (streamGenRef.current !== gen) return;
+        setMessages(prev => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (!last || last.role !== 'assistant') return prev;
+          next[next.length - 1] = { ...last, text: last.text + chunk, streaming: true };
+          return next;
+        });
+      };
+
+      let reply = '';
+      if (IPC.isNative) {
+        reply = await IPC.aiGenerateStream(prompt, appendChunk);
+      } else {
+        reply = await IPC.aiGenerate(prompt);
+        appendChunk(reply);
+      }
+
+      if (streamGenRef.current !== gen) return;
+      const finalText = reply || 'No response — try downloading the local model below.';
+      setMessages(prev => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (!last || last.role !== 'assistant') return prev;
+        next[next.length - 1] = { role: 'assistant', text: finalText, streaming: false };
+        return next;
+      });
     } catch (err: any) {
-      setMessages(prev => [...prev, { role: 'assistant', text: err?.message || 'Assistant request failed.' }]);
+      if (streamGenRef.current !== gen) return;
+      setMessages(prev => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last?.role === 'assistant' && last.streaming) next.pop();
+        return [...next, { role: 'assistant', text: err?.message || 'Assistant request failed.' }];
+      });
     } finally {
-      setBusy(false);
+      if (streamGenRef.current === gen) setBusy(false);
       refreshStatus();
     }
-  }, [busy, contextPaths, currentPath, refreshStatus, streamAssistantReply]);
+  }, [busy, contextPaths, currentPath, refreshStatus]);
+
+  useEffect(() => () => { streamGenRef.current++; }, []);
 
   useEffect(() => {
     if (initialPrompt?.trim() && !sentInitial.current) {
@@ -243,7 +254,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
           </div>
           );
         })}
-        {busy && (
+        {busy && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex items-center gap-2 text-[11px] text-gray-400 px-1">
             <Loader2 size={12} className="animate-spin" />
             Reading context…

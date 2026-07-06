@@ -15,7 +15,8 @@ export interface TabState {
   findingRoot?: string;
   findingResults?: any[];
   findingLoading?: boolean;
-  findingEngine?: 'everything' | 'indexed' | null;
+  findingEngine?: 'everything' | 'indexed' | 'indexed+everything' | null;
+  findingError?: string;
   findingScope?: 'library' | 'folder' | 'location';
   findingUseRegex?: boolean;
   findingSearchContent?: boolean;
