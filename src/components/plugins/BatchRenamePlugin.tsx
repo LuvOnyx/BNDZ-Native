@@ -215,6 +215,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             title="Batch Rename"
             icon={Replace}
             iconColor="#34d399"
+            variant="embedded"
             subtitle={`${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
             toolbar={
                 <button

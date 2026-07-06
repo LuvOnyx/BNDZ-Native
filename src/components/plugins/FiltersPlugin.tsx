@@ -73,6 +73,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
             title="Visual Filters"
             icon={Filter}
             iconColor="#38bdf8"
+            variant="embedded"
             subtitle={`${filters.filter(f => f.isActive).length} active rules`}
             toolbar={
                 <button type="button" onClick={startNew} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded text-xs font-semibold">

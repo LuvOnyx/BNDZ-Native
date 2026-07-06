@@ -46,9 +46,10 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
   );
 }
 
-export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap }: any) {
+export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap, pluginLaunch }: any) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [wizardMode, setWizardMode] = useState<StorageWizardMode | null>(null);
+  const [wizardFolderPath, setWizardFolderPath] = useState<string | undefined>(undefined);
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<Date | null>(null);
   const [dupScanning, setDupScanning] = useState(false);
@@ -67,7 +68,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: panePathFromWin(target) } }));
   };
 
-  const openWizard = (mode: StorageWizardMode) => {
+  const openWizard = (mode: StorageWizardMode, folderPath?: string) => {
+    if (folderPath) setWizardFolderPath(folderPath);
     setWizardMode(mode);
     if (mode === 'organize') setActiveTab('organize');
     else setActiveTab('duplicates');
@@ -75,12 +77,20 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   useEffect(() => {
     const onWizard = (e: Event) => {
-      const mode = (e as CustomEvent).detail?.mode as StorageWizardMode | undefined;
-      if (mode === 'organize' || mode === 'cleanup') openWizard(mode);
+      const detail = (e as CustomEvent).detail || {};
+      const mode = detail.mode as StorageWizardMode | undefined;
+      if (mode === 'organize' || mode === 'cleanup') openWizard(mode, detail.currentPath);
     };
     window.addEventListener('bndz-storage-wizard', onWizard);
     return () => window.removeEventListener('bndz-storage-wizard', onWizard);
   }, []);
+
+  useEffect(() => {
+    const mode = pluginLaunch?.wizardMode as StorageWizardMode | undefined;
+    if (mode === 'organize' || mode === 'cleanup') {
+      openWizard(mode, pluginLaunch?.currentPath);
+    }
+  }, [pluginLaunch?.wizardMode, pluginLaunch?.currentPath]);
 
   const items = pathContentsCache?.[currentPath] || [];
 
@@ -191,6 +201,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       title="Smart Storage"
       icon={Sparkles}
       iconColor="#34d399"
+      variant="embedded"
       subtitle={folderLabel}
       toolbar={
         <div className="flex gap-1 p-0.5 rounded-lg bg-black/30 border border-white/[0.06]">
@@ -214,8 +225,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       {wizardMode && (
         <StorageCleanupWizard
           mode={wizardMode}
-          initialFolderPanePath={currentPath}
-          onClose={() => setWizardMode(null)}
+          initialFolderPanePath={wizardFolderPath || currentPath}
+          onClose={() => { setWizardMode(null); setWizardFolderPath(undefined); }}
         />
       )}
 

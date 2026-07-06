@@ -26,10 +26,11 @@ type PreviewTab = 'preview' | 'details' | 'media';
 interface RightPreviewPanelProps {
   entity: FSEntity | null;
   path?: string | null;
+  pathContentsCache?: Record<string, any[]>;
   onNavigate?: (path: string) => void;
 }
 
-export default function RightPreviewPanel({ entity, path, onNavigate }: RightPreviewPanelProps) {
+export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate }: RightPreviewPanelProps) {
   const { config } = useAppConfig();
   const [thumbnailNative, setThumbnailNative] = useState<string | null>(null);
   const [shellIcon, setShellIcon] = useState<string | null>(null);
@@ -114,21 +115,29 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
            }
         });
         if (shellIsDir && folderBrowsePath) {
-           import('../lib/ipcBridge').then(({ IPC }) => {
-              IPC.getDirContents(folderBrowsePath).then(items => {
-                 if (!active || !items) return;
-                 const files = items.filter((i: any) => i.type === 'file').length;
-                 const folders = items.filter((i: any) => i.type === 'directory').length;
-                 const size = items.reduce((sum: number, i: any) => sum + (i.type === 'file' ? (i.size || 0) : 0), 0);
-                 setFolderStats({ files, folders, size });
-                 setFolderChildren(
-                   items
-                     .slice(0, 48)
-                     .map((i: any) => ({ name: i.name, type: i.type, size: i.size }))
-                     .sort((a: any, b: any) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1))
-                 );
-              }).catch(() => { if (active) { setFolderStats(null); setFolderChildren([]); } });
-           });
+           const cached = pathContentsCache?.[folderBrowsePath];
+           const applyItems = (items: any[]) => {
+              if (!active || !items) return;
+              const files = items.filter((i: any) => i.type === 'file').length;
+              const folders = items.filter((i: any) => i.type === 'directory').length;
+              const size = items.reduce((sum: number, i: any) => sum + (i.type === 'file' ? (i.size || 0) : 0), 0);
+              setFolderStats({ files, folders, size });
+              setFolderChildren(
+                items
+                  .slice(0, 48)
+                  .map((i: any) => ({ name: i.name, type: i.type, size: i.size }))
+                  .sort((a: any, b: any) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1))
+              );
+           };
+           if (cached?.length) {
+              applyItems(cached);
+           } else {
+              import('../lib/ipcBridge').then(({ IPC }) => {
+                 IPC.getDirContents(folderBrowsePath).then(items => {
+                    applyItems(items || []);
+                 }).catch(() => { if (active) { setFolderStats(null); setFolderChildren([]); } });
+              });
+           }
         } else {
            setFolderStats(null);
            setFolderChildren([]);
@@ -142,7 +151,7 @@ export default function RightPreviewPanel({ entity, path, onNavigate }: RightPre
         setFolderStats(null);
         setFolderChildren([]);
      }
-  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, path, folderBrowsePath]);
+  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, path, folderBrowsePath, pathContentsCache]);
 
   const openChild = (child: { name: string; type: string }, opts?: { navigateMain?: boolean }) => {
     if (!folderBrowsePath) return;

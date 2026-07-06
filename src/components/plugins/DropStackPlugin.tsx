@@ -119,6 +119,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
             title="Drop Stack"
             icon={Layers}
             iconColor="#a78bfa"
+            variant="embedded"
             subtitle="Stage files from multiple locations, then batch transfer"
             toolbar={
                 <>

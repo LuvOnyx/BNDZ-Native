@@ -282,6 +282,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
             title="Shell Menus"
             icon={Menu}
             iconColor="#f472b6"
+            variant="embedded"
             subtitle={selectionHint}
             toolbar={
                 <>

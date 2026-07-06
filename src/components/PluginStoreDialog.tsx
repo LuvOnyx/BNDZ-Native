@@ -1,17 +1,26 @@
 import React, { useRef, useState } from 'react';
-import { Check, Plus, Upload, Settings, Search, Filter, Database, Layers, Replace, Puzzle, Trash, Minus, Square, X, Star, Download, Globe, FolderSync } from 'lucide-react';
+import { Check, Plus, Upload, Settings, Search, Filter, Database, Layers, Replace, Puzzle, Trash, Minus, Square, X, Star, Download, Globe, FolderSync, HardDrive, ScrollText, GitCompare, BookMarked, Sparkles, Palette } from 'lucide-react';
 import { usePluginRegistry, PluginManifest } from '../data/PluginRegistryContext';
 
-// Hardcoded map to resolve icons dynamically
 const iconRegistry: Record<string, React.ElementType> = {
     'properties': Settings,
+    'context-menu-manager': ScrollText,
+    'icon-studio': Palette,
+    'batch-rename': Replace,
     'find': Search,
+    'dropstack': Layers,
     'filters': Filter,
     'metadata': Database,
-    'drop-stack': Layers,
-    'batch-rename': Replace,
+    'storage-cleanup': Trash,
     'folder-sync': FolderSync,
+    'catalog': BookMarked,
+    'action-log': HistoryIcon,
+    'compare': GitCompare,
 };
+
+function HistoryIcon(props: React.ComponentProps<typeof Search>) {
+    return <Sparkles {...props} />;
+}
 
 export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
     const { pluginRegistry, togglePluginInstall, addPluginToRegistry } = usePluginRegistry() as any;

@@ -127,6 +127,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
       title="Catalog"
       icon={BookMarked}
       iconColor="#38bdf8"
+      variant="embedded"
       subtitle="Virtual collections — browse as /vf"
       toolbar={
         <div className="flex gap-1.5">

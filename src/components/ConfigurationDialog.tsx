@@ -1845,6 +1845,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                 <Checkbox label={<span>Show bottom panel when BNDZ starts</span>} checked={localConfig.bottomPanelOpen !== false} onChange={e => updateLocalConfig({ bottomPanelOpen: e.target.checked })} />
                 <Checkbox label={<span>Remember last active plugin tab</span>} checked={localConfig.bottomPanelRememberTab !== false} onChange={e => updateLocalConfig({ bottomPanelRememberTab: e.target.checked })} />
                 <Checkbox label={<span>Show plugin icons on tab labels</span>} checked={localConfig.bottomPanelShowTabIcons !== false} onChange={e => updateLocalConfig({ bottomPanelShowTabIcons: e.target.checked })} />
+                <Checkbox label={<span>Unload inactive plugin tabs (saves memory)</span>} checked={localConfig.bottomPanelLazyUnmount !== false} onChange={e => updateLocalConfig({ bottomPanelLazyUnmount: e.target.checked })} />
               </div>
 
               <SectionHeader title="Default Plugin Tab" />

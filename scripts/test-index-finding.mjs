@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { buildGlobalSearchArgs, resolveSearchRoot, normalizeSearchResults } from '../src/lib/globalSearchCall.ts';
 import { isPathUnderIndexedRoot, mapFindingEngine } from '../src/lib/indexedRoots.ts';
 import { createFindingTab, findingTabLabel, isFindingTab } from '../src/lib/findingTab.ts';
+import { setPathCacheEntry, removePathCacheKeys } from '../src/lib/pathCacheLru.ts';
 
 const baseConfig = {
   globalSearchLimit: 500,
@@ -41,5 +42,14 @@ assert.equal(isFindingTab(tab), true);
 assert.equal(tab.findingQuery, '*.pdf');
 assert.equal(tab.findingScope, 'library');
 assert.ok(findingTabLabel({ ...tab, findingEngine: 'indexed+everything' }).includes('IDX+EV'));
+
+const cache = {};
+const c1 = setPathCacheEntry(cache, '/C:/a', ['a']);
+const c2 = setPathCacheEntry(c1, '/C:/b', ['b']);
+assert.equal(c2['/C:/a']?.[0], 'a');
+assert.equal(c2['/C:/b']?.[0], 'b');
+const c3 = removePathCacheKeys(c2, ['/C:/a']);
+assert.equal(c3['/C:/a'], undefined);
+assert.equal(c3['/C:/b']?.[0], 'b');
 
 console.log('index/finding unit tests passed');

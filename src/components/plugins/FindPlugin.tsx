@@ -15,7 +15,7 @@ export const FindPluginDef = {
 
 type SearchMode = 'local' | 'global' | 'duplicates' | 'advanced';
 
-export default function FindPlugin({ config, focusedPath, isPluginTabActive }: any) {
+export default function FindPlugin({ config, focusedPath, isPluginTabActive, pluginLaunch }: any) {
     const rt = useSettingsRuntime();
     const [query, setQuery] = useState('');
     const [mode, setMode] = useState<SearchMode>('local');
@@ -50,7 +50,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive }: a
             p.startsWith('/') ? p : `/${p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:')}`,
         );
 
-    const doSearch = async () => {
+    const doSearch = async (queryOverride?: string) => {
+        const effectiveQuery = (queryOverride ?? query).trim();
         if (mode === 'duplicates') {
             if (!scopePath || scopePath === '/') {
                 setStatus('Navigate to a folder to scan for duplicates.');
@@ -76,7 +77,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive }: a
             return;
         }
 
-        if (!query.trim()) return;
+        if (!effectiveQuery) return;
         setSearching(true);
         setStatus('');
         setDuplicateGroups([]);
@@ -86,7 +87,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive }: a
                 const roots = isAdvanced ? [scopePath, ...parseExtraRoots()] : [];
                 const rootPath = mode === 'global' ? '/C:' : scopePath;
                 const { items, engine } = await IPC.performGlobalSearch(
-                    query,
+                    effectiveQuery,
                     rt.search.limit,
                     regexEnabled,
                     rootPath,
@@ -118,6 +119,16 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive }: a
         setStatus('Scan cancelled.');
     };
 
+    useEffect(() => {
+        if (isPluginTabActive === false) return;
+        const q = pluginLaunch?.findQuery?.trim();
+        if (!q) return;
+        setQuery(q);
+        setMode('local');
+        void doSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pluginLaunch?.findQuery, isPluginTabActive]);
+
     const navigateTo = (path: string) => {
         if (path) window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path } }));
     };
@@ -127,6 +138,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive }: a
             title="Fast Search"
             icon={Search}
             iconColor="#38bdf8"
+            variant="embedded"
             subtitle={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced / multi-root' : `Scope: ${scopePath}`}
             status={!IPC.isNative ? (
                 <span className="text-amber-300/90 text-[11px]">Native host required for indexed search</span>
@@ -136,7 +148,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive }: a
                     {mode === 'duplicates' && searching && (
                         <button type="button" onClick={cancelDupScan} className="text-xs text-red-400 hover:underline">Cancel</button>
                     )}
-                    <button onClick={doSearch} disabled={searching} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-semibold">
+                    <button onClick={() => void doSearch()} disabled={searching} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-semibold">
                         {searching ? <History size={12} className="animate-spin" /> : <Play size={12} />} {mode === 'duplicates' ? 'Scan' : 'Search'}
                     </button>
                 </div>

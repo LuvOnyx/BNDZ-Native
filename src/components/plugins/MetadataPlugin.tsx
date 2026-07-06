@@ -81,6 +81,7 @@ export default function MetadataPlugin({
                 title="Metadata Inspector"
                 icon={Database}
                 iconColor="#38bdf8"
+                variant="embedded"
                 subtitle="No selection"
             >
                 <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-gray-500 gap-3 p-6">
@@ -98,6 +99,7 @@ export default function MetadataPlugin({
             title="Metadata Inspector"
             icon={Database}
             iconColor="#38bdf8"
+            variant="embedded"
             subtitle={path.split(/[/\\]/).pop() || path}
             status={loading ? (
                 <span className="flex items-center gap-2 text-gray-500"><Loader2 size={12} className="animate-spin" /> Loading…</span>

@@ -86,6 +86,8 @@ import { resolveTagKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
 import { buildGlobalSearchArgs, normalizeSearchResults, type IndexedSearchScope } from '../lib/globalSearchCall';
 import { mapFindingEngine } from '../lib/indexedRoots';
+import { setPathCacheEntry, removePathCacheKeys } from '../lib/pathCacheLru';
+import type { BottomPluginLaunchContext } from './BottomPluginPanel';
 import {
   getVisibleListColumns,
   getColumnStyle,
@@ -611,6 +613,8 @@ export default function BNDZUI() {
   }, []);
   const [isPluginStoreOpen, setIsPluginStoreOpen] = useState(false);
   const [bottomPluginTab, setBottomPluginTab] = useState<string | null>(null);
+  const [bottomPluginLaunch, setBottomPluginLaunch] = useState<BottomPluginLaunchContext | null>(null);
+  const [activeBottomPluginLabel, setActiveBottomPluginLabel] = useState<string | null>(null);
   const contextMenuBlockRef = React.useRef(false);
   const contextMenuRequestRef = React.useRef(0);
   const contextMenuRootRef = React.useRef<HTMLDivElement>(null);
@@ -630,11 +634,12 @@ export default function BNDZUI() {
   const typeAheadPrefixRef = useRef('');
   const typeAheadAtRef = useRef(0);
 
-  const openBottomPlugin = (pluginId: string) => {
+  const openBottomPlugin = React.useCallback((pluginId: string, launch?: BottomPluginLaunchContext) => {
     ensurePluginInstalled?.(pluginId);
     setIsBottomPanelOpen(true);
     setBottomPluginTab(pluginId);
-  };
+    if (launch) setBottomPluginLaunch(launch);
+  }, [ensurePluginInstalled]);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [tagAssignmentActive, setTagAssignmentActive] = useState(false);
   const [inlineRename, setInlineRename] = useState<{ path: string, entityId: string, currentName: string } | null>(null);
@@ -723,6 +728,9 @@ export default function BNDZUI() {
   const [isDualPane, setIsDualPane] = useState(false);
   // pathContentsCache stores backend-fetched directory contents keyed by path
   const [pathContentsCache, setPathContentsCache] = useState<Record<string, any[]>>({});
+  const cachePathContents = React.useCallback((path: string, data: any[]) => {
+    setPathContentsCache(prev => setPathCacheEntry(prev, path, data));
+  }, []);
   // loadingPaths tracks which paths are currently being fetched so we show a spinner
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
 
@@ -791,9 +799,9 @@ export default function BNDZUI() {
           setLoadingPaths(prev => new Set(prev).add(path));
           IPC.getCatalogContents(path).then(data => {
             const normalized = normalizeDirEntries(data);
-            setPathContentsCache(prev => ({ ...prev, [path]: normalized }));
+            setPathContentsCache(prev => setPathCacheEntry(prev, path, normalized));
           }).catch(() => {
-            setPathContentsCache(prev => ({ ...prev, [path]: [] }));
+            setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
           }).finally(() => {
             dirFetchInFlightRef.current.delete(path);
             setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
@@ -808,10 +816,10 @@ export default function BNDZUI() {
             setLoadingPaths(prev => new Set(prev).add(path));
             IPC.getVirtualViewContents(view, config.globalSearchLimit || 500).then(items => {
               setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-              setPathContentsCache(prev => ({ ...prev, [path]: normalizeDirEntries(items || []) }));
+              setPathContentsCache(prev => setPathCacheEntry(prev, path, normalizeDirEntries(items || [])));
             }).catch((err: unknown) => {
               setVirtualViewErrors(prev => ({ ...prev, [path]: err instanceof Error ? err.message : 'Failed to load smart view.' }));
-              setPathContentsCache(prev => ({ ...prev, [path]: [] }));
+              setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
             }).finally(() => {
               dirFetchInFlightRef.current.delete(path);
               setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
@@ -825,13 +833,10 @@ export default function BNDZUI() {
 
         IPC.getDirContents(path).then(data => {
           const normalized = normalizeDirEntries(data);
-          setPathContentsCache(prev => ({ ...prev, [path]: normalized }));
+          setPathContentsCache(prev => setPathCacheEntry(prev, path, normalized));
           void prefetchIconsForEntities(normalized, path);
         }).catch(() => {
-          setPathContentsCache(prev => {
-            if (prev[path] !== undefined) return prev;
-            return { ...prev, [path]: [] };
-          });
+          setPathContentsCache(prev => setPathCacheEntry(prev, path, prev[path] !== undefined ? prev[path] : []));
         }).finally(() => {
           dirFetchInFlightRef.current.delete(path);
           setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
@@ -858,7 +863,7 @@ export default function BNDZUI() {
         data = await IPC.getDirContents(path);
       }
       const normalized = normalizeDirEntries(data);
-      setPathContentsCache(prev => ({ ...prev, [path]: normalized }));
+      cachePathContents(path, normalized);
     } catch (err: unknown) {
       if (isBndzVirtualPath(path)) {
         setVirtualViewErrors(prev => ({
@@ -866,7 +871,7 @@ export default function BNDZUI() {
           [path]: err instanceof Error ? err.message : 'Failed to load smart view.',
         }));
       }
-      setPathContentsCache(prev => ({ ...prev, [path]: [] }));
+      cachePathContents(path, []);
     } finally {
       setLoadingPaths(prev => {
         const next = new Set(prev);
@@ -874,7 +879,24 @@ export default function BNDZUI() {
         return next;
       });
     }
-  }, []);
+  }, [cachePathContents, config.globalSearchLimit]);
+
+  const prefetchPathQuiet = React.useCallback(async (rawPath: string) => {
+    const path = normalizePanePath(rawPath);
+    if (!path || pathContentsCacheRef.current[path] !== undefined) return;
+    if (dirFetchInFlightRef.current.has(path)) return;
+    if (isVirtualCatalogPath(path) || isBndzVirtualPath(path)) return;
+    dirFetchInFlightRef.current.add(path);
+    try {
+      const { IPC } = await import('../lib/ipcBridge');
+      const data = await IPC.getDirContents(path);
+      cachePathContents(path, normalizeDirEntries(data));
+    } catch {
+      /* hover prefetch is best-effort */
+    } finally {
+      dirFetchInFlightRef.current.delete(path);
+    }
+  }, [cachePathContents]);
 
   const refreshFindingTab = React.useCallback(async (
     paneId: string,
@@ -985,11 +1007,7 @@ export default function BNDZUI() {
 
   const invalidatePath = React.useCallback((rawPath: string) => {
     const path = normalizePanePath(rawPath);
-    setPathContentsCache(prev => {
-      const next = { ...prev };
-      delete next[path];
-      return next;
-    });
+    setPathContentsCache(prev => removePathCacheKeys(prev, [path]));
     void refetchPath(path);
   }, [refetchPath]);
 
@@ -2632,8 +2650,15 @@ export default function BNDZUI() {
       if (path) setCurrentPath(path);
     };
     const onOpenPlugin = (e: Event) => {
-      const pluginId = (e as CustomEvent).detail?.id;
-      if (pluginId) openBottomPlugin(pluginId);
+      const d = (e as CustomEvent).detail || {};
+      if (d.id) {
+        openBottomPlugin(d.id, {
+          paths: d.paths,
+          currentPath: d.currentPath,
+          wizardMode: d.wizardMode,
+          findQuery: d.query ?? d.findQuery,
+        });
+      }
     };
     window.addEventListener('bndz-navigate', onNavigate);
     window.addEventListener('bndz-open-bottom-plugin', onOpenPlugin);
@@ -4650,6 +4675,7 @@ export default function BNDZUI() {
                     onAuxClick={(e) => { if (e.button !== 1) return; e.preventDefault(); handleEntityMiddleClick(e, entity); }}
                     onMouseEnter={(e) => {
                       tipHandlers.onMouseEnter?.(e);
+                      if (isDir) void prefetchPathQuiet(buildEntityPath(entity));
                       if (listGestureRef.current || isMarqueeActive()) return;
                       if (mouseRt.hoverSelect && !inlineRename) {
                         setFocusedItemId(entity.id);
@@ -6091,6 +6117,9 @@ export default function BNDZUI() {
                            primarySelectedPath={focusedFullPath ? toWindowsPath(focusedFullPath) : null}
                            requestedTab={bottomPluginTab}
                            onRequestedTabConsumed={() => setBottomPluginTab(null)}
+                           launchContext={bottomPluginLaunch}
+                           onLaunchContextConsumed={() => setBottomPluginLaunch(null)}
+                           onActiveTabChange={(_id, name) => setActiveBottomPluginLabel(name || null)}
                            selectedItems={bottomSelectionTargets.paths}
                            selectedTargetTypes={bottomSelectionTargets.types}
                            onOpenPluginStore={() => setIsPluginStoreOpen(true)}
@@ -6139,6 +6168,7 @@ export default function BNDZUI() {
                   <RightPreviewPanel
                      entity={previewEntity}
                      path={previewPath}
+                     pathContentsCache={pathContentsCache}
                      onNavigate={p => setCurrentPath(p)}
                   />
                </div>
@@ -6167,6 +6197,21 @@ export default function BNDZUI() {
                error={indexProgress.error}
              />
            )}
+           {activeTagFilter && (
+             <button
+               type="button"
+               onClick={() => setActiveTagFilter(null)}
+               className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-violet-200 hover:text-white"
+               title="Clear tag filter"
+             >
+               Tag: {activeTagFilter} ×
+             </button>
+           )}
+           {isBottomPanelOpen && activeBottomPluginLabel && (
+             <span className="ml-2 text-[10px] text-sky-300/80 hidden sm:inline">
+               Plugin · {activeBottomPluginLabel}
+             </span>
+           )}
            {folderSizeSync?.active && (
              <FolderSizeSyncChip
                current={folderSizeSync.current}
@@ -6188,15 +6233,12 @@ export default function BNDZUI() {
               const totalFree = drives.reduce((s, d) => s + (d.freeSpace || 0), 0);
               const pctFree = totalCap > 0 ? Math.round((totalFree / totalCap) * 100) : 0;
               return (
-                <>
-                  <div className="hidden sm:block">{formatSize(totalFree)} free ({pctFree}%) · {formatSize(totalCap)} total</div>
-                  <div className="flex items-center">
-                     <HardDrive size={12} className="text-[#6db4e6] mr-1" />
-                     <span className="bndz-glass-chip text-[10px] px-2.5 py-1 font-mono text-white/70">
-                       {drives.length} vol · {formatSize(totalFree)} free
-                     </span>
-                  </div>
-                </>
+                <div className="flex items-center gap-2" title={`${formatSize(totalFree)} free of ${formatSize(totalCap)} (${pctFree}% free)`}>
+                  <HardDrive size={12} className="text-[#6db4e6]" />
+                  <span className="bndz-glass-chip text-[10px] px-2.5 py-1 font-mono text-white/70">
+                    {drives.length} vol · {formatSize(totalFree)} free ({pctFree}%)
+                  </span>
+                </div>
               );
             })()}
          </div>

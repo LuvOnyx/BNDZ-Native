@@ -16,7 +16,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
-import { Layers, Puzzle, Store, GripVertical } from 'lucide-react';
+import { Layers, Puzzle, Store, GripVertical, ChevronDown } from 'lucide-react';
 
 function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; isActive: boolean; onClick: () => void; showIcons?: boolean }) {
   const Icon = plugin.icon || Layers;
@@ -33,31 +33,52 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       style={style}
       type="button"
       onClick={onClick}
-      className={`px-3 py-2 border-r border-white/[0.04] flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider transition-all duration-150 shrink-0 ${
+      className={`px-3 py-2 border-r border-white/[0.04] flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider transition-all duration-150 shrink-0 max-w-[148px] ${
         isActive
           ? 'bndz-bottom-tab-active text-sky-300'
           : 'bg-transparent text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
       }`}
+      title={plugin.name}
     >
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400 p-0.5 -ml-1" onClick={e => e.stopPropagation()}>
         <GripVertical size={10} />
       </span>
-      {showIcons !== false && <Icon size={12} className={isActive ? 'text-sky-500' : 'text-gray-600'} />}
-      {plugin.name}
+      {showIcons !== false && <Icon size={12} className={`shrink-0 ${isActive ? 'text-sky-500' : 'text-gray-600'}`} />}
+      <span className="truncate">{plugin.name}</span>
     </button>
   );
 }
+
+export type BottomPluginLaunchContext = {
+  paths?: string[];
+  currentPath?: string;
+  wizardMode?: string;
+  findQuery?: string;
+};
 
 export default function BottomPluginPanel(props: any & {
   onOpenPluginStore?: () => void;
   requestedTab?: string | null;
   onRequestedTabConsumed?: () => void;
+  launchContext?: BottomPluginLaunchContext | null;
+  onLaunchContextConsumed?: () => void;
+  onActiveTabChange?: (pluginId: string | null, pluginName?: string) => void;
 }) {
-  const { onOpenPluginStore, requestedTab, onRequestedTabConsumed, ...pluginProps } = props;
+  const {
+    onOpenPluginStore,
+    requestedTab,
+    onRequestedTabConsumed,
+    launchContext,
+    onLaunchContextConsumed,
+    onActiveTabChange,
+    ...pluginProps
+  } = props;
   const { pluginRegistry, ensurePluginInstalled } = usePluginRegistry();
   const { config, updateConfig } = useAppConfig();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [mountedTabIds, setMountedTabIds] = useState<Set<string>>(new Set());
+  const overflowRef = useRef<HTMLDivElement>(null);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const lazyUnmount = config.bottomPanelLazyUnmount !== false;
 
   const orderedPlugins = useMemo(() => {
     const installed = pluginRegistry.filter((p: any) => p.isInstalled);
@@ -69,10 +90,25 @@ export default function BottomPluginPanel(props: any & {
   }, [pluginRegistry, config.bottomPluginTabOrder]);
 
   const [activeTab, setActiveTab] = useState<string | null>(
-    orderedPlugins.length > 0 ? orderedPlugins[0].id : null
+    orderedPlugins.length > 0 ? orderedPlugins[0].id : null,
   );
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const activePlugin = orderedPlugins.find((p: { id: string }) => p.id === activeTab);
+
+  useEffect(() => {
+    onActiveTabChange?.(activeTab, activePlugin?.name);
+  }, [activeTab, activePlugin?.name, onActiveTabChange]);
+
+  useEffect(() => {
+    if (!overflowOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) setOverflowOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [overflowOpen]);
 
   useEffect(() => {
     if (!requestedTab || !orderedPlugins.some((p: any) => p.id === requestedTab)) return;
@@ -94,17 +130,6 @@ export default function BottomPluginPanel(props: any & {
     const def = config.bottomPanelDefaultPlugin || orderedPlugins[0].id;
     setActiveTab(orderedPlugins.some((p: any) => p.id === def) ? def : orderedPlugins[0].id);
   }, [orderedPlugins, activeTab, config.bottomPanelRememberTab, config.bottomPanelLastTab, config.bottomPanelDefaultPlugin]);
-
-  useEffect(() => {
-    if (activeTab) {
-      setMountedTabIds(prev => {
-        if (prev.has(activeTab)) return prev;
-        const next = new Set(prev);
-        next.add(activeTab);
-        return next;
-      });
-    }
-  }, [activeTab]);
 
   const cycleTab = useCallback((direction: 1 | -1) => {
     if (!activeTab || orderedPlugins.length < 2) return;
@@ -136,6 +161,7 @@ export default function BottomPluginPanel(props: any & {
   const handleTabClick = (id: string) => {
     ensurePluginInstalled?.(id);
     setActiveTab(id);
+    setOverflowOpen(false);
     if (config.bottomPanelRememberTab !== false) {
       updateConfig({ bottomPanelLastTab: id });
     }
@@ -151,6 +177,26 @@ export default function BottomPluginPanel(props: any & {
     const next = arrayMove(ids, oldIndex, newIndex) as string[];
     updateConfig({ bottomPluginTabOrder: next });
   };
+
+  const mergedPluginProps = useMemo(() => {
+    if (!launchContext) return pluginProps;
+    const paths = launchContext.paths?.length ? launchContext.paths : pluginProps.selectedItems;
+    return {
+      ...pluginProps,
+      selectedItems: paths,
+      selectedPaths: paths,
+      currentPath: launchContext.currentPath || pluginProps.currentPath,
+      pluginLaunch: launchContext,
+    };
+  }, [launchContext, pluginProps]);
+
+  useEffect(() => {
+    if (launchContext && activeTab) onLaunchContextConsumed?.();
+  }, [activeTab, launchContext, onLaunchContextConsumed]);
+
+  const visibleTabCount = 7;
+  const primaryTabs = orderedPlugins.slice(0, visibleTabCount);
+  const overflowTabs = orderedPlugins.slice(visibleTabCount);
 
   if (orderedPlugins.length === 0) {
     return (
@@ -175,8 +221,8 @@ export default function BottomPluginPanel(props: any & {
     <div ref={panelRef} className="bndz-bottom-panel flex flex-col h-full min-h-0" tabIndex={-1}>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="bndz-bottom-tabstrip flex border-b border-white/[0.05] shrink-0 overflow-x-auto scrollbar-hidden backdrop-blur-sm" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
-            {orderedPlugins.map((plugin: any) => (
+          <div className="bndz-bottom-tabstrip flex border-b border-white/[0.05] shrink-0 overflow-x-auto scrollbar-hidden backdrop-blur-sm items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
+            {primaryTabs.map((plugin: any) => (
               <SortableTab
                 key={plugin.id}
                 plugin={plugin}
@@ -185,13 +231,46 @@ export default function BottomPluginPanel(props: any & {
                 onClick={() => handleTabClick(plugin.id)}
               />
             ))}
+            {overflowTabs.length > 0 && (
+              <div ref={overflowRef} className="relative shrink-0 border-r border-white/[0.04]">
+                <button
+                  type="button"
+                  onClick={() => setOverflowOpen(v => !v)}
+                  className={`h-full px-2.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${
+                    overflowTabs.some((p: any) => p.id === activeTab) ? 'text-sky-300 bg-white/[0.04]' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  More <ChevronDown size={12} className={overflowOpen ? 'rotate-180' : ''} />
+                </button>
+                {overflowOpen && (
+                  <div className="absolute right-0 top-full z-50 min-w-[180px] py-1 bg-[#1a1a1f] border border-[#333] shadow-xl max-h-[240px] overflow-y-auto bndz-scrollbar">
+                    {overflowTabs.map((plugin: any) => {
+                      const Icon = plugin.icon || Layers;
+                      return (
+                        <button
+                          key={plugin.id}
+                          type="button"
+                          onClick={() => handleTabClick(plugin.id)}
+                          className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 hover:bg-[#094771]/40 ${
+                            activeTab === plugin.id ? 'text-sky-300' : 'text-gray-300'
+                          }`}
+                        >
+                          <Icon size={12} /> {plugin.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </SortableContext>
       </DndContext>
 
       <div className="bndz-bottom-content flex-1 overflow-hidden relative min-h-0 bndz-scrollbar">
         {orderedPlugins.map((plugin: any) => {
-          if (!mountedTabIds.has(plugin.id)) return null;
+          const shouldMount = lazyUnmount ? plugin.id === activeTab : true;
+          if (!shouldMount) return null;
           const Component = plugin.component;
           if (!Component) return null;
           const isActive = plugin.id === activeTab;
@@ -201,7 +280,7 @@ export default function BottomPluginPanel(props: any & {
               className={`absolute inset-0 ${isActive ? 'z-10' : 'z-0 pointer-events-none invisible'}`}
               aria-hidden={!isActive}
             >
-              <Component {...pluginProps} isPluginTabActive={isActive} />
+              <Component {...mergedPluginProps} isPluginTabActive={isActive} />
             </div>
           );
         })}

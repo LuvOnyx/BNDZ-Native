@@ -72,6 +72,7 @@ export interface AppConfig {
     bottomPanelRememberTab?: boolean;
     bottomPanelLastTab?: string;
     bottomPanelShowTabIcons?: boolean;
+    bottomPanelLazyUnmount?: boolean;
     customUserCommands?: Array<{ id: string; label: string; hint?: string; keywords?: string[]; action: string; shell?: 'powershell' | 'cmd' }>;
     customEventActions?: CustomEventAction[];
     toolbarProfiles?: any[][];
@@ -176,6 +177,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
     bottomPanelRememberTab: true,
     bottomPanelLastTab: 'properties',
     bottomPanelShowTabIcons: true,
+    bottomPanelLazyUnmount: true,
     alwaysOnTop: false,
     showHiddenSystemFoldersInTree: false,
     useCustomContextMenu: true,

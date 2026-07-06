@@ -61,8 +61,10 @@ export default function SmartToolsDialog({
     const paths = resolveSelectedPaths({ isOpen, onClose, selectedItems, selectedFiles, currentPath });
 
     const handleOrganize = () => {
-        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
-        window.dispatchEvent(new CustomEvent('bndz-storage-wizard', { detail: { mode: 'organize' } }));
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+            detail: { id: 'storage-cleanup', currentPath, paths, wizardMode: 'organize' },
+        }));
+        window.dispatchEvent(new CustomEvent('bndz-storage-wizard', { detail: { mode: 'organize', currentPath } }));
         onClose();
     };
 
@@ -134,7 +136,9 @@ export default function SmartToolsDialog({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'batch-rename' } }));
+                                        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+                                            detail: { id: 'batch-rename', paths, currentPath },
+                                        }));
                                         onClose();
                                     }}
                                     className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
@@ -150,7 +154,9 @@ export default function SmartToolsDialog({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'storage-cleanup' } }));
+                                        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', {
+                                            detail: { id: 'storage-cleanup', currentPath, paths },
+                                        }));
                                         onClose();
                                     }}
                                     className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"

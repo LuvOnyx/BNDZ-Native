@@ -235,6 +235,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
       title="Folder Sync"
       icon={FolderSync}
       iconColor="#38bdf8"
+      variant="embedded"
       subtitle="Auto-sync folders via robocopy"
       toolbar={
         <div className="flex items-center gap-1.5">
