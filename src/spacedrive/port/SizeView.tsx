@@ -22,6 +22,7 @@ type PackNode = d3.HierarchyCircularNode<{
 type Props = {
   items: SizeViewItem[];
   onNavigate: (path: string) => void;
+  onScanFolderSizes?: () => void;
 };
 
 const MAX_NODES = 48;
@@ -44,7 +45,7 @@ function bubbleColor(item: SizeViewItem): string {
   return 'hsl(220, 25%, 32%)';
 }
 
-export default function SizeView({ items, onNavigate }: Props) {
+export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [dims, setDims] = useState({ w: 400, h: 280 });
@@ -147,9 +148,18 @@ export default function SizeView({ items, onNavigate }: Props) {
 
   if (!prepared.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-[11px] text-gray-500 gap-1 px-4 text-center">
+      <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-[11px] text-gray-500 gap-2 px-4 text-center">
         <span>No folder sizes available yet.</span>
-        <span className="text-[10px] text-gray-600">Wait for size sync, or open a folder with subfolders.</span>
+        {onScanFolderSizes && (
+          <button
+            type="button"
+            onClick={onScanFolderSizes}
+            className="mt-1 px-3 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] text-white"
+          >
+            Scan folder sizes
+          </button>
+        )}
+        <span className="text-[10px] text-gray-600">Or wait for automatic size sync on navigation.</span>
       </div>
     );
   }

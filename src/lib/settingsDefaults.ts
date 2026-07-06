@@ -380,6 +380,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   useNativeWindowsNotifications: true,
   folderSizeToastCooldownSeconds: 90,
   folderSizeToastOnlyWhenFetched: true,
+  folderSizeVisualization: 'treemap' as 'treemap' | 'bubbles',
   showFilmStripOverlayOnVideoThumbnails: false,
   showFilterInformationInList: false,
   showFilterInformationInTabHeaders: false,

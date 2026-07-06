@@ -1,4 +1,4 @@
-import{r as w}from"./icons-COouiRcF.js";var me={exports:{}},Vt={};/**
+import{r as w}from"./icons-BUrbE7YJ.js";var me={exports:{}},Vt={};/**
  * @license React
  * react-jsx-runtime.production.js
  *

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Database, Loader2 } from 'lucide-react';
 import { IPC } from '../../lib/ipcBridge';
+import { toWindowsPath } from '../../lib/pathUtils';
 
 type Props = {
   title: string;
@@ -11,6 +12,22 @@ type Props = {
 export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
   const [indexing, setIndexing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [filesIndexed, setFilesIndexed] = useState(0);
+  const [currentFile, setCurrentFile] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!IPC.isNative) return;
+    return IPC.onIndexProgress(p => {
+      setFilesIndexed(p.filesIndexed);
+      setCurrentFile(p.currentPath || null);
+      if (p.done) {
+        setIndexing(false);
+        onIndexed?.();
+      } else {
+        setIndexing(true);
+      }
+    });
+  }, [onIndexed]);
 
   const runIndex = async () => {
     if (!IPC.isNative) {
@@ -19,13 +36,14 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
     }
     setIndexing(true);
     setMessage(null);
+    setFilesIndexed(0);
+    setCurrentFile(null);
     try {
       const res = await IPC.reindexBndzDefaults();
       setMessage(res.ok ? 'Indexing started — files will appear as the cache builds.' : (res.error || 'Indexing failed.'));
-      if (res.ok) onIndexed?.();
+      if (!res.ok) setIndexing(false);
     } catch (err: any) {
       setMessage(err?.message || 'Indexing failed.');
-    } finally {
       setIndexing(false);
     }
   };
@@ -44,7 +62,17 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
         {indexing ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
         Build search index
       </button>
-      {message && <span className="text-[10px] text-sky-300/90 max-w-sm">{message}</span>}
+      {indexing && (
+        <div className="text-[10px] text-sky-300/90 max-w-sm">
+          {filesIndexed > 0 && <span>{filesIndexed.toLocaleString()} indexed</span>}
+          {currentFile && (
+            <span className="block text-gray-500 truncate max-w-xs">
+              {toWindowsPath(currentFile).split(/[/\\]/).pop()}
+            </span>
+          )}
+        </div>
+      )}
+      {message && !indexing && <span className="text-[10px] text-sky-300/90 max-w-sm">{message}</span>}
       <span className="text-[10px] text-gray-600">Or right-click any folder → Index folder for search</span>
     </div>
   );

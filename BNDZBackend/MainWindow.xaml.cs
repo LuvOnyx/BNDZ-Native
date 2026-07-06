@@ -83,6 +83,25 @@ namespace BNDZ
                     catch { }
                 });
             });
+            BndzFileIndexService.Instance.ProgressCallback = p =>
+            {
+                var evt = new
+                {
+                    type = "INDEX_PROGRESS",
+                    payload = new
+                    {
+                        currentPath = p.CurrentPath,
+                        filesIndexed = p.FilesIndexed,
+                        done = p.Done,
+                        root = p.Root,
+                    },
+                };
+                PostToUi(() =>
+                {
+                    try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)); }
+                    catch { }
+                });
+            };
             AppIconService.ApplyToWindow(this);
             _trayService = new SystemTrayService(this);
             _trayService.QuitRequested += () => Dispatcher.Invoke(() => RequestCloseFromUI("tray"));

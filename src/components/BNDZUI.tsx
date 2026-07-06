@@ -73,6 +73,8 @@ import QuitConfirmDialog from './QuitConfirmDialog';
 import RightPreviewPanel from './RightPreviewPanel';
 import SearchToolbar, { type SearchScope, type SearchKindFilter } from '../spacedrive/port/SearchToolbar';
 import FolderSizeTreemap from './views/FolderSizeTreemap';
+import SizeView from '../spacedrive/port/SizeView';
+import FindingTabToolbar from './FindingTabToolbar';
 import BndzMediaView from './views/BndzMediaView';
 import BndzHubView from './views/BndzHubView';
 import BndzRecentsView from './views/BndzRecentsView';
@@ -81,7 +83,7 @@ import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKind
 import TagBadge from './TagBadge';
 import { resolveTagKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
-import { buildGlobalSearchArgs, normalizeSearchResults } from '../lib/globalSearchCall';
+import { buildGlobalSearchArgs, normalizeSearchResults, type IndexedSearchScope } from '../lib/globalSearchCall';
 import {
   getVisibleListColumns,
   getColumnStyle,
@@ -410,6 +412,7 @@ export default function BNDZUI() {
   const [syncResults, setSyncResults] = useState<{ [path: string]: { id: string, statusA?: string, statusB?: string, status?: string } }>({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [folderSizeMap, setFolderSizeMap] = useState<Record<string, number>>({});
+  const [indexedRoots, setIndexedRoots] = useState<string[]>([]);
   const [folderSizeSync, setFolderSizeSync] = useState<{
     active: boolean; current: number; total: number; path: string; percent: number;
   } | null>(null);
@@ -857,7 +860,13 @@ export default function BNDZUI() {
     }
   }, []);
 
-  const refreshFindingTab = React.useCallback(async (paneId: string, tabId: string, query: string, root: string) => {
+  const refreshFindingTab = React.useCallback(async (
+    paneId: string,
+    tabId: string,
+    query: string,
+    root: string,
+    tabOpts?: Pick<TabState, 'findingScope' | 'findingUseRegex' | 'findingSearchContent' | 'findingBooleanMode'>,
+  ) => {
     const { IPC } = await import('../lib/ipcBridge');
     setPanes(prev => prev.map(p => {
       if (p.id !== paneId) return p;
@@ -867,8 +876,14 @@ export default function BNDZUI() {
       };
     }));
     try {
-      const scope = !root || root === '/C:' || root === '/' ? 'library' as const : 'folder' as const;
-      const args = buildGlobalSearchArgs(config, query, scope, root || '/');
+      const scope = (tabOpts?.findingScope ?? (
+        !root || root === '/C:' || root === '/' ? 'library' : 'folder'
+      )) as IndexedSearchScope;
+      const args = buildGlobalSearchArgs(config, query, scope, root || '/', {
+        useRegex: tabOpts?.findingUseRegex,
+        searchContent: tabOpts?.findingSearchContent,
+        booleanMode: tabOpts?.findingBooleanMode,
+      });
       const { items, engine } = await IPC.performGlobalSearch(
         args.query, args.limit, args.useRegex, args.rootPath || root,
         args.useEverything, args.searchContent, args.opts,
@@ -896,6 +911,22 @@ export default function BNDZUI() {
       }));
     }
   }, [config.globalSearchLimit, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent, config.enableExtendedPatternMatching]);
+
+  const refreshIndexedRoots = React.useCallback(async () => {
+    if (!IPC.isNative) return;
+    try {
+      const status = await IPC.getIndexStatus();
+      setIndexedRoots((status.locations || []).map(loc => loc.path));
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    void refreshIndexedRoots();
+    if (!IPC.isNative) return;
+    return IPC.onIndexProgress(p => {
+      if (p.done) void refreshIndexedRoots();
+    });
+  }, [refreshIndexedRoots]);
 
   const refreshFindingTabRef = useLatest(refreshFindingTab);
 
@@ -1120,7 +1151,7 @@ export default function BNDZUI() {
          const pane = panes.find(p => p.id === activePaneId);
          const tab = pane?.tabs[pane.activeTabIndex];
          if (tab && isFindingTab(tab) && tab.findingQuery) {
-           void refreshFindingTabRef.current(activePaneId, tab.id, tab.findingQuery, tab.findingRoot || tab.path);
+           void refreshFindingTabRef.current(activePaneId, tab.id, tab.findingQuery, tab.findingRoot || tab.path, tab);
          } else if (tab?.path) {
            void refetchPath(tab.path);
          }
@@ -2331,11 +2362,20 @@ export default function BNDZUI() {
     setPanes(prev => prev.map(p => {
       if (p.id !== paneId) return p;
       const rootPath = root || p.tabs[p.activeTabIndex]?.path || '/';
-      const newTab = createFindingTab(q, rootPath);
-      void refreshFindingTab(paneId, newTab.id, q, rootPath);
+      const newTab = createFindingTab(q, rootPath, config);
+      void refreshFindingTab(paneId, newTab.id, q, rootPath, newTab);
       return { ...p, tabs: [...p.tabs, newTab], activeTabIndex: p.tabs.length };
     }));
   };
+
+  useEffect(() => {
+    const onNewFinding = (e: Event) => {
+      const q = String((e as CustomEvent).detail?.query || '').trim();
+      if (q) addFindingTab(activePaneId, q);
+    };
+    window.addEventListener('bndz-new-finding-tab', onNewFinding);
+    return () => window.removeEventListener('bndz-new-finding-tab', onNewFinding);
+  }, [activePaneId]);
 
   const reorderTab = (paneId: string, fromIdx: number, toIdx: number) => {
     if (fromIdx === toIdx) return;
@@ -3690,6 +3730,35 @@ export default function BNDZUI() {
             onNavigate={(p) => setCurrentPath(p, pane.id)}
           />
         )}
+        {isFindingTabActive && (
+          <FindingTabToolbar
+            tab={currentTab}
+            config={config}
+            loading={!!currentTab.findingLoading}
+            onChange={(patch) => {
+              const merged = { ...currentTab, ...patch };
+              setPanes(prev => prev.map(p => p.id !== pane.id ? p : {
+                ...p,
+                tabs: p.tabs.map(t => t.id !== currentTab.id ? t : merged),
+              }));
+              const affectsSearch = ['findingScope', 'findingUseRegex', 'findingSearchContent', 'findingBooleanMode'].some(k => k in patch);
+              if (affectsSearch && merged.findingQuery) {
+                void refreshFindingTab(
+                  pane.id, currentTab.id, merged.findingQuery,
+                  merged.findingRoot || merged.path, merged,
+                );
+              }
+            }}
+            onRefresh={() => {
+              if (currentTab.findingQuery) {
+                void refreshFindingTab(
+                  pane.id, currentTab.id, currentTab.findingQuery,
+                  currentTab.findingRoot || currentTab.path, currentTab,
+                );
+              }
+            }}
+          />
+        )}
         {/* Tab Strip */}
         <div className="bndz-chrome-tabstrip flex pt-1 px-1 shrink-0 overflow-x-auto border-b border-[#333] items-end scrollbar-hidden" style={{ minHeight: config.tabBarHeight || 28, background: 'var(--bndz-surface-chrome)' }}>
            {pane.tabs.map((tab, idx) => {
@@ -4309,8 +4378,8 @@ export default function BNDZUI() {
             />
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'size' && normPanePath !== BNDZ_VIEWS_ROOT && (
-            <FolderSizeTreemap
-              items={(contents || []).map((ent: any) => {
+            (() => {
+              const sizeItems = (contents || []).map((ent: any) => {
                 const p = buildEntityPath(ent);
                 const folderKey = ent.type === 'directory' ? toWindowsPath(p).toLowerCase() : '';
                 return {
@@ -4319,9 +4388,14 @@ export default function BNDZUI() {
                   size: ent.type === 'directory' ? (folderSizeMap[folderKey] ?? ent.size ?? 4096) : (ent.size || 0),
                   path: p,
                 };
-              })}
-              onNavigate={p => setCurrentPath(p, pane.id)}
-            />
+              });
+              const onScanSizes = () => scanCurrentFolderSizes(true, { manual: true });
+              return config.folderSizeVisualization === 'bubbles' ? (
+                <SizeView items={sizeItems} onNavigate={p => setCurrentPath(p, pane.id)} onScanFolderSizes={onScanSizes} />
+              ) : (
+                <FolderSizeTreemap items={sizeItems} onNavigate={p => setCurrentPath(p, pane.id)} onScanFolderSizes={onScanSizes} />
+              );
+            })()
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'media' && (
             <BndzMediaView
@@ -5849,6 +5923,7 @@ export default function BNDZUI() {
                       nodes={treeData}
                       config={config}
                       currentPath={currentPath}
+                      indexedRoots={indexedRoots}
                       onNavigate={guardedSetCurrentPath}
                       onContextMenu={(e, path, name) => path && handleContextMenuRequest(e, path, path, true, name, undefined, 'tree-item')}
                       onBackgroundContextMenu={(e) => handleContextMenuRequest(e, currentPath, null, true, null, undefined, 'tree-background')}
@@ -6266,7 +6341,7 @@ export default function BNDZUI() {
             showRefresh
             onRefresh={() => {
               if (isFindingTab(tab) && tab.findingQuery) {
-                void refreshFindingTab(tabContextMenu.paneId, tab.id, tab.findingQuery, tab.findingRoot || tab.path);
+                void refreshFindingTab(tabContextMenu.paneId, tab.id, tab.findingQuery, tab.findingRoot || tab.path, tab);
               } else {
                 void refetchPath(tab.path);
               }

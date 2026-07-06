@@ -1,4 +1,5 @@
 import type { TabState } from '../components/tabTypes';
+import type { AppConfig } from '../data/configContext';
 
 export function isFindingTab(tab: TabState): boolean {
   return tab.kind === 'finding' && !!tab.findingQuery;
@@ -12,7 +13,7 @@ export function findingTabLabel(tab: TabState): string {
   return `🔍 ${base}${engine}`;
 }
 
-export function createFindingTab(query: string, rootPath: string): TabState {
+export function createFindingTab(query: string, rootPath: string, config?: Partial<AppConfig>): TabState {
   return {
     id: `t-${Date.now()}`,
     path: rootPath,
@@ -26,6 +27,10 @@ export function createFindingTab(query: string, rootPath: string): TabState {
     findingLoading: true,
     findingResults: [],
     findingEngine: null,
+    findingScope: 'library',
+    findingUseRegex: config?.enableExtendedPatternMatching === true,
+    findingSearchContent: config?.searchFileContent === true,
+    findingBooleanMode: config?.enableSmartBooleanQueryParsing === true,
     color: '#f59e0b',
   };
 }

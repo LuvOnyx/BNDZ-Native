@@ -245,6 +245,17 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                  <Checkbox label={<span>Add <span className="underline decoration-1 underline-offset-[3px]">n</span>ew items at the end of the list</span>} checked={localConfig.addNewItemsAtTheEndOfTheList ?? false} onChange={e => updateLocalConfig({ addNewItemsAtTheEndOfTheList: e.target.checked })} />
                  <Checkbox label={<span>A<span className="underline decoration-1 underline-offset-[3px]">l</span>ways show folder sizes</span>} checked={localConfig.alwaysShowFolderSizes ?? false} onChange={e => updateLocalConfig({ alwaysShowFolderSizes: e.target.checked })} />
                  <Checkbox label={<span>A<span className="underline decoration-1 underline-offset-[3px]">u</span>to sync folder sizes on navigation</span>} checked={localConfig.autoSyncFolderSizes ?? true} onChange={e => updateLocalConfig({ autoSyncFolderSizes: e.target.checked })} />
+                 <div className="ml-2 mb-2">
+                   <label className="text-[11px] text-gray-400 block mb-1">Size view visualization</label>
+                   <select
+                     value={localConfig.folderSizeVisualization === 'bubbles' ? 'bubbles' : 'treemap'}
+                     onChange={e => updateLocalConfig({ folderSizeVisualization: e.target.value as 'treemap' | 'bubbles' })}
+                     className="text-[11px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-2 py-1 rounded outline-none focus:border-sky-500/50"
+                   >
+                     <option value="treemap">Treemap (folders-first)</option>
+                     <option value="bubbles">Bubble chart (d3 pack)</option>
+                   </select>
+                 </div>
                  <div className="ml-[20px]">
                     <Checkbox label={<span>In network locations as <span className="underline decoration-1 underline-offset-[3px]">w</span>ell</span>} checked={localConfig.inNetworkLocationsAsWell ?? false} onChange={e => updateLocalConfig({ inNetworkLocationsAsWell: e.target.checked })} disabled={!localConfig.alwaysShowFolderSizes} />
                  </div>

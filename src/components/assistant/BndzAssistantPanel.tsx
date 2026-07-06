@@ -3,9 +3,10 @@ import { ExternalLink, Loader2, Download, Pencil, Sparkles } from 'lucide-react'
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { isTextEditableExt } from '../../lib/textFileTypes';
+import { extractAssistantActions, type AssistantAction } from '../../lib/assistantActions';
 import PortalComposer from '../../spacedrive/port/PortalComposer';
 
-type Message = { role: 'user' | 'assistant'; text: string };
+type Message = { role: 'user' | 'assistant'; text: string; streaming?: boolean };
 
 type Props = {
   selectedPaths: string[];
@@ -67,6 +68,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
   } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentInitial = useRef(false);
+  const streamTimerRef = useRef<number | null>(null);
 
   const refreshStatus = useCallback(() => {
     if (!IPC.isNative) return;
@@ -83,6 +85,10 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
 
+  useEffect(() => () => {
+    if (streamTimerRef.current != null) window.clearInterval(streamTimerRef.current);
+  }, []);
+
   const runAction = (verb: string, path?: string) => {
     const target = path || contextPaths[0];
     if (!target) return;
@@ -93,6 +99,36 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
     window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'batch-rename' } }));
   };
 
+  const runAssistantAction = (action: AssistantAction) => {
+    if (action.verb === 'batch-rename') openBatchRename();
+    else if (action.verb === 'index') void IPC.reindexBndzDefaults();
+    else if (action.verb === 'find') {
+      window.dispatchEvent(new CustomEvent('bndz-new-finding-tab', { detail: { query: action.query || '' } }));
+    } else if (action.path) runAction(action.verb, action.path);
+  };
+
+  const streamAssistantReply = useCallback((fullText: string) => {
+    if (streamTimerRef.current != null) window.clearInterval(streamTimerRef.current);
+    setMessages(prev => [...prev, { role: 'assistant', text: '', streaming: true }]);
+    let pos = 0;
+    const step = Math.max(1, Math.ceil(fullText.length / 48));
+    streamTimerRef.current = window.setInterval(() => {
+      pos = Math.min(fullText.length, pos + step);
+      const slice = fullText.slice(0, pos);
+      setMessages(prev => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (!last || last.role !== 'assistant') return prev;
+        next[next.length - 1] = { ...last, text: slice, streaming: pos < fullText.length };
+        return next;
+      });
+      if (pos >= fullText.length) {
+        if (streamTimerRef.current != null) window.clearInterval(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+    }, 16);
+  }, []);
+
   const send = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
@@ -102,14 +138,14 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
     try {
       const prompt = await buildEnrichedContext(contextPaths, currentPath, trimmed);
       const reply = await IPC.aiGenerate(prompt);
-      setMessages(prev => [...prev, { role: 'assistant', text: reply || 'No response — try downloading the local model below.' }]);
+      streamAssistantReply(reply || 'No response — try downloading the local model below.');
     } catch (err: any) {
       setMessages(prev => [...prev, { role: 'assistant', text: err?.message || 'Assistant request failed.' }]);
     } finally {
       setBusy(false);
       refreshStatus();
     }
-  }, [busy, contextPaths, currentPath, refreshStatus]);
+  }, [busy, contextPaths, currentPath, refreshStatus, streamAssistantReply]);
 
   useEffect(() => {
     if (initialPrompt?.trim() && !sentInitial.current) {
@@ -176,16 +212,37 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
         {messages.length === 0 && !busy && (
           <p className="text-[11px] text-gray-500 px-1">Ask about your selection — file contents and metadata are included when available.</p>
         )}
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`text-[12px] px-2 py-1.5 max-w-[95%] whitespace-pre-wrap ${
-              m.role === 'user' ? 'ml-auto bg-[#094771] text-white' : 'bg-[#3a3a3a] text-gray-200'
-            }`}
-          >
-            {m.text}
+        {messages.map((m, i) => {
+          const actions = m.role === 'assistant' && !m.streaming && m.text
+            ? extractAssistantActions(m.text, contextPaths)
+            : [];
+          return (
+          <div key={i} className="space-y-1">
+            <div
+              className={`text-[12px] px-2 py-1.5 max-w-[95%] whitespace-pre-wrap ${
+                m.role === 'user' ? 'ml-auto bg-[#094771] text-white' : 'bg-[#3a3a3a] text-gray-200'
+              }`}
+            >
+              {m.text}
+              {m.streaming && <span className="inline-block w-1.5 h-3 ml-0.5 bg-sky-400/80 animate-pulse align-middle" />}
+            </div>
+            {actions.length > 0 && (
+              <div className="flex flex-wrap gap-1 pl-1">
+                {actions.map(a => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => runAssistantAction(a)}
+                    className="px-2 py-0.5 text-[10px] bg-[#094771]/60 hover:bg-[#094771] border border-[#0a5a8c]/50 text-sky-100"
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
         {busy && (
           <div className="flex items-center gap-2 text-[11px] text-gray-400 px-1">
             <Loader2 size={12} className="animate-spin" />

@@ -16,7 +16,7 @@ import {
   setBndzFileDragData,
   type BndzFileDragPayload,
 } from '../lib/bndzDrag';
-import { toWindowsPath } from '../lib/pathUtils';
+import { toWindowsPath, normalizePanePath } from '../lib/pathUtils';
 import {
   flattenNavTree,
   dirEntryToTreeNode,
@@ -48,6 +48,16 @@ interface VirtualizedNavTreeProps {
   onGliderCopy?: (path: string) => void;
   onGliderMove?: (path: string) => void;
   onGliderPaste?: (path: string) => void;
+  indexedRoots?: string[];
+}
+
+function isPathUnderIndexedRoot(path: string | undefined, roots: string[]): boolean {
+  if (!path || !roots.length) return false;
+  const norm = normalizePanePath(path).toLowerCase().replace(/\/$/, '');
+  return roots.some(r => {
+    const root = normalizePanePath(r).toLowerCase().replace(/\/$/, '');
+    return norm === root || norm.startsWith(`${root}/`);
+  });
 }
 
 async function loadDirectoryChildren(
@@ -98,6 +108,7 @@ function TreeRow({
   showGlider,
   onGliderHover,
   onGliderLeave,
+  indexedRoots,
 }: {
   row: FlatNavRow;
   config: AppConfig;
@@ -123,6 +134,7 @@ function TreeRow({
   showGlider?: boolean;
   onGliderHover?: (row: FlatNavRow, el: HTMLElement) => void;
   onGliderLeave?: () => void;
+  indexedRoots?: string[];
 }) {
   const Icon = row.icon || Folder;
   const isSelected = row.selected || (row.path && currentPath === row.path);
@@ -248,8 +260,11 @@ function TreeRow({
           onDoubleClick={e => e.stopPropagation()}
         />
       ) : (
-        <span className="text-[12px] select-none truncate nav-tree-label transition-colors">
-          {row.label}
+        <span className="text-[12px] select-none truncate nav-tree-label transition-colors flex items-center gap-1 min-w-0">
+          <span className="truncate">{row.label}</span>
+          {indexedRoots?.length && row.path && isPathUnderIndexedRoot(row.path, indexedRoots) && (
+            <span className="shrink-0 px-1 py-px text-[8px] font-medium bg-sky-900/70 text-sky-300 rounded" title="Search indexed">IDX</span>
+          )}
         </span>
       )}
     </div>
@@ -283,6 +298,7 @@ export function VirtualizedNavTree({
   onGliderCopy,
   onGliderMove,
   onGliderPaste,
+  indexedRoots,
 }: VirtualizedNavTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -570,6 +586,7 @@ export function VirtualizedNavTree({
       showGlider={showGlider}
       onGliderHover={handleGliderHover}
       onGliderLeave={handleGliderLeave}
+      indexedRoots={indexedRoots}
     />
   );
   };

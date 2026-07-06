@@ -89,6 +89,7 @@ export const IPC = {
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean }) => void>,
   _startupActionListeners: [] as Array<(action: string) => void>,
   _aiDownloadProgressListeners: [] as Array<(progress: { percent: number }) => void>,
+  _indexProgressListeners: [] as Array<(progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string }) => void>,
 
   init() {
     if (this.isNative && !this._initialized) {
@@ -128,6 +129,8 @@ export const IPC = {
           if (action) this._startupActionListeners.forEach(cb => cb(String(action)));
         } else if (data.type === 'AI_DOWNLOAD_PROGRESS') {
           this._aiDownloadProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'INDEX_PROGRESS') {
+          this._indexProgressListeners.forEach(cb => cb(data.payload));
         }
       });
       this._initialized = true;
@@ -171,6 +174,14 @@ export const IPC = {
     this._folderSizeListeners.push(callback);
     return () => {
       this._folderSizeListeners = this._folderSizeListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onIndexProgress(callback: (progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string }) => void) {
+    this.init();
+    this._indexProgressListeners.push(callback);
+    return () => {
+      this._indexProgressListeners = this._indexProgressListeners.filter(cb => cb !== callback);
     };
   },
 

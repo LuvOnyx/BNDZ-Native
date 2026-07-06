@@ -9,6 +9,13 @@ type IndexStatus = {
   locations: Array<{ path: string; lastIndexed: number }>;
 };
 
+type IndexProgress = {
+  currentPath: string;
+  filesIndexed: number;
+  done: boolean;
+  root?: string;
+};
+
 type Props = {
   onToast?: (msg: string) => void;
 };
@@ -23,6 +30,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
   const [status, setStatus] = useState<IndexStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [indexing, setIndexing] = useState(false);
+  const [progress, setProgress] = useState<IndexProgress | null>(null);
   const [folderPath, setFolderPath] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -44,13 +52,27 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  useEffect(() => {
+    if (!IPC.isNative) return;
+    return IPC.onIndexProgress(p => {
+      setProgress(p);
+      if (p.done) {
+        setIndexing(false);
+        void refresh();
+      } else {
+        setIndexing(true);
+      }
+    });
+  }, [refresh]);
+
   const reindexDefaults = async () => {
     setIndexing(true);
+    setProgress(null);
     try {
       const res = await IPC.reindexBndzDefaults();
       notify(res.ok ? 'Re-indexing default libraries…' : (res.error || 'Re-index failed'));
-      if (res.ok) setTimeout(() => void refresh(), 1500);
-    } finally {
+      if (!res.ok) setIndexing(false);
+    } catch {
       setIndexing(false);
     }
   };
@@ -59,14 +81,17 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
     const pane = folderPath.trim();
     if (!pane) return;
     setIndexing(true);
+    setProgress(null);
     try {
       const res = await IPC.indexBndzLocation(pane.startsWith('/') ? pane : `/${pane.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:')}`);
       notify(res.ok ? 'Folder indexed.' : (res.error || 'Index failed'));
       if (res.ok) {
         setFolderPath('');
         void refresh();
+      } else {
+        setIndexing(false);
       }
-    } finally {
+    } catch {
       setIndexing(false);
     }
   };
@@ -92,6 +117,19 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
           {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
         </button>
       </div>
+
+      {(indexing || progress) && (
+        <div className="text-[10px] text-sky-300/90 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1.5 space-y-0.5">
+          {indexing && !progress?.done && <Loader2 size={12} className="inline animate-spin mr-1" />}
+          <span>
+            {progress?.done
+              ? `Indexed ${progress.filesIndexed.toLocaleString()} entries`
+              : progress
+                ? `${progress.filesIndexed.toLocaleString()} indexed — ${toWindowsPath(progress.currentPath).split(/[/\\]/).pop() || '…'}`
+                : 'Starting index…'}
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button

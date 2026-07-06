@@ -6,6 +6,7 @@ type Item = { name: string; type?: string; size?: number; path?: string };
 type Props = {
   items: Item[];
   onNavigate: (path: string) => void;
+  onScanFolderSizes?: () => void;
 };
 
 type Rect = { x: number; y: number; w: number; h: number; item: Item; size: number; displaySize: number };
@@ -14,7 +15,7 @@ const MAX_TILES = 24;
 const MIN_FILE_BYTES = 512 * 1024;
 
 /** Squarified treemap — folders-first, top-N by size, sqrt weighting so one huge file cannot eat the view. */
-export default function FolderSizeTreemap({ items, onNavigate }: Props) {
+export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes }: Props) {
   const prepared = useMemo(() => {
     const dirs = items.filter(i => i.type === 'directory');
     const files = items.filter(i => i.type !== 'directory' && (i.size || 0) >= MIN_FILE_BYTES);
@@ -32,9 +33,18 @@ export default function FolderSizeTreemap({ items, onNavigate }: Props) {
 
   if (!prepared.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-[11px] text-gray-500 gap-1 px-4 text-center">
+      <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-[11px] text-gray-500 gap-2 px-4 text-center">
         <span>No folder sizes available yet.</span>
-        <span className="text-[10px] text-gray-600">Wait for size sync, or open a folder with subfolders.</span>
+        {onScanFolderSizes && (
+          <button
+            type="button"
+            onClick={onScanFolderSizes}
+            className="mt-1 px-3 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] text-white"
+          >
+            Scan folder sizes
+          </button>
+        )}
+        <span className="text-[10px] text-gray-600">Or wait for automatic size sync on navigation.</span>
       </div>
     );
   }

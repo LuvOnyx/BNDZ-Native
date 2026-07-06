@@ -16,6 +16,10 @@ export interface TabState {
   findingResults?: any[];
   findingLoading?: boolean;
   findingEngine?: 'everything' | 'indexed' | null;
+  findingScope?: 'library' | 'folder' | 'location';
+  findingUseRegex?: boolean;
+  findingSearchContent?: boolean;
+  findingBooleanMode?: boolean;
   /** Locks sort, filter, and view mode for this tab (XYplorer view lock) */
   viewLocked?: boolean;
   lockedView?: {

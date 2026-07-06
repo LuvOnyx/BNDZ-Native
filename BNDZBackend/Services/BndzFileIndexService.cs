@@ -14,6 +14,17 @@ public sealed class BndzFileIndexService : IDisposable
     private static readonly Lazy<BndzFileIndexService> Lazy = new(() => new BndzFileIndexService());
     public static BndzFileIndexService Instance => Lazy.Value;
 
+    public sealed class IndexProgressReport
+    {
+        public string CurrentPath { get; init; } = "";
+        public int FilesIndexed { get; init; }
+        public bool Done { get; init; }
+        public string? Root { get; init; }
+    }
+
+    /// <summary>UI bridge — set from MainWindow to emit INDEX_PROGRESS events.</summary>
+    public Action<IndexProgressReport>? ProgressCallback { get; set; }
+
     private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase)
     {
         "$Recycle.Bin", "System Volume Information", "Windows", "WinSxS",
@@ -121,6 +132,7 @@ public sealed class BndzFileIndexService : IDisposable
         _writeLock.Wait(ct);
         try
         {
+            EmitProgress(root, 0, false, root);
             using var conn = OpenConnection();
             var upsert = conn.CreateCommand();
             upsert.CommandText = """
@@ -143,11 +155,27 @@ public sealed class BndzFileIndexService : IDisposable
             loc.Parameters.AddWithValue("$p", root);
             loc.Parameters.AddWithValue("$t", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             loc.ExecuteNonQuery();
+            EmitProgress(root, batch, true, root);
         }
         finally
         {
             _writeLock.Release();
         }
+    }
+
+    private void EmitProgress(string path, int filesIndexed, bool done, string? root = null)
+    {
+        try
+        {
+            ProgressCallback?.Invoke(new IndexProgressReport
+            {
+                CurrentPath = path,
+                FilesIndexed = filesIndexed,
+                Done = done,
+                Root = root,
+            });
+        }
+        catch { /* ignore UI errors */ }
     }
 
     private void IndexDir(SqliteConnection conn, string root, string dir, int depth, int maxDepth, SqliteCommand upsert, ref int batch, CancellationToken ct)
@@ -181,6 +209,7 @@ public sealed class BndzFileIndexService : IDisposable
                         tx!.Commit();
                         tx.Dispose();
                         tx = null;
+                        EmitProgress(file, batch, false);
                     }
                 }
                 catch { }
@@ -210,6 +239,7 @@ public sealed class BndzFileIndexService : IDisposable
                         tx!.Commit();
                         tx.Dispose();
                         tx = null;
+                        EmitProgress(sub, batch, false);
                     }
                     IndexDir(conn, root, sub, depth + 1, maxDepth, upsert, ref batch, ct);
                 }
