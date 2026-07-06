@@ -867,9 +867,10 @@ export default function BNDZUI() {
       };
     }));
     try {
-      const args = buildGlobalSearchArgs(config, query, 'library', root);
+      const scope = !root || root === '/C:' || root === '/' ? 'library' as const : 'folder' as const;
+      const args = buildGlobalSearchArgs(config, query, scope, root || '/');
       const { items, engine } = await IPC.performGlobalSearch(
-        args.query, args.limit, args.useRegex, args.rootPath,
+        args.query, args.limit, args.useRegex, args.rootPath || root,
         args.useEverything, args.searchContent, args.opts,
       );
       const normalizedItems = normalizeSearchResults(items);
@@ -881,7 +882,7 @@ export default function BNDZUI() {
             ...t,
             findingLoading: false,
             findingResults: normalizedItems || [],
-            findingEngine: engine === 'everything' ? 'everything' : 'indexed',
+            findingEngine: engine === 'everything' || engine === 'indexed+everything' ? 'everything' : 'indexed',
           } : t),
         };
       }));
@@ -894,7 +895,7 @@ export default function BNDZUI() {
         };
       }));
     }
-  }, [config.globalSearchLimit, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent]);
+  }, [config.globalSearchLimit, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent, config.enableExtendedPatternMatching]);
 
   const refreshFindingTabRef = useLatest(refreshFindingTab);
 

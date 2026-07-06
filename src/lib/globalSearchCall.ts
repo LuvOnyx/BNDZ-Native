@@ -20,17 +20,18 @@ export function buildGlobalSearchArgs(
   query: string,
   scope: IndexedSearchScope,
   tabPath: string,
+  overrides?: { useRegex?: boolean; searchContent?: boolean; booleanMode?: boolean },
 ) {
   const rt = buildSettingsRuntime(config as any);
   return {
     query,
     limit: (config.globalSearchLimit as number) || 1000,
-    useRegex: false,
+    useRegex: overrides?.useRegex ?? config.enableExtendedPatternMatching === true,
     rootPath: resolveSearchRoot(scope, tabPath),
     useEverything: config.enableEverythingSearch !== false,
-    searchContent: rt.search.searchContent,
+    searchContent: overrides?.searchContent ?? rt.search.searchContent,
     opts: {
-      booleanMode: config.enableSmartBooleanQueryParsing === true,
+      booleanMode: overrides?.booleanMode ?? config.enableSmartBooleanQueryParsing === true,
       preferBndzIndex: config.enableBndzIndexedSearch !== false,
     },
   };

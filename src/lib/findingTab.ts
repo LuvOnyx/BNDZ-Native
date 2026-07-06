@@ -7,7 +7,9 @@ export function isFindingTab(tab: TabState): boolean {
 export function findingTabLabel(tab: TabState): string {
   if (!isFindingTab(tab)) return '';
   const q = tab.findingQuery || 'Search';
-  return q.length > 22 ? `🔍 ${q.slice(0, 20)}…` : `🔍 ${q}`;
+  const base = q.length > 22 ? `${q.slice(0, 20)}…` : q;
+  const engine = tab.findingEngine === 'everything' ? ' · EV' : tab.findingEngine === 'indexed' ? ' · IDX' : '';
+  return `🔍 ${base}${engine}`;
 }
 
 export function createFindingTab(query: string, rootPath: string): TabState {

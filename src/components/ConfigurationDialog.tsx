@@ -19,6 +19,7 @@ import { SettingsTabHeader, SettingsSection } from './settings/SettingsPrimitive
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { searchJumpSettings } from '../lib/jumpToSettingIndex';
 import { mergeUserCommands } from '../lib/userCommands';
+import BndzIndexManagerPanel from './settings/BndzIndexManagerPanel';
 
 const DevOnly = ({ children }: { children: React.ReactNode }) => (
   import.meta.env.DEV ? <>{children}</> : null
@@ -1064,6 +1065,9 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   <Checkbox label={<span>Use Everything search when available</span>} checked={localConfig.enableEverythingSearch !== false} onChange={e => updateLocalConfig({ enableEverythingSearch: e.target.checked })} />
                   <Checkbox label={<span>Search inside file contents (slower)</span>} checked={localConfig.searchFileContent === true} onChange={e => updateLocalConfig({ searchFileContent: e.target.checked })} />
                   <p className="text-[11px] text-gray-500 ml-[20px]">Right-click any folder → <span className="text-gray-400">Index folder for search</span> to add it to the local cache.</p>
+
+                  <SectionHeader title="Search index" />
+                  <BndzIndexManagerPanel />
                   <div className="ml-[20px]">
                      <div className="flex items-center gap-2 mb-1">
                         <input type="number" 

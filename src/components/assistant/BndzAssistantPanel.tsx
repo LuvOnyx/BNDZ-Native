@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Download, Sparkles } from 'lucide-react';
+import { ExternalLink, Loader2, Download, Pencil, Sparkles } from 'lucide-react';
 import { IPC } from '../../lib/ipcBridge';
+import { toWindowsPath } from '../../lib/pathUtils';
+import { isTextEditableExt } from '../../lib/textFileTypes';
 import PortalComposer from '../../spacedrive/port/PortalComposer';
 
 type Message = { role: 'user' | 'assistant'; text: string };
@@ -11,14 +13,44 @@ type Props = {
   initialPrompt?: string;
 };
 
-function buildContextPrompt(paths: string[], currentPath?: string, userText?: string): string {
+const TEXT_SNIPPET_EXTS = new Set(['txt', 'md', 'markdown', 'json', 'csv', 'log', 'ini', 'cfg', 'yaml', 'yml']);
+
+async function buildEnrichedContext(paths: string[], currentPath?: string, userText?: string): Promise<string> {
   const lines = [
     'You are BNDZ, a helpful Windows file manager assistant. Be concise and practical.',
+    'Suggest concrete file-manager actions when relevant (rename, organize, reveal, tag).',
     currentPath ? `Current folder: ${currentPath}` : '',
-    paths.length ? `Selected (${paths.length}): ${paths.slice(0, 8).join('; ')}${paths.length > 8 ? '…' : ''}` : '',
-    userText ? `User: ${userText}` : '',
-  ].filter(Boolean);
-  return lines.join('\n');
+  ];
+
+  if (paths.length) {
+    lines.push(`Selected files (${paths.length}):`);
+    for (const p of paths.slice(0, 6)) {
+      const win = toWindowsPath(p);
+      const name = win.split(/[/\\]/).pop() || win;
+      let detail = `  • ${name} — ${win}`;
+      try {
+        const meta = await IPC.getIndexedEntry(p);
+        if (meta?.size) detail += ` · ${meta.size} bytes`;
+        if (meta?.mediaKind) detail += ` · ${meta.mediaKind}`;
+        if (meta?.modified) detail += ` · modified ${new Date(Number(meta.modified) * 1000).toLocaleString()}`;
+      } catch { /* ignore */ }
+      const ext = name.split('.').pop()?.toLowerCase() || '';
+      if (TEXT_SNIPPET_EXTS.has(ext) || isTextEditableExt(ext)) {
+        try {
+          const res = await IPC.readTextFile(win);
+          if (res.content && !res.error) {
+            const snippet = res.content.slice(0, 1500).replace(/\r\n/g, '\n');
+            detail += `\n    --- content ---\n${snippet}${res.content.length > 1500 ? '\n    …' : ''}`;
+          }
+        } catch { /* ignore */ }
+      }
+      lines.push(detail);
+    }
+    if (paths.length > 6) lines.push(`  … and ${paths.length - 6} more`);
+  }
+
+  if (userText) lines.push(`\nUser question: ${userText}`);
+  return lines.filter(Boolean).join('\n');
 }
 
 export default function BndzAssistantPanel({ selectedPaths, currentPath, initialPrompt }: Props) {
@@ -51,6 +83,16 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
 
+  const runAction = (verb: string, path?: string) => {
+    const target = path || contextPaths[0];
+    if (!target) return;
+    void IPC.executeContextMenuVerb(toWindowsPath(target), verb);
+  };
+
+  const openBatchRename = () => {
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'batch-rename' } }));
+  };
+
   const send = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
@@ -58,7 +100,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
     setInput('');
     setBusy(true);
     try {
-      const prompt = buildContextPrompt(contextPaths, currentPath, trimmed);
+      const prompt = await buildEnrichedContext(contextPaths, currentPath, trimmed);
       const reply = await IPC.aiGenerate(prompt);
       setMessages(prev => [...prev, { role: 'assistant', text: reply || 'No response — try downloading the local model below.' }]);
     } catch (err: any) {
@@ -116,9 +158,23 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
         </div>
       )}
 
+      {contextPaths.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => runAction('reveal')} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-[#333] border border-[#454545] text-gray-300 hover:text-white">
+            <ExternalLink size={10} /> Reveal
+          </button>
+          <button type="button" onClick={openBatchRename} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-[#333] border border-[#454545] text-gray-300 hover:text-white">
+            <Pencil size={10} /> Batch rename
+          </button>
+          <button type="button" onClick={() => runAction('open')} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-[#333] border border-[#454545] text-gray-300 hover:text-white">
+            Open
+          </button>
+        </div>
+      )}
+
       <div ref={scrollRef} className="flex-1 min-h-[180px] max-h-[340px] overflow-y-auto bndz-scrollbar border border-[#454545] bg-[#252525] p-2 space-y-2">
         {messages.length === 0 && !busy && (
-          <p className="text-[11px] text-gray-500 px-1">Ask about your selection, folder organization, or file names.</p>
+          <p className="text-[11px] text-gray-500 px-1">Ask about your selection — file contents and metadata are included when available.</p>
         )}
         {messages.map((m, i) => (
           <div
@@ -133,7 +189,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
         {busy && (
           <div className="flex items-center gap-2 text-[11px] text-gray-400 px-1">
             <Loader2 size={12} className="animate-spin" />
-            Thinking…
+            Reading context…
           </div>
         )}
       </div>
@@ -158,7 +214,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
       {contextPaths.length > 0 && (
         <p className="text-[10px] text-gray-500 font-mono truncate flex items-center gap-1">
           <Sparkles size={10} className="text-sky-400 shrink-0" />
-          {contextPaths.length} path(s) in context
+          {contextPaths.length} path(s) in context with metadata
         </p>
       )}
     </div>
