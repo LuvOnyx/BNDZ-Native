@@ -9,6 +9,7 @@ interface VirtualizedFileListProps<T> {
   mode?: 'list' | 'grid';
   gridMinItemWidth?: number;
   gridRowHeight?: number;
+  gap?: number;
   className?: string;
   renderItem: (item: T, index: number) => React.ReactNode;
   emptyState?: React.ReactNode;
@@ -22,6 +23,7 @@ export function VirtualizedFileList<T>({
   mode = 'list',
   gridMinItemWidth = 108,
   gridRowHeight = 108,
+  gap = 8,
   className = 'flex flex-col w-full',
   renderItem,
   emptyState,
@@ -98,8 +100,9 @@ export function VirtualizedFileList<T>({
       if (mode === 'grid') {
         return (
           <div
-            className="grid gap-2 w-full"
+            className="grid w-full"
             style={{
+              gap,
               gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinItemWidth}px, 1fr))`,
               minHeight: scrollMinHeight,
             }}
@@ -111,7 +114,7 @@ export function VirtualizedFileList<T>({
         );
       }
       return (
-        <div className={className} style={{ minHeight: scrollMinHeight, width: '100%' }}>
+        <div className={className} style={{ minHeight: scrollMinHeight, width: '100%', gap: mode === 'list' ? gap : undefined }}>
           {items.map((item, i) => renderItem(item, i))}
         </div>
       );
@@ -139,8 +142,8 @@ export function VirtualizedFileList<T>({
                 }}
               >
                 <div
-                  className="grid gap-2 w-full"
-                  style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, pointerEvents: 'none' }}
+                  className="grid w-full"
+                  style={{ gap, gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, pointerEvents: 'none' }}
                 >
                   {rowItems.map((item, i) => (
                     <div key={startIdx + i} style={{ pointerEvents: 'auto' }}>{renderItem(item, startIdx + i)}</div>

@@ -34,7 +34,7 @@ import {
   isInternalFileDragChromeAtPoint,
   DEFAULT_TAB_HOVER_DELAY_MS,
 } from '../lib/fileDragSession';
-import { IPC } from '../lib/ipcBridge';
+import { IPC, RenameOperation } from '../lib/ipcBridge';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { executeUndoWithTimeout, executeRedoWithTimeout } from '../lib/undoRedo';
 import CommandPalette, { buildDefaultPaletteActions } from './CommandPalette';
@@ -76,7 +76,6 @@ const PluginStoreDialog = lazy(() => import('./PluginStoreDialog').then(m => ({ 
 const TagManagerDialog = lazy(() => import('./TagManagerDialog').then(m => ({ default: m.TagManagerDialog })));
 const SmartToolsDialog = lazy(() => import('./SmartToolsDialog'));
 const TagAssignmentMode = lazy(() => import('../spacedrive/port/TagAssignmentMode'));
-import { IPC, RenameOperation } from '../lib/ipcBridge';
 import { toLocalStreamUrl } from '../lib/iconLibraryUtils';
 import { formatFolderSizeLabel } from '../lib/folderSizeDisplay';
 import { VirtualizedFileList } from './VirtualizedFileList';
@@ -100,7 +99,9 @@ import BndzRecentsView from './views/BndzRecentsView';
 import BndzQuickPreview from './preview/BndzQuickPreview';
 import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
 import TagBadge from './TagBadge';
-import { resolveTagKey, entityHasTag, tagChipId } from '../lib/tagUtils';
+import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
+import { gridTileMetrics, listTileMetrics } from '../lib/viewModeMetrics';
+import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
 import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
 import { buildGlobalSearchArgs, normalizeSearchResults, type IndexedSearchScope } from '../lib/globalSearchCall';
 import { mapFindingEngine } from '../lib/indexedRoots';
@@ -191,7 +192,7 @@ const ToolbarButton = ({ iconId, launcherIcon, onClick, className = '', title, d
       onClick={onClick}
     >
         {launcherIcon ? (
-          <img src={launcherIcon} alt="" className="w-[18px] h-[18px] object-contain" draggable={false} />
+          <img src={launcherIcon} alt="" className="w-5 h-5 object-contain" draggable={false} />
         ) : iconId ? (
           <Icons8Icon id={iconId} size={16} className="drop-shadow-sm" />
         ) : null}
@@ -1428,6 +1429,9 @@ export default function BNDZUI() {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, entityExtension?: string | null, isDirectory: boolean, surface?: ContextMenuSurface, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; paneId: string; tabIndex: number } | null>(null);
 
+  useContextMenuDismissOnLeave(!!contextMenu, () => setContextMenu(null));
+  useContextMenuDismissOnLeave(!!tabContextMenu, () => setTabContextMenu(null));
+
   const handleContextMenuRequest = (
     e: React.MouseEvent,
     targetPath: string,
@@ -1705,6 +1709,8 @@ export default function BNDZUI() {
 
   const listIconSz = config.listIconSize ?? 16;
   const gridIconSz = config.gridIconSize ?? 48;
+  const gridMetrics = useMemo(() => gridTileMetrics(gridIconSz), [gridIconSz]);
+  const listMetrics = useMemo(() => listTileMetrics(listIconSz), [listIconSz]);
 
   // Auto-select first item when entering a folder (settings: autoSelectFirstItem)
   useEffect(() => {
@@ -2531,8 +2537,8 @@ export default function BNDZUI() {
   const closeMenu = () => setOpenMenuId(null);
   const menuAct = (fn: () => void) => runMenubarAction(() => { fn(); closeMenu(); });
 
-  const applyTagToSelection = async (tag: { name?: string; label?: string; color?: string }) => {
-    const tagKey = resolveTagKey(tag);
+  const applyTagToSelection = async (tag: { id?: string; name?: string; label?: string; color?: string }) => {
+    const tagKey = tagStorageKey(tag);
     if (!tagKey) return;
     let paths = getSelectedEntityPaths().map(p => toWindowsPath(p));
     if (!paths.length && focusedItemId) {
@@ -2584,7 +2590,6 @@ export default function BNDZUI() {
     });
     newCache[currentPath] = tabItems;
     setPathContentsCache(newCache);
-    void refetchPath(currentPath);
     setToastMessage(allHaveTag
       ? `Removed "${tag.label || tagKey}" from ${paths.length} item(s). Click again to re-apply.`
       : `Tagged ${paths.length} item(s) as "${tag.label || tagKey}". Click again to remove.`);
@@ -2642,7 +2647,6 @@ export default function BNDZUI() {
     });
     newCache[currentPath] = tabItems;
     setPathContentsCache(newCache);
-    void refetchPath(currentPath);
     setToastMessage(`Removed all tags from ${paths.length} item(s).`);
     closeMenu();
   };
@@ -3948,6 +3952,15 @@ export default function BNDZUI() {
 
     const visibleListColumns = getVisibleListColumns(config, { isGlobalSearch: isGlobal });
 
+    let maxFolderSizeInDir = 0;
+    const dirItemsForSize = pathContentsCache[normPanePath] || contents || [];
+    for (const ent of dirItemsForSize) {
+      if (ent.type !== 'directory') continue;
+      const key = toWindowsPath(joinPanePath(normPanePath, ent)).toLowerCase();
+      const sz = folderSizeMap[key];
+      if (typeof sz === 'number' && sz > maxFolderSizeInDir) maxFolderSizeInDir = sz;
+    }
+
     const renderDetailColumn = (
       colId: ListColumnId,
       entity: any,
@@ -3983,23 +3996,35 @@ export default function BNDZUI() {
               {entity.typeDescription || (isDir ? 'File Folder' : `${(entity as any).extension || ''} File`)}
             </div>
           );
-        case 'size':
+        case 'size': {
+          const folderKey = toWindowsPath(joinPanePath(panePath, entity)).toLowerCase();
+          const folderBytes = isDir ? folderSizeMap[folderKey] : undefined;
+          const sizeLabel = isDir ? formatFolderSizeLabel(
+            folderBytes,
+            {
+              alwaysShowFolderSizes: config.alwaysShowFolderSizes,
+              cacheFolderSizes: config.cacheFolderSizes,
+              showCachedFolderSizesOnly: config.showCachedFolderSizesOnly,
+            },
+            formatSize,
+          ) : formatSize((entity as any).size);
+          const barPct = isDir && maxFolderSizeInDir > 0 && folderBytes
+            ? Math.max(4, Math.round((folderBytes / maxFolderSizeInDir) * 100))
+            : 0;
           return (
             <div key={colId} className="bndz-list-select-cell px-2 text-right text-gray-400 flex justify-end items-center gap-2">
-              {isDir ? formatFolderSizeLabel(
-                folderSizeMap[toWindowsPath(joinPanePath(panePath, entity)).toLowerCase()],
-                {
-                  alwaysShowFolderSizes: config.alwaysShowFolderSizes,
-                  cacheFolderSizes: config.cacheFolderSizes,
-                  showCachedFolderSizesOnly: config.showCachedFolderSizesOnly,
-                },
-                formatSize,
-              ) : formatSize((entity as any).size)}
+              {barPct > 0 && (
+                <span className="hidden sm:inline-flex h-1.5 w-12 rounded-full bg-black/30 overflow-hidden shrink-0" title="Relative folder size in this directory">
+                  <span className="h-full rounded-full bg-gradient-to-r from-sky-600/80 to-sky-400/70" style={{ width: `${barPct}%` }} />
+                </span>
+              )}
+              {sizeLabel}
               {filterResult?.badgeColor && (
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
               )}
             </div>
           );
+        }
         case 'modified':
           return (
             <div key={colId} className="bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
@@ -4516,19 +4541,19 @@ export default function BNDZUI() {
             />
             <div className="flex bg-[#222] border border-[#444] rounded-[var(--bndz-radius-sm)] items-center p-[2px] text-[11px] shrink-0 mx-2 gap-[2px]">
                  <button onClick={() => setViewMode('details', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--details w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'details' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Details View (click again for default)">
-                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                     <img src={launcherIconUrl('view_details')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
                  <button onClick={() => setViewMode('grid', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--grid w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'grid' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Grid View (click again for default)">
-                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                     <img src={launcherIconUrl('view_grid')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
                  <button onClick={() => setViewMode('list', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--list w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'list' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="List View (click again for default)">
-                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                     <img src={launcherIconUrl('view_list')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
                  <button onClick={() => setViewMode('columns', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--columns w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'columns' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Columns View (click again for default)">
-                     <Icons8Icon id="columns_ui" size={12} />
+                     <img src={launcherIconUrl('view_columns')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
-                 <button onClick={() => setViewMode('size', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--size w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'size' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Size map (treemap)">
-                     <Icons8Icon id="piechart_ui" size={12} />
+                 <button onClick={() => setViewMode('size', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--size w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'size' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Size map">
+                     <img src={launcherIconUrl('folder_size_sync')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
             </div>
             {/* Fixed-width slot keeps the filter box from shifting when the view changes */}
@@ -5015,7 +5040,7 @@ export default function BNDZUI() {
                   const dragPaths = buildDragPaths(entityId, gesture.dragSelection);
                   if (dragPaths.length) {
                     const destPath = navTreeTarget || breadcrumbTarget
-                      || (dropEnt ? joinPanePath(dropResolution.tabPath, dropEnt) : dropResolution.tabPath);
+                      || (dropEnt?.name ? joinPanePath(dropResolution.tabPath, dropEnt as { name: string; path?: string; id?: string }) : dropResolution.tabPath);
                     const op = resolveDropOperation({
                       payloadCopy: gesture.copyDrag,
                       dropModifierCopy: dropModifierRef.current.copy,
@@ -5094,6 +5119,7 @@ export default function BNDZUI() {
               config={config}
               onNavigate={(p) => setCurrentPath(p, pane.id)}
               onOpen={(entity, colPath) => openEntity({ ...entity, path: joinPanePath(colPath, entity as any) })}
+              onPrefetchPath={(p) => void prefetchPathQuiet(p)}
             />
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'size' && normPanePath !== BNDZ_VIEWS_ROOT && (
@@ -5170,13 +5196,16 @@ export default function BNDZUI() {
               enabled={computedViewMode === 'details' || computedViewMode === 'grid'}
               mode={computedViewMode === 'grid' ? 'grid' : 'list'}
               rowHeight={
-                computedViewMode === 'grid' ? 26 :
-                computedViewMode === 'list' ? 26 :
+                computedViewMode === 'grid' ? gridMetrics.rowHeight :
+                computedViewMode === 'list' ? listMetrics.rowHeight :
                 detailsRowHeight
               }
+              gridMinItemWidth={gridMetrics.minWidth}
+              gridRowHeight={gridMetrics.rowHeight}
+              gap={computedViewMode === 'grid' ? gridMetrics.gap : listMetrics.gap}
               className={
                 computedViewMode === 'grid' ? "w-full" :
-                computedViewMode === 'list' ? "flex flex-wrap gap-2" :
+                computedViewMode === 'list' ? "flex flex-wrap" :
                 "flex flex-col w-full"
               }
               emptyState={
@@ -5413,7 +5442,7 @@ export default function BNDZUI() {
                              <>
                                <div className="bndz-list-select-cell flex-1 flex flex-col items-center justify-center min-h-[48px] relative w-full">
                                   <div className="flex-1 flex items-center justify-center min-h-[48px] relative w-full">
-                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={gridIconSz} />
+                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={gridMetrics.icon} />
                                   {filterResult?.badgeColor && (
                                       <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full ring-1 ring-black" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
                                   )}
@@ -5433,8 +5462,8 @@ export default function BNDZUI() {
                            ) : computedViewMode === 'list' ? (
                              <>
                              <div className="bndz-list-select-cell flex items-center min-w-0 flex-1">
-                               <div className="w-6 flex justify-center shrink-0">
-                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={listIconSz} />
+                               <div className="flex justify-center shrink-0" style={{ width: listMetrics.iconSlot }}>
+                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={listMetrics.icon} />
                                </div>
                                <div className="flex-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
                                   {displayLabel}

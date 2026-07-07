@@ -1,6 +1,6 @@
 import React from 'react';
-import { Icons8Icon } from './Icons8Icon';
-import { CloseGlyph } from './ChromeGlyphs';
+import { X, Loader2 } from 'lucide-react';
+import { LauncherIcon } from './LauncherIcon';
 
 type Props = {
   current: number;
@@ -10,33 +10,28 @@ type Props = {
   onCancel: () => void;
 };
 
-/** macOS-style glass sync status chip for the status bar */
+/** Status-bar chip while folder size map / sync runs */
 export default function FolderSizeSyncChip({ current, total, path, percent = 0, onCancel }: Props) {
   const pct = total > 0 ? Math.round((current / total) * 100) : Math.round(percent);
   const folder = path ? path.split(/[/\\]/).pop() : '';
 
   return (
     <span
-      className="bndz-glass-chip inline-flex items-center gap-2 ml-2 pl-2.5 pr-1 py-0.5 max-w-[min(420px,45vw)]"
-      title={path || 'Syncing folder sizes'}
+      className="bndz-glass-chip inline-flex items-center gap-2 ml-2 pl-2 pr-1 py-0.5 max-w-[min(440px,48vw)] border border-emerald-500/20 shadow-[0_4px_18px_rgba(16,185,129,0.12)]"
+      title={path || 'Building folder size map'}
       role="status"
     >
-      <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
-        <svg className="absolute inset-0 -rotate-90" viewBox="0 0 16 16" aria-hidden>
-          <circle cx="8" cy="8" r="6.5" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" />
-          <circle
-            cx="8" cy="8" r="6.5" fill="none"
-            stroke="rgba(244,114,182,0.9)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeDasharray={`${(pct / 100) * 40.8} 40.8`}
-          />
-        </svg>
-        <Icons8Icon id="loading" size={9} spin />
+      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 ring-1 ring-emerald-400/20">
+        <LauncherIcon id="folder_size_sync" size={14} className="opacity-90" />
+        <Loader2 size={8} className="absolute -bottom-0.5 -right-0.5 text-emerald-300 animate-spin" />
       </span>
-      <span className="truncate text-[10px] text-pink-100/90 font-medium">
-        Syncing sizes <span className="text-pink-300/80">{current}/{total}</span>
+      <span className="truncate text-[10px] text-emerald-50/95 font-medium">
+        Size map <span className="text-emerald-300/90">{current}/{total}</span>
+        <span className="text-white/35 ml-1">({pct}%)</span>
         {folder ? <span className="text-white/40 ml-1">· {folder}</span> : null}
+      </span>
+      <span className="hidden sm:inline-flex h-1.5 w-14 rounded-full bg-black/30 overflow-hidden shrink-0">
+        <span className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-sky-400 transition-all" style={{ width: `${pct}%` }} />
       </span>
       <button
         type="button"
@@ -45,7 +40,7 @@ export default function FolderSizeSyncChip({ current, total, path, percent = 0, 
         title="Cancel folder size sync (Esc)"
         aria-label="Cancel folder size sync"
       >
-        <CloseGlyph size={12} />
+        <X size={12} />
       </button>
     </span>
   );

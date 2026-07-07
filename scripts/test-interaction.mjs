@@ -20,7 +20,7 @@ setMarqueeActive(true);
 assert.equal(shouldAllowDragStart(false), false);
 setMarqueeActive(false);
 
-beginDragSession(1, 100, 100);
+beginDragSession(1, 100, 100, 0);
 assert.equal(shouldAllowDragStart(false), false);
 trackDragPointer(100 + DRAG_THRESHOLD + 1, 100);
 assert.equal(shouldAllowDragStart(false), true);

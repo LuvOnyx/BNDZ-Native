@@ -49,7 +49,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
   { id: 'nav_up', label: 'Up One Level', color: '#10b981', category: 'navigation' },
   { id: 'go_home', label: 'Go Home', color: '#6db4e6', category: 'navigation' },
   { id: 'refresh', label: 'Refresh', color: '#10b981', category: 'navigation' },
-  { id: 'folder_size_sync', label: 'Auto Sync Folder Sizes', color: '#34d399', category: 'navigation' },
+  { id: 'folder_size_sync', label: 'Folder Size Map / Sync', color: '#34d399', category: 'navigation' },
   { id: 'go_recycle_bin', label: 'Open Recycle Bin', color: '#c084fc', category: 'navigation' },
   { id: 'go_network', label: 'Open Network', color: '#38bdf8', category: 'navigation' },
   { id: 'new_tab', label: 'New Tab', color: '#fbbf24', category: 'navigation' },

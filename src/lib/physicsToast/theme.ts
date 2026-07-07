@@ -15,4 +15,4 @@ export const PHYSICS_TOAST_COLORS: Record<ToastKind, string> = {
   progress: '#a78bfa',
 };
 
-export const PHYSICS_TOAST_SURFACE = 'var(--bndz-surface-raised, #1c1f28)';
+export const PHYSICS_TOAST_SURFACE = 'var(--bndz-surface-raised, #1a1d26)';

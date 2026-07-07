@@ -89,9 +89,15 @@ public sealed class BndzTagSidecarStore
         {
             var json = JsonSerializer.Serialize(item);
             var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(json) ?? new Dictionary<string, object?>();
+            string? lookupPath = null;
             if (dict.TryGetValue("path", out var pathObj) && pathObj is string path)
+                lookupPath = path;
+            else if (dict.TryGetValue("id", out var idObj) && idObj is string id)
+                lookupPath = id;
+
+            if (!string.IsNullOrEmpty(lookupPath))
             {
-                var side = store.Get(path);
+                var side = store.Get(lookupPath);
                 if (side != null)
                 {
                     dict["tags"] = side.Tags;

@@ -1,3 +1,6 @@
+/** Bump when PNG assets change so WebView2 does not serve stale launcher-icons. */
+export const LAUNCHER_ICON_REV = '4';
+
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   nav_back: 'nav_back.png',
@@ -30,6 +33,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   view_details: 'view_details.png',
   view_grid: 'view_grid.png',
   view_list: 'view_list.png',
+  view_columns: 'view_columns.png',
   search: 'search.png',
   toggle_dual_pane: 'toggle_dual_pane.png',
   toggle_preview: 'toggle_preview.png',
@@ -211,5 +215,5 @@ export const UI_GLYPH_IDS = new Set([
 export function launcherIconUrl(id: string): string | undefined {
   const base = id.startsWith('tag__') ? 'tag_manager' : id;
   const file = TOOLBAR_LAUNCHER_ICONS[base];
-  return file ? `/launcher-icons/${file}` : undefined;
+  return file ? `/launcher-icons/${file}?v=${LAUNCHER_ICON_REV}` : undefined;
 }

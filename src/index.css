@@ -1464,6 +1464,7 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-pt-toast[data-ready="true"] {
   opacity: 1;
   transform: translateZ(0) scale(1);
+  filter: drop-shadow(0 8px 24px color-mix(in srgb, var(--_c) 35%, transparent));
   transition:
     transform calc(var(--bndz-pt-duration) * 0.66) var(--bndz-pt-spring-easing),
     opacity calc(var(--bndz-pt-duration) * 0.66) var(--bndz-pt-spring-easing),
@@ -1496,6 +1497,22 @@ html[data-theme] .nav-tree-row:focus-visible {
   transform: translateZ(0);
   contain: layout style;
   overflow: visible;
+}
+
+.bndz-pt-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--bndz-radius-sm);
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: repeating-linear-gradient(
+    -32deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 255, 255, 0.03) 3px,
+    rgba(255, 255, 255, 0.03) 4px
+  );
 }
 
 .bndz-pt-canvas[data-edge="bottom"] {
@@ -1562,8 +1579,9 @@ html[data-theme] .nav-tree-row:focus-visible {
   padding: 2px;
   border-radius: var(--bndz-radius-sm);
   color: var(--_c);
-  background-color: color-mix(in srgb, var(--_c) 20%, transparent);
-  border: 1px solid color-mix(in srgb, var(--_c) 28%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--_c) 28%, transparent), color-mix(in srgb, var(--_c) 12%, transparent));
+  border: 1px solid color-mix(in srgb, var(--_c) 35%, transparent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--_c) 25%, transparent);
 }
 
 .bndz-pt-title {

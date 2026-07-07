@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  web-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript lint
+        run: npm run lint
+
+      - name: Wiring audit
+        run: npm run audit:wiring
+
+      - name: BNDZUI audit
+        run: npm run audit:ui
+
+      - name: Unit smoke tests
+        run: npm run test:unit
+
+  native-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build WebView UI bundle
+        run: npm run build
+
+      - name: Build BNDZ native backend
+        run: dotnet build BNDZBackend/BNDZ.csproj -c Release

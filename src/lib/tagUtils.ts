@@ -1,10 +1,14 @@
 export type TagDef = { id?: string; name?: string; label?: string; color?: string };
 
-/** Canonical storage key for a tag definition. */
-export function resolveTagKey(tag: TagDef | string): string {
+/** Stable tag key stored in sidecar + entity.tags (prefer configured id). */
+export function tagStorageKey(tag: TagDef | string): string {
   if (typeof tag === 'string') return tag.trim();
-  const raw = tag.name || tag.label || tag.id || '';
-  return raw.trim();
+  return tag.id || tag.name || (tag.label || '').toLowerCase().replace(/\s+/g, '-');
+}
+
+/** @deprecated Use tagStorageKey for writes; kept for read compatibility */
+export function resolveTagKey(tag: TagDef | string): string {
+  return tagStorageKey(tag);
 }
 
 export function slugTagKey(label: string): string {
@@ -13,7 +17,10 @@ export function slugTagKey(label: string): string {
 
 export function tagKeysMatch(a: string, b: string): boolean {
   if (!a || !b) return false;
-  return a.toLowerCase() === b.toLowerCase();
+  const al = a.toLowerCase();
+  const bl = b.toLowerCase();
+  if (al === bl) return true;
+  return al.replace(/\s+/g, '-') === bl.replace(/\s+/g, '-');
 }
 
 export function entityHasTag(entityTags: string[] | undefined, tagKey: string): boolean {
@@ -22,13 +29,19 @@ export function entityHasTag(entityTags: string[] | undefined, tagKey: string): 
 }
 
 export function findTagMeta(tagKey: string, catalog: TagDef[]): TagDef | undefined {
-  return catalog.find(t =>
-    tagKeysMatch(resolveTagKey(t), tagKey)
-    || (t.label && tagKeysMatch(t.label, tagKey)),
-  );
+  const k = tagKey.toLowerCase();
+  const slug = k.replace(/\s+/g, '-');
+  return catalog.find((x) => {
+    const id = (x.id || '').toLowerCase();
+    const name = (x.name || '').toLowerCase();
+    const label = (x.label || '').toLowerCase();
+    const labelSlug = label.replace(/\s+/g, '-');
+    return x.id === tagKey || x.name === tagKey || x.label === tagKey
+      || id === k || name === k || label === k
+      || id === slug || name === slug || labelSlug === slug;
+  });
 }
 
 export function tagChipId(tag: TagDef): string {
-  const key = resolveTagKey(tag);
-  return key || slugTagKey(tag.label || 'tag');
+  return tagStorageKey(tag) || slugTagKey(tag.label || 'tag');
 }
