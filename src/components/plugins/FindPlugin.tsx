@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { useSettingsRuntime } from '../../hooks/useSettingsRuntime';
+import { useAppConfig } from '../../data/configContext';
 import PluginPanelShell from './PluginPanelShell';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { listCatalogs, type CatalogEntry } from '../../lib/catalog';
@@ -15,22 +16,11 @@ export const FindPluginDef = {
 
 type SearchMode = 'local' | 'global' | 'duplicates' | 'advanced';
 
-const SEARCH_HISTORY_KEY = 'bndz-find-history-v1';
 const SEARCH_HISTORY_MAX = 15;
-
-function loadSearchHistory(): string[] {
-    try {
-        const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed.filter((q): q is string => typeof q === 'string') : [];
-    } catch {
-        return [];
-    }
-}
 
 export default function FindPlugin({ config, focusedPath, isPluginTabActive, pluginLaunch }: any) {
     const rt = useSettingsRuntime();
+    const { updateConfig } = useAppConfig();
     const [query, setQuery] = useState('');
     const [mode, setMode] = useState<SearchMode>('local');
     const [regexEnabled, setRegexEnabled] = useState(false);
@@ -43,7 +33,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const [status, setStatus] = useState('');
     const [dupProgress, setDupProgress] = useState<{ percent: number; message?: string } | null>(null);
     const [savedCatalogs, setSavedCatalogs] = useState<CatalogEntry[]>([]);
-    const [searchHistory, setSearchHistory] = useState<string[]>(loadSearchHistory);
+    const searchHistory: string[] = Array.isArray(config?.findSearchHistory)
+        ? config.findSearchHistory.filter((q: unknown): q is string => typeof q === 'string')
+        : [];
 
     useEffect(() => {
         void listCatalogs().then(cats => setSavedCatalogs(cats.filter(c => c.query?.trim())));
@@ -52,16 +44,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const pushSearchHistory = (q: string) => {
         const trimmed = q.trim();
         if (!trimmed) return;
-        setSearchHistory(prev => {
-            const next = [trimmed, ...prev.filter(h => h.toLowerCase() !== trimmed.toLowerCase())].slice(0, SEARCH_HISTORY_MAX);
-            try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next)); } catch { /* best effort */ }
-            return next;
-        });
+        const next = [trimmed, ...searchHistory.filter(h => h.toLowerCase() !== trimmed.toLowerCase())].slice(0, SEARCH_HISTORY_MAX);
+        updateConfig({ findSearchHistory: next });
     };
 
     const clearSearchHistory = () => {
-        setSearchHistory([]);
-        try { localStorage.removeItem(SEARCH_HISTORY_KEY); } catch { /* best effort */ }
+        updateConfig({ findSearchHistory: [] });
     };
 
     const scopePath = focusedPath?.startsWith('/') ? focusedPath : (focusedPath ? `/${focusedPath}` : '/C:');

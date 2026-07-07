@@ -64,10 +64,10 @@ export function mergeRapidAccessItems(
   return out;
 }
 
-export type PinnedFavorite = { name: string; path: string; icon: string; iconPath?: string };
+export type PinnedFavorite = { name: string; path: string; icon: string; iconPath?: string; label?: string };
 
 /** Collapse duplicate pinned paths (config migration / bad writes). */
-export function dedupePinnedFavorites(pinned: Array<{ name?: string; path?: string; icon?: string; iconPath?: string }>): PinnedFavorite[] {
+export function dedupePinnedFavorites(pinned: Array<{ name?: string; path?: string; icon?: string; iconPath?: string; label?: string }>): PinnedFavorite[] {
   const seen = new Set<string>();
   const out: PinnedFavorite[] = [];
   for (const p of pinned) {
@@ -80,6 +80,7 @@ export function dedupePinnedFavorites(pinned: Array<{ name?: string; path?: stri
       name: p.name || path.split('/').filter(Boolean).pop() || 'Folder',
       path,
       icon: p.icon || 'folder',
+      ...(p.label ? { label: p.label } : {}),
       ...(p.iconPath ? { iconPath: p.iconPath } : {}),
     });
   }

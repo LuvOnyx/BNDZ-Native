@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Folder, RotateCcw, Target, ArrowRight, Paintbrush, Loader2 } from 'lucide-react';
+import { Icons8Icon } from '../../Icons8Icon';
 import { ShellNativeIcon } from '../../ShellNativeIcon';
 import { toWindowsPath } from '../../../lib/pathUtils';
 import styles from './IconStudio.module.css';
@@ -58,7 +58,7 @@ export default function PreviewPane({
         <div className={styles.rightPane}>
             <div className={styles.header}>
                 <div className="flex items-center gap-2">
-                    <Target size={14} className="text-sky-400" />
+                    <Icons8Icon id="target_ui" size={14} className="text-sky-400" />
                     <span className="text-[13px] font-semibold text-white">Preview & apply</span>
                 </div>
                 <span className="text-[10px] bg-white/5 text-gray-400 px-2 py-0.5 rounded-full border border-white/8">{paths.length}</span>
@@ -68,7 +68,7 @@ export default function PreviewPane({
                 {paths.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center px-4">
                         <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-4 ring-1 ring-white/8">
-                            <Folder size={24} className="text-gray-600" />
+                            <Icons8Icon id="explorer" size={24} className="text-gray-600" />
                         </div>
                         <p className="text-xs font-medium text-gray-400">Nothing selected</p>
                         <p className="text-[10px] text-gray-600 mt-2 leading-relaxed max-w-[200px]">
@@ -110,13 +110,13 @@ export default function PreviewPane({
                                                 <ShellNativeIcon path={win} isDir={isDir} size={36} eager />
                                                 <span className="text-[9px] text-gray-600 uppercase">Now</span>
                                             </div>
-                                            <ArrowRight size={14} className="text-pink-400/60 shrink-0" />
+                                            <Icons8Icon id="arrow_right_ui" size={14} className="text-pink-400/60 shrink-0" />
                                             <div className="flex flex-col items-center gap-1">
                                                 <div className="w-9 h-9 rounded-lg bg-black/30 flex items-center justify-center ring-1 ring-pink-500/20">
                                                     {selectedPreviewPath ? (
                                                         <IconPreviewImage path={selectedPreviewPath} size={32} />
                                                     ) : (
-                                                        <Paintbrush size={16} className="text-gray-600" />
+                                                        <Icons8Icon id="wand_ui" size={16} className="text-gray-600" />
                                                     )}
                                                 </div>
                                                 <span className="text-[9px] text-pink-400/70 uppercase">After</span>
@@ -133,7 +133,7 @@ export default function PreviewPane({
                             disabled={!selectedIcon || isApplying}
                             className="shrink-0 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-xs font-bold text-white shadow-lg shadow-pink-900/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {isApplying ? <Loader2 size={14} className="animate-spin" /> : <Paintbrush size={13} />}
+                            {isApplying ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="wand_ui" size={13} />}
                             {selectedIcon ? `Apply "${selectedIcon.name}"` : 'Select an icon'}
                         </button>
 
@@ -143,7 +143,7 @@ export default function PreviewPane({
                             disabled={restoring || isApplying}
                             className="shrink-0 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-amber-500/20 bg-amber-500/8 hover:bg-amber-500/15 text-xs font-semibold text-amber-200/90 transition-colors disabled:opacity-50"
                         >
-                            {restoring ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                            {restoring ? <Icons8Icon id="loading" size={13} spin /> : <Icons8Icon id="reset_ui" size={13} />}
                             Restore default icons
                         </button>
                     </div>

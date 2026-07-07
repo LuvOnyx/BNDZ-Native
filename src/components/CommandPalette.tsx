@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  Search, Command, ArrowRight, FolderOpen, Settings, Replace, LayoutGrid, Sparkles,
-  Database, Bookmark, Filter, ScrollText, RefreshCw,
-} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Icons8Icon } from './Icons8Icon';
 import { fuzzyFilterByName } from '../lib/fuzzyFilter';
 
 export type PaletteAction = {
   id: string;
   label: string;
   hint?: string;
-  icon: React.ElementType;
+  icon: string;
   onRun: () => void;
   keywords?: string[];
 };
@@ -91,7 +88,7 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <div className="flex items-center px-4 py-3.5 border-b border-white/8 bg-gradient-to-r from-[#1a1a22]/98 to-[#14141a]/98">
-            <Search size={18} className="text-sky-400/70 mr-3 shrink-0" />
+            <Icons8Icon id="search" size={18} className="mr-3 shrink-0" />
             <input
               type="text"
               autoFocus
@@ -119,7 +116,7 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
               }}
             />
             <div className="flex items-center gap-1 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-black/30 border border-white/8 px-2 py-1 rounded-md">
-              <Command size={10} /> ⇧P
+              <Icons8Icon id="command_ui" size={10} /> ⇧P
             </div>
           </div>
           <div ref={listRef} className="p-2 min-h-[150px] max-h-[320px] overflow-y-auto styled-scrollbar bg-gradient-to-b from-[#121218]/98 to-[#0e0e14]/98">
@@ -127,7 +124,6 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
               <div className="px-3 py-6 text-center text-gray-500 text-sm">No matching commands</div>
             )}
             {filtered.map((action, idx) => {
-              const Icon = action.icon;
               const isSelected = idx === selectedIndex;
               return (
                 <button
@@ -143,13 +139,17 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
                   onClick={() => runAt(idx)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Icon size={14} className={`shrink-0 transition-colors ${isSelected ? 'text-sky-400' : 'text-gray-600 group-hover:text-sky-400'}`} />
+                    <Icons8Icon id={action.icon} size={14} className="shrink-0" />
                     <div className="min-w-0">
                       <div className="text-sm truncate">{action.label}</div>
                       {action.hint && <div className="text-[10px] text-gray-500 truncate">{action.hint}</div>}
                     </div>
                   </div>
-                  <ArrowRight size={12} className={`shrink-0 transition-opacity ${isSelected ? 'text-sky-400 opacity-100' : 'text-gray-600 opacity-0 group-hover:opacity-100'}`} />
+                  <Icons8Icon
+                    id="arrow_right_ui"
+                    size={12}
+                    className={`shrink-0 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  />
                 </button>
               );
             })}
@@ -176,18 +176,18 @@ export function buildDefaultPaletteActions(handlers: {
   onNewFindingTab?: () => void;
 }): PaletteAction[] {
   const actions: PaletteAction[] = [
-    { id: 'settings', label: 'Open Settings', hint: 'Configuration dialog', icon: Settings, onRun: handlers.onOpenSettings, keywords: ['config', 'preferences'] },
-    { id: 'dual', label: 'Toggle Dual Pane', hint: 'Side-by-side panes (XYplorer)', icon: LayoutGrid, onRun: handlers.onToggleDualPane, keywords: ['split', 'pane'] },
-    { id: 'preview', label: 'Toggle Inspector', hint: 'Space / Ctrl+I preview panel', icon: FolderOpen, onRun: handlers.onTogglePreview, keywords: ['quick look', 'inspector'] },
-    { id: 'filter', label: 'Focus Filter Bar', hint: 'Fuzzy filter active pane', icon: Filter, onRun: handlers.onFocusFilter ?? (() => {}), keywords: ['search', 'omnibar'] },
-    { id: 'rename', label: 'Batch Rename', hint: 'Rename selected files', icon: Replace, onRun: handlers.onOpenBatchRename },
-    { id: 'find', label: 'Fast Search', hint: 'Global file search plugin', icon: Search, onRun: handlers.onOpenFind, keywords: ['everything', 'search'] },
-    { id: 'metadata', label: 'Metadata Inspector', hint: 'Hashes and extended properties', icon: Database, onRun: handlers.onOpenMetadata ?? (() => {}), keywords: ['hash', 'properties'] },
-    { id: 'icons', label: 'Icon Studio', hint: 'Customize file icons', icon: Sparkles, onRun: handlers.onOpenIconStudio },
-    { id: 'tabset', label: 'Save Tabset', hint: 'XYplorer-style workspace snapshot', icon: Bookmark, onRun: handlers.onSaveTabset ?? (() => {}), keywords: ['workspace', 'session'] },
-    { id: 'refresh', label: 'Refresh Folder', hint: 'Reload active directory', icon: RefreshCw, onRun: handlers.onRefresh ?? (() => {}) },
-    { id: 'syncscroll', label: 'Toggle Sync Scroll', hint: 'Mirror scroll in dual pane', icon: ScrollText, onRun: handlers.onToggleSyncScroll ?? (() => {}), keywords: ['dual', 'pane'] },
-    { id: 'finding', label: 'New Finding Tab', hint: 'XYplorer search-in-tab (uses filter query)', icon: Search, onRun: handlers.onNewFindingTab ?? (() => {}), keywords: ['search', 'find'] },
+    { id: 'settings', label: 'Open Settings', hint: 'Configuration dialog', icon: 'config', onRun: handlers.onOpenSettings, keywords: ['config', 'preferences'] },
+    { id: 'dual', label: 'Toggle Dual Pane', hint: 'Side-by-side panes (XYplorer)', icon: 'toggle_dual_pane', onRun: handlers.onToggleDualPane, keywords: ['split', 'pane'] },
+    { id: 'preview', label: 'Toggle Inspector', hint: 'Space / Ctrl+I preview panel', icon: 'folder_open_ui', onRun: handlers.onTogglePreview, keywords: ['quick look', 'inspector'] },
+    { id: 'filter', label: 'Focus Filter Bar', hint: 'Fuzzy filter active pane', icon: 'filter_ui', onRun: handlers.onFocusFilter ?? (() => {}), keywords: ['search', 'omnibar'] },
+    { id: 'rename', label: 'Batch Rename', hint: 'Rename selected files', icon: 'batch_rename', onRun: handlers.onOpenBatchRename },
+    { id: 'find', label: 'Fast Search', hint: 'Global file search plugin', icon: 'search', onRun: handlers.onOpenFind, keywords: ['everything', 'search'] },
+    { id: 'metadata', label: 'Metadata Inspector', hint: 'Hashes and extended properties', icon: 'metadata', onRun: handlers.onOpenMetadata ?? (() => {}), keywords: ['hash', 'properties'] },
+    { id: 'icons', label: 'Icon Studio', hint: 'Customize file icons', icon: 'icon_studio', onRun: handlers.onOpenIconStudio },
+    { id: 'tabset', label: 'Save Tabset', hint: 'XYplorer-style workspace snapshot', icon: 'bookmark', onRun: handlers.onSaveTabset ?? (() => {}), keywords: ['workspace', 'session'] },
+    { id: 'refresh', label: 'Refresh Folder', hint: 'Reload active directory', icon: 'refresh', onRun: handlers.onRefresh ?? (() => {}) },
+    { id: 'syncscroll', label: 'Toggle Sync Scroll', hint: 'Mirror scroll in dual pane', icon: 'columns_ui', onRun: handlers.onToggleSyncScroll ?? (() => {}), keywords: ['dual', 'pane'] },
+    { id: 'finding', label: 'New Finding Tab', hint: 'XYplorer search-in-tab (uses filter query)', icon: 'search', onRun: handlers.onNewFindingTab ?? (() => {}), keywords: ['search', 'find'] },
   ];
   return actions.filter(a => {
     if (a.id === 'filter' && !handlers.onFocusFilter) return false;

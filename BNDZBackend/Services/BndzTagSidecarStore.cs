@@ -48,6 +48,19 @@ public sealed class BndzTagSidecarStore
 
     public void SetMeta(string path, string? label, string? comment, IEnumerable<string>? tags = null)
     {
+        ApplyMeta(path, label, comment, tags);
+        Save();
+    }
+
+    public void SetMetaBatch(IEnumerable<(string path, string? label, string? comment, List<string>? tags)> items)
+    {
+        foreach (var (path, label, comment, tags) in items)
+            ApplyMeta(path, label, comment, tags);
+        Save();
+    }
+
+    private void ApplyMeta(string path, string? label, string? comment, IEnumerable<string>? tags)
+    {
         var key = Normalize(path);
         if (!_map.TryGetValue(key, out var entry))
         {
@@ -65,7 +78,6 @@ public sealed class BndzTagSidecarStore
                 .ToList();
         }
         entry.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        Save();
     }
 
     public IReadOnlyList<TagSidecarEntry> GetAll() => _map.Values.OrderBy(v => v.Path).ToList();

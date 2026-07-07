@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Brain, Download, HardDrive, Shield, Sparkles, WifiOff, X, Loader2 } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 import { registerEscapeLayer } from '../lib/globalEscape';
 
 export type AiDownloadModalPhase = 'prompt' | 'downloading' | 'error';
@@ -66,7 +67,7 @@ export default function AiDownloadConsentModal({
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(139,92,246,0.25),transparent_55%)]" />
               <div className="relative flex items-start gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-900/40 shrink-0">
-                  <Brain size={22} className="text-white" />
+                  <Icons8Icon id="brain_ui" size={22} />
                 </div>
                 <div className="flex-1 min-w-0 pt-0.5">
                   <h2 id="ai-download-title" className="text-[17px] font-bold text-white tracking-tight">
@@ -83,7 +84,7 @@ export default function AiDownloadConsentModal({
                     className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
                     aria-label="Close"
                   >
-                    <X size={16} />
+                    <CloseGlyph size={16} />
                   </button>
                 )}
               </div>
@@ -97,21 +98,21 @@ export default function AiDownloadConsentModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 flex items-center gap-2.5">
-                  <HardDrive size={14} className="text-sky-400 shrink-0" />
+                  <Icons8Icon id="disk_mgmt" size={14} className="shrink-0" />
                   <div className="min-w-0">
                     <div className="text-[10px] text-gray-500 uppercase tracking-wider">Model</div>
                     <div className="text-[11px] text-gray-200 truncate" title={modelName}>{modelName}</div>
                   </div>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 flex items-center gap-2.5">
-                  <Download size={14} className="text-violet-400 shrink-0" />
+                  <Icons8Icon id="download" size={14} className="shrink-0" />
                   <div>
                     <div className="text-[10px] text-gray-500 uppercase tracking-wider">Download</div>
                     <div className="text-[11px] text-gray-200">{sizeLabel}</div>
                   </div>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 flex items-center gap-2.5">
-                  <WifiOff size={14} className="text-emerald-400 shrink-0" />
+                  <Icons8Icon id="wifi_off_ui" size={14} className="shrink-0" />
                   <div>
                     <div className="text-[10px] text-gray-500 uppercase tracking-wider">After</div>
                     <div className="text-[11px] text-gray-200">Works offline</div>
@@ -120,7 +121,7 @@ export default function AiDownloadConsentModal({
               </div>
 
               <div className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
-                <Shield size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+                <Icons8Icon id="shield_ui" size={14} className="shrink-0 mt-0.5" />
                 <p className="text-[11px] text-emerald-200/90 leading-relaxed">
                   Stored in <code className="text-emerald-300/90">%LOCALAPPDATA%\BNDZ\models</code>.
                   Built into BNDZ — not a separate app or service.
@@ -131,7 +132,7 @@ export default function AiDownloadConsentModal({
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-violet-300 flex items-center gap-1.5">
-                      <Loader2 size={12} className="animate-spin" />
+                      <Icons8Icon id="loading" size={12} spin />
                       Downloading model…
                     </span>
                     <span className="text-gray-400 font-mono">{pct}%</span>
@@ -169,7 +170,7 @@ export default function AiDownloadConsentModal({
                     onClick={onConfirm}
                     className="px-4 py-2 rounded-xl text-[12px] font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-900/30 flex items-center gap-2 transition-all"
                   >
-                    <Sparkles size={14} />
+                    <Icons8Icon id="sparkles_ui" size={14} />
                     {phase === 'error' ? 'Retry Download' : 'Download & Enable'}
                   </button>
                 </>

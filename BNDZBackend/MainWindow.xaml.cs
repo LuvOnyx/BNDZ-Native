@@ -2975,6 +2975,25 @@ namespace BNDZ
                         tags = JsonSerializer.Deserialize<List<string>>(tEl.GetRawText());
                     _tagSidecarStore.SetMeta(path, label, comment, tags);
                 }
+                else if (type == "SET_TAG_META_BATCH")
+                {
+                    var payload = root.GetProperty("payload");
+                    if (!payload.TryGetProperty("items", out var itemsEl) || itemsEl.ValueKind != JsonValueKind.Array)
+                        return;
+                    var batch = new List<(string path, string? label, string? comment, List<string>? tags)>();
+                    foreach (var item in itemsEl.EnumerateArray())
+                    {
+                        var path = item.GetProperty("path").GetString() ?? "";
+                        string? label = item.TryGetProperty("label", out var lEl) ? lEl.GetString() : null;
+                        string? comment = item.TryGetProperty("comment", out var cEl) ? cEl.GetString() : null;
+                        List<string>? tags = null;
+                        if (item.TryGetProperty("tags", out var tEl) && tEl.ValueKind == JsonValueKind.Array)
+                            tags = JsonSerializer.Deserialize<List<string>>(tEl.GetRawText());
+                        batch.Add((path, label, comment, tags));
+                    }
+                    if (batch.Count > 0)
+                        _tagSidecarStore.SetMetaBatch(batch);
+                }
                 else if (type == "CATALOG_LIST")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;

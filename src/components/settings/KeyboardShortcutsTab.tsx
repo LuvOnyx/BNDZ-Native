@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { CloseGlyph } from '../ChromeGlyphs';
 import {
   KEYBINDING_ACTIONS,
   KEYBINDING_CATEGORIES,
@@ -96,7 +97,7 @@ function KeybindingRow({
         className="p-1 rounded-sm text-gray-500 hover:text-white hover:bg-[#2a2a2a]"
         title="Unbind"
       >
-        <Icons8Icon id="close" size={13} />
+        <CloseGlyph size={13} />
       </button>
     </div>
   );

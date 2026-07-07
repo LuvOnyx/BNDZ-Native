@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Icons8Icon } from '../../Icons8Icon';
 import { IPC } from '../../../lib/ipcBridge';
 import { toWindowsPath } from '../../../lib/pathUtils';
 import { fetchIconifySvg, iconifySvgToDataUrl, parseIconifyLibraryPath } from '../../../lib/fileTypeIcons';
@@ -102,7 +102,7 @@ export default function IconPreviewImage({ path, size = 48, className = '' }: Ic
       className={`flex items-center justify-center ${className}`}
       style={{ width: size, height: size }}
     >
-      {loading && <Loader2 size={size * 0.35} className="animate-spin text-pink-400/60" />}
+      {loading && <Icons8Icon id="loading" size={size * 0.35} spin className="text-pink-400/60" />}
       {!loading && src && (
         <img src={src} alt="" className="max-w-full max-h-full object-contain drop-shadow-md" draggable={false} />
       )}

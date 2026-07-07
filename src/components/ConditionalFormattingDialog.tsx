@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppConfig, VisualFilter } from '../data/configContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { Trash2, Plus } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 
 export default function ConditionalFormattingDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
     const { config, updateConfig } = useAppConfig();
@@ -95,7 +95,7 @@ export default function ConditionalFormattingDialog({ open, onOpenChange }: { op
                                 />
 
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => removeRule(rule.id)}>
-                                    <Trash2 size={14} />
+                                    <Icons8Icon id="trash_ui" size={14} />
                                 </Button>
                             </div>
                             
@@ -124,7 +124,7 @@ export default function ConditionalFormattingDialog({ open, onOpenChange }: { op
                     ))}
                     
                     <Button variant="outline" className="w-full border-dashed border-[#555] bg-transparent hover:bg-[#222] text-xs h-8" onClick={addRule}>
-                        <Plus size={14} className="mr-2" /> Add Rule
+                        <Icons8Icon id="plus_ui" size={14} className="mr-2" /> Add Rule
                     </Button>
                 </div>
 

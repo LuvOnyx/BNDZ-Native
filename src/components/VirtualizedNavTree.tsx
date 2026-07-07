@@ -51,6 +51,8 @@ interface VirtualizedNavTreeProps {
   onGliderPaste?: (path: string) => void;
   indexedRoots?: string[];
   showIndexBadges?: boolean;
+  /** External file-drop hover path (e.g. internal pointer drag from list pane). */
+  fileDropTarget?: string | null;
 }
 
 async function loadDirectoryChildren(
@@ -168,6 +170,7 @@ function TreeRow({
         isSelected ? 'nav-tree-row-selected' : 'hover:bg-[#2a2d2e]/90'
       } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''}`}
       style={{ paddingLeft: `${indentPx}px` }}
+      data-nav-path={row.path || undefined}
       draggable={(canDragFile || canReorder) && !row.isPlaceholder}
       onDragStart={(canDragFile || canReorder) ? e => {
         e.stopPropagation();
@@ -293,6 +296,7 @@ export function VirtualizedNavTree({
   onGliderMove,
   onGliderPaste,
   indexedRoots,
+  fileDropTarget: externalFileDropTarget,
 }: VirtualizedNavTreeProps) {
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -303,6 +307,7 @@ export function VirtualizedNavTree({
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [dropAfter, setDropAfter] = useState(false);
   const [fileDropTargetPath, setFileDropTargetPath] = useState<string | null>(null);
+  const effectiveFileDropTarget = externalFileDropTarget ?? fileDropTargetPath;
   const [gliderAnchor, setGliderAnchor] = useState<TreeGliderAnchor | null>(null);
   const gliderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -575,7 +580,7 @@ export function VirtualizedNavTree({
       onDrop={handleDrop}
       onFileDragOver={handleFileDragOver}
       onFileDragLeave={handleFileDragLeave}
-      fileDropTarget={fileDropTargetPath}
+      fileDropTarget={effectiveFileDropTarget}
       tipHandlers={tipHandlers}
       disallowDragFromTree={disallowDragFromTree}
       showGlider={showGlider}

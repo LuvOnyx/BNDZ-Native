@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize2, SkipBack, SkipForward, AlertCircle } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { toWindowsPath } from '../lib/pathUtils';
 import { getMimeType } from '../lib/mediaTypes';
 
@@ -224,7 +224,7 @@ export default function MediaPreviewPlayer({
       <div className={`relative flex-1 flex items-center justify-center min-h-0 ${type === 'audio' ? 'py-6' : ''}`}>
         {loadError ? (
           <div className="flex flex-col items-center gap-3 px-6 text-center">
-            <AlertCircle size={40} className="text-amber-500 opacity-80" />
+            <Icons8Icon id="warning" size={40} className="opacity-80" />
             <p className="text-xs text-gray-400 max-w-[240px] leading-relaxed">{loadError}</p>
             {filePath && (
               <button
@@ -255,7 +255,7 @@ export default function MediaPreviewPlayer({
             />
             <div className="flex flex-col items-center gap-3 px-6 text-center">
               <div className="w-24 h-24 rounded-3xl bndz-glass-surface border border-sky-500/20 flex items-center justify-center shadow-lg">
-                <Volume2 size={40} className="text-sky-400" />
+                <Icons8Icon id="volume_ui" size={40} />
               </div>
               {title && <p className="text-sm font-semibold text-white truncate max-w-full">{title}</p>}
             </div>
@@ -276,13 +276,13 @@ export default function MediaPreviewPlayer({
 
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Back 10s">
-            <SkipBack size={14} />
+            <Icons8Icon id="skip_back_ui" size={14} />
           </button>
           <button type="button" onClick={togglePlay} disabled={!!loadError} className="p-2 bg-sky-500/90 hover:bg-sky-400 rounded-full text-white shadow-lg disabled:opacity-30" title={playing ? 'Pause' : 'Play'}>
-            {playing ? <Pause size={16} fill="white" /> : <Play size={16} fill="white" className="ml-0.5" />}
+            {playing ? <Icons8Icon id="pause_ui" size={16} /> : <Icons8Icon id="play_ui" size={16} className="ml-0.5" />}
           </button>
           <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Forward 10s">
-            <SkipForward size={14} />
+            <Icons8Icon id="skip_forward_ui" size={14} />
           </button>
 
           <span className="text-[10px] font-mono text-gray-500 w-[72px] text-right shrink-0">
@@ -302,7 +302,7 @@ export default function MediaPreviewPlayer({
           />
 
           <button type="button" onClick={toggleMute} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30">
-            {muted || volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            {muted || volume === 0 ? <Icons8Icon id="volume_off_ui" size={14} /> : <Icons8Icon id="volume_ui" size={14} />}
           </button>
           <input
             type="range"
@@ -317,7 +317,7 @@ export default function MediaPreviewPlayer({
 
           {type === 'video' && (
             <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Fullscreen">
-              <Maximize2 size={14} />
+              <Icons8Icon id="maximize_ui" size={14} />
             </button>
           )}
         </div>

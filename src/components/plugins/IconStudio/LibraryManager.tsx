@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Palette, Layers, Edit2, Trash2, Plus, Check, X, FolderOpen, RefreshCw, Download } from 'lucide-react';
+import { Icons8Icon } from '../../Icons8Icon';
+import { CloseGlyph } from '../../ChromeGlyphs';
 import { useIconStudio } from './IconStudioContext';
 import styles from './IconStudio.module.css';
 
@@ -31,7 +32,7 @@ export default function LibraryManager() {
             <div className="px-4 py-3.5 border-b border-white/6">
                 <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500/25 to-purple-600/20 flex items-center justify-center ring-1 ring-pink-500/20">
-                        <Palette size={16} className="text-pink-300" />
+                        <Icons8Icon id="palette_ui" size={16} className="text-pink-300" />
                     </div>
                     <div>
                         <div className="text-sm font-bold text-white tracking-tight">Libraries</div>
@@ -54,7 +55,7 @@ export default function LibraryManager() {
                         }`}
                     >
                         <div className="flex items-center gap-2.5 overflow-hidden flex-1 min-w-0">
-                            <Layers size={14} className={activeLibraryId === lib.id ? 'text-pink-400 shrink-0' : 'text-gray-600 shrink-0'} />
+                            <Icons8Icon id="layers_ui" size={14} className={activeLibraryId === lib.id ? 'text-pink-400 shrink-0' : 'text-gray-600 shrink-0'} />
                             {editingId === lib.id ? (
                                 <form onSubmit={(e) => submitRename(e, lib.id)} className="flex-1" onClick={e => e.stopPropagation()}>
                                     <input
@@ -74,13 +75,13 @@ export default function LibraryManager() {
                         <div className={`flex gap-0.5 shrink-0 ${editingId === lib.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                             {editingId === lib.id ? (
                                 <>
-                                    <button type="button" className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded" onClick={(e) => submitRename(e, lib.id)}><Check size={12} /></button>
-                                    <button type="button" className="p-1 text-gray-500 hover:bg-white/5 rounded" onClick={(e) => { e.stopPropagation(); setEditingId(null); }}><X size={12} /></button>
+                                    <button type="button" className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded" onClick={(e) => submitRename(e, lib.id)}><Icons8Icon id="check" size={12} /></button>
+                                    <button type="button" className="p-1 text-gray-500 hover:bg-white/5 rounded" onClick={(e) => { e.stopPropagation(); setEditingId(null); }}><CloseGlyph size={12} /></button>
                                 </>
                             ) : (
                                 <>
-                                    <button type="button" className="p-1 text-gray-500 hover:text-white hover:bg-white/5 rounded" onClick={(e) => startRename(e, lib.id, lib.name)}><Edit2 size={12} /></button>
-                                    <button type="button" className="p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete library "${lib.name}"?`)) deleteLibrary(lib.id); }}><Trash2 size={12} /></button>
+                                    <button type="button" className="p-1 text-gray-500 hover:text-white hover:bg-white/5 rounded" onClick={(e) => startRename(e, lib.id, lib.name)}><Icons8Icon id="pencil_ui" size={12} /></button>
+                                    <button type="button" className="p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete library "${lib.name}"?`)) deleteLibrary(lib.id); }}><Icons8Icon id="trash_ui" size={12} /></button>
                                 </>
                             )}
                         </div>
@@ -97,7 +98,7 @@ export default function LibraryManager() {
                             onClick={() => void resyncLibrary(activeLibraryId)}
                             className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-[10px] font-medium py-2 rounded-lg transition-colors"
                         >
-                            <RefreshCw size={12} /> Resync
+                            <Icons8Icon id="refresh" size={12} /> Resync
                         </button>
                         <button
                             type="button"
@@ -105,15 +106,15 @@ export default function LibraryManager() {
                             onClick={() => exportLibrary(activeLibraryId)}
                             className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-[10px] font-medium py-2 rounded-lg transition-colors"
                         >
-                            <Download size={12} /> Export
+                            <Icons8Icon id="download" size={12} /> Export
                         </button>
                     </div>
                 )}
                 <button type="button" onClick={importLibraryFromFolder} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-pink-600/90 to-purple-600/90 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-semibold py-2.5 rounded-lg shadow-md shadow-pink-900/15 transition-all">
-                    <FolderOpen size={14} /> Import folder
+                    <Icons8Icon id="folder_open_ui" size={14} /> Import folder
                 </button>
                 <button type="button" onClick={() => createLibrary('New Library')} className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors">
-                    <Plus size={14} /> New empty library
+                    <Icons8Icon id="plus_ui" size={14} /> New empty library
                 </button>
             </div>
         </div>

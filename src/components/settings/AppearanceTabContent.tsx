@@ -111,6 +111,15 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
             </button>
           </div>
         </div>
+        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-sky-500"
+            checked={localConfig.showQuickActionsBar === true}
+            onChange={e => patch({ showQuickActionsBar: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90">Show selection quick actions bar</span>
+        </label>
         <VariantSelect<SelectionStyle>
           label="List selection"
           description="How selected rows look in details/list views"

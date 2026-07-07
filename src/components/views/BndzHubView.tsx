@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, Film, HardDrive, ChevronRight, Database } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RECENT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
 import BndzIndexEmptyState from './BndzIndexEmptyState';
@@ -16,9 +16,9 @@ type Props = {
 };
 
 const VIEWS = [
-  { path: BNDZ_RECENT, icon: Clock, color: 'text-amber-400', desc: 'Recently modified files from your indexed libraries' },
-  { path: BNDZ_MEDIA, icon: Film, color: 'text-sky-400', desc: 'Photos and videos across indexed folders' },
-  { path: BNDZ_LARGE, icon: HardDrive, color: 'text-violet-400', desc: 'Largest files — sorted and visualized by size' },
+  { path: BNDZ_RECENT, icon: 'clock_ui', color: 'text-amber-400', desc: 'Recently modified files from your indexed libraries' },
+  { path: BNDZ_MEDIA, icon: 'film_ui', color: 'text-sky-400', desc: 'Photos and videos across indexed folders' },
+  { path: BNDZ_LARGE, icon: 'hard_drive_ui', color: 'text-violet-400', desc: 'Largest files — sorted and visualized by size' },
 ] as const;
 
 export default function BndzHubView({ onNavigate, onRefresh }: Props) {
@@ -46,7 +46,7 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
   return (
     <div className="flex flex-col gap-4 p-4 max-w-2xl">
       <div className="flex items-center gap-2 text-gray-300">
-        <Database size={18} className="text-sky-400" />
+        <Icons8Icon id="database_ui" size={18} className="text-sky-400" />
         <div>
           <h2 className="text-[14px] font-semibold text-gray-100">Smart Views</h2>
           <p className="text-[11px] text-gray-500">
@@ -57,27 +57,23 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
       </div>
 
       <div className="flex flex-col gap-2">
-        {VIEWS.map(v => {
-          const viewKey = v.path.split('/').pop() as 'recent' | 'media' | 'large';
-          const Icon = v.icon;
-          return (
-            <button
-              key={v.path}
-              type="button"
-              onClick={() => onNavigate(v.path)}
-              className="flex items-center gap-3 p-3 text-left bg-[#252525] hover:bg-[#2e2e2e] border border-[#3a3a3a] group"
-            >
-              <div className={`w-10 h-10 flex items-center justify-center bg-[#1a1a1a] border border-[#333] shrink-0 ${v.color}`}>
-                <Icon size={20} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-gray-100">{bndzVirtualLabel(viewKey)}</div>
-                <div className="text-[11px] text-gray-500 truncate">{v.desc}</div>
-              </div>
-              <ChevronRight size={16} className="text-gray-600 group-hover:text-gray-400 shrink-0" />
-            </button>
-          );
-        })}
+        {VIEWS.map(v => (
+          <button
+            key={v.path}
+            type="button"
+            onClick={() => onNavigate(v.path)}
+            className="flex items-center gap-3 p-3 text-left bg-[#252525] hover:bg-[#2e2e2e] border border-[#3a3a3a] group"
+          >
+            <div className={`w-10 h-10 flex items-center justify-center bg-[#1a1a1a] border border-[#333] shrink-0 ${v.color}`}>
+              <Icons8Icon id={v.icon} size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-medium text-gray-100">{bndzVirtualLabel(v.path.split('/').pop() as 'recent' | 'media' | 'large')}</div>
+              <div className="text-[11px] text-gray-500 truncate">{v.desc}</div>
+            </div>
+            <Icons8Icon id="chevron_right" size={16} className="text-gray-600 group-hover:text-gray-400 shrink-0" />
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -185,6 +185,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   arrow_down_circle_ui: 'arrow_down_circle_ui.png',
   checksquare_ui: 'checksquare_ui.png',
   columns_ui: 'columns_ui.png',
+  mini_tree: 'mini_tree.png',
   scissors_ui: 'scissors_ui.png',
   panel_bottom_ui: 'panel_bottom_ui.png',
 };
@@ -204,7 +205,7 @@ export const UI_GLYPH_IDS = new Set([
   'rocket_ui', 'piechart_ui', 'move_ui', 'bookopen_ui', 'magnet_ui', 'radio_ui', 'volume_ui',
   'volume_off_ui', 'skip_back_ui', 'skip_forward_ui', 'pause_ui', 'brain_ui', 'wifi_off_ui',
   'folder_plus_ui', 'server_ui', 'play_circle_ui', 'arrow_down_circle_ui', 'checksquare_ui',
-  'columns_ui', 'scissors_ui', 'panel_bottom_ui',
+  'columns_ui', 'scissors_ui', 'panel_bottom_ui', 'mini_tree',
 ]);
 
 export function launcherIconUrl(id: string): string | undefined {

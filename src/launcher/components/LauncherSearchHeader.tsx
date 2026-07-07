@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icons8Icon } from '../../components/Icons8Icon';
+import { CloseGlyph } from '../../components/ChromeGlyphs';
 
 type Props = {
   value: string;
@@ -79,7 +80,7 @@ export default function LauncherSearchHeader({
               className="text-[var(--text-subtle)] hover:text-[var(--text-muted)] transition-colors"
               aria-label="Clear search"
             >
-              <Icons8Icon id="close" size={14} />
+              <CloseGlyph size={14} />
             </button>
           ) : null}
         </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, HardDrive, Sparkles, Download, Loader2, ExternalLink } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 
 const FALLBACK_VERSION = '1.0.0';
 
@@ -67,11 +68,11 @@ export default function AboutDialog({
             className="absolute top-3 right-3 p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
             aria-label="Close"
           >
-            <X size={16} />
+            <CloseGlyph size={16} />
           </button>
           <div className="absolute bottom-4 left-5 flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-black/30 border border-white/10 flex items-center justify-center shadow-lg">
-              <HardDrive size={24} className="text-sky-400" />
+              <Icons8Icon id="hard_drive_ui" size={24} />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white tracking-tight">BNDZ</h2>
@@ -96,7 +97,7 @@ export default function AboutDialog({
               onClick={() => void checkUpdates()}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-gray-200 transition-colors disabled:opacity-50"
             >
-              {checking ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {checking ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="download" size={14} />}
               Check for updates
             </button>
             {updateInfo && (
@@ -116,7 +117,7 @@ export default function AboutDialog({
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-sky-400 hover:underline"
                       >
-                        Download release <ExternalLink size={11} />
+                        Download release <Icons8Icon id="external_link" size={11} />
                       </a>
                     )}
                   </>
@@ -159,7 +160,7 @@ export default function AboutDialog({
             })}
           </div>
           <div className="flex items-center gap-2 text-[10px] text-violet-300/80 pt-1">
-            <Sparkles size={12} />
+            <Icons8Icon id="sparkles_ui" size={12} />
             <span>© {new Date().getFullYear()} BNDZ. All rights reserved.</span>
           </div>
         </div>

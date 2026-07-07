@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Paintbrush, FolderOpen, Upload, Palette, FolderPlus, X, Search, Copy, Trash2, Check } from 'lucide-react';
+import { Icons8Icon } from '../../Icons8Icon';
+import { CloseGlyph } from '../../ChromeGlyphs';
 import { useIconStudio, type IconItem } from './IconStudioContext';
 import { useAppConfig } from '../../../data/configContext';
 import IconPreviewImage from './IconPreviewImage';
@@ -205,7 +206,7 @@ export default function IconGrid({
                         onClick={(e) => { e.stopPropagation(); removeIcon(activeLibrary!.id, icon.id); }}
                         className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full bg-[#1a1a22] border border-white/10 text-gray-400 hover:text-white hover:bg-rose-600/90 flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-all"
                     >
-                        <X size={11} />
+                        <CloseGlyph size={11} />
                     </button>
                 )}
             </div>
@@ -221,7 +222,7 @@ export default function IconGrid({
                     <div className={styles.header}>
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500/20 to-purple-600/20 flex items-center justify-center ring-1 ring-pink-500/20 shrink-0">
-                                <Palette size={15} className="text-pink-300" />
+                                <Icons8Icon id="palette_ui" size={15} className="text-pink-300" />
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="text-sm font-semibold text-white truncate">{activeLibrary.name}</div>
@@ -231,7 +232,7 @@ export default function IconGrid({
                             </div>
                         </div>
                         <div className="relative shrink-0 w-[160px] mr-2 hidden sm:block">
-                            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                            <Icons8Icon id="search" size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
                             <input
                                 ref={searchRef}
                                 type="text"
@@ -247,13 +248,13 @@ export default function IconGrid({
                             disabled={overlayBusy}
                             className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 px-3 py-1.5 rounded-lg shadow-lg shadow-pink-900/20 transition-all disabled:opacity-50 shrink-0"
                         >
-                            <FolderOpen size={12} /> Import
+                            <Icons8Icon id="folder_open_ui" size={12} /> Import
                         </button>
                     </div>
 
                     <div className="px-3 pb-2 sm:hidden">
                         <div className="relative">
-                            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                            <Icons8Icon id="search" size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
                             <input
                                 type="text"
                                 value={search}
@@ -286,7 +287,7 @@ export default function IconGrid({
 
                         {isDragOver && !overlayBusy && (
                             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none rounded-lg m-2 border border-dashed border-pink-400/40">
-                                <Upload size={36} className="text-pink-400 mb-2" />
+                                <Icons8Icon id="upload" size={36} className="text-pink-400 mb-2" />
                                 <p className="text-sm font-medium text-white">Drop icons here</p>
                             </div>
                         )}
@@ -319,16 +320,16 @@ export default function IconGrid({
                             </div>
                         ) : activeLibrary.icons.length > 0 ? (
                             <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-gray-500 gap-2">
-                                <Search size={24} className="opacity-30" />
+                                <Icons8Icon id="search" size={24} className="opacity-30" />
                                 <p className="text-sm">No icons match &quot;{search.trim()}&quot;</p>
                             </div>
                         ) : (
                             <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-gray-500 gap-3">
-                                <Paintbrush size={28} className="opacity-25" />
+                                <Icons8Icon id="wand_ui" size={28} className="opacity-25" />
                                 <p className="text-sm text-gray-400">This library is empty</p>
                                 <p className="text-[11px] text-gray-600 max-w-[240px] text-center">Drop .ico / .png files here or import a folder</p>
                                 <button type="button" onClick={importLibraryFromFolder} className="mt-1 flex items-center gap-2 px-4 py-2 rounded-lg bg-pink-600/15 border border-pink-500/25 text-pink-300 text-xs font-semibold hover:bg-pink-600/25 transition-colors">
-                                    <FolderOpen size={14} /> Import icons
+                                    <Icons8Icon id="folder_open_ui" size={14} /> Import icons
                                 </button>
                             </div>
                         )}
@@ -341,14 +342,14 @@ export default function IconGrid({
                     onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
                     onDragLeave={() => setIsDragOver(false)}
                 >
-                    <Palette size={40} className="opacity-20" />
+                    <Icons8Icon id="palette_ui" size={40} className="opacity-20" />
                     <p className="text-center text-sm text-gray-400 max-w-[280px]">Create or import a library to get started</p>
                     <div className="flex gap-2">
                         <button type="button" onClick={() => createLibrary('My Icons')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 bg-white/5 text-gray-200 text-xs font-semibold hover:bg-white/10">
-                            <FolderPlus size={14} /> New library
+                            <Icons8Icon id="folder_plus_ui" size={14} /> New library
                         </button>
                         <button type="button" onClick={importLibraryFromFolder} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-pink-600/80 to-purple-600/80 text-white text-xs font-semibold">
-                            <FolderOpen size={14} /> Import folder
+                            <Icons8Icon id="folder_open_ui" size={14} /> Import folder
                         </button>
                     </div>
                 </div>
@@ -366,7 +367,7 @@ export default function IconGrid({
                         disabled={!selectedItems.length}
                         onClick={() => { void runApply(ctxMenu.icon); setCtxMenu(null); }}
                     >
-                        <Check size={12} /> Apply to selection
+                        <Icons8Icon id="check" size={12} /> Apply to selection
                     </button>
                     <button
                         type="button"
@@ -377,7 +378,7 @@ export default function IconGrid({
                             setCtxMenu(null);
                         }}
                     >
-                        <Copy size={12} /> Copy icon path
+                        <Icons8Icon id="copy" size={12} /> Copy icon path
                     </button>
                     <button
                         type="button"
@@ -387,7 +388,7 @@ export default function IconGrid({
                             setCtxMenu(null);
                         }}
                     >
-                        <Trash2 size={12} /> Remove from library
+                        <Icons8Icon id="trash_ui" size={12} /> Remove from library
                     </button>
                 </div>
             )}

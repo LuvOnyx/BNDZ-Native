@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { CheckCircle2, AlertCircle, Info, Loader2, X } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 import type { ToastKind } from './ToastHost';
 import {
   physicsToastAnimator,
@@ -37,14 +38,13 @@ type TimerEntry = {
 };
 
 function ToastIcon({ kind }: { kind: ToastKind }) {
-  const cls = 'w-4 h-4';
   switch (kind) {
-    case 'success': return <CheckCircle2 className={cls} />;
-    case 'error': return <X className={cls} />;
-    case 'warning': return <AlertCircle className={cls} />;
-    case 'info': return <Info className={cls} />;
-    case 'progress': return <Loader2 className={`${cls} bndz-pt-spin`} />;
-    default: return <CheckCircle2 className={cls} />;
+    case 'success': return <Icons8Icon id="check" size={16} />;
+    case 'error': return <Icons8Icon id="close" size={16} />;
+    case 'warning': return <Icons8Icon id="warning" size={16} />;
+    case 'info': return <Icons8Icon id="info_ui" size={16} />;
+    case 'progress': return <Icons8Icon id="loading" size={16} spin />;
+    default: return <Icons8Icon id="check" size={16} />;
   }
 }
 
@@ -377,7 +377,7 @@ export default function PhysicsToastCard({
           requestDismiss();
         }}
       >
-        <X size={12} />
+        <CloseGlyph size={12} />
       </button>
     </button>
   );

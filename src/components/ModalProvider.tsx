@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
+import { ShellNativeIcon } from './ShellNativeIcon';
 import { registerEscapeLayer } from '../lib/globalEscape';
 
 export type ModalAction = {
@@ -9,11 +11,20 @@ export type ModalAction = {
   action: () => void | Promise<void>;
 };
 
+export type ConflictDetails = {
+  opId: string;
+  fileName: string;
+  sourcePath?: string;
+  destPath?: string;
+};
+
 export type ModalConfig = {
   type?: 'destructive' | 'conflict' | 'info' | 'warning';
   title: string;
   message: string;
   actions: ModalAction[];
+  conflict?: ConflictDetails;
+  onConflictResolve?: (resolution: 'replace' | 'keepboth' | 'skip', applyToAll: boolean) => void;
   /** Optional "Don't ask again" checkbox — calls onNeverShowAgain when primary action runs */
   neverShowAgain?: {
     label?: string;
@@ -27,6 +38,97 @@ type ModalContextValue = {
 };
 
 const ModalContext = createContext<ModalContextValue | null>(null);
+
+function FileConflictModal({
+  config,
+  onClose,
+}: {
+  config: ModalConfig;
+  onClose: () => void;
+}) {
+  const c = config.conflict!;
+  const [applyToAll, setApplyToAll] = useState(false);
+  const destFolder = c.destPath?.replace(/[/\\][^/\\]+$/, '').replace(/[/\\]+$/, '') || 'destination folder';
+
+  const resolve = (resolution: 'replace' | 'keepboth' | 'skip') => {
+    onClose();
+    config.onConflictResolve?.(resolution, applyToAll);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[500] flex items-center justify-center p-4"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
+      <div
+        className="relative w-full max-w-[520px] rounded-[var(--bndz-radius-lg)] border border-white/10 shadow-2xl overflow-hidden bg-[#16181f]"
+        role="dialog"
+        aria-modal="true"
+        onMouseDown={e => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3 px-5 py-4 border-b border-white/[0.08] bg-[#1a1d26]">
+          <div className="w-9 h-9 rounded-[var(--bndz-radius-md)] bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
+            <Icons8Icon id="warning" size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[14px] font-semibold text-white">{config.title}</h2>
+            <p className="text-[11px] text-white/45 mt-0.5">Choose what to do with this file.</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1 rounded-[var(--bndz-radius-sm)] text-white/45 hover:text-white hover:bg-white/10" aria-label="Close">
+            <CloseGlyph size={14} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="flex items-center gap-2.5 rounded-[var(--bndz-radius-md)] border border-white/[0.08] bg-black/25 px-3 py-2.5 min-w-0">
+              <ShellNativeIcon path={c.sourcePath || c.fileName} size={22} eager />
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] uppercase tracking-wide text-white/35">Source</div>
+                <div className="text-[12px] font-medium text-white/90 truncate">{c.fileName}</div>
+                {c.sourcePath && <div className="text-[10px] text-white/40 truncate">{c.sourcePath}</div>}
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5 rounded-[var(--bndz-radius-md)] border border-white/[0.08] bg-black/25 px-3 py-2.5 min-w-0">
+              <ShellNativeIcon path={c.destPath || c.fileName} size={22} eager />
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] uppercase tracking-wide text-white/35">Destination</div>
+                <div className="text-[12px] font-medium text-white/90 truncate">{c.fileName}</div>
+                <div className="text-[10px] text-white/40 truncate">{destFolder}</div>
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={applyToAll}
+              onChange={e => setApplyToAll(e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-white/20 bg-black/30 accent-sky-500"
+            />
+            <span className="text-[11px] text-white/55">Apply to all conflicts in this operation</span>
+          </label>
+        </div>
+
+        <div className="bg-[#141418] px-5 py-3.5 flex flex-wrap justify-end gap-2 border-t border-white/5">
+          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-[#2a2a30] hover:bg-[#35353d] text-gray-200 border border-[#444]" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-[#2a2a30] hover:bg-[#35353d] text-gray-200 border border-[#444]" onClick={() => resolve('skip')}>
+            Skip
+          </button>
+          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-[#2a2a30] hover:bg-[#35353d] text-gray-200 border border-[#444]" onClick={() => resolve('keepboth')}>
+            Keep both
+          </button>
+          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-sky-600 hover:bg-sky-500 text-white" onClick={() => resolve('replace')}>
+            Replace
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () => void }) {
   const type = config.type || 'info';
@@ -77,7 +179,7 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
             onClick={onClose}
             aria-label="Close"
           >
-            <Icons8Icon id="close" size={14} />
+            <CloseGlyph size={14} />
           </button>
         </div>
 
@@ -154,7 +256,9 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
     <ModalContext.Provider value={{ showModal, closeModal }}>
       {children}
       {modal && typeof document !== 'undefined' && createPortal(
-        <ConfirmModal config={modal} onClose={closeModal} />,
+        modal.type === 'conflict' && modal.conflict
+          ? <FileConflictModal config={modal} onClose={closeModal} />
+          : <ConfirmModal config={modal} onClose={closeModal} />,
         document.body
       )}
     </ModalContext.Provider>

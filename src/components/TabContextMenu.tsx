@@ -11,9 +11,11 @@ interface TabContextMenuProps {
   tabColor?: string;
   canClose: boolean;
   canCloseOthers: boolean;
+  canCloseRight?: boolean;
   onLock: () => void;
   onClose: () => void;
   onCloseOthers: () => void;
+  onCloseRight?: () => void;
   onCloseAll: () => void;
   onDuplicate: () => void;
   onSetColor: (color: string) => void;
@@ -33,9 +35,11 @@ export function TabContextMenu({
   tabColor,
   canClose,
   canCloseOthers,
+  canCloseRight,
   onLock,
   onClose,
   onCloseOthers,
+  onCloseRight,
   onCloseAll,
   onDuplicate,
   onSetColor,
@@ -71,6 +75,12 @@ export function TabContextMenu({
           <Icons8Icon id="dropstack" size={14} className="shrink-0 opacity-80" />
           Close Others
         </button>
+        {onCloseRight && (
+          <button type="button" className={itemClass} disabled={!canCloseRight} onMouseDown={act(onCloseRight)}>
+            <Icons8Icon id="nav_forward" size={14} className="shrink-0 opacity-80" />
+            Close Tabs to the Right
+          </button>
+        )}
         <button type="button" className={itemClass} onMouseDown={act(onCloseAll)}>
           <Icons8Icon id="close" size={14} className="shrink-0 opacity-80" />
           Close All

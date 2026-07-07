@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph, MinimizeGlyph } from './ChromeGlyphs';
 import { usePluginRegistry, PluginManifest } from '../data/PluginRegistryContext';
 
 export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
@@ -54,13 +55,13 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                     </div>
                     <div className="flex text-black gap-[1px] justify-center items-center h-full pb-1">
                         <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-                            <Icons8Icon id="minus_ui" size={14} />
+                            <MinimizeGlyph size={14} className="text-black" />
                         </button>
                         <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
                             <span className="inline-block w-[11px] h-[11px] border border-black/70" />
                         </button>
                         <button className="hover:bg-red-500 hover:text-white p-1 rounded-sm flex items-center justify-center transition-colors" onClick={onClose}>
-                            <Icons8Icon id="close" size={14} />
+                            <CloseGlyph size={14} className="text-black" />
                         </button>
                     </div>
                 </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, RefreshCw, Regex, FileText, Braces } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import type { TabState } from './tabTypes';
 import type { AppConfig } from '../data/configContext';
 import type { IndexedSearchScope } from '../lib/globalSearchCall';
@@ -78,13 +78,13 @@ export default function FindingTabToolbar({ tab, config, loading, indexedRoots, 
         </select>
 
         <button type="button" className={toggleClass(useRegex)} onClick={() => onChange({ findingUseRegex: !useRegex })} title="Regex patterns">
-          <Regex size={11} /> Regex
+          <Icons8Icon id="regex_ui" size={11} /> Regex
         </button>
         <button type="button" className={toggleClass(searchContent)} onClick={() => onChange({ findingSearchContent: !searchContent })} title="Search file contents">
-          <FileText size={11} /> Content
+          <Icons8Icon id="file_ui" size={11} /> Content
         </button>
         <button type="button" className={toggleClass(booleanMode)} onClick={() => onChange({ findingBooleanMode: !booleanMode })} title="Boolean query (AND/OR/NOT)">
-          <Braces size={11} /> Boolean
+          <Icons8Icon id="braces_ui" size={11} /> Boolean
         </button>
 
         <button
@@ -93,7 +93,7 @@ export default function FindingTabToolbar({ tab, config, loading, indexedRoots, 
           disabled={loading || !tab.findingQuery?.trim()}
           className="ml-auto flex items-center gap-1 px-2 py-0.5 text-[10px] bg-[#333] hover:bg-[#3d3d3d] border border-[#454545] text-gray-200 disabled:opacity-50"
         >
-          {loading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+          {loading ? <Icons8Icon id="loading" size={11} spin /> : <Icons8Icon id="refresh" size={11} />}
           Refresh
         </button>
       </div>

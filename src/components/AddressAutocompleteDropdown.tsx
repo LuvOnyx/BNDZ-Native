@@ -25,7 +25,11 @@ export default function AddressAutocompleteDropdown({ suggestions, selectedIndex
           onMouseEnter={() => onHover(i)}
           onMouseDown={e => { e.preventDefault(); onSelect(s.path); }}
         >
-          <Icons8Icon id={s.source === 'favorite' ? 'star_ui' : 'clock_ui'} size={11} className="shrink-0" />
+          <Icons8Icon
+            id={s.source === 'favorite' ? 'star_ui' : s.source === 'path' ? 'folder_open_ui' : 'clock_ui'}
+            size={11}
+            className="shrink-0"
+          />
           <span className="font-medium truncate">{s.label}</span>
           <span className="text-gray-500 truncate ml-auto font-mono text-[10px]">{s.path}</span>
         </button>

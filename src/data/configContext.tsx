@@ -61,7 +61,7 @@ export interface AppConfig {
     globalSearchLimit: number;
     syncUseHashing?: boolean;
     syncDefaultDirection?: 'leftToRight' | 'rightToLeft' | 'bidirectional';
-    pinnedFavorites?: Array<{ name: string, path: string, icon: string }>;
+    pinnedFavorites?: Array<{ name: string, path: string, icon: string, label?: string }>;
     /** Default Rapid access paths the user chose to hide (Desktop, Documents, etc.) */
     hiddenRapidAccess?: string[];
     sidebarOrder?: string[];

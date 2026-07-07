@@ -40,6 +40,35 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
         {wastedBytes > 0 && (
           <span className="text-sky-300/90 ml-auto">Up to {formatSize(wastedBytes)} recoverable</span>
         )}
+        {groups.some(g => (g.paths?.length || 0) > 1) && (
+          <button
+            type="button"
+            className="text-[10px] text-sky-400 hover:text-sky-300 px-2 py-0.5 border border-sky-900/50 hover:border-sky-700 ml-1"
+            onClick={() => {
+              const victims = groups.flatMap(g => (g.paths || []).slice(1));
+              if (!victims.length) return;
+              window.dispatchEvent(new CustomEvent('bndz-select-paths', { detail: { paths: victims } }));
+            }}
+            title="Select all duplicate copies in the file list, keeping one per group unselected"
+          >
+            Select all except one per group
+          </button>
+        )}
+        {groups.some(g => (g.paths?.length || 0) > 1) && (
+          <button
+            type="button"
+            className="text-[10px] text-red-400 hover:text-red-300 px-2 py-0.5 border border-red-900/50 hover:border-red-700 ml-1"
+            onClick={() => {
+              const victims = groups.flatMap(g => (g.paths || []).slice(1));
+              if (!victims.length) return;
+              if (!window.confirm(`Delete ${victims.length} duplicate file(s) across all groups? The first copy in each group will be kept.`)) return;
+              void Promise.all(victims.map(p => IPC.executeContextMenuVerb(p, 'delete')));
+            }}
+            title="Delete all duplicates, keeping the first file in each group"
+          >
+            Keep first in all
+          </button>
+        )}
       </div>
       <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto bndz-scrollbar">
         {groups.map((g, gi) => {

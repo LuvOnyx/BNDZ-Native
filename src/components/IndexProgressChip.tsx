@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, Loader2 } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { toWindowsPath } from '../lib/pathUtils';
 
 type Props = {
@@ -20,7 +20,7 @@ export default function IndexProgressChip({ filesIndexed, currentPath, root, err
       title={error || currentPath || root || 'Indexing files'}
       role="status"
     >
-      <Database size={12} className="text-sky-300/90 shrink-0" />
+      <Icons8Icon id="database_ui" size={12} className="shrink-0" />
       {error ? (
         <span className="truncate text-[10px] text-red-300/90 font-medium">Index failed · {error}</span>
       ) : (
@@ -30,7 +30,7 @@ export default function IndexProgressChip({ filesIndexed, currentPath, root, err
           {rootLabel && !file ? <span className="text-white/40 ml-1">· {rootLabel}</span> : null}
         </span>
       )}
-      {!error && <Loader2 size={10} className="text-sky-300/80 animate-spin shrink-0" />}
+      {!error && <Icons8Icon id="loading" size={10} spin className="shrink-0" />}
     </span>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUp, ChevronRight, FolderOpen, HardDrive, Home, X } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 import { IPC } from '../lib/ipcBridge';
 import { ShellNativeIcon } from './ShellNativeIcon';
 import { joinPanePath, normalizePanePath } from '../lib/pathUtils';
@@ -146,7 +147,7 @@ export default function DestinationPickerModal({
             <p className="text-[10px] bndz-destination-muted mt-0.5">Browse or paste a folder path (e.g. C:\Users\Documents)</p>
           </div>
           <button type="button" className="bndz-destination-icon-btn p-1.5 rounded-md" onClick={onCancel} aria-label="Close">
-            <X size={16} />
+            <CloseGlyph size={16} />
           </button>
         </div>
 
@@ -159,7 +160,7 @@ export default function DestinationPickerModal({
               onClick={() => navigateTo('/')}
               onDoubleClick={() => navigateTo('/')}
             >
-              <Home size={14} className="text-sky-400 shrink-0" />
+              <Icons8Icon id="go_home" size={14} className="shrink-0" />
               <span className="truncate font-medium">This PC</span>
             </button>
             {drives.map(d => {
@@ -172,7 +173,7 @@ export default function DestinationPickerModal({
                   onClick={() => navigateTo(drivePath)}
                   onDoubleClick={() => navigateTo(drivePath)}
                 >
-                  <HardDrive size={14} className="text-emerald-400/80 shrink-0" />
+                  <Icons8Icon id="hard_drive_ui" size={14} className="shrink-0" />
                   <span className="truncate">{d.label || d.name.replace(/^\//, '')}</span>
                 </button>
               );
@@ -212,7 +213,7 @@ export default function DestinationPickerModal({
               <div className="flex items-center gap-1 flex-wrap text-[10px] bndz-destination-muted">
                 {crumbs.map((c, i) => (
                   <React.Fragment key={c.path}>
-                    {i > 0 && <ChevronRight size={10} className="opacity-40 shrink-0" />}
+                    {i > 0 && <Icons8Icon id="chevron_right" size={10} className="opacity-40 shrink-0" />}
                     <button
                       type="button"
                       className="hover:text-white truncate max-w-[140px] px-1 py-0.5 rounded bndz-destination-crumb"
@@ -232,7 +233,7 @@ export default function DestinationPickerModal({
                   className="bndz-destination-row w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] mb-1"
                   onClick={goUp}
                 >
-                  <ArrowUp size={14} className="opacity-60" />
+                  <Icons8Icon id="nav_up" size={14} className="opacity-60" />
                   <span>Parent folder</span>
                 </button>
               )}
@@ -240,7 +241,7 @@ export default function DestinationPickerModal({
                 <div className="px-3 py-10 text-center text-[11px] bndz-destination-muted">Loading folders…</div>
               ) : listRows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 bndz-destination-muted gap-2">
-                  <FolderOpen size={28} className="opacity-30" />
+                  <Icons8Icon id="folder_open_ui" size={28} className="opacity-30" />
                   <span className="text-[11px]">No subfolders — select this folder as destination</span>
                 </div>
               ) : (

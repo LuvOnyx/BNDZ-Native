@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, KeyRound, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 import { IPC } from '../lib/ipcBridge';
 import { EMPTY_LICENSE_STATUS } from '../lib/licenseTypes';
 
@@ -64,7 +65,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-emerald-900/30 to-transparent">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-              <KeyRound size={18} className="text-emerald-400" />
+              <Icons8Icon id="key_ui" size={18} />
             </div>
             <div>
               <h2 className="text-[15px] font-bold text-white">Register BNDZ</h2>
@@ -72,14 +73,14 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
             </div>
           </div>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10">
-            <X size={16} />
+            <CloseGlyph size={16} />
           </button>
         </div>
 
         <div className="px-5 py-4 space-y-3">
           {status?.activated ? (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 flex items-start gap-3">
-              <CheckCircle2 size={18} className="text-emerald-400 shrink-0 mt-0.5" />
+              <Icons8Icon id="checksquare_ui" size={18} className="shrink-0 mt-0.5" />
               <div className="text-[12px]">
                 <div className="text-emerald-200 font-semibold">Licensed</div>
                 <div className="text-gray-400 mt-1">{status.name || 'Registered user'}</div>
@@ -127,7 +128,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
 
           {message && (
             <div className={`text-[11px] flex items-center gap-2 ${message.kind === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {message.kind === 'ok' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+              {message.kind === 'ok' ? <Icons8Icon id="check" size={14} /> : <Icons8Icon id="error_ui" size={14} />}
               {message.text}
             </div>
           )}
@@ -159,7 +160,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
                 onClick={activate}
                 className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-[12px] flex items-center gap-2"
               >
-                {busy && <Loader2 size={14} className="animate-spin" />}
+                {busy && <Icons8Icon id="loading" size={14} spin />}
                 Activate
               </button>
             </>

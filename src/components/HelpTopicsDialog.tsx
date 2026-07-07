@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X, BookOpen } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 
 const TOPICS = [
   { title: 'Navigation', body: 'Use the tree, breadcrumbs, and address bar to move between folders. Dual pane mode lets you compare two locations side by side.' },
@@ -26,14 +27,14 @@ export default function HelpTopicsDialog({ onClose }: { onClose: () => void }) {
       >
         <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3 shrink-0">
           <div className="w-9 h-9 rounded-lg bg-sky-500/15 flex items-center justify-center">
-            <BookOpen size={18} className="text-sky-400" />
+            <Icons8Icon id="bookopen_ui" size={18} />
           </div>
           <div className="flex-1">
             <h2 className="text-[15px] font-bold text-white">Help Topics</h2>
             <p className="text-[10px] text-gray-500">Quick guide to BNDZ</p>
           </div>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10">
-            <X size={16} />
+            <CloseGlyph size={16} />
           </button>
         </div>
         <div className="px-5 py-4 space-y-3 overflow-y-auto bndz-scrollbar flex-1">

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HardDrive } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 
 const APP_VERSION = '1.0.0';
 
@@ -30,7 +30,7 @@ export default function LaunchSplash({ onDone }: { onDone: () => void }) {
             className="relative flex flex-col items-center gap-4"
           >
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-500/25 to-violet-600/20 border border-white/10 flex items-center justify-center shadow-2xl shadow-sky-900/30">
-              <HardDrive size={32} className="text-sky-400" />
+              <Icons8Icon id="disk_mgmt" size={32} />
             </div>
             <div className="text-center">
               <h1 className="text-2xl font-bold text-white tracking-tight">BNDZ</h1>

@@ -20,20 +20,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
-import {
-    ArrowLeft, ArrowRight, ArrowUp, Monitor, Scissors, Copy, Clipboard,
-    Trash2, Undo, Redo, RefreshCw, Settings, Wrench, Grid, Save, Plus, Terminal, Activity, Table, FolderPlus, List, Shield, Archive, SquareTerminal, Command, HardDrive,
-    FilePlus, CheckSquare, Combine, Share2, Disc, Network, FileArchive, MousePointerClick, Info, Puzzle,
-    Search, Tag, Wand2, Palette, Layers, Filter, LayoutGrid, FolderSearch,
-    TextCursorInput, Menu, Database, ClipboardCopy, Columns, Eye, PanelBottom, Recycle, FolderInput,
-    Sliders, Cpu, Printer, Flame, Battery, Users, Keyboard, StickyNote, Calculator, Paintbrush, Camera,
-    Globe, Server, Zap, BookOpen, Home, FolderOpen
-} from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 
 export type ToolbarItemDef = {
   id: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; color?: string; fill?: string; className?: string }> | null;
   color?: string;
   isStructure?: boolean;
   category?: string;
@@ -53,85 +44,85 @@ export const TOOLBAR_CATEGORIES = [
 ] as const;
 
 export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
-  { id: 'nav_back', label: 'Back', icon: ArrowLeft, color: '#3b82f6', category: 'navigation' },
-  { id: 'nav_forward', label: 'Forward', icon: ArrowRight, color: '#3b82f6', category: 'navigation' },
-  { id: 'nav_up', label: 'Up One Level', icon: ArrowUp, color: '#10b981', category: 'navigation' },
-  { id: 'go_home', label: 'Go Home', icon: Home, color: '#6db4e6', category: 'navigation' },
-  { id: 'refresh', label: 'Refresh', icon: RefreshCw, color: '#10b981', category: 'navigation' },
-  { id: 'folder_size_sync', label: 'Auto Sync Folder Sizes', icon: FolderSearch, color: '#34d399', category: 'navigation' },
-  { id: 'go_recycle_bin', label: 'Open Recycle Bin', icon: Recycle, color: '#c084fc', category: 'navigation' },
-  { id: 'go_network', label: 'Open Network', icon: Network, color: '#38bdf8', category: 'navigation' },
-  { id: 'new_tab', label: 'New Tab', icon: FolderInput, color: '#fbbf24', category: 'navigation' },
-  { id: 'cut', label: 'Cut', icon: Scissors, color: '#eab308', category: 'clipboard' },
-  { id: 'copy', label: 'Copy', icon: Copy, color: '#3b82f6', category: 'clipboard' },
-  { id: 'paste', label: 'Paste', icon: Clipboard, color: '#eab308', category: 'clipboard' },
-  { id: 'delete', label: 'Delete', icon: Trash2, color: '#ef4444', category: 'clipboard' },
-  { id: 'undo', label: 'Undo', icon: Undo, color: '#3b82f6', category: 'clipboard' },
-  { id: 'redo', label: 'Redo', icon: Redo, color: '#3b82f6', category: 'clipboard' },
-  { id: 'select_all', label: 'Select All', icon: CheckSquare, color: '#3b82f6', category: 'clipboard' },
-  { id: 'invert_selection', label: 'Invert Selection', icon: Combine, color: '#a855f7', category: 'clipboard' },
-  { id: 'copy_path', label: 'Copy Path', icon: ClipboardCopy, color: '#93c5fd', category: 'clipboard' },
-  { id: 'new_folder', label: 'New Folder', icon: FolderPlus, color: '#dcb67a', category: 'files' },
-  { id: 'new_file', label: 'New File', icon: FilePlus, color: '#cbd5e1', category: 'files' },
-  { id: 'compress', label: 'Compress (Zip)', icon: FileArchive, color: '#eab308', category: 'files' },
-  { id: 'extract', label: 'Extract Archive', icon: Archive, color: '#f59e0b', category: 'files' },
-  { id: 'properties', label: 'Properties', icon: Info, color: '#888', category: 'files' },
-  { id: 'sync_folders', label: 'Sync / Compare', icon: RefreshCw, color: '#9333ea', category: 'files' },
-  { id: 'map_network_drive', label: 'Map Network Drive', icon: Network, color: '#10b981', category: 'files' },
-  { id: 'share', label: 'Network Share', icon: Share2, color: '#3b82f6', category: 'files' },
-  { id: 'burn_disc', label: 'Burn to Disc', icon: Disc, color: '#94a3b8', category: 'files' },
-  { id: 'view_details', label: 'Details View', icon: List, color: '#dcb67a', category: 'views' },
-  { id: 'view_grid', label: 'Grid View', icon: LayoutGrid, color: '#a855f7', category: 'views' },
-  { id: 'view_list', label: 'List View', icon: List, color: '#94a3b8', category: 'views' },
-  { id: 'search', label: 'Focus Search', icon: Search, color: '#38bdf8', category: 'views' },
-  { id: 'toggle_dual_pane', label: 'Toggle Dual Pane', icon: Columns, color: '#6db4e6', category: 'views' },
-  { id: 'toggle_preview', label: 'Toggle Preview', icon: Eye, color: '#6db4e6', category: 'views' },
-  { id: 'toggle_bottom', label: 'Toggle Bottom Panel', icon: PanelBottom, color: '#6db4e6', category: 'views' },
-  { id: 'smart_tools', label: 'Smart Tools', icon: Wand2, color: '#f472b6', category: 'plugins' },
-  { id: 'tag_manager', label: 'Tag Manager', icon: Tag, color: '#fbbf24', category: 'plugins' },
-  { id: 'icon_studio', label: 'Icon Studio', icon: Palette, color: '#ec4899', category: 'plugins' },
-  { id: 'find', label: 'Fast Search', icon: Search, color: '#0ea5e9', category: 'plugins' },
-  { id: 'dropstack', label: 'Drop Stack', icon: Layers, color: '#8b5cf6', category: 'plugins' },
-  { id: 'filters', label: 'Visual Filters', icon: Filter, color: '#22d3ee', category: 'plugins' },
-  { id: 'batch_rename', label: 'Batch Rename', icon: TextCursorInput, color: '#fb923c', category: 'plugins' },
-  { id: 'shell_menus', label: 'Shell Menus', icon: Menu, color: '#60a5fa', category: 'plugins' },
-  { id: 'metadata', label: 'Metadata', icon: Database, color: '#2dd4bf', category: 'plugins' },
-  { id: 'storage_cleanup', label: 'Storage Cleanup', icon: HardDrive, color: '#f87171', category: 'plugins' },
-  { id: 'sys_properties', label: 'BNDZ Properties', icon: Layers, color: '#c084fc', category: 'plugins' },
-  { id: 'config', label: 'Configuration', icon: Settings, color: '#888', category: 'plugins' },
-  { id: 'extension_hub', label: 'Extension Hub', icon: Puzzle, color: '#a475d4', category: 'plugins' },
-  { id: 'wrench', label: 'Customize Toolbar', icon: Wrench, color: '#3b82f6', category: 'plugins' },
-  { id: 'cmd', label: 'Command Prompt', icon: SquareTerminal, color: '#eee', category: 'windows' },
-  { id: 'ps', label: 'PowerShell', icon: Terminal, color: '#3b82f6', category: 'windows' },
-  { id: 'terminal_here', label: 'Terminal Here', icon: Command, color: '#4ade80', category: 'windows' },
-  { id: 'taskmgr', label: 'Task Manager', icon: Activity, color: '#10b981', category: 'windows' },
-  { id: 'regedit', label: 'Registry Editor', icon: Grid, color: '#eab308', category: 'windows' },
-  { id: 'control_panel', label: 'Control Panel', icon: Sliders, color: '#38bdf8', category: 'windows' },
-  { id: 'settings_app', label: 'Windows Settings', icon: Settings, color: '#60a5fa', category: 'windows' },
-  { id: 'device_manager', label: 'Device Manager', icon: Cpu, color: '#34d399', category: 'windows' },
-  { id: 'services', label: 'Services', icon: Server, color: '#94a3b8', category: 'windows' },
-  { id: 'event_viewer', label: 'Event Viewer', icon: BookOpen, color: '#f59e0b', category: 'windows' },
-  { id: 'disk_mgmt', label: 'Disk Management', icon: HardDrive, color: '#f87171', category: 'windows' },
-  { id: 'computer_mgmt', label: 'Computer Management', icon: Monitor, color: '#6db4e6', category: 'windows' },
-  { id: 'sysdm_cpl', label: 'System Properties', icon: Info, color: '#c084fc', category: 'windows' },
-  { id: 'network_connections', label: 'Network Connections', icon: Globe, color: '#38bdf8', category: 'windows' },
-  { id: 'printers', label: 'Printers', icon: Printer, color: '#a78bfa', category: 'windows' },
-  { id: 'programs_features', label: 'Programs & Features', icon: Archive, color: '#fb923c', category: 'windows' },
-  { id: 'firewall', label: 'Windows Firewall', icon: Flame, color: '#ef4444', category: 'windows' },
-  { id: 'power_options', label: 'Power Options', icon: Battery, color: '#fbbf24', category: 'windows' },
-  { id: 'user_accounts', label: 'User Accounts', icon: Users, color: '#60a5fa', category: 'windows' },
-  { id: 'msinfo', label: 'System Information', icon: Info, color: '#94a3b8', category: 'windows' },
-  { id: 'dxdiag', label: 'DirectX Diagnostic', icon: Zap, color: '#a855f7', category: 'windows' },
-  { id: 'notepad', label: 'Notepad', icon: StickyNote, color: '#e2e8f0', category: 'windows' },
-  { id: 'calc', label: 'Calculator', icon: Calculator, color: '#38bdf8', category: 'windows' },
-  { id: 'paint', label: 'Paint', icon: Paintbrush, color: '#ec4899', category: 'windows' },
-  { id: 'snipping_tool', label: 'Snipping Tool', icon: Camera, color: '#34d399', category: 'windows' },
-  { id: 'explorer', label: 'File Explorer', icon: FolderOpen, color: '#dcb67a', category: 'windows' },
-  { id: 'magnifier', label: 'Magnifier', icon: Search, color: '#f472b6', category: 'windows' },
-  { id: 'osk', label: 'On-Screen Keyboard', icon: Keyboard, color: '#94a3b8', category: 'windows' },
-  { id: 'separator', label: 'Separator (|)', icon: null, isStructure: true, category: 'structure' },
-  { id: 'spacer', label: 'Spacer', icon: null, isStructure: true, category: 'structure' },
-  { id: 'new_row', label: 'New Row', icon: null, isStructure: true, category: 'structure' },
+  { id: 'nav_back', label: 'Back', color: '#3b82f6', category: 'navigation' },
+  { id: 'nav_forward', label: 'Forward', color: '#3b82f6', category: 'navigation' },
+  { id: 'nav_up', label: 'Up One Level', color: '#10b981', category: 'navigation' },
+  { id: 'go_home', label: 'Go Home', color: '#6db4e6', category: 'navigation' },
+  { id: 'refresh', label: 'Refresh', color: '#10b981', category: 'navigation' },
+  { id: 'folder_size_sync', label: 'Auto Sync Folder Sizes', color: '#34d399', category: 'navigation' },
+  { id: 'go_recycle_bin', label: 'Open Recycle Bin', color: '#c084fc', category: 'navigation' },
+  { id: 'go_network', label: 'Open Network', color: '#38bdf8', category: 'navigation' },
+  { id: 'new_tab', label: 'New Tab', color: '#fbbf24', category: 'navigation' },
+  { id: 'cut', label: 'Cut', color: '#eab308', category: 'clipboard' },
+  { id: 'copy', label: 'Copy', color: '#3b82f6', category: 'clipboard' },
+  { id: 'paste', label: 'Paste', color: '#eab308', category: 'clipboard' },
+  { id: 'delete', label: 'Delete', color: '#ef4444', category: 'clipboard' },
+  { id: 'undo', label: 'Undo', color: '#3b82f6', category: 'clipboard' },
+  { id: 'redo', label: 'Redo', color: '#3b82f6', category: 'clipboard' },
+  { id: 'select_all', label: 'Select All', color: '#3b82f6', category: 'clipboard' },
+  { id: 'invert_selection', label: 'Invert Selection', color: '#a855f7', category: 'clipboard' },
+  { id: 'copy_path', label: 'Copy Path', color: '#93c5fd', category: 'clipboard' },
+  { id: 'new_folder', label: 'New Folder', color: '#dcb67a', category: 'files' },
+  { id: 'new_file', label: 'New File', color: '#cbd5e1', category: 'files' },
+  { id: 'compress', label: 'Compress (Zip)', color: '#eab308', category: 'files' },
+  { id: 'extract', label: 'Extract Archive', color: '#f59e0b', category: 'files' },
+  { id: 'properties', label: 'Properties', color: '#888', category: 'files' },
+  { id: 'sync_folders', label: 'Sync / Compare', color: '#9333ea', category: 'files' },
+  { id: 'map_network_drive', label: 'Map Network Drive', color: '#10b981', category: 'files' },
+  { id: 'share', label: 'Network Share', color: '#3b82f6', category: 'files' },
+  { id: 'burn_disc', label: 'Burn to Disc', color: '#94a3b8', category: 'files' },
+  { id: 'view_details', label: 'Details View', color: '#dcb67a', category: 'views' },
+  { id: 'view_grid', label: 'Grid View', color: '#a855f7', category: 'views' },
+  { id: 'view_list', label: 'List View', color: '#94a3b8', category: 'views' },
+  { id: 'search', label: 'Focus Search', color: '#38bdf8', category: 'views' },
+  { id: 'toggle_dual_pane', label: 'Toggle Dual Pane', color: '#6db4e6', category: 'views' },
+  { id: 'toggle_preview', label: 'Toggle Preview', color: '#6db4e6', category: 'views' },
+  { id: 'toggle_bottom', label: 'Toggle Bottom Panel', color: '#6db4e6', category: 'views' },
+  { id: 'smart_tools', label: 'Smart Tools', color: '#f472b6', category: 'plugins' },
+  { id: 'tag_manager', label: 'Tag Manager', color: '#fbbf24', category: 'plugins' },
+  { id: 'icon_studio', label: 'Icon Studio', color: '#ec4899', category: 'plugins' },
+  { id: 'find', label: 'Fast Search', color: '#0ea5e9', category: 'plugins' },
+  { id: 'dropstack', label: 'Drop Stack', color: '#8b5cf6', category: 'plugins' },
+  { id: 'filters', label: 'Visual Filters', color: '#22d3ee', category: 'plugins' },
+  { id: 'batch_rename', label: 'Batch Rename', color: '#fb923c', category: 'plugins' },
+  { id: 'shell_menus', label: 'Shell Menus', color: '#60a5fa', category: 'plugins' },
+  { id: 'metadata', label: 'Metadata', color: '#2dd4bf', category: 'plugins' },
+  { id: 'storage_cleanup', label: 'Storage Cleanup', color: '#f87171', category: 'plugins' },
+  { id: 'sys_properties', label: 'BNDZ Properties', color: '#c084fc', category: 'plugins' },
+  { id: 'config', label: 'Configuration', color: '#888', category: 'plugins' },
+  { id: 'extension_hub', label: 'Extension Hub', color: '#a475d4', category: 'plugins' },
+  { id: 'wrench', label: 'Customize Toolbar', color: '#3b82f6', category: 'plugins' },
+  { id: 'cmd', label: 'Command Prompt', color: '#eee', category: 'windows' },
+  { id: 'ps', label: 'PowerShell', color: '#3b82f6', category: 'windows' },
+  { id: 'terminal_here', label: 'Terminal Here', color: '#4ade80', category: 'windows' },
+  { id: 'taskmgr', label: 'Task Manager', color: '#10b981', category: 'windows' },
+  { id: 'regedit', label: 'Registry Editor', color: '#eab308', category: 'windows' },
+  { id: 'control_panel', label: 'Control Panel', color: '#38bdf8', category: 'windows' },
+  { id: 'settings_app', label: 'Windows Settings', color: '#60a5fa', category: 'windows' },
+  { id: 'device_manager', label: 'Device Manager', color: '#34d399', category: 'windows' },
+  { id: 'services', label: 'Services', color: '#94a3b8', category: 'windows' },
+  { id: 'event_viewer', label: 'Event Viewer', color: '#f59e0b', category: 'windows' },
+  { id: 'disk_mgmt', label: 'Disk Management', color: '#f87171', category: 'windows' },
+  { id: 'computer_mgmt', label: 'Computer Management', color: '#6db4e6', category: 'windows' },
+  { id: 'sysdm_cpl', label: 'System Properties', color: '#c084fc', category: 'windows' },
+  { id: 'network_connections', label: 'Network Connections', color: '#38bdf8', category: 'windows' },
+  { id: 'printers', label: 'Printers', color: '#a78bfa', category: 'windows' },
+  { id: 'programs_features', label: 'Programs & Features', color: '#fb923c', category: 'windows' },
+  { id: 'firewall', label: 'Windows Firewall', color: '#ef4444', category: 'windows' },
+  { id: 'power_options', label: 'Power Options', color: '#fbbf24', category: 'windows' },
+  { id: 'user_accounts', label: 'User Accounts', color: '#60a5fa', category: 'windows' },
+  { id: 'msinfo', label: 'System Information', color: '#94a3b8', category: 'windows' },
+  { id: 'dxdiag', label: 'DirectX Diagnostic', color: '#a855f7', category: 'windows' },
+  { id: 'notepad', label: 'Notepad', color: '#e2e8f0', category: 'windows' },
+  { id: 'calc', label: 'Calculator', color: '#38bdf8', category: 'windows' },
+  { id: 'paint', label: 'Paint', color: '#ec4899', category: 'windows' },
+  { id: 'snipping_tool', label: 'Snipping Tool', color: '#34d399', category: 'windows' },
+  { id: 'explorer', label: 'File Explorer', color: '#dcb67a', category: 'windows' },
+  { id: 'magnifier', label: 'Magnifier', color: '#f472b6', category: 'windows' },
+  { id: 'osk', label: 'On-Screen Keyboard', color: '#94a3b8', category: 'windows' },
+  { id: 'separator', label: 'Separator (|)', isStructure: true, category: 'structure' },
+  { id: 'spacer', label: 'Spacer', isStructure: true, category: 'structure' },
+  { id: 'new_row', label: 'New Row', isStructure: true, category: 'structure' },
 ];
 
 export function resolveToolbarItem(id: string, tags?: Array<{ id?: string; name?: string; label?: string; color?: string }>): ToolbarItemDef | undefined {
@@ -139,7 +130,7 @@ export function resolveToolbarItem(id: string, tags?: Array<{ id?: string; name?
     const tagId = id.slice(5);
     const tag = tags?.find(t => (t.id || t.name) === tagId);
     if (tag) {
-      return { id, label: `Tag: ${tag.label || tag.name}`, icon: Tag, color: tag.color || '#fbbf24', category: 'tags' };
+      return { id, label: `Tag: ${tag.label || tag.name}`, color: tag.color || '#fbbf24', category: 'tags' };
     }
   }
   return AVAILABLE_ITEMS.find(i => i.id === id);
@@ -149,7 +140,6 @@ export function buildTagToolbarItems(tags: Array<{ id?: string; name?: string; l
   return (tags || []).map(t => ({
     id: `tag__${tagChipId(t)}`,
     label: `Apply ${t.label || t.name}`,
-    icon: Tag,
     color: t.color || '#fbbf24',
     category: 'tags',
   }));
@@ -158,7 +148,7 @@ export function buildTagToolbarItems(tags: Array<{ id?: string; name?: string; l
 const TOOLBAR_ZONE = 'toolbar-zone';
 const TRASH_ZONE = 'trash-zone';
 
-const ListItemIcon = ({ item }: { item: any }) => {
+const ListItemIcon = ({ item }: { item: ToolbarItemDef }) => {
   if (item.isStructure) {
     return <div className="w-5 text-center text-[#888] font-mono font-bold text-xs">{(item.id === 'separator' ? '|' : item.id === 'spacer' ? '< >' : '---')}</div>;
   }
@@ -166,7 +156,7 @@ const ListItemIcon = ({ item }: { item: any }) => {
   if (png) {
     return <img src={png} alt="" className="w-4 h-4 object-contain" draggable={false} />;
   }
-  return item.icon ? <item.icon size={16} color={item.color || '#ccc'} fill={item.color || "none"} className="drop-shadow-md" /> : null;
+  return <Icons8Icon id="puzzle_ui" size={16} />;
 };
 
 function PaletteDraggable({ item, onAdd }: { item: typeof AVAILABLE_ITEMS[0]; onAdd: () => void }) {
@@ -189,7 +179,7 @@ function PaletteDraggable({ item, onAdd }: { item: typeof AVAILABLE_ITEMS[0]; on
         </div>
         <span className="text-sm truncate">{item.label}</span>
       </div>
-      <Plus size={14} className="text-[#3b82f6] opacity-60 group-hover:opacity-100 shrink-0" />
+      <Icons8Icon id="plus_ui" size={14} className="text-[#3b82f6] opacity-60 group-hover:opacity-100 shrink-0" />
     </button>
   );
 }
@@ -243,12 +233,15 @@ function SortableItem(props: any) {
       );
   }
 
-  const Icon = itemDef.icon || Plus;
-  const [imgError, setImgError] = React.useState(false);
+  const png = launcherIconUrl(itemDef.id);
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="p-1.5 hover:bg-[#444] rounded cursor-move group relative flex items-center justify-center h-8 w-8 mx-0.5">
-       <Icon size={18} color={itemDef.color || '#ccc'} fill={itemDef.color || "none"} className="drop-shadow-md" />
+       {png ? (
+         <img src={png} alt="" className="w-[18px] h-[18px] object-contain" draggable={false} />
+       ) : (
+         <Icons8Icon id="tag_manager" size={18} />
+       )}
     </div>
   );
 }
@@ -333,7 +326,7 @@ export default function ToolbarConfigurator({
             <div className="bg-gradient-to-br from-[#1c1c22] to-[#141418] border border-white/10 shadow-2xl rounded-2xl w-full max-w-6xl flex flex-col max-h-[88vh] overflow-hidden">
                 <div className="px-5 py-4 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-[#252530]/90 to-[#1a1a22]/90 rounded-t-2xl">
                     <div>
-                        <h2 className="text-lg font-bold flex items-center gap-2"><Wrench size={18} className="text-sky-400"/> Toolbar Designer</h2>
+                        <h2 className="text-lg font-bold flex items-center gap-2"><Icons8Icon id="wrench" size={18} className="text-sky-400"/> Toolbar Designer</h2>
                         <p className="text-[11px] text-gray-500 mt-0.5">Drag commands onto the preview bar · {allPaletteItems.length} available</p>
                     </div>
                     <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors">✕</button>
@@ -389,7 +382,7 @@ export default function ToolbarConfigurator({
                                 <button className="text-xs bg-[#2a2a32] hover:bg-[#35353f] border border-[#555] px-2.5 py-1.5 rounded-lg transition-colors" onClick={handleAddNewProfile}>+ New profile</button>
                             </div>
                             <button onClick={handleSave} className="flex items-center gap-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg shadow-sky-900/30 transition-all">
-                                <Save size={14} /> Save toolbar
+                                <Icons8Icon id="check" size={14} /> Save toolbar
                             </button>
                         </div>
                         <div className="flex-1 p-5 relative flex flex-col min-h-0">

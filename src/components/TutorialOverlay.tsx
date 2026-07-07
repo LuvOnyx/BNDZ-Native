@@ -1,21 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  X, ChevronRight, Sparkles, FolderTree, Search, Columns, Puzzle, Star,
-} from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 import { useAppConfig } from '../data/configContext';
 
 const TUTORIAL_STEPS = [
   {
     id: 'welcome',
-    icon: Sparkles,
+    iconId: 'sparkles_ui',
     color: '#a475d4',
     title: 'Welcome to BNDZ',
     body: 'A fast, modern file manager built for Windows. This quick tour highlights the essentials — you can replay it anytime from View → Show tutorial.',
   },
   {
     id: 'sidebar',
-    icon: FolderTree,
+    iconId: 'category_ui',
     color: '#34d399',
     title: 'Navigation tree',
     body: 'Use Home, Gallery, Recycle Bin, Rapid access, This PC, and Network in the sidebar. Pin folders to Rapid access from the right-click menu.',
@@ -23,7 +22,7 @@ const TUTORIAL_STEPS = [
   },
   {
     id: 'search',
-    icon: Search,
+    iconId: 'search',
     color: '#fbbf24',
     title: 'Global search',
     body: 'Type > followed by a filename in the filter bar for instant Everything-powered search across your PC.',
@@ -31,7 +30,7 @@ const TUTORIAL_STEPS = [
   },
   {
     id: 'dualpane',
-    icon: Columns,
+    iconId: 'columns_ui',
     color: '#38bdf8',
     title: 'Dual pane & views',
     body: 'Open View → Dual Pane for side-by-side browsing. Switch between Details, Grid, and List views from the toolbar.',
@@ -39,7 +38,7 @@ const TUTORIAL_STEPS = [
   },
   {
     id: 'plugins',
-    icon: Puzzle,
+    iconId: 'puzzle_ui',
     color: '#c084fc',
     title: 'Plugins & extensions',
     body: 'Open the bottom panel for Icon Studio, Fast Search, Storage Cleanup, and more. Use the puzzle icon for the Extension Hub.',
@@ -47,7 +46,7 @@ const TUTORIAL_STEPS = [
   },
   {
     id: 'rapid',
-    icon: Star,
+    iconId: 'star_ui',
     color: '#6dc2b8',
     title: 'Rapid access',
     body: 'Right-click any folder and choose Pin to Rapid access. Your pins appear in the sidebar and under Rapid access in the tree.',
@@ -176,7 +175,6 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
   const step = TUTORIAL_STEPS[stepIndex];
   const anchorRect = useTutorialAnchor(step?.anchor, visible && !!step?.anchor);
   const isLast = stepIndex >= TUTORIAL_STEPS.length - 1;
-  const StepIcon = step?.icon ?? Sparkles;
 
   const dismiss = (opts: { completed?: boolean; neverShow?: boolean }) => {
     if (opts.neverShow) updateConfig({ tutorialNeverShow: true, tutorialCompleted: true });
@@ -229,7 +227,7 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
                   className="p-3 rounded-xl shrink-0"
                   style={{ backgroundColor: `${step.color}22`, border: `1px solid ${step.color}44` }}
                 >
-                  <StepIcon size={22} style={{ color: step.color }} />
+                  <Icons8Icon id={step.iconId} size={22} />
                 </motion.div>
                 <button
                   type="button"
@@ -237,7 +235,7 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
                   className="text-gray-500 hover:text-gray-300 p-1 rounded transition-colors"
                   title="Cancel"
                 >
-                  <X size={16} />
+                  <CloseGlyph size={16} />
                 </button>
               </div>
 
@@ -288,7 +286,7 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
                     className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-bold text-white bg-sky-600 hover:bg-sky-500 rounded-md transition-colors shadow-lg shadow-sky-900/30"
                   >
                     {isLast ? 'Get started' : 'Next'}
-                    {!isLast && <ChevronRight size={14} />}
+                    {!isLast && <Icons8Icon id="chevron_right" size={14} />}
                   </button>
                 </div>
               </div>
@@ -299,4 +297,3 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
     </AnimatePresence>
   );
 }
-

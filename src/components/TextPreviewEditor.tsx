@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Save, RotateCcw, ExternalLink, FileText, Eye, Edit3 } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { toWindowsPath } from '../lib/pathUtils';
@@ -84,7 +84,7 @@ export default function TextPreviewEditor({
     <div className="w-full h-full flex flex-col bg-[#1e1e1e] min-h-0">
       <div className="shrink-0 flex items-center justify-between gap-2 px-2 py-1.5 border-b border-[#333] bg-[#252526]">
         <div className="flex items-center gap-1.5 min-w-0">
-          <FileText size={13} className="text-amber-400 shrink-0" />
+          <Icons8Icon id="file_ui" size={13} className="shrink-0" />
           <span className="text-[10px] text-gray-400 truncate font-mono">{fileName}</span>
           {dirty && <span className="text-[9px] text-amber-500 font-bold">●</span>}
         </div>
@@ -97,7 +97,7 @@ export default function TextPreviewEditor({
                 onClick={() => setMode(m => (m === 'edit' ? 'view' : 'edit'))}
                 className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white"
               >
-                {mode === 'edit' ? <Eye size={13} /> : <Edit3 size={13} />}
+                {mode === 'edit' ? <Icons8Icon id="eye_ui" size={13} /> : <Icons8Icon id="pencil_ui" size={13} />}
               </button>
               <button
                 type="button"
@@ -106,7 +106,7 @@ export default function TextPreviewEditor({
                 onClick={() => { setContent(initialContent); setDirty(false); }}
                 className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white disabled:opacity-30"
               >
-                <RotateCcw size={13} />
+                <Icons8Icon id="reset_ui" size={13} />
               </button>
               <button
                 type="button"
@@ -115,7 +115,7 @@ export default function TextPreviewEditor({
                 onClick={() => void save()}
                 className="p-1.5 hover:bg-[#333] rounded text-sky-400 hover:text-sky-300 disabled:opacity-30"
               >
-                <Save size={13} />
+                <Icons8Icon id="check" size={13} />
               </button>
             </>
           )}
@@ -125,7 +125,7 @@ export default function TextPreviewEditor({
             onClick={openExternal}
             className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white"
           >
-            <ExternalLink size={13} />
+            <Icons8Icon id="external_link" size={13} />
           </button>
         </div>
       </div>

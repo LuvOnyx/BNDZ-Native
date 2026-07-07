@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppConfig } from '../data/configContext';
-import { Settings } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 
 export default function ContextMenuConfiguratorTab() {
     const { config, updateConfig } = useAppConfig();
@@ -15,7 +15,7 @@ export default function ContextMenuConfiguratorTab() {
              </div>
 
              <div className="flex flex-col gap-4 border border-[#333] p-4 rounded-md bg-[#171717]">
-                 <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Settings size={14} className="text-sky-400"/> System Injections</h2>
+                 <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Icons8Icon id="config" size={14} className="text-sky-400"/> System Injections</h2>
                  
                  <label className="flex items-center gap-3 text-sm cursor-pointer hover:text-white text-gray-300">
                       <input 

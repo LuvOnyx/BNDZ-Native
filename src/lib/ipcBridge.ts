@@ -6,6 +6,14 @@
 import { nativeCall, dedupeInFlight } from './ipcCore';
 import { normalizePanePath } from './pathUtils';
 import { EMPTY_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
+import { entityHasTag } from './tagUtils';
+
+export type TagMetaBatchItem = {
+  path: string;
+  label?: string;
+  comment?: string;
+  tags: string[];
+};
 
 export type { LicenseStatus };
 
@@ -1286,6 +1294,30 @@ export const IPC = {
       (window as any).chrome.webview.postMessage({ type: 'SET_TAG_META', payload: { path, label, comment, tags } });
     }
     return Promise.resolve();
+  },
+
+  /** Persist tag metadata for many paths in one backend round-trip. */
+  setTagMetaBatchItems(items: TagMetaBatchItem[]): Promise<void> {
+    if (!items.length) return Promise.resolve();
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'SET_TAG_META_BATCH', payload: { items } });
+    }
+    return Promise.resolve();
+  },
+
+  /** Add or remove a single tag key across many paths (fetches sidecars in parallel). */
+  async setTagMetaBatch(paths: string[], tagKey: string, add: boolean): Promise<void> {
+    if (!paths.length || !tagKey) return;
+    const sidecars = await Promise.all(paths.map(p => this.getTagSidecar(p)));
+    const items: TagMetaBatchItem[] = paths.map((path, i) => {
+      const side = sidecars[i];
+      const current: string[] = Array.isArray(side?.tags) ? [...side.tags] : [];
+      const tags = add
+        ? (entityHasTag(current, tagKey) ? current : [...current, tagKey])
+        : current.filter(t => !entityHasTag([t], tagKey));
+      return { path, label: side?.label, comment: side?.comment, tags };
+    });
+    return this.setTagMetaBatchItems(items);
   },
 
   listCatalogs(): Promise<any[]> {

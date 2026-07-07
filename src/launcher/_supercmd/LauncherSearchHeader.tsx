@@ -2,7 +2,8 @@
 // BNDZ-adapted implementations live alongside in src/launcher/components/
 // Re-sync: .\scripts\sync-supercmd-launcher-ui.ps1
 import React from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
+import { CloseGlyph } from '../../components/ChromeGlyphs';
 import type { CommandInfo, QuickLinkDynamicField } from '../../types/electron';
 import InlineArgumentField, { InlineArgumentLeadingIcon, InlineArgumentOverflowBadge } from './InlineArgumentField';
 
@@ -215,7 +216,7 @@ const LauncherSearchHeader: React.FC<LauncherSearchHeaderProps> = ({
             onClick={onAskAi}
             className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--soft-pill-bg)] hover:bg-[var(--soft-pill-hover-bg)] transition-colors flex-shrink-0 group"
           >
-            <Sparkles className="w-3 h-3 text-white/30 group-hover:text-purple-400 transition-colors" />
+            <Icons8Icon id="sparkles_ui" size={12} className="text-white/30 group-hover:text-purple-400 transition-colors" />
             <span className="text-[0.6875rem] text-white/30 group-hover:text-white/50 transition-colors">Ask AI</span>
             <kbd className="text-[0.625rem] text-white/20 bg-[var(--soft-pill-bg)] px-1 py-0.5 rounded font-mono leading-none">Tab</kbd>
           </button>
@@ -225,7 +226,7 @@ const LauncherSearchHeader: React.FC<LauncherSearchHeaderProps> = ({
             onClick={onClearSearch}
             className="text-[var(--text-subtle)] hover:text-[var(--text-muted)] transition-colors flex-shrink-0"
           >
-            <X className="w-4 h-4" />
+            <CloseGlyph size={16} />
           </button>
         )}
       </div>

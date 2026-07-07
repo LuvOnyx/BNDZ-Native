@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, RotateCcw } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 
 interface ImageZoomPreviewProps {
   src: string;
@@ -60,11 +60,11 @@ export default function ImageZoomPreview({ src, alt, fallbackSrc, onError }: Ima
       onMouseLeave={onMouseUp}
     >
       <div className="absolute top-2 right-2 z-20 flex gap-1 bg-black/70 rounded-md p-1 border border-white/10">
-        <button type="button" onClick={zoomOut} className="p-1 hover:bg-white/10 rounded" title="Zoom out"><ZoomOut size={14} /></button>
+        <button type="button" onClick={zoomOut} className="p-1 hover:bg-white/10 rounded" title="Zoom out"><Icons8Icon id="zoom_out_ui" size={14} /></button>
         <span className="text-[10px] font-mono text-gray-300 px-1 self-center min-w-[36px] text-center">{Math.round(scale * 100)}%</span>
-        <button type="button" onClick={zoomIn} className="p-1 hover:bg-white/10 rounded" title="Zoom in"><ZoomIn size={14} /></button>
-        <button type="button" onClick={fit} className="p-1 hover:bg-white/10 rounded" title="Fit"><Maximize2 size={14} /></button>
-        <button type="button" onClick={reset} className="p-1 hover:bg-white/10 rounded" title="Reset"><RotateCcw size={14} /></button>
+        <button type="button" onClick={zoomIn} className="p-1 hover:bg-white/10 rounded" title="Zoom in"><Icons8Icon id="zoom_in_ui" size={14} /></button>
+        <button type="button" onClick={fit} className="p-1 hover:bg-white/10 rounded" title="Fit"><Icons8Icon id="maximize_ui" size={14} /></button>
+        <button type="button" onClick={reset} className="p-1 hover:bg-white/10 rounded" title="Reset"><Icons8Icon id="reset_ui" size={14} /></button>
       </div>
       <div className="flex-1 flex items-center justify-center cursor-grab active:cursor-grabbing">
         <img

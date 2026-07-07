@@ -3,7 +3,7 @@
  * Source: spacebot/interface/src/components/portal/PortalComposer.tsx
  */
 import React, { useRef, useState } from 'react';
-import { Paperclip, X, Send, Loader2 } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 
 type Props = {
   agentName?: string;
@@ -80,7 +80,7 @@ export function PortalComposer({
               {p.split(/[/\\]/).pop()}
               {onRemovePath && (
                 <button type="button" onClick={() => onRemovePath(i)} className="text-gray-500 hover:text-white shrink-0">
-                  <X size={10} />
+                  <Icons8Icon id="close" size={10} />
                 </button>
               )}
             </span>
@@ -98,7 +98,7 @@ export function PortalComposer({
           className="p-2 text-gray-500 hover:text-gray-200 shrink-0"
           title="Attach files"
         >
-          <Paperclip size={14} />
+          <Icons8Icon id="link" size={14} />
         </button>
         <input
           ref={fileInputRef}
@@ -134,7 +134,7 @@ export function PortalComposer({
           disabled={disabled || !draft.trim()}
           className="px-3 py-2 bg-[#094771] hover:bg-[#0a5a8c] text-white disabled:opacity-40 flex items-center gap-1 text-[12px] shrink-0"
         >
-          {disabled ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+          {disabled ? <Icons8Icon id="loading" size={13} spin /> : <Icons8Icon id="send" size={13} />}
         </button>
       </form>
     </div>

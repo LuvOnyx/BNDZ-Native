@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import * as pdfjs from 'pdfjs-dist';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -76,24 +76,24 @@ export default function PdfPreviewPanel({ url, title }: PdfPreviewPanelProps) {
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/10 bg-black/20 shrink-0">
         <button type="button" disabled={page <= 1} onClick={() => setPage(p => p - 1)}
           className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-gray-300">
-          <ChevronLeft size={14} />
+          <Icons8Icon id="chevron_left" size={14} />
         </button>
         <span className="text-[10px] text-gray-400 font-mono min-w-[60px] text-center">
           {page} / {totalPages}
         </span>
         <button type="button" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
           className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-gray-300">
-          <ChevronRight size={14} />
+          <Icons8Icon id="chevron_right" size={14} />
         </button>
         <div className="flex-1" />
         <button type="button" onClick={() => setScale(s => Math.max(0.5, s - 0.25))}
           className="p-1 rounded hover:bg-white/10 text-gray-300">
-          <ZoomOut size={14} />
+          <Icons8Icon id="zoom_out_ui" size={14} />
         </button>
         <span className="text-[10px] text-gray-500 font-mono w-8 text-center">{Math.round(scale * 100)}%</span>
         <button type="button" onClick={() => setScale(s => Math.min(3, s + 0.25))}
           className="p-1 rounded hover:bg-white/10 text-gray-300">
-          <ZoomIn size={14} />
+          <Icons8Icon id="zoom_in_ui" size={14} />
         </button>
       </div>
       <div className="flex-1 overflow-auto bndz-scrollbar flex justify-center p-2 bg-[#525252]">

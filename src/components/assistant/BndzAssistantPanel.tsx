@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ExternalLink, Loader2, Download, Pencil, Sparkles } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { isTextEditableExt } from '../../lib/textFileTypes';
@@ -199,7 +199,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
             onClick={() => void downloadModel()}
             className="flex items-center justify-center gap-2 px-3 py-1.5 text-[12px] bg-[#094771] hover:bg-[#0a5a8c] text-white disabled:opacity-50"
           >
-            {modelStatus.downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            {modelStatus.downloading ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="download" size={14} />}
             {modelStatus.downloading ? `Downloading ${modelStatus.progress ?? 0}%` : 'Download model'}
           </button>
         </div>
@@ -208,10 +208,10 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
       {contextPaths.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           <button type="button" onClick={() => runAction('reveal')} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-[#333] border border-[#454545] text-gray-300 hover:text-white">
-            <ExternalLink size={10} /> Reveal
+            <Icons8Icon id="external_link" size={10} /> Reveal
           </button>
           <button type="button" onClick={openBatchRename} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-[#333] border border-[#454545] text-gray-300 hover:text-white">
-            <Pencil size={10} /> Batch rename
+            <Icons8Icon id="pencil_ui" size={10} /> Batch rename
           </button>
           <button type="button" onClick={() => runAction('open')} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-[#333] border border-[#454545] text-gray-300 hover:text-white">
             Open
@@ -256,7 +256,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
         })}
         {busy && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex items-center gap-2 text-[11px] text-gray-400 px-1">
-            <Loader2 size={12} className="animate-spin" />
+            <Icons8Icon id="loading" size={12} spin />
             Reading context…
           </div>
         )}
@@ -281,7 +281,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
 
       {contextPaths.length > 0 && (
         <p className="text-[10px] text-gray-500 font-mono truncate flex items-center gap-1">
-          <Sparkles size={10} className="text-sky-400 shrink-0" />
+          <Icons8Icon id="sparkles_ui" size={10} className="text-sky-400 shrink-0" />
           {contextPaths.length} path(s) in context with metadata
         </p>
       )}

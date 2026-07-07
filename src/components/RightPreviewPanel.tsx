@@ -684,7 +684,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              ))}
           </div>
           <div className="flex gap-0.5">
-             <button type="button" onClick={openInShell} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Open"><Icons8Icon id="external_link" size={12} /></button>
+             <button type="button" onClick={openInShell} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Open"><Icons8Icon id="folder_open_ui" size={12} /></button>
              <button type="button" onClick={copyPath} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Copy path"><Icons8Icon id="copy_path" size={12} /></button>
              <button type="button" onClick={showProperties} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Properties"><Icons8Icon id="sys_properties" size={12} /></button>
           </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { KeyRound, X } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 import { IPC } from '../lib/ipcBridge';
 import type { LicenseStatus } from '../lib/licenseTypes';
 
@@ -20,7 +21,7 @@ export default function LicenseBanner({ onRegister }: { onRegister: () => void }
   return (
     <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-1.5 bg-gradient-to-r from-amber-950/50 via-[#1a1510] to-transparent border-b border-amber-500/20 text-[11px]">
       <div className="flex items-center gap-2 text-amber-200/90 min-w-0">
-        <KeyRound size={13} className="text-amber-400 shrink-0" />
+        <Icons8Icon id="key_ui" size={13} className="shrink-0" />
         <span className="truncate">
           {trialLine}{' '}
           <button type="button" onClick={onRegister} className="text-sky-400 hover:text-sky-300 underline underline-offset-2 font-medium">
@@ -36,7 +37,7 @@ export default function LicenseBanner({ onRegister }: { onRegister: () => void }
           className="p-1 rounded hover:bg-white/5 text-gray-500 hover:text-gray-300 shrink-0"
           aria-label="Dismiss"
         >
-          <X size={12} />
+          <CloseGlyph size={12} />
         </button>
       )}
     </div>

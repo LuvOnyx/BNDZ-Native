@@ -1,5 +1,5 @@
 import React from 'react';
-import { Copy, ExternalLink, FolderOpen, HardDrive } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { formatFsDate } from '../../lib/pathUtils';
 
 type Props = {
@@ -50,17 +50,17 @@ export default function PreviewMetadataStrip({
         <div className="flex items-center gap-1 shrink-0">
           {onOpen && (
             <button type="button" className="bndz-preview-action-btn" onClick={onOpen} title="Open">
-              <ExternalLink size={13} />
+              <Icons8Icon id="external_link" size={13} />
             </button>
           )}
           {onReveal && (
             <button type="button" className="bndz-preview-action-btn" onClick={onReveal} title="Show in folder">
-              {isDirectory ? <FolderOpen size={13} /> : <HardDrive size={13} />}
+              {isDirectory ? <Icons8Icon id="folder_open_ui" size={13} /> : <Icons8Icon id="disk_mgmt" size={13} />}
             </button>
           )}
           {onCopyPath && path && (
             <button type="button" className="bndz-preview-action-btn" onClick={onCopyPath} title="Copy path">
-              <Copy size={13} />
+              <Icons8Icon id="copy_path" size={13} />
             </button>
           )}
         </div>

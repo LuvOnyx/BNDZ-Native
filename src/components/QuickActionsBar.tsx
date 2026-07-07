@@ -5,7 +5,6 @@ import { Icons8Icon } from './Icons8Icon';
 export type QuickAction = {
   id: string;
   label: string;
-  /** Icons8 asset id from toolbarLauncherIcons.ts (e.g. 'copy', 'cut', 'toggle_preview'). */
   icon: string;
   onClick: () => void;
   disabled?: boolean;
@@ -15,10 +14,11 @@ export type QuickAction = {
 type Props = {
   count: number;
   actions: QuickAction[];
+  /** Master settings toggle — when false, bar never renders. */
+  enabled?: boolean;
   /** When false, bar stays hidden even if count > 0 (e.g. during double-click window). */
   visible?: boolean;
-  /** dock = below omnibar in layout flow; float = bottom of file list; overlay = legacy top float */
-  placement?: 'dock' | 'float' | 'overlay';
+  placement?: 'dock';
 };
 
 const accentClass: Record<string, string> = {
@@ -28,34 +28,29 @@ const accentClass: Record<string, string> = {
   emerald: 'hover:bg-emerald-500/15 hover:text-emerald-300 hover:border-emerald-500/30',
 };
 
-/** FilePilot / XYplorer-style selection action strip */
-export default function QuickActionsBar({ count, actions, visible = true, placement = 'dock' }: Props) {
-  const show = visible && count > 0;
-  const isFloat = placement === 'float';
-  const isOverlay = placement === 'overlay';
+/** FilePilot / XYplorer-style selection action strip (docked below omnibar). */
+export default function QuickActionsBar({
+  count,
+  actions,
+  enabled = true,
+  visible = true,
+  placement = 'dock',
+}: Props) {
+  if (!enabled) return null;
+  const show = visible && count > 1;
 
   return (
     <AnimatePresence initial={false}>
       {show && (
         <motion.div
           key="quick-actions"
-          initial={{ opacity: 0, y: isFloat || isOverlay ? 6 : -4 }}
+          initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: isFloat || isOverlay ? 4 : -2 }}
+          exit={{ opacity: 0, y: -2 }}
           transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-          className={
-            isFloat
-              ? 'absolute bottom-2 left-2 right-2 z-30 pointer-events-none bndz-quick-actions-bar'
-              : isOverlay
-                ? 'absolute left-0 right-0 top-full z-40 pointer-events-none bndz-quick-actions-bar'
-                : 'shrink-0 overflow-hidden border-b border-sky-500/15 bndz-quick-actions-bar'
-          }
+          className="shrink-0 overflow-hidden border-b border-sky-500/15 bndz-quick-actions-bar"
         >
-          <div className={`pointer-events-auto bg-gradient-to-r from-[#1a2a42]/97 via-[#162035]/97 to-[#141820]/97 backdrop-blur-md ${
-            placement === 'dock'
-              ? 'border-b border-sky-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-              : 'rounded-[var(--bndz-radius-md)] border border-sky-500/20 shadow-[0_8px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.06)] mx-2 my-1 backdrop-blur-md'
-          }`}>
+          <div className="pointer-events-auto bg-gradient-to-r from-[#1a2a42]/97 via-[#162035]/97 to-[#141820]/97 backdrop-blur-md border-b border-sky-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-hidden">
               <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300/95 shrink-0 mr-1">
                 {count} selected

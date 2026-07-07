@@ -4,7 +4,7 @@
  */
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag as TagIcon } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import { resolveTagKey } from '../../lib/tagUtils';
 
 export type TagPaletteItem = {
@@ -66,7 +66,7 @@ export default function TagAssignmentMode({
         className="sd-tag-assignment-mode absolute bottom-2 left-2 right-2 z-50 border border-[#454545] bg-[#2a2a2a]/95 backdrop-blur-sm rounded-md shadow-lg p-3"
       >
         <div className="flex items-center gap-2 mb-2">
-          <TagIcon size={14} className="text-sky-400" />
+          <Icons8Icon id="tag_manager" size={14} className="text-sky-400" />
           <span className="text-[11px] font-bold uppercase tracking-wide text-gray-200">Tag mode</span>
           {selectedCount > 0 && (
             <span className="text-[10px] text-gray-500">

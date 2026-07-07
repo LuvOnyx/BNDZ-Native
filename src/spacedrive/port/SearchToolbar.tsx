@@ -3,7 +3,7 @@
  * Source: spacedrive/packages/interface/src/routes/explorer/SearchToolbar.tsx
  */
 import React from 'react';
-import { X, Filter } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 
 export type SearchScope = 'folder' | 'location' | 'library';
 export type SearchKindFilter = 'all' | 'files' | 'folders' | 'media';
@@ -52,7 +52,7 @@ export function SearchToolbar({ scope, onScopeChange, onClear, showFilters, kind
       </div>
       {showFilters && onKindFilterChange && (
         <div className="flex items-center gap-0.5 ml-2 border-l border-[#454545] pl-2">
-          <Filter size={12} className="text-gray-500 mr-0.5" />
+          <Icons8Icon id="filter_ui" size={12} className="text-gray-500 mr-0.5" />
           {KIND_FILTERS.map(f => (
             <button
               key={f.id}
@@ -75,7 +75,7 @@ export function SearchToolbar({ scope, onScopeChange, onClear, showFilters, kind
           onClick={onClear}
           className="ml-auto flex items-center gap-1 px-2 py-0.5 text-[11px] text-gray-400 hover:text-red-300"
         >
-          <X size={12} />
+          <Icons8Icon id="close" size={12} />
           Clear search
         </button>
       )}

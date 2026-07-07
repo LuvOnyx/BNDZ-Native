@@ -1,6 +1,5 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import type { LucideIcon } from 'lucide-react';
 import { ContextMenuIcon } from './ContextMenuIcon';
 import { Icons8Icon } from './Icons8Icon';
 
@@ -21,7 +20,7 @@ export function runMenuAction(handler: (e: React.MouseEvent) => void | Promise<v
 
 interface ContextSubmenuProps {
   label: string;
-  icon?: LucideIcon;
+  iconId?: string;
   iconVerb?: string;
   groupClass?: string;
   children: React.ReactNode;
@@ -32,7 +31,7 @@ interface ContextSubmenuProps {
 /** Hover-open submenu — CSS group-hover is unreliable in WebView2. */
 export function ContextSubmenu({
   label,
-  icon: Icon,
+  iconId,
   iconVerb,
   children,
   showChevron = true,
@@ -93,7 +92,7 @@ export function ContextSubmenu({
     >
       <div className={`${menuItemClass} justify-between ${open ? 'bndz-context-menu-item-active' : ''}`}>
         <span className="flex items-center gap-2.5">
-          {Icon ? <Icon size={14} className="shrink-0 bndz-context-menu-icon" /> : iconVerb ? <ContextMenuIcon verb={iconVerb} /> : null}
+          {iconId ? <Icons8Icon id={iconId} size={14} className="shrink-0 bndz-context-menu-icon" /> : iconVerb ? <ContextMenuIcon verb={iconVerb} /> : null}
           {label}
         </span>
         {showChevron && <Icons8Icon id="chevron_right" size={12} className={`opacity-70 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />}
@@ -119,7 +118,7 @@ export function ContextSubmenu({
 interface ContextMenuItemProps {
   label: string;
   verb?: string;
-  icon?: LucideIcon;
+  iconId?: string;
   iconNode?: React.ReactNode;
   iconVerb?: string;
   trailing?: React.ReactNode;
@@ -131,7 +130,7 @@ interface ContextMenuItemProps {
 export const ContextMenuItem = React.memo(function ContextMenuItem({
   label,
   verb,
-  icon: Icon,
+  iconId,
   iconNode,
   iconVerb,
   trailing,
@@ -145,7 +144,7 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
       className={`${menuItemClass} ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}
       onClick={disabled || !onClick ? undefined : runMenuAction(onClick)}
     >
-      {iconNode ?? (Icon ? <Icon size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />)}
+      {iconNode ?? (iconId ? <Icons8Icon id={iconId} size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />)}
       <span className="flex-1">{label}</span>
       {trailing ? <span className="text-sky-300/80 text-[10px] shrink-0">{trailing}</span> : null}
     </div>

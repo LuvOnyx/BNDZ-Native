@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Tag, Plus, Trash2, Pencil, Folder, File, Sparkles } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
+import { ShellNativeIcon } from './ShellNativeIcon';
 
 const PRESET_COLORS = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#A855F7', '#EC4899', '#6B7280'];
 
@@ -109,7 +111,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
           <div className="px-6 py-4 border-b border-[#2a2a2a] bg-gradient-to-r from-[#1a1030] via-[#141414] to-[#0f1a28] flex justify-between items-center shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-pink-600/20 border border-pink-500/30 flex items-center justify-center">
-                <Tag size={18} className="text-pink-400" />
+                <Icons8Icon id="tag_manager" size={18} />
               </div>
               <div>
                 <h2 className="text-base font-bold text-white tracking-tight">Tag Manager</h2>
@@ -117,7 +119,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
               </div>
             </div>
             <button onClick={onClose} className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-[#222]">
-              <X size={18} />
+              <CloseGlyph size={18} />
             </button>
           </div>
 
@@ -133,7 +135,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
                     className="flex-1 bg-[#0a0a0a] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-pink-500/60"
                   />
                   <button onClick={addTag} className="px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-sm font-semibold flex items-center gap-1 shrink-0">
-                    <Plus size={14} /> Add
+                    <Icons8Icon id="plus_ui" size={14} /> Add
                   </button>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
@@ -180,20 +182,20 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
                         className="p-1.5 rounded hover:bg-[#333] text-gray-400 hover:text-white"
                         onClick={() => { setEditingId(tag.name); setEditLabel(tag.label); }}
                       >
-                        <Pencil size={12} />
+                        <Icons8Icon id="pencil_ui" size={12} />
                       </button>
                       <button
                         className="p-1.5 rounded hover:bg-red-950/50 text-gray-400 hover:text-red-400"
                         onClick={() => removeTag(tag.name)}
                       >
-                        <Trash2 size={12} />
+                        <Icons8Icon id="trash_ui" size={12} />
                       </button>
                     </div>
                   </div>
                 ))}
                 {tags.length === 0 && (
                   <div className="text-center text-gray-600 text-xs py-8">
-                    <Sparkles size={20} className="mx-auto mb-2 opacity-40" />
+                    <Icons8Icon id="sparkles_ui" size={20} className="mx-auto mb-2 opacity-40" />
                     Create your first tag above
                   </div>
                 )}
@@ -210,7 +212,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
                 )}
                 {filteredItems.map(item => (
                   <div key={item.path} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] text-[11px] font-mono">
-                    {item.isDir ? <Folder size={12} className="text-[#dcb67a] shrink-0" /> : <File size={12} className="text-gray-400 shrink-0" />}
+                    <ShellNativeIcon path={item.path} isDir={item.isDir} size={12} eager />
                     <span className="flex-1 truncate text-gray-300">{item.name}</span>
                     <div className="flex gap-1 shrink-0">
                       {item.tags.map(t => {

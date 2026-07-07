@@ -129,7 +129,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   defaultNameToCurrentFolderTxt: false,
   defaultToRepeatActionOnCollisions: false,
   defaultToTreeLikeSortOrder: false,
-  delayBeforeADraggedOverTabIsAutoSelected: 450,
+  delayBeforeADraggedOverTabIsAutoSelected: 250,
   delayBeforeFilterIsApplied: false,
   deleteOnKeyUp: false,
   deleteToRecycleBin: false,
@@ -370,6 +370,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   showCustomFileIcons: false,
   showDimensionsOfOriginal: false,
   showDragStatusBox: false,
+  showQuickActionsBar: false,
   showEmbeddedIconsOnPropertiesTab: false,
   showFileExtensions: false,
   showFileIconOnThumbnail: false,
@@ -511,6 +512,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   zoomToFill: false,
   zoomToFit: false,
   recentFiles: [] as string[],
+  findSearchHistory: [] as string[],
 };
 
 /** Non-boolean defaults the dialog expects as numbers/strings */

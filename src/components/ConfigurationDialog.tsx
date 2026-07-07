@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph, MinimizeGlyph } from './ChromeGlyphs';
 import { useAppConfig } from '../data/configContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Checkbox } from './ui/checkbox';
@@ -116,13 +117,13 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
          </div>
          <div className="flex text-black gap-[1px] justify-center items-center h-full pb-1">
             <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-              <Icons8Icon id="minus_ui" size={14} />
+              <MinimizeGlyph size={14} className="text-black" />
             </button>
             <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
               <span className="inline-block w-[11px] h-[11px] border border-black/70" />
             </button>
             <button className="hover:bg-red-500 hover:text-white p-1 rounded-sm flex items-center justify-center transition-colors" onClick={onClose}>
-              <Icons8Icon id="close" size={14} />
+              <CloseGlyph size={14} className="text-black" />
             </button>
          </div>
       </div>
@@ -1711,8 +1712,8 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                  <div className="flex items-center gap-2 ml-[20px]">
                     <div className="flex items-center gap-2">
                        <input type="number" 
-                          value={localConfig.delayBeforeADraggedOverTabIsAutoSelected ?? 1000} 
-                          onChange={(e) => updateLocalConfig({delayBeforeADraggedOverTabIsAutoSelected: parseInt(e.target.value) || 1000})} 
+                          value={localConfig.delayBeforeADraggedOverTabIsAutoSelected ?? 250} 
+                          onChange={(e) => updateLocalConfig({delayBeforeADraggedOverTabIsAutoSelected: parseInt(e.target.value) || 250})} 
                           className="w-[50px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-center outline-none disabled:opacity-50"
                           disabled={!localConfig.autoSelectTabsOnDragOver}
                        />
@@ -1720,7 +1721,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                     </div>
                  </div>
                  <div className="ml-[20px]">
-                    <Checkbox label={<span>Also auto-select tabs in the <span className="underline decoration-1 underline-offset-[3px]">i</span>nactive pane</span>} checked={localConfig.alsoAutoSelectTabsInTheInactivePane ?? false} onChange={e => updateLocalConfig({ alsoAutoSelectTabsInTheInactivePane: e.target.checked })} disabled={!localConfig.autoSelectTabsOnDragOver} />
+                    <Checkbox label={<span>Also auto-select tabs in the <span className="underline decoration-1 underline-offset-[3px]">i</span>nactive pane</span>} checked={localConfig.alsoAutoSelectTabsInTheInactivePane ?? true} onChange={e => updateLocalConfig({ alsoAutoSelectTabsInTheInactivePane: e.target.checked })} disabled={!localConfig.autoSelectTabsOnDragOver} />
                  </div>
                  <Checkbox label={<span>A<span className="underline decoration-1 underline-offset-[3px]">d</span>d tabs via drag and drop on tab bar</span>} checked={localConfig.addTabsViaDragAndDropOnTabBar ?? false} onChange={e => updateLocalConfig({ addTabsViaDragAndDropOnTabBar: e.target.checked })} />
               </div>

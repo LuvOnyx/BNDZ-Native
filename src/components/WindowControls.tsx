@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph, MaximizeGlyph, MinimizeGlyph } from './ChromeGlyphs';
 import { IPC } from '../lib/ipcBridge';
 
 export default function WindowControls() {
@@ -31,7 +31,7 @@ export default function WindowControls() {
         onClick={() => IPC.windowChrome('minimize')}
         className="w-11 h-full flex items-center justify-center text-gray-400 hover:bg-[#333] hover:text-white transition-colors"
       >
-        <Icons8Icon id="minus_ui" size={14} />
+        <MinimizeGlyph size={14} />
       </button>
       <button
         type="button"
@@ -40,14 +40,7 @@ export default function WindowControls() {
         onClick={() => IPC.windowChrome('maximize')}
         className="w-11 h-full flex items-center justify-center text-gray-400 hover:bg-[#333] hover:text-white transition-colors"
       >
-        {maximized ? (
-          <span className="relative inline-block w-[11px] h-[11px]">
-            <span className="absolute right-0 top-0 w-[8px] h-[8px] border border-current" />
-            <span className="absolute left-0 bottom-0 w-[8px] h-[8px] border border-current bg-[#252526]" />
-          </span>
-        ) : (
-          <span className="inline-block w-[11px] h-[11px] border border-current" />
-        )}
+        <MaximizeGlyph restored={maximized} bg="#252526" />
       </button>
       <button
         type="button"
@@ -56,7 +49,7 @@ export default function WindowControls() {
         onClick={() => IPC.windowChrome('close')}
         className="w-11 h-full flex items-center justify-center text-gray-400 hover:bg-[#e81123] hover:text-white transition-colors"
       >
-        <Icons8Icon id="close" size={14} />
+        <CloseGlyph size={14} />
       </button>
     </div>
   );

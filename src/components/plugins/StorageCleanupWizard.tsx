@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  ArrowLeft, ArrowRight, CheckCircle2, ChevronRight, Copy, FolderInput,
-  FolderOpen, HardDrive, Loader2, MapPin, Shield, Sparkles, Trash2, X,
-} from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
+import { CloseGlyph } from '../ChromeGlyphs';
 import { IPC } from '../../lib/ipcBridge';
 import {
   ORGANIZE_BUCKETS,
@@ -217,7 +215,7 @@ export default function StorageCleanupWizard({
 
   const title = mode === 'organize' ? 'Smart Organize Wizard' : 'Storage Cleanup Wizard';
   const accent = mode === 'organize' ? '#34d399' : '#a78bfa';
-  const Icon = mode === 'organize' ? FolderInput : Copy;
+  const headerIconId = mode === 'organize' ? 'folder_plus_ui' : 'copy';
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col bg-[#09090d]/98 backdrop-blur-sm" data-testid="storage-cleanup-wizard">
@@ -227,7 +225,7 @@ export default function StorageCleanupWizard({
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
           style={{ background: `${accent}18`, borderColor: `${accent}40` }}
         >
-          <Icon size={18} style={{ color: accent }} />
+          <Icons8Icon id={headerIconId} size={18} />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-[14px] font-bold text-white tracking-tight">{title}</h2>
@@ -242,7 +240,7 @@ export default function StorageCleanupWizard({
           className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40"
           aria-label="Close wizard"
         >
-          <X size={16} />
+          <CloseGlyph size={16} />
         </button>
       </div>
 
@@ -253,11 +251,11 @@ export default function StorageCleanupWizard({
           const done = stepIndex > i || step === 'done';
           return (
             <React.Fragment key={s}>
-              {i > 0 && <ChevronRight size={12} className="text-gray-700 shrink-0" />}
+              {i > 0 && <Icons8Icon id="chevron_right" size={12} className="text-gray-700 shrink-0" />}
               <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
                 active ? 'bg-white/10 text-white' : done ? 'text-emerald-500/80' : 'text-gray-600'
               }`}>
-                {done && !active ? <CheckCircle2 size={11} /> : <span className="w-4 text-center">{i + 1}</span>}
+                {done && !active ? <Icons8Icon id="check" size={11} /> : <span className="w-4 text-center">{i + 1}</span>}
                 {stepLabel(s, mode)}
               </div>
             </React.Fragment>
@@ -272,7 +270,7 @@ export default function StorageCleanupWizard({
             <motion.div key="folder" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-xl mx-auto space-y-5">
               <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#14141a] to-[#0e0e14] p-6">
                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-4">
-                  <MapPin size={13} style={{ color: accent }} />
+                  <Icons8Icon id="pin_ui" size={13} />
                   Target folder
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-black/40 px-4 py-3 font-mono text-[12px] text-gray-300 min-h-[44px] flex items-center break-all">
@@ -285,7 +283,7 @@ export default function StorageCleanupWizard({
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all"
                     style={{ background: `${accent}22`, border: `1px solid ${accent}44`, color: accent }}
                   >
-                    <FolderOpen size={14} />
+                    <Icons8Icon id="folder_open_ui" size={14} />
                     Browse…
                   </button>
                   {initialFolderPanePath && (
@@ -349,7 +347,7 @@ export default function StorageCleanupWizard({
 
           {step === 'analyze' && (
             <motion.div key="analyze" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-20 gap-4">
-              <Loader2 size={36} className="animate-spin" style={{ color: accent }} />
+              <Icons8Icon id="loading" size={36} spin />
               <p className="text-[13px] text-gray-400">
                 {mode === 'organize' ? 'Building organization plan…' : 'Scanning for duplicate files…'}
               </p>
@@ -374,7 +372,7 @@ export default function StorageCleanupWizard({
                   <div className="text-[13px] font-bold text-emerald-200">{organizePlan.length} files will be organized</div>
                   <div className="text-[11px] text-gray-500 mt-1 font-mono truncate max-w-md">{folderWin}</div>
                 </div>
-                <Sparkles size={20} className="text-emerald-500/50" />
+                <Icons8Icon id="sparkles_ui" size={20} className="text-emerald-500/50" />
               </div>
               {Object.entries(organizeByBucket).sort((a, b) => b[1].length - a[1].length).map(([bucket, entries]) => {
                 const cfg = ORGANIZE_BUCKETS[bucket];
@@ -389,7 +387,7 @@ export default function StorageCleanupWizard({
                       {entries.slice(0, 24).map(e => (
                         <div key={e.file} className="px-4 py-2 flex items-center gap-2 text-[11px]">
                           <span className="text-gray-300 truncate flex-1">{e.name}</span>
-                          <ArrowRight size={10} className="text-gray-600 shrink-0" />
+                          <Icons8Icon id="arrow_right_ui" size={10} className="text-gray-600 shrink-0" />
                           <span className="text-gray-500 shrink-0">{bucket}\</span>
                         </div>
                       ))}
@@ -414,7 +412,7 @@ export default function StorageCleanupWizard({
                     Reclaim ~{formatStorageSize(totalReclaimable)} · {dupPreview.length} groups
                   </div>
                 </div>
-                <Shield size={20} className="text-violet-500/50" />
+                <Icons8Icon id="shield_ui" size={20} className="text-violet-500/50" />
               </div>
               <div className="space-y-3 max-h-[360px] overflow-y-auto bndz-scrollbar pr-1">
                 {dupPreview.map(group => (
@@ -425,7 +423,7 @@ export default function StorageCleanupWizard({
                     <div className="text-[10px] text-emerald-400/90 mb-1">Keep: {group.keepPath}</div>
                     {group.deletePaths.map(p => (
                       <div key={p} className="text-[10px] text-rose-400/80 font-mono truncate flex items-center gap-1">
-                        <Trash2 size={9} className="shrink-0" /> {p}
+                        <Icons8Icon id="trash_ui" size={9} className="shrink-0" /> {p}
                       </div>
                     ))}
                   </div>
@@ -437,9 +435,9 @@ export default function StorageCleanupWizard({
           {step === 'done' && (
             <motion.div key="done" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-16 gap-4 max-w-md mx-auto text-center">
               {resultOk ? (
-                <CheckCircle2 size={48} className="text-emerald-400" />
+                <Icons8Icon id="check" size={48} className="text-emerald-400" />
               ) : (
-                <X size={48} className="text-amber-400" />
+                <Icons8Icon id="error_ui" size={48} className="text-amber-400" />
               )}
               <p className={`text-[14px] font-medium ${resultOk ? 'text-emerald-200' : 'text-amber-200'}`}>{resultMessage}</p>
             </motion.div>
@@ -459,7 +457,7 @@ export default function StorageCleanupWizard({
           disabled={executing || analyzing}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-gray-400 text-[11px] font-bold uppercase tracking-wider hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-40"
         >
-          <ArrowLeft size={13} />
+          <Icons8Icon id="chevron_left" size={13} />
           {step === 'preview' ? 'Back' : step === 'done' ? 'Close' : 'Cancel'}
         </button>
 
@@ -472,7 +470,7 @@ export default function StorageCleanupWizard({
               className="flex items-center gap-2 px-5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-white transition-all disabled:opacity-40"
               style={{ background: `linear-gradient(135deg, ${accent}cc, ${accent}88)` }}
             >
-              {analyzing ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+              {analyzing ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="arrow_right_ui" size={14} />}
               Continue
             </button>
           )}
@@ -485,7 +483,7 @@ export default function StorageCleanupWizard({
                 mode === 'cleanup' ? 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500' : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500'
               }`}
             >
-              {executing ? <Loader2 size={14} className="animate-spin" /> : mode === 'cleanup' ? <Trash2 size={14} /> : <CheckCircle2 size={14} />}
+              {executing ? <Icons8Icon id="loading" size={14} spin /> : mode === 'cleanup' ? <Icons8Icon id="trash_ui" size={14} /> : <Icons8Icon id="check" size={14} />}
               {executing ? 'Working…' : mode === 'cleanup' ? `Delete ${totalDeleteCount} duplicates` : `Organize ${organizePlan.length} files`}
             </button>
           )}

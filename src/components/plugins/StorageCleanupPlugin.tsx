@@ -1,10 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  HardDrive, Trash2, FolderSearch, Sparkles, Loader2, PieChart, ArrowRight,
-  Copy, FolderInput, CheckCircle2, X, FileStack, Zap, Eye,
-  ChevronDown, ChevronRight, Shield, Wand2,
-} from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { StorageUsageBar } from '../StorageUsageBar';
 import PluginPanelShell from './PluginPanelShell';
@@ -29,8 +25,8 @@ export const StorageCleanupPluginDef = {
 
 type TabId = 'overview' | 'duplicates' | 'organize';
 
-function StatCard({ label, value, sub, icon: Icon, accent }: {
-  label: string; value: string; sub?: string; icon: React.ElementType; accent: string;
+function StatCard({ label, value, sub, iconId, accent }: {
+  label: string; value: string; sub?: string; iconId: string; accent: string;
 }) {
   return (
     <motion.div
@@ -38,7 +34,7 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
       className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#18181f] to-[#101014] p-4 relative overflow-hidden"
     >
       <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl opacity-20" style={{ background: accent }} />
-      <Icon size={16} style={{ color: accent }} className="mb-2.5" />
+      <Icons8Icon id={iconId} size={16} className="mb-2.5" />
       <div className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">{label}</div>
       <div className="text-xl font-bold text-white mt-1 tracking-tight">{value}</div>
       {sub && <div className="text-[10px] text-gray-500 mt-1">{sub}</div>}
@@ -188,10 +184,10 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
     }
   };
 
-  const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
-    { id: 'overview', label: 'Overview', icon: PieChart },
-    { id: 'duplicates', label: 'Duplicates', icon: Copy },
-    { id: 'organize', label: 'Smart Organize', icon: FolderInput },
+  const tabs: { id: TabId; label: string; icon: string }[] = [
+    { id: 'overview', label: 'Overview', icon: 'piechart_ui' },
+    { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
+    { id: 'organize', label: 'Smart Organize', icon: 'folder_plus_ui' },
   ];
 
   const folderLabel = currentPath?.split('/').filter(Boolean).pop() || 'This PC';
@@ -214,7 +210,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                 activeTab === t.id ? 'bg-emerald-600/35 text-emerald-200' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              <t.icon size={11} />
+              <Icons8Icon id={t.icon} size={11} />
               {t.label}
             </button>
           ))}
@@ -237,7 +233,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
               <div className="rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-950/20 to-[#0e0e14] p-5 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <div className="text-[13px] font-bold text-white flex items-center gap-2">
-                    <Wand2 size={16} className="text-sky-400" />
+                    <Icons8Icon id="wand_ui" size={16} className="text-sky-400" />
                     Guided workflows
                   </div>
                   <p className="text-[11px] text-gray-500 mt-1 max-w-md">
@@ -250,14 +246,14 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     onClick={() => openWizard('cleanup')}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/35 border border-violet-500/30 text-violet-200 text-[10px] font-bold uppercase tracking-wider transition-all"
                   >
-                    <Copy size={13} /> Cleanup Wizard
+                    <Icons8Icon id="copy" size={13} /> Cleanup Wizard
                   </button>
                   <button
                     type="button"
                     onClick={() => openWizard('organize')}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-200 text-[10px] font-bold uppercase tracking-wider transition-all"
                   >
-                    <FolderInput size={13} /> Organize Wizard
+                    <Icons8Icon id="folder_plus_ui" size={13} /> Organize Wizard
                   </button>
                 </div>
               </div>
@@ -270,21 +266,21 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                   disabled={scanning}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold uppercase tracking-wider transition-all disabled:opacity-50"
                 >
-                  {scanning ? <Loader2 size={13} className="animate-spin" /> : <FolderSearch size={13} />}
+                  {scanning ? <Icons8Icon id="loading" size={13} spin /> : <Icons8Icon id="file_search_ui" size={13} />}
                   Deep Scan
                 </button>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                <StatCard label="Largest item" value={largeCandidates[0] ? formatStorageSize(largeCandidates[0].computedSize) : '—'} sub={largeCandidates[0]?.name} icon={Zap} accent="#f43f5e" />
-                <StatCard label="Tracked bulk" value={formatStorageSize(totalVisible)} sub={`${largeCandidates.length} items`} icon={HardDrive} accent="#38bdf8" />
-                <StatCard label="Duplicate waste" value={dupGroups.length ? formatStorageSize(duplicateWaste) : '—'} sub={dupGroups.length ? `${dupGroups.length} groups` : 'Use cleanup wizard'} icon={Copy} accent="#a78bfa" />
+                <StatCard label="Largest item" value={largeCandidates[0] ? formatStorageSize(largeCandidates[0].computedSize) : '—'} sub={largeCandidates[0]?.name} iconId="zap_ui" accent="#f43f5e" />
+                <StatCard label="Tracked bulk" value={formatStorageSize(totalVisible)} sub={`${largeCandidates.length} items`} iconId="hard_drive_ui" accent="#38bdf8" />
+                <StatCard label="Duplicate waste" value={dupGroups.length ? formatStorageSize(duplicateWaste) : '—'} sub={dupGroups.length ? `${dupGroups.length} groups` : 'Use cleanup wizard'} iconId="copy" accent="#a78bfa" />
               </div>
 
               {typeBreakdown.length > 0 && (
                 <div className="rounded-2xl border border-white/[0.06] bg-[#111116] p-4">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                    <FileStack size={13} className="text-sky-400" /> File type breakdown
+                    <Icons8Icon id="layers_ui" size={13} className="text-sky-400" /> File type breakdown
                   </div>
                   <div className="space-y-2.5">
                     {typeBreakdown.map(([bucket, size]) => {
@@ -313,7 +309,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                 </div>
                 {largeCandidates.length === 0 ? (
                   <div className="p-10 text-center">
-                    <HardDrive size={32} className="mx-auto mb-3 text-gray-700" />
+                    <Icons8Icon id="hard_drive_ui" size={32} className="mx-auto mb-3 text-gray-700" />
                     <p className="text-gray-500 text-xs">Open a folder with content, then run Deep Scan.</p>
                   </div>
                 ) : (
@@ -326,14 +322,14 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors group text-left"
                       >
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.type === 'directory' ? 'bg-amber-500/12 text-amber-400' : 'bg-sky-500/12 text-sky-400'}`}>
-                          {item.type === 'directory' ? <HardDrive size={15} /> : <PieChart size={15} />}
+                          {item.type === 'directory' ? <Icons8Icon id="hard_drive_ui" size={15} /> : <Icons8Icon id="piechart_ui" size={15} />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-[12px] font-medium truncate text-gray-200">{item.name}</div>
                           <StorageUsageBar usedPct={(item.computedSize / maxItemSize) * 100} height={4} className="mt-1.5 max-w-[200px]" />
                         </div>
                         <div className="text-[12px] font-mono text-emerald-400 shrink-0">{formatStorageSize(item.computedSize)}</div>
-                        <ArrowRight size={12} className="text-gray-700 group-hover:text-sky-400 shrink-0 transition-colors" />
+                        <Icons8Icon id="arrow_right_ui" size={12} className="text-gray-700 group-hover:text-sky-400 shrink-0 transition-colors" />
                       </button>
                     ))}
                   </div>
@@ -354,7 +350,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                   onClick={() => openWizard('cleanup')}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600/30 hover:bg-violet-600/45 border border-violet-500/40 text-violet-100 text-[10px] font-bold uppercase tracking-wider"
                 >
-                  <Eye size={13} /> Open Cleanup Wizard
+                  <Icons8Icon id="eye_ui" size={13} /> Open Cleanup Wizard
                 </button>
               </div>
 
@@ -390,7 +386,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     disabled={dupScanning}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600/25 hover:bg-violet-600/40 border border-violet-500/35 text-violet-200 text-[11px] font-bold uppercase tracking-wider disabled:opacity-50 transition-all"
                   >
-                    {dupScanning ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />}
+                    {dupScanning ? <Icons8Icon id="loading" size={13} spin /> : <Icons8Icon id="copy" size={13} />}
                     Quick scan (current folder)
                   </button>
                 </div>
@@ -414,13 +410,13 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                   <div className="text-[12px] text-emerald-200">
                     <strong>{dupGroups.length}</strong> duplicate groups · reclaim up to <strong>{formatStorageSize(duplicateWaste)}</strong>
                   </div>
-                  <Shield size={16} className="text-emerald-500/60" />
+                  <Icons8Icon id="shield_ui" size={16} className="text-emerald-500/60" />
                 </div>
               )}
 
               {!dupScanning && dupGroups.length === 0 && !dupProgress && (
                 <div className="py-12 text-center">
-                  <Copy size={36} className="mx-auto mb-4 text-gray-700" />
+                  <Icons8Icon id="copy" size={36} className="mx-auto mb-4 text-gray-700" />
                   <p className="text-gray-500 text-sm">Use the Cleanup Wizard to pick any folder and preview before deleting.</p>
                 </div>
               )}
@@ -436,7 +432,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                         className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors text-left"
                         onClick={() => setExpandedDup(expanded ? null : group.hash)}
                       >
-                        {expanded ? <ChevronDown size={14} className="text-gray-500" /> : <ChevronRight size={14} className="text-gray-500" />}
+                        {expanded ? <Icons8Icon id="chevron_down" size={14} className="text-gray-500" /> : <Icons8Icon id="chevron_right" size={14} className="text-gray-500" />}
                         <div className="flex-1 min-w-0">
                           <div className="text-[12px] font-semibold text-gray-200">{group.paths.length} identical copies</div>
                           <div className="text-[10px] text-gray-500">{formatStorageSize(group.size)} each · {formatStorageSize(waste)} recoverable</div>
@@ -447,7 +443,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                           onClick={e => { e.stopPropagation(); void deleteDuplicateExtras(group); }}
                           className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/35 border border-rose-500/30 text-rose-300 text-[10px] font-bold uppercase tracking-wide disabled:opacity-50 flex items-center gap-1.5"
                         >
-                          {deletingDupes === group.hash ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                          {deletingDupes === group.hash ? <Icons8Icon id="loading" size={11} spin /> : <Icons8Icon id="trash_ui" size={11} />}
                           Keep 1, delete rest
                         </button>
                       </button>
@@ -478,7 +474,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
               <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#14141a] to-[#0e0e14] p-6">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
-                    <FolderInput size={22} className="text-emerald-400" />
+                    <Icons8Icon id="folder_plus_ui" size={22} className="text-emerald-400" />
                   </div>
                   <div className="flex-1">
                     <div className="text-[15px] font-bold text-white">Smart Organize Wizard</div>
@@ -498,7 +494,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                       onClick={() => openWizard('organize')}
                       className="mt-5 flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600/40 to-teal-600/30 hover:from-emerald-600/55 border border-emerald-500/40 text-emerald-100 text-[11px] font-bold uppercase tracking-wider transition-all"
                     >
-                      <Wand2 size={14} />
+                      <Icons8Icon id="wand_ui" size={14} />
                       Start Organize Wizard
                     </button>
                   </div>

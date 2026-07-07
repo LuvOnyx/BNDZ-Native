@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
+import { CloseGlyph } from '../ChromeGlyphs';
 import { FSEntity } from '../../types';
 import { toWindowsPath, toVirtualStreamUrl } from '../../lib/pathUtils';
 import { isImageExt, isVideoExt, isAudioExt } from '../../lib/mediaTypes';
@@ -149,7 +150,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     if (isPdf) return <PdfPreviewPanel url={virtualUrl} title={current.entity.name} />;
     if (isDocx) {
       return (
-        <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500"><Loader2 className="animate-spin" size={24} /></div>}>
+        <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500"><Icons8Icon id="loading" size={24} spin /></div>}>
           <DocxPreviewPanel url={virtualUrl} title={current.entity.name} />
         </Suspense>
       );
@@ -158,7 +159,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     if (contentLoading) {
       return (
         <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
-          <Loader2 className="animate-spin" size={20} />
+          <Icons8Icon id="loading" size={20} spin />
           <span className="text-[12px]">Loading preview…</span>
         </div>
       );
@@ -224,17 +225,17 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
             <div className="bndz-quick-preview-toolbar">
               <div className="flex items-center gap-1">
                 <button type="button" className="bndz-quick-preview-nav" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)}>
-                  <ChevronLeft size={16} />
+                  <Icons8Icon id="chevron_left" size={16} />
                 </button>
                 <button type="button" className="bndz-quick-preview-nav" disabled={!hasNext} onClick={() => onIndexChange(index + 1)}>
-                  <ChevronRight size={16} />
+                  <Icons8Icon id="chevron_right" size={16} />
                 </button>
                 {items.length > 1 && (
                   <span className="text-[11px] text-[#9ca3af] ml-2">{index + 1} / {items.length}</span>
                 )}
               </div>
               <button type="button" className="bndz-quick-preview-nav" onClick={onClose} title="Close (Esc)">
-                <X size={16} />
+                <CloseGlyph size={16} />
               </button>
             </div>
 

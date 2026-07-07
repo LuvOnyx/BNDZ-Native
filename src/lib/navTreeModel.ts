@@ -1,11 +1,10 @@
-import type { LucideIcon } from 'lucide-react';
-
 export interface NavTreeSourceNode {
   label: string;
   path?: string;
   /** Override path used only for native shell icon fetch */
   iconPath?: string;
-  icon?: LucideIcon;
+  /** Icons8 launcher icon id from toolbarLauncherIcons */
+  icon?: string;
   iconColor?: string;
   isDynamic?: boolean;
   useShellIcon?: boolean;
@@ -34,7 +33,7 @@ export interface FlatNavRow {
   depth: number;
   path?: string;
   iconPath?: string;
-  icon?: LucideIcon;
+  icon?: string;
   iconColor?: string;
   isDynamic?: boolean;
   useShellIcon?: boolean;

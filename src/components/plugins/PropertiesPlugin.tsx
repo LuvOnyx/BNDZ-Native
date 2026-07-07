@@ -1,8 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import {
-    Check, Settings, Loader2, Key, AlertCircle, Copy, ExternalLink, FolderOpen,
-    Layers, Shield, Tag, Save,
-} from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import { FSEntity } from '../../types';
 import { toWindowsPath, normalizePanePath, isRecycleBinPath } from '../../lib/pathUtils';
@@ -221,6 +218,11 @@ export default function PropertiesPlugin({
         runIpc(IPC => IPC.executeContextMenuVerb(shellPath, 'properties'));
     };
 
+    const openWindowsSecurity = () => {
+        if (!targetPath) return;
+        runIpc(IPC => IPC.shellExecute('properties', targetPath));
+    };
+
     const toggleAttribute = (attr: string) => {
         if (!fileDetails || !targetPath) return;
         const newAttributes = { ...fileDetails.attributes, [attr]: !fileDetails.attributes[attr] };
@@ -273,7 +275,7 @@ export default function PropertiesPlugin({
                 subtitle="No selection"
             >
                 <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-gray-500 gap-3 p-6 select-none">
-                    <Layers size={40} className="opacity-20 text-sky-400" />
+                    <Icons8Icon id="layers_ui" size={40} className="opacity-20 text-sky-400" />
                     <p className="text-xs text-center max-w-[260px] leading-relaxed">
                         Select items to inspect properties, attributes, hashes, and BNDZ tags.
                     </p>
@@ -346,19 +348,19 @@ export default function PropertiesPlugin({
                 <div className="flex flex-col gap-1.5 shrink-0">
                     {!isMulti && (
                         <button type="button" onClick={openItem} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-sky-600/20 border border-sky-500/30 text-sky-400 rounded hover:bg-sky-600/30 transition-colors">
-                            <ExternalLink size={11} /> Open
+                            <Icons8Icon id="folder_open_ui" size={11} /> Open
                         </button>
                     )}
                     <button type="button" onClick={copyPath} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[#1a1a1a] border border-[#333] text-gray-400 rounded hover:text-white hover:border-[#555] transition-colors">
-                        <Copy size={11} /> {copied ? 'Copied!' : 'Copy Path'}
+                        <Icons8Icon id="copy_path" size={11} /> {copied ? 'Copied!' : 'Copy Path'}
                     </button>
                     {!isMulti && (
                         <>
                             <button type="button" onClick={showInExplorer} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[#1a1a1a] border border-[#333] text-gray-400 rounded hover:text-white hover:border-[#555] transition-colors">
-                                <FolderOpen size={11} /> Reveal
+                                <Icons8Icon id="folder_open_ui" size={11} /> Reveal
                             </button>
                             <button type="button" onClick={showNativeProperties} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[#1a1a1a] border border-[#333] text-gray-400 rounded hover:text-white hover:border-[#555] transition-colors">
-                                <Settings size={11} /> Windows Props
+                                <Icons8Icon id="config" size={11} /> Windows Props
                             </button>
                         </>
                     )}
@@ -385,7 +387,7 @@ export default function PropertiesPlugin({
             <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 min-h-0">
                 {error && (
                     <div className="mb-4 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                        <AlertCircle size={14} /> {error}
+                        <Icons8Icon id="error_ui" size={14} /> {error}
                     </div>
                 )}
 
@@ -394,7 +396,7 @@ export default function PropertiesPlugin({
                         {isMulti ? (
                             <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
                                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">
-                                    <Layers size={13} className="text-purple-400" /> Bulk Selection Summary
+                                    <Icons8Icon id="layers_ui" size={13} className="text-purple-400" /> Bulk Selection Summary
                                 </div>
                                 <div className="grid grid-cols-[120px_1fr] gap-y-2 text-[12px]">
                                     <div className="text-gray-500">Items</div>
@@ -456,7 +458,7 @@ export default function PropertiesPlugin({
                             <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
                                 <div className="flex items-center justify-between gap-2 mb-4">
                                     <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                                        <Tag size={13} className="text-violet-400" /> BNDZ Tags
+                                        <Icons8Icon id="tag_manager" size={13} className="text-violet-400" /> BNDZ Tags
                                     </div>
                                     <button
                                         type="button"
@@ -468,7 +470,7 @@ export default function PropertiesPlugin({
                                                 : 'bg-[#1a1a1a] border-[#333] text-gray-600 cursor-not-allowed'
                                         }`}
                                     >
-                                        {sidecarSaving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                                        {sidecarSaving ? <Icons8Icon id="loading" size={11} spin /> : <Icons8Icon id="check" size={11} />}
                                         Save
                                     </button>
                                 </div>
@@ -533,46 +535,21 @@ export default function PropertiesPlugin({
                 {activeTab === 'security' && !isMulti && (
                     <div className="flex flex-col gap-5 max-w-xl">
                         <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
-                            <div className="flex items-center justify-between gap-2 mb-4">
+                            <div className="flex items-center justify-between gap-2 mb-3">
                                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                                    <Shield size={13} className="text-pink-400" /> Access Control
+                                    <Icons8Icon id="shield_ui" size={13} className="text-pink-400" /> Security
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={showNativeProperties}
-                                    className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold rounded-[var(--bndz-radius-sm)] border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/18 transition-colors"
+                                    onClick={openWindowsSecurity}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-[var(--bndz-radius-sm)] border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/18 transition-colors"
                                 >
-                                    <Key size={11} /> Edit permissions…
+                                    <Icons8Icon id="key_ui" size={11} /> Open Windows Security
                                 </button>
                             </div>
-                            <p className="text-[11px] text-gray-500 mb-3">
-                                Real NTFS permissions for this item (read-only here). To grant or revoke access, use the native Windows Security editor above.
+                            <p className="text-[11px] text-gray-500 leading-relaxed">
+                                NTFS permissions and access control are managed by Windows. Use the button above to open the native Security editor for this item.
                             </p>
-                            <div className="grid grid-cols-3 gap-2 mb-4">
-                                {(['read', 'write', 'execute'] as const).map(type => (
-                                    <div
-                                        key={type}
-                                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border ${
-                                            fileDetails?.acl?.[type]
-                                                ? 'bg-pink-500/10 border-pink-500/60 text-pink-400'
-                                                : 'bg-[#111] border-[#333] text-gray-600'
-                                        }`}
-                                    >
-                                        <Check className={fileDetails?.acl?.[type] ? 'opacity-100' : 'opacity-0'} size={16} />
-                                        <span className="text-[11px] font-bold uppercase">{type}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            {Array.isArray(fileDetails?.aclRules) && fileDetails.aclRules.length > 0 && (
-                                <div className="rounded-lg border border-[#222] bg-[#0a0a0a] p-3 max-h-40 overflow-y-auto">
-                                    <div className="text-[10px] uppercase font-bold tracking-wider text-gray-500 mb-2">NTFS rules</div>
-                                    <ul className="space-y-1">
-                                        {fileDetails.aclRules.map((rule: string, i: number) => (
-                                            <li key={i} className="text-[10px] font-mono text-gray-400 break-all leading-relaxed">{rule}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
                         </div>
                         <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
                             <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">NTFS Attributes</div>
@@ -587,7 +564,7 @@ export default function PropertiesPlugin({
                                         <div className={`w-[14px] h-[14px] rounded border flex items-center justify-center ${
                                             fileDetails?.attributes?.[attr] ? 'bg-sky-500 border-sky-500' : 'border-[#444] group-hover:border-sky-500/50'
                                         }`}>
-                                            {fileDetails?.attributes?.[attr] && <Check size={10} className="text-black" />}
+                                            {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={10} className="text-black" />}
                                         </div>
                                         <span className="text-[12px] font-mono text-gray-300">{attr}</span>
                                     </button>
@@ -600,11 +577,11 @@ export default function PropertiesPlugin({
                 {activeTab === 'hashes' && !isMulti && entity?.type === 'file' && (
                     <div className="bg-[#141414] border border-[#222] rounded-xl p-5 max-w-xl relative">
                         <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">
-                            <Key size={13} className="text-emerald-400" /> Cryptographic Hashes
+                            <Icons8Icon id="key_ui" size={13} className="text-emerald-400" /> Cryptographic Hashes
                         </div>
                         {hash.loading && (
                             <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-sm flex flex-col gap-3 items-center justify-center rounded-xl">
-                                <Loader2 size={24} className="animate-spin text-emerald-500" />
+                                <Icons8Icon id="loading" size={24} spin className="text-emerald-500" />
                                 <div className="text-[10px] uppercase font-bold tracking-widest text-emerald-400">Computing...</div>
                             </div>
                         )}
@@ -619,7 +596,7 @@ export default function PropertiesPlugin({
                                             onClick={() => void copyHash(kind as 'md5' | 'sha256')}
                                             className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider text-emerald-500/80 hover:text-emerald-400 disabled:opacity-30"
                                         >
-                                            <Copy size={11} />
+                                            <Icons8Icon id="copy" size={11} />
                                             {hashCopied === kind ? 'Copied' : 'Copy'}
                                         </button>
                                     </div>

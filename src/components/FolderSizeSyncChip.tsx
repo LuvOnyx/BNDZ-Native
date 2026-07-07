@@ -1,5 +1,6 @@
 import React from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 
 type Props = {
   current: number;
@@ -31,7 +32,7 @@ export default function FolderSizeSyncChip({ current, total, path, percent = 0, 
             strokeDasharray={`${(pct / 100) * 40.8} 40.8`}
           />
         </svg>
-        <Loader2 size={9} className="text-pink-300/90 animate-spin" />
+        <Icons8Icon id="loading" size={9} spin />
       </span>
       <span className="truncate text-[10px] text-pink-100/90 font-medium">
         Syncing sizes <span className="text-pink-300/80">{current}/{total}</span>
@@ -44,7 +45,7 @@ export default function FolderSizeSyncChip({ current, total, path, percent = 0, 
         title="Cancel folder size sync (Esc)"
         aria-label="Cancel folder size sync"
       >
-        <X size={12} />
+        <CloseGlyph size={12} />
       </button>
     </span>
   );

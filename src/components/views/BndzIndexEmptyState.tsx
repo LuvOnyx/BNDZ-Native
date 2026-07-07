@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Database, Loader2 } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 
@@ -50,7 +50,7 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-gray-500 gap-3 px-6 text-center">
-      <Database size={32} className="opacity-40 text-sky-400" />
+      <Icons8Icon id="database_ui" size={32} className="opacity-40 text-sky-400" />
       <span className="text-[13px] text-gray-300 font-medium">{title}</span>
       {hint && <span className="text-[11px] text-gray-500 max-w-md">{hint}</span>}
       <button
@@ -59,7 +59,7 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
         disabled={indexing}
         className="mt-1 flex items-center gap-2 px-4 py-2 text-[12px] bg-[#094771] hover:bg-[#0a5a8c] text-white disabled:opacity-50"
       >
-        {indexing ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+        {indexing ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="database_ui" size={14} />}
         Build search index
       </button>
       {indexing && (

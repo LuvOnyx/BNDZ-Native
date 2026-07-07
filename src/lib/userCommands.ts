@@ -1,6 +1,5 @@
 /** User-defined commands (XYplorer UDC lite) — palette + :: address bar */
 
-import { Zap } from 'lucide-react';
 import type { PaletteAction } from '../components/CommandPalette';
 import type { QuickScriptHandlers } from './addressQuickScripts';
 import { runAddressQuickScript } from './addressQuickScripts';
@@ -55,7 +54,7 @@ export function userCommandsToPalette(
     id: `udc-${cmd.id}`,
     label: cmd.label,
     hint: cmd.hint || `User command · ${cmd.action}`,
-    icon: Zap,
+    icon: 'zap_ui',
     keywords: cmd.keywords,
     onRun: () => {
       if (cmd.action === 'findtab') {

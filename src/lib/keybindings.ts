@@ -31,6 +31,7 @@ export const KEYBINDING_ACTIONS: KeybindingActionDef[] = [
   { id: 'paste', configKey: 'pasteShortcut', label: 'Paste', default: 'Ctrl+V', category: 'Edit' },
   { id: 'undo', configKey: 'undoShortcut', label: 'Undo', default: 'Ctrl+Z', category: 'Edit' },
   { id: 'redo', configKey: 'redoShortcut', label: 'Redo', default: 'Ctrl+Y', category: 'Edit' },
+  { id: 'newFolder', configKey: 'newFolderShortcut', label: 'New folder', default: 'Ctrl+Shift+N', category: 'Edit' },
   { id: 'delete', configKey: 'deleteShortcut', label: 'Delete selection', default: 'Delete', category: 'Edit' },
 ];
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { ShellNativeIcon } from './ShellNativeIcon';
 
 export type ListDragGhostState = {
   x: number;
@@ -8,6 +9,8 @@ export type ListDragGhostState = {
   count: number;
   copy: boolean;
   isDirectory?: boolean;
+  /** Windows path for shell icon preview */
+  previewPath?: string;
 };
 
 type Props = {
@@ -17,7 +20,6 @@ type Props = {
 /** Explorer-style drag image following the cursor during internal list drags. */
 export default function ListDragGhost({ ghost }: Props) {
   if (!ghost) return null;
-  const iconId = ghost.isDirectory ? 'explorer' : 'file_ui';
   return (
     <div
       className="fixed z-[300] pointer-events-none"
@@ -27,12 +29,17 @@ export default function ListDragGhost({ ghost }: Props) {
         className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--bndz-radius-md)] border border-white/15 shadow-xl backdrop-blur-md"
         style={{ background: 'rgba(22, 24, 32, 0.94)' }}
       >
-        <div
-          className={`flex items-center justify-center w-7 h-7 rounded-[var(--bndz-radius-sm)] ${
-            ghost.copy ? 'bg-emerald-500/20 text-emerald-300' : 'bg-sky-500/20 text-sky-300'
-          }`}
-        >
-          <Icons8Icon id={ghost.copy ? 'copy' : iconId} size={14} />
+        <div className="relative flex items-center justify-center w-7 h-7 rounded-[var(--bndz-radius-sm)] bg-black/20">
+          {ghost.previewPath ? (
+            <ShellNativeIcon path={ghost.previewPath} size={22} eager />
+          ) : (
+            <Icons8Icon id={ghost.isDirectory ? 'explorer' : 'file_ui'} size={14} />
+          )}
+          {ghost.copy && (
+            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-600/90 flex items-center justify-center ring-1 ring-black/40">
+              <Icons8Icon id="copy" size={8} />
+            </span>
+          )}
         </div>
         <div className="min-w-0">
           <div className="text-[11px] font-semibold text-white/95 truncate max-w-[200px]">{ghost.label}</div>

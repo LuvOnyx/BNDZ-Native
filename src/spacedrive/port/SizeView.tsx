@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { RotateCcw } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 
 export type SizeViewItem = {
   name: string;
@@ -168,7 +168,7 @@ export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props
     <div ref={containerRef} className="relative w-full h-full min-h-[280px] bg-[#1e1e1e] border border-[#3a3a3a]">
       <div className="absolute top-2 right-2 z-10 flex gap-1">
         <button type="button" onClick={resetZoom} className="p-1 bg-[#333] hover:bg-[#444] rounded text-gray-400" title="Reset zoom">
-          <RotateCcw size={12} />
+          <Icons8Icon id="reset_ui" size={12} />
         </button>
       </div>
       {hover && (

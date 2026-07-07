@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import {
-  Archive, Folder, File, Search, Download, Loader2, AlertCircle,
-  ChevronRight, Home, Upload, FolderOpen, Image as ImageIcon, FileText, GripVertical,
-} from 'lucide-react';
+import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { toWindowsPath, toVirtualStreamUrl } from '../lib/pathUtils';
 import {
   formatArchiveSize,
@@ -19,15 +16,15 @@ interface ArchivePreviewPanelProps {
 }
 
 function entryIcon(entry: ArchiveEntry) {
-  if (entry.isDirectory) return <Folder size={14} className="text-amber-300 shrink-0" />;
+  if (entry.isDirectory) return <Icons8Icon id="explorer" size={14} className="shrink-0" />;
   const ext = entry.name.split('.').pop()?.toLowerCase() || '';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
-    return <ImageIcon size={14} className="text-sky-400 shrink-0" />;
+    return <Icons8Icon id="picture_ui" size={14} className="shrink-0" />;
   }
   if (['txt', 'md', 'html', 'htm', 'json', 'xml', 'css', 'js', 'ts'].includes(ext)) {
-    return <FileText size={14} className="text-emerald-400 shrink-0" />;
+    return <Icons8Icon id="file_ui" size={14} className="shrink-0" />;
   }
-  return <File size={14} className="text-slate-400 shrink-0" />;
+  return <Icons8Icon id="file_ui" size={14} className="shrink-0" />;
 }
 
 export default function ArchivePreviewPanel({ path, format, onExtract }: ArchivePreviewPanelProps) {
@@ -208,7 +205,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         <div className="flex items-center gap-2 px-3 py-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-600/20 flex items-center justify-center border border-amber-500/30">
-              <Archive size={16} className="text-amber-300" />
+              <Icons8Icon id="zip" size={16} />
             </div>
             <div className="min-w-0">
               <div className="text-[12px] font-semibold text-white truncate">{path.split(/[/\\]/).pop()}</div>
@@ -224,7 +221,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
               onClick={onExtract}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md bg-gradient-to-b from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white shadow-sm"
             >
-              <Download size={13} /> Extract All
+              <Icons8Icon id="download" size={13} /> Extract All
             </button>
           )}
         </div>
@@ -232,13 +229,13 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         <div className="flex items-center gap-1 px-3 pb-2 flex-wrap text-[11px]">
           {crumbs.map((c, i) => (
             <React.Fragment key={c.path || 'root'}>
-              {i > 0 && <ChevronRight size={10} className="text-slate-500" />}
+              {i > 0 && <Icons8Icon id="chevron_right" size={10} className="opacity-50" />}
               <button
                 type="button"
                 className={`flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/10 ${i === crumbs.length - 1 ? 'text-amber-200 font-medium' : 'text-slate-400'}`}
                 onClick={() => { setCurrentFolder(c.path); setSelected(null); setPreviewUrl(null); }}
               >
-                {i === 0 ? <Home size={11} /> : <FolderOpen size={11} />}
+                {i === 0 ? <Icons8Icon id="go_home" size={11} /> : <Icons8Icon id="folder_open_ui" size={11} />}
                 {c.label}
               </button>
             </React.Fragment>
@@ -247,7 +244,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
 
         <div className="px-3 pb-2 flex gap-2">
           <div className="relative flex-1">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Icons8Icon id="search" size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50" />
             <input
               type="text"
               value={search}
@@ -260,13 +257,13 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
 
         {canAddFiles && (
           <div className="mx-3 mb-2 flex items-center gap-2 text-[10px] text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-md px-2 py-1.5">
-            <Upload size={11} className="shrink-0" />
+            <Icons8Icon id="upload" size={11} className="shrink-0" />
             Drop to add · Double-click folders · Mousedown file to drag out
           </div>
         )}
         {(status || busy) && (
           <div className="px-3 pb-2 text-[10px] text-slate-400 flex items-center gap-1.5">
-            {busy && <Loader2 size={11} className="animate-spin text-sky-400" />}
+            {busy && <Icons8Icon id="loading" size={11} spin />}
             {busy || status}
           </div>
         )}
@@ -277,12 +274,12 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         <div className="flex-1 min-w-0 overflow-y-auto bndz-scrollbar border-r border-white/5">
           {loading && (
             <div className="flex items-center justify-center gap-2 p-10 text-slate-500 text-sm">
-              <Loader2 size={18} className="animate-spin text-sky-400" /> Opening archive…
+              <Icons8Icon id="loading" size={18} spin /> Opening archive…
             </div>
           )}
           {error && (
             <div className="flex items-center gap-2 p-4 m-3 text-red-300 text-xs bg-red-950/30 rounded-lg border border-red-800/40">
-              <AlertCircle size={14} /> {error}
+              <Icons8Icon id="warning" size={14} /> {error}
             </div>
           )}
           {!loading && !error && folderItems.length === 0 && (
@@ -329,7 +326,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/10 text-slate-400 hover:text-amber-300 transition-opacity"
                     onClick={e => { e.stopPropagation(); void dragEntryOut(entry); }}
                   >
-                    <GripVertical size={14} />
+                    <DragHandleGlyph size={14} className="opacity-60" />
                   </button>
                 )}
               </div>
@@ -356,7 +353,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
                   )
                 ) : (
                   <div className="text-center p-4 text-slate-500 text-[11px]">
-                    <File size={32} className="mx-auto mb-2 opacity-40" />
+                    <Icons8Icon id="file_ui" size={32} className="mx-auto mb-2 opacity-40" />
                     {formatArchiveSize(selected.size)}
                     <div className="mt-3 flex flex-col gap-1.5">
                       <button type="button" onClick={() => void extractSelected()} className="px-3 py-1.5 rounded bg-sky-700/80 hover:bg-sky-600 text-white text-[10px] font-semibold">
@@ -374,7 +371,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-[11px] p-4 text-center">
-              <Archive size={36} className="mb-3 opacity-30 text-amber-400" />
+              <Icons8Icon id="zip" size={36} className="mb-3 opacity-30" />
               <p>Select a file to preview or extract. Navigate folders like a real archive manager.</p>
             </div>
           )}

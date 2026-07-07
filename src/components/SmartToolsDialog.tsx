@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Sparkles, FolderTree, Wand2, Copy } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { CloseGlyph } from './ChromeGlyphs';
 import { toWindowsPath } from '../lib/pathUtils';
 import BndzAssistantPanel from './assistant/BndzAssistantPanel';
 import BndzDuplicatesPanel from './duplicates/BndzDuplicatesPanel';
@@ -87,22 +88,22 @@ export default function SmartToolsDialog({
                 >
                     <div className="bg-[#323232] px-4 py-2.5 flex justify-between items-center border-b border-[#454545] shrink-0">
                         <div className="flex items-center gap-2">
-                            <Wand2 size={16} className="text-sky-400" />
+                            <Icons8Icon id="smart_tools" size={16} />
                             <h2 className="text-[13px] font-semibold text-gray-100">Smart Tools</h2>
                             {paths.length > 0 && (
                                 <span className="text-[10px] bg-[#094771] text-white px-2 py-0.5">{paths.length} selected</span>
                             )}
                         </div>
                         <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
-                            <X size={14} />
+                            <CloseGlyph size={14} />
                         </button>
                     </div>
 
                     <div className="flex border-b border-[#454545] bg-[#2b2b2b]">
                         {([
-                            { id: 'organize' as const, label: 'Organize', icon: FolderTree },
-                            { id: 'assistant' as const, label: 'Assistant', icon: Sparkles },
-                            { id: 'duplicates' as const, label: 'Duplicates', icon: Copy },
+                            { id: 'organize' as const, label: 'Organize', iconId: 'category_ui' },
+                            { id: 'assistant' as const, label: 'Assistant', iconId: 'sparkles_ui' },
+                            { id: 'duplicates' as const, label: 'Duplicates', iconId: 'copy' },
                         ]).map(t => (
                             <button
                                 key={t.id}
@@ -112,7 +113,7 @@ export default function SmartToolsDialog({
                                     tab === t.id ? 'border-sky-500 text-white bg-[#333]' : 'border-transparent text-gray-500 hover:text-gray-300'
                                 }`}
                             >
-                                <t.icon size={12} /> {t.label}
+                                <Icons8Icon id={t.iconId} size={12} /> {t.label}
                             </button>
                         ))}
                     </div>
@@ -126,7 +127,7 @@ export default function SmartToolsDialog({
                                     className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
                                 >
                                     <div className="w-9 h-9 bg-[#094771]/30 flex items-center justify-center shrink-0">
-                                        <FolderTree size={18} className="text-sky-400" />
+                                        <Icons8Icon id="category_ui" size={18} />
                                     </div>
                                     <div>
                                         <h3 className="text-[13px] font-semibold text-gray-100">Auto-Organize Folder</h3>
@@ -144,11 +145,27 @@ export default function SmartToolsDialog({
                                     className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
                                 >
                                     <div className="w-9 h-9 bg-emerald-900/30 flex items-center justify-center shrink-0">
-                                        <Sparkles size={18} className="text-emerald-400" />
+                                        <Icons8Icon id="sparkles_ui" size={18} />
                                     </div>
                                     <div>
                                         <h3 className="text-[13px] font-semibold text-gray-100">Batch Rename</h3>
                                         <p className="text-[11px] text-gray-500 mt-0.5">Pattern rename and AI-assisted renaming for selected files.</p>
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent('bndz-open-tag-assignment'));
+                                        onClose();
+                                    }}
+                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                >
+                                    <div className="w-9 h-9 bg-pink-900/30 flex items-center justify-center shrink-0">
+                                        <Icons8Icon id="tag_manager" size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-[13px] font-semibold text-gray-100">Quick Tag</h3>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">Keyboard-driven tagging overlay for the current selection.</p>
                                     </div>
                                 </button>
                                 <button
@@ -162,7 +179,7 @@ export default function SmartToolsDialog({
                                     className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
                                 >
                                     <div className="w-9 h-9 bg-amber-900/20 flex items-center justify-center shrink-0">
-                                        <Copy size={18} className="text-amber-400" />
+                                        <Icons8Icon id="storage_cleanup" size={18} />
                                     </div>
                                     <div>
                                         <h3 className="text-[13px] font-semibold text-gray-100">Storage Cleanup</h3>

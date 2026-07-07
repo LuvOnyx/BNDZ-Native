@@ -254,6 +254,7 @@
     background: #094771;
     color: #fff;
     box-shadow: none;
+    border-radius: var(--bndz-radius-sm);
   }
 
   .bndz-preview-metadata-strip {
@@ -278,6 +279,7 @@
     background: #3a3a3a;
     border: 1px solid #454545;
     color: #e5e7eb;
+    border-radius: var(--bndz-radius-sm);
   }
 
   .bndz-preview-action-btn:hover {
@@ -516,6 +518,7 @@ html[data-theme] .bndz-chrome-preview .bndz-preview-tab-active {
   background: color-mix(in srgb, var(--panel-preview-bg) 55%, var(--accent) 45%) !important;
   box-shadow: inset 0 -2px 0 var(--accent) !important;
   color: var(--panel-preview-text) !important;
+  border-radius: var(--bndz-radius-sm) !important;
 }
 
 html[data-theme] .bndz-chrome-preview .bndz-preview-stage {

@@ -3,9 +3,11 @@
  * double-clicks, marquee selection, and enforces movement threshold.
  */
 
-const DRAG_THRESHOLD_PX = 8;
+/** Movement before a list drag can arm (Explorer-like — reduces accidental drags). */
+const DRAG_THRESHOLD_PX = 14;
 const DOUBLE_CLICK_GUARD_MS = 400;
-const DEFAULT_DRAG_DELAY_MS = 0;
+/** Hold time before drag can start after threshold is met. */
+const DEFAULT_DRAG_DELAY_MS = 120;
 
 type DragSession = {
   pointerId: number;
