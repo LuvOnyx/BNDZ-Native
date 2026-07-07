@@ -1,5 +1,5 @@
 /** Bump when PNG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '4';
+export const LAUNCHER_ICON_REV = '5';
 
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
