@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 
 interface QuitConfirmDialogProps {
   open: boolean;
@@ -41,7 +41,7 @@ export default function QuitConfirmDialog({
             {fromTray ? 'Quit BNDZ?' : 'Close BNDZ?'}
           </h2>
           <button type="button" className="bndz-quit-dialog-icon-btn p-1.5 rounded-md" onClick={onCancel} aria-label="Close">
-            <X size={16} />
+            <Icons8Icon id="close" size={16} />
           </button>
         </div>
         <div className="px-5 py-4">

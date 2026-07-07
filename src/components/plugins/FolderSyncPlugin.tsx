@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  FolderSync, Plus, Play, Pause, Trash2, ArrowRight, RefreshCw, Loader2,
-  CheckCircle2, AlertCircle, Eye, FolderInput, Zap, Clock, Pencil, ListTree, X,
-} from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import DestinationPickerModal from '../DestinationPickerModal';
@@ -13,7 +10,7 @@ import { pushToast } from '../ToastHost';
 export const FolderSyncPluginDef = {
   id: 'folder-sync',
   name: 'Folder Sync',
-  icon: FolderSync,
+  icon: 'sync_folders',
   targetPanel: 'bottom' as const,
   installOnFirstUse: true,
 };
@@ -68,17 +65,16 @@ function formatWhen(iso?: string | null) {
 
 function StatusBadge({ status }: { status: string }) {
   const cfg =
-    status === 'syncing' ? { color: '#38bdf8', label: 'Syncing', Icon: Loader2, spin: true } :
-    status === 'error' ? { color: '#f87171', label: 'Error', Icon: AlertCircle, spin: false } :
-    status === 'watching' ? { color: '#a78bfa', label: 'Watching', Icon: Eye, spin: false } :
-    { color: '#34d399', label: 'Ready', Icon: CheckCircle2, spin: false };
-  const Icon = cfg.Icon;
+    status === 'syncing' ? { color: '#38bdf8', label: 'Syncing', icon: 'loading', spin: true } :
+    status === 'error' ? { color: '#f87171', label: 'Error', icon: 'warning', spin: false } :
+    status === 'watching' ? { color: '#a78bfa', label: 'Watching', icon: 'toggle_preview', spin: false } :
+    { color: '#34d399', label: 'Ready', icon: 'check', spin: false };
   return (
     <span
       className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border"
       style={{ color: cfg.color, borderColor: `${cfg.color}44`, background: `${cfg.color}15` }}
     >
-      <Icon size={10} className={cfg.spin ? 'animate-spin' : ''} />
+      <Icons8Icon id={cfg.icon} size={10} spin={cfg.spin} />
       {cfg.label}
     </span>
   );
@@ -233,7 +229,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
   return (
     <PluginPanelShell
       title="Folder Sync"
-      icon={FolderSync}
+      icon="sync_folders"
       iconColor="#38bdf8"
       variant="embedded"
       subtitle="Auto-sync folders via robocopy"
@@ -242,15 +238,15 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
           {currentPath && (
             <>
               <button type="button" onClick={() => usePaneAs('source')} className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-white/10 text-gray-400 hover:text-sky-300 hover:border-sky-500/30" title="Use current folder as source">
-                <FolderInput size={12} /> Pane → source
+                <Icons8Icon id="explorer" size={12} /> Pane → source
               </button>
               <button type="button" onClick={() => usePaneAs('dest')} className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-white/10 text-gray-400 hover:text-sky-300 hover:border-sky-500/30" title="Use current folder as destination">
-                <FolderInput size={12} /> Pane → dest
+                <Icons8Icon id="explorer" size={12} /> Pane → dest
               </button>
             </>
           )}
           <button type="button" onClick={startNewJob} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md bg-sky-600 hover:bg-sky-500 text-white">
-            <Plus size={14} /> New sync
+            <Icons8Icon id="plus_ui" size={14} /> New sync
           </button>
         </div>
       }
@@ -259,7 +255,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
       <div className="flex-1 overflow-y-auto styled-scrollbar p-4 space-y-3">
         {loading && (
           <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
-            <Loader2 size={18} className="animate-spin" /> Loading sync jobs…
+            <Icons8Icon id="loading" size={18} spin /> Loading sync jobs…
           </div>
         )}
 
@@ -269,7 +265,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-dashed border-white/10 p-10 text-center"
           >
-            <FolderSync size={40} className="mx-auto text-gray-600 mb-3" />
+            <Icons8Icon id="sync_folders" size={40} className="mx-auto opacity-60 mb-3" />
             <p className="text-[13px] text-gray-400 mb-1">No sync pairs yet</p>
             <p className="text-[11px] text-gray-600 mb-4">Mirror a project folder to a backup drive, or keep two folders in sync automatically.</p>
             <button type="button" onClick={startNewJob} className="text-sky-400 hover:text-sky-300 text-[12px] font-semibold">
@@ -304,7 +300,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                 >
                   {draft.sourcePath || 'Pick source folder…'}
                 </button>
-                <ArrowRight size={14} className="text-gray-600 shrink-0" />
+                <Icons8Icon id="chevron_right" size={14} className="shrink-0" />
                 <button
                   type="button"
                   className="flex-1 text-left bg-[#1a1a22] border border-[#444] rounded-lg px-3 py-2 text-[11px] font-mono truncate hover:border-sky-500/50"
@@ -316,7 +312,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
               <div className="flex flex-wrap gap-4 text-[11px]">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={draft.watchEnabled !== false} onChange={e => setDraft({ ...draft, watchEnabled: e.target.checked })} className="accent-sky-500" />
-                  <Zap size={12} className="text-amber-400" /> Watch for changes
+                  <Icons8Icon id="sparkles_ui" size={12} /> Watch for changes
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!draft.mirrorMode} onChange={e => setDraft({ ...draft, mirrorMode: e.target.checked })} className="accent-sky-500" />
@@ -355,11 +351,11 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                   </div>
                   <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-gray-500">
                     <span className="truncate max-w-[45%]" title={job.sourcePath}>{job.sourcePath}</span>
-                    <ArrowRight size={10} className="shrink-0" />
+                    <Icons8Icon id="chevron_right" size={10} className="shrink-0" />
                     <span className="truncate max-w-[45%]" title={job.destPath}>{job.destPath}</span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-1 text-[9px] text-gray-600">
-                    <Clock size={9} /> Last sync: {formatWhen(job.lastSyncUtc)}
+                    <Icons8Icon id="clock_ui" size={9} /> Last sync: {formatWhen(job.lastSyncUtc)}
                     {job.mirrorMode && <span className="ml-2 text-amber-500/80">• Mirror</span>}
                   </div>
                 </div>
@@ -371,7 +367,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                     onClick={() => void loadPreview(job.id)}
                     className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-sky-300 disabled:opacity-40"
                   >
-                    {previewLoading === job.id ? <Loader2 size={14} className="animate-spin" /> : <ListTree size={14} />}
+                    {previewLoading === job.id ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="table_ui" size={14} />}
                   </button>
                   <button
                     type="button"
@@ -379,7 +375,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                     onClick={() => startEditJob(job)}
                     className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-amber-300"
                   >
-                    <Pencil size={14} />
+                    <Icons8Icon id="pencil_ui" size={14} />
                   </button>
                   <button
                     type="button"
@@ -388,7 +384,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                     onClick={() => runSync(job.id)}
                     className="p-2 rounded-lg hover:bg-white/5 text-sky-400 disabled:opacity-40"
                   >
-                    {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                    {isSyncing ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="play_ui" size={14} />}
                   </button>
                   <button
                     type="button"
@@ -396,10 +392,10 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                     onClick={() => toggleWatch(job)}
                     className={`p-2 rounded-lg hover:bg-white/5 ${job.watchEnabled ? 'text-violet-400' : 'text-gray-500'}`}
                   >
-                    {job.watchEnabled ? <Pause size={14} /> : <Eye size={14} />}
+                    <Icons8Icon id={job.watchEnabled ? 'close' : 'toggle_preview'} size={14} />
                   </button>
                   <button type="button" title="Remove" onClick={() => removeJob(job.id)} className="p-2 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400">
-                    <Trash2 size={14} />
+                    <Icons8Icon id="delete" size={14} />
                   </button>
                 </div>
               </div>
@@ -420,7 +416,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
 
               {job.lastError && (
                 <p className="mt-2 text-[10px] text-red-400/90 flex items-center gap-1">
-                  <AlertCircle size={10} /> {job.lastError}
+                  <Icons8Icon id="warning" size={10} /> {job.lastError}
                 </p>
               )}
             </motion.div>
@@ -432,10 +428,10 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
         <div className="shrink-0 border-t border-white/10 bg-[#0c0c10] max-h-[40%] flex flex-col">
           <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05]">
             <div className="text-[11px] font-semibold text-sky-300 flex items-center gap-2">
-              <ListTree size={13} /> Sync preview
+              <Icons8Icon id="table_ui" size={13} /> Sync preview
               <span className="text-gray-500 font-normal">{preview.data.summary}</span>
             </div>
-            <button type="button" onClick={() => setPreview(null)} className="p-1 rounded hover:bg-white/5 text-gray-500"><X size={14} /></button>
+            <button type="button" onClick={() => setPreview(null)} className="p-1 rounded hover:bg-white/5 text-gray-500"><Icons8Icon id="close" size={14} /></button>
           </div>
           <div className="flex-1 overflow-y-auto styled-scrollbar p-3 grid grid-cols-2 gap-3 text-[10px] font-mono">
             {([
@@ -460,7 +456,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
               onClick={() => { void runSync(preview.jobId); setPreview(null); }}
               className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold flex items-center gap-1"
             >
-              <Play size={12} /> Run sync
+              <Icons8Icon id="play_ui" size={12} /> Run sync
             </button>
           </div>
         </div>

@@ -130,6 +130,13 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.tooltipBehaviorVersion = 1;
     }
     if (merged.inTreeAsWell === undefined) merged.inTreeAsWell = true;
+    if ((merged.folderSizeViewVersion ?? 0) < 1) {
+        merged.folderSizeVisualization = 'list';
+        merged.folderSizeViewVersion = 1;
+    }
+    if (merged.fileTaggingFeature === undefined) {
+        merged.fileTaggingFeature = merged.fileTagging !== false;
+    }
     return merged;
 }
 

@@ -56,6 +56,9 @@ namespace BNDZ
 
         // Using TaskCompletionSource to wait for frontend conflict resolution
         private ConcurrentDictionary<string, TaskCompletionSource<string>> _conflictResolvers = new();
+        // When the user checks "Apply to remaining conflicts", subsequent conflicts within the
+        // same operationId resolve immediately with this value instead of re-prompting the UI.
+        private ConcurrentDictionary<string, string> _conflictBatchResolution = new();
         private ConcurrentDictionary<string, string> _iconCacheDb = new();
 
         private SystemTrayService? _trayService;
@@ -672,6 +675,13 @@ namespace BNDZ
                             },
                             onConflict: async (opId, fileName, srcPath, destPath) =>
                             {
+                                // "Apply to remaining conflicts" — once set for this operation, every
+                                // subsequent conflict resolves immediately without re-prompting the UI.
+                                if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
+                                {
+                                    return batchResolution;
+                                }
+
                                 var evt = new { type = "CONFLICT_DETECTED", payload = new { operationId = opId, fileName, sourcePath = srcPath, destPath } };
                                 var tcs = new TaskCompletionSource<string>();
                                 string conflictKey = $"{opId}:{fileName}";
@@ -683,6 +693,7 @@ namespace BNDZ
 
                                 return await tcs.Task;
                             });
+                        _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
 
                         foreach (var src in sources)
                         {
@@ -734,15 +745,25 @@ namespace BNDZ
                 else if (type == "RESOLVE_CONFLICT")
                 {
                     var payload = root.GetProperty("payload");
-                    string operationId = payload.GetProperty("operationId").GetString() ?? "";
-                    string fileName = payload.GetProperty("fileName").GetString() ?? "";
-                    string resolution = payload.GetProperty("resolution").GetString() ?? "skip"; // "replace", "skip", "keepboth"
+                    string operationId = payload.TryGetProperty("operationId", out var opIdEl) ? (opIdEl.GetString() ?? "") : "";
+                    string fileName = payload.TryGetProperty("fileName", out var fnEl) ? (fnEl.GetString() ?? "") : "";
+                    string resolution = payload.TryGetProperty("resolution", out var resEl) ? (resEl.GetString() ?? "skip") : "skip"; // "replace", "skip", "keepboth"
+                    bool applyToAll = payload.TryGetProperty("applyToAll", out var allEl) && allEl.ValueKind == JsonValueKind.True;
                     string conflictKey = $"{operationId}:{fileName}";
+
+                    if (applyToAll && !string.IsNullOrEmpty(operationId))
+                    {
+                        _conflictBatchResolution[operationId] = resolution;
+                    }
 
                     if (_conflictResolvers.TryGetValue(conflictKey, out var tcs))
                     {
                         tcs.SetResult(resolution);
                         _conflictResolvers.TryRemove(conflictKey, out _);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[RESOLVE_CONFLICT] No pending resolver for key '{conflictKey}' — the conflict prompt UI likely sent a stale or missing operationId.");
                     }
                 }
                 else if (type == "SHELL_EXECUTE")
@@ -1680,7 +1701,9 @@ namespace BNDZ
                         }
                         catch (Exception ex)
                         {
-                            var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
+                            // error must NOT also report percentage=100 — the frontend treats that as
+                            // success and previously showed a green "complete" toast for failed archives.
+                            var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
                             PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
                         }
                     });
@@ -1701,10 +1724,12 @@ namespace BNDZ
                                 var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
                                 PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
                             });
+                            var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = dest, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
                         }
                         catch (Exception ex)
                         {
-                            var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
+                            var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
                             PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
                         }
                     });
@@ -1799,15 +1824,6 @@ namespace BNDZ
                     catch { }
 
                     var response = new { type = "SET_FILE_ATTRIBUTES_RESULT", id = idProp, payload = success };
-                    var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    PostToUi(() => {
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
-                    });
-                }
-                else if (type == "SET_FILE_ACL")
-                {
-                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var response = new { type = "SET_FILE_ACL_RESULT", id = idProp, payload = false };
                     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() => {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
@@ -2715,6 +2731,29 @@ namespace BNDZ
                     {
                         var ok = RecycleBinService.Empty(hwnd);
                         var response = new { type = "EMPTY_RECYCLE_BIN_RESULT", id = idProp, payload = new { success = ok } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        await PostToUiAsync(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
+                        });
+                    });
+                }
+                else if (type == "RESTORE_RECYCLE_ITEMS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement2) ? idElement2.GetString() : null;
+                    var restorePaths = new List<string>();
+                    if (root.TryGetProperty("payload", out var restorePayload) && restorePayload.TryGetProperty("paths", out var pathsEl2) && pathsEl2.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var p in pathsEl2.EnumerateArray())
+                        {
+                            var s = p.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) restorePaths.Add(s);
+                        }
+                    }
+                    _ = Task.Run(async () =>
+                    {
+                        var (restored, failed) = RecycleBinService.Restore(restorePaths);
+                        var response = new { type = "RESTORE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { restored, failed } };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         await PostToUiAsync(() =>
                         {

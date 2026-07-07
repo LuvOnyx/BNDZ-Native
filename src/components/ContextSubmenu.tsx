@@ -1,7 +1,8 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ContextMenuIcon } from './ContextMenuIcon';
+import { Icons8Icon } from './Icons8Icon';
 
 export const menuItemClass =
   'bndz-context-menu-item px-2 py-[3px] flex items-center gap-2 cursor-default text-[12px] select-none leading-[22px]';
@@ -95,7 +96,7 @@ export function ContextSubmenu({
           {Icon ? <Icon size={14} className="shrink-0 bndz-context-menu-icon" /> : iconVerb ? <ContextMenuIcon verb={iconVerb} /> : null}
           {label}
         </span>
-        {showChevron && <ChevronRight size={14} className={`opacity-60 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />}
+        {showChevron && <Icons8Icon id="chevron_right" size={12} className={`opacity-70 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />}
       </div>
       {open && typeof document !== 'undefined' && createPortal(
         <div
@@ -119,7 +120,9 @@ interface ContextMenuItemProps {
   label: string;
   verb?: string;
   icon?: LucideIcon;
+  iconNode?: React.ReactNode;
   iconVerb?: string;
+  trailing?: React.ReactNode;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
   disabled?: boolean;
@@ -129,7 +132,9 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
   label,
   verb,
   icon: Icon,
+  iconNode,
   iconVerb,
+  trailing,
   onClick,
   className = '',
   disabled,
@@ -140,8 +145,9 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
       className={`${menuItemClass} ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}
       onClick={disabled || !onClick ? undefined : runMenuAction(onClick)}
     >
-      {Icon ? <Icon size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />}
+      {iconNode ?? (Icon ? <Icon size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />)}
       <span className="flex-1">{label}</span>
+      {trailing ? <span className="text-sky-300/80 text-[10px] shrink-0">{trailing}</span> : null}
     </div>
   );
 });
@@ -214,7 +220,7 @@ export function ContextNestedSubmenu({
           {iconVerb ? <ContextMenuIcon verb={iconVerb} /> : null}
           {label}
         </span>
-        <ChevronRight size={14} className="opacity-60 shrink-0" />
+        <Icons8Icon id="chevron_right" size={12} className="opacity-70 shrink-0" />
       </div>
       {open && typeof document !== 'undefined' && createPortal(
         <div

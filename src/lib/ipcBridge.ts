@@ -437,16 +437,16 @@ export const IPC = {
     }
   },
 
-  executeUndo(): Promise<{ ok: boolean; message: string }> {
+  executeUndo(timeoutMs = 120_000): Promise<{ ok: boolean; message: string }> {
     if (this.isNative) {
-      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_UNDO', 'UNDO_REDO_RESULT', undefined);
+      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_UNDO', 'UNDO_REDO_RESULT', undefined, undefined, timeoutMs);
     }
     return Promise.resolve({ ok: false, message: 'Undo requires native host' });
   },
 
-  executeRedo(): Promise<{ ok: boolean; message: string }> {
+  executeRedo(timeoutMs = 120_000): Promise<{ ok: boolean; message: string }> {
     if (this.isNative) {
-      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_REDO', 'UNDO_REDO_RESULT', undefined);
+      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_REDO', 'UNDO_REDO_RESULT', undefined, undefined, timeoutMs);
     }
     return Promise.resolve({ ok: false, message: 'Redo requires native host' });
   },
@@ -531,11 +531,11 @@ export const IPC = {
     }
   },
 
-  resolveConflict(operationId: string, fileName: string, resolution: 'replace' | 'skip' | 'keepboth') {
+  resolveConflict(operationId: string, fileName: string, resolution: 'replace' | 'skip' | 'keepboth', applyToAll = false) {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({
         type: 'RESOLVE_CONFLICT',
-        payload: { operationId, fileName, resolution }
+        payload: { operationId, fileName, resolution, applyToAll }
       });
     }
   },
@@ -918,6 +918,15 @@ export const IPC = {
     return Promise.resolve({ success: false });
   },
 
+  /** Restore items from the Recycle Bin to their original location (the shell's own "undelete" verb). */
+  restoreRecycleItems(paths: string[]): Promise<{ restored: number; failed: number }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_restoreRecycleItems`;
+      return _nativeCall<{ restored: number; failed: number }>('RESTORE_RECYCLE_ITEMS', 'RESTORE_RECYCLE_ITEMS_RESULT', id, { paths }, 60000);
+    }
+    return Promise.resolve({ restored: 0, failed: paths.length });
+  },
+
   getDirContents(path: string): Promise<any[]> {
     if (this.isNative) {
       const norm = normalizePanePath(path);
@@ -1220,14 +1229,6 @@ export const IPC = {
     if (this.isNative) {
       const id = `${Date.now()}_setAttrs`;
       return _nativeCall<boolean>('SET_FILE_ATTRIBUTES', 'SET_FILE_ATTRIBUTES_RESULT', id, { path, attributes });
-    }
-    return Promise.resolve(false);
-  },
-
-  setFileAcl(path: string, acl: { read?: boolean; write?: boolean; execute?: boolean }): Promise<boolean> {
-    if (this.isNative) {
-      const id = `${Date.now()}_setAcl`;
-      return _nativeCall<boolean>('SET_FILE_ACL', 'SET_FILE_ACL_RESULT', id, { path, acl });
     }
     return Promise.resolve(false);
   },

@@ -12,7 +12,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { ArrowLeft, Plus, ChevronLeft, ChevronRight, History, Trash2, Eraser, Sparkles, Copy, Check } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import { renderSimpleMarkdown } from '../lib/detailMarkdown';
 import type { AiMessage, AiConversation } from '../types';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
@@ -178,7 +178,7 @@ const QACard: React.FC<{ pair: QAPair; isStreaming: boolean }> = ({ pair, isStre
               color: 'var(--accent)',
             }}
           >
-            <Sparkles size={13} strokeWidth={2.25} />
+            <Icons8Icon id="sparkles_ui" size={13} />
             {isStreaming && (
               <span
                 aria-hidden="true"
@@ -255,7 +255,7 @@ const QACard: React.FC<{ pair: QAPair; isStreaming: boolean }> = ({ pair, isStre
                 color: copied ? 'var(--accent)' : 'var(--text-muted)',
               }}
             >
-              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? <Icons8Icon id="check" size={12} /> : <Icons8Icon id="copy" size={12} />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
           )}
@@ -486,7 +486,7 @@ const HistoryOverlay: React.FC<{
                       onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
                       className="p-1 rounded text-[var(--text-subtle)] hover:text-red-400 hover:bg-[var(--bg-secondary)] transition-colors"
                     >
-                      <Trash2 size={11} />
+                      <Icons8Icon id="trash_ui" size={11} />
                     </button>
                   </div>
                 </div>
@@ -657,13 +657,13 @@ const BndzAiChatView: React.FC<BndzAiChatViewProps> = ({
 
   const actions: ActionItem[] = useMemo(() => {
     const list: ActionItem[] = [
-      { id: 'new', title: 'New Chat', icon: <Plus size={14} />, shortcut: ['⌘', 'N'], onRun: newChat, section: '' },
+      { id: 'new', title: 'New Chat', icon: <Icons8Icon id="plus_ui" size={14} />, shortcut: ['⌘', 'N'], onRun: newChat, section: '' },
     ];
-    if (hasPrev) list.push({ id: 'prev', title: 'Previous Chat', icon: <ChevronLeft size={14} />, shortcut: ['⌘', '['], onRun: goPrevChat });
-    if (hasNext) list.push({ id: 'next', title: 'Next Chat', icon: <ChevronRight size={14} />, shortcut: ['⌘', ']'], onRun: goNextChat });
-    list.push({ id: 'history', title: 'Show History', icon: <History size={14} />, shortcut: ['⌘', 'H'], onRun: () => setHistoryOpen(true) });
-    if (hasCurrentChat) list.push({ id: 'delete-chat', title: 'Delete Chat', icon: <Trash2 size={14} />, shortcut: ['⌘', 'X'], onRun: deleteCurrentChat, danger: true });
-    if (hasHistory) list.push({ id: 'delete-history', title: 'Delete History', icon: <Eraser size={14} />, shortcut: ['⌘', '⇧', 'X'], onRun: deleteAllHistory, danger: true });
+    if (hasPrev) list.push({ id: 'prev', title: 'Previous Chat', icon: <Icons8Icon id="chevron_left" size={14} />, shortcut: ['⌘', '['], onRun: goPrevChat });
+    if (hasNext) list.push({ id: 'next', title: 'Next Chat', icon: <Icons8Icon id="chevron_right" size={14} />, shortcut: ['⌘', ']'], onRun: goNextChat });
+    list.push({ id: 'history', title: 'Show History', icon: <Icons8Icon id="history_ui" size={14} />, shortcut: ['⌘', 'H'], onRun: () => setHistoryOpen(true) });
+    if (hasCurrentChat) list.push({ id: 'delete-chat', title: 'Delete Chat', icon: <Icons8Icon id="trash_ui" size={14} />, shortcut: ['⌘', 'X'], onRun: deleteCurrentChat, danger: true });
+    if (hasHistory) list.push({ id: 'delete-history', title: 'Delete History', icon: <Icons8Icon id="eraser_ui" size={14} />, shortcut: ['⌘', '⇧', 'X'], onRun: deleteAllHistory, danger: true });
     return list;
   }, [hasPrev, hasNext, hasCurrentChat, hasHistory, newChat, goPrevChat, goNextChat, deleteCurrentChat, deleteAllHistory]);
 
@@ -719,7 +719,7 @@ const BndzAiChatView: React.FC<BndzAiChatViewProps> = ({
             title="Back"
             style={{ background: 'var(--ui-segment-active-bg)', border: '1px solid var(--ui-segment-border)' }}
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <Icons8Icon id="chevron_left" size={14} />
           </button>
           <input
             ref={aiInputRef}
@@ -747,7 +747,7 @@ const BndzAiChatView: React.FC<BndzAiChatViewProps> = ({
                   color: 'var(--accent)',
                 }}
               >
-                <Sparkles size={22} strokeWidth={2.25} />
+                <Icons8Icon id="sparkles_ui" size={22} />
                 <div
                   aria-hidden="true"
                   className="absolute -inset-3 rounded-[24px] pointer-events-none"

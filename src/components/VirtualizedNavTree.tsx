@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight, Folder } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { TreeShellIcon } from './TreeShellIcon';
 import TreeGlider, { type TreeGliderAnchor } from './TreeGlider';
 import { IPC } from '../lib/ipcBridge';
@@ -50,6 +50,7 @@ interface VirtualizedNavTreeProps {
   onGliderMove?: (path: string) => void;
   onGliderPaste?: (path: string) => void;
   indexedRoots?: string[];
+  showIndexBadges?: boolean;
 }
 
 async function loadDirectoryChildren(
@@ -101,6 +102,7 @@ function TreeRow({
   onGliderHover,
   onGliderLeave,
   indexedRoots,
+  showIndexBadges,
 }: {
   row: FlatNavRow;
   config: AppConfig;
@@ -127,8 +129,8 @@ function TreeRow({
   onGliderHover?: (row: FlatNavRow, el: HTMLElement) => void;
   onGliderLeave?: () => void;
   indexedRoots?: string[];
+  showIndexBadges?: boolean;
 }) {
-  const Icon = row.icon || Folder;
   const isSelected = row.selected || (row.path && currentPath === row.path);
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
   const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick;
@@ -218,7 +220,7 @@ function TreeRow({
           }}
           aria-label={row.isExpanded ? 'Collapse' : 'Expand'}
         >
-          {row.isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <Icons8Icon id={row.isExpanded ? 'chevron_down' : 'chevron_right'} size={11} />
         </button>
       ) : (
         <span className="w-4 mr-0.5 shrink-0" />
@@ -254,7 +256,7 @@ function TreeRow({
       ) : (
         <span className="text-[12px] select-none truncate nav-tree-label transition-colors flex items-center gap-1 min-w-0">
           <span className="truncate">{row.label}</span>
-          {indexedRoots?.length && row.path && isPathUnderIndexedRoot(row.path, indexedRoots) && (
+          {showIndexBadges && indexedRoots?.length && row.path && isPathUnderIndexedRoot(row.path, indexedRoots) && (
             <span className="shrink-0 px-1 py-px text-[8px] font-medium bg-sky-900/70 text-sky-300 rounded" title="Search indexed">IDX</span>
           )}
         </span>
@@ -292,6 +294,7 @@ export function VirtualizedNavTree({
   onGliderPaste,
   indexedRoots,
 }: VirtualizedNavTreeProps) {
+  const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(280);
@@ -579,6 +582,7 @@ export function VirtualizedNavTree({
       onGliderHover={handleGliderHover}
       onGliderLeave={handleGliderLeave}
       indexedRoots={indexedRoots}
+      showIndexBadges={showIndexBadges}
     />
   );
   };

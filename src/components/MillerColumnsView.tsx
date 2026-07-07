@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { ThumbnailIcon } from './ThumbnailIcon';
 import { joinPanePath } from '../lib/pathUtils';
 import { getDisplayName } from '../lib/settingsRuntime';
@@ -55,7 +55,7 @@ export default function MillerColumnsView({
           const label = seg === '/' ? 'This PC' : (seg.split('/').pop() || seg);
           return (
             <React.Fragment key={seg}>
-              {i > 0 && <ChevronRight size={10} className="shrink-0 text-gray-600" />}
+              {i > 0 && <Icons8Icon id="chevron_right" size={10} className="shrink-0 opacity-50" />}
               <button
                 type="button"
                 className={`shrink-0 px-1.5 py-0.5 rounded hover:bg-white/[0.06] truncate max-w-[140px] ${
@@ -104,7 +104,7 @@ export default function MillerColumnsView({
                   >
                     <ThumbnailIcon entity={entity} isDir={isDir} path={childPath} size={16} />
                     <span className="flex-1 truncate">{displayName}</span>
-                    {isDir && <ChevronRight size={12} className="shrink-0 text-gray-500" />}
+                    {isDir && <Icons8Icon id="chevron_right" size={12} className="shrink-0 opacity-50" />}
                   </button>
                 );
               })}

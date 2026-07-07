@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppConfig } from '../../data/configContext';
-import {
-    Menu, Plus, Trash2, Save, MonitorCheck, Image, Globe, KeyRound,
-    Wand2, FileText, Terminal, FolderOpen, Copy, Sparkles, ChevronRight, HelpCircle,
-} from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { pushToast } from '../ToastHost';
 import { IPC } from '../../lib/ipcBridge';
 import PluginPanelShell from './PluginPanelShell';
@@ -11,7 +8,7 @@ import PluginPanelShell from './PluginPanelShell';
 export const ContextMenuPluginDef = {
     id: 'context-menu-manager',
     name: 'Shell Menus',
-    icon: Menu,
+    icon: 'shell_menus',
 };
 
 type ShellTab = 'app' | 'global';
@@ -177,7 +174,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#1c1c1c] transition-colors"
                 >
                     <div className="w-8 h-8 rounded-lg bg-pink-600/15 border border-pink-500/25 flex items-center justify-center shrink-0">
-                        {mode === 'global' ? <Globe size={14} className="text-pink-400" /> : <Menu size={14} className="text-sky-400" />}
+                        <Icons8Icon id={mode === 'global' ? 'go_network' : 'shell_menus'} size={14} />
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{ac.name || 'Untitled'}</div>
@@ -185,7 +182,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                             {mode === 'global' ? targetLabel(ac.targetMode) : ac.command || 'No command'}
                         </div>
                     </div>
-                    <ChevronRight size={14} className={`text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`} />
+                    <Icons8Icon id="chevron_right" size={12} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
                 </button>
 
                 {open && (
@@ -254,7 +251,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                                         onChange={e => update(prev => { const n = [...prev]; n[i] = { ...n[i], icon: e.target.value }; return n; })}
                                     />
                                     <button type="button" onClick={() => selectIcon(i)} className="shrink-0 px-3 py-2 rounded-lg bg-[#222] border border-[#444] hover:bg-[#333] text-xs flex items-center gap-1">
-                                        <Image size={12} /> Browse
+                                        <Icons8Icon id="picture_ui" size={12} /> Browse
                                     </button>
                                 </div>
                             </div>
@@ -262,7 +259,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
 
                         <div className="flex justify-end pt-1">
                             <button type="button" onClick={remove} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-950/30">
-                                <Trash2 size={12} /> Remove
+                                <Icons8Icon id="delete" size={12} /> Remove
                             </button>
                         </div>
                     </div>
@@ -280,7 +277,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
     return (
         <PluginPanelShell
             title="Shell Menus"
-            icon={Menu}
+            icon="shell_menus"
             iconColor="#f472b6"
             variant="embedded"
             subtitle={selectionHint}
@@ -291,15 +288,15 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                         onClick={() => (tab === 'global' ? addGlobalAction() : addAppAction())}
                         className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-[#222] hover:bg-[#2a2a2a] border border-[#333] rounded-md text-white"
                     >
-                        <Plus size={13} className="text-pink-400" /> Add
+                        <Icons8Icon id="plus_ui" size={13} /> Add
                     </button>
                     {tab === 'global' ? (
                         <button type="button" onClick={saveGlobalActions} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-pink-600/20 hover:bg-pink-600/30 border border-pink-500/40 rounded-md text-pink-300">
-                            <MonitorCheck size={13} /> Deploy
+                            <Icons8Icon id="check" size={13} /> Deploy
                         </button>
                     ) : (
                         <button type="button" onClick={saveAppActions} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 rounded-md text-sky-400">
-                            <Save size={13} /> Save
+                            <Icons8Icon id="check" size={13} /> Save
                         </button>
                     )}
                 </>
@@ -313,7 +310,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                         onClick={() => setTab('global')}
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left ${tab === 'global' ? 'bg-gradient-to-r from-pink-900/30 to-purple-900/20 text-white border border-pink-500/30' : 'text-gray-400 hover:bg-[#1a1a1a] border border-transparent'}`}
                     >
-                        <Globe size={14} className={tab === 'global' ? 'text-pink-400' : ''} />
+                        <Icons8Icon id="go_network" size={14} />
                         Windows Explorer
                         <span className="ml-auto text-[9px] text-gray-500">OS-wide</span>
                     </button>
@@ -322,7 +319,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                         onClick={() => setTab('app')}
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left ${tab === 'app' ? 'bg-[#222] text-white border border-[#333]' : 'text-gray-400 hover:bg-[#1a1a1a] border border-transparent'}`}
                     >
-                        <Menu size={14} className={tab === 'app' ? 'text-sky-400' : ''} />
+                        <Icons8Icon id="shell_menus" size={14} />
                         Inside BNDZ
                         <span className="ml-auto text-[9px] text-gray-500">In-app</span>
                     </button>
@@ -330,7 +327,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
 
                 <div className="mt-auto p-3 border-t border-[#222]">
                     <button type="button" onClick={() => setShowHelp(v => !v)} className="w-full flex items-center gap-2 text-[10px] text-gray-500 hover:text-gray-300 py-1">
-                        <HelpCircle size={12} /> How it works
+                        <Icons8Icon id="help_ui" size={12} /> How it works
                     </button>
                     {showHelp && (
                         <p className="text-[10px] text-gray-500 leading-relaxed mt-2 p-2 bg-[#0d0d0d] rounded-lg border border-[#222]">
@@ -344,14 +341,14 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                 <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 space-y-5 min-h-0">
                     {tab === 'global' && (
                         <div className="text-[11px] text-sky-300/90 bg-sky-950/20 p-3 rounded-xl border border-sky-500/20 flex gap-2.5 items-start">
-                            <KeyRound size={16} className="shrink-0 mt-0.5 opacity-80" />
+                            <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80" />
                             <span>These entries appear in native File Explorer. Click <strong>Deploy to OS</strong> after editing — admin rights may be required.</span>
                         </div>
                     )}
 
                     <section>
                         <div className="flex items-center gap-2 mb-3">
-                            <Wand2 size={14} className="text-amber-400" />
+                            <Icons8Icon id="sparkles_ui" size={14} />
                             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Quick start templates</h3>
                         </div>
                         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
@@ -375,7 +372,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                         </div>
                         {actions.length === 0 ? (
                             <div className="text-center py-12 text-gray-500 border border-dashed border-[#333] rounded-xl">
-                                <Sparkles size={28} className="mx-auto mb-3 opacity-30" />
+                                <Icons8Icon id="sparkles_ui" size={28} className="mx-auto mb-3 opacity-30" />
                                 <p className="text-sm">No menu items yet</p>
                                 <p className="text-[10px] mt-1">Pick a template above or click Add item</p>
                             </div>
@@ -391,7 +388,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                     {tab === 'global' && (
                         <section className="bg-[#111] border border-[#222] rounded-xl p-4">
                             <div className="text-xs font-bold text-gray-400 mb-2 flex items-center gap-2">
-                                <Terminal size={12} /> Variable reference
+                                <Icons8Icon id="terminal" size={12} /> Variable reference
                             </div>
                             <div className="grid sm:grid-cols-2 gap-2">
                                 {VARIABLE_HELP.map(v => (

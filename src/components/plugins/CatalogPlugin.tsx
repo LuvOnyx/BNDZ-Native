@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BookMarked, Plus, Trash2, FolderInput, RefreshCw, Loader2, Download, Upload, Pencil } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import { listCatalogs, upsertCatalog, deleteCatalog, type CatalogEntry } from '../../lib/catalog';
 import { VF_ROOT } from '../../lib/virtualPaths';
@@ -13,7 +13,7 @@ function notifyCatalogChanged() {
 export const CatalogPluginDef = {
   id: 'catalog',
   name: 'Catalog',
-  icon: BookMarked,
+  icon: 'bookmark',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -125,17 +125,17 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
   return (
     <PluginPanelShell
       title="Catalog"
-      icon={BookMarked}
+      icon="bookmark"
       iconColor="#38bdf8"
       variant="embedded"
       subtitle="Virtual collections — browse as /vf"
       toolbar={
         <div className="flex gap-1.5">
           <button type="button" onClick={exportCatalogs} className="text-[10px] px-2 py-1 rounded border border-[#444] hover:bg-[#222] flex items-center gap-1">
-            <Download size={11} /> Export
+            <Icons8Icon id="download" size={11} /> Export
           </button>
           <button type="button" onClick={() => importRef.current?.click()} className="text-[10px] px-2 py-1 rounded border border-[#444] hover:bg-[#222] flex items-center gap-1">
-            <Upload size={11} /> Import
+            <Icons8Icon id="upload" size={11} /> Import
           </button>
           <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importCatalogs(f); e.target.value = ''; }} />
         </div>
@@ -151,10 +151,10 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
             onKeyDown={e => { if (e.key === 'Enter') void createCatalog(); }}
           />
           <button type="button" onClick={() => void createCatalog()} className="px-4 py-2 rounded-lg bg-sky-700/40 border border-sky-500/30 hover:bg-sky-600/40 flex items-center gap-1.5 font-semibold text-sm">
-            <Plus size={14} /> Create
+            <Icons8Icon id="plus_ui" size={14} /> Create
           </button>
           <button type="button" onClick={() => void load()} className="p-2 rounded-lg border border-[#444] hover:bg-[#222]">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <Icons8Icon id="refresh" size={14} spin={loading} />
           </button>
         </div>
 
@@ -165,10 +165,10 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-gray-500"><Loader2 className="animate-spin mr-2" size={16} /> Loading…</div>
+          <div className="flex items-center justify-center py-12 text-gray-500"><Icons8Icon id="loading" size={16} spin className="mr-2" /> Loading…</div>
         ) : catalogs.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 gap-2 py-8">
-            <BookMarked size={32} className="opacity-20 text-sky-400" />
+            <Icons8Icon id="bookmark" size={32} className="opacity-20" />
             <p>No catalogs yet. Create one to build virtual folders at <code className="text-sky-400">/vf</code>.</p>
           </div>
         ) : (
@@ -176,7 +176,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
             {catalogs.map(cat => (
               <div key={cat.id} className="border border-[#333] rounded-xl bg-[#141414] overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-[#1a1a1a] border-b border-[#333]">
-                  <BookMarked size={14} className="text-sky-400 shrink-0" />
+                  <Icons8Icon id="bookmark" size={14} className="shrink-0" />
                   <button type="button" className="font-semibold text-white hover:underline truncate flex-1 text-left" onClick={() => onNavigate?.(`/vf/${cat.id}`)}>
                     {cat.name}
                   </button>
@@ -188,14 +188,14 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
                   <span className="text-[10px] text-gray-500 shrink-0">{(cat.paths || []).length}</span>
                   {selectedPaths.length > 0 && (
                     <button type="button" title="Add selection" onClick={() => void addSelectionTo(cat)} className="p-1 rounded hover:bg-[#333] text-emerald-400">
-                      <FolderInput size={14} />
+                      <Icons8Icon id="explorer" size={14} />
                     </button>
                   )}
                   <button type="button" onClick={() => editing?.id === cat.id ? setEditing(null) : openEdit(cat)} className="text-[10px] px-2 py-0.5 rounded border border-[#444] hover:bg-[#333] flex items-center gap-1">
-                    <Pencil size={10} /> {editing?.id === cat.id ? 'Close' : 'Edit'}
+                    <Icons8Icon id="pencil_ui" size={10} /> {editing?.id === cat.id ? 'Close' : 'Edit'}
                   </button>
                   <button type="button" onClick={() => void deleteCatalog(cat.id).then(() => { load(); notifyCatalogChanged(); })} className="p-1 rounded hover:bg-red-950/40 text-red-400">
-                    <Trash2 size={14} />
+                    <Icons8Icon id="delete" size={14} />
                   </button>
                 </div>
                 {editing?.id === cat.id && (

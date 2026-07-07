@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Pencil, Trash2, Copy, Clipboard, FileText, Pin } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import type { SnippetRecord } from '../types';
 import { deleteSnippet, listSnippets, upsertSnippet } from '../bridge/flowBridge';
 
@@ -73,7 +73,7 @@ export default function BndzSnippetManager({ onClose, initialView }: Props) {
     return (
       <div className="glass-effect h-full flex flex-col">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-          <button type="button" className="bndz-icon-btn" onClick={() => setView('search')} title="Back"><ArrowLeft size={14} /></button>
+          <button type="button" className="bndz-icon-btn" onClick={() => setView('search')} title="Back"><Icons8Icon id="chevron_left" size={14} /></button>
           <span className="text-[14px] font-medium">{view === 'edit' ? 'Edit Snippet' : 'New Snippet'}</span>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
@@ -106,7 +106,7 @@ export default function BndzSnippetManager({ onClose, initialView }: Props) {
   return (
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><ArrowLeft size={14} /></button>
+        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><Icons8Icon id="chevron_left" size={14} /></button>
         <input
           ref={inputRef}
           className="bndz-search-input flex-1"
@@ -114,7 +114,7 @@ export default function BndzSnippetManager({ onClose, initialView }: Props) {
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
           placeholder="Search snippets…"
         />
-        <button type="button" className="bndz-icon-btn" onClick={openCreate} title="New snippet"><Plus size={14} /></button>
+        <button type="button" className="bndz-icon-btn" onClick={openCreate} title="New snippet"><Icons8Icon id="plus_ui" size={14} /></button>
       </div>
       <div className="flex-1 grid grid-cols-[2fr_3fr] min-h-0">
         <div className="border-r border-[var(--footer-border)] overflow-y-auto custom-scrollbar">
@@ -128,12 +128,12 @@ export default function BndzSnippetManager({ onClose, initialView }: Props) {
               onDoubleClick={() => void pasteSnippet(s)}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <FileText size={14} className="shrink-0 opacity-70" />
+                <Icons8Icon id="file_ui" size={14} className="shrink-0 opacity-70" />
                 <div className="min-w-0">
                   <div className="text-[13px] font-medium truncate">{s.name}</div>
                   {s.keyword ? <div className="text-[10px] text-[var(--text-subtle)] font-mono">{s.keyword}</div> : null}
                 </div>
-                {s.pinned ? <Pin size={10} className="shrink-0 opacity-50" /> : null}
+                {s.pinned ? <Icons8Icon id="pin_ui" size={10} className="shrink-0 opacity-50" /> : null}
               </div>
             </div>
           ))}
@@ -146,10 +146,10 @@ export default function BndzSnippetManager({ onClose, initialView }: Props) {
                 <pre className="text-[13px] leading-relaxed whitespace-pre-wrap text-[var(--text-primary)] font-sans">{selected.content}</pre>
               </div>
               <div className="bndz-launcher-footer px-3 py-2 flex gap-1 justify-end">
-                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void pasteSnippet(selected)}><Clipboard size={12} /> Paste</button>
-                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void navigator.clipboard.writeText(selected.content)}><Copy size={12} /> Copy</button>
-                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => openEdit(selected)}><Pencil size={12} /> Edit</button>
-                <button type="button" className="bndz-btn-ghost text-[11px] text-red-400" onClick={() => void remove(selected.id)}><Trash2 size={12} /> Delete</button>
+                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void pasteSnippet(selected)}><Icons8Icon id="clipboard" size={12} /> Paste</button>
+                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void navigator.clipboard.writeText(selected.content)}><Icons8Icon id="copy" size={12} /> Copy</button>
+                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => openEdit(selected)}><Icons8Icon id="pencil_ui" size={12} /> Edit</button>
+                <button type="button" className="bndz-btn-ghost text-[11px] text-red-400" onClick={() => void remove(selected.id)}><Icons8Icon id="trash_ui" size={12} /> Delete</button>
               </div>
             </>
           ) : (

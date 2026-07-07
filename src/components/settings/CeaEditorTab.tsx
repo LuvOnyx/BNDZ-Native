@@ -1,5 +1,4 @@
 import React from 'react';
-import { MousePointerClick } from 'lucide-react';
 import {
   CEA_ACTION_LABELS,
   CEA_EVENT_GROUPS,
@@ -31,7 +30,7 @@ export default function CeaEditorTab({ actions, onChange }: Props) {
     <div>
       <SettingsTabHeader
         title="Custom Event Actions"
-        icon={MousePointerClick}
+        icon="pointer_click_ui"
         description="Map mouse events to actions or PowerShell scripts. Changes apply after OK."
       />
       <p className="text-[12px] text-[#e0e0e0] mb-3">Click cells to edit action or script.</p>

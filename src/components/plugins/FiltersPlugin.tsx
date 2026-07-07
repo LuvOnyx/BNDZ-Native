@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Filter, Pen, Plus, Trash2 } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { useAppConfig, VisualFilter } from '../../data/configContext';
 import { FILTER_MATCH_HINTS } from '../../lib/visualFilterEngine';
 import PluginPanelShell from './PluginPanelShell';
@@ -7,7 +7,7 @@ import PluginPanelShell from './PluginPanelShell';
 export const FiltersPluginDef = {
     id: 'filters',
     name: 'Visual Filters',
-    icon: Filter,
+    icon: 'filters',
     description: 'Color-code files by extension, regex, age, size, and file attributes.',
     isNative: false,
     targetPanel: 'bottom' as const,
@@ -71,13 +71,13 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
     return (
         <PluginPanelShell
             title="Visual Filters"
-            icon={Filter}
+            icon="filters"
             iconColor="#38bdf8"
             variant="embedded"
             subtitle={`${filters.filter(f => f.isActive).length} active rules`}
             toolbar={
                 <button type="button" onClick={startNew} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded text-xs font-semibold">
-                    <Plus size={12} /> New Rule
+                    <Icons8Icon id="plus_ui" size={12} /> New Rule
                 </button>
             }
         >
@@ -94,8 +94,8 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                                 <div className="text-xs font-semibold text-white truncate">{f.name}</div>
                                 <div className="text-[10px] text-gray-500 font-mono truncate">{f.matchType}: {f.matchValue || '—'}</div>
                             </div>
-                            <button type="button" onClick={() => setEditing(f)} className="p-1.5 hover:bg-[#222] rounded text-gray-500 hover:text-white"><Pen size={12} /></button>
-                            <button type="button" onClick={() => removeRule(f.id)} className="p-1.5 hover:bg-red-950/30 rounded text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                            <button type="button" onClick={() => setEditing(f)} className="p-1.5 hover:bg-[#222] rounded text-gray-500 hover:text-white"><Icons8Icon id="pencil_ui" size={12} /></button>
+                            <button type="button" onClick={() => removeRule(f.id)} className="p-1.5 hover:bg-red-950/30 rounded text-gray-500 hover:text-red-400"><Icons8Icon id="delete" size={12} /></button>
                         </div>
                     ))}
                 </div>

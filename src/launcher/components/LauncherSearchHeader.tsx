@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 
 type Props = {
   value: string;
@@ -67,7 +67,7 @@ export default function LauncherSearchHeader({
               onClick={onAskAi}
               className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-[var(--launcher-chip-border)] bg-[var(--launcher-chip-bg)] hover:bg-[var(--command-item-hover-bg)] transition-colors group"
             >
-              <Sparkles className="w-3 h-3 text-[var(--text-subtle)] group-hover:text-purple-400 transition-colors" />
+              <Icons8Icon id="sparkles_ui" size={12} />
               <span className="text-[0.6875rem] text-[var(--text-subtle)] group-hover:text-[var(--text-muted)] transition-colors">Ask AI</span>
               <kbd className="bndz-kbd">Tab</kbd>
             </button>
@@ -79,7 +79,7 @@ export default function LauncherSearchHeader({
               className="text-[var(--text-subtle)] hover:text-[var(--text-muted)] transition-colors"
               aria-label="Clear search"
             >
-              <X className="w-4 h-4" />
+              <Icons8Icon id="close" size={14} />
             </button>
           ) : null}
         </div>

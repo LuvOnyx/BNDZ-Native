@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Trash2, Copy, FileText } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import type { NoteRecord } from '../types';
 import { deleteNote, listNotes, upsertNote } from '../bridge/flowBridge';
 
@@ -68,7 +68,7 @@ export default function BndzNotesManager({ onClose, initialView }: Props) {
     return (
       <div className="glass-effect h-full flex flex-col">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-          <button type="button" className="bndz-icon-btn" onClick={() => setView('search')} title="Back"><ArrowLeft size={14} /></button>
+          <button type="button" className="bndz-icon-btn" onClick={() => setView('search')} title="Back"><Icons8Icon id="chevron_left" size={14} /></button>
           <span className="text-[14px] font-medium">{view === 'edit' ? 'Edit Note' : 'New Note'}</span>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
@@ -92,7 +92,7 @@ export default function BndzNotesManager({ onClose, initialView }: Props) {
   return (
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><ArrowLeft size={14} /></button>
+        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><Icons8Icon id="chevron_left" size={14} /></button>
         <input
           ref={inputRef}
           className="bndz-search-input flex-1"
@@ -100,7 +100,7 @@ export default function BndzNotesManager({ onClose, initialView }: Props) {
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
           placeholder="Search notes…"
         />
-        <button type="button" className="bndz-icon-btn" title="New note" onClick={openCreate}><Plus size={14} /></button>
+        <button type="button" className="bndz-icon-btn" title="New note" onClick={openCreate}><Icons8Icon id="plus_ui" size={14} /></button>
       </div>
       <div className="flex-1 grid grid-cols-[2fr_3fr] min-h-0">
         <div className="border-r border-[var(--footer-border)] overflow-y-auto custom-scrollbar">
@@ -121,9 +121,9 @@ export default function BndzNotesManager({ onClose, initialView }: Props) {
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="text-[16px] font-semibold">{selected.title}</div>
                 <div className="flex gap-1">
-                  <button type="button" className="bndz-icon-btn" title="Copy" onClick={() => void copyNote(selected)}><Copy size={14} /></button>
-                  <button type="button" className="bndz-icon-btn" title="Edit" onClick={() => openEdit(selected)}><FileText size={14} /></button>
-                  <button type="button" className="bndz-icon-btn" title="Delete" onClick={() => void remove(selected.id)}><Trash2 size={14} /></button>
+                  <button type="button" className="bndz-icon-btn" title="Copy" onClick={() => void copyNote(selected)}><Icons8Icon id="copy" size={14} /></button>
+                  <button type="button" className="bndz-icon-btn" title="Edit" onClick={() => openEdit(selected)}><Icons8Icon id="pencil_ui" size={14} /></button>
+                  <button type="button" className="bndz-icon-btn" title="Delete" onClick={() => void remove(selected.id)}><Icons8Icon id="trash_ui" size={14} /></button>
                 </div>
               </div>
               <pre className="flex-1 overflow-y-auto custom-scrollbar text-[12px] text-[var(--text-secondary)] whitespace-pre-wrap font-mono leading-relaxed">{selected.content}</pre>

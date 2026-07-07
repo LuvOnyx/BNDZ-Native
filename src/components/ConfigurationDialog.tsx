@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Minus, Square, X, Settings, Palette, Info, FolderOpen, Search, Eye,
-  Layout, Puzzle, ListTree,
-} from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { useAppConfig } from '../data/configContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Checkbox } from './ui/checkbox';
@@ -64,14 +61,14 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   const [jumpQuery, setJumpQuery] = useState('');
 
   const categoryIcons: Record<string, React.ReactNode> = {
-    General: <Settings size={13} className="opacity-70" />,
-    'Colors and Styles': <Palette size={13} className="opacity-70" />,
-    Information: <Info size={13} className="opacity-70" />,
-    'File Operations': <FolderOpen size={13} className="opacity-70" />,
-    'Find and Filter': <Search size={13} className="opacity-70" />,
-    Preview: <Eye size={13} className="opacity-70" />,
-    'Tabs and Panes': <Layout size={13} className="opacity-70" />,
-    Other: <Puzzle size={13} className="opacity-70" />,
+    General: <Icons8Icon id="config" size={13} className="opacity-70" />,
+    'Colors and Styles': <Icons8Icon id="palette_ui" size={13} className="opacity-70" />,
+    Information: <Icons8Icon id="info_ui" size={13} className="opacity-70" />,
+    'File Operations': <Icons8Icon id="folder_open_ui" size={13} className="opacity-70" />,
+    'Find and Filter': <Icons8Icon id="search" size={13} className="opacity-70" />,
+    Preview: <Icons8Icon id="eye_ui" size={13} className="opacity-70" />,
+    'Tabs and Panes': <Icons8Icon id="table_ui" size={13} className="opacity-70" />,
+    Other: <Icons8Icon id="puzzle_ui" size={13} className="opacity-70" />,
   };
 
   const categories = [
@@ -119,13 +116,13 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
          </div>
          <div className="flex text-black gap-[1px] justify-center items-center h-full pb-1">
             <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-              <Minus size={14} strokeWidth={1.5} />
+              <Icons8Icon id="minus_ui" size={14} />
             </button>
             <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-              <Square size={13} strokeWidth={1.5} />
+              <span className="inline-block w-[11px] h-[11px] border border-black/70" />
             </button>
             <button className="hover:bg-red-500 hover:text-white p-1 rounded-sm flex items-center justify-center transition-colors" onClick={onClose}>
-              <X size={14} strokeWidth={1.5} />
+              <Icons8Icon id="close" size={14} />
             </button>
          </div>
       </div>
@@ -135,7 +132,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
          <div className="bndz-settings-nav w-[240px] bg-[#141418] border-r border-[#333] shrink-0 flex flex-col min-h-0">
             <div className="shrink-0 p-2.5 border-b border-[#333] bg-[#141418] space-y-2">
               <div className="relative">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                <Icons8Icon id="search" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-60 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Filter settings…"
@@ -189,7 +186,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             <TabsContent value="Tree and List" className="m-0 border-0 p-0 outline-none">
               <SettingsTabHeader
                 title="Tree and List"
-                icon={ListTree}
+                icon="shell_menus"
                 description="Navigation tree behavior, list display options, and folder size scanning."
               />
 
@@ -248,12 +245,13 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                  <div className="ml-2 mb-2">
                    <label className="text-[11px] text-gray-400 block mb-1">Size view visualization</label>
                    <select
-                     value={localConfig.folderSizeVisualization === 'bubbles' ? 'bubbles' : 'treemap'}
-                     onChange={e => updateLocalConfig({ folderSizeVisualization: e.target.value as 'treemap' | 'bubbles' })}
+                     value={localConfig.folderSizeVisualization === 'bubbles' ? 'bubbles' : localConfig.folderSizeVisualization === 'treemap' ? 'treemap' : 'list'}
+                     onChange={e => updateLocalConfig({ folderSizeVisualization: e.target.value as 'list' | 'treemap' | 'bubbles' })}
                      className="text-[11px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-2 py-1 rounded outline-none focus:border-sky-500/50"
                    >
-                     <option value="treemap">Treemap (folders-first)</option>
-                     <option value="bubbles">Bubble chart (d3 pack)</option>
+                     <option value="list">Size list (recommended)</option>
+                     <option value="treemap">Treemap (advanced)</option>
+                     <option value="bubbles">Bubble chart (advanced)</option>
                    </select>
                  </div>
                  <div className="ml-[20px]">
@@ -1078,6 +1076,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   <p className="text-[11px] text-gray-500 ml-[20px]">Right-click any folder → <span className="text-gray-400">Index folder for search</span> to add it to the local cache.</p>
 
                   <SectionHeader title="Search index" />
+                  <Checkbox label={<span>Show IDX badges in navigation tree</span>} checked={localConfig.showNavIndexBadges === true} onChange={e => updateLocalConfig({ showNavIndexBadges: e.target.checked })} />
                   <BndzIndexManagerPanel />
                   <div className="ml-[20px]">
                      <div className="flex items-center gap-2 mb-1">

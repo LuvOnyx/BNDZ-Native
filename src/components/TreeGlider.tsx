@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Clipboard, Copy, Scissors } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 
 export type TreeGliderAnchor = {
   path: string;
@@ -58,7 +58,7 @@ export default function TreeGlider({ anchor, canPaste, onCopy, onMove, onPaste, 
         className="tree-glider-btn p-1 rounded hover:bg-sky-500/20 text-sky-300"
         onClick={() => { onCopy(anchor.path); onDismiss(); }}
       >
-        <Copy size={13} />
+        <Icons8Icon id="copy" size={13} />
       </button>
       <button
         type="button"
@@ -66,7 +66,7 @@ export default function TreeGlider({ anchor, canPaste, onCopy, onMove, onPaste, 
         className="tree-glider-btn p-1 rounded hover:bg-amber-500/20 text-amber-300"
         onClick={() => { onMove(anchor.path); onDismiss(); }}
       >
-        <Scissors size={13} />
+        <Icons8Icon id="cut" size={13} />
       </button>
       <button
         type="button"
@@ -75,7 +75,7 @@ export default function TreeGlider({ anchor, canPaste, onCopy, onMove, onPaste, 
         className={`tree-glider-btn p-1 rounded ${canPaste ? 'hover:bg-emerald-500/20 text-emerald-300' : 'opacity-30 cursor-not-allowed text-gray-500'}`}
         onClick={() => { if (canPaste) { onPaste(anchor.path); onDismiss(); } }}
       >
-        <Clipboard size={13} />
+        <Icons8Icon id="paste" size={13} />
       </button>
     </div>,
     document.body,

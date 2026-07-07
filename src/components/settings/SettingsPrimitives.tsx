@@ -1,22 +1,23 @@
 import React from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 
 export function SettingsTabHeader({
   title,
   description,
-  icon: Icon,
+  icon,
   children,
 }: {
   title: string;
   description?: string;
-  icon?: LucideIcon;
+  /** Icons8 asset id (see toolbarLauncherIcons.ts). */
+  icon?: string;
   children?: React.ReactNode;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 mb-6 pb-5 border-b border-[#333]">
       <div className="min-w-0">
         <h1 className="text-[20px] font-bold text-white mb-1 leading-tight flex items-center gap-2">
-          {Icon && <Icon size={20} className="text-sky-400 shrink-0" />}
+          {icon && <Icons8Icon id={icon} size={20} className="shrink-0" />}
           {title}
         </h1>
         {description && (

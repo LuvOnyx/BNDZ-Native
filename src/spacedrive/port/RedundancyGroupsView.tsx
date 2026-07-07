@@ -3,7 +3,7 @@
  * Wired to BNDZ DuplicateFinderService via IPC.scanDuplicates.
  */
 import React from 'react';
-import { Copy, Trash2, HardDrive } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 
 export type DuplicateGroup = {
@@ -35,7 +35,7 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
   return (
     <div className="sd-redundancy-view flex flex-col gap-2">
       <div className="flex items-center gap-2 px-2 py-1 bg-[#2a2a2a] border border-[#454545] text-[11px]">
-        <HardDrive size={14} className="text-amber-400 shrink-0" />
+        <Icons8Icon id="disk_mgmt" size={14} className="shrink-0" />
         <span className="text-gray-300">{groups.length} redundant group(s)</span>
         {wastedBytes > 0 && (
           <span className="text-sky-300/90 ml-auto">Up to {formatSize(wastedBytes)} recoverable</span>
@@ -96,7 +96,7 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                       onClick={() => void navigator.clipboard.writeText(p)}
                       title="Copy path"
                     >
-                      <Copy size={11} />
+                      <Icons8Icon id="copy" size={11} />
                     </button>
                     {pi > 0 && (
                       <button
@@ -108,7 +108,7 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                         }}
                         title="Delete duplicate"
                       >
-                        <Trash2 size={11} />
+                        <Icons8Icon id="delete" size={11} />
                       </button>
                     )}
                   </div>

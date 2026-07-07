@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Puzzle, RefreshCw, Search, Store } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import { listInstalledPlugins, openPluginStore } from '../bridge/flowBridge';
 import { rebrandLauncherText } from '../../lib/rebrandLauncherText';
 import type { PluginRecord } from '../types';
@@ -62,12 +62,12 @@ export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)] shrink-0">
         <button type="button" className="bndz-icon-btn" onClick={onClose} aria-label="Back">
-          <ArrowLeft size={14} />
+          <Icons8Icon id="chevron_left" size={14} />
         </button>
-        <Store size={16} className="text-[var(--accent)] shrink-0" />
+        <Icons8Icon id="store" size={16} className="shrink-0" />
         <span className="text-[14px] font-semibold shrink-0">Plugin Store</span>
         <div className="flex-1 relative min-w-0">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-subtle)]" />
+          <Icons8Icon id="search" size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-60" />
           <input
             ref={inputRef}
             className="bndz-search-input w-full pl-8"
@@ -78,14 +78,14 @@ export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
           />
         </div>
         <button type="button" className="bndz-icon-btn" title="Refresh" onClick={() => void load()} disabled={loading}>
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <Icons8Icon id="refresh" size={14} spin={loading} />
         </button>
         <button
           type="button"
           className="bndz-btn-primary text-[11px] px-3 py-1.5 flex items-center gap-1.5 shrink-0"
           onClick={() => void openPluginStore()}
         >
-          <ExternalLink size={12} /> Browse Store
+          <Icons8Icon id="external_link" size={12} /> Browse Store
         </button>
       </div>
 
@@ -111,7 +111,7 @@ export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
                 }}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <Puzzle size={14} className="shrink-0 opacity-70" />
+                  <Icons8Icon id="puzzle_ui" size={14} className="shrink-0 opacity-70" />
                   <div className="min-w-0">
                     <div className="text-[13px] font-medium truncate">{rebrandLauncherText(p.name)}</div>
                     {p.actionKeyword ? (
@@ -149,16 +149,16 @@ export default function BndzPluginStoreView({ onClose, onRunKeyword }: Props) {
                   </button>
                 ) : null}
                 <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void openPluginStore()}>
-                  <ExternalLink size={12} /> Manage in Flow Store
+                  <Icons8Icon id="external_link" size={12} /> Manage in Flow Store
                 </button>
               </div>
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 px-6">
-              <Store size={32} className="text-[var(--text-subtle)] opacity-40" />
+              <Icons8Icon id="store" size={32} className="opacity-40" />
               <p className="text-[var(--text-muted)] text-[13px]">Select a plugin or open the Flow Plugin Store to install more.</p>
               <button type="button" className="bndz-btn-primary" onClick={() => void openPluginStore()}>
-                <ExternalLink size={12} /> Open Flow Plugin Store
+                <Icons8Icon id="external_link" size={12} /> Open Flow Plugin Store
               </button>
             </div>
           )}

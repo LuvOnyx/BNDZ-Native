@@ -1,6 +1,6 @@
 import React from 'react';
-import { Lock, Unlock, X, Copy, Layers, Palette, RefreshCw } from 'lucide-react';
 import ClampedFixedMenu from './ClampedFixedMenu';
+import { Icons8Icon } from './Icons8Icon';
 import { TAB_ACCENT_PRESETS } from '../lib/tabColors';
 
 interface TabContextMenuProps {
@@ -60,35 +60,35 @@ export function TabContextMenu({
           {tabLabel}
         </div>
         <button type="button" className={itemClass} onMouseDown={act(onLock)}>
-          {isLocked ? <Unlock size={14} className="shrink-0 opacity-80" /> : <Lock size={14} className="shrink-0 opacity-80" />}
+          <Icons8Icon id={isLocked ? 'unlock_ui' : 'lock_ui'} size={14} className="shrink-0 opacity-80" />
           {isLocked ? 'Unlock Tab' : 'Lock Tab'}
         </button>
         <button type="button" className={itemClass} disabled={!canClose} onMouseDown={act(onClose)}>
-          <X size={14} className="shrink-0 opacity-80" />
+          <Icons8Icon id="close" size={14} className="shrink-0 opacity-80" />
           Close
         </button>
         <button type="button" className={itemClass} disabled={!canCloseOthers} onMouseDown={act(onCloseOthers)}>
-          <Layers size={14} className="shrink-0 opacity-80" />
+          <Icons8Icon id="dropstack" size={14} className="shrink-0 opacity-80" />
           Close Others
         </button>
         <button type="button" className={itemClass} onMouseDown={act(onCloseAll)}>
-          <X size={14} className="shrink-0 opacity-80" />
+          <Icons8Icon id="close" size={14} className="shrink-0 opacity-80" />
           Close All
         </button>
         <div className="bndz-context-menu-sep" />
         <button type="button" className={itemClass} onMouseDown={act(onDuplicate)}>
-          <Copy size={14} className="shrink-0 opacity-80" />
+          <Icons8Icon id="copy" size={14} className="shrink-0 opacity-80" />
           Duplicate Tab
         </button>
         {showRefresh && onRefresh && (
           <button type="button" className={itemClass} onMouseDown={act(onRefresh)}>
-            <RefreshCw size={14} className="shrink-0 opacity-80" />
+            <Icons8Icon id="refresh" size={14} className="shrink-0 opacity-80" />
             Refresh Tab
           </button>
         )}
         <div className="bndz-context-menu-sep" />
         <div className="px-3 py-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[var(--text-muted,#888)]">
-          <Palette size={11} /> Tab Color
+          <Icons8Icon id="theme" size={11} /> Tab Color
         </div>
         <div className="px-3 pb-2 flex flex-wrap gap-1.5">
           {TAB_ACCENT_PRESETS.map(preset => (

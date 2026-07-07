@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Replace, Search, Hash, ArrowRight, FileInput, CaseSensitive, Calendar, Loader2, Sparkles } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
@@ -7,7 +7,7 @@ import PluginPanelShell from './PluginPanelShell';
 export const BatchRenamePluginDef = {
     id: "batch-rename",
     name: "Batch Rename",
-    icon: Replace
+    icon: 'batch_rename'
 };
 
 type RenameTarget = {
@@ -213,7 +213,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
     return (
         <PluginPanelShell
             title="Batch Rename"
-            icon={Replace}
+            icon="batch_rename"
             iconColor="#34d399"
             variant="embedded"
             subtitle={`${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
@@ -224,7 +224,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                     disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
                     className="px-3 py-1.5 text-[11px] bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900/30 disabled:text-gray-600 rounded text-white font-semibold border border-emerald-500/50 flex items-center gap-1.5"
                 >
-                    {committing ? <Loader2 size={12} className="animate-spin" /> : null}
+                    {committing ? <Icons8Icon id="loading" size={12} spin /> : null}
                     Apply Renames
                 </button>
             }
@@ -232,7 +232,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             <div className="w-full h-full flex text-gray-200 text-xs font-sans overflow-hidden">
                 <div className="w-[320px] bg-[#141414] border-r border-[#222] flex flex-col overflow-y-auto bndz-scrollbar">
                     <div className="p-4 border-b border-[#222]">
-                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Search size={12}/> Find & Replace</h3>
+                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="search" size={12}/> Find & Replace</h3>
                         <div className="space-y-3">
                             <div>
                                 <label className="text-[#888] text-[10px] mb-1 block">Find Context</label>
@@ -251,7 +251,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                     </div>
 
                     <div className="p-4 border-b border-[#222]">
-                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><FileInput size={12}/> Affixes</h3>
+                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="file_ui" size={12}/> Affixes</h3>
                         <div className="flex gap-3">
                             <div className="flex-1">
                                 <label className="text-[#888] text-[10px] mb-1 block">Prefix</label>
@@ -265,7 +265,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                     </div>
 
                     <div className="p-4 border-b border-[#222]">
-                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><CaseSensitive size={12}/> Formatting</h3>
+                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="category_ui" size={12}/> Formatting</h3>
                         <div>
                             <label className="text-[#888] text-[10px] mb-1 block">Casing Rule</label>
                             <select value={casing} onChange={e => setCasing(e.target.value as any)} className="w-full bg-[#090909] border border-[#333] px-2 py-1.5 outline-none focus:border-emerald-500 rounded-sm transition-colors text-white">
@@ -280,7 +280,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
 
                     <div className="p-4">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Hash size={12}/> Sequential Numbering</h3>
+                            <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="category_ui" size={12}/> Sequential Numbering</h3>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" checked={useSequence} onChange={e => setUseSequence(e.target.checked)} className="sr-only peer" />
                                 <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 peer-focus:outline-none transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full"></div>
@@ -308,7 +308,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
 
                     <div className="p-4 border-t border-[#222]">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Calendar size={12}/> Date tokens</h3>
+                            <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="clock_ui" size={12}/> Date tokens</h3>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" checked={useDateTokens} onChange={e => setUseDateTokens(e.target.checked)} className="sr-only peer" />
                                 <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full"></div>
@@ -323,7 +323,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
 
                     <div className="p-4 border-t border-[#222]">
                         <h3 className="text-gray-400 font-semibold mb-2 flex items-center gap-1 uppercase tracking-wider text-[10px]">
-                            <Sparkles size={12} /> AI rename
+                            <Icons8Icon id="sparkles_ui" size={12} /> AI rename
                         </h3>
                         <textarea
                             value={aiPrompt}
@@ -337,7 +337,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                             disabled={!targets.length || !aiPrompt.trim() || aiLoading}
                             className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] disabled:opacity-40 text-white"
                         >
-                            {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            {aiLoading ? <Icons8Icon id="loading" size={12} spin /> : <Icons8Icon id="sparkles_ui" size={12} />}
                             Generate AI names
                         </button>
                     </div>
@@ -346,7 +346,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                 <div className="flex-1 overflow-y-auto bg-[#0a0a0a] relative bndz-scrollbar">
                     {targets.length === 0 ? (
                         <div className="absolute inset-0 flex items-center justify-center text-gray-600 flex-col gap-2 pointer-events-none">
-                            <Replace size={48} className="opacity-20" />
+                            <Icons8Icon id="batch_rename" size={48} className="opacity-20" />
                             <span className="font-medium text-sm">Select files to preview renames</span>
                             <span className="text-[10px] text-gray-500">Hold CTRL or SHIFT in the list to select multiple files.</span>
                         </div>
@@ -370,7 +370,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                                             <span className={changed ? 'line-through decoration-red-500/50' : ''}>{p.oldName}</span>
                                         </td>
                                         <td className="p-2.5 flex justify-center text-gray-600 group-hover:text-emerald-500/50 transition-colors">
-                                            {changed ? <ArrowRight size={14} /> : <div className="w-3" />}
+                                            {changed ? <Icons8Icon id="chevron_right" size={12} /> : <div className="w-3" />}
                                         </td>
                                         <td className="p-2.5 truncate max-w-xs transition-colors" style={{ color: changed ? '#34d399' : '#ccc' }} title={`${p.parentDir}\\${p.newName}`}>
                                             {p.newName}

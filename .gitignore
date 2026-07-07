@@ -15,6 +15,8 @@ TestResults/
 
 # Flow Launcher build output (source is vendored under external/)
 external/Flow.Launcher/Output/
+# Physics-Toast reference extract (UX port lives in src/lib/physicsToast/)
+external/physics-toast-ref/
 
 # IDE / OS
 .DS_Store

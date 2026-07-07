@@ -1,26 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Check, Plus, Upload, Settings, Search, Filter, Database, Layers, Replace, Puzzle, Trash, Minus, Square, X, Star, Download, Globe, FolderSync, HardDrive, ScrollText, GitCompare, BookMarked, Sparkles, Palette } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { usePluginRegistry, PluginManifest } from '../data/PluginRegistryContext';
-
-const iconRegistry: Record<string, React.ElementType> = {
-    'properties': Settings,
-    'context-menu-manager': ScrollText,
-    'icon-studio': Palette,
-    'batch-rename': Replace,
-    'find': Search,
-    'dropstack': Layers,
-    'filters': Filter,
-    'metadata': Database,
-    'storage-cleanup': Trash,
-    'folder-sync': FolderSync,
-    'catalog': BookMarked,
-    'action-log': HistoryIcon,
-    'compare': GitCompare,
-};
-
-function HistoryIcon(props: React.ComponentProps<typeof Search>) {
-    return <Sparkles {...props} />;
-}
 
 export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
     const { pluginRegistry, togglePluginInstall, addPluginToRegistry } = usePluginRegistry() as any;
@@ -69,18 +49,18 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                 {/* Title Bar */}
                 <div className="bg-[#a475d4] px-3 py-[5px] flex items-center justify-between cursor-move rounded-t-lg">
                     <div className="text-[12px] text-black flex items-center gap-2 font-medium">
-                        <Puzzle size={14} className="text-black" />
+                        <Icons8Icon id="extension_hub" size={14} />
                         <span className="text-black font-bold text-[14px]">Extension Hub</span>
                     </div>
                     <div className="flex text-black gap-[1px] justify-center items-center h-full pb-1">
                         <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-                            <Minus size={14} strokeWidth={1.5} />
+                            <Icons8Icon id="minus_ui" size={14} />
                         </button>
                         <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-                            <Square size={13} strokeWidth={1.5} />
+                            <span className="inline-block w-[11px] h-[11px] border border-black/70" />
                         </button>
                         <button className="hover:bg-red-500 hover:text-white p-1 rounded-sm flex items-center justify-center transition-colors" onClick={onClose}>
-                            <X size={14} strokeWidth={1.5} />
+                            <Icons8Icon id="close" size={14} />
                         </button>
                     </div>
                 </div>
@@ -90,7 +70,7 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                     <div className="w-[300px] bg-[#1a1a1a] border-r border-[#333] flex flex-col pt-4">
                         <div className="px-4 pb-4 border-b border-[#333]">
                             <div className="relative">
-                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                                <Icons8Icon id="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input 
                                     type="text" 
                                     placeholder="Search Extensions in Marketplace..." 
@@ -102,29 +82,26 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                         </div>
 
                         <div className="flex-1 overflow-y-auto styled-scrollbar p-2">
-                            {filteredPlugins.map(plugin => {
-                                const Icon = iconRegistry[plugin.id] || Puzzle;
-                                return (
-                                    <div 
-                                        key={plugin.id}
-                                        onClick={() => setSelectedPluginId(plugin.id)}
-                                        className={`flex items-start gap-3 p-3 rounded cursor-pointer transition-colors ${activePlugin?.id === plugin.id ? 'bg-[#37373d] hover:bg-[#37373d]' : 'hover:bg-[#2a2d2e]'}`}
-                                    >
-                                        <Icon size={28} className={plugin.isInstalled ? 'text-sky-400' : 'text-gray-500'} />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-semibold text-[13px] text-white truncate">{plugin.name}</div>
-                                            <div className="text-[11px] text-gray-400 truncate mt-0.5" title={plugin.description}>{plugin.description}</div>
-                                            <div className="flex items-center justify-between mt-2 text-[10px]">
-                                                <div className="text-gray-500 flex gap-2">
-                                                    <span>BNDZ Dev</span>
-                                                    <span>★ 5.0</span>
-                                                </div>
-                                                {plugin.isInstalled && <span className="bg-sky-500/20 text-sky-400 px-1 rounded border border-sky-500/30 font-mono">INSTALLED</span>}
+                            {filteredPlugins.map(plugin => (
+                                <div 
+                                    key={plugin.id}
+                                    onClick={() => setSelectedPluginId(plugin.id)}
+                                    className={`flex items-start gap-3 p-3 rounded cursor-pointer transition-colors ${activePlugin?.id === plugin.id ? 'bg-[#37373d] hover:bg-[#37373d]' : 'hover:bg-[#2a2d2e]'}`}
+                                >
+                                    <Icons8Icon id={plugin.icon || 'extension_hub'} size={28} disabled={!plugin.isInstalled} />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-semibold text-[13px] text-white truncate">{plugin.name}</div>
+                                        <div className="text-[11px] text-gray-400 truncate mt-0.5" title={plugin.description}>{plugin.description}</div>
+                                        <div className="flex items-center justify-between mt-2 text-[10px]">
+                                            <div className="text-gray-500 flex gap-2">
+                                                <span>BNDZ Dev</span>
+                                                <span>★ 5.0</span>
                                             </div>
+                                            {plugin.isInstalled && <span className="bg-sky-500/20 text-sky-400 px-1 rounded border border-sky-500/30 font-mono">INSTALLED</span>}
                                         </div>
                                     </div>
-                                );
-                            })}
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -135,7 +112,7 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                                 <div className="p-8 border-b border-[#333] flex gap-6 shrink-0 bg-[#252526]">
                                     {/* Big Icon */}
                                     <div className={`w-28 h-28 rounded-xl flex items-center justify-center shrink-0 border border-[#444] shadow-lg ${activePlugin.isInstalled ? 'bg-gradient-to-br from-sky-900/40 to-[#111]' : 'bg-[#1a1a1a]'}`}>
-                                        {React.createElement(iconRegistry[activePlugin.id] || Puzzle, { size: 64, className: activePlugin.isInstalled ? 'text-sky-400' : 'text-gray-500' })}
+                                        <Icons8Icon id={activePlugin.icon || 'extension_hub'} size={64} disabled={!activePlugin.isInstalled} />
                                     </div>
                                     <div className="flex flex-col justify-center flex-1">
                                         <div className="flex items-baseline gap-3 mb-1">
@@ -144,9 +121,9 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                                         </div>
                                         <div className="flex items-center gap-4 text-xs text-[#007acc] mb-4">
                                             <span className="hover:underline cursor-pointer">BNDZ Dev</span>
-                                            <div className="flex items-center gap-1 text-gray-400"><Download size={12} /> 1.2M</div>
-                                            <div className="flex items-center gap-1 text-gray-400"><Star size={12} className="text-yellow-500" /> 1K+</div>
-                                            <div className="flex items-center gap-1 text-gray-400"><Globe size={12} /> Registry</div>
+                                            <div className="flex items-center gap-1 text-gray-400"><Icons8Icon id="download" size={12} /> 1.2M</div>
+                                            <div className="flex items-center gap-1 text-gray-400"><Icons8Icon id="star_ui" size={12} /> 1K+</div>
+                                            <div className="flex items-center gap-1 text-gray-400"><Icons8Icon id="go_network" size={12} /> Registry</div>
                                         </div>
                                         <p className="text-[13px] text-gray-300 mb-6">{activePlugin.description}</p>
                                         <div className="flex gap-3">

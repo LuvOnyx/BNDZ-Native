@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { CheckCircle2, AlertCircle, Info, Loader2, X, Trash2, FolderSync, Copy } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { generateId } from '../lib/generateId';
+import PhysicsToastCard from './PhysicsToastCard';
+import {
+  PHYSICS_TOAST_BLUR,
+  PHYSICS_TOAST_FILTER_ID,
+} from '../lib/physicsToast/theme';
 
 export type ToastKind = 'success' | 'error' | 'info' | 'warning' | 'progress';
 
@@ -27,34 +30,6 @@ interface ToastItem extends Required<Pick<ToastPayload, 'message'>> {
   native?: boolean;
 }
 
-const KIND_STYLES: Record<ToastKind, { accent: string; glow: string; icon: React.ReactNode }> = {
-  success: {
-    accent: 'from-emerald-500/20 to-teal-600/10 border-emerald-500/35',
-    glow: 'shadow-[0_8px_32px_rgba(16,185,129,0.15)]',
-    icon: <CheckCircle2 size={18} className="text-emerald-400" />,
-  },
-  error: {
-    accent: 'from-rose-500/20 to-red-600/10 border-rose-500/35',
-    glow: 'shadow-[0_8px_32px_rgba(244,63,94,0.18)]',
-    icon: <AlertCircle size={18} className="text-rose-400" />,
-  },
-  warning: {
-    accent: 'from-amber-500/20 to-orange-600/10 border-amber-500/35',
-    glow: 'shadow-[0_8px_32px_rgba(245,158,11,0.15)]',
-    icon: <AlertCircle size={18} className="text-amber-400" />,
-  },
-  info: {
-    accent: 'from-sky-500/20 to-indigo-600/10 border-sky-500/35',
-    glow: 'shadow-[0_8px_32px_rgba(56,189,248,0.12)]',
-    icon: <Info size={18} className="text-sky-400" />,
-  },
-  progress: {
-    accent: 'from-violet-500/20 to-fuchsia-600/10 border-violet-500/35',
-    glow: 'shadow-[0_8px_32px_rgba(139,92,246,0.15)]',
-    icon: <Loader2 size={18} className="text-violet-400 animate-spin" />,
-  },
-};
-
 /** Push a toast from anywhere — no React context required */
 export function pushToast(payload: ToastPayload) {
   window.dispatchEvent(new CustomEvent('bndz-toast', { detail: payload }));
@@ -64,65 +39,29 @@ export function dismissToast(id: string) {
   window.dispatchEvent(new CustomEvent('bndz-toast-dismiss', { detail: { id } }));
 }
 
-function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {
-  const style = KIND_STYLES[toast.kind];
-
-  useEffect(() => {
-    if (toast.sticky || toast.kind === 'progress') return;
-    const t = setTimeout(() => onDismiss(toast.id), toast.duration);
-    return () => clearTimeout(t);
-  }, [toast, onDismiss]);
-
+function PhysicsToastFilter() {
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, x: 28, y: -8, scale: 0.94, filter: 'blur(4px)' }}
-      animate={{ opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, x: 20, y: -6, scale: 0.96, filter: 'blur(2px)' }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={`relative overflow-hidden rounded-xl border backdrop-blur-xl bg-gradient-to-br ${style.accent} ${style.glow}
-        min-w-[300px] max-w-[420px]`}
-      role="status"
-    >
-      <div className="flex items-start gap-3 px-4 py-3.5 pr-10">
-        <div className="mt-0.5 shrink-0 w-8 h-8 rounded-lg bg-black/25 flex items-center justify-center ring-1 ring-white/5">
-          {toast.kind === 'progress' && toast.title.toLowerCase().includes('delet') ? <Trash2 size={16} className="text-violet-400" /> :
-           toast.kind === 'progress' && toast.title.toLowerCase().includes('copy') ? <Copy size={16} className="text-violet-400 animate-pulse" /> :
-           toast.kind === 'progress' && toast.title.toLowerCase().includes('size') ? <FolderSync size={16} className="text-violet-400 animate-spin" style={{ animationDuration: '2s' }} /> :
-           style.icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold text-white/95 leading-tight">{toast.title}</div>
-          {toast.message && (
-            <div className="text-[11px] text-gray-400 mt-1 leading-relaxed break-words">{toast.message}</div>
-          )}
-          {toast.kind === 'progress' && toast.progress != null && (
-            <div className="mt-2.5 h-1.5 rounded-full bg-black/30 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-400 transition-all duration-300 ease-out"
-                style={{ width: `${Math.min(100, Math.max(0, toast.progress))}%` }}
-              />
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => onDismiss(toast.id)}
-          className="absolute right-2.5 top-2.5 p-1 rounded-md text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
-          aria-label="Dismiss"
+    <svg aria-hidden className="bndz-pt-filter-defs" width={0} height={0}>
+      <defs>
+        <filter
+          id={PHYSICS_TOAST_FILTER_ID}
+          x="-20%"
+          y="-20%"
+          width="140%"
+          height="140%"
+          colorInterpolationFilters="sRGB"
         >
-          <X size={14} />
-        </button>
-      </div>
-      {toast.kind !== 'progress' && !toast.sticky && (
-        <motion.div
-          className="absolute bottom-0 left-0 h-[2px] bg-white/25 origin-left"
-          initial={{ scaleX: 1 }}
-          animate={{ scaleX: 0 }}
-          transition={{ duration: toast.duration / 1000, ease: 'linear' }}
-        />
-      )}
-    </motion.div>
+          <feGaussianBlur in="SourceGraphic" stdDeviation={PHYSICS_TOAST_BLUR} result="blur" />
+          <feColorMatrix
+            in="blur"
+            mode="matrix"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10"
+            result="goo"
+          />
+          <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+        </filter>
+      </defs>
+    </svg>
   );
 }
 
@@ -164,17 +103,26 @@ export default function ToastHost() {
     };
   }, [dismiss]);
 
-  if (!toasts.length) return null;
-
   return (
-    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 pointer-events-none max-w-[min(420px,calc(100vw-2rem))]">
-      <AnimatePresence mode="popLayout">
-        {toasts.map(t => (
-          <div key={t.id} className="pointer-events-auto">
-            <ToastCard toast={t} onDismiss={dismiss} />
-          </div>
-        ))}
-      </AnimatePresence>
-    </div>
+    <>
+      <PhysicsToastFilter />
+      {toasts.length > 0 && (
+        <div className="bndz-pt-viewport" data-position="top-right">
+          {toasts.map(t => (
+            <PhysicsToastCard
+              key={t.id}
+              id={t.id}
+              kind={t.kind}
+              title={t.title}
+              message={t.message}
+              progress={t.progress}
+              duration={t.duration}
+              sticky={t.sticky}
+              onDismiss={dismiss}
+            />
+          ))}
+        </div>
+      )}
+    </>
   );
 }

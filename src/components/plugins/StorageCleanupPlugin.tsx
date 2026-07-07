@@ -22,7 +22,7 @@ import {
 export const StorageCleanupPluginDef = {
   id: 'storage-cleanup',
   name: 'Storage Cleanup',
-  icon: HardDrive,
+  icon: 'storage_cleanup',
   targetPanel: 'bottom' as const,
   installOnFirstUse: true,
 };
@@ -199,7 +199,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
   return (
     <PluginPanelShell
       title="Smart Storage"
-      icon={Sparkles}
+      icon="storage_cleanup"
       iconColor="#34d399"
       variant="embedded"
       subtitle={folderLabel}

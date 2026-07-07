@@ -16,10 +16,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
-import { Layers, Puzzle, Store, GripVertical, ChevronDown } from 'lucide-react';
+import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 
 function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; isActive: boolean; onClick: () => void; showIcons?: boolean }) {
-  const Icon = plugin.icon || Layers;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: plugin.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -41,9 +40,9 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       title={plugin.name}
     >
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400 p-0.5 -ml-1" onClick={e => e.stopPropagation()}>
-        <GripVertical size={10} />
+        <DragHandleGlyph size={10} />
       </span>
-      {showIcons !== false && <Icon size={12} className={`shrink-0 ${isActive ? 'text-sky-500' : 'text-gray-600'}`} />}
+      {showIcons !== false && <Icons8Icon id={plugin.icon || 'dropstack'} size={12} className="shrink-0" />}
       <span className="truncate">{plugin.name}</span>
     </button>
   );
@@ -202,14 +201,14 @@ export default function BottomPluginPanel(props: any & {
     return (
       <div className="bndz-bottom-panel flex flex-col h-full min-h-0 border-t border-white/[0.06]">
         <div className="bndz-bottom-tabstrip flex items-center gap-2 px-4 py-2 border-b border-white/[0.05] text-[11px] font-bold uppercase tracking-wider text-gray-500 shrink-0">
-          <Puzzle size={12} />
+          <Icons8Icon id="extension_hub" size={12} />
           Plugin Panel
         </div>
         <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-600 text-xs gap-3">
           <span>No plugins installed.</span>
           {onOpenPluginStore && (
             <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-[#a475d4] hover:bg-[#8b5fbf] text-white rounded text-xs font-semibold transition-colors">
-              <Store size={12} /> Open Extension Hub
+              <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub
             </button>
           )}
         </div>
@@ -240,25 +239,22 @@ export default function BottomPluginPanel(props: any & {
                     overflowTabs.some((p: any) => p.id === activeTab) ? 'text-sky-300 bg-white/[0.04]' : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  More <ChevronDown size={12} className={overflowOpen ? 'rotate-180' : ''} />
+                  More <Icons8Icon id="chevron_down" size={11} className={overflowOpen ? 'rotate-180' : ''} />
                 </button>
                 {overflowOpen && (
                   <div className="absolute right-0 top-full z-50 min-w-[180px] py-1 bg-[#1a1a1f] border border-[#333] shadow-xl max-h-[240px] overflow-y-auto bndz-scrollbar">
-                    {overflowTabs.map((plugin: any) => {
-                      const Icon = plugin.icon || Layers;
-                      return (
-                        <button
-                          key={plugin.id}
-                          type="button"
-                          onClick={() => handleTabClick(plugin.id)}
-                          className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 hover:bg-[#094771]/40 ${
-                            activeTab === plugin.id ? 'text-sky-300' : 'text-gray-300'
-                          }`}
-                        >
-                          <Icon size={12} /> {plugin.name}
-                        </button>
-                      );
-                    })}
+                    {overflowTabs.map((plugin: any) => (
+                      <button
+                        key={plugin.id}
+                        type="button"
+                        onClick={() => handleTabClick(plugin.id)}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 hover:bg-[#094771]/40 ${
+                          activeTab === plugin.id ? 'text-sky-300' : 'text-gray-300'
+                        }`}
+                      >
+                        <Icons8Icon id={plugin.icon || 'dropstack'} size={12} /> {plugin.name}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>

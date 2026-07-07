@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { History, Undo2, Redo2, RefreshCw, Loader2 } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
@@ -7,7 +7,7 @@ import { pushToast } from '../ToastHost';
 export const ActionLogPluginDef = {
   id: 'action-log',
   name: 'Action Log',
-  icon: History,
+  icon: 'clock_ui',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -60,7 +60,7 @@ export default function ActionLogPlugin() {
   return (
     <PluginPanelShell
       title="Action Log"
-      icon={History}
+      icon="clock_ui"
       iconColor="#a78bfa"
       subtitle="XYplorer-style reversible operation history"
       variant="embedded"
@@ -72,7 +72,7 @@ export default function ActionLogPlugin() {
             onClick={() => void runUndo()}
             className="px-2 py-1 text-[10px] uppercase font-bold rounded border border-white/10 disabled:opacity-40 hover:bg-white/5 flex items-center gap-1"
           >
-            <Undo2 size={12} /> Undo
+            <Icons8Icon id="undo" size={12} /> Undo
           </button>
           <button
             type="button"
@@ -80,10 +80,10 @@ export default function ActionLogPlugin() {
             onClick={() => void runRedo()}
             className="px-2 py-1 text-[10px] uppercase font-bold rounded border border-white/10 disabled:opacity-40 hover:bg-white/5 flex items-center gap-1"
           >
-            <Redo2 size={12} /> Redo
+            <Icons8Icon id="redo" size={12} /> Redo
           </button>
           <button type="button" onClick={() => void refresh()} className="p-1 rounded hover:bg-white/5 text-gray-500" title="Refresh">
-            <RefreshCw size={12} />
+            <Icons8Icon id="refresh" size={12} />
           </button>
         </>
       }
@@ -91,7 +91,7 @@ export default function ActionLogPlugin() {
       <div className="h-full overflow-y-auto bndz-scrollbar">
         {loading && (
           <div className="flex items-center justify-center gap-2 py-8 text-gray-500 text-xs">
-            <Loader2 size={14} className="animate-spin" /> Loading…
+            <Icons8Icon id="loading" size={14} spin /> Loading…
           </div>
         )}
         {!loading && items.length === 0 && (

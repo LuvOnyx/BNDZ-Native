@@ -86,9 +86,9 @@ public sealed class BndzFileIndexService : IDisposable
         }
     }
 
-    private static SqliteConnection OpenConnection()
+    private SqliteConnection OpenConnection()
     {
-        var conn = new SqliteConnection($"Data Source={Instance._dbPath}");
+        var conn = new SqliteConnection($"Data Source={_dbPath}");
         conn.Open();
         using var pragma = conn.CreateCommand();
         pragma.CommandText = "PRAGMA busy_timeout=8000;";

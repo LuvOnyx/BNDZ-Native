@@ -1,9 +1,10 @@
 import React, { ReactNode } from 'react';
-import { LucideIcon } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 
 interface PluginPanelShellProps {
   title: string;
-  icon: LucideIcon;
+  /** Icons8 asset id from toolbarLauncherIcons.ts. */
+  icon: string;
   iconColor?: string;
   subtitle?: string;
   toolbar?: ReactNode;
@@ -16,7 +17,7 @@ interface PluginPanelShellProps {
 /** Shared chrome for bottom panel plugins */
 export default function PluginPanelShell({
   title,
-  icon: Icon,
+  icon,
   iconColor = '#38bdf8',
   subtitle,
   toolbar,
@@ -43,7 +44,7 @@ export default function PluginPanelShell({
       <div className="shrink-0 px-4 py-2.5 border-b border-[#222] bg-gradient-to-r from-[#141414] to-[#0f0f0f] flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Icon size={15} style={{ color: iconColor }} />
+            <Icons8Icon id={icon} size={15} />
             <span className="font-bold text-sm text-white tracking-tight">{title}</span>
           </div>
           {subtitle && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{subtitle}</p>}

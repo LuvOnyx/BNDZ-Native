@@ -72,6 +72,45 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
       />
 
       <SettingsSection title="Selection & focus">
+        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-sky-500"
+            checked={localConfig.listShowSelectionHighlight !== false}
+            onChange={e => patch({ listShowSelectionHighlight: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90">Show list selection highlight</span>
+        </label>
+        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-sky-500"
+            checked={!!localConfig.listShowSelectionCheckboxes}
+            onChange={e => patch({ listShowSelectionCheckboxes: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90">Show item checkboxes in details view</span>
+        </label>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Highlight color</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Overrides theme when set</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={localConfig.listSelectionHighlightColor || '#264f78'}
+              onChange={e => patch({ listSelectionHighlightColor: e.target.value })}
+              className="w-9 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+            />
+            <button
+              type="button"
+              className="text-[11px] text-white/50 hover:text-white/80 px-2 py-1 rounded border border-white/10"
+              onClick={() => patch({ listSelectionHighlightColor: undefined })}
+            >
+              Use theme default
+            </button>
+          </div>
+        </div>
         <VariantSelect<SelectionStyle>
           label="List selection"
           description="How selected rows look in details/list views"

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Star, Type, ChevronRight } from 'lucide-react';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { ContextMenuIcon } from './ContextMenuIcon';
+import { Icons8Icon } from './Icons8Icon';
 import { ContextMenuItem, ContextSubmenu, ContextNestedSubmenu, menuItemClass } from './ContextSubmenu';
 import IconPreviewImage from './plugins/IconStudio/IconPreviewImage';
 import {
@@ -14,13 +14,24 @@ import {
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath } from '../lib/pathUtils';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
-import { resolveTagKey } from '../lib/tagUtils';
+import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
+import type { SortColumnId } from '../lib/listColumns';
+import type { ListGroupBy } from '../lib/listGrouping';
+import { LIST_GROUP_BY_OPTIONS } from '../lib/listGrouping';
 import type { ClipboardAction } from '../data/ClipboardContext';
+
+const SORT_BY_OPTIONS: Array<{ value: SortColumnId; label: string }> = [
+  { value: 'name', label: 'Name' },
+  { value: 'type', label: 'Type' },
+  { value: 'size', label: 'Size' },
+  { value: 'modified', label: 'Date modified' },
+  { value: 'created', label: 'Date created' },
+];
 
 interface ContextMenuViewProps {
   menu: ContextMenuState;
@@ -43,15 +54,33 @@ interface ContextMenuViewProps {
   onMoveTo?: (sources: string[]) => void | Promise<void>;
   availableTags?: Array<{ id?: string; name?: string; label?: string; color?: string }>;
   onToggleTag?: (tag: { id?: string; name?: string; label?: string; color?: string }) => void | Promise<void>;
+  /** Tag keys present on the current context-menu selection. */
+  selectionTagKeys?: string[];
+  onRemoveAllTags?: () => void | Promise<void>;
   /** Paths of sidebar items that are default (non-pinned) rapid-access entries, used to show Hide option. */
   rapidAccessDefaultPaths?: string[];
+  /** Begin inline rename of a pinned Rapid Access favorite's display label. */
+  onRenameFavorite?: (path: string) => void;
+  /** Current sort/group state for the pane this menu was opened on (list-background surface). */
+  sortColumn?: SortColumnId;
+  sortDirection?: 'asc' | 'desc';
+  onSortBy?: (column: SortColumnId) => void;
+  onSetSortDirection?: (direction: 'asc' | 'desc') => void;
+  listGroupBy?: ListGroupBy;
+  onGroupByChange?: (value: ListGroupBy) => void;
+  /** Restore the selected item(s) from the Recycle Bin to their original location. */
+  onRestoreRecycleItems?: (panePaths: string[]) => void | Promise<void>;
+  onSelectAll?: () => void;
+  onInvertSelection?: () => void;
 }
 
 function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
   onOpenBatchRename, setIsSmartToolsOpen, setToastMessage, setInlineRename,
   setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
-  onCopyTo, onMoveTo, availableTags, onToggleTag, rapidAccessDefaultPaths,
+  onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
+  sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
+  onRestoreRecycleItems, onSelectAll, onInvertSelection,
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
   const targetPaths = resolveContextTargetPaths(menu);
@@ -387,8 +416,55 @@ function ContextMenuView({
           </>
         )}
 
+        {menu.surface === 'list-background' && (onSortBy || onGroupByChange) && (
+          <>
+            <div className="bndz-context-menu-sep" />
+            {onSortBy && (
+              <ContextSubmenu label="Sort by" iconVerb="type">
+                {SORT_BY_OPTIONS.map(opt => (
+                  <ContextMenuItem
+                    key={opt.value}
+                    label={opt.label}
+                    iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{sortColumn === opt.value ? '●' : ''}</span>}
+                    onClick={() => { onSortBy(opt.value); onClose(); }}
+                  />
+                ))}
+                <div className="bndz-context-menu-sep" />
+                <ContextMenuItem
+                  label="Ascending"
+                  iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{sortDirection === 'asc' ? '●' : ''}</span>}
+                  onClick={() => { onSetSortDirection?.('asc'); onClose(); }}
+                />
+                <ContextMenuItem
+                  label="Descending"
+                  iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{sortDirection === 'desc' ? '●' : ''}</span>}
+                  onClick={() => { onSetSortDirection?.('desc'); onClose(); }}
+                />
+              </ContextSubmenu>
+            )}
+            {onGroupByChange && (
+              <ContextSubmenu label="Group by" iconVerb="layers">
+                {LIST_GROUP_BY_OPTIONS.map(opt => (
+                  <ContextMenuItem
+                    key={opt.value}
+                    label={opt.label}
+                    iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{(listGroupBy || 'none') === opt.value ? '●' : ''}</span>}
+                    onClick={() => { onGroupByChange(opt.value); onClose(); }}
+                  />
+                ))}
+              </ContextSubmenu>
+            )}
+          </>
+        )}
+
         <div className="bndz-context-menu-sep" />
         <ContextMenuItem label="Paste" iconVerb="paste" onClick={() => handleVerb('paste')} />
+        {menu.surface === 'list-background' && onSelectAll && (
+          <ContextMenuItem label="Select all" iconVerb="check" onClick={() => { onSelectAll(); onClose(); }} />
+        )}
+        {menu.surface === 'list-background' && onInvertSelection && (
+          <ContextMenuItem label="Invert selection" iconVerb="type" onClick={() => { onInvertSelection(); onClose(); }} />
+        )}
         <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
         {supplementalNative.length > 0 && (
           <>
@@ -422,10 +498,17 @@ function ContextMenuView({
           className="font-semibold"
           onClick={() => handleVerb('open')}
         />
+        {isPinned && onRenameFavorite && (
+          <ContextMenuItem
+            label="Rename"
+            iconVerb="rename"
+            onClick={() => { onRenameFavorite(itemPath); onClose(); }}
+          />
+        )}
         {isPinned && (
           <ContextMenuItem
             label="Unpin from Rapid access"
-            icon={Star}
+            iconVerb="star"
             onClick={() => {
               updateConfig({ pinnedFavorites: dedupePinnedFavorites(pinned.filter((p: any) => normalizePanePath(p.path).replace(/\\/g, '/').toLowerCase() !== norm)) });
               setToastMessage(`Unpinned "${menu.entityName || 'folder'}" from Rapid access.`);
@@ -457,6 +540,7 @@ function ContextMenuView({
   const fileName = menu.entityName || targetPaths[0]?.split(/[/\\]/).pop() || '';
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const isArchive = targetPaths.length === 1 && isArchiveExt(ext);
+  const isInRecycleBin = isRecycleBinPath(menu.path);
 
   const extractHere = async () => {
     const panePaths = resolveContextTargetPanePaths(menu);
@@ -477,6 +561,18 @@ function ContextMenuView({
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >
+      {isInRecycleBin && onRestoreRecycleItems && (
+        <>
+          <ContextMenuItem
+            label="Restore"
+            iconVerb="undo"
+            className="font-semibold"
+            onClick={() => { void onRestoreRecycleItems(targetPaths); onClose(); }}
+          />
+          <div className="bndz-context-menu-sep" />
+        </>
+      )}
+
       {isArchive && (
         <ContextMenuItem
           label="Extract Here"
@@ -621,14 +717,34 @@ function ContextMenuView({
       {/* BNDZ features */}
       {!isBackground && availableTags && availableTags.length > 0 && onToggleTag && (
         <ContextSubmenu label="Tags">
+          {selectionTagKeys && selectionTagKeys.length > 0 && onRemoveAllTags && (
+            <>
+              <ContextMenuItem
+                label="Remove all tags"
+                iconVerb="delete"
+                onClick={() => { void onRemoveAllTags(); onClose(); }}
+              />
+              <div className="bndz-context-menu-sep" />
+            </>
+          )}
           {availableTags.map(tag => {
             const key = resolveTagKey(tag);
             const label = tag.label || tag.name || key;
+            const color = tag.color || '#6b7280';
+            const tagged = selectionTagKeys?.some(t => entityHasTag([t], key)) ?? false;
             return (
               <ContextMenuItem
                 key={key}
-                label={`#${label}`}
+                label={tagged ? `Untag · ${label}` : label}
                 onClick={() => { void onToggleTag(tag); onClose(); }}
+                trailing={tagged ? '✓' : undefined}
+                iconNode={
+                  <span
+                    className="w-3 h-3 rounded-[3px] shrink-0 border border-white/15"
+                    style={{ backgroundColor: color }}
+                    aria-hidden
+                  />
+                }
               />
             );
           })}
@@ -639,7 +755,7 @@ function ContextMenuView({
         <>
         <ContextMenuItem
           label={isPinned ? 'Unpin from Rapid access' : 'Pin to Rapid access'}
-          icon={Star}
+          iconVerb="star"
           onClick={() => {
             if (isPinned) {
               updateConfig({ pinnedFavorites: dedupePinnedFavorites(pinned.filter((p: any) => normalizePanePath(p.path) !== normEntityPath)) });
@@ -884,7 +1000,7 @@ function ContextMenuView({
 
       {config.enableIconContextSubmenu && targetPaths.length === 1 && (
         <ContextNestedSubmenu
-          label={<><Type size={14} className="text-sky-400" /> Change Icon</>}
+          label={<><Icons8Icon id="picture_ui" size={14} className="mr-0.5" /> Change Icon</>}
           panelClassName="min-w-[180px]"
           onOpen={ensureIconLibraries}
         >

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calculator, Copy } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import type { CalcResult } from '../smart-calculator';
 
 type Props = {
@@ -20,7 +20,7 @@ export default function LauncherCalculatorCard({ result, selected, itemRef, onCo
       }`}
     >
       <div className="flex items-center gap-2.5 min-w-0">
-        <Calculator size={18} className="text-[var(--accent)] shrink-0" />
+        <Icons8Icon id="calculator" size={18} className="shrink-0" />
         <div className="min-w-0">
           <div className="text-[11px] text-[var(--text-muted)] font-mono truncate">{result.expression}</div>
           <div className="text-lg font-semibold text-[var(--text-primary)] tabular-nums">{result.formatted}</div>
@@ -32,7 +32,7 @@ export default function LauncherCalculatorCard({ result, selected, itemRef, onCo
         className="shrink-0 p-1.5 rounded-md hover:bg-white/10 text-[var(--text-muted)]"
         title="Copy result"
       >
-        <Copy size={14} />
+        <Icons8Icon id="copy" size={14} />
       </button>
     </div>
   );

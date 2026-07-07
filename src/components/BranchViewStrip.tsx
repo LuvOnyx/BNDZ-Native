@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { ChevronRight, Folder } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
+import { ShellNativeIcon } from './ShellNativeIcon';
 import { joinPanePath } from '../lib/pathUtils';
 import { getDisplayName, entitySortName } from '../lib/settingsRuntime';
 
@@ -48,9 +49,9 @@ export default function BranchViewStrip({ panePath, contents, config, branchType
               className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] text-gray-300 bg-white/[0.04] hover:bg-sky-500/15 hover:text-sky-200 border border-white/[0.06] transition-colors"
               title={childPath}
             >
-              <Folder size={12} className="text-amber-400/80 shrink-0" />
+              <ShellNativeIcon path={childPath} isDir size={14} />
               <span className="truncate max-w-[140px]">{label}</span>
-              <ChevronRight size={10} className="text-gray-600 shrink-0" />
+              <Icons8Icon id="chevron_right" size={10} className="opacity-50 shrink-0" />
             </button>
           );
         })}

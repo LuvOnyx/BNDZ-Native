@@ -1,5 +1,5 @@
 import React from 'react';
-import { Palette, Sparkles, Shield } from 'lucide-react';
+import { Icons8Icon } from '../../Icons8Icon';
 import { IconStudioProvider } from './IconStudioContext';
 import styles from './IconStudio.module.css';
 import LibraryManager from './LibraryManager';
@@ -11,7 +11,7 @@ import PluginPanelShell from '../PluginPanelShell';
 export const IconStudioPluginDef = {
     id: "icon-studio",
     name: "Icon Studio",
-    icon: Palette
+    icon: 'icon_studio'
 };
 
 const STEPS = [
@@ -36,7 +36,7 @@ export default function IconStudioPlugin({
 
     return (
         <IconStudioProvider nativeSyncEnabled={isPluginTabActive !== false}>
-            <PluginPanelShell title="Icon Studio" icon={Palette} iconColor="#ec4899" variant="embedded">
+            <PluginPanelShell title="Icon Studio" icon="icon_studio" iconColor="#ec4899" variant="embedded">
             <IconStudioInner
                 selectedItems={selectedItems}
                 selectedTargetTypes={selectedTargetTypes}
@@ -87,7 +87,7 @@ function IconStudioInner({
                     <div className="flex items-center gap-2 shrink-0">
                     {targetCount > 0 ? (
                         <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-300/90 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                            <Sparkles size={11} /> {targetCount} target{targetCount !== 1 ? 's' : ''} ready
+                            <Icons8Icon id="sparkles_ui" size={11} /> {targetCount} target{targetCount !== 1 ? 's' : ''} ready
                         </div>
                     ) : (
                         <span className="text-[10px] text-gray-500">Select folders/files in the list first</span>
@@ -99,7 +99,7 @@ function IconStudioInner({
                             onChange={e => updateConfig({ allowGlobalIconOverwrite: e.target.checked })}
                             className="accent-pink-500"
                         />
-                        <Shield size={11} className="text-gray-500" />
+                        <Icons8Icon id="shield_ui" size={11} className="opacity-60" />
                         <span className="hidden md:inline">Force apply</span>
                     </label>
                     </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { RotateCcw, X as XIcon, Keyboard, Mouse } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import {
   KEYBINDING_ACTIONS,
   KEYBINDING_CATEGORIES,
@@ -89,14 +89,14 @@ function KeybindingRow({
         className="p-1 rounded-sm text-gray-500 hover:text-white hover:bg-[#2a2a2a]"
         title={`Reset to default (${action.default})`}
       >
-        <RotateCcw size={13} />
+        <Icons8Icon id="reset_ui" size={13} />
       </button>
       <button
         onClick={onClear}
         className="p-1 rounded-sm text-gray-500 hover:text-white hover:bg-[#2a2a2a]"
         title="Unbind"
       >
-        <XIcon size={13} />
+        <Icons8Icon id="close" size={13} />
       </button>
     </div>
   );
@@ -133,7 +133,7 @@ export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }:
     <div className="p-4 space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Keyboard size={15} className="text-sky-400" />
+          <Icons8Icon id="keyboard_ui" size={15} />
           <h1 className="text-[16px] font-bold text-white">Keyboard Shortcuts</h1>
         </div>
         <button
@@ -178,7 +178,7 @@ export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }:
 
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <Mouse size={13} className="text-violet-400" />
+          <Icons8Icon id="mouse_ui" size={13} />
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Mouse bindings</h3>
         </div>
         <div className="rounded-lg border border-[#333] bg-[#141414] px-3 py-1.5 divide-y divide-[#222]">

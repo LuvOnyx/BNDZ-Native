@@ -42,7 +42,6 @@ export default function PropertiesPlugin({
     const [sidecarDirty, setSidecarDirty] = useState(false);
     const [sidecarSaving, setSidecarSaving] = useState(false);
     const [hashCopied, setHashCopied] = useState<'md5' | 'sha256' | null>(null);
-    const [aclNotice, setAclNotice] = useState<string | null>(null);
 
     const selectionCount = selectedItems.length;
     const isMulti = selectionCount > 1;
@@ -229,20 +228,6 @@ export default function PropertiesPlugin({
         runIpc(IPC => { if (IPC.isNative) IPC.setFileAttributes(targetPath, newAttributes); });
     };
 
-    const toggleAcl = async (type: 'read' | 'write' | 'execute') => {
-        if (!fileDetails || !targetPath) return;
-        const newAcl = { ...fileDetails.acl, [type]: !fileDetails.acl?.[type] };
-        setFileDetails({ ...fileDetails, acl: newAcl });
-        const { IPC } = await import('../../lib/ipcBridge');
-        if (IPC.isNative) {
-            const ok = await IPC.setFileAcl(targetPath, newAcl);
-            if (!ok) {
-                setAclNotice('ACL editing is preview-only in this build. Use Windows Security tab for full control.');
-                setFileDetails({ ...fileDetails, acl: fileDetails.acl });
-            }
-        }
-    };
-
     const addTagChip = () => {
         const t = tagDraft.trim().toLowerCase();
         if (!t || sidecarTags.some(x => x.toLowerCase() === t)) { setTagDraft(''); return; }
@@ -282,7 +267,7 @@ export default function PropertiesPlugin({
         return (
             <PluginPanelShell
                 title="Properties"
-                icon={Layers}
+                icon="sys_properties"
                 iconColor="#38bdf8"
                 variant="embedded"
                 subtitle="No selection"
@@ -322,7 +307,7 @@ export default function PropertiesPlugin({
     return (
         <PluginPanelShell
             title="Properties"
-            icon={Layers}
+            icon="sys_properties"
             iconColor="#38bdf8"
             variant="embedded"
             subtitle={displayName}
@@ -548,28 +533,34 @@ export default function PropertiesPlugin({
                 {activeTab === 'security' && !isMulti && (
                     <div className="flex flex-col gap-5 max-w-xl">
                         <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
-                            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">
-                                <Shield size={13} className="text-pink-400" /> Access Control
+                            <div className="flex items-center justify-between gap-2 mb-4">
+                                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                                    <Shield size={13} className="text-pink-400" /> Access Control
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={showNativeProperties}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold rounded-[var(--bndz-radius-sm)] border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/18 transition-colors"
+                                >
+                                    <Key size={11} /> Edit permissions…
+                                </button>
                             </div>
-                            <p className="text-[11px] text-gray-500 mb-3">Effective permissions preview. Full ACL editing uses Windows Security.</p>
-                            {aclNotice && (
-                                <p className="text-[11px] text-amber-400/90 mb-3">{aclNotice}</p>
-                            )}
+                            <p className="text-[11px] text-gray-500 mb-3">
+                                Real NTFS permissions for this item (read-only here). To grant or revoke access, use the native Windows Security editor above.
+                            </p>
                             <div className="grid grid-cols-3 gap-2 mb-4">
                                 {(['read', 'write', 'execute'] as const).map(type => (
-                                    <button
+                                    <div
                                         key={type}
-                                        type="button"
-                                        onClick={() => void toggleAcl(type)}
-                                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-colors ${
+                                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border ${
                                             fileDetails?.acl?.[type]
-                                                ? 'bg-pink-500/10 border-pink-500 text-pink-400'
-                                                : 'bg-[#111] border-[#333] text-gray-400 hover:border-pink-500/30'
+                                                ? 'bg-pink-500/10 border-pink-500/60 text-pink-400'
+                                                : 'bg-[#111] border-[#333] text-gray-600'
                                         }`}
                                     >
                                         <Check className={fileDetails?.acl?.[type] ? 'opacity-100' : 'opacity-0'} size={16} />
                                         <span className="text-[11px] font-bold uppercase">{type}</span>
-                                    </button>
+                                    </div>
                                 ))}
                             </div>
                             {Array.isArray(fileDetails?.aclRules) && fileDetails.aclRules.length > 0 && (

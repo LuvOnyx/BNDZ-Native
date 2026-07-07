@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Clipboard, Copy, Trash2, Image as ImageIcon, FolderOpen } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import { deleteClipboardItem, listClipboardHistory, pasteClipboardItem } from '../bridge/flowBridge';
 import type { ClipboardRecord } from '../types';
 
@@ -23,7 +23,7 @@ function ClipboardPreview({ item }: { item: ClipboardRecord }) {
     return (
       <div className="p-4 space-y-2">
         <div className="flex items-center gap-2 text-[var(--text-muted)] text-[11px] uppercase tracking-wide">
-          <FolderOpen size={14} /> {item.filePaths.length} file(s)
+          <Icons8Icon id="folder_open_ui" size={14} /> {item.filePaths.length} file(s)
         </div>
         <ul className="space-y-1 font-mono text-[12px] text-[var(--text-primary)]">
           {item.filePaths.map(p => (
@@ -83,15 +83,15 @@ export default function BndzClipboardManager({ onClose }: Props) {
   }, [filtered, selected, load]);
 
   const kindIcon = (item: ClipboardRecord) => {
-    if (item.kind === 'image') return <ImageIcon size={14} className="shrink-0 mt-0.5 opacity-70" />;
-    if (item.kind === 'files') return <FolderOpen size={14} className="shrink-0 mt-0.5 opacity-70" />;
-    return <Clipboard size={14} className="shrink-0 mt-0.5 opacity-70" />;
+    if (item.kind === 'image') return <Icons8Icon id="picture_ui" size={14} className="shrink-0 mt-0.5 opacity-70" />;
+    if (item.kind === 'files') return <Icons8Icon id="folder_open_ui" size={14} className="shrink-0 mt-0.5 opacity-70" />;
+    return <Icons8Icon id="clipboard" size={14} className="shrink-0 mt-0.5 opacity-70" />;
   };
 
   return (
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-        <button type="button" className="bndz-icon-btn" onClick={onClose}><ArrowLeft size={14} /></button>
+        <button type="button" className="bndz-icon-btn" onClick={onClose}><Icons8Icon id="chevron_left" size={14} /></button>
         <input
           ref={inputRef}
           className="bndz-search-input flex-1"
@@ -126,9 +126,9 @@ export default function BndzClipboardManager({ onClose }: Props) {
                 <ClipboardPreview item={selected} />
               </div>
               <div className="bndz-launcher-footer px-3 py-2 flex gap-1 justify-end">
-                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void pasteClipboardItem(selected.id)}><Clipboard size={12} /> Paste</button>
-                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void navigator.clipboard.writeText(selected.content)}><Copy size={12} /> Copy</button>
-                <button type="button" className="bndz-btn-ghost text-[11px] text-red-400" onClick={() => void deleteClipboardItem(selected.id).then(load)}><Trash2 size={12} /> Delete</button>
+                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void pasteClipboardItem(selected.id)}><Icons8Icon id="clipboard" size={12} /> Paste</button>
+                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void navigator.clipboard.writeText(selected.content)}><Icons8Icon id="copy" size={12} /> Copy</button>
+                <button type="button" className="bndz-btn-ghost text-[11px] text-red-400" onClick={() => void deleteClipboardItem(selected.id).then(load)}><Icons8Icon id="trash_ui" size={12} /> Delete</button>
               </div>
             </>
           ) : (

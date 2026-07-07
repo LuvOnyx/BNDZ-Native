@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Pencil, Trash2, ExternalLink, Globe, Link2 } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import type { QuickLinkRecord } from '../types';
 import { deleteQuickLink, listQuickLinks, upsertQuickLink } from '../bridge/flowBridge';
 
@@ -70,7 +70,7 @@ export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
     return (
       <div className="glass-effect h-full flex flex-col">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-          <button type="button" className="bndz-icon-btn" onClick={() => setView('search')}><ArrowLeft size={14} /></button>
+          <button type="button" className="bndz-icon-btn" onClick={() => setView('search')}><Icons8Icon id="chevron_left" size={14} /></button>
           <span className="text-[14px] font-medium">{view === 'edit' ? 'Edit Quick Link' : 'New Quick Link'}</span>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
@@ -99,7 +99,7 @@ export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
   return (
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-        <button type="button" className="bndz-icon-btn" onClick={onClose}><ArrowLeft size={14} /></button>
+        <button type="button" className="bndz-icon-btn" onClick={onClose}><Icons8Icon id="chevron_left" size={14} /></button>
         <input
           ref={inputRef}
           className="bndz-search-input flex-1"
@@ -107,7 +107,7 @@ export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
           placeholder="Search quick links…"
         />
-        <button type="button" className="bndz-icon-btn" onClick={openCreate}><Plus size={14} /></button>
+        <button type="button" className="bndz-icon-btn" onClick={openCreate}><Icons8Icon id="plus_ui" size={14} /></button>
       </div>
       <div className="flex-1 grid grid-cols-[2fr_3fr] min-h-0">
         <div className="border-r border-[var(--footer-border)] overflow-y-auto custom-scrollbar">
@@ -119,7 +119,7 @@ export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
               onDoubleClick={() => openLink(l)}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Globe size={14} className="shrink-0 opacity-70" />
+                <Icons8Icon id="globe_ui" size={14} className="shrink-0 opacity-70" />
                 <div className="min-w-0">
                   <div className="text-[13px] font-medium truncate">{l.name}</div>
                   <div className="text-[10px] text-[var(--text-subtle)] truncate font-mono">{l.urlTemplate}</div>
@@ -133,7 +133,7 @@ export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
             <>
               <div className="flex-1 p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Link2 size={16} className="text-[var(--accent)]" />
+                  <Icons8Icon id="link" size={16} />
                   <div className="text-[15px] font-semibold">{selected.name}</div>
                 </div>
                 <div className="text-[12px] font-mono text-[var(--text-muted)] break-all bg-black/20 rounded-lg p-3 border border-white/8">
@@ -141,9 +141,9 @@ export default function BndzQuickLinkManager({ onClose, initialView }: Props) {
                 </div>
               </div>
               <div className="bndz-launcher-footer px-3 py-2 flex gap-1 justify-end">
-                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => openLink(selected)}><ExternalLink size={12} /> Open</button>
-                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => openEdit(selected)}><Pencil size={12} /> Edit</button>
-                <button type="button" className="bndz-btn-ghost text-[11px] text-red-400" onClick={() => void remove(selected.id)}><Trash2 size={12} /> Delete</button>
+                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => openLink(selected)}><Icons8Icon id="external_link" size={12} /> Open</button>
+                <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => openEdit(selected)}><Icons8Icon id="pencil_ui" size={12} /> Edit</button>
+                <button type="button" className="bndz-btn-ghost text-[11px] text-red-400" onClick={() => void remove(selected.id)}><Icons8Icon id="trash_ui" size={12} /> Delete</button>
               </div>
             </>
           ) : (

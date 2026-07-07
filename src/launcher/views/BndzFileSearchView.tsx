@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, FileSearch } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import type { LauncherCommand } from '../types';
 import { executeCommand, requestQueryStreaming } from '../bridge/flowBridge';
 import LauncherPreviewPanel from '../components/LauncherPreviewPanel';
@@ -51,8 +51,8 @@ export default function BndzFileSearchView({ onClose, initialQuery = '' }: Props
   return (
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><ArrowLeft size={14} /></button>
-        <FileSearch size={16} className="text-[var(--text-muted)]" />
+        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><Icons8Icon id="chevron_left" size={14} /></button>
+        <Icons8Icon id="file_search_ui" size={16} className="opacity-60" />
         <div className="relative min-w-0 flex-1">
           {autocompleteSuffix && query ? (
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center text-[13px] font-medium whitespace-pre overflow-hidden">

@@ -22,6 +22,8 @@ export interface SettingsRuntimeContext {
     showTags: boolean;
     showSortHeaders: boolean;
     underlineSelected: boolean;
+    showSelectionHighlight: boolean;
+    showSelectionCheckboxes: boolean;
     verticalGridLines: boolean;
     wrapAround: boolean;
     autoSelectFirst: boolean;
@@ -110,8 +112,10 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       autoSelectFirst: !!config.autoSelectFirstItem,
       useGenericIcons: !!config.useGenericIconsForSuperFastBrowsing,
       applyColorFilters: config.applyColorFiltersToTheList !== false && config.enableColorFilters !== false,
-      showHiddenInList: !!config.showHiddenSystemFoldersInTree,
-      zebraRows: !!config.selectConfig5 && config.selectConfig5 !== 'Solid Color' && config.selectConfig5 !== false,
+    showHiddenInList: !!config.showHiddenSystemFoldersInTree,
+    zebraRows: !!config.selectConfig5 && config.selectConfig5 !== 'Solid Color' && config.selectConfig5 !== false,
+    showSelectionHighlight: config.listShowSelectionHighlight !== false,
+    showSelectionCheckboxes: !!config.listShowSelectionCheckboxes,
     },
     sort: {
       method: config.sortMethod || 'Natural',

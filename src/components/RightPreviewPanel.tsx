@@ -5,7 +5,7 @@ import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate,
 import { isPreviewEnabledForExt, buildSettingsRuntime } from '../lib/settingsRuntime';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
-import { File, Folder, Image, Music, FileText, Code, Settings, HardDrive, Binary, ShieldUser, KeyRound, ExternalLink, Copy, Info, Film, BookMarked } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
@@ -310,7 +310,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   if (!entity) {
     return (
       <div className="bndz-preview-panel w-full h-full flex flex-col items-center justify-center text-gray-500 p-4 shrink-0 z-10 select-none">
-        <File size={48} className="mb-4 opacity-20" />
+        <Icons8Icon id="file_ui" size={48} className="mb-4 opacity-20" />
         <span className="text-[13px]">Select a file to preview</span>
       </div>
     );
@@ -324,13 +324,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   };
 
   const getPreviewIcon = () => {
-     if (isDrive) return <HardDrive size={80} className={(entity as any).name.includes('C:') ? "text-[#6db4e6]" : "text-gray-400"} />;
-     if (isDir) return <Folder size={80} className="text-[#dcb67a]" />;
-     if (isImage) return <Image size={80} className="text-purple-400" />;
-     if (isAudio) return <Music size={80} className="text-sky-400" />;
-     if (isCode) return <Code size={80} className="text-emerald-400" />;
-     if (isTextRaw) return <FileText size={80} className="text-amber-400" />;
-     return <File size={80} className="text-gray-400" />;
+     if (isDrive) return <Icons8Icon id="disk_mgmt" size={80} />;
+     if (isDir) return <Icons8Icon id="explorer" size={80} />;
+     if (isImage) return <Icons8Icon id="picture_ui" size={80} />;
+     if (isAudio) return <Icons8Icon id="music_ui" size={80} />;
+     if (isCode) return <Icons8Icon id="code_ui" size={80} />;
+     if (isTextRaw) return <Icons8Icon id="file_ui" size={80} />;
+     return <Icons8Icon id="file_ui" size={80} />;
   };
 
   const showThumb = previewRt.asThumbnail;
@@ -377,7 +377,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               }`}
               title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
             >
-              {c.type === 'directory' ? <Folder size={10} className="text-amber-400 shrink-0" /> : <File size={10} className="text-slate-400 shrink-0" />}
+              <Icons8Icon id={c.type === 'directory' ? 'explorer' : 'file_ui'} size={10} className="shrink-0" />
               <span className="truncate flex-1 min-w-0">{c.name}</span>
               {c.type === 'file' && c.size != null && <span className="text-gray-600 shrink-0">{formatSize(c.size)}</span>}
             </button>
@@ -395,7 +395,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     return (
       <div className="flex flex-col min-h-0 max-h-[120px] overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]">
         <div className="text-[9px] uppercase tracking-wider text-violet-300/80 px-2 py-1.5 border-b border-violet-500/15 flex items-center gap-1.5 shrink-0">
-          <BookMarked size={10} />
+          <Icons8Icon id="table_ui" size={10} />
           <span>Catalogs</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar">
@@ -407,7 +407,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               className="w-full flex items-center gap-2 px-2 py-1 text-[10px] text-gray-300 hover:bg-violet-500/10 text-left transition-colors"
               title={`${cat.paths.length} item(s) · Open virtual catalog`}
             >
-              <BookMarked size={10} className="text-violet-400 shrink-0" />
+              <Icons8Icon id="table_ui" size={10} className="shrink-0" />
               <span className="truncate flex-1 min-w-0">{cat.name}</span>
               <span className="text-gray-600 shrink-0">{cat.paths.length}</span>
             </button>
@@ -439,7 +439,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       if ((isAudio || isVideo) && !previewRt.audioVideoEnabled) {
           return (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-4 text-center">
-              <Music size={48} className="opacity-30" />
+              <Icons8Icon id="music_ui" size={48} className="opacity-30" />
               <p>Audio/video preview disabled in Configuration → Preview.</p>
             </div>
           );
@@ -587,7 +587,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           return (
               <div className="w-full h-full flex flex-col bndz-preview-stage p-4 overflow-hidden">
                   <div className="flex items-center gap-2 mb-4 text-[#eab308] font-mono text-[11px] pb-2 border-b border-[#333]">
-                      <Binary size={14} /> <span>HEX INSPECTOR (First 256 Bytes)</span>
+                      <Icons8Icon id="code_ui" size={14} /> <span>HEX INSPECTOR (First 256 Bytes)</span>
                   </div>
                   {isLoadingContent && <div className="text-xs text-gray-500 font-mono animate-pulse">Mapping virtual stream...</div>}
                   {contentError && <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 rounded">{contentError}</div>}
@@ -684,9 +684,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              ))}
           </div>
           <div className="flex gap-0.5">
-             <button type="button" onClick={openInShell} className="p-1 hover:bg-[#333] rounded" title="Open"><ExternalLink size={12} className="text-gray-400" /></button>
-             <button type="button" onClick={copyPath} className="p-1 hover:bg-[#333] rounded" title="Copy path"><Copy size={12} className="text-gray-400" /></button>
-             <button type="button" onClick={showProperties} className="p-1 hover:bg-[#333] rounded" title="Properties"><Settings size={12} className="text-gray-400" /></button>
+             <button type="button" onClick={openInShell} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Open"><Icons8Icon id="external_link" size={12} /></button>
+             <button type="button" onClick={copyPath} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Copy path"><Icons8Icon id="copy_path" size={12} /></button>
+             <button type="button" onClick={showProperties} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Properties"><Icons8Icon id="sys_properties" size={12} /></button>
           </div>
        </div>
        
@@ -715,7 +715,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                         )
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center">
-                          <Music size={40} className="opacity-30" />
+                          <Icons8Icon id="music_ui" size={40} className="opacity-30" />
                           <p>Enable audio/video preview in Configuration → Preview.</p>
                         </div>
                       )
@@ -737,7 +737,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-[80px_1fr] gap-y-2 text-[11px] font-mono leading-relaxed">
                        {isDrive ? (
                            <>
-                               <div className="text-gray-500 flex items-center gap-1"><HardDrive size={10} /> Total Size:</div>
+                               <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> Total Size:</div>
                                <div className="text-sky-300">{formatSize((entity as any).driveInfo.totalSpace)}</div>
                                <div className="text-gray-500 flex items-center gap-1">Free Space:</div>
                                <div className="text-emerald-400">{formatSize((entity as any).driveInfo.freeSpace)}</div>
@@ -746,7 +746,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                            </>
                        ) : (
                            <>
-                               <div className="text-gray-500 flex items-center gap-1"><HardDrive size={10} /> {isDir ? 'Size on disk:' : 'Size:'}</div>
+                               <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> {isDir ? 'Size on disk:' : 'Size:'}</div>
                                <div className="text-sky-300">
                                   {isDir
                                     ? (folderStats ? formatSize(folderStats.size) : 'Calculating...')
@@ -764,7 +764,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                                )}
                                {path && (
                                   <>
-                                     <div className="text-gray-500 flex items-center gap-1"><Info size={10} /> Path:</div>
+                                     <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="info_ui" size={10} /> Path:</div>
                                      <div className="text-gray-400 text-[10px] break-all leading-snug">{toWindowsPath(path)}</div>
                                   </>
                                )}
@@ -792,14 +792,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     {/* Security & Access Box */}
                     <div className="mt-2 border bndz-preview-detail-card rounded-[4px] p-3 shadow-inner">
                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">
-                          <ShieldUser size={12} className="text-emerald-400" /> Access Properties
+                          <Icons8Icon id="shield_ui" size={12} /> Access Properties
                        </div>
                        
                        <div className="grid grid-cols-[80px_1fr] gap-y-1.5 text-[11px] font-mono">
                           <div className="text-gray-500">Owner:</div>
                           <div className="text-gray-300 flex items-center break-all">{extendedDetails ? (extendedDetails["Owner"] || 'SYSTEM\\Administrator') : 'Fetching...'}</div>
                           
-                          <div className="text-gray-500 flex items-center gap-1"><KeyRound size={10} /> ACL:</div>
+                          <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="key_ui" size={10} /> ACL:</div>
                           <div className="text-gray-300">
                                {extendedDetails ? 
                                     (extendedDetails["ACL Rule"]?.includes("F") ? "Full Control" : 
@@ -823,7 +823,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     {extendedDetails && Object.keys(extendedDetails).length > 0 && (
                        <div className="border bndz-preview-detail-card rounded-[4px] p-3">
                           <div className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2 flex items-center gap-1">
-                             <Film size={12} /> Extended Metadata
+                             <Icons8Icon id="database_ui" size={12} /> Extended Metadata
                           </div>
                           <div className="grid grid-cols-[90px_1fr] gap-y-1 text-[10px] font-mono max-h-[160px] overflow-y-auto styled-scrollbar">
                              {Object.entries(extendedDetails).filter(([k]) => !['Owner', 'ACL Rule', 'ReadOnly', 'Hidden'].includes(k)).map(([k, v]) => (

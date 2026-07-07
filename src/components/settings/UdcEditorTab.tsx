@@ -1,8 +1,8 @@
 import React from 'react';
-import { Plus, Trash2, Zap } from 'lucide-react';
 import type { UserCommandDef } from '../../lib/userCommands';
 import { BUILTIN_USER_COMMANDS } from '../../lib/userCommands';
 import { SettingsTabHeader, SettingsSection } from './SettingsPrimitives';
+import { Icons8Icon } from '../Icons8Icon';
 
 type Props = {
   commands: UserCommandDef[];
@@ -42,7 +42,7 @@ export default function UdcEditorTab({ commands, onChange }: Props) {
     <div>
       <SettingsTabHeader
         title="User-Defined Commands"
-        icon={Zap}
+        icon="zap_ui"
         description="Custom palette and :: address-bar commands. Built-ins are always available."
       />
       <SettingsSection title="Built-in commands" description="Shipped with BNDZ — not editable.">
@@ -86,7 +86,7 @@ export default function UdcEditorTab({ commands, onChange }: Props) {
               className="bg-[#111] border border-[#444] rounded px-2 py-1 text-[12px] text-white outline-none font-mono"
             />
             <button type="button" onClick={() => remove(idx)} className="p-1.5 text-red-400 hover:bg-red-950/30 rounded">
-              <Trash2 size={14} />
+              <Icons8Icon id="trash_ui" size={14} />
             </button>
           </div>
         ))}
@@ -95,7 +95,7 @@ export default function UdcEditorTab({ commands, onChange }: Props) {
           onClick={add}
           className="flex items-center gap-1 text-[12px] text-sky-400 hover:underline mt-2"
         >
-          <Plus size={14} /> Add command
+          <Icons8Icon id="plus_ui" size={14} /> Add command
         </button>
       </SettingsSection>
     </div>

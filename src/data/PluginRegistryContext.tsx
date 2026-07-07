@@ -12,14 +12,14 @@ import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/Fol
 import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
 import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
-import { Settings } from 'lucide-react';
 import { useAppConfig } from './configContext';
 
 export type PluginManifest = {
     id: string;
     name: string;
     description: string;
-    icon: any;
+    /** Icons8 asset id from toolbarLauncherIcons.ts. */
+    icon: string;
     isInstalled?: boolean;
     isNative?: boolean;
     targetPanel?: 'bottom' | 'sidebar';
@@ -52,7 +52,7 @@ const ALL_PLUGINS: PluginManifest[] = [
         id: 'properties',
         name: 'System Properties',
         description: 'Native Windows property inspector with hash analysis, ACL viewer, and attribute editor.',
-        icon: Settings,
+        icon: 'sys_properties',
         isInstalled: true,
         isNative: true,
         targetPanel: 'bottom',

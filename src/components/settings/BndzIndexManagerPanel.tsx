@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Database, FolderOpen, Loader2, RefreshCw } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 
@@ -103,7 +103,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
   return (
     <div className="ml-2 mb-6 space-y-3">
       <div className="flex items-center gap-2 text-[12px] text-gray-300">
-        <Database size={14} className="text-sky-400" />
+        <Icons8Icon id="database_ui" size={14} />
         <span>
           {(status?.fileCount ?? 0).toLocaleString()} files · {(status?.folderCount ?? 0).toLocaleString()} folders indexed
         </span>
@@ -114,13 +114,13 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
           className="ml-auto p-1 text-gray-500 hover:text-white"
           title="Refresh status"
         >
-          {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          <Icons8Icon id="refresh" size={14} spin={loading} />
         </button>
       </div>
 
       {(indexing || progress) && (
         <div className="text-[10px] text-sky-300/90 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1.5 space-y-0.5">
-          {indexing && !progress?.done && <Loader2 size={12} className="inline animate-spin mr-1" />}
+          {indexing && !progress?.done && <Icons8Icon id="loading" size={12} spin className="inline mr-1" />}
           <span>
             {progress?.done
               ? `Indexed ${progress.filesIndexed.toLocaleString()} entries`
@@ -138,7 +138,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
           disabled={indexing}
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] text-white disabled:opacity-50"
         >
-          {indexing ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
+          {indexing ? <Icons8Icon id="loading" size={12} spin /> : <Icons8Icon id="database_ui" size={12} />}
           Re-index default libraries
         </button>
       </div>
@@ -159,7 +159,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
           disabled={indexing || !folderPath.trim()}
           className="flex items-center gap-1 px-3 py-1.5 text-[11px] bg-[#333] hover:bg-[#3d3d3d] border border-[#454545] text-gray-200 disabled:opacity-40"
         >
-          <FolderOpen size={12} /> Index folder
+          <Icons8Icon id="folder_open_ui" size={12} /> Index folder
         </button>
       </div>
 

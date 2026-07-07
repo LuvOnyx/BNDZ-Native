@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import type { MiniTreeNode } from '../lib/navigationHistory';
 
 type Props = {
@@ -35,7 +35,7 @@ export default function MiniTreePanel({ nodes, activePath, onNavigate }: Props) 
             }`}
             style={{ paddingLeft: 8 + node.depth * 10 }}
           >
-            <Folder size={11} className="shrink-0 opacity-70" />
+            <Icons8Icon id="explorer" size={11} className="shrink-0 opacity-70" />
             <span className="truncate">{node.label}</span>
           </button>
         );

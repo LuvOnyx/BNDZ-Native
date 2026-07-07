@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Filter, History, Play, Copy, Globe, FolderSearch, FileText, Braces, BookMarked } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { useSettingsRuntime } from '../../hooks/useSettingsRuntime';
 import PluginPanelShell from './PluginPanelShell';
@@ -9,11 +9,25 @@ import { listCatalogs, type CatalogEntry } from '../../lib/catalog';
 export const FindPluginDef = {
     id: "find",
     name: "Fast Search",
-    icon: Search,
+    icon: 'find',
     targetPanel: "bottom"
 };
 
 type SearchMode = 'local' | 'global' | 'duplicates' | 'advanced';
+
+const SEARCH_HISTORY_KEY = 'bndz-find-history-v1';
+const SEARCH_HISTORY_MAX = 15;
+
+function loadSearchHistory(): string[] {
+    try {
+        const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter((q): q is string => typeof q === 'string') : [];
+    } catch {
+        return [];
+    }
+}
 
 export default function FindPlugin({ config, focusedPath, isPluginTabActive, pluginLaunch }: any) {
     const rt = useSettingsRuntime();
@@ -29,10 +43,26 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const [status, setStatus] = useState('');
     const [dupProgress, setDupProgress] = useState<{ percent: number; message?: string } | null>(null);
     const [savedCatalogs, setSavedCatalogs] = useState<CatalogEntry[]>([]);
+    const [searchHistory, setSearchHistory] = useState<string[]>(loadSearchHistory);
 
     useEffect(() => {
         void listCatalogs().then(cats => setSavedCatalogs(cats.filter(c => c.query?.trim())));
     }, []);
+
+    const pushSearchHistory = (q: string) => {
+        const trimmed = q.trim();
+        if (!trimmed) return;
+        setSearchHistory(prev => {
+            const next = [trimmed, ...prev.filter(h => h.toLowerCase() !== trimmed.toLowerCase())].slice(0, SEARCH_HISTORY_MAX);
+            try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next)); } catch { /* best effort */ }
+            return next;
+        });
+    };
+
+    const clearSearchHistory = () => {
+        setSearchHistory([]);
+        try { localStorage.removeItem(SEARCH_HISTORY_KEY); } catch { /* best effort */ }
+    };
 
     const scopePath = focusedPath?.startsWith('/') ? focusedPath : (focusedPath ? `/${focusedPath}` : '/C:');
 
@@ -78,6 +108,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
         }
 
         if (!effectiveQuery) return;
+        pushSearchHistory(effectiveQuery);
         setSearching(true);
         setStatus('');
         setDuplicateGroups([]);
@@ -136,7 +167,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     return (
         <PluginPanelShell
             title="Fast Search"
-            icon={Search}
+            icon="find"
             iconColor="#38bdf8"
             variant="embedded"
             subtitle={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced / multi-root' : `Scope: ${scopePath}`}
@@ -149,7 +180,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         <button type="button" onClick={cancelDupScan} className="text-xs text-red-400 hover:underline">Cancel</button>
                     )}
                     <button onClick={() => void doSearch()} disabled={searching} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-semibold">
-                        {searching ? <History size={12} className="animate-spin" /> : <Play size={12} />} {mode === 'duplicates' ? 'Scan' : 'Search'}
+                        {searching ? <Icons8Icon id="loading" size={12} spin /> : <Icons8Icon id="play_ui" size={12} />} {mode === 'duplicates' ? 'Scan' : 'Search'}
                     </button>
                 </div>
             }
@@ -157,35 +188,56 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             <div className="flex w-full h-full min-h-0 relative pt-1">
                 <div className="w-[240px] border-r border-[#222] bg-[#111] p-4 flex flex-col gap-3 shrink-0">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-                        <Filter size={12} className="text-sky-500" /> Mode
+                        <Icons8Icon id="filters" size={12} /> Mode
                     </div>
                     <div className="flex flex-col gap-1">
                         {([
-                            { id: 'local' as const, label: 'Local folder', icon: FolderSearch },
-                            { id: 'global' as const, label: 'Global (Everything)', icon: Globe },
-                            { id: 'advanced' as const, label: 'Advanced find', icon: Braces },
-                            { id: 'duplicates' as const, label: 'Duplicate finder', icon: Copy },
-                        ]).map(m => {
-                            const Icon = m.icon;
-                            return (
-                                <button
-                                    key={m.id}
-                                    type="button"
-                                    onClick={() => setMode(m.id)}
-                                    className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left ${
-                                        mode === m.id ? 'bg-sky-900/50 text-sky-200 border border-sky-700/50' : 'text-gray-400 hover:bg-[#1a1a1a]'
-                                    }`}
-                                >
-                                    <Icon size={12} /> {m.label}
-                                </button>
-                            );
-                        })}
+                            { id: 'local' as const, label: 'Local folder', icon: 'find' },
+                            { id: 'global' as const, label: 'Global (Everything)', icon: 'go_network' },
+                            { id: 'advanced' as const, label: 'Advanced find', icon: 'code_ui' },
+                            { id: 'duplicates' as const, label: 'Duplicate finder', icon: 'copy' },
+                        ]).map(m => (
+                            <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setMode(m.id)}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left ${
+                                    mode === m.id ? 'bg-sky-900/50 text-sky-200 border border-sky-700/50' : 'text-gray-400 hover:bg-[#1a1a1a]'
+                                }`}
+                            >
+                                <Icons8Icon id={m.icon} size={12} /> {m.label}
+                            </button>
+                        ))}
                     </div>
+                    {searchHistory.length > 0 && mode !== 'duplicates' && (
+                        <>
+                            <div className="bndz-context-menu-sep opacity-30" />
+                            <div className="flex items-center justify-between">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                                    <Icons8Icon id="clock_ui" size={10} /> Recent searches
+                                </div>
+                                <button type="button" onClick={clearSearchHistory} className="text-[9px] text-gray-600 hover:text-gray-400">Clear</button>
+                            </div>
+                            <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto bndz-scrollbar">
+                                {searchHistory.map(h => (
+                                    <button
+                                        key={h}
+                                        type="button"
+                                        className="text-left text-[10px] px-2 py-1 rounded text-gray-400 hover:bg-sky-900/30 hover:text-sky-200 truncate"
+                                        title={h}
+                                        onClick={() => { setQuery(h); void doSearch(h); }}
+                                    >
+                                        {h}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                     {savedCatalogs.length > 0 && mode !== 'duplicates' && (
                         <>
                             <div className="bndz-context-menu-sep opacity-30" />
                             <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-                                <BookMarked size={10} className="text-violet-400" /> Saved catalog searches
+                                <Icons8Icon id="bookmark" size={10} /> Saved catalog searches
                             </div>
                             <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto bndz-scrollbar">
                                 {savedCatalogs.map(cat => (
@@ -224,7 +276,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                             </label>
                             {mode === 'advanced' && (
                                 <div className="mt-1">
-                                    <div className="text-[10px] text-gray-500 mb-1 flex items-center gap-1"><FileText size={10} /> Extra roots (; separated)</div>
+                                    <div className="text-[10px] text-gray-500 mb-1 flex items-center gap-1"><Icons8Icon id="file_ui" size={10} /> Extra roots (; separated)</div>
                                     <textarea
                                         value={extraRoots}
                                         onChange={e => setExtraRoots(e.target.value)}
@@ -250,7 +302,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     {mode !== 'duplicates' && (
                         <div className="p-3 border-b border-[#222]">
                             <div className="relative">
-                                <Search size={14} className="absolute left-3 top-2.5 text-gray-500" />
+                                <Icons8Icon id="search" size={14} className="absolute left-3 top-2.5" />
                                 <input
                                     value={query}
                                     onChange={e => setQuery(e.target.value)}

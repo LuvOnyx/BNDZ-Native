@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import RedundancyGroupsView from '../../spacedrive/port/RedundancyGroupsView';
@@ -75,7 +75,7 @@ export default function BndzDuplicatesPanel({ folderPath, onReveal }: Props) {
           disabled={scanning}
           className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] bg-[#094771] hover:bg-[#0a5a8c] text-white disabled:opacity-50"
         >
-          {scanning ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+          {scanning ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="search" size={14} />}
           Scan folder
         </button>
         {scanning && (

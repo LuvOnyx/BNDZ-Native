@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Minus, Square, Copy, X } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { IPC } from '../lib/ipcBridge';
 
 const BNDZ_APP_ICON = '/bndz-light.png';
@@ -53,7 +53,7 @@ export default function WindowTitleBar({ title = 'BNDZ' }: WindowTitleBarProps) 
           onClick={() => IPC.windowChrome('minimize')}
           className="w-11 h-full flex items-center justify-center text-gray-400 hover:bg-[#333] hover:text-white transition-colors"
         >
-          <Minus size={14} />
+          <Icons8Icon id="minus_ui" size={14} />
         </button>
         <button
           type="button"
@@ -62,7 +62,14 @@ export default function WindowTitleBar({ title = 'BNDZ' }: WindowTitleBarProps) 
           onClick={() => IPC.windowChrome('maximize')}
           className="w-11 h-full flex items-center justify-center text-gray-400 hover:bg-[#333] hover:text-white transition-colors"
         >
-          {maximized ? <Copy size={12} className="rotate-180" /> : <Square size={12} />}
+          {maximized ? (
+            <span className="relative inline-block w-[11px] h-[11px]">
+              <span className="absolute right-0 top-0 w-[8px] h-[8px] border border-current" />
+              <span className="absolute left-0 bottom-0 w-[8px] h-[8px] border border-current bg-[#1a1a1a]" />
+            </span>
+          ) : (
+            <span className="inline-block w-[11px] h-[11px] border border-current" />
+          )}
         </button>
         <button
           type="button"
@@ -71,7 +78,7 @@ export default function WindowTitleBar({ title = 'BNDZ' }: WindowTitleBarProps) 
           onClick={() => IPC.windowChrome('close')}
           className="w-11 h-full flex items-center justify-center text-gray-400 hover:bg-[#e81123] hover:text-white transition-colors"
         >
-          <X size={14} />
+          <Icons8Icon id="close" size={14} />
         </button>
       </div>
     </div>

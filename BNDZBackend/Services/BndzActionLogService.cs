@@ -133,9 +133,16 @@ public sealed class BndzActionLogService
                 break;
 
             case ActionKind.Delete:
-                if (entry.UsedRecycleBin)
-                    throw new InvalidOperationException("Recycle Bin deletes cannot be undone programmatically — restore from Recycle Bin.");
-                throw new InvalidOperationException("Permanent deletes cannot be undone.");
+                if (!entry.UsedRecycleBin)
+                    throw new InvalidOperationException("Permanent deletes (Recycle Bin bypassed) cannot be undone.");
+                // Restore each deleted item from the Recycle Bin by matching its original
+                // pre-deletion path (PKEY_Recycle_DeletedFrom) — not the same identifier the
+                // Recycle Bin panel's Restore button uses, since that one only knows the item's
+                // own Recycle Bin storage location, not where it came from.
+                var (restored, failed) = RecycleBinService.RestoreByOriginalPath(entry.SourcePaths);
+                if (failed > 0)
+                    throw new InvalidOperationException($"Restored {restored} of {entry.SourcePaths.Count} item(s) — the rest could not be located in the Recycle Bin (already purged, emptied, or restored elsewhere).");
+                break;
 
             default:
                 throw new NotSupportedException($"Undo not supported for {entry.Kind}.");
@@ -269,7 +276,7 @@ public sealed class ActionLogEntryDto
         Kind = e.Kind.ToString(),
         Label = e.Label,
         Utc = e.Utc.ToString("O"),
-        CanUndo = e.Kind is not ActionKind.Delete,
+        CanUndo = e.Kind is not ActionKind.Delete || e.UsedRecycleBin,
     };
 }
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { GitCompare, Loader2, FileText, FolderGit2 } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
@@ -8,7 +8,7 @@ import { pushToast } from '../ToastHost';
 export const ComparePluginDef = {
   id: 'compare',
   name: 'Compare',
-  icon: GitCompare,
+  icon: 'compare_ui',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -79,7 +79,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
   return (
     <PluginPanelShell
       title="Compare"
-      icon={GitCompare}
+      icon="compare_ui"
       iconColor="#34d399"
       subtitle="XYplorer-style binary file & folder diff"
       variant="embedded"
@@ -123,7 +123,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
           onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
           className="self-start flex items-center gap-2 px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-semibold"
         >
-          {loading ? <Loader2 size={12} className="animate-spin" /> : <GitCompare size={12} />}
+          {loading ? <Icons8Icon id="loading" size={12} spin /> : <Icons8Icon id="compare_ui" size={12} />}
           Compare
         </button>
 
@@ -154,7 +154,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
                   row.status === 'same' ? 'text-emerald-400' :
                   row.status === 'different' ? 'text-amber-400' : 'text-gray-500'
                 }`}>{row.status}</span>
-                <FileText size={12} className="shrink-0 text-gray-600" />
+                <Icons8Icon id="file_ui" size={12} className="shrink-0" />
                 <span className="truncate flex-1">{row.name}</span>
               </div>
             ))}
@@ -163,7 +163,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
 
         {mode === 'dirs' && !loading && dirResults.length === 0 && (
           <div className="text-center text-gray-600 text-xs py-6 flex flex-col items-center gap-2">
-            <FolderGit2 size={20} className="opacity-40" />
+            <Icons8Icon id="compare_ui" size={20} className="opacity-40" />
             Run folder compare to see diff rows
           </div>
         )}

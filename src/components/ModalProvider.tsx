@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, HelpCircle, X, Trash2, Copy } from 'lucide-react';
+import { Icons8Icon } from './Icons8Icon';
 import { registerEscapeLayer } from '../lib/globalEscape';
 
 export type ModalAction = {
@@ -37,11 +37,11 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
     type === 'warning' ? 'from-yellow-600/80 via-amber-700/70 to-yellow-900/80' :
     'from-sky-600/90 via-indigo-700/80 to-violet-900/90';
 
-  const Icon =
-    type === 'destructive' ? Trash2 :
-    type === 'conflict' ? Copy :
-    type === 'warning' ? AlertTriangle :
-    HelpCircle;
+  const iconId =
+    type === 'destructive' ? 'delete' :
+    type === 'conflict' ? 'copy' :
+    type === 'warning' ? 'warning' :
+    'help_ui';
 
   const runAction = (action: ModalAction, isPrimary: boolean) => {
     if (isPrimary && neverAgain && config.neverShowAgain) {
@@ -65,7 +65,7 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
       >
         <div className={`px-5 py-4 bg-gradient-to-r ${headerGradient} flex items-start gap-3`}>
           <div className="w-10 h-10 rounded-lg bg-black/25 flex items-center justify-center shrink-0">
-            <Icon size={20} className="text-white" />
+            <Icons8Icon id={iconId} size={20} />
           </div>
           <div className="flex-1 min-w-0 pt-0.5">
             <h2 className="text-[15px] font-bold text-white tracking-tight">{config.title}</h2>
@@ -77,7 +77,7 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
             onClick={onClose}
             aria-label="Close"
           >
-            <X size={16} />
+            <Icons8Icon id="close" size={14} />
           </button>
         </div>
 

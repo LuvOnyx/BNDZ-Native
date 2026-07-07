@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Database, Loader2, FileText, HardDrive } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
@@ -7,7 +7,7 @@ import PluginPanelShell from './PluginPanelShell';
 export const MetadataPluginDef = {
     id: 'metadata',
     name: 'Metadata Inspector',
-    icon: Database,
+    icon: 'metadata',
     description: 'Deep file metadata, shell properties, and cryptographic hash analysis.',
     isNative: true,
     targetPanel: 'bottom' as const,
@@ -79,13 +79,13 @@ export default function MetadataPlugin({
         return (
             <PluginPanelShell
                 title="Metadata Inspector"
-                icon={Database}
+                icon="metadata"
                 iconColor="#38bdf8"
                 variant="embedded"
                 subtitle="No selection"
             >
                 <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-gray-500 gap-3 p-6">
-                    <Database size={36} className="opacity-20 text-sky-400" />
+                    <Icons8Icon id="metadata" size={36} className="opacity-20" />
                     <p className="text-xs text-center max-w-[240px] leading-relaxed">
                         Select a file or folder in the list to inspect extended metadata and hashes.
                     </p>
@@ -97,12 +97,12 @@ export default function MetadataPlugin({
     return (
         <PluginPanelShell
             title="Metadata Inspector"
-            icon={Database}
+            icon="metadata"
             iconColor="#38bdf8"
             variant="embedded"
             subtitle={path.split(/[/\\]/).pop() || path}
             status={loading ? (
-                <span className="flex items-center gap-2 text-gray-500"><Loader2 size={12} className="animate-spin" /> Loading…</span>
+                <span className="flex items-center gap-2 text-gray-500"><Icons8Icon id="loading" size={12} spin /> Loading…</span>
             ) : undefined}
         >
             <div className="h-full overflow-y-auto bndz-scrollbar p-4 space-y-4">
@@ -129,14 +129,14 @@ export default function MetadataPlugin({
 
                 {(hashes.md5 || hashes.sha256) && (
                     <div className="p-3 bg-[#111] border border-[#222] rounded-lg space-y-2">
-                        <div className="text-[10px] uppercase tracking-wider text-gray-500 flex items-center gap-1"><HardDrive size={10} /> Cryptographic Hashes</div>
+                        <div className="text-[10px] uppercase tracking-wider text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> Cryptographic Hashes</div>
                         {hashes.md5 && <div className="text-[10px] font-mono"><span className="text-gray-500">MD5: </span>{hashes.md5}</div>}
                         {hashes.sha256 && <div className="text-[10px] font-mono break-all"><span className="text-gray-500">SHA256: </span>{hashes.sha256}</div>}
                     </div>
                 )}
 
                 <div className="space-y-1">
-                    <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2 flex items-center gap-1"><FileText size={10} /> Extended Properties</div>
+                    <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2 flex items-center gap-1"><Icons8Icon id="file_ui" size={10} /> Extended Properties</div>
                     {Object.entries(meta).length === 0 && !loading && (
                         <div className="text-xs text-gray-600 italic">No extended metadata available.</div>
                     )}

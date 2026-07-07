@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Palette, RotateCcw, Sparkles } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import { Checkbox } from '../ui/checkbox';
 import { ColorSettingRow } from './ColorSettingRow';
 import { COLOR_CONFIG_SECTIONS, COLOR_CONFIG_FIELDS, getColorConfigDefaults } from '../../data/colorConfigSchema';
@@ -40,7 +40,7 @@ function MiniPreview({ localConfig }: { localConfig: Record<string, any> }) {
         </div>
       </div>
       <div className="px-3 py-1.5 text-[9px] text-gray-500 bg-[#0d0d10] border-t border-white/5 flex items-center gap-1.5">
-        <Sparkles size={10} className="text-violet-400" />
+        <Icons8Icon id="sparkles_ui" size={10} />
         Live workspace preview
       </div>
     </div>
@@ -75,7 +75,7 @@ export default function ColorsTabContent({ localConfig, updateLocalConfig }: Col
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-[20px] font-bold text-white mb-1 leading-tight flex items-center gap-2">
-            <Palette size={20} className="text-violet-400" />
+            <Icons8Icon id="palette_ui" size={20} />
             Colors
           </h1>
           <p className="text-[12px] text-[#a0a0a0] max-w-[480px]">
@@ -99,7 +99,7 @@ export default function ColorsTabContent({ localConfig, updateLocalConfig }: Col
           onClick={resetDefaults}
           className="text-[11px] px-3 py-1.5 rounded-md border border-[#555] bg-[#2a2a2a] text-[#ddd] hover:bg-[#444] hover:text-white transition-colors flex items-center gap-1.5"
         >
-          <RotateCcw size={12} />
+          <Icons8Icon id="reset_ui" size={12} />
           Reset to Defaults
         </button>
       </div>

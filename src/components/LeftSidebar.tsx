@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronRight, HardDrive, Star, Cloud, FolderTree, GitBranch, GripVertical } from 'lucide-react';
+import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 
 const SECTION_KEY_MAP: Record<string, string> = {
     storage: 'drives',
@@ -112,11 +112,11 @@ export function LeftSidebar({
   };
 
     const sections = {
-        quickAccess: { content: quickAccessContent, label: "Rapid access", icon: Star, iconColor: "text-emerald-400" },
-        cloud: { content: cloudProvidersContent, label: "Cloud Drives", icon: Cloud, iconColor: "text-sky-400" },
-        drives: { content: drivesContent, label: "Drives", icon: HardDrive, iconColor: "text-gray-400" },
-        miniTree: { content: miniTreeContent, label: "Mini Tree", icon: GitBranch, iconColor: "text-violet-400" },
-        tree: { content: treeContent, label: "Navigation Tree", icon: FolderTree, iconColor: "text-emerald-500" },
+        quickAccess: { content: quickAccessContent, label: "Rapid access", icon: 'star_ui', iconColor: "text-emerald-400" },
+        cloud: { content: cloudProvidersContent, label: "Cloud Drives", icon: 'go_network', iconColor: "text-sky-400" },
+        drives: { content: drivesContent, label: "Drives", icon: 'disk_mgmt', iconColor: "text-gray-400" },
+        miniTree: { content: miniTreeContent, label: "Mini Tree", icon: 'dropstack', iconColor: "text-violet-400" },
+        tree: { content: treeContent, label: "Navigation Tree", icon: 'shell_menus', iconColor: "text-emerald-500" },
     };
 
     return (
@@ -128,7 +128,6 @@ export function LeftSidebar({
             {order.map(key => {
                 const sec = (sections as any)[key];
                 if (!sec.content) return null;
-                const Icon = sec.icon;
 
                 return (
                     <div 
@@ -142,8 +141,12 @@ export function LeftSidebar({
                             onClick={(e) => { e.stopPropagation(); toggleSection(key); }}
                         >
                             <div className="flex items-center gap-1.5">
-                                {expandedSections[key as keyof typeof expandedSections] ? <ChevronDown size={12} className="opacity-60 cursor-pointer transition-transform" /> : <ChevronRight size={12} className="opacity-60 cursor-pointer transition-transform" />}
-                                <Icon size={12} className={`${sec.iconColor} opacity-70 group-hover:opacity-100 transition-opacity`} />
+                                <Icons8Icon
+                                  id={expandedSections[key as keyof typeof expandedSections] ? 'chevron_down' : 'chevron_right'}
+                                  size={10}
+                                  className="opacity-60 cursor-pointer transition-transform"
+                                />
+                                <Icons8Icon id={sec.icon} size={12} className="opacity-70 group-hover:opacity-100 transition-opacity" />
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#888] group-hover:text-gray-100 transition-colors">{sec.label}</span>
                             </div>
                             <div
@@ -153,7 +156,7 @@ export function LeftSidebar({
                                 className="opacity-0 group-hover:opacity-50 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 transition-opacity"
                                 title="Drag to reorder module"
                             >
-                                <GripVertical size={12} />
+                                <DragHandleGlyph size={12} />
                             </div>
                         </div>
                         {expandedSections[key as keyof typeof expandedSections] && (

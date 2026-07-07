@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, LayoutGrid } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 
 const TILES = [
   { id: 'system-window-management-left', label: 'Left Half', hint: 'Snap left' },
@@ -26,8 +26,8 @@ export default function BndzWindowManagerView({ onClose }: Props) {
   return (
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><ArrowLeft size={14} /></button>
-        <LayoutGrid size={16} className="text-[var(--text-muted)]" />
+        <button type="button" className="bndz-icon-btn" onClick={onClose} title="Back"><Icons8Icon id="chevron_left" size={14} /></button>
+        <Icons8Icon id="view_grid" size={16} className="opacity-60" />
         <span className="text-[14px] font-medium">Window Management</span>
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4">

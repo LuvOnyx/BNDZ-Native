@@ -25,8 +25,9 @@ export default function TagBadge({ tagKey, catalog = [], compact }: Props) {
       title={label}
     >
       <span
-        className={`rounded-full shrink-0 ${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'}`}
+        className={`rounded-[2px] shrink-0 border border-black/20 ${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'}`}
         style={{ backgroundColor: color }}
+        aria-hidden
       />
       {label}
     </span>

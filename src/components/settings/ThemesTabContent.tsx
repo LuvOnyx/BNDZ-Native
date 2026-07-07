@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Sparkles, Palette } from 'lucide-react';
+import { Icons8Icon } from '../Icons8Icon';
 import {
   IMPORTED_THEMES,
   AESTHETIC_THEMES,
@@ -63,7 +63,7 @@ function ThemeCard({ preset, active, onClick }: { preset: ThemePreset; active: b
             className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg"
             style={{ background: preset.accent }}
           >
-            <Check size={15} className="text-white" strokeWidth={3} />
+            <Icons8Icon id="check" size={15} />
           </div>
         )}
       </div>
@@ -110,14 +110,14 @@ export default function ThemesTabContent({ activeTheme, onSelectTheme }: ThemesT
           </p>
         </div>
         <div className="hidden lg:flex items-center gap-2 text-[11px] text-sky-300/90 bg-sky-500/10 border border-sky-500/25 rounded-xl px-3.5 py-2.5 shadow-sm">
-          <Sparkles size={14} />
+          <Icons8Icon id="sparkles_ui" size={14} />
           <span>Live preview on click</span>
         </div>
       </div>
 
       <section className="mb-10">
         <h2 className="bndz-themes-section-title mb-4">
-          <Palette size={14} className="text-sky-400" />
+          <Icons8Icon id="palette_ui" size={14} />
           Imported Themes
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -134,7 +134,7 @@ export default function ThemesTabContent({ activeTheme, onSelectTheme }: ThemesT
 
       <section>
         <h2 className="bndz-themes-section-title mb-4">
-          <Sparkles size={14} className="text-fuchsia-400" />
+          <Icons8Icon id="sparkles_ui" size={14} />
           Aesthetic Presets
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Puzzle, Store } from 'lucide-react';
+import { Icons8Icon } from '../../components/Icons8Icon';
 import { listInstalledPlugins, openPluginStore } from '../bridge/flowBridge';
 import { rebrandLauncherText } from '../../lib/rebrandLauncherText';
 import type { PluginRecord } from '../types';
@@ -32,7 +32,7 @@ export default function BndzExtensionHubView({ onClose }: Props) {
   return (
     <div className="glass-effect h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--footer-border)]">
-        <button type="button" className="bndz-icon-btn" onClick={onClose}><ArrowLeft size={14} /></button>
+        <button type="button" className="bndz-icon-btn" onClick={onClose}><Icons8Icon id="chevron_left" size={14} /></button>
         <input
           ref={inputRef}
           className="bndz-search-input flex-1"
@@ -40,7 +40,7 @@ export default function BndzExtensionHubView({ onClose }: Props) {
           onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
           placeholder="Search extensions…"
         />
-        <button type="button" className="bndz-icon-btn" title="Plugin Store" onClick={() => void openPluginStore()}><Store size={14} /></button>
+        <button type="button" className="bndz-icon-btn" title="Plugin Store" onClick={() => void openPluginStore()}><Icons8Icon id="store" size={14} /></button>
       </div>
       <div className="flex-1 grid grid-cols-[2fr_3fr] min-h-0">
         <div className="border-r border-[var(--footer-border)] overflow-y-auto custom-scrollbar">
@@ -51,7 +51,7 @@ export default function BndzExtensionHubView({ onClose }: Props) {
               onClick={() => setSelectedIndex(i)}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Puzzle size={14} className="shrink-0 opacity-70" />
+                <Icons8Icon id="puzzle_ui" size={14} className="shrink-0 opacity-70" />
                 <div className="min-w-0">
                   <div className="text-[13px] font-medium truncate">{rebrandLauncherText(p.name)}</div>
                   {p.actionKeyword ? <div className="text-[10px] font-mono text-[var(--text-subtle)]">{p.actionKeyword}</div> : null}
@@ -82,7 +82,7 @@ export default function BndzExtensionHubView({ onClose }: Props) {
           <div className="mt-auto bndz-launcher-footer -mx-4 px-4 py-2.5 flex justify-between items-center">
             <span className="text-[11px] text-[var(--text-subtle)]">{filtered.length} installed</span>
             <button type="button" className="bndz-btn-ghost text-[11px]" onClick={() => void openPluginStore()}>
-              <ExternalLink size={12} /> Manage in Plugin Store
+              <Icons8Icon id="external_link" size={12} /> Manage in Plugin Store
             </button>
           </div>
         </div>

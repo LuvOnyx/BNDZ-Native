@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Layers, Trash2, ArrowRightCircle, Copy, Plus, Upload, GripVertical } from 'lucide-react';
+import { Icons8Icon, DragHandleGlyph } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { pushToast } from '../ToastHost';
@@ -10,7 +10,7 @@ const STACK_KEY = 'bndz-dropstack-v1';
 export const DropStackPluginDef = {
     id: "dropstack",
     name: "Drop Stack",
-    icon: Layers,
+    icon: 'dropstack',
     description: 'Stage files from multiple directories, then batch copy or move to the active pane.',
     targetPanel: "bottom"
 };
@@ -117,20 +117,20 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
     return (
         <PluginPanelShell
             title="Drop Stack"
-            icon={Layers}
+            icon="dropstack"
             iconColor="#a78bfa"
             variant="embedded"
             subtitle="Stage files from multiple locations, then batch transfer"
             toolbar={
                 <>
                     <button type="button" onClick={addSelected} disabled={!selectedItems?.length} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-[#333] hover:border-violet-500/40 disabled:opacity-40">
-                        <Plus size={12} /> Add Selection
+                        <Icons8Icon id="plus_ui" size={12} /> Add Selection
                     </button>
                     <button type="button" onClick={() => void executeBatch('copy')} disabled={!stack.length || operating} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded bg-sky-600/80 hover:bg-sky-500 text-white disabled:opacity-40">
-                        <Copy size={12} /> Copy All
+                        <Icons8Icon id="copy" size={12} /> Copy All
                     </button>
                     <button type="button" onClick={() => void executeBatch('move')} disabled={!stack.length || operating} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded bg-amber-600/80 hover:bg-amber-500 text-white disabled:opacity-40">
-                        <ArrowRightCircle size={12} /> Move All
+                        <Icons8Icon id="chevron_right" size={12} /> Move All
                     </button>
                 </>
             }
@@ -140,7 +140,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                     <div className="p-3 border-b border-[#222] flex justify-between items-center">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Stash ({stack.length})</span>
                         <button type="button" onClick={clearStack} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1">
-                            <Trash2 size={10} /> Clear
+                            <Icons8Icon id="delete" size={10} /> Clear
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-1">
@@ -160,9 +160,9 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                                 onDragEnd={() => setDragIndex(null)}
                                 className="flex items-center gap-2 bg-[#0d0d0d] border border-[#222] rounded px-2 py-1.5 group"
                             >
-                                <GripVertical size={10} className="text-gray-600 shrink-0 cursor-grab" />
+                                <DragHandleGlyph size={10} className="text-gray-600 shrink-0 cursor-grab" />
                                 <span className="text-[10px] font-mono text-gray-400 truncate flex-1" title={item}>{item.split(/[/\\]/).pop()}</span>
-                                <button type="button" onClick={() => removeStackItem(item)} className="text-red-400 opacity-70 hover:opacity-100 shrink-0"><Trash2 size={10} /></button>
+                                <button type="button" onClick={() => removeStackItem(item)} className="text-red-400 opacity-70 hover:opacity-100 shrink-0"><Icons8Icon id="delete" size={10} /></button>
                             </div>
                         ))}
                     </div>
@@ -173,7 +173,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                     onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                 >
-                    <Upload size={32} className={`opacity-30 ${dragOver ? 'text-violet-400' : ''}`} />
+                    <Icons8Icon id="upload" size={32} className="opacity-30" />
                     <p>Drop files or folders here to stage</p>
                     <p>Destination: <span className="text-gray-400 font-mono">{focusedPath || '—'}</span></p>
                     <p className="text-[10px] text-gray-700">Persisted between sessions · drag to reorder</p>

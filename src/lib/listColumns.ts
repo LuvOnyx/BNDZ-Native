@@ -49,21 +49,54 @@ export function resolveListColumnVisibility(
   return merged;
 }
 
+const DEFAULT_COLUMN_ORDER: ListColumnId[] = LIST_COLUMN_DEFS.map(c => c.id);
+
+/** Resolve the user's saved column order, appending any columns missing from a stale/partial order. */
+export function resolveListColumnOrder(config: AppConfig): ListColumnId[] {
+  const saved = (config.listColumnOrder || []) as ListColumnId[];
+  const known = new Set(DEFAULT_COLUMN_ORDER);
+  const ordered = saved.filter(id => known.has(id));
+  for (const id of DEFAULT_COLUMN_ORDER) {
+    if (!ordered.includes(id)) ordered.push(id);
+  }
+  return ordered;
+}
+
+/** Move `sourceId` to sit immediately before/after `targetId` in the column order — used by header drag-to-reorder. */
+export function reorderListColumns(
+  currentOrder: ListColumnId[],
+  sourceId: ListColumnId,
+  targetId: ListColumnId,
+  insertAfter = false,
+): ListColumnId[] {
+  if (sourceId === targetId) return currentOrder;
+  const next = currentOrder.filter(id => id !== sourceId);
+  const targetIdx = next.indexOf(targetId);
+  if (targetIdx === -1) return currentOrder;
+  next.splice(insertAfter ? targetIdx + 1 : targetIdx, 0, sourceId);
+  return next;
+}
+
 export function getVisibleListColumns(
   config: AppConfig,
   options?: { isGlobalSearch?: boolean },
 ): ListColumnDef[] {
   const vis = resolveListColumnVisibility(config, options);
   const widths = (config.listColumnWidths || {}) as Partial<Record<ListColumnId, number>>;
-  return LIST_COLUMN_DEFS.filter(col => vis[col.id]).map(col => {
-    const px = widths[col.id];
-    if (!px || px < 48) return col;
-    return {
-      ...col,
-      widthClass: '',
-      widthPx: px,
-    };
-  });
+  const order = resolveListColumnOrder(config);
+  const byId = new Map(LIST_COLUMN_DEFS.map(c => [c.id, c]));
+  return order
+    .map(id => byId.get(id))
+    .filter((col): col is ListColumnDef => !!col && vis[col.id])
+    .map(col => {
+      const px = widths[col.id];
+      if (!px || px < 48) return col;
+      return {
+        ...col,
+        widthClass: '',
+        widthPx: px,
+      };
+    });
 }
 
 export function getColumnStyle(col: ListColumnDef): { width: number; minWidth: number; maxWidth: number; flexShrink: 0 } | undefined {
