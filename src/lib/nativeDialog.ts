@@ -23,6 +23,21 @@ export function requestNativeConfirm(options: NativeConfirmOptions): Promise<boo
   });
 }
 
+export function showNativeAlert(message: string, title = 'BNDZ', kind: 'error' | 'warning' | 'info' = 'warning') {
+  import('../components/ToastHost').then(({ pushToast }) => {
+    pushToast({ title, message, kind });
+  });
+}
+
+export function subscribeNativeAlert(handler: (detail: { title?: string; message: string }) => void): () => void {
+  const listener = (event: Event) => {
+    const detail = (event as CustomEvent<{ title?: string; message: string }>).detail;
+    if (detail) handler(detail);
+  };
+  window.addEventListener('bndz-native-alert', listener);
+  return () => window.removeEventListener('bndz-native-alert', listener);
+}
+
 export function subscribeNativeConfirm(handler: (request: NativeConfirmRequest) => void): () => void {
   const listener = (event: Event) => {
     const detail = (event as CustomEvent<NativeConfirmRequest>).detail;

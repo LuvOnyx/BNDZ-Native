@@ -48,7 +48,8 @@ public class FileOperationService
         bool bypassRecycleBin,
         Action<string, int, string, long, long, double, int, int>? onProgress = null,
         Func<string, string, string, string, Task<string>>? onConflict = null,
-        bool recordActionLog = true)
+        bool recordActionLog = true,
+        Action<string, string>? onAccessDenied = null)
     {
         sources = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
         target = NormalizePath(target);
@@ -107,6 +108,11 @@ public class FileOperationService
                     onProgress?.Invoke(operationId, 100, sources.FirstOrDefault() ?? "", 0, 0, 0, 1, 1);
                     break;
             }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            onAccessDenied?.Invoke(operationId, ex.Message);
+            onProgress?.Invoke(operationId, 100, ex.Message, 0, 0, 0, 1, 1);
         }
         catch (Exception ex)
         {

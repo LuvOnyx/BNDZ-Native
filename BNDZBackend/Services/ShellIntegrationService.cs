@@ -14,18 +14,28 @@ public sealed class ShellIntegrationResult
     public bool NeedsElevation { get; init; }
 }
 
+public sealed class DefaultFileManagerStatus
+{
+    public bool Active { get; init; }
+    public bool DirectoryOpen { get; init; }
+    public bool DriveOpen { get; init; }
+    public bool FolderOpen { get; init; }
+}
+
 public class ShellIntegrationService
 {
     private const string ProgId = "BNDZ.FileManager";
     private const int ShcneAssocChanged = 0x08000000;
     private const uint ShcnfIdList = 0x0000;
 
-    private static readonly string[] DefaultFmOpenCommandKeys =
+    private const string MissingSentinel = "__BNDZ_MISSING__";
+
+    private static readonly (string ShellKey, string[] Verbs)[] DefaultFmShellClasses =
     [
-        @"Software\Classes\Directory\shell\open\command",
-        @"Software\Classes\Folder\shell\open\command",
-        @"Software\Classes\Drive\shell\open\command",
-        @"Software\Classes\LibraryFolder\shell\open\command",
+        (@"Software\Classes\Directory\shell", new[] { "open", "opennewwindow" }),
+        (@"Software\Classes\Folder\shell", new[] { "open", "opennewwindow" }),
+        (@"Software\Classes\Drive\shell", new[] { "open", "opennewwindow" }),
+        (@"Software\Classes\LibraryFolder\shell", new[] { "open" }),
     ];
 
     private static string BackupFilePath => Path.Combine(
@@ -48,6 +58,30 @@ public class ShellIntegrationService
         {
             return false;
         }
+    }
+
+    public DefaultFileManagerStatus GetDefaultFileManagerStatus()
+    {
+        var exe = Process.GetCurrentProcess().MainModule?.FileName ?? "";
+        var directoryOpen = CommandPointsToBndz(@"Software\Classes\Directory\shell\open\command", exe);
+        var folderOpen = CommandPointsToBndz(@"Software\Classes\Folder\shell\open\command", exe);
+        var driveOpen = CommandPointsToBndz(@"Software\Classes\Drive\shell\open\command", exe);
+        return new DefaultFileManagerStatus
+        {
+            DirectoryOpen = directoryOpen,
+            FolderOpen = folderOpen,
+            DriveOpen = driveOpen,
+            Active = directoryOpen && driveOpen,
+        };
+    }
+
+    private static bool CommandPointsToBndz(string commandKeyPath, string exe)
+    {
+        var command = ReadRegistryValue(commandKeyPath, "");
+        if (string.IsNullOrWhiteSpace(command) || string.IsNullOrWhiteSpace(exe)) return false;
+        return command.Contains("BNDZ", StringComparison.OrdinalIgnoreCase)
+               || command.Contains(exe, StringComparison.OrdinalIgnoreCase)
+               || command.Contains(ProgId, StringComparison.OrdinalIgnoreCase);
     }
 
     public void ExecuteFile(string path, string verb = "open")
@@ -259,10 +293,26 @@ public class ShellIntegrationService
         RegisterProgId(exe);
 
         var openCommand = $"\"{exe}\" --open-path \"%1\"";
-        foreach (var keyPath in DefaultFmOpenCommandKeys)
+        foreach (var (shellKey, verbs) in DefaultFmShellClasses)
         {
-            using var key = Registry.CurrentUser.CreateSubKey(keyPath);
-            key?.SetValue("", openCommand);
+            using (var shell = Registry.CurrentUser.CreateSubKey(shellKey))
+                shell?.SetValue("", "open");
+
+            foreach (var verb in verbs)
+            {
+                var openKeyPath = $@"{shellKey}\{verb}";
+                var commandKeyPath = $@"{openKeyPath}\command";
+
+                using (var commandKey = Registry.CurrentUser.CreateSubKey(commandKeyPath))
+                    commandKey?.SetValue("", openCommand);
+
+                using (var openKey = Registry.CurrentUser.CreateSubKey(openKeyPath))
+                {
+                    try { openKey?.DeleteValue("DelegateExecute", false); } catch { }
+                    try { openKey?.DeleteValue("DropTarget", false); } catch { }
+                    openKey?.SetValue("DelegateExecute", "", RegistryValueKind.String);
+                }
+            }
         }
 
         NotifyShellAssociationChanged();
@@ -276,6 +326,12 @@ public class ShellIntegrationService
     private ShellIntegrationResult DisableDefaultFileManager()
     {
         RestoreDefaultFmRegistry();
+        try
+        {
+            Registry.CurrentUser.DeleteSubKeyTree($@"Software\Classes\{ProgId}", false);
+        }
+        catch { }
+
         NotifyShellAssociationChanged();
         return new ShellIntegrationResult
         {
@@ -301,43 +357,58 @@ public class ShellIntegrationService
         var backup = LoadBackup();
         var changed = false;
 
-        foreach (var keyPath in DefaultFmOpenCommandKeys)
+        foreach (var (shellKey, verbs) in DefaultFmShellClasses)
         {
-            if (backup.ContainsKey(keyPath)) continue;
-            backup[keyPath] = ReadRegistryDefault(keyPath);
-            changed = true;
+            if (EnsureBackupEntry(backup, shellKey, "")) changed = true;
+            foreach (var verb in verbs)
+            {
+                var openKeyPath = $@"{shellKey}\{verb}";
+                var commandKeyPath = $@"{openKeyPath}\command";
+                if (EnsureBackupEntry(backup, commandKeyPath, "")) changed = true;
+                if (EnsureBackupEntry(backup, openKeyPath, "DelegateExecute")) changed = true;
+                if (EnsureBackupEntry(backup, openKeyPath, "DropTarget")) changed = true;
+            }
         }
 
         if (changed)
             SaveBackup(backup);
     }
 
+    private static bool EnsureBackupEntry(Dictionary<string, string?> backup, string keyPath, string valueName)
+    {
+        var id = BackupId(keyPath, valueName);
+        if (backup.ContainsKey(id)) return false;
+        backup[id] = ReadRegistryValue(keyPath, valueName) ?? MissingSentinel;
+        return true;
+    }
+
+    private static string BackupId(string keyPath, string valueName) =>
+        string.IsNullOrEmpty(valueName) ? keyPath : $"{keyPath}::{valueName}";
+
     private static void RestoreDefaultFmRegistry()
     {
         var backup = LoadBackup();
         if (backup.Count == 0)
         {
-            foreach (var keyPath in DefaultFmOpenCommandKeys)
-                DeleteOpenCommandKey(keyPath);
+            RemoveDefaultFmOverrides();
             return;
         }
 
-        foreach (var keyPath in DefaultFmOpenCommandKeys)
+        foreach (var entry in backup)
         {
-            if (!backup.TryGetValue(keyPath, out var prior))
-            {
-                DeleteOpenCommandKey(keyPath);
-                continue;
-            }
+            var separator = entry.Key.IndexOf("::", StringComparison.Ordinal);
+            var keyPath = separator >= 0 ? entry.Key[..separator] : entry.Key;
+            var valueName = separator >= 0 ? entry.Key[(separator + 2)..] : "";
+            var prior = entry.Value;
 
-            if (prior is null)
+            if (prior == MissingSentinel)
             {
-                DeleteOpenCommandKey(keyPath);
+                DeleteRegistryValue(keyPath, valueName);
                 continue;
             }
 
             using var key = Registry.CurrentUser.CreateSubKey(keyPath);
-            key?.SetValue("", prior);
+            key?.SetValue(valueName, prior ?? "");
         }
 
         try
@@ -348,12 +419,33 @@ public class ShellIntegrationService
         catch { }
     }
 
-    private static string? ReadRegistryDefault(string keyPath)
+    private static void RemoveDefaultFmOverrides()
+    {
+        foreach (var (shellKey, verbs) in DefaultFmShellClasses)
+        {
+            foreach (var verb in verbs)
+            {
+                try { Registry.CurrentUser.DeleteSubKeyTree($@"{shellKey}\{verb}", false); } catch { }
+            }
+
+            try
+            {
+                using var shellRegKey = Registry.CurrentUser.OpenSubKey(shellKey, true);
+                if (shellRegKey is null) continue;
+                if (shellRegKey.GetSubKeyNames().Length == 0 && shellRegKey.ValueCount == 0)
+                    Registry.CurrentUser.DeleteSubKeyTree(shellKey, false);
+            }
+            catch { }
+        }
+    }
+
+    private static string? ReadRegistryValue(string keyPath, string valueName)
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(keyPath, false);
-            return key?.GetValue("") as string;
+            if (key is null) return null;
+            return key.GetValue(valueName) as string;
         }
         catch
         {
@@ -361,23 +453,36 @@ public class ShellIntegrationService
         }
     }
 
-    private static void DeleteOpenCommandKey(string keyPath)
+    private static void DeleteRegistryValue(string keyPath, string valueName)
     {
         try
         {
-            var parentPath = keyPath[..keyPath.LastIndexOf('\\')];
-            Registry.CurrentUser.DeleteSubKeyTree(parentPath + @"\open", false);
-        }
-        catch { }
+            using var key = Registry.CurrentUser.OpenSubKey(keyPath, true);
+            if (key is null)
+            {
+                try { Registry.CurrentUser.DeleteSubKeyTree(keyPath, false); } catch { }
+                return;
+            }
 
-        try
-        {
-            var shellPath = keyPath[..keyPath.LastIndexOf(@"\open\command")];
-            using var shellKey = Registry.CurrentUser.OpenSubKey(shellPath, true);
-            if (shellKey is null) return;
-            var subNames = shellKey.GetSubKeyNames();
-            if (subNames.Length == 0)
-                Registry.CurrentUser.DeleteSubKeyTree(shellPath, false);
+            if (string.IsNullOrEmpty(valueName))
+            {
+                try { Registry.CurrentUser.DeleteSubKeyTree(keyPath, false); } catch { }
+                return;
+            }
+
+            key.DeleteValue(valueName, false);
+            if (key.GetValueNames().Length == 0 && key.GetSubKeyNames().Length == 0)
+            {
+                var parent = keyPath[..keyPath.LastIndexOf('\\')];
+                try { Registry.CurrentUser.DeleteSubKeyTree(keyPath, false); } catch { }
+                try
+                {
+                    using var parentKey = Registry.CurrentUser.OpenSubKey(parent, true);
+                    if (parentKey is not null && parentKey.GetSubKeyNames().Length == 0 && parentKey.ValueCount == 0)
+                        Registry.CurrentUser.DeleteSubKeyTree(parent, false);
+                }
+                catch { }
+            }
         }
         catch { }
     }

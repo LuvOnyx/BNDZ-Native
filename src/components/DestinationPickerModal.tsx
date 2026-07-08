@@ -133,9 +133,9 @@ export default function DestinationPickerModal({
       className="fixed inset-0 z-[600] flex items-center justify-center p-6 bndz-destination-picker"
       onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150" />
+      <div className="absolute inset-0 bg-black/70" />
       <div
-        className="bndz-destination-picker-modal relative w-full max-w-[780px] max-h-[min(580px,82vh)] rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+        className="bndz-destination-picker-modal relative w-full max-w-[780px] max-h-[min(580px,82vh)] rounded-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="destination-picker-title"

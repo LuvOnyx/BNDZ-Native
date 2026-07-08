@@ -109,6 +109,24 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   };
 
   const handleContextMenuToggle = (checked: boolean) => {
+    if (!checked && (localConfig.isDefaultFileManager ?? localConfig.bndzIsDefaultFileManager)) {
+      void applyShellToggle(
+        {
+          inContextMenu: false,
+          bndzInShellContextMenu: false,
+          isDefaultFileManager: false,
+          bndzIsDefaultFileManager: false,
+        },
+        async () => {
+          const { IPC } = await import('../lib/ipcBridge');
+          const fm = await IPC.setAsDefaultManager(false);
+          if (!fm.success) return fm;
+          return IPC.setInContextMenu(false);
+        },
+        'restore Windows Explorer and remove BNDZ from the shell context menu',
+      );
+      return;
+    }
     void applyShellToggle(
       { inContextMenu: checked, bndzInShellContextMenu: checked },
       async () => {
@@ -163,6 +181,16 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
           iniPath: info.iniPath || '',
           is64Bit: info.is64Bit !== false,
         });
+      }).catch(() => {});
+      IPC.getDefaultFileManagerStatus().then(status => {
+        if (!active || !status) return;
+        if (status.active !== !!(localConfig.isDefaultFileManager ?? localConfig.bndzIsDefaultFileManager)) {
+          setLocalConfig(prev => ({
+            ...prev,
+            isDefaultFileManager: status.active,
+            bndzIsDefaultFileManager: status.active,
+          }));
+        }
       }).catch(() => {});
     });
     return () => { active = false; };

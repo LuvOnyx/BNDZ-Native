@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import { CloseGlyph, MinimizeGlyph } from './ChromeGlyphs';
 import { usePluginRegistry, PluginManifest } from '../data/PluginRegistryContext';
+import { showNativeAlert } from '../lib/nativeDialog';
 
 export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
     const { pluginRegistry, togglePluginInstall, addPluginToRegistry } = usePluginRegistry() as any;
@@ -28,10 +29,10 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                     const newPlugin: PluginManifest = { ...json, isInstalled: true };
                     addPluginToRegistry(newPlugin);
                 } else {
-                    alert('Invalid plugin manifest schema.');
+                    showNativeAlert('Invalid plugin manifest schema.', 'Plugin Store', 'error');
                 }
             } catch (err) {
-                alert('Invalid JSON file.');
+                showNativeAlert('Invalid JSON file.', 'Plugin Store', 'error');
             }
         };
         reader.readAsText(file);

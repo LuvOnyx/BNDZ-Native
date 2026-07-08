@@ -675,8 +675,6 @@ namespace BNDZ
                             },
                             onConflict: async (opId, fileName, srcPath, destPath) =>
                             {
-                                // "Apply to remaining conflicts" — once set for this operation, every
-                                // subsequent conflict resolves immediately without re-prompting the UI.
                                 if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
                                 {
                                     return batchResolution;
@@ -692,6 +690,23 @@ namespace BNDZ
                                 });
 
                                 return await tcs.Task;
+                            },
+                            onAccessDenied: (opId, message) =>
+                            {
+                                var evt = new
+                                {
+                                    type = "ELEVATION_REQUIRED",
+                                    payload = new
+                                    {
+                                        title = "Administrator approval required",
+                                        message = $"{message}\n\nSome file operations need elevated permissions. Restart BNDZ as administrator?",
+                                        context = "fileOperation",
+                                        operationId = opId,
+                                    }
+                                };
+                                PostToUi(() => {
+                                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
+                                });
                             });
                         _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
 
@@ -1784,6 +1799,9 @@ namespace BNDZ
                             case "isElevated":
                                 resultPayload = new { elevated = _shellIntegrationService.IsElevated() };
                                 break;
+                            case "getDefaultStatus":
+                                resultPayload = _shellIntegrationService.GetDefaultFileManagerStatus();
+                                break;
                             default:
                                 resultPayload = new { success = false, message = $"Unknown shell action: {action}" };
                                 break;
@@ -2405,7 +2423,15 @@ namespace BNDZ
                             success = true;
                         } catch (UnauthorizedAccessException) {
                             PostToUi(() => {
-                                System.Windows.MessageBox.Show("Could not write the context menu registry entries. Please restart BNDZ as an Administrator and try again.", "Permission Denied", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                var evt = new {
+                                    type = "ELEVATION_REQUIRED",
+                                    payload = new {
+                                        title = "Administrator approval required",
+                                        message = "Could not write the context menu registry entries. Restart BNDZ as administrator to continue.",
+                                        context = "globalContextMenu",
+                                    }
+                                };
+                                MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
                             });
                             success = false; 
                         } catch {

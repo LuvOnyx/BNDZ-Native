@@ -39,6 +39,13 @@ export interface ShellIntegrationResult {
   needsElevation?: boolean;
 }
 
+export interface DefaultFileManagerStatus {
+  active: boolean;
+  directoryOpen: boolean;
+  folderOpen: boolean;
+  driveOpen: boolean;
+}
+
 function _parseWebViewMessage(raw: unknown): any {
   if (raw == null) return null;
   if (typeof raw === 'string') {
@@ -94,6 +101,7 @@ export const IPC = {
   _initialized: false as boolean,
   _progressListeners: [] as Array<(progress: any) => void>,
   _conflictListeners: [] as Array<(conflict: any) => void>,
+  _elevationListeners: [] as Array<(payload: { title?: string; message: string; context?: string }) => void>,
   _drivesListeners: [] as Array<(drives: any[]) => void>,
   _folderSizeListeners: [] as Array<(progress: any) => void>,
   _duplicateProgressListeners: [] as Array<(progress: any) => void>,
@@ -119,6 +127,8 @@ export const IPC = {
           this._progressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'CONFLICT_DETECTED') {
           this._conflictListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'ELEVATION_REQUIRED') {
+          this._elevationListeners.forEach(cb => cb(data.payload ?? { message: 'Administrator approval may be required.' }));
         } else if (data.type === 'DRIVES_CHANGED') {
           this._drivesListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'EXTERNAL_FILES_DROPPED') {
@@ -195,6 +205,14 @@ export const IPC = {
     this._conflictListeners.push(callback);
     return () => {
       this._conflictListeners = this._conflictListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onElevationRequired(callback: (payload: { title?: string; message: string; context?: string }) => void) {
+    this.init();
+    this._elevationListeners.push(callback);
+    return () => {
+      this._elevationListeners = this._elevationListeners.filter(cb => cb !== callback);
     };
   },
 
@@ -540,7 +558,11 @@ export const IPC = {
     } else {
       if (action === 'copyPath') {
         const text = Array.isArray(path) ? path.join('\n') : path;
-        navigator.clipboard.writeText(text).catch(err => alert('Clipboard failed: ' + err.message));
+        navigator.clipboard.writeText(text).catch(err => {
+          window.dispatchEvent(new CustomEvent('bndz-native-alert', {
+            detail: { title: 'Clipboard', message: `Clipboard failed: ${err.message}` },
+          }));
+        });
       }
     }
   },
@@ -902,6 +924,15 @@ export const IPC = {
         .catch(() => false);
     }
     return Promise.resolve(false);
+  },
+
+  getDefaultFileManagerStatus(): Promise<DefaultFileManagerStatus> {
+    if (this.isNative) {
+      const id = `${Date.now()}_defaultFmStatus`;
+      return _nativeCall<DefaultFileManagerStatus>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'getDefaultStatus' })
+        .then(r => r ?? { active: false, directoryOpen: false, folderOpen: false, driveOpen: false });
+    }
+    return Promise.resolve({ active: false, directoryOpen: false, folderOpen: false, driveOpen: false });
   },
 
   relaunchAsAdmin(): Promise<ShellIntegrationResult> {

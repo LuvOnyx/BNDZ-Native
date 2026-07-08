@@ -97,9 +97,24 @@ export default function ToastHost() {
     };
     window.addEventListener('bndz-toast', onPush);
     window.addEventListener('bndz-toast-dismiss', onDismissEvt);
+    const onNativeAlert = (e: Event) => {
+      const d = (e as CustomEvent<{ title?: string; message: string }>).detail;
+      if (!d?.message) return;
+      const item: ToastItem = {
+        id: generateId(),
+        kind: 'warning',
+        title: d.title || 'BNDZ',
+        message: d.message,
+        duration: 6000,
+        sticky: false,
+      };
+      setToasts(prev => [...prev.slice(-4), item]);
+    };
+    window.addEventListener('bndz-native-alert', onNativeAlert);
     return () => {
       window.removeEventListener('bndz-toast', onPush);
       window.removeEventListener('bndz-toast-dismiss', onDismissEvt);
+      window.removeEventListener('bndz-native-alert', onNativeAlert);
     };
   }, [dismiss]);
 

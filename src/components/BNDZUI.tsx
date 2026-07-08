@@ -1905,6 +1905,7 @@ export default function BNDZUI() {
   useEffect(() => {
     let unsubProp: () => void;
     let unsubConf: () => void;
+    let unsubElev: () => void;
     import('../lib/ipcBridge').then(({ IPC }) => {
       unsubProp = IPC.onProgress((progressDetails) => {
         const pct = progressDetails.percentage ?? 0;
@@ -1971,6 +1972,15 @@ export default function BNDZUI() {
         }
       });
       unsubConf = IPC.onConflictContent((conflictDetails) => {
+        if (config.autoIncrementFilenamesOnCollision) {
+          void IPC.resolveConflict(
+            conflictDetails.operationId,
+            conflictDetails.fileName,
+            'keepboth',
+            true,
+          );
+          return;
+        }
          showModal({
            type: 'conflict',
            title: 'File already exists',
@@ -1992,12 +2002,22 @@ export default function BNDZUI() {
            },
          });
       });
+      unsubElev = IPC.onElevationRequired((payload) => {
+        void (async () => {
+          const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
+          await promptElevationIfNeeded(
+            { success: false, needsElevation: true, message: payload.message },
+            { title: payload.title, message: payload.message },
+          );
+        })();
+      });
     });
     return () => {
        unsubProp && unsubProp();
        unsubConf && unsubConf();
+       unsubElev && unsubElev();
     };
-  }, [showModal]);
+  }, [showModal, confirm, config.autoIncrementFilenamesOnCollision]);
 
   // --- Tree State Helpers ---
   const toggleExpand = (path: string) => {

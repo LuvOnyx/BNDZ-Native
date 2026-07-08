@@ -54,7 +54,7 @@ export function BndzNativeDialog({
       className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-6`}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose?.(); }}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/70" />
       <div
         className="bndz-native-dialog relative w-full max-w-[480px] rounded-2xl overflow-hidden shadow-2xl"
         role="dialog"

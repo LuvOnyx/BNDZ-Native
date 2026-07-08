@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Icons8Icon } from './Icons8Icon';
 import { CloseGlyph } from './ChromeGlyphs';
+import { showNativeAlert } from '../lib/nativeDialog';
 
 const FALLBACK_VERSION = '1.0.0';
 
@@ -149,7 +150,7 @@ export default function AboutDialog({
                   onClick={() => {
                     void import('../lib/ipcBridge').then(({ IPC }) =>
                       IPC.openLegalDoc(key).then(r => {
-                        if (!r.ok && r.error) alert(r.error);
+                        if (!r.ok && r.error) showNativeAlert(r.error, 'Legal document', 'error');
                       }),
                     );
                   }}
