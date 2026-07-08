@@ -4,6 +4,16 @@ import { Icons8Icon } from '../Icons8Icon';
 import { pushToast } from '../ToastHost';
 import { IPC } from '../../lib/ipcBridge';
 import PluginPanelShell from './PluginPanelShell';
+import {
+  PluginToolbarButton,
+  PluginSidebar,
+  PluginSectionTitle,
+  PluginCard,
+  PluginFieldLabel,
+  PluginEmptyState,
+  PLUGIN_INPUT_CLASS,
+  PLUGIN_SELECT_CLASS,
+} from './PluginPanelPrimitives';
 
 export const ContextMenuPluginDef = {
     id: 'context-menu-manager',
@@ -167,31 +177,31 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
     ) => {
         const open = expandedId === ac.id;
         return (
-            <div key={ac.id} className="bg-[#161616] border border-[#2a2a2a] hover:border-[#3a3a3a] rounded-xl overflow-hidden shadow-sm transition-colors">
+            <PluginCard key={ac.id} className="!p-0 overflow-hidden">
                 <button
                     type="button"
                     onClick={() => setExpandedId(open ? null : ac.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#1c1c1c] transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
                 >
                     <div className="w-8 h-8 rounded-lg bg-pink-600/15 border border-pink-500/25 flex items-center justify-center shrink-0">
                         <Icons8Icon id={mode === 'global' ? 'go_network' : 'shell_menus'} size={14} />
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{ac.name || 'Untitled'}</div>
-                        <div className="text-[10px] text-gray-500 truncate">
+                        <div className="text-xs bndz-panel-muted truncate">
                             {mode === 'global' ? targetLabel(ac.targetMode) : ac.command || 'No command'}
                         </div>
                     </div>
-                    <Icons8Icon id="chevron_right" size={12} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+                    <Icons8Icon id="chevron_right" size={12} className={`transition-transform text-gray-500 ${open ? 'rotate-90' : ''}`} />
                 </button>
 
                 {open && (
-                    <div className="px-4 pb-4 pt-1 border-t border-[#252525] space-y-3">
+                    <div className="px-4 pb-4 pt-1 border-t border-white/[0.06] space-y-3">
                         <div className="grid md:grid-cols-2 gap-3">
                             <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Menu label</label>
+                                <PluginFieldLabel>Menu label</PluginFieldLabel>
                                 <input
-                                    className="w-full bg-[#111] border border-[#333] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-pink-500/50"
+                                    className={PLUGIN_INPUT_CLASS}
                                     value={ac.name}
                                     onChange={e => update(prev => { const n = [...prev]; n[i] = { ...n[i], name: e.target.value }; return n; })}
                                     placeholder="What users see in the menu"
@@ -199,9 +209,9 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                             </div>
                             {mode === 'global' && (
                                 <div>
-                                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Show on</label>
+                                    <PluginFieldLabel>Show on</PluginFieldLabel>
                                     <select
-                                        className="w-full bg-[#111] border border-[#333] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-pink-500/50"
+                                        className={`${PLUGIN_SELECT_CLASS} w-full`}
                                         value={ac.targetMode || 'all'}
                                         onChange={e => update(prev => { const n = [...prev]; n[i] = { ...n[i], targetMode: e.target.value as TargetMode }; return n; })}
                                     >
@@ -214,11 +224,9 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                         </div>
 
                         <div>
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">
-                                {mode === 'global' ? 'Program to run' : 'BNDZ command'}
-                            </label>
+                            <PluginFieldLabel>{mode === 'global' ? 'Program to run' : 'BNDZ command'}</PluginFieldLabel>
                             <input
-                                className="w-full bg-[#111] border border-[#333] rounded-lg px-3 py-2 text-[11px] font-mono text-emerald-400 focus:outline-none focus:border-pink-500/50"
+                                className={`${PLUGIN_INPUT_CLASS} bndz-mono text-emerald-300`}
                                 value={ac.command}
                                 placeholder={mode === 'global' ? 'C:\\Apps\\Tool.exe "%1"' : 'refresh, copyPath, openTerminal...'}
                                 onChange={e => update(prev => { const n = [...prev]; n[i] = { ...n[i], command: e.target.value }; return n; })}
@@ -231,7 +239,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                                             type="button"
                                             title={v.desc}
                                             onClick={() => insertVariable(i, v.token, 'global')}
-                                            className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#222] border border-[#333] text-pink-300 hover:border-pink-500/40"
+                                            className="text-xs bndz-mono px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-pink-300 hover:border-pink-500/40"
                                         >
                                             {v.token}
                                         </button>
@@ -242,29 +250,25 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
 
                         {mode === 'global' && (
                             <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Menu icon (optional)</label>
+                                <PluginFieldLabel>Menu icon (optional)</PluginFieldLabel>
                                 <div className="flex gap-2">
                                     <input
-                                        className="flex-1 bg-[#111] border border-[#333] rounded-lg px-3 py-2 text-xs text-sky-300 focus:outline-none focus:border-pink-500/50"
+                                        className={`${PLUGIN_INPUT_CLASS} flex-1 text-sky-300`}
                                         value={ac.icon || ''}
                                         placeholder="C:\\App\\icon.ico"
                                         onChange={e => update(prev => { const n = [...prev]; n[i] = { ...n[i], icon: e.target.value }; return n; })}
                                     />
-                                    <button type="button" onClick={() => selectIcon(i)} className="shrink-0 px-3 py-2 rounded-lg bg-[#222] border border-[#444] hover:bg-[#333] text-xs flex items-center gap-1">
-                                        <Icons8Icon id="picture_ui" size={12} /> Browse
-                                    </button>
+                                    <PluginToolbarButton icon="picture_ui" onClick={() => selectIcon(i)}>Browse</PluginToolbarButton>
                                 </div>
                             </div>
                         )}
 
                         <div className="flex justify-end pt-1">
-                            <button type="button" onClick={remove} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-950/30">
-                                <Icons8Icon id="delete" size={12} /> Remove
-                            </button>
+                            <PluginToolbarButton icon="delete" onClick={remove}>Remove</PluginToolbarButton>
                         </div>
                     </div>
                 )}
-            </div>
+            </PluginCard>
         );
     };
 
@@ -283,99 +287,84 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
             subtitle={selectionHint}
             toolbar={
                 <>
-                    <button
-                        type="button"
-                        onClick={() => (tab === 'global' ? addGlobalAction() : addAppAction())}
-                        className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-[#222] hover:bg-[#2a2a2a] border border-[#333] rounded-md text-white"
-                    >
-                        <Icons8Icon id="plus_ui" size={13} /> Add
-                    </button>
+                    <PluginToolbarButton icon="plus_ui" onClick={() => (tab === 'global' ? addGlobalAction() : addAppAction())}>
+                        Add
+                    </PluginToolbarButton>
                     {tab === 'global' ? (
-                        <button type="button" onClick={saveGlobalActions} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-pink-600/20 hover:bg-pink-600/30 border border-pink-500/40 rounded-md text-pink-300">
-                            <Icons8Icon id="check" size={13} /> Deploy
-                        </button>
+                        <PluginToolbarButton icon="check" active onClick={saveGlobalActions}>Deploy</PluginToolbarButton>
                     ) : (
-                        <button type="button" onClick={saveAppActions} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 rounded-md text-sky-400">
-                            <Icons8Icon id="check" size={13} /> Save
-                        </button>
+                        <PluginToolbarButton icon="check" onClick={saveAppActions}>Save</PluginToolbarButton>
                     )}
                 </>
             }
         >
-        <div className="flex w-full h-full bg-[#0a0a0a] text-gray-200 overflow-hidden min-h-0">
-            <div className="w-[220px] border-r border-[#222] bg-[#111] flex flex-col shrink-0">
-                <div className="flex flex-col gap-1 p-2 pt-3">
-                    <button
-                        type="button"
-                        onClick={() => setTab('global')}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left ${tab === 'global' ? 'bg-gradient-to-r from-pink-900/30 to-purple-900/20 text-white border border-pink-500/30' : 'text-gray-400 hover:bg-[#1a1a1a] border border-transparent'}`}
-                    >
+        <div className="flex w-full h-full overflow-hidden min-h-0">
+            <PluginSidebar className="!w-[200px] !min-w-[176px] p-2">
+                <button
+                    type="button"
+                    onClick={() => setTab('global')}
+                    className={`bndz-plugin-tab w-full !rounded-md !justify-start !px-3 !py-2 ${tab === 'global' ? 'bndz-plugin-tab-active' : ''}`}
+                >
+                    <span className="inline-flex items-center gap-2 w-full">
                         <Icons8Icon id="go_network" size={14} />
                         Windows Explorer
-                        <span className="ml-auto text-[9px] text-gray-500">OS-wide</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('app')}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left ${tab === 'app' ? 'bg-[#222] text-white border border-[#333]' : 'text-gray-400 hover:bg-[#1a1a1a] border border-transparent'}`}
-                    >
+                        <span className="ml-auto bndz-plugin-kind-pill !text-[10px]">OS-wide</span>
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setTab('app')}
+                    className={`bndz-plugin-tab w-full !rounded-md !justify-start !px-3 !py-2 ${tab === 'app' ? 'bndz-plugin-tab-active' : ''}`}
+                >
+                    <span className="inline-flex items-center gap-2 w-full">
                         <Icons8Icon id="shell_menus" size={14} />
                         Inside BNDZ
-                        <span className="ml-auto text-[9px] text-gray-500">In-app</span>
-                    </button>
-                </div>
+                        <span className="ml-auto bndz-plugin-kind-pill !text-[10px]">In-app</span>
+                    </span>
+                </button>
 
-                <div className="mt-auto p-3 border-t border-[#222]">
-                    <button type="button" onClick={() => setShowHelp(v => !v)} className="w-full flex items-center gap-2 text-[10px] text-gray-500 hover:text-gray-300 py-1">
+                <div className="mt-auto pt-2 border-t border-white/[0.06]">
+                    <button type="button" onClick={() => setShowHelp(v => !v)} className="w-full flex items-center gap-2 text-xs bndz-panel-muted hover:text-gray-300 py-1.5 px-1">
                         <Icons8Icon id="help_ui" size={12} /> How it works
                     </button>
                     {showHelp && (
-                        <p className="text-[10px] text-gray-500 leading-relaxed mt-2 p-2 bg-[#0d0d0d] rounded-lg border border-[#222]">
-                            Pick a template, customize the label, then save. Windows menus require <strong className="text-pink-300">Deploy to OS</strong> once.
+                        <p className="text-xs bndz-panel-muted leading-relaxed mt-2 p-2 rounded-md border border-white/[0.06] bg-black/20">
+                            Pick a template, customize the label, then save. Windows menus require <strong className="text-pink-300">Deploy</strong> once.
                         </p>
                     )}
                 </div>
-            </div>
+            </PluginSidebar>
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 space-y-5 min-h-0">
+                <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-4 min-h-0">
                     {tab === 'global' && (
-                        <div className="text-[11px] text-sky-300/90 bg-sky-950/20 p-3 rounded-xl border border-sky-500/20 flex gap-2.5 items-start">
-                            <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80" />
-                            <span>These entries appear in native File Explorer. Click <strong>Deploy to OS</strong> after editing — admin rights may be required.</span>
-                        </div>
+                        <PluginCard className="flex gap-2.5 items-start border-sky-500/20 bg-sky-950/10 !py-3">
+                            <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80 text-sky-300" />
+                            <span className="text-xs text-sky-200/90">These entries appear in native File Explorer. Click <strong>Deploy</strong> after editing — admin rights may be required.</span>
+                        </PluginCard>
                     )}
 
                     <section>
-                        <div className="flex items-center gap-2 mb-3">
-                            <Icons8Icon id="sparkles_ui" size={14} />
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Quick start templates</h3>
-                        </div>
+                        <PluginSectionTitle icon="sparkles_ui">Quick start templates</PluginSectionTitle>
                         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
                             {templates.map(t => (
                                 <button
                                     key={t.label}
                                     type="button"
                                     onClick={() => (tab === 'global' ? addGlobalAction(t.action) : addAppAction(t.action))}
-                                    className="text-left p-3 rounded-xl border border-[#2a2a2a] bg-[#141414] hover:border-pink-500/30 hover:bg-[#1a1a1a] transition-all group"
+                                    className="bndz-plugin-card text-left !p-3 hover:border-pink-500/30 hover:bg-white/[0.03] transition-colors group"
                                 >
                                     <div className="text-xs font-semibold text-white group-hover:text-pink-200">{t.label}</div>
-                                    <div className="text-[10px] text-gray-500 mt-1 leading-snug">{t.desc}</div>
+                                    <div className="text-xs bndz-panel-muted mt-1 leading-snug">{t.desc}</div>
                                 </button>
                             ))}
                         </div>
                     </section>
 
                     <section>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Your menu items ({actions.length})</h3>
-                        </div>
+                        <PluginSectionTitle>Your menu items ({actions.length})</PluginSectionTitle>
                         {actions.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500 border border-dashed border-[#333] rounded-xl">
-                                <Icons8Icon id="sparkles_ui" size={28} className="mx-auto mb-3 opacity-30" />
-                                <p className="text-sm">No menu items yet</p>
-                                <p className="text-[10px] mt-1">Pick a template above or click Add item</p>
-                            </div>
+                            <PluginEmptyState icon="sparkles_ui" title="No menu items yet" description="Pick a template above or click Add." />
                         ) : (
                             <div className="space-y-2">
                                 {tab === 'global'
@@ -386,19 +375,17 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                     </section>
 
                     {tab === 'global' && (
-                        <section className="bg-[#111] border border-[#222] rounded-xl p-4">
-                            <div className="text-xs font-bold text-gray-400 mb-2 flex items-center gap-2">
-                                <Icons8Icon id="terminal" size={12} /> Variable reference
-                            </div>
+                        <PluginCard>
+                            <PluginSectionTitle icon="terminal">Variable reference</PluginSectionTitle>
                             <div className="grid sm:grid-cols-2 gap-2">
                                 {VARIABLE_HELP.map(v => (
-                                    <div key={v.token} className="flex gap-2 text-[10px]">
-                                        <code className="text-pink-300 font-mono shrink-0">{v.token}</code>
-                                        <span className="text-gray-500">{v.desc}</span>
+                                    <div key={v.token} className="flex gap-2 text-xs">
+                                        <code className="text-pink-300 bndz-mono shrink-0">{v.token}</code>
+                                        <span className="bndz-panel-muted">{v.desc}</span>
                                     </div>
                                 ))}
                             </div>
-                        </section>
+                        </PluginCard>
                     )}
                 </div>
             </div>

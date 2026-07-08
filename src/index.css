@@ -997,6 +997,27 @@ html.theme-light .nav-tree-row:hover {
   min-height: 28px;
 }
 
+.bndz-plugin-sidebar {
+  width: min(220px, 36%);
+  min-width: 176px;
+  max-width: 240px;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 12px;
+}
+
+.bndz-plugin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .bndz-plugin-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .bndz-settings-nav {
   font-family: var(--bndz-font-chrome-family, var(--bndz-font-family));
   font-size: var(--bndz-font-chrome-size, var(--bndz-font-size));

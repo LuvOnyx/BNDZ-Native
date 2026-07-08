@@ -4,6 +4,14 @@ import { IPC } from '../../lib/ipcBridge';
 import { useSettingsRuntime } from '../../hooks/useSettingsRuntime';
 import { useAppConfig } from '../../data/configContext';
 import PluginPanelShell from './PluginPanelShell';
+import {
+  PluginToolbarButton,
+  PluginSidebar,
+  PluginSectionTitle,
+  PluginCard,
+  PLUGIN_INPUT_CLASS,
+  PLUGIN_SELECT_CLASS,
+} from './PluginPanelPrimitives';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { listCatalogs, type CatalogEntry } from '../../lib/catalog';
 
@@ -165,19 +173,22 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             toolbar={
                 <div className="flex items-center gap-2">
                     {mode === 'duplicates' && searching && (
-                        <button type="button" onClick={cancelDupScan} className="text-xs text-red-400 hover:underline">Cancel</button>
+                        <PluginToolbarButton onClick={cancelDupScan}>Cancel</PluginToolbarButton>
                     )}
-                    <button onClick={() => void doSearch()} disabled={searching} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-semibold">
-                        {searching ? <Icons8Icon id="loading" size={12} spin /> : <Icons8Icon id="play_ui" size={12} />} {mode === 'duplicates' ? 'Scan' : 'Search'}
-                    </button>
+                    <PluginToolbarButton
+                        icon={searching ? 'loading' : 'play_ui'}
+                        onClick={() => void doSearch()}
+                        disabled={searching}
+                        active
+                    >
+                        {mode === 'duplicates' ? 'Scan' : 'Search'}
+                    </PluginToolbarButton>
                 </div>
             }
         >
-            <div className="flex w-full h-full min-h-0 relative pt-1">
-                <div className="w-[240px] border-r border-[#222] bg-[#111] p-4 flex flex-col gap-3 shrink-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-                        <Icons8Icon id="filters" size={12} /> Mode
-                    </div>
+            <div className="flex w-full h-full min-h-0">
+                <PluginSidebar>
+                    <PluginSectionTitle icon="filters">Mode</PluginSectionTitle>
                     <div className="flex flex-col gap-1">
                         {([
                             { id: 'local' as const, label: 'Local folder', icon: 'find' },
@@ -200,18 +211,16 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     {searchHistory.length > 0 && mode !== 'duplicates' && (
                         <>
                             <div className="bndz-context-menu-sep opacity-30" />
-                            <div className="flex items-center justify-between">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-                                    <Icons8Icon id="clock_ui" size={10} /> Recent searches
-                                </div>
-                                <button type="button" onClick={clearSearchHistory} className="text-[9px] text-gray-600 hover:text-gray-400">Clear</button>
+                            <div className="flex items-center justify-between gap-2">
+                                <PluginSectionTitle icon="clock_ui">Recent searches</PluginSectionTitle>
+                                <button type="button" onClick={clearSearchHistory} className="text-xs bndz-panel-muted hover:text-gray-300">Clear</button>
                             </div>
                             <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto bndz-scrollbar">
                                 {searchHistory.map(h => (
                                     <button
                                         key={h}
                                         type="button"
-                                        className="text-left text-[10px] px-2 py-1 rounded text-gray-400 hover:bg-sky-900/30 hover:text-sky-200 truncate"
+                                        className="text-left text-xs px-2 py-1 rounded-md text-gray-400 hover:bg-sky-900/30 hover:text-sky-200 truncate"
                                         title={h}
                                         onClick={() => { setQuery(h); void doSearch(h); }}
                                     >
@@ -224,15 +233,13 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     {savedCatalogs.length > 0 && mode !== 'duplicates' && (
                         <>
                             <div className="bndz-context-menu-sep opacity-30" />
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-                                <Icons8Icon id="bookmark" size={10} /> Saved catalog searches
-                            </div>
+                            <PluginSectionTitle icon="bookmark">Saved catalog searches</PluginSectionTitle>
                             <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto bndz-scrollbar">
                                 {savedCatalogs.map(cat => (
                                     <button
                                         key={cat.id}
                                         type="button"
-                                        className="text-left text-[10px] px-2 py-1 rounded text-gray-400 hover:bg-violet-900/30 hover:text-violet-200 truncate"
+                                        className="text-left text-xs px-2 py-1 rounded-md text-gray-400 hover:bg-violet-900/30 hover:text-violet-200 truncate"
                                         title={cat.query || ''}
                                         onClick={() => {
                                             setQuery(cat.query || '');
@@ -264,39 +271,39 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                             </label>
                             {mode === 'advanced' && (
                                 <div className="mt-1">
-                                    <div className="text-[10px] text-gray-500 mb-1 flex items-center gap-1"><Icons8Icon id="file_ui" size={10} /> Extra roots (; separated)</div>
+                                    <PluginSectionTitle icon="file_ui">Extra roots (; separated)</PluginSectionTitle>
                                     <textarea
                                         value={extraRoots}
                                         onChange={e => setExtraRoots(e.target.value)}
                                         placeholder="D:/Projects;E:/Archive"
                                         rows={3}
-                                        className="w-full bg-[#0d0d0d] border border-[#333] rounded text-[10px] font-mono text-gray-300 p-1.5 outline-none focus:border-sky-500/50"
+                                        className={`${PLUGIN_INPUT_CLASS} bndz-mono min-h-[64px] resize-y`}
                                     />
                                 </div>
                             )}
                         </>
                     )}
                     {dupProgress && (
-                        <div className="text-[10px] text-sky-400">
+                        <div className="text-xs text-sky-400">
                             {dupProgress.percent}% {dupProgress.message ? `· ${dupProgress.message}` : ''}
                         </div>
                     )}
-                    <div className="text-[10px] text-gray-600 mt-auto leading-relaxed">
+                    <div className="text-xs bndz-panel-muted mt-auto leading-relaxed">
                         {status || `Limit: ${rt.search.limit}`}
-                        {mode === 'advanced' && <div className="mt-1 text-gray-700">Use quotes, OR, NOT — e.g. report OR invoice NOT draft</div>}
+                        {mode === 'advanced' && <div className="mt-1">Use quotes, OR, NOT — e.g. report OR invoice NOT draft</div>}
                     </div>
-                </div>
+                </PluginSidebar>
                 <div className="flex-1 flex flex-col min-w-0">
                     {mode !== 'duplicates' && (
-                        <div className="p-3 border-b border-[#222]">
+                        <div className="p-3 border-b border-white/[0.06] shrink-0">
                             <div className="relative">
-                                <Icons8Icon id="search" size={14} className="absolute left-3 top-2.5" />
+                                <Icons8Icon id="search" size={14} className="absolute left-3 top-2.5 opacity-60" />
                                 <input
                                     value={query}
                                     onChange={e => setQuery(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && doSearch()}
                                     placeholder={mode === 'advanced' ? 'Boolean query across multiple roots…' : mode === 'global' ? 'Search all drives…' : 'Search in current folder…'}
-                                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg pl-9 pr-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-sky-500"
+                                    className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm`}
                                 />
                             </div>
                         </div>
@@ -310,8 +317,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                             ) : (
                                 <div className="p-2 space-y-3">
                                     {duplicateGroups.map(g => (
-                                        <div key={g.hash} className="border border-[#222] rounded-lg overflow-hidden">
-                                            <div className="px-3 py-1.5 bg-[#111] text-[10px] text-gray-500 font-mono">
+                                        <div key={g.hash} className="bndz-plugin-card overflow-hidden p-0">
+                                            <div className="px-3 py-2 border-b border-white/[0.06] text-xs bndz-panel-muted bndz-mono">
                                                 {g.paths.length} copies · {g.size} bytes
                                             </div>
                                             {g.paths.map(p => (
@@ -331,12 +338,12 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         ) : results.length === 0 ? (
                             <div className="flex h-full items-center justify-center text-gray-600 text-xs">No results — enter a query and search.</div>
                         ) : (
-                            <table className="w-full text-left text-[12px]">
-                                <thead className="bg-[#111] sticky top-0 border-b border-[#222] z-10">
+                            <table className="w-full text-left text-xs">
+                                <thead className="sticky top-0 border-b border-white/[0.06] z-10" style={{ background: 'var(--bndz-surface-chrome)' }}>
                                     <tr>
-                                        <th className="px-4 py-2 font-medium text-gray-500">Name</th>
-                                        <th className="px-4 py-2 font-medium text-gray-500">Path</th>
-                                        <th className="px-4 py-2 font-medium text-gray-500 w-16">Type</th>
+                                        <th className="px-4 py-2 font-medium bndz-panel-muted">Name</th>
+                                        <th className="px-4 py-2 font-medium bndz-panel-muted">Path</th>
+                                        <th className="px-4 py-2 font-medium bndz-panel-muted w-16">Type</th>
                                     </tr>
                                 </thead>
                                 <tbody>

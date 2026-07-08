@@ -3,6 +3,14 @@ import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
+import {
+  PluginToolbarButton,
+  PluginControlSection,
+  PluginFieldLabel,
+  PluginEmptyState,
+  PLUGIN_INPUT_CLASS,
+  PLUGIN_SELECT_CLASS,
+} from './PluginPanelPrimitives';
 
 export const BatchRenamePluginDef = {
     id: "batch-rename",
@@ -218,145 +226,131 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             variant="embedded"
             subtitle={`${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
             toolbar={
-                <button
-                    type="button"
+                <PluginToolbarButton
+                    icon={committing ? 'loading' : 'check'}
                     onClick={() => void handleCommit()}
                     disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
-                    className="px-3 py-1.5 text-[11px] bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900/30 disabled:text-gray-600 rounded text-white font-semibold border border-emerald-500/50 flex items-center gap-1.5"
+                    active
                 >
-                    {committing ? <Icons8Icon id="loading" size={12} spin /> : null}
-                    Apply Renames
-                </button>
+                    Apply renames
+                </PluginToolbarButton>
             }
         >
-            <div className="w-full h-full flex text-gray-200 text-xs font-sans overflow-hidden">
-                <div className="w-[320px] bg-[#141414] border-r border-[#222] flex flex-col overflow-y-auto bndz-scrollbar">
-                    <div className="p-4 border-b border-[#222]">
-                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="search" size={12}/> Find & Replace</h3>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-[#888] text-[10px] mb-1 block">Find Context</label>
-                                <div className="flex gap-1 relative">
-                                    <input type="text" value={findStr} onChange={e => setFindStr(e.target.value)} placeholder="Text to find..." className="flex-1 bg-[#090909] border border-[#333] px-2 py-1.5 outline-none focus:border-emerald-500 rounded-sm transition-colors text-white" />
-                                    <button onClick={() => setUseRegex(!useRegex)} className={`px-2 py-1 flex items-center justify-center rounded-sm border ${useRegex ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-[#1a1a1a] text-gray-400 border-[#333] hover:bg-[#222]'}`} title="Use Regular Expressions">
-                                        .*
-                                    </button>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-[#888] text-[10px] mb-1 block">Replace With</label>
-                                <input type="text" value={replaceStr} onChange={e => setReplaceStr(e.target.value)} placeholder="Replacement text..." className="w-full bg-[#090909] border border-[#333] px-2 py-1.5 outline-none focus:border-emerald-500 rounded-sm transition-colors text-white" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="p-4 border-b border-[#222]">
-                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="file_ui" size={12}/> Affixes</h3>
-                        <div className="flex gap-3">
-                            <div className="flex-1">
-                                <label className="text-[#888] text-[10px] mb-1 block">Prefix</label>
-                                <input type="text" value={prefix} onChange={e => setPrefix(e.target.value)} placeholder="prepend_" className="w-full bg-[#090909] border border-[#333] px-2 py-1.5 outline-none focus:border-emerald-500 rounded-sm transition-colors text-white" />
-                            </div>
-                            <div className="flex-1">
-                                <label className="text-[#888] text-[10px] mb-1 block">Suffix</label>
-                                <input type="text" value={suffix} onChange={e => setSuffix(e.target.value)} placeholder="_append" className="w-full bg-[#090909] border border-[#333] px-2 py-1.5 outline-none focus:border-emerald-500 rounded-sm transition-colors text-white" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="p-4 border-b border-[#222]">
-                        <h3 className="text-gray-400 font-semibold mb-3 flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="category_ui" size={12}/> Formatting</h3>
+            <div className="w-full h-full flex text-gray-200 overflow-hidden">
+                <div className="bndz-plugin-sidebar max-w-[300px] flex flex-col overflow-y-auto bndz-scrollbar p-0">
+                    <PluginControlSection title="Find & replace" icon="search">
                         <div>
-                            <label className="text-[#888] text-[10px] mb-1 block">Casing Rule</label>
-                            <select value={casing} onChange={e => setCasing(e.target.value as any)} className="w-full bg-[#090909] border border-[#333] px-2 py-1.5 outline-none focus:border-emerald-500 rounded-sm transition-colors text-white">
-                                <option value="none">No Change</option>
-                                <option value="lower">lowercase (all)</option>
-                                <option value="upper">UPPERCASE (all)</option>
-                                <option value="title">Title Case</option>
-                                <option value="camel">camelCase</option>
-                            </select>
+                            <PluginFieldLabel>Find</PluginFieldLabel>
+                            <div className="flex gap-1">
+                                <input type="text" value={findStr} onChange={e => setFindStr(e.target.value)} placeholder="Text to find…" className={`${PLUGIN_INPUT_CLASS} flex-1`} />
+                                <button type="button" onClick={() => setUseRegex(!useRegex)} className={`px-2 py-1 rounded-md border text-xs ${useRegex ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-white/[0.03] text-gray-400 border-white/10'}`} title="Regular expressions">.*</button>
+                            </div>
                         </div>
-                    </div>
+                        <div>
+                            <PluginFieldLabel>Replace with</PluginFieldLabel>
+                            <input type="text" value={replaceStr} onChange={e => setReplaceStr(e.target.value)} placeholder="Replacement text…" className={PLUGIN_INPUT_CLASS} />
+                        </div>
+                    </PluginControlSection>
 
-                    <div className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="category_ui" size={12}/> Sequential Numbering</h3>
+                    <PluginControlSection title="Affixes" icon="file_ui">
+                        <div className="flex gap-2">
+                            <div className="flex-1">
+                                <PluginFieldLabel>Prefix</PluginFieldLabel>
+                                <input type="text" value={prefix} onChange={e => setPrefix(e.target.value)} placeholder="prepend_" className={PLUGIN_INPUT_CLASS} />
+                            </div>
+                            <div className="flex-1">
+                                <PluginFieldLabel>Suffix</PluginFieldLabel>
+                                <input type="text" value={suffix} onChange={e => setSuffix(e.target.value)} placeholder="_append" className={PLUGIN_INPUT_CLASS} />
+                            </div>
+                        </div>
+                    </PluginControlSection>
+
+                    <PluginControlSection title="Formatting" icon="category_ui">
+                        <PluginFieldLabel>Casing</PluginFieldLabel>
+                        <select value={casing} onChange={e => setCasing(e.target.value as any)} className={`${PLUGIN_SELECT_CLASS} w-full`}>
+                            <option value="none">No change</option>
+                            <option value="lower">lowercase</option>
+                            <option value="upper">UPPERCASE</option>
+                            <option value="title">Title Case</option>
+                            <option value="camel">camelCase</option>
+                        </select>
+                    </PluginControlSection>
+
+                    <PluginControlSection
+                        title="Sequential numbering"
+                        icon="category_ui"
+                        action={
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" checked={useSequence} onChange={e => setUseSequence(e.target.checked)} className="sr-only peer" />
-                                <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 peer-focus:outline-none transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full"></div>
+                                <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full" />
                             </label>
-                        </div>
+                        }
+                    >
                         {useSequence && (
-                            <div className="space-y-3 bg-[#0a0a0a] p-3 rounded border border-[#222]">
+                            <div className="space-y-2 bndz-plugin-card !p-2">
                                 <div className="flex gap-2">
                                     <div className="flex-1">
-                                        <label className="text-[#666] text-[10px] mb-1 block">Start at</label>
-                                        <input type="number" min="0" value={seqStart} onChange={e => setSeqStart(parseInt(e.target.value)||0)} className="w-full bg-[#111] border border-[#333] px-2 py-1 outline-none focus:border-emerald-500 rounded-sm" />
+                                        <PluginFieldLabel>Start at</PluginFieldLabel>
+                                        <input type="number" min="0" value={seqStart} onChange={e => setSeqStart(parseInt(e.target.value) || 0)} className={PLUGIN_INPUT_CLASS} />
                                     </div>
                                     <div className="flex-1">
-                                        <label className="text-[#666] text-[10px] mb-1 block">Padding (0s)</label>
-                                        <input type="number" min="1" max="10" value={seqPad} onChange={e => setSeqPad(parseInt(e.target.value)||1)} className="w-full bg-[#111] border border-[#333] px-2 py-1 outline-none focus:border-emerald-500 rounded-sm" />
+                                        <PluginFieldLabel>Padding</PluginFieldLabel>
+                                        <input type="number" min="1" max="10" value={seqPad} onChange={e => setSeqPad(parseInt(e.target.value) || 1)} className={PLUGIN_INPUT_CLASS} />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[#666] text-[10px] mb-1 block">Separator</label>
-                                    <input type="text" value={seqSeparator} onChange={e => setSeqSeparator(e.target.value)} className="w-full bg-[#111] border border-[#333] px-2 py-1 outline-none focus:border-emerald-500 rounded-sm" />
+                                    <PluginFieldLabel>Separator</PluginFieldLabel>
+                                    <input type="text" value={seqSeparator} onChange={e => setSeqSeparator(e.target.value)} className={PLUGIN_INPUT_CLASS} />
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </PluginControlSection>
 
-                    <div className="p-4 border-t border-[#222]">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-gray-400 font-semibold flex items-center gap-1 uppercase tracking-wider text-[10px]"><Icons8Icon id="clock_ui" size={12}/> Date tokens</h3>
+                    <PluginControlSection
+                        title="Date tokens"
+                        icon="clock_ui"
+                        action={
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" checked={useDateTokens} onChange={e => setUseDateTokens(e.target.checked)} className="sr-only peer" />
-                                <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full"></div>
+                                <div className="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full" />
                             </label>
-                        </div>
+                        }
+                    >
                         {useDateTokens && (
-                            <p className="text-[10px] text-gray-500 leading-relaxed">
-                                Use <code className="text-emerald-400">{'{date}'}</code>, <code className="text-emerald-400">{'{time}'}</code>, <code className="text-emerald-400">{'{datetime}'}</code>, <code className="text-emerald-400">{'{index}'}</code> in prefix, suffix, or find/replace fields.
+                            <p className="text-xs bndz-panel-muted leading-relaxed">
+                                Use <code className="text-emerald-400">{'{date}'}</code>, <code className="text-emerald-400">{'{time}'}</code>, <code className="text-emerald-400">{'{datetime}'}</code>, <code className="text-emerald-400">{'{index}'}</code> in fields above.
                             </p>
                         )}
-                    </div>
+                    </PluginControlSection>
 
-                    <div className="p-4 border-t border-[#222]">
-                        <h3 className="text-gray-400 font-semibold mb-2 flex items-center gap-1 uppercase tracking-wider text-[10px]">
-                            <Icons8Icon id="sparkles_ui" size={12} /> AI rename
-                        </h3>
+                    <PluginControlSection title="AI rename" icon="sparkles_ui">
                         <textarea
                             value={aiPrompt}
                             onChange={e => setAiPrompt(e.target.value)}
                             placeholder="e.g. Add date prefix, lowercase, remove spaces…"
-                            className="w-full min-h-[64px] bg-[#090909] border border-[#333] px-2 py-1.5 text-[11px] outline-none focus:border-emerald-500 text-white resize-y"
+                            className={`${PLUGIN_INPUT_CLASS} min-h-[64px] resize-y`}
                         />
-                        <button
-                            type="button"
+                        <PluginToolbarButton
+                            icon={aiLoading ? 'loading' : 'sparkles_ui'}
                             onClick={() => void runAiRename()}
                             disabled={!targets.length || !aiPrompt.trim() || aiLoading}
-                            className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] disabled:opacity-40 text-white"
+                            active
                         >
-                            {aiLoading ? <Icons8Icon id="loading" size={12} spin /> : <Icons8Icon id="sparkles_ui" size={12} />}
                             Generate AI names
-                        </button>
-                    </div>
+                        </PluginToolbarButton>
+                    </PluginControlSection>
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-[#0a0a0a] relative bndz-scrollbar">
+                <div className="flex-1 overflow-y-auto relative bndz-scrollbar">
                     {targets.length === 0 ? (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-600 flex-col gap-2 pointer-events-none">
-                            <Icons8Icon id="batch_rename" size={48} className="opacity-20" />
-                            <span className="font-medium text-sm">Select files to preview renames</span>
-                            <span className="text-[10px] text-gray-500">Hold CTRL or SHIFT in the list to select multiple files.</span>
-                        </div>
+                        <PluginEmptyState icon="batch_rename" title="Select files to preview renames" description="Hold Ctrl or Shift in the list to select multiple files." />
                     ) : (
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-[#111] sticky top-0 border-b border-[#222] shadow-sm z-10">
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead className="sticky top-0 border-b border-white/[0.06] z-10" style={{ background: 'var(--bndz-surface-chrome)' }}>
                                 <tr>
-                                    <th className="p-2.5 font-semibold text-[#888] w-1/2 uppercase tracking-wide text-[10px]">Original Name</th>
-                                    <th className="p-2.5 w-8"></th>
-                                    <th className="p-2.5 font-semibold text-[#888] w-1/2 uppercase tracking-wide text-[10px]">New Name</th>
+                                    <th className="p-2.5 font-medium bndz-panel-muted w-1/2">Original name</th>
+                                    <th className="p-2.5 w-8" />
+                                    <th className="p-2.5 font-medium bndz-panel-muted w-1/2">New name</th>
                                 </tr>
                             </thead>
                             <tbody>

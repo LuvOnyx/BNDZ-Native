@@ -1,6 +1,12 @@
 import React, { ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 
+export const PLUGIN_INPUT_CLASS =
+  'w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-sky-500/50';
+
+export const PLUGIN_SELECT_CLASS =
+  'bg-black/30 border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 outline-none focus:border-sky-500/50';
+
 /** Compact toolbar control for bottom plugin panels */
 export function PluginToolbarButton({
   children,
@@ -134,24 +140,6 @@ export function PluginFieldRow({
   );
 }
 
-export function PluginEmptyState({
-  icon = 'layers_ui',
-  title,
-  description,
-}: {
-  icon?: string;
-  title?: string;
-  description?: string;
-}) {
-  return (
-    <div className="bndz-plugin-empty flex flex-col items-center justify-center h-full min-h-[120px] gap-3 p-6 select-none text-center">
-      <Icons8Icon id={icon} size={36} className="opacity-25" />
-      {title && <p className="text-sm font-medium text-gray-400">{title}</p>}
-      {description && <p className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">{description}</p>}
-    </div>
-  );
-}
-
 export function PluginIdentityHeader({
   icon,
   name,
@@ -180,4 +168,82 @@ export function PluginIdentityHeader({
       </div>
     </div>
   );
+}
+
+export function PluginEmptyState({
+  icon = 'layers_ui',
+  title,
+  description,
+}: {
+  icon?: string;
+  title?: string;
+  description?: string;
+}) {
+  return (
+    <div className="bndz-plugin-empty flex flex-col items-center justify-center h-full min-h-[120px] gap-3 p-6 select-none text-center">
+      <Icons8Icon id={icon} size={36} className="opacity-25" />
+      {title && <p className="text-sm font-medium text-gray-400">{title}</p>}
+      {description && <p className="text-xs bndz-panel-muted max-w-[280px] leading-relaxed">{description}</p>}
+    </div>
+  );
+}
+
+export function PluginStatCard({
+  label,
+  value,
+  sub,
+  iconId,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  iconId?: string;
+}) {
+  return (
+    <div className="bndz-plugin-card flex flex-col gap-1 min-w-0">
+      {iconId && <Icons8Icon id={iconId} size={14} className="opacity-70 shrink-0" />}
+      <div className="bndz-plugin-section-title">{label}</div>
+      <div className="text-base font-semibold text-white tracking-tight">{value}</div>
+      {sub && <div className="bndz-panel-muted truncate text-xs">{sub}</div>}
+    </div>
+  );
+}
+
+export function PluginSidebar({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`bndz-plugin-sidebar shrink-0 flex flex-col gap-3 overflow-y-auto bndz-scrollbar ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+export function PluginControlSection({
+  title,
+  icon,
+  children,
+  action,
+  className = '',
+}: {
+  title: string;
+  icon?: string;
+  children: ReactNode;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`p-3 border-b border-white/[0.06] last:border-b-0 ${className}`}>
+      <PluginSectionTitle icon={icon} action={action}>{title}</PluginSectionTitle>
+      <div className="mt-2 space-y-2">{children}</div>
+    </div>
+  );
+}
+
+export function PluginFieldLabel({ children }: { children: ReactNode }) {
+  return <label className="bndz-plugin-field-label block mb-1">{children}</label>;
 }

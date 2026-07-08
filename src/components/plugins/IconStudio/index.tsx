@@ -66,33 +66,33 @@ function IconStudioInner({
 
     return (
         <div className={`${styles.container} flex-col`}>
-            <div className={`${styles.workflowBar} shrink-0 flex items-center justify-between px-5 h-11`}>
-                    <div className="flex items-center gap-1">
-                        {STEPS.map((step, i) => (
-                            <React.Fragment key={step.n}>
-                                <div className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-colors ${
-                                    activeStep >= step.n ? 'text-pink-200' : 'text-gray-600'
-                                }`}>
-                                    <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${
-                                        activeStep >= step.n
-                                            ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white shadow-[0_0_12px_rgba(236,72,153,0.35)]'
-                                            : 'bg-white/5 text-gray-500'
-                                    }`}>{step.n}</span>
-                                    <span className="text-[10px] font-semibold uppercase tracking-wide hidden sm:inline">{step.label}</span>
-                                </div>
-                                {i < STEPS.length - 1 && <div className="w-6 h-px bg-white/10 mx-0.5" />}
-                            </React.Fragment>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
+            <div className={`${styles.workflowBar} shrink-0 flex items-center justify-between px-4 h-10 gap-3`}>
+                <div className="flex items-center gap-1 min-w-0">
+                    {STEPS.map((step, i) => (
+                        <React.Fragment key={step.n}>
+                            <div className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md transition-colors ${
+                                activeStep >= step.n ? 'text-pink-200' : 'bndz-panel-muted'
+                            }`}>
+                                <span className={`w-5 h-5 rounded-full text-xs font-semibold flex items-center justify-center transition-colors ${
+                                    activeStep >= step.n
+                                        ? 'bg-pink-500/90 text-white'
+                                        : 'bg-white/5 text-gray-500'
+                                }`}>{step.n}</span>
+                                <span className="text-xs font-medium hidden sm:inline">{step.label}</span>
+                            </div>
+                            {i < STEPS.length - 1 && <div className="w-4 h-px bg-white/10" />}
+                        </React.Fragment>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                     {targetCount > 0 ? (
-                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-300/90 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                        <span className="bndz-plugin-kind-pill inline-flex items-center gap-1 border border-emerald-500/25 text-emerald-300 bg-emerald-500/10">
                             <Icons8Icon id="sparkles_ui" size={11} /> {targetCount} target{targetCount !== 1 ? 's' : ''} ready
-                        </div>
+                        </span>
                     ) : (
-                        <span className="text-[10px] text-gray-500">Select folders/files in the list first</span>
+                        <span className="text-xs bndz-panel-muted">Select folders/files in the list first</span>
                     )}
-                    <label className="flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer shrink-0" title="Allow overwriting read-only or system-protected icons">
+                    <label className="flex items-center gap-1.5 text-xs bndz-panel-muted cursor-pointer shrink-0" title="Allow overwriting read-only or system-protected icons">
                         <input
                             type="checkbox"
                             checked={config.allowGlobalIconOverwrite ?? false}
@@ -102,8 +102,8 @@ function IconStudioInner({
                         <Icons8Icon id="shield_ui" size={11} className="opacity-60" />
                         <span className="hidden md:inline">Force apply</span>
                     </label>
-                    </div>
                 </div>
+            </div>
                 <div className="flex flex-1 min-h-0 w-full">
                     <LibraryManager />
                     <IconGrid

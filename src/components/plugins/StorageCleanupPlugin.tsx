@@ -1,9 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Icons8Icon } from '../Icons8Icon';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { StorageUsageBar } from '../StorageUsageBar';
 import PluginPanelShell from './PluginPanelShell';
+import {
+  PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
+  PluginSectionTitle,
+  PluginCard,
+  PluginStatCard,
+  PluginEmptyState,
+  PluginFieldLabel,
+  PLUGIN_SELECT_CLASS,
+} from './PluginPanelPrimitives';
 import StorageCleanupWizard, { type StorageWizardMode } from './StorageCleanupWizard';
 import {
   ORGANIZE_BUCKETS,
@@ -24,23 +34,6 @@ export const StorageCleanupPluginDef = {
 };
 
 type TabId = 'overview' | 'duplicates' | 'organize';
-
-function StatCard({ label, value, sub, iconId, accent }: {
-  label: string; value: string; sub?: string; iconId: string; accent: string;
-}) {
-  return (
-    <motion.div
-      layout
-      className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#18181f] to-[#101014] p-4 relative overflow-hidden"
-    >
-      <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl opacity-20" style={{ background: accent }} />
-      <Icons8Icon id={iconId} size={16} className="mb-2.5" />
-      <div className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">{label}</div>
-      <div className="text-xl font-bold text-white mt-1 tracking-tight">{value}</div>
-      {sub && <div className="text-[10px] text-gray-500 mt-1">{sub}</div>}
-    </motion.div>
-  );
-}
 
 export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap, pluginLaunch }: any) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -200,24 +193,16 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       variant="embedded"
       subtitle={folderLabel}
       toolbar={
-        <div className="flex gap-1 p-0.5 rounded-lg bg-black/30 border border-white/[0.06]">
+        <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-                activeTab === t.id ? 'bg-emerald-600/35 text-emerald-200' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <Icons8Icon id={t.icon} size={11} />
-              {t.label}
-            </button>
+            <PluginTab key={t.id} active={activeTab === t.id} onClick={() => setActiveTab(t.id)}>
+              <span className="inline-flex items-center gap-1"><Icons8Icon id={t.icon} size={11} />{t.label}</span>
+            </PluginTab>
           ))}
-        </div>
+        </PluginTabStrip>
       }
     >
-    <div className="h-full flex flex-col bg-[#09090d] text-gray-200 overflow-hidden relative">
+    <div className="h-full flex flex-col overflow-hidden relative">
       {wizardMode && (
         <StorageCleanupWizard
           mode={wizardMode}
@@ -226,62 +211,41 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
         />
       )}
 
-      <div className="flex-1 overflow-y-auto bndz-scrollbar p-5">
-        <AnimatePresence mode="wait">
+      <div className="flex-1 overflow-y-auto bndz-scrollbar p-4">
           {activeTab === 'overview' && (
-            <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
-              <div className="rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-950/20 to-[#0e0e14] p-5 flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-4">
+              <PluginCard className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <div className="text-[13px] font-bold text-white flex items-center gap-2">
+                  <div className="text-sm font-semibold text-white flex items-center gap-2">
                     <Icons8Icon id="wand_ui" size={16} className="text-sky-400" />
                     Guided workflows
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-1 max-w-md">
+                  <p className="text-xs bndz-panel-muted mt-1 max-w-md">
                     Pick any folder, preview changes, then confirm. Same safe flow for cleanup and organize.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openWizard('cleanup')}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/35 border border-violet-500/30 text-violet-200 text-[10px] font-bold uppercase tracking-wider transition-all"
-                  >
-                    <Icons8Icon id="copy" size={13} /> Cleanup Wizard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openWizard('organize')}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-200 text-[10px] font-bold uppercase tracking-wider transition-all"
-                  >
-                    <Icons8Icon id="folder_plus_ui" size={13} /> Organize Wizard
-                  </button>
+                  <PluginToolbarButton icon="copy" onClick={() => openWizard('cleanup')}>Cleanup wizard</PluginToolbarButton>
+                  <PluginToolbarButton icon="folder_plus_ui" onClick={() => openWizard('organize')}>Organize wizard</PluginToolbarButton>
                 </div>
+              </PluginCard>
+
+              <div className="flex justify-between items-center gap-3">
+                <p className="text-xs bndz-panel-muted">Quick analysis of the current folder</p>
+                <PluginToolbarButton icon={scanning ? 'loading' : 'file_search_ui'} onClick={() => void runFolderScan()} disabled={scanning}>
+                  Deep scan
+                </PluginToolbarButton>
               </div>
 
-              <div className="flex justify-between items-center">
-                <p className="text-[11px] text-gray-500">Quick analysis of the current folder</p>
-                <button
-                  type="button"
-                  onClick={() => void runFolderScan()}
-                  disabled={scanning}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold uppercase tracking-wider transition-all disabled:opacity-50"
-                >
-                  {scanning ? <Icons8Icon id="loading" size={13} spin /> : <Icons8Icon id="file_search_ui" size={13} />}
-                  Deep Scan
-                </button>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <StatCard label="Largest item" value={largeCandidates[0] ? formatStorageSize(largeCandidates[0].computedSize) : '—'} sub={largeCandidates[0]?.name} iconId="zap_ui" accent="#f43f5e" />
-                <StatCard label="Tracked bulk" value={formatStorageSize(totalVisible)} sub={`${largeCandidates.length} items`} iconId="hard_drive_ui" accent="#38bdf8" />
-                <StatCard label="Duplicate waste" value={dupGroups.length ? formatStorageSize(duplicateWaste) : '—'} sub={dupGroups.length ? `${dupGroups.length} groups` : 'Use cleanup wizard'} iconId="copy" accent="#a78bfa" />
+              <div className="bndz-plugin-stat-grid">
+                <PluginStatCard label="Largest item" value={largeCandidates[0] ? formatStorageSize(largeCandidates[0].computedSize) : '—'} sub={largeCandidates[0]?.name} iconId="zap_ui" />
+                <PluginStatCard label="Tracked bulk" value={formatStorageSize(totalVisible)} sub={`${largeCandidates.length} items`} iconId="hard_drive_ui" />
+                <PluginStatCard label="Duplicate waste" value={dupGroups.length ? formatStorageSize(duplicateWaste) : '—'} sub={dupGroups.length ? `${dupGroups.length} groups` : 'Use cleanup wizard'} iconId="copy" />
               </div>
 
               {typeBreakdown.length > 0 && (
-                <div className="rounded-2xl border border-white/[0.06] bg-[#111116] p-4">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                    <Icons8Icon id="layers_ui" size={13} className="text-sky-400" /> File type breakdown
-                  </div>
+                <PluginCard>
+                  <PluginSectionTitle icon="layers_ui">File type breakdown</PluginSectionTitle>
                   <div className="space-y-2.5">
                     {typeBreakdown.map(([bucket, size]) => {
                       const cfg = ORGANIZE_BUCKETS[bucket];
@@ -299,19 +263,16 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                       );
                     })}
                   </div>
-                </div>
+                </PluginCard>
               )}
 
-              <div className="rounded-2xl border border-white/[0.06] bg-[#111116] overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Heavy items</span>
-                  {lastScan && <span className="text-[9px] text-gray-600">Scanned {lastScan.toLocaleTimeString()}</span>}
+              <PluginCard className="!p-0 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-white/[0.06] flex items-center justify-between">
+                  <PluginSectionTitle>Heavy items</PluginSectionTitle>
+                  {lastScan && <span className="bndz-panel-muted text-xs">Scanned {lastScan.toLocaleTimeString()}</span>}
                 </div>
                 {largeCandidates.length === 0 ? (
-                  <div className="p-10 text-center">
-                    <Icons8Icon id="hard_drive_ui" size={32} className="mx-auto mb-3 text-gray-700" />
-                    <p className="text-gray-500 text-xs">Open a folder with content, then run Deep Scan.</p>
-                  </div>
+                  <PluginEmptyState icon="hard_drive_ui" description="Open a folder with content, then run Deep scan." />
                 ) : (
                   <div className="divide-y divide-white/[0.04]">
                     {largeCandidates.map((item: any) => (
@@ -334,175 +295,148 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     ))}
                   </div>
                 )}
-              </div>
-            </motion.div>
+              </PluginCard>
+            </div>
           )}
 
           {activeTab === 'duplicates' && (
-            <motion.div key="duplicates" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <div className="rounded-2xl border border-violet-500/25 bg-violet-950/15 p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-3">
+              <PluginCard className="flex flex-wrap items-center justify-between gap-3 border-violet-500/20 bg-violet-950/10">
                 <div>
-                  <div className="text-[12px] font-bold text-violet-200">Recommended: Cleanup Wizard</div>
-                  <p className="text-[10px] text-gray-500 mt-1">Select any folder → preview duplicates → confirm delete</p>
+                  <div className="text-sm font-semibold text-violet-200">Recommended: Cleanup Wizard</div>
+                  <p className="text-xs bndz-panel-muted mt-1">Select any folder, preview duplicates, then confirm delete.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openWizard('cleanup')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600/30 hover:bg-violet-600/45 border border-violet-500/40 text-violet-100 text-[10px] font-bold uppercase tracking-wider"
-                >
-                  <Icons8Icon id="eye_ui" size={13} /> Open Cleanup Wizard
-                </button>
-              </div>
+                <PluginToolbarButton icon="eye_ui" onClick={() => openWizard('cleanup')}>Open cleanup wizard</PluginToolbarButton>
+              </PluginCard>
 
-              <div className="rounded-2xl border border-violet-500/20 bg-violet-950/15 p-4 flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer">
+              <PluginCard className="flex flex-wrap items-end gap-4 border-violet-500/15">
+                <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
                   <input type="checkbox" checked={dupRecursive} onChange={e => setDupRecursive(e.target.checked)} className="accent-violet-500 rounded" />
                   Recursive (current folder)
                 </label>
-                <label className="flex items-center gap-2 text-[11px] text-gray-400">
-                  Keep rule
-                  <select value={dupKeepRule} onChange={e => setDupKeepRule(e.target.value as DupKeepRule)} className="bg-[#1a1a22] border border-[#333] rounded-lg px-2 py-1 text-[11px] text-gray-300 outline-none">
+                <div>
+                  <PluginFieldLabel>Keep rule</PluginFieldLabel>
+                  <select value={dupKeepRule} onChange={e => setDupKeepRule(e.target.value as DupKeepRule)} className={PLUGIN_SELECT_CLASS}>
                     <option value="first">First in list</option>
                     <option value="newest">Newest path (Z→A)</option>
                     <option value="oldest">Oldest path (A→Z)</option>
                     <option value="shortest">Shortest path</option>
                   </select>
-                </label>
-                <label className="flex items-center gap-2 text-[11px] text-gray-400">
-                  Min size
-                  <select value={dupMinKb} onChange={e => setDupMinKb(Number(e.target.value))} className="bg-[#1a1a22] border border-[#333] rounded-lg px-2 py-1 text-[11px] text-gray-300 outline-none">
+                </div>
+                <div>
+                  <PluginFieldLabel>Min size</PluginFieldLabel>
+                  <select value={dupMinKb} onChange={e => setDupMinKb(Number(e.target.value))} className={PLUGIN_SELECT_CLASS}>
                     {[1, 4, 16, 64, 256, 1024].map(k => <option key={k} value={k}>{k} KB</option>)}
                   </select>
-                </label>
+                </div>
                 <div className="flex gap-2 ml-auto">
                   {dupScanning && (
-                    <button type="button" onClick={cancelDuplicateScan} className="px-3 py-2 rounded-xl border border-[#444] text-gray-400 text-[11px] hover:text-white transition-colors">
-                      Cancel
-                    </button>
+                    <PluginToolbarButton onClick={cancelDuplicateScan}>Cancel</PluginToolbarButton>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => void runDuplicateScan()}
-                    disabled={dupScanning}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600/25 hover:bg-violet-600/40 border border-violet-500/35 text-violet-200 text-[11px] font-bold uppercase tracking-wider disabled:opacity-50 transition-all"
-                  >
-                    {dupScanning ? <Icons8Icon id="loading" size={13} spin /> : <Icons8Icon id="copy" size={13} />}
+                  <PluginToolbarButton icon={dupScanning ? 'loading' : 'copy'} onClick={() => void runDuplicateScan()} disabled={dupScanning}>
                     Quick scan (current folder)
-                  </button>
+                  </PluginToolbarButton>
                 </div>
-              </div>
+              </PluginCard>
 
               {dupProgress && (
-                <div className="rounded-2xl border border-violet-500/25 bg-[#111116] p-4">
-                  <div className="flex justify-between text-[11px] mb-2">
+                <PluginCard>
+                  <div className="flex justify-between text-xs mb-2">
                     <span className="text-violet-300 font-medium">{dupProgress.percent}% — hashing files</span>
-                    <span className="text-gray-500 font-mono">{dupProgress.filesScanned}/{dupProgress.totalFiles}</span>
+                    <span className="bndz-panel-muted bndz-mono">{dupProgress.filesScanned}/{dupProgress.totalFiles}</span>
                   </div>
-                  <div className="h-2 rounded-full bg-[#1a1a22] overflow-hidden mb-2">
-                    <motion.div className="h-full bg-gradient-to-r from-violet-600 to-fuchsia-500 rounded-full" animate={{ width: `${dupProgress.percent}%` }} transition={{ duration: 0.2 }} />
+                  <div className="h-1.5 rounded-full bg-black/30 overflow-hidden mb-2">
+                    <div className="h-full bg-violet-500 rounded-full transition-all duration-200" style={{ width: `${dupProgress.percent}%` }} />
                   </div>
-                  <div className="text-[10px] text-gray-600 font-mono truncate">{dupProgress.currentPath}</div>
-                </div>
+                  <div className="text-xs bndz-panel-muted bndz-mono truncate">{dupProgress.currentPath}</div>
+                </PluginCard>
               )}
 
               {dupGroups.length > 0 && !dupScanning && (
-                <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/20 px-4 py-3 flex items-center justify-between">
-                  <div className="text-[12px] text-emerald-200">
+                <PluginCard className="flex items-center justify-between border-emerald-500/25 bg-emerald-950/15 !py-3">
+                  <div className="text-xs text-emerald-200">
                     <strong>{dupGroups.length}</strong> duplicate groups · reclaim up to <strong>{formatStorageSize(duplicateWaste)}</strong>
                   </div>
                   <Icons8Icon id="shield_ui" size={16} className="text-emerald-500/60" />
-                </div>
+                </PluginCard>
               )}
 
               {!dupScanning && dupGroups.length === 0 && !dupProgress && (
-                <div className="py-12 text-center">
-                  <Icons8Icon id="copy" size={36} className="mx-auto mb-4 text-gray-700" />
-                  <p className="text-gray-500 text-sm">Use the Cleanup Wizard to pick any folder and preview before deleting.</p>
-                </div>
+                <PluginEmptyState icon="copy" description="Use the cleanup wizard to pick any folder and preview before deleting." />
               )}
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {dupGroups.map(group => {
                   const expanded = expandedDup === group.hash;
                   const waste = group.size * (group.paths.length - 1);
                   return (
-                    <div key={group.hash} className="rounded-2xl border border-white/[0.06] bg-[#111116] overflow-hidden">
-                      <button
-                        type="button"
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors text-left"
-                        onClick={() => setExpandedDup(expanded ? null : group.hash)}
-                      >
-                        {expanded ? <Icons8Icon id="chevron_down" size={14} className="text-gray-500" /> : <Icons8Icon id="chevron_right" size={14} className="text-gray-500" />}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[12px] font-semibold text-gray-200">{group.paths.length} identical copies</div>
-                          <div className="text-[10px] text-gray-500">{formatStorageSize(group.size)} each · {formatStorageSize(waste)} recoverable</div>
-                        </div>
+                    <PluginCard key={group.hash} className="!p-0 overflow-hidden">
+                      <div className="w-full px-4 py-3 flex items-center gap-3">
                         <button
                           type="button"
-                          disabled={deletingDupes === group.hash}
-                          onClick={e => { e.stopPropagation(); void deleteDuplicateExtras(group); }}
-                          className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/35 border border-rose-500/30 text-rose-300 text-[10px] font-bold uppercase tracking-wide disabled:opacity-50 flex items-center gap-1.5"
+                          className="flex flex-1 items-center gap-3 min-w-0 hover:opacity-90 transition-opacity text-left"
+                          onClick={() => setExpandedDup(expanded ? null : group.hash)}
                         >
-                          {deletingDupes === group.hash ? <Icons8Icon id="loading" size={11} spin /> : <Icons8Icon id="trash_ui" size={11} />}
-                          Keep 1, delete rest
+                          {expanded ? <Icons8Icon id="chevron_down" size={14} className="text-gray-500 shrink-0" /> : <Icons8Icon id="chevron_right" size={14} className="text-gray-500 shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold text-gray-200">{group.paths.length} identical copies</div>
+                            <div className="text-xs bndz-panel-muted">{formatStorageSize(group.size)} each · {formatStorageSize(waste)} recoverable</div>
+                          </div>
                         </button>
-                      </button>
+                        <PluginToolbarButton
+                          icon={deletingDupes === group.hash ? 'loading' : 'trash_ui'}
+                          disabled={deletingDupes === group.hash}
+                          onClick={() => void deleteDuplicateExtras(group)}
+                        >
+                          Keep 1, delete rest
+                        </PluginToolbarButton>
+                      </div>
                       {expanded && (
                         <div className="border-t border-white/[0.04] divide-y divide-white/[0.03]">
                           {group.paths.map((p, i) => {
                             const keepIdx = pickKeepIndex(group.paths, dupKeepRule);
                             return (
-                            <div key={p} className="px-4 py-2 pl-10 flex items-center gap-2 text-[11px]">
-                              <span className={`shrink-0 w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center ${i === keepIdx ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700/30 text-gray-500'}`}>
+                            <div key={p} className="px-4 py-2 pl-10 flex items-center gap-2 text-xs">
+                              <span className={`shrink-0 w-5 h-5 rounded text-[10px] font-semibold flex items-center justify-center ${i === keepIdx ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
                                 {i === keepIdx ? '✓' : i + 1}
                               </span>
-                              <button type="button" onClick={() => navigateToPath(p)} className="font-mono text-gray-400 hover:text-sky-300 truncate flex-1 text-left" title={p}>{p}</button>
+                              <button type="button" onClick={() => navigateToPath(p)} className="bndz-mono text-gray-400 hover:text-sky-300 truncate flex-1 text-left" title={p}>{p}</button>
                             </div>
                             );
                           })}
                         </div>
                       )}
-                    </div>
+                    </PluginCard>
                   );
                 })}
               </div>
-            </motion.div>
+            </div>
           )}
 
           {activeTab === 'organize' && (
-            <motion.div key="organize" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#14141a] to-[#0e0e14] p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
-                    <Icons8Icon id="folder_plus_ui" size={22} className="text-emerald-400" />
+            <PluginCard>
+              <div className="flex items-start gap-4">
+                <div className="w-11 h-11 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
+                  <Icons8Icon id="folder_plus_ui" size={20} className="text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <PluginSectionTitle icon="wand_ui">Smart organize wizard</PluginSectionTitle>
+                  <p className="text-xs bndz-panel-muted leading-relaxed">
+                    Choose any folder on your PC, preview exactly which files move into category subfolders, then confirm.
+                    Nothing moves until you approve the plan.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-3 mb-4">
+                    {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: '📁' }]]).map(([bucket, cfg]) => (
+                      <span key={bucket} className="bndz-plugin-kind-pill border border-white/[0.06]" style={{ color: cfg.color, background: `${cfg.color}12` }}>
+                        {cfg.icon} {bucket}
+                      </span>
+                    ))}
                   </div>
-                  <div className="flex-1">
-                    <div className="text-[15px] font-bold text-white">Smart Organize Wizard</div>
-                    <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-                      Choose any folder on your PC, preview exactly which files move into category subfolders, then confirm.
-                      Nothing moves until you approve the plan.
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: '📁' }]]).map(([bucket, cfg]) => (
-                        <span key={bucket} className="px-2.5 py-1 rounded-full text-[10px] font-medium border border-white/[0.06]" style={{ color: cfg.color, background: `${cfg.color}12` }}>
-                          {cfg.icon} {bucket}
-                        </span>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => openWizard('organize')}
-                      className="mt-5 flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600/40 to-teal-600/30 hover:from-emerald-600/55 border border-emerald-500/40 text-emerald-100 text-[11px] font-bold uppercase tracking-wider transition-all"
-                    >
-                      <Icons8Icon id="wand_ui" size={14} />
-                      Start Organize Wizard
-                    </button>
-                  </div>
+                  <PluginToolbarButton icon="wand_ui" onClick={() => openWizard('organize')}>Start organize wizard</PluginToolbarButton>
                 </div>
               </div>
-            </motion.div>
+            </PluginCard>
           )}
-        </AnimatePresence>
       </div>
     </div>
     </PluginPanelShell>
