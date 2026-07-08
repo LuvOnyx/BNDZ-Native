@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
+import { PluginToolbarButton } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 
@@ -66,24 +67,10 @@ export default function ActionLogPlugin() {
       variant="embedded"
       toolbar={
         <>
-          <button
-            type="button"
-            disabled={!canUndo}
-            onClick={() => void runUndo()}
-            className="px-2 py-1 text-[10px] uppercase font-bold rounded border border-white/10 disabled:opacity-40 hover:bg-white/5 flex items-center gap-1"
-          >
-            <Icons8Icon id="undo" size={12} /> Undo
-          </button>
-          <button
-            type="button"
-            disabled={!canRedo}
-            onClick={() => void runRedo()}
-            className="px-2 py-1 text-[10px] uppercase font-bold rounded border border-white/10 disabled:opacity-40 hover:bg-white/5 flex items-center gap-1"
-          >
-            <Icons8Icon id="redo" size={12} /> Redo
-          </button>
-          <button type="button" onClick={() => void refresh()} className="p-1 rounded hover:bg-white/5 text-gray-500" title="Refresh">
-            <Icons8Icon id="refresh" size={12} />
+          <PluginToolbarButton icon="undo" disabled={!canUndo} onClick={() => void runUndo()}>Undo</PluginToolbarButton>
+          <PluginToolbarButton icon="redo" disabled={!canRedo} onClick={() => void runRedo()}>Redo</PluginToolbarButton>
+          <button type="button" onClick={() => void refresh()} className="p-1.5 rounded-md hover:bg-white/5 text-gray-500" title="Refresh">
+            <Icons8Icon id="refresh" size={13} />
           </button>
         </>
       }
@@ -100,11 +87,11 @@ export default function ActionLogPlugin() {
         {!loading && items.map(entry => (
           <div
             key={entry.id}
-            className="flex items-center gap-3 px-4 py-2 border-b border-white/[0.04] hover:bg-white/[0.02] text-[11px]"
+            className="flex items-center gap-3 px-4 py-2 border-b border-white/[0.04] hover:bg-white/[0.02] text-xs"
           >
-            <span className="shrink-0 w-16 text-[10px] uppercase tracking-wide text-violet-400/80">{entry.kind}</span>
+            <span className="shrink-0 w-16 text-violet-400/80 font-medium capitalize">{entry.kind}</span>
             <span className="flex-1 truncate text-gray-200">{entry.label}</span>
-            <span className="shrink-0 text-[10px] text-gray-500">
+            <span className="shrink-0 bndz-panel-muted bndz-mono">
               {entry.utc ? new Date(entry.utc).toLocaleString() : ''}
             </span>
           </div>

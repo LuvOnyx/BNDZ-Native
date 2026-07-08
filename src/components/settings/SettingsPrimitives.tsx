@@ -44,7 +44,7 @@ export function SettingsSection({
     <section className={`rounded-xl border border-[#333] bg-gradient-to-br from-[#1c1c22] to-[#141418] overflow-hidden shadow-lg mb-5 ${className}`}>
       <div className="px-4 py-3 border-b border-[#333] bg-[#1a1a20]/50">
         <h3 className="text-[13px] font-bold text-white">{title}</h3>
-        {description && <p className="text-[10px] text-[#777] mt-0.5">{description}</p>}
+        {description && <p className="bndz-panel-muted mt-0.5">{description}</p>}
       </div>
       <div className="p-4 space-y-[6px]">{children}</div>
     </section>

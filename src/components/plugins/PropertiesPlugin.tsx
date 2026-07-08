@@ -1,6 +1,17 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
+import {
+  PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
+  PluginSectionTitle,
+  PluginCard,
+  PluginFieldGrid,
+  PluginFieldRow,
+  PluginEmptyState,
+  PluginIdentityHeader,
+} from './PluginPanelPrimitives';
 import { FSEntity } from '../../types';
 import { toWindowsPath, normalizePanePath, isRecycleBinPath } from '../../lib/pathUtils';
 import { formatPropertiesPath } from '../../lib/displayPath';
@@ -274,12 +285,10 @@ export default function PropertiesPlugin({
                 variant="embedded"
                 subtitle="No selection"
             >
-                <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-gray-500 gap-3 p-6 select-none">
-                    <Icons8Icon id="layers_ui" size={40} className="opacity-20 text-sky-400" />
-                    <p className="text-xs text-center max-w-[260px] leading-relaxed">
-                        Select items to inspect properties, attributes, hashes, and BNDZ tags.
-                    </p>
-                </div>
+                <PluginEmptyState
+                    icon="layers_ui"
+                    description="Select items to inspect properties, attributes, hashes, and BNDZ tags."
+                />
             </PluginPanelShell>
         );
     }
@@ -316,75 +325,47 @@ export default function PropertiesPlugin({
             toolbar={
                 <>
                     {!isMulti && (
-                        <button type="button" onClick={openItem} className="px-2 py-1 text-[10px] font-semibold bg-sky-600/20 border border-sky-500/30 text-sky-400 rounded">Open</button>
+                        <PluginToolbarButton icon="folder_open_ui" onClick={openItem}>Open</PluginToolbarButton>
                     )}
-                    <button type="button" onClick={copyPath} className="px-2 py-1 text-[10px] font-semibold bg-[#1a1a1a] border border-[#333] text-gray-400 rounded">{copied ? 'Copied' : 'Copy Path'}</button>
+                    <PluginToolbarButton icon="copy_path" onClick={copyPath} active={copied}>
+                        {copied ? 'Copied' : 'Copy path'}
+                    </PluginToolbarButton>
+                    {!isMulti && (
+                        <>
+                            <PluginToolbarButton icon="folder_open_ui" onClick={showInExplorer}>Reveal</PluginToolbarButton>
+                            <PluginToolbarButton icon="config" onClick={showNativeProperties}>Windows props</PluginToolbarButton>
+                        </>
+                    )}
                 </>
             }
         >
-        <div className="flex-1 w-full flex flex-col bg-[#0d0d0d] overflow-hidden text-gray-300 min-h-0">
-            {/* Hero header — distinct from preview panel (actions + identity, not content) */}
-            <div className="shrink-0 border-b border-[#222] bg-gradient-to-r from-[#141414] to-[#0f0f0f] px-5 py-4 flex gap-5 items-center">
-                <PreviewHeroIcon
-                    path={heroIconPath}
-                    isDir={isDir}
-                    isDrive={!!driveInfo}
-                    size={96}
-                    extension={ext}
-                    preferThumbnail={!isDir && !isMulti}
-                />
-                <div className="flex-1 min-w-0">
-                    <h2 className="text-[15px] font-bold text-white truncate leading-tight">{displayName}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-sky-500/80 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">{typeLabel}</span>
-                        {isMulti && (
-                            <span className="text-[10px] text-gray-500 font-mono">{selectionCount} paths</span>
-                        )}
-                    </div>
-                    {!isMulti && targetPath && (
-                        <p className="text-[10px] text-gray-500 font-mono mt-2 truncate" title={targetPath}>{targetPath}</p>
-                    )}
-                </div>
-                <div className="flex flex-col gap-1.5 shrink-0">
-                    {!isMulti && (
-                        <button type="button" onClick={openItem} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-sky-600/20 border border-sky-500/30 text-sky-400 rounded hover:bg-sky-600/30 transition-colors">
-                            <Icons8Icon id="folder_open_ui" size={11} /> Open
-                        </button>
-                    )}
-                    <button type="button" onClick={copyPath} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[#1a1a1a] border border-[#333] text-gray-400 rounded hover:text-white hover:border-[#555] transition-colors">
-                        <Icons8Icon id="copy_path" size={11} /> {copied ? 'Copied!' : 'Copy Path'}
-                    </button>
-                    {!isMulti && (
-                        <>
-                            <button type="button" onClick={showInExplorer} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[#1a1a1a] border border-[#333] text-gray-400 rounded hover:text-white hover:border-[#555] transition-colors">
-                                <Icons8Icon id="folder_open_ui" size={11} /> Reveal
-                            </button>
-                            <button type="button" onClick={showNativeProperties} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[#1a1a1a] border border-[#333] text-gray-400 rounded hover:text-white hover:border-[#555] transition-colors">
-                                <Icons8Icon id="config" size={11} /> Windows Props
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
+        <div className="flex-1 w-full flex flex-col overflow-hidden text-gray-300 min-h-0">
+            <PluginIdentityHeader
+                icon={
+                    <PreviewHeroIcon
+                        path={heroIconPath}
+                        isDir={isDir}
+                        isDrive={!!driveInfo}
+                        size={48}
+                        extension={ext}
+                        preferThumbnail={!isDir && !isMulti}
+                    />
+                }
+                name={displayName}
+                typeLabel={typeLabel}
+                path={!isMulti ? targetPath : undefined}
+                meta={isMulti ? <span className="bndz-panel-muted text-xs">{selectionCount} paths</span> : undefined}
+            />
 
-            {/* Tab strip */}
-            <div className="shrink-0 flex border-b border-[#222]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+            <PluginTabStrip>
                 {tabs.filter(t => t.show).map(t => (
-                    <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setActiveTab(t.id)}
-                        className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider border-r border-[#222] transition-colors ${
-                            activeTab === t.id ? 'text-sky-400 border-b-2 border-b-sky-500' : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                        style={activeTab === t.id ? { background: 'var(--bndz-surface-raised)' } : undefined}
-                    >
+                    <PluginTab key={t.id} active={activeTab === t.id} onClick={() => setActiveTab(t.id)}>
                         {t.label}
-                    </button>
+                    </PluginTab>
                 ))}
-            </div>
+            </PluginTabStrip>
 
-            <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 min-h-0">
+            <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 min-h-0">
                 {error && (
                     <div className="mb-4 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                         <Icons8Icon id="error_ui" size={14} /> {error}
@@ -392,223 +373,198 @@ export default function PropertiesPlugin({
                 )}
 
                 {activeTab === 'general' && (
-                    <div className="flex flex-col gap-4 max-w-2xl">
+                    <div className="flex flex-col gap-3 max-w-2xl">
                         {isMulti ? (
-                            <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
-                                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">
-                                    <Icons8Icon id="layers_ui" size={13} className="text-purple-400" /> Bulk Selection Summary
-                                </div>
-                                <div className="grid grid-cols-[120px_1fr] gap-y-2 text-[12px]">
-                                    <div className="text-gray-500">Items</div>
-                                    <div className="text-white font-mono">{selectionCount}</div>
-                                    <div className="text-gray-500">Primary</div>
-                                    <div className="text-gray-300 font-mono text-[11px] break-all">{targetPath}</div>
-                                </div>
-                                <div className="mt-4 max-h-[160px] overflow-y-auto bndz-scrollbar border border-[#222] rounded-lg bg-[#0a0a0a]">
+                            <PluginCard>
+                                <PluginSectionTitle icon="layers_ui">Bulk selection</PluginSectionTitle>
+                                <PluginFieldGrid>
+                                    <PluginFieldRow label="Items">{selectionCount}</PluginFieldRow>
+                                    <PluginFieldRow label="Primary" mono>{targetPath}</PluginFieldRow>
+                                </PluginFieldGrid>
+                                <div className="mt-3 max-h-[140px] overflow-y-auto bndz-scrollbar border border-white/[0.06] rounded-md">
                                     {selectedItems.map((p, i) => (
-                                        <div key={i} className="px-3 py-1.5 text-[10px] font-mono text-gray-400 border-b border-[#1a1a1a] last:border-0 truncate">{p}</div>
+                                        <div key={i} className="px-3 py-1.5 text-xs bndz-mono bndz-panel-muted border-b border-white/[0.04] last:border-0 truncate">{p}</div>
                                     ))}
                                 </div>
-                                <p className="text-[10px] text-gray-600 mt-3">Use the context menu for bulk copy, move, delete, or compress operations.</p>
-                            </div>
+                                <p className="bndz-panel-muted mt-3">Use the context menu for bulk copy, move, delete, or compress operations.</p>
+                            </PluginCard>
                         ) : driveInfo ? (
-                            <div className="bg-[#141414] border border-[#222] rounded-xl p-5 grid grid-cols-[120px_1fr] gap-y-3 text-[12px]">
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Location</div>
-                                <div className="text-gray-300 font-mono text-[11px] break-all bg-[#0a0a0a] border border-[#222] px-2 py-1 rounded">{targetPath}</div>
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Capacity</div>
-                                <div className="text-white font-mono">{formatSize(driveInfo.totalSpace)}</div>
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Free Space</div>
-                                <div className="text-emerald-400 font-mono">{formatSize(driveInfo.freeSpace)}</div>
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Used</div>
-                                <div className="text-sky-400 font-mono">{formatSize(driveInfo.totalSpace - driveInfo.freeSpace)}</div>
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Format</div>
-                                <div className="text-gray-300">{driveInfo.format || 'NTFS'}</div>
-                            </div>
+                            <PluginCard>
+                                <PluginFieldGrid>
+                                    <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
+                                    <PluginFieldRow label="Capacity" mono>{formatSize(driveInfo.totalSpace)}</PluginFieldRow>
+                                    <PluginFieldRow label="Free space" mono><span className="text-emerald-400">{formatSize(driveInfo.freeSpace)}</span></PluginFieldRow>
+                                    <PluginFieldRow label="Used" mono><span className="text-sky-400">{formatSize(driveInfo.totalSpace - driveInfo.freeSpace)}</span></PluginFieldRow>
+                                    <PluginFieldRow label="Format">{driveInfo.format || 'NTFS'}</PluginFieldRow>
+                                </PluginFieldGrid>
+                            </PluginCard>
                         ) : (
-                            <div className="bg-[#141414] border border-[#222] rounded-xl p-5 grid grid-cols-[120px_1fr] gap-y-3 text-[12px]">
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Location</div>
-                                <div className="text-gray-300 font-mono text-[11px] break-all bg-[#0a0a0a] border border-[#222] px-2 py-1 rounded">{targetPath}</div>
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Size</div>
-                                <div className="text-sky-400 font-mono">
-                                    {fileDetails ? formatSize(fileDetails.exactSize) : '--'}
-                                    {fileDetails?.exactSize != null && (
-                                        <span className="text-gray-600 ml-2">({fileDetails.exactSize.toLocaleString()} bytes)</span>
+                            <PluginCard>
+                                <PluginFieldGrid>
+                                    <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
+                                    <PluginFieldRow label="Size" mono>
+                                        {fileDetails ? formatSize(fileDetails.exactSize) : '--'}
+                                        {fileDetails?.exactSize != null && (
+                                            <span className="bndz-panel-muted ml-2">({fileDetails.exactSize.toLocaleString()} bytes)</span>
+                                        )}
+                                    </PluginFieldRow>
+                                    <PluginFieldRow label="Created" mono>
+                                        {fileDetails?.creation ? new Date(fileDetails.creation).toLocaleString() : '--'}
+                                    </PluginFieldRow>
+                                    <PluginFieldRow label="Modified" mono>
+                                        {fileDetails?.modification ? new Date(fileDetails.modification).toLocaleString() : '--'}
+                                    </PluginFieldRow>
+                                    {fileDetails?.accessed && (
+                                        <PluginFieldRow label="Accessed" mono>{new Date(fileDetails.accessed).toLocaleString()}</PluginFieldRow>
                                     )}
-                                </div>
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Created</div>
-                                <div className="text-gray-300 font-mono text-[11px]">
-                                    {fileDetails?.creation ? new Date(fileDetails.creation).toLocaleString() : '--'}
-                                </div>
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Modified</div>
-                                <div className="text-gray-300 font-mono text-[11px]">
-                                    {fileDetails?.modification ? new Date(fileDetails.modification).toLocaleString() : '--'}
-                                </div>
-                                {fileDetails?.accessed && (
-                                    <>
-                                        <div className="text-gray-500 uppercase text-[10px] font-bold">Accessed</div>
-                                        <div className="text-gray-300 font-mono text-[11px]">{new Date(fileDetails.accessed).toLocaleString()}</div>
-                                    </>
-                                )}
-                                <div className="text-gray-500 uppercase text-[10px] font-bold">Owner</div>
-                                <div className="text-gray-300 font-mono text-[11px] break-all">{fileDetails?.owner || 'Loading...'}</div>
-                            </div>
+                                    <PluginFieldRow label="Owner" mono>{fileDetails?.owner || 'Loading...'}</PluginFieldRow>
+                                </PluginFieldGrid>
+                            </PluginCard>
                         )}
 
                         {!isMulti && !driveInfo && targetPath && (
-                            <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
-                                <div className="flex items-center justify-between gap-2 mb-4">
-                                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                                        <Icons8Icon id="tag_manager" size={13} className="text-violet-400" /> BNDZ Tags
-                                    </div>
-                                    <button
-                                        type="button"
-                                        disabled={!sidecarDirty || sidecarSaving}
-                                        onClick={() => void saveSidecarMeta()}
-                                        className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border transition-colors ${
-                                            sidecarDirty
-                                                ? 'bg-violet-600/20 border-violet-500/40 text-violet-300 hover:bg-violet-600/30'
-                                                : 'bg-[#1a1a1a] border-[#333] text-gray-600 cursor-not-allowed'
-                                        }`}
-                                    >
-                                        {sidecarSaving ? <Icons8Icon id="loading" size={11} spin /> : <Icons8Icon id="check" size={11} />}
-                                        Save
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-[100px_1fr] gap-y-3 text-[12px] items-start">
-                                    <div className="text-gray-500 pt-1">Label</div>
-                                    <input
-                                        type="text"
-                                        value={sidecarLabel}
-                                        onChange={e => { setSidecarLabel(e.target.value); setSidecarDirty(true); }}
-                                        placeholder="Custom label for this item"
-                                        className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-gray-200 text-[11px] outline-none focus:border-violet-500/50 w-full"
-                                    />
-                                    <div className="text-gray-500 pt-1">Comment</div>
-                                    <textarea
-                                        value={sidecarComment}
-                                        onChange={e => { setSidecarComment(e.target.value); setSidecarDirty(true); }}
-                                        placeholder="Notes or description"
-                                        rows={3}
-                                        className="bg-[#0a0a0a] border border-[#333] rounded px-2 py-1.5 text-gray-200 text-[11px] outline-none focus:border-violet-500/50 w-full resize-y min-h-[60px]"
-                                    />
-                                    <div className="text-gray-500 pt-1">Tags</div>
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex flex-wrap gap-1.5 min-h-[24px]">
-                                            {sidecarTags.length > 0 ? sidecarTags.map(t => (
-                                                <button
-                                                    key={t}
-                                                    type="button"
-                                                    onClick={() => removeTagChip(t)}
-                                                    className="group bg-violet-500/10 text-[10px] px-2 py-0.5 rounded border border-violet-500/30 text-violet-200 uppercase tracking-wide hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-300 transition-colors"
-                                                    title="Remove tag"
-                                                >
-                                                    {t} <span className="opacity-0 group-hover:opacity-100">×</span>
-                                                </button>
-                                            )) : (
-                                                <span className="text-[11px] text-gray-600 italic">No tags yet</span>
-                                            )}
+                            <PluginCard>
+                                <PluginSectionTitle
+                                    icon="tag_manager"
+                                    action={
+                                        <PluginToolbarButton
+                                            icon={sidecarSaving ? 'loading' : 'check'}
+                                            onClick={() => void saveSidecarMeta()}
+                                            disabled={!sidecarDirty || sidecarSaving}
+                                            active={sidecarDirty}
+                                        >
+                                            Save
+                                        </PluginToolbarButton>
+                                    }
+                                >
+                                    BNDZ tags
+                                </PluginSectionTitle>
+                                <PluginFieldGrid>
+                                    <PluginFieldRow label="Label">
+                                        <input
+                                            type="text"
+                                            value={sidecarLabel}
+                                            onChange={e => { setSidecarLabel(e.target.value); setSidecarDirty(true); }}
+                                            placeholder="Custom label for this item"
+                                            className="w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-violet-500/50"
+                                        />
+                                    </PluginFieldRow>
+                                    <PluginFieldRow label="Comment">
+                                        <textarea
+                                            value={sidecarComment}
+                                            onChange={e => { setSidecarComment(e.target.value); setSidecarDirty(true); }}
+                                            placeholder="Notes or description"
+                                            rows={3}
+                                            className="w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-violet-500/50 resize-y min-h-[56px]"
+                                        />
+                                    </PluginFieldRow>
+                                    <PluginFieldRow label="Tags">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex flex-wrap gap-1.5 min-h-[24px]">
+                                                {sidecarTags.length > 0 ? sidecarTags.map(t => (
+                                                    <button
+                                                        key={t}
+                                                        type="button"
+                                                        onClick={() => removeTagChip(t)}
+                                                        className="group bg-violet-500/10 text-xs px-2 py-0.5 rounded border border-violet-500/30 text-violet-200 hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-300 transition-colors"
+                                                        title="Remove tag"
+                                                    >
+                                                        {t} <span className="opacity-0 group-hover:opacity-100">×</span>
+                                                    </button>
+                                                )) : (
+                                                    <span className="bndz-panel-muted italic">No tags yet</span>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={tagDraft}
+                                                    onChange={e => setTagDraft(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTagChip(); } }}
+                                                    placeholder="Add tag…"
+                                                    className="flex-1 bg-black/30 border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 outline-none focus:border-violet-500/50"
+                                                />
+                                                <PluginToolbarButton onClick={addTagChip}>Add</PluginToolbarButton>
+                                            </div>
                                         </div>
-                                        <div className="flex gap-1.5">
-                                            <input
-                                                type="text"
-                                                value={tagDraft}
-                                                onChange={e => setTagDraft(e.target.value)}
-                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTagChip(); } }}
-                                                placeholder="Add tag…"
-                                                className="flex-1 bg-[#0a0a0a] border border-[#333] rounded px-2 py-1 text-gray-200 text-[11px] outline-none focus:border-violet-500/50"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={addTagChip}
-                                                className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-[#444] text-gray-400 hover:text-violet-300 hover:border-violet-500/40"
-                                            >
-                                                Add
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                    </PluginFieldRow>
+                                </PluginFieldGrid>
+                            </PluginCard>
                         )}
                     </div>
                 )}
 
                 {activeTab === 'security' && !isMulti && (
-                    <div className="flex flex-col gap-5 max-w-xl">
-                        <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
-                            <div className="flex items-center justify-between gap-2 mb-3">
-                                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                                    <Icons8Icon id="shield_ui" size={13} className="text-pink-400" /> Security
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={openWindowsSecurity}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-[var(--bndz-radius-sm)] border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/18 transition-colors"
-                                >
-                                    <Icons8Icon id="key_ui" size={11} /> Open Windows Security
-                                </button>
-                            </div>
-                            <p className="text-[11px] text-gray-500 leading-relaxed">
+                    <div className="flex flex-col gap-3 max-w-xl">
+                        <PluginCard>
+                            <PluginSectionTitle
+                                icon="shield_ui"
+                                action={
+                                    <PluginToolbarButton icon="key_ui" onClick={openWindowsSecurity}>
+                                        Windows security
+                                    </PluginToolbarButton>
+                                }
+                            >
+                                Security
+                            </PluginSectionTitle>
+                            <p className="text-xs bndz-panel-muted leading-relaxed">
                                 NTFS permissions and access control are managed by Windows. Use the button above to open the native Security editor for this item.
                             </p>
-                        </div>
-                        <div className="bg-[#141414] border border-[#222] rounded-xl p-5">
-                            <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">NTFS Attributes</div>
-                            <div className="grid grid-cols-2 gap-3">
+                        </PluginCard>
+                        <PluginCard>
+                            <PluginSectionTitle>NTFS attributes</PluginSectionTitle>
+                            <div className="grid grid-cols-2 gap-2">
                                 {['Archive', 'Hidden', 'System', 'ReadOnly'].map(attr => (
                                     <button
                                         key={attr}
                                         type="button"
                                         onClick={() => toggleAttribute(attr)}
-                                        className="flex items-center gap-3 p-2.5 rounded border border-[#222] bg-[#0a0a0a] hover:bg-[#1a1a1a] transition-all group"
+                                        className="flex items-center gap-2.5 p-2 rounded-md border border-white/[0.06] bg-black/20 hover:bg-white/[0.04] transition-colors group text-left"
                                     >
-                                        <div className={`w-[14px] h-[14px] rounded border flex items-center justify-center ${
-                                            fileDetails?.attributes?.[attr] ? 'bg-sky-500 border-sky-500' : 'border-[#444] group-hover:border-sky-500/50'
+                                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                                            fileDetails?.attributes?.[attr] ? 'bg-sky-500 border-sky-500' : 'border-white/20 group-hover:border-sky-500/50'
                                         }`}>
-                                            {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={10} className="text-black" />}
+                                            {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={9} className="text-black" />}
                                         </div>
-                                        <span className="text-[12px] font-mono text-gray-300">{attr}</span>
+                                        <span className="text-xs text-gray-300">{attr}</span>
                                     </button>
                                 ))}
                             </div>
-                        </div>
+                        </PluginCard>
                     </div>
                 )}
 
                 {activeTab === 'hashes' && !isMulti && entity?.type === 'file' && (
-                    <div className="bg-[#141414] border border-[#222] rounded-xl p-5 max-w-xl relative">
-                        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-4">
-                            <Icons8Icon id="key_ui" size={13} className="text-emerald-400" /> Cryptographic Hashes
-                        </div>
+                    <PluginCard className="max-w-xl relative">
+                        <PluginSectionTitle icon="key_ui">Cryptographic hashes</PluginSectionTitle>
                         {hash.loading && (
-                            <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-sm flex flex-col gap-3 items-center justify-center rounded-xl">
-                                <Icons8Icon id="loading" size={24} spin className="text-emerald-500" />
-                                <div className="text-[10px] uppercase font-bold tracking-widest text-emerald-400">Computing...</div>
+                            <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col gap-2 items-center justify-center rounded-md">
+                                <Icons8Icon id="loading" size={22} spin className="text-emerald-500" />
+                                <div className="text-xs text-emerald-400 font-medium">Computing…</div>
                             </div>
                         )}
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3">
                             {['md5', 'sha256'].map(kind => (
-                                <div key={kind} className="flex flex-col gap-1.5">
+                                <div key={kind} className="flex flex-col gap-1">
                                     <div className="flex items-center justify-between">
-                                        <div className="text-[10px] uppercase font-bold tracking-wider text-gray-500">{kind.toUpperCase()}</div>
-                                        <button
-                                            type="button"
+                                        <div className="bndz-plugin-section-title">{kind.toUpperCase()}</div>
+                                        <PluginToolbarButton
+                                            icon="copy"
                                             disabled={!(hash as any)[kind] || (hash as any)[kind] === 'Pending...'}
                                             onClick={() => void copyHash(kind as 'md5' | 'sha256')}
-                                            className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider text-emerald-500/80 hover:text-emerald-400 disabled:opacity-30"
                                         >
-                                            <Icons8Icon id="copy" size={11} />
                                             {hashCopied === kind ? 'Copied' : 'Copy'}
-                                        </button>
+                                        </PluginToolbarButton>
                                     </div>
                                     <input
                                         readOnly
-                                        className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-3 py-2 text-[11px] text-gray-300 font-mono selection:bg-emerald-500/30"
+                                        className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-xs text-gray-300 bndz-mono"
                                         value={(hash as any)[kind] || 'Pending...'}
                                     />
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </PluginCard>
                 )}
             </div>
         </div>

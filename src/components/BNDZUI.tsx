@@ -7008,7 +7008,7 @@ export default function BNDZUI() {
       </div>
 
       {/* Footer Status Bar scoped to active pane metrics */}
-      <div className="bndz-chrome-statusbar status-bar-glow border-t border-[#333] px-3 py-1 flex items-center justify-between text-[11px] text-gray-400 shrink-0 gap-3 min-h-[28px]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+      <div className="bndz-chrome-statusbar status-bar-glow border-t border-[#333] px-3 py-1 flex items-center justify-between text-gray-400 shrink-0 gap-3 min-h-[28px]" style={{ background: 'var(--bndz-surface-chrome)' }}>
          <div className="truncate">
            {activeContents ? `${activeContents.length} item(s)` : `${drives.length} drive(s)`}
            {activeTab.selectedItems.length > 0 ? ` | ${selectionSummaryLine || `${activeTab.selectedItems.length} selected`}` : ''}
@@ -7032,14 +7032,14 @@ export default function BNDZUI() {
              <button
                type="button"
                onClick={() => setActiveTagFilter(null)}
-               className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-violet-200 hover:text-white"
+               className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-violet-200 hover:text-white"
                title="Clear tag filter"
              >
                Tag: {activeTagFilter} ×
              </button>
            )}
            {isBottomPanelOpen && activeBottomPluginLabel && (
-             <span className="ml-2 text-[10px] text-sky-300/80 hidden sm:inline">
+             <span className="ml-2 text-sky-300/80 hidden sm:inline">
                Plugin · {activeBottomPluginLabel}
              </span>
            )}

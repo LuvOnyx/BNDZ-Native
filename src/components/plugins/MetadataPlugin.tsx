@@ -3,6 +3,14 @@ import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
+import {
+  PluginToolbarButton,
+  PluginSectionTitle,
+  PluginCard,
+  PluginFieldGrid,
+  PluginFieldRow,
+  PluginEmptyState,
+} from './PluginPanelPrimitives';
 
 export const MetadataPluginDef = {
     id: 'metadata',
@@ -84,12 +92,10 @@ export default function MetadataPlugin({
                 variant="embedded"
                 subtitle="No selection"
             >
-                <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-gray-500 gap-3 p-6">
-                    <Icons8Icon id="metadata" size={36} className="opacity-20" />
-                    <p className="text-xs text-center max-w-[240px] leading-relaxed">
-                        Select a file or folder in the list to inspect extended metadata and hashes.
-                    </p>
-                </div>
+                <PluginEmptyState
+                    icon="metadata"
+                    description="Select a file or folder in the list to inspect extended metadata and hashes."
+                />
             </PluginPanelShell>
         );
     }
@@ -105,50 +111,50 @@ export default function MetadataPlugin({
                 <span className="flex items-center gap-2 text-gray-500"><Icons8Icon id="loading" size={12} spin /> Loading…</span>
             ) : undefined}
         >
-            <div className="h-full overflow-y-auto bndz-scrollbar p-4 space-y-4">
-                <div className="p-3 bg-sky-950/30 border border-sky-700/30 rounded-lg flex items-center justify-between gap-3">
-                    <p className="text-[11px] text-gray-400 leading-relaxed">
-                        Full ACL, tags, and hash analysis live in <strong className="text-white font-semibold">System Properties</strong>.
+            <div className="h-full overflow-y-auto bndz-scrollbar p-4 space-y-3">
+                <PluginCard className="flex items-center justify-between gap-3 !py-2.5">
+                    <p className="text-xs bndz-panel-muted leading-relaxed">
+                        Full ACL, tags, and hash analysis live in <strong className="text-white font-medium">System Properties</strong>.
                     </p>
-                    <button
-                        type="button"
-                        className="shrink-0 text-[10px] uppercase font-bold px-2 py-1 rounded bg-sky-700/50 text-sky-200 hover:bg-sky-600/50"
+                    <PluginToolbarButton
                         onClick={() => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'properties' } }))}
                     >
                         Open Properties
-                    </button>
-                </div>
+                    </PluginToolbarButton>
+                </PluginCard>
                 {error && (
-                    <div className="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-400 text-xs">{error}</div>
+                    <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-md text-red-400 text-xs">{error}</div>
                 )}
 
-                <div className="p-3 bg-[#111] border border-[#222] rounded-lg">
-                    <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Target Path</div>
-                    <div className="text-xs font-mono text-sky-300 break-all">{path}</div>
-                </div>
+                <PluginCard>
+                    <PluginFieldGrid>
+                        <PluginFieldRow label="Target path" mono>{path}</PluginFieldRow>
+                    </PluginFieldGrid>
+                </PluginCard>
 
                 {(hashes.md5 || hashes.sha256) && (
-                    <div className="p-3 bg-[#111] border border-[#222] rounded-lg space-y-2">
-                        <div className="text-[10px] uppercase tracking-wider text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> Cryptographic Hashes</div>
-                        {hashes.md5 && <div className="text-[10px] font-mono"><span className="text-gray-500">MD5: </span>{hashes.md5}</div>}
-                        {hashes.sha256 && <div className="text-[10px] font-mono break-all"><span className="text-gray-500">SHA256: </span>{hashes.sha256}</div>}
-                    </div>
+                    <PluginCard>
+                        <PluginSectionTitle icon="disk_mgmt">Cryptographic hashes</PluginSectionTitle>
+                        <PluginFieldGrid>
+                            {hashes.md5 && <PluginFieldRow label="MD5" mono>{hashes.md5}</PluginFieldRow>}
+                            {hashes.sha256 && <PluginFieldRow label="SHA-256" mono>{hashes.sha256}</PluginFieldRow>}
+                        </PluginFieldGrid>
+                    </PluginCard>
                 )}
 
-                <div className="space-y-1">
-                    <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2 flex items-center gap-1"><Icons8Icon id="file_ui" size={10} /> Extended Properties</div>
+                <PluginCard>
+                    <PluginSectionTitle icon="file_ui">Extended properties</PluginSectionTitle>
                     {Object.entries(meta).length === 0 && !loading && (
-                        <div className="text-xs text-gray-600 italic">No extended metadata available.</div>
+                        <div className="bndz-panel-muted italic">No extended metadata available.</div>
                     )}
-                    {Object.entries(meta).map(([key, value]) => (
-                        <div key={key} className="flex gap-3 py-1.5 px-2 hover:bg-[#1a1a1a] rounded text-xs border-b border-[#1a1a1a]">
-                            <span className="text-gray-500 w-36 shrink-0 font-medium">{key}</span>
-                            <span className="text-gray-300 font-mono break-all flex-1">
+                    <PluginFieldGrid className="mt-1">
+                        {Object.entries(meta).map(([key, value]) => (
+                            <PluginFieldRow key={key} label={key} mono>
                                 {key === 'File Size' ? formatSize(value) : value}
-                            </span>
-                        </div>
-                    ))}
-                </div>
+                            </PluginFieldRow>
+                        ))}
+                    </PluginFieldGrid>
+                </PluginCard>
             </div>
         </PluginPanelShell>
     );

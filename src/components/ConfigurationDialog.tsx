@@ -172,7 +172,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               <button
                 type="button"
                 onClick={() => { setShowJumpDialog(true); setJumpQuery(''); }}
-                className="w-full text-[10px] font-semibold uppercase tracking-wider text-gray-500 hover:text-sky-400 py-1 transition-colors text-left"
+                className="bndz-settings-jump w-full text-gray-500 hover:text-sky-400 py-1 transition-colors text-left"
               >
                 Jump to setting (Ctrl+F)
               </button>
@@ -181,12 +181,12 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             <TabsList variant="line" className="!flex !flex-col !items-stretch !justify-start !w-full !h-auto !p-2 !gap-0 !rounded-none !bg-transparent">
                {filteredCategories.map((cat, i) => (
                  <div key={i} className="mb-3 last:mb-2">
-                    <div className={`mb-1 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md border bg-gradient-to-r flex items-center justify-between gap-1.5 ${categoryAccent[cat.name] || categoryAccent.Other}`}>
+                    <div className={`bndz-settings-category mb-1 px-2.5 py-1.5 rounded-md border bg-gradient-to-r flex items-center justify-between gap-1.5 ${categoryAccent[cat.name] || categoryAccent.Other}`}>
                       <span className="flex items-center gap-1.5 text-gray-300 min-w-0">
                         {categoryIcons[cat.name]}
                         <span className="truncate">{cat.name}</span>
                       </span>
-                      <span className="text-[9px] text-gray-500 font-mono shrink-0">{cat.items.length}</span>
+                      <span className="bndz-panel-muted bndz-mono shrink-0 text-[10px]">{cat.items.length}</span>
                     </div>
                     <div className="flex flex-col gap-px pl-1">
                     {cat.items.map((item, j) => (

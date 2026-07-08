@@ -909,6 +909,114 @@ html.theme-light .nav-tree-row:hover {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Bottom plugin panel primitives */
+.bndz-plugin-tabstrip {
+  min-height: 32px;
+  background: var(--bndz-surface-chrome, #141418);
+}
+
+.bndz-plugin-tab {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  padding: 6px 14px;
+  color: rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.bndz-plugin-tab:hover {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bndz-plugin-tab-active {
+  color: #bae6fd !important;
+  background: rgba(14, 165, 233, 0.12) !important;
+  box-shadow: inset 0 -2px 0 #38bdf8;
+}
+
+.bndz-plugin-section-title {
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.bndz-plugin-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--bndz-radius-md, 8px);
+  padding: 12px 14px;
+}
+
+.bndz-plugin-field-grid {
+  display: grid;
+  grid-template-columns: minmax(88px, 110px) 1fr;
+  gap: 8px 12px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.bndz-plugin-field-label {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+  padding-top: 1px;
+}
+
+.bndz-plugin-field-value {
+  color: rgba(255, 255, 255, 0.88);
+  min-width: 0;
+  word-break: break-word;
+}
+
+.bndz-plugin-kind-pill {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgba(56, 189, 248, 0.9);
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.bndz-plugin-identity {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+}
+
+.bndz-plugin-empty {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.bndz-plugin-btn {
+  min-height: 28px;
+}
+
+.bndz-settings-nav {
+  font-family: var(--bndz-font-chrome-family, var(--bndz-font-family));
+  font-size: var(--bndz-font-chrome-size, var(--bndz-font-size));
+  font-weight: var(--bndz-font-chrome-weight, var(--bndz-font-weight-ui, 500));
+}
+
+.bndz-settings-category {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.bndz-settings-jump {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
 .bndz-resize-handle-glow[data-disabled],
 .bndz-resize-handle-glow-v[data-disabled] {
   opacity: 0;
