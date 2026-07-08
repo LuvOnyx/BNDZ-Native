@@ -42,6 +42,8 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   const [localConfig, setLocalConfig] = useState(globalConfig);
   const [hasChanges, setHasChanges] = useState(false);
   const [applyFeedback, setApplyFeedback] = useState<'idle' | 'applied'>('idle');
+  const [shellStatus, setShellStatus] = useState<string | null>(null);
+  const [shellBusy, setShellBusy] = useState(false);
   const updateLocalConfig = (updates: any) => {
     setLocalConfig(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
@@ -55,6 +57,90 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
     window.setTimeout(() => setApplyFeedback('idle'), 2200);
   };
   const okChanges = () => { applyChanges(); onClose(); };
+
+  const applyShellToggle = async (
+    updates: Record<string, boolean>,
+    apply: () => Promise<{ success: boolean; message: string; needsElevation?: boolean }>,
+    elevationLabel: string,
+  ) => {
+    setShellBusy(true);
+    setShellStatus(null);
+    const nextConfig = { ...localConfig, ...updates };
+    updateLocalConfig(updates);
+    try {
+      const { IPC } = await import('../lib/ipcBridge');
+      const { promptElevationIfNeeded } = await import('../lib/nativeDialog');
+      const result = await apply();
+      if (!result.success && result.needsElevation) {
+        const elevated = await promptElevationIfNeeded(result, {
+          title: 'Administrator approval required',
+          message: `${result.message}\n\nRestart BNDZ as administrator to ${elevationLabel}?`,
+        });
+        if (!elevated) {
+          setLocalConfig(prev => {
+            const reverted = { ...prev };
+            for (const key of Object.keys(updates)) {
+              (reverted as any)[key] = !(updates as any)[key];
+            }
+            return reverted;
+          });
+          setShellStatus('Administrator approval was required but not granted.');
+          return;
+        }
+      } else if (!result.success) {
+        setLocalConfig(prev => {
+          const reverted = { ...prev };
+          for (const key of Object.keys(updates)) {
+            (reverted as any)[key] = !(updates as any)[key];
+          }
+          return reverted;
+        });
+        setShellStatus(result.message || 'Shell integration change failed.');
+      } else {
+        setShellStatus(result.message);
+        updateGlobalConfig(nextConfig);
+      }
+    } catch (err) {
+      setShellStatus(err instanceof Error ? err.message : 'Shell integration change failed.');
+    } finally {
+      setShellBusy(false);
+      window.setTimeout(() => setShellStatus(null), 5000);
+    }
+  };
+
+  const handleContextMenuToggle = (checked: boolean) => {
+    void applyShellToggle(
+      { inContextMenu: checked, bndzInShellContextMenu: checked },
+      async () => {
+        const { IPC } = await import('../lib/ipcBridge');
+        return IPC.setInContextMenu(checked);
+      },
+      checked ? 'add BNDZ to the shell context menu' : 'remove BNDZ from the shell context menu',
+    );
+  };
+
+  const handleDefaultFileManagerToggle = (checked: boolean) => {
+    const updates: Record<string, boolean> = {
+      isDefaultFileManager: checked,
+      bndzIsDefaultFileManager: checked,
+    };
+    if (checked && !(localConfig.inContextMenu ?? localConfig.bndzInShellContextMenu)) {
+      updates.inContextMenu = true;
+      updates.bndzInShellContextMenu = true;
+    }
+    void applyShellToggle(
+      updates,
+      async () => {
+        const { IPC } = await import('../lib/ipcBridge');
+        if (checked && !(localConfig.inContextMenu ?? localConfig.bndzInShellContextMenu)) {
+          const menuResult = await IPC.setInContextMenu(true);
+          if (!menuResult.success) return menuResult;
+        }
+        return IPC.setAsDefaultManager(checked);
+      },
+      checked ? 'make BNDZ the default file manager' : 'restore Windows Explorer as default',
+    );
+  };
 
   const [activeTab, setActiveTab] = useState("Shell Integration");
   const [navFilter, setNavFilter] = useState('');
@@ -1254,14 +1340,17 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
 
               <div className="ml-[8px] mb-8 space-y-[10px] mt-6">
                  <div>
-                    <Checkbox label={<span>BNDZ in shell <span className="underline decoration-1 underline-offset-[3px]">c</span>ontext menu</span>} checked={localConfig.inContextMenu ?? localConfig.bndzInShellContextMenu ?? false} onChange={e => updateLocalConfig({ inContextMenu: e.target.checked, bndzInShellContextMenu: e.target.checked })} />
+                    <Checkbox label={<span>BNDZ in shell <span className="underline decoration-1 underline-offset-[3px]">c</span>ontext menu</span>} checked={localConfig.inContextMenu ?? localConfig.bndzInShellContextMenu ?? false} onChange={e => handleContextMenuToggle(e.target.checked)} disabled={shellBusy} />
                     <p className="text-[12px] text-[#e0e0e0] mt-[2px] ml-[22px]">Adds the item "BNDZ" to the shell context menu for drives and directories.</p>
                  </div>
 
                  <div className="ml-[20px] pt-1">
-                    <Checkbox label={<span>BNDZ is <span className="underline decoration-1 underline-offset-[3px]">d</span>efault file manager</span>} checked={localConfig.isDefaultFileManager ?? localConfig.bndzIsDefaultFileManager ?? false} onChange={e => updateLocalConfig({ isDefaultFileManager: e.target.checked, bndzIsDefaultFileManager: e.target.checked })} disabled={!(localConfig.inContextMenu ?? localConfig.bndzInShellContextMenu)} />
-                    <p className={`text-[12px] mt-[2px] ml-[22px] ${!(localConfig.inContextMenu ?? localConfig.bndzInShellContextMenu) ? 'text-[#888]' : 'text-[#888]'}`}>Double-clicking drives or directories will open them in BNDZ.</p>
+                    <Checkbox label={<span>BNDZ is <span className="underline decoration-1 underline-offset-[3px]">d</span>efault file manager</span>} checked={localConfig.isDefaultFileManager ?? localConfig.bndzIsDefaultFileManager ?? false} onChange={e => handleDefaultFileManagerToggle(e.target.checked)} disabled={shellBusy} />
+                    <p className="text-[12px] mt-[2px] ml-[22px] text-[#888]">Double-clicking drives or directories will open them in BNDZ. Unchecking restores Windows Explorer.</p>
                  </div>
+                 {shellStatus && (
+                   <p className="text-[11px] ml-[22px] mt-2 text-sky-300/90">{shellStatus}</p>
+                 )}
               </div>
 
               <SectionHeader title="Drag and Drop" />

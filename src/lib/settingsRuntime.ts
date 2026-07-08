@@ -675,27 +675,7 @@ export function applySettingsRuntime(config: AppConfig): void {
 }
 
 export function applyBackendSettings(config: AppConfig): void {
-  import('./ipcBridge').then(({ IPC }) => {
-    if (!IPC.isNative) return;
-
-    if (config.clearThumbnailCacheOnExit) {
-      const handler = () => { IPC.clearIconCache(); };
-      window.removeEventListener('beforeunload', handler);
-      window.addEventListener('beforeunload', handler);
-    }
-
-    IPC.setAsDefaultManager(!!(config.isDefaultFileManager ?? config.bndzIsDefaultFileManager));
-    IPC.setInContextMenu(!!(config.inContextMenu ?? config.bndzInShellContextMenu));
-    IPC.setWin11MoreOptions(!!config.overrideWin11MoreOptions);
-
-    if (config.injectGlobalContextMenu && config.globalContextMenuActions?.length) {
-      IPC.updateGlobalContextMenu(config.globalContextMenuActions.map((a: any) => ({
-        id: a.id,
-        label: a.name || a.label,
-        command: a.command || '',
-        icon: a.icon || '',
-        targetMode: a.targetMode || 'all',
-      })));
-    }
+  import('./shellIntegrationRuntime').then(({ applyBackendSettings: applyShell }) => {
+    void applyShell(config);
   });
 }

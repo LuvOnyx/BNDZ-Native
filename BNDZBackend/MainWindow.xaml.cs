@@ -1752,27 +1752,49 @@ namespace BNDZ
                 }
                 else if (type == "SHELL_INTEGRATION")
                 {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var payload = root.GetProperty("payload");
                     string action = payload.GetProperty("action").GetString() ?? "";
-                    if (action == "setContextMenu")
+                    _ = Task.Run(() =>
                     {
-                        bool enable = payload.GetProperty("enable").GetBoolean();
-                        _shellIntegrationService.SetInContextMenu(enable);
-                    }
-                    else if (action == "setDefault")
-                    {
-                        bool enable = payload.GetProperty("enable").GetBoolean();
-                        _shellIntegrationService.SetAsDefaultFileManager(enable);
-                    }
-                    else if (action == "setWin11MoreOptions")
-                    {
-                        bool enable = payload.GetProperty("enable").GetBoolean();
-                        _shellIntegrationService.SetWin11MoreOptions(enable);
-                    }
-                    else if (action == "relaunchAdmin")
-                    {
-                        _shellIntegrationService.RelaunchAsAdministrator();
-                    }
+                        object resultPayload;
+                        switch (action)
+                        {
+                            case "setContextMenu":
+                            {
+                                bool enable = payload.GetProperty("enable").GetBoolean();
+                                resultPayload = _shellIntegrationService.SetInContextMenu(enable);
+                                break;
+                            }
+                            case "setDefault":
+                            {
+                                bool enable = payload.GetProperty("enable").GetBoolean();
+                                resultPayload = _shellIntegrationService.SetAsDefaultFileManager(enable);
+                                break;
+                            }
+                            case "setWin11MoreOptions":
+                            {
+                                bool enable = payload.GetProperty("enable").GetBoolean();
+                                resultPayload = _shellIntegrationService.SetWin11MoreOptions(enable);
+                                break;
+                            }
+                            case "relaunchAdmin":
+                                resultPayload = _shellIntegrationService.RelaunchAsAdministrator();
+                                break;
+                            case "isElevated":
+                                resultPayload = new { elevated = _shellIntegrationService.IsElevated() };
+                                break;
+                            default:
+                                resultPayload = new { success = false, message = $"Unknown shell action: {action}" };
+                                break;
+                        }
+
+                        var response = new { type = "SHELL_INTEGRATION_RESULT", id = idProp, payload = resultPayload };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => {
+                            MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                        });
+                    });
                 }
                 else if (type == "GET_ICON_LIBRARIES")
                 {

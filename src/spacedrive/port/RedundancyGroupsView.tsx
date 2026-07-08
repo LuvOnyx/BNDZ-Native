@@ -5,6 +5,7 @@
 import React from 'react';
 import { Icons8Icon } from '../../components/Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
+import { requestNativeConfirm } from '../../lib/nativeDialog';
 
 export type DuplicateGroup = {
   hash?: string;
@@ -61,8 +62,15 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
             onClick={() => {
               const victims = groups.flatMap(g => (g.paths || []).slice(1));
               if (!victims.length) return;
-              if (!window.confirm(`Delete ${victims.length} duplicate file(s) across all groups? The first copy in each group will be kept.`)) return;
-              void Promise.all(victims.map(p => IPC.executeContextMenuVerb(p, 'delete')));
+              void requestNativeConfirm({
+                title: 'Delete Duplicate Files',
+                message: `Delete ${victims.length} duplicate file(s) across all groups? The first copy in each group will be kept.`,
+                destructive: true,
+                confirmLabel: 'Delete duplicates',
+              }).then(ok => {
+                if (!ok) return;
+                void Promise.all(victims.map(p => IPC.executeContextMenuVerb(p, 'delete')));
+              });
             }}
             title="Delete all duplicates, keeping the first file in each group"
           >
@@ -98,8 +106,15 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                     className="text-[10px] text-red-400 hover:text-red-300 px-2 py-0.5 border border-red-900/50 hover:border-red-700"
                     onClick={() => {
                       const victims = paths.slice(1);
-                      if (!window.confirm(`Delete ${victims.length} duplicate file(s)? The first copy will be kept.`)) return;
-                      void Promise.all(victims.map(p => IPC.executeContextMenuVerb(p, 'delete')));
+                      void requestNativeConfirm({
+                        title: 'Delete Duplicates',
+                        message: `Delete ${victims.length} duplicate file(s)? The first copy will be kept.`,
+                        destructive: true,
+                        confirmLabel: 'Delete duplicates',
+                      }).then(ok => {
+                        if (!ok) return;
+                        void Promise.all(victims.map(p => IPC.executeContextMenuVerb(p, 'delete')));
+                      });
                     }}
                     title="Delete all but the first copy"
                   >
@@ -132,8 +147,15 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                         type="button"
                         className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400"
                         onClick={() => {
-                          if (!window.confirm(`Delete "${p.split(/[/\\]/).pop()}"?`)) return;
-                          void IPC.executeContextMenuVerb(p, 'delete');
+                          void requestNativeConfirm({
+                            title: 'Delete Duplicate',
+                            message: `Delete "${p.split(/[/\\]/).pop()}"?`,
+                            destructive: true,
+                            confirmLabel: 'Delete',
+                          }).then(ok => {
+                            if (!ok) return;
+                            void IPC.executeContextMenuVerb(p, 'delete');
+                          });
                         }}
                         title="Delete duplicate"
                       >

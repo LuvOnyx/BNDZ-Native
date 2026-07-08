@@ -356,9 +356,15 @@ export function IconStudioProvider({
             if (!ok) {
                 const hasIcons = paths.some(p => ICON_EXT.test(p));
                 if (!hasIcons) return;
-                const elevated = window.confirm(
-                    'Could not import dropped icons. BNDZ may need administrator rights to read files from protected locations.\n\nRestart as administrator?'
-                );
+                const elevated = await (async () => {
+                    const { requestNativeConfirm } = await import('../../../lib/nativeDialog');
+                    return requestNativeConfirm({
+                        title: 'Administrator approval required',
+                        message: 'Could not import dropped icons. BNDZ may need administrator rights to read files from protected locations.\n\nRestart as administrator?',
+                        type: 'warning',
+                        confirmLabel: 'Restart as administrator',
+                    });
+                })();
                 if (elevated) {
                     try { await IPC.relaunchAsAdmin(); } catch { /* native only */ }
                 }

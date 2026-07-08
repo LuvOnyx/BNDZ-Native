@@ -1,9 +1,9 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
-import { CloseGlyph } from './ChromeGlyphs';
 import { ShellNativeIcon } from './ShellNativeIcon';
 import { registerEscapeLayer } from '../lib/globalEscape';
+import { BndzNativeDialog } from './BndzNativeDialog';
+import { subscribeNativeConfirm, type NativeConfirmOptions } from '../lib/nativeDialog';
 
 export type ModalAction = {
   label: string;
@@ -25,16 +25,18 @@ export type ModalConfig = {
   actions: ModalAction[];
   conflict?: ConflictDetails;
   onConflictResolve?: (resolution: 'replace' | 'keepboth' | 'skip', applyToAll: boolean) => void;
-  /** Optional "Don't ask again" checkbox — calls onNeverShowAgain when primary action runs */
   neverShowAgain?: {
     label?: string;
     onConfirm: () => void;
   };
 };
 
+type ConfirmOptions = NativeConfirmOptions;
+
 type ModalContextValue = {
   showModal: (config: ModalConfig) => void;
   closeModal: () => void;
+  confirm: (options: ConfirmOptions) => Promise<boolean>;
 };
 
 const ModalContext = createContext<ModalContextValue | null>(null);
@@ -56,94 +58,56 @@ function FileConflictModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[500] flex items-center justify-center p-4"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    <BndzNativeDialog
+      open
+      title={config.title}
+      subtitle="Choose what to do with this file."
+      tone="conflict"
+      onClose={onClose}
+      buttons={[
+        { label: 'Cancel', style: 'secondary', onClick: onClose },
+        { label: 'Skip', style: 'secondary', onClick: () => resolve('skip') },
+        { label: 'Keep both', style: 'secondary', onClick: () => resolve('keepboth') },
+        { label: 'Replace', style: 'primary', onClick: () => resolve('replace') },
+      ]}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
-      <div
-        className="relative w-full max-w-[520px] rounded-[var(--bndz-radius-lg)] border border-white/10 shadow-2xl overflow-hidden bg-[#16181f]"
-        role="dialog"
-        aria-modal="true"
-        onMouseDown={e => e.stopPropagation()}
-      >
-        <div className="flex items-start gap-3 px-5 py-4 border-b border-white/[0.08] bg-[#1a1d26]">
-          <div className="w-9 h-9 rounded-[var(--bndz-radius-md)] bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
-            <Icons8Icon id="warning" size={20} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[14px] font-semibold text-white">{config.title}</h2>
-            <p className="text-[11px] text-white/45 mt-0.5">Choose what to do with this file.</p>
-          </div>
-          <button type="button" onClick={onClose} className="p-1 rounded-[var(--bndz-radius-sm)] text-white/45 hover:text-white hover:bg-white/10" aria-label="Close">
-            <CloseGlyph size={14} />
-          </button>
-        </div>
-
-        <div className="px-5 py-4 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="flex items-center gap-2.5 rounded-[var(--bndz-radius-md)] border border-white/[0.08] bg-black/25 px-3 py-2.5 min-w-0">
-              <ShellNativeIcon path={c.sourcePath || c.fileName} size={22} eager />
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] uppercase tracking-wide text-white/35">Source</div>
-                <div className="text-[12px] font-medium text-white/90 truncate">{c.fileName}</div>
-                {c.sourcePath && <div className="text-[10px] text-white/40 truncate">{c.sourcePath}</div>}
-              </div>
-            </div>
-            <div className="flex items-center gap-2.5 rounded-[var(--bndz-radius-md)] border border-white/[0.08] bg-black/25 px-3 py-2.5 min-w-0">
-              <ShellNativeIcon path={c.destPath || c.fileName} size={22} eager />
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] uppercase tracking-wide text-white/35">Destination</div>
-                <div className="text-[12px] font-medium text-white/90 truncate">{c.fileName}</div>
-                <div className="text-[10px] text-white/40 truncate">{destFolder}</div>
-              </div>
+      <div className="space-y-3 -mt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="bndz-native-dialog-panel flex items-center gap-2.5 px-3 py-2.5 min-w-0">
+            <ShellNativeIcon path={c.sourcePath || c.fileName} size={22} eager />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wide bndz-native-dialog-muted">Source</div>
+              <div className="text-[12px] font-medium truncate">{c.fileName}</div>
+              {c.sourcePath && <div className="text-[10px] bndz-native-dialog-muted truncate">{c.sourcePath}</div>}
             </div>
           </div>
-
-          <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={applyToAll}
-              onChange={e => setApplyToAll(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-white/20 bg-black/30 accent-sky-500"
-            />
-            <span className="text-[11px] text-white/55">Apply to all conflicts in this operation</span>
-          </label>
+          <div className="bndz-native-dialog-panel flex items-center gap-2.5 px-3 py-2.5 min-w-0">
+            <ShellNativeIcon path={c.destPath || c.fileName} size={22} eager />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wide bndz-native-dialog-muted">Destination</div>
+              <div className="text-[12px] font-medium truncate">{c.fileName}</div>
+              <div className="text-[10px] bndz-native-dialog-muted truncate">{destFolder}</div>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-[#141418] px-5 py-3.5 flex flex-wrap justify-end gap-2 border-t border-white/5">
-          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-[#2a2a30] hover:bg-[#35353d] text-gray-200 border border-[#444]" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-[#2a2a30] hover:bg-[#35353d] text-gray-200 border border-[#444]" onClick={() => resolve('skip')}>
-            Skip
-          </button>
-          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-[#2a2a30] hover:bg-[#35353d] text-gray-200 border border-[#444]" onClick={() => resolve('keepboth')}>
-            Keep both
-          </button>
-          <button type="button" className="px-4 py-1.5 rounded-[var(--bndz-radius-md)] text-[12px] font-semibold bg-sky-600 hover:bg-sky-500 text-white" onClick={() => resolve('replace')}>
-            Replace
-          </button>
-        </div>
+        <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={applyToAll}
+            onChange={e => setApplyToAll(e.target.checked)}
+            className="accent-[var(--accent,#0ea5e9)]"
+          />
+          <span className="text-[11px] bndz-native-dialog-muted">Apply to all conflicts in this operation</span>
+        </label>
       </div>
-    </div>
+    </BndzNativeDialog>
   );
 }
 
 function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () => void }) {
   const type = config.type || 'info';
   const [neverAgain, setNeverAgain] = useState(false);
-  const headerGradient =
-    type === 'destructive' ? 'from-rose-600/90 via-red-700/80 to-rose-900/90' :
-    type === 'conflict' ? 'from-amber-600/90 via-orange-700/80 to-amber-900/90' :
-    type === 'warning' ? 'from-yellow-600/80 via-amber-700/70 to-yellow-900/80' :
-    'from-sky-600/90 via-indigo-700/80 to-violet-900/90';
-
-  const iconId =
-    type === 'destructive' ? 'delete' :
-    type === 'conflict' ? 'copy' :
-    type === 'warning' ? 'warning' :
-    'help_ui';
 
   const runAction = (action: ModalAction, isPrimary: boolean) => {
     if (isPrimary && neverAgain && config.neverShowAgain) {
@@ -153,91 +117,84 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
     try { void action.action(); } catch { /* noop */ }
   };
 
+  const buttons = config.actions.map((action, i) => {
+    const style = action.style || (i === 0 ? 'primary' : 'secondary');
+    const isPrimary = style === 'primary' || style === 'destructive';
+    return {
+      label: action.label,
+      style,
+      onClick: () => runAction(action, isPrimary),
+    };
+  });
+
   return (
-    <div
-      className="fixed inset-0 z-[500] flex items-center justify-center p-4"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    <BndzNativeDialog
+      open
+      title={config.title}
+      subtitle="BNDZ"
+      tone={type === 'destructive' ? 'destructive' : type === 'warning' ? 'warning' : type === 'conflict' ? 'conflict' : 'info'}
+      message={config.message}
+      onClose={onClose}
+      buttons={buttons}
     >
-      <div className="absolute inset-0 bg-black/65 backdrop-blur-[3px]" />
-      <div
-        className="relative w-full max-w-[480px] rounded-xl border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-        onMouseDown={e => e.stopPropagation()}
-      >
-        <div className={`px-5 py-4 bg-gradient-to-r ${headerGradient} flex items-start gap-3`}>
-          <div className="w-10 h-10 rounded-lg bg-black/25 flex items-center justify-center shrink-0">
-            <Icons8Icon id={iconId} size={20} />
-          </div>
-          <div className="flex-1 min-w-0 pt-0.5">
-            <h2 className="text-[15px] font-bold text-white tracking-tight">{config.title}</h2>
-            <p className="text-[11px] text-white/70 mt-0.5">BNDZ</p>
-          </div>
-          <button
-            type="button"
-            className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <CloseGlyph size={14} />
-          </button>
-        </div>
-
-        <div className="bg-[#1a1a1e] px-5 py-4">
-          <p className="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap">{config.message}</p>
-          {config.neverShowAgain && (
-            <label className="mt-4 flex items-center gap-2.5 cursor-pointer select-none group">
-              <input
-                type="checkbox"
-                checked={neverAgain}
-                onChange={e => setNeverAgain(e.target.checked)}
-                className="w-3.5 h-3.5 rounded border-[#555] bg-[#252528] accent-sky-500"
-              />
-              <span className="text-[12px] text-gray-400 group-hover:text-gray-300 transition-colors">
-                {config.neverShowAgain.label || "Don't ask again"}
-              </span>
-            </label>
-          )}
-        </div>
-
-        <div className="bg-[#141418] px-5 py-3.5 flex flex-wrap justify-end gap-2 border-t border-white/5">
-          {config.actions.map((action, i) => {
-            const style = action.style || (i === 0 ? 'primary' : 'secondary');
-            const cls =
-              style === 'destructive'
-                ? 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white shadow-lg shadow-rose-900/30'
-                : style === 'primary'
-                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-lg shadow-sky-900/25'
-                : 'bg-[#2a2a30] hover:bg-[#35353d] text-gray-200 border border-[#444]';
-            const isPrimary = style === 'primary' || style === 'destructive';
-            return (
-              <button
-                key={i}
-                type="button"
-                className={`px-4 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${cls}`}
-                onMouseDown={e => { e.preventDefault(); runAction(action, isPrimary); }}
-              >
-                {action.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+      {config.neverShowAgain && (
+        <label className="mt-4 flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={neverAgain}
+            onChange={e => setNeverAgain(e.target.checked)}
+            className="accent-[var(--accent,#0ea5e9)]"
+          />
+          <span className="text-[12px] bndz-native-dialog-muted">
+            {config.neverShowAgain.label || "Don't ask again"}
+          </span>
+        </label>
+      )}
+    </BndzNativeDialog>
   );
 }
 
 export default function ModalProvider({ children }: { children: React.ReactNode }) {
   const [modal, setModal] = useState<ModalConfig | null>(null);
+  const confirmQueueRef = useRef<((value: boolean) => void) | null>(null);
 
   const closeModal = useCallback(() => setModal(null), []);
   const showModal = useCallback((config: ModalConfig) => setModal(config), []);
+
+  const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
+    return new Promise(resolve => {
+      confirmQueueRef.current = resolve;
+      setModal({
+        type: options.destructive ? 'destructive' : options.type || 'warning',
+        title: options.title,
+        message: options.message,
+        actions: [
+          {
+            label: options.confirmLabel || 'Continue',
+            style: options.destructive ? 'destructive' : 'primary',
+            action: () => resolve(true),
+          },
+          {
+            label: options.cancelLabel || 'Cancel',
+            style: 'secondary',
+            action: () => resolve(false),
+          },
+        ],
+      });
+    });
+  }, []);
 
   useEffect(() => registerEscapeLayer({
     id: 'modal',
     priority: 1000,
     isActive: () => !!modal,
-    dismiss: closeModal,
+    dismiss: () => {
+      if (confirmQueueRef.current) {
+        confirmQueueRef.current(false);
+        confirmQueueRef.current = null;
+      }
+      closeModal();
+    },
   }), [modal, closeModal]);
 
   useEffect(() => {
@@ -245,6 +202,10 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (confirmQueueRef.current) {
+          confirmQueueRef.current(false);
+          confirmQueueRef.current = null;
+        }
         closeModal();
       }
     };
@@ -252,14 +213,34 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
     return () => window.removeEventListener('keydown', onKey);
   }, [modal, closeModal]);
 
+  useEffect(() => {
+    return subscribeNativeConfirm(request => {
+      confirm({
+        title: request.title,
+        message: request.message,
+        type: request.type,
+        confirmLabel: request.confirmLabel,
+        cancelLabel: request.cancelLabel,
+        destructive: request.destructive,
+      }).then(request.resolve);
+    });
+  }, [confirm]);
+
+  const handleClose = useCallback(() => {
+    if (confirmQueueRef.current) {
+      confirmQueueRef.current(false);
+      confirmQueueRef.current = null;
+    }
+    closeModal();
+  }, [closeModal]);
+
   return (
-    <ModalContext.Provider value={{ showModal, closeModal }}>
+    <ModalContext.Provider value={{ showModal, closeModal, confirm }}>
       {children}
-      {modal && typeof document !== 'undefined' && createPortal(
+      {modal && (
         modal.type === 'conflict' && modal.conflict
-          ? <FileConflictModal config={modal} onClose={closeModal} />
-          : <ConfirmModal config={modal} onClose={closeModal} />,
-        document.body
+          ? <FileConflictModal config={modal} onClose={handleClose} />
+          : <ConfirmModal config={modal} onClose={handleClose} />
       )}
     </ModalContext.Provider>
   );

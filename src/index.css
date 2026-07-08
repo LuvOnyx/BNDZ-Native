@@ -1567,51 +1567,108 @@ html[data-theme] .bndz-destination-picker-footer {
   background: var(--menu-border, #454545);
 }
 
+
+.bndz-native-dialog,
 .bndz-quit-dialog {
   background: linear-gradient(165deg, var(--surface, #1c1c24) 0%, var(--bg, #121218) 100%);
   border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.1));
   color: var(--text, #f3f4f6);
 }
 
+.bndz-native-dialog-header,
 .bndz-quit-dialog-header {
   border-bottom: 1px solid var(--menu-border, rgba(255, 255, 255, 0.08));
   background: rgba(255, 255, 255, 0.02);
 }
 
+.bndz-native-dialog-muted,
 .bndz-quit-dialog-muted {
   color: var(--menu-muted, rgba(255, 255, 255, 0.62));
 }
 
+.bndz-native-dialog-footer,
 .bndz-quit-dialog-footer {
   border-top: 1px solid var(--menu-border, rgba(255, 255, 255, 0.08));
   background: rgba(0, 0, 0, 0.15);
 }
 
+.bndz-native-dialog-cancel,
 .bndz-quit-dialog-cancel {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text, #e5e7eb);
 }
 
+.bndz-native-dialog-cancel:hover,
 .bndz-quit-dialog-cancel:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.bndz-native-dialog-primary,
 .bndz-quit-dialog-confirm {
   background: var(--accent, #0ea5e9);
   color: #fff;
 }
 
+.bndz-native-dialog-primary:hover,
 .bndz-quit-dialog-confirm:hover {
   filter: brightness(1.08);
 }
 
+.bndz-native-dialog-destructive {
+  background: #dc2626;
+  color: #fff;
+}
+
+.bndz-native-dialog-destructive:hover {
+  filter: brightness(1.08);
+}
+
+.bndz-native-dialog-icon-btn,
 .bndz-quit-dialog-icon-btn {
   color: var(--menu-muted, rgba(255, 255, 255, 0.55));
 }
 
+.bndz-native-dialog-icon-btn:hover,
 .bndz-quit-dialog-icon-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text, #fff);
+}
+
+.bndz-native-dialog-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bndz-native-dialog-icon--info {
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(14, 165, 233, 0.2);
+}
+
+.bndz-native-dialog-icon--warning,
+.bndz-native-dialog-icon--conflict {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.22);
+}
+
+.bndz-native-dialog-icon--destructive {
+  color: #fca5a5;
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.22);
+}
+
+.bndz-native-dialog-panel {
+  border-radius: var(--bndz-radius-md, 0.5rem);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .bndz-themes-section-title {

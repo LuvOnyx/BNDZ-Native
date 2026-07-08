@@ -288,7 +288,7 @@ function InlineRenameInput({
 }
 
 export default function BNDZUI() {
-  const { showModal } = useModal();
+  const { showModal, confirm } = useModal();
   const { clipboard, setClipboardState, executePaste } = useClipboard();
   const { config, updateConfig } = useAppConfig();
   const keyboardMap = useMemo(() => buildSettingsRuntime(config).keyboard, [config]);
@@ -2479,7 +2479,13 @@ export default function BNDZUI() {
         ? (sources[0].split(/[/\\]/).pop() || 'item')
         : `${sources.length} items`;
       const verb = mode === 'copy' ? 'Copy' : 'Move';
-      if (!window.confirm(`${verb} ${label} to ${dest}?`)) return;
+      const approved = await confirm({
+        title: `${verb} ${sources.length === 1 ? 'Item' : 'Items'}`,
+        message: `${verb} ${label} to ${dest}?`,
+        type: 'warning',
+        confirmLabel: verb,
+      });
+      if (!approved) return;
     }
     const { IPC } = await import('../lib/ipcBridge');
     const opId = `${mode}-${Date.now()}`;
@@ -2718,14 +2724,20 @@ export default function BNDZUI() {
     }));
   };
 
-  const closeTabAt = (paneId: string, tabIndex: number, e?: React.MouseEvent) => {
+  const closeTabAt = async (paneId: string, tabIndex: number, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const pane = panes.find(p => p.id === paneId);
     const tab = pane?.tabs[tabIndex];
     if (!pane || !tab || pane.tabs.length <= 1) return;
     if (tab.locked) {
       if (config.promptOnClosingALockedTab) {
-        if (!window.confirm(`"${getPaneTabLabel(tab.path)}" is locked. Close anyway?`)) return;
+        const approved = await confirm({
+          title: 'Close Locked Tab',
+          message: `"${getPaneTabLabel(tab.path)}" is locked. Close anyway?`,
+          type: 'warning',
+          confirmLabel: 'Close tab',
+        });
+        if (!approved) return;
       } else {
         return;
       }
@@ -2747,56 +2759,92 @@ export default function BNDZUI() {
     animateTabClose(tab.id, commitClose);
   };
 
-  const closeOtherTabs = (paneId: string, keepIndex: number) => {
-    setPanes(prev => prev.map(p => {
-      if (p.id !== paneId) return p;
-      const kept = p.tabs[keepIndex];
-      if (!kept) return p;
-      const lockedOthers = p.tabs.filter((t, i) => i !== keepIndex && t.locked);
-      if (lockedOthers.length > 0 && config.promptOnClosingALockedTab) {
-        if (!window.confirm(`Close ${lockedOthers.length} locked tab(s) as well?`)) {
-          return { ...p, tabs: [kept, ...lockedOthers], activeTabIndex: 0 };
-        }
+  const closeOtherTabs = async (paneId: string, keepIndex: number) => {
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return;
+    const kept = pane.tabs[keepIndex];
+    if (!kept) return;
+    const lockedOthers = pane.tabs.filter((t, i) => i !== keepIndex && t.locked);
+    if (lockedOthers.length > 0 && config.promptOnClosingALockedTab) {
+      const approved = await confirm({
+        title: 'Close Locked Tabs',
+        message: `Close ${lockedOthers.length} locked tab(s) as well?`,
+        type: 'warning',
+        confirmLabel: 'Close all',
+      });
+      if (!approved) {
+        setPanes(prev => prev.map(p => (
+          p.id !== paneId ? p : { ...p, tabs: [kept, ...lockedOthers], activeTabIndex: 0 }
+        )));
+        setTabContextMenu(null);
+        return;
       }
-      return { ...p, tabs: [kept], activeTabIndex: 0 };
-    }));
+    }
+    setPanes(prev => prev.map(p => (
+      p.id !== paneId ? p : { ...p, tabs: [kept], activeTabIndex: 0 }
+    )));
     setTabContextMenu(null);
   };
 
-  const closeTabsToRight = (paneId: string, fromIndex: number) => {
+  const closeTabsToRight = async (paneId: string, fromIndex: number) => {
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return;
+    const closing = pane.tabs.slice(fromIndex + 1);
+    if (!closing.length) return;
+    const keep = pane.tabs.slice(0, fromIndex + 1);
+    const lockedClosing = closing.filter(t => t.locked);
+    if (lockedClosing.length > 0 && config.promptOnClosingALockedTab) {
+      const approved = await confirm({
+        title: 'Close Locked Tabs',
+        message: `Close ${lockedClosing.length} locked tab(s) to the right as well?`,
+        type: 'warning',
+        confirmLabel: 'Close tabs',
+      });
+      if (!approved) {
+        setPanes(prev => prev.map(p => (
+          p.id !== paneId
+            ? p
+            : {
+              ...p,
+              tabs: [...keep, ...lockedClosing],
+              activeTabIndex: Math.min(p.activeTabIndex, keep.length + lockedClosing.length - 1),
+            }
+        )));
+        setTabContextMenu(null);
+        return;
+      }
+    }
     setPanes(prev => prev.map(p => {
       if (p.id !== paneId) return p;
-      const closing = p.tabs.slice(fromIndex + 1);
-      if (!closing.length) return p;
-      const keep = p.tabs.slice(0, fromIndex + 1);
-      const lockedClosing = closing.filter(t => t.locked);
-      if (lockedClosing.length > 0 && config.promptOnClosingALockedTab) {
-        if (!window.confirm(`Close ${lockedClosing.length} locked tab(s) to the right as well?`)) {
-          return {
-            ...p,
-            tabs: [...keep, ...lockedClosing],
-            activeTabIndex: Math.min(p.activeTabIndex, keep.length + lockedClosing.length - 1),
-          };
-        }
-      }
       const newActive = p.activeTabIndex > fromIndex ? fromIndex : p.activeTabIndex;
       return { ...p, tabs: keep, activeTabIndex: newActive };
     }));
     setTabContextMenu(null);
   };
 
-  const closeAllTabs = (paneId: string) => {
-    setPanes(prev => prev.map(p => {
-      if (p.id !== paneId) return p;
-      const locked = p.tabs.filter(t => t.locked);
-      if (locked.length === p.tabs.length) return p;
-      if (locked.length > 0 && config.promptOnClosingALockedTab) {
-        if (!window.confirm(`Keep ${locked.length} locked tab(s) and close the rest?`)) return p;
-        return { ...p, tabs: locked, activeTabIndex: 0 };
-      }
-      const fallback = p.tabs[p.activeTabIndex] || p.tabs[0];
-      return { ...p, tabs: [{ ...fallback, locked: false }], activeTabIndex: 0 };
-    }));
+  const closeAllTabs = async (paneId: string) => {
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return;
+    const locked = pane.tabs.filter(t => t.locked);
+    if (locked.length === pane.tabs.length) return;
+    if (locked.length > 0 && config.promptOnClosingALockedTab) {
+      const approved = await confirm({
+        title: 'Close Tabs',
+        message: `Keep ${locked.length} locked tab(s) and close the rest?`,
+        type: 'warning',
+        confirmLabel: 'Close others',
+      });
+      if (!approved) return;
+      setPanes(prev => prev.map(p => (
+        p.id !== paneId ? p : { ...p, tabs: locked, activeTabIndex: 0 }
+      )));
+      setTabContextMenu(null);
+      return;
+    }
+    const fallback = pane.tabs[pane.activeTabIndex] || pane.tabs[0];
+    setPanes(prev => prev.map(p => (
+      p.id !== paneId ? p : { ...p, tabs: [{ ...fallback, locked: false }], activeTabIndex: 0 }
+    )));
     setTabContextMenu(null);
   };
 
@@ -4136,13 +4184,19 @@ export default function BNDZUI() {
         const op = (payloadCopy || dropModifierRef.current.copy || e.ctrlKey || e.altKey) ? 'copy' : 'move';
         const shellRt = settingsRt.shell;
 
-        const runDrop = (sourcePaths: string[], sourcePath?: string) => {
+        const runDrop = async (sourcePaths: string[], sourcePath?: string) => {
           if (shellRt.confirmDrag) {
             const label = sourcePaths.length === 1
               ? (sourcePaths[0].split(/[/\\]/).pop() || 'item')
               : `${sourcePaths.length} items`;
             const verb = op === 'copy' ? 'Copy' : 'Move';
-            if (!window.confirm(`${verb} ${label} to ${destPath}?`)) return;
+            const approved = await confirm({
+              title: `${verb} ${sourcePaths.length === 1 ? 'Item' : 'Items'}`,
+              message: `${verb} ${label} to ${destPath}?`,
+              type: 'warning',
+              confirmLabel: verb,
+            });
+            if (!approved) return;
           }
           executeInternalDrop(op, sourcePaths, destWin, sourcePath);
         };
@@ -6848,7 +6902,7 @@ export default function BNDZUI() {
                       onGliderCopy={(path) => setClipboardState([path], 'copy')}
                       onGliderMove={(path) => setClipboardState([path], 'cut')}
                       onGliderPaste={(path) => void executePaste(path)}
-                      onFileDrop={(payload, destPath, op) => {
+                      onFileDrop={async (payload, destPath, op) => {
                         const destWin = toWindowsPath(destPath);
                         const sourcePaths = payload.paths.map(p => toWindowsPath(p));
                         const shellRt = settingsRt.shell;
@@ -6857,7 +6911,13 @@ export default function BNDZUI() {
                             ? (sourcePaths[0].split(/[/\\]/).pop() || 'item')
                             : `${sourcePaths.length} items`;
                           const verb = op === 'copy' ? 'Copy' : 'Move';
-                          if (!window.confirm(`${verb} ${label} to ${destPath}?`)) return;
+                          const approved = await confirm({
+                            title: `${verb} ${sourcePaths.length === 1 ? 'Item' : 'Items'}`,
+                            message: `${verb} ${label} to ${destPath}?`,
+                            type: 'warning',
+                            confirmLabel: verb,
+                          });
+                          if (!approved) return;
                         }
                         executeInternalDrop(op, sourcePaths, destWin, payload.sourcePath);
                       }}

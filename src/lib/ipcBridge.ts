@@ -33,6 +33,12 @@ export interface ShareMenuItem {
   separator?: boolean;
 }
 
+export interface ShellIntegrationResult {
+  success: boolean;
+  message: string;
+  needsElevation?: boolean;
+}
+
 function _parseWebViewMessage(raw: unknown): any {
   if (raw == null) return null;
   if (typeof raw === 'string') {
@@ -861,40 +867,50 @@ export const IPC = {
     ];
   },
 
-  setAsDefaultManager(enable: boolean) {
+  setAsDefaultManager(enable: boolean): Promise<ShellIntegrationResult> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({
-        type: 'SHELL_INTEGRATION',
-        payload: { action: 'setDefault', enable }
-      });
+      const id = `${Date.now()}_setDefault`;
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setDefault', enable })
+        .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
+    return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
   },
 
-  setInContextMenu(enable: boolean) {
+  setInContextMenu(enable: boolean): Promise<ShellIntegrationResult> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({
-        type: 'SHELL_INTEGRATION',
-        payload: { action: 'setContextMenu', enable }
-      });
+      const id = `${Date.now()}_setContextMenu`;
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setContextMenu', enable })
+        .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
+    return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
   },
 
-  setWin11MoreOptions(enable: boolean) {
+  setWin11MoreOptions(enable: boolean): Promise<ShellIntegrationResult> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({
-        type: 'SHELL_INTEGRATION',
-        payload: { action: 'setWin11MoreOptions', enable }
-      });
+      const id = `${Date.now()}_setWin11`;
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setWin11MoreOptions', enable })
+        .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
+    return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
   },
 
-  relaunchAsAdmin() {
+  isElevated(): Promise<boolean> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({
-        type: 'SHELL_INTEGRATION',
-        payload: { action: 'relaunchAdmin' }
-      });
+      const id = `${Date.now()}_elevated`;
+      return _nativeCall<{ elevated?: boolean }>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'isElevated' })
+        .then(r => !!r?.elevated)
+        .catch(() => false);
     }
+    return Promise.resolve(false);
+  },
+
+  relaunchAsAdmin(): Promise<ShellIntegrationResult> {
+    if (this.isNative) {
+      const id = `${Date.now()}_relaunchAdmin`;
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'relaunchAdmin' })
+        .then(r => r ?? { success: false, message: 'No response from shell integration.' });
+    }
+    return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
   },
 
   saveSettings(settings: any) {
