@@ -4,6 +4,13 @@ import { Icons8Icon } from '../Icons8Icon';
 import { CloseGlyph } from '../ChromeGlyphs';
 import { IPC } from '../../lib/ipcBridge';
 import {
+  PluginToolbarButton,
+  PluginSectionTitle,
+  PluginCard,
+  PluginFieldLabel,
+  PLUGIN_SELECT_CLASS,
+} from './PluginPanelPrimitives';
+import {
   ORGANIZE_BUCKETS,
   buildDuplicateCleanupPreview,
   buildOrganizePlan,
@@ -228,8 +235,8 @@ export default function StorageCleanupWizard({
           <Icons8Icon id={headerIconId} size={18} />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-[14px] font-bold text-white tracking-tight">{title}</h2>
-          <p className="text-[10px] text-gray-500 mt-0.5">
+          <h2 className="text-sm font-semibold text-white tracking-tight">{title}</h2>
+          <p className="text-xs bndz-panel-muted mt-0.5">
             {stepLabel(step, mode)} · Step {Math.min(stepIndex + 1, 3)} of 3
           </p>
         </div>
@@ -252,8 +259,8 @@ export default function StorageCleanupWizard({
           return (
             <React.Fragment key={s}>
               {i > 0 && <Icons8Icon id="chevron_right" size={12} className="text-gray-700 shrink-0" />}
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-                active ? 'bg-white/10 text-white' : done ? 'text-emerald-500/80' : 'text-gray-600'
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${
+                active ? 'bg-white/10 text-white' : done ? 'text-emerald-500/80' : 'bndz-panel-muted'
               }`}>
                 {done && !active ? <Icons8Icon id="check" size={11} /> : <span className="w-4 text-center">{i + 1}</span>}
                 {stepLabel(s, mode)}
@@ -267,74 +274,57 @@ export default function StorageCleanupWizard({
       <div className="flex-1 overflow-y-auto bndz-scrollbar p-5">
         <AnimatePresence mode="wait">
           {step === 'folder' && (
-            <motion.div key="folder" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-xl mx-auto space-y-5">
-              <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#14141a] to-[#0e0e14] p-6">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-4">
-                  <Icons8Icon id="pin_ui" size={13} />
-                  Target folder
-                </div>
-                <div className="rounded-xl border border-white/[0.06] bg-black/40 px-4 py-3 font-mono text-[12px] text-gray-300 min-h-[44px] flex items-center break-all">
-                  {folderWin || <span className="text-gray-600 italic">No folder selected</span>}
+            <motion.div key="folder" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-xl mx-auto space-y-4">
+              <PluginCard>
+                <PluginSectionTitle icon="pin_ui">Target folder</PluginSectionTitle>
+                <div className="rounded-md border border-white/[0.06] bg-black/40 px-4 py-3 bndz-mono text-xs text-gray-300 min-h-[44px] flex items-center break-all">
+                  {folderWin || <span className="bndz-panel-muted italic">No folder selected</span>}
                 </div>
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => void pickFolder()}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all"
-                    style={{ background: `${accent}22`, border: `1px solid ${accent}44`, color: accent }}
-                  >
-                    <Icons8Icon id="folder_open_ui" size={14} />
-                    Browse…
-                  </button>
+                  <PluginToolbarButton icon="folder_open_ui" onClick={() => void pickFolder()}>Browse…</PluginToolbarButton>
                   {initialFolderPanePath && (
-                    <button
-                      type="button"
-                      onClick={useCurrentFolder}
-                      className="px-4 py-2.5 rounded-xl border border-white/10 bg-white/[0.04] text-gray-300 text-[11px] font-bold uppercase tracking-wider hover:bg-white/[0.08] transition-all"
-                    >
-                      Use current folder
-                    </button>
+                    <PluginToolbarButton onClick={useCurrentFolder}>Use current folder</PluginToolbarButton>
                   )}
                 </div>
-              </div>
+              </PluginCard>
 
               {mode === 'cleanup' && (
-                <div className="rounded-2xl border border-violet-500/20 bg-violet-950/10 p-4 space-y-3">
-                  <div className="text-[11px] font-bold text-violet-300 uppercase tracking-wider">Scan options</div>
-                  <label className="flex items-center gap-2 text-[12px] text-gray-400 cursor-pointer">
+                <PluginCard className="border-violet-500/20 bg-violet-950/10 space-y-3">
+                  <PluginSectionTitle>Scan options</PluginSectionTitle>
+                  <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
                     <input type="checkbox" checked={dupRecursive} onChange={e => setDupRecursive(e.target.checked)} className="accent-violet-500 rounded" />
                     Include subfolders
                   </label>
-                  <label className="flex items-center gap-2 text-[12px] text-gray-400">
-                    Minimum file size
-                    <select value={dupMinKb} onChange={e => setDupMinKb(Number(e.target.value))} className="bg-[#1a1a22] border border-[#333] rounded-lg px-2 py-1 text-[11px] text-gray-300 outline-none">
+                  <div>
+                    <PluginFieldLabel>Minimum file size</PluginFieldLabel>
+                    <select value={dupMinKb} onChange={e => setDupMinKb(Number(e.target.value))} className={PLUGIN_SELECT_CLASS}>
                       {[1, 4, 16, 64, 256, 1024].map(k => <option key={k} value={k}>{k} KB</option>)}
                     </select>
-                  </label>
-                  <label className="flex items-center gap-2 text-[12px] text-gray-400">
-                    Keep rule
-                    <select value={dupKeepRule} onChange={e => setDupKeepRule(e.target.value as DupKeepRule)} className="bg-[#1a1a22] border border-[#333] rounded-lg px-2 py-1 text-[11px] text-gray-300 outline-none">
+                  </div>
+                  <div>
+                    <PluginFieldLabel>Keep rule</PluginFieldLabel>
+                    <select value={dupKeepRule} onChange={e => setDupKeepRule(e.target.value as DupKeepRule)} className={PLUGIN_SELECT_CLASS}>
                       <option value="first">First in group</option>
                       <option value="newest">Newest path</option>
                       <option value="oldest">Oldest path</option>
                       <option value="shortest">Shortest path</option>
                     </select>
-                  </label>
-                </div>
+                  </div>
+                </PluginCard>
               )}
 
               {mode === 'organize' && (
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 p-4">
-                  <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider mb-2">Categories</div>
-                  <div className="flex flex-wrap gap-2">
+                <PluginCard className="border-emerald-500/20 bg-emerald-950/10">
+                  <PluginSectionTitle>Categories</PluginSectionTitle>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
                     {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: '📁' }]]).map(([bucket, cfg]) => (
-                      <span key={bucket} className="px-2.5 py-1 rounded-full text-[10px] font-medium border border-white/[0.06]" style={{ color: cfg.color, background: `${cfg.color}12` }}>
+                      <span key={bucket} className="bndz-plugin-kind-pill border border-white/[0.06]" style={{ color: cfg.color, background: `${cfg.color}12` }}>
                         {cfg.icon} {bucket}
                       </span>
                     ))}
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-3">Only loose files in the selected folder are moved. Subfolders are not modified.</p>
-                </div>
+                  <p className="text-xs bndz-panel-muted">Only loose files in the selected folder are moved. Subfolders are not modified.</p>
+                </PluginCard>
               )}
 
               {analyzeError && (
@@ -447,54 +437,40 @@ export default function StorageCleanupWizard({
 
       {/* Footer actions */}
       <div className="shrink-0 px-5 py-4 border-t border-white/[0.06] flex items-center justify-between gap-3 bg-[#0a0a0e]">
-        <button
-          type="button"
+        <PluginToolbarButton
+          icon="chevron_left"
           onClick={() => {
             if (step === 'preview') setStep('folder');
-            else if (step === 'done') onClose();
             else onClose();
           }}
           disabled={executing || analyzing}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-gray-400 text-[11px] font-bold uppercase tracking-wider hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-40"
         >
-          <Icons8Icon id="chevron_left" size={13} />
           {step === 'preview' ? 'Back' : step === 'done' ? 'Close' : 'Cancel'}
-        </button>
+        </PluginToolbarButton>
 
         <div className="flex gap-2">
           {step === 'folder' && (
-            <button
-              type="button"
+            <PluginToolbarButton
+              icon={analyzing ? 'loading' : 'arrow_right_ui'}
               onClick={() => void runAnalyze()}
               disabled={!folderWin || analyzing}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-white transition-all disabled:opacity-40"
-              style={{ background: `linear-gradient(135deg, ${accent}cc, ${accent}88)` }}
+              active
             >
-              {analyzing ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="arrow_right_ui" size={14} />}
               Continue
-            </button>
+            </PluginToolbarButton>
           )}
           {step === 'preview' && (
-            <button
-              type="button"
+            <PluginToolbarButton
+              icon={executing ? 'loading' : mode === 'cleanup' ? 'trash_ui' : 'check'}
               onClick={handleConfirm}
               disabled={executing}
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-white transition-all disabled:opacity-40 ${
-                mode === 'cleanup' ? 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500' : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500'
-              }`}
+              active
             >
-              {executing ? <Icons8Icon id="loading" size={14} spin /> : mode === 'cleanup' ? <Icons8Icon id="trash_ui" size={14} /> : <Icons8Icon id="check" size={14} />}
               {executing ? 'Working…' : mode === 'cleanup' ? `Delete ${totalDeleteCount} duplicates` : `Organize ${organizePlan.length} files`}
-            </button>
+            </PluginToolbarButton>
           )}
           {step === 'done' && resultOk && (
-            <button
-              type="button"
-              onClick={() => { onComplete?.(); onClose(); }}
-              className="px-5 py-2 rounded-xl bg-emerald-600/30 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold uppercase tracking-wider"
-            >
-              Done
-            </button>
+            <PluginToolbarButton active onClick={() => { onComplete?.(); onClose(); }}>Done</PluginToolbarButton>
           )}
         </div>
       </div>

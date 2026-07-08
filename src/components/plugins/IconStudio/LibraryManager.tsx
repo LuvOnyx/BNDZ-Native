@@ -35,15 +35,15 @@ export default function LibraryManager() {
                         <Icons8Icon id="palette_ui" size={16} className="text-pink-300" />
                     </div>
                     <div>
-                        <div className="text-sm font-bold text-white tracking-tight">Libraries</div>
-                        <div className="text-[10px] text-gray-500">{libraries.length} collection{libraries.length !== 1 ? 's' : ''}</div>
+                        <div className="text-sm font-semibold text-white tracking-tight">Libraries</div>
+                        <div className="text-xs bndz-panel-muted">{libraries.length} collection{libraries.length !== 1 ? 's' : ''}</div>
                     </div>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-1 min-h-0">
                 {libraries.length === 0 ? (
-                    <div className="text-center py-8 px-3 text-gray-600 text-[11px] leading-relaxed">
+                    <div className="text-center py-8 px-3 bndz-panel-muted text-xs leading-relaxed">
                         No libraries yet.<br />Import or create one below.
                     </div>
                 ) : libraries.map(lib => (
@@ -68,7 +68,7 @@ export default function LibraryManager() {
                             ) : (
                                 <div className="min-w-0">
                                     <div className="font-medium text-xs truncate">{lib.name}</div>
-                                    <div className="text-[9px] text-gray-600">{lib.icons.length} icons</div>
+                                    <div className="text-xs bndz-panel-muted">{lib.icons.length} icons</div>
                                 </div>
                             )}
                         </div>
@@ -96,7 +96,7 @@ export default function LibraryManager() {
                             type="button"
                             title="Resync from source folder"
                             onClick={() => void resyncLibrary(activeLibraryId)}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-[10px] font-medium py-2 rounded-lg transition-colors"
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors"
                         >
                             <Icons8Icon id="refresh" size={12} /> Resync
                         </button>
@@ -104,7 +104,7 @@ export default function LibraryManager() {
                             type="button"
                             title="Export library JSON"
                             onClick={() => exportLibrary(activeLibraryId)}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-[10px] font-medium py-2 rounded-lg transition-colors"
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors"
                         >
                             <Icons8Icon id="download" size={12} /> Export
                         </button>

@@ -59,9 +59,9 @@ export default function PreviewPane({
             <div className={styles.header}>
                 <div className="flex items-center gap-2">
                     <Icons8Icon id="target_ui" size={14} className="text-sky-400" />
-                    <span className="text-[13px] font-semibold text-white">Preview & apply</span>
+                    <span className="text-sm font-semibold text-white">Preview & apply</span>
                 </div>
-                <span className="text-[10px] bg-white/5 text-gray-400 px-2 py-0.5 rounded-full border border-white/8">{paths.length}</span>
+                <span className="bndz-plugin-kind-pill">{paths.length}</span>
             </div>
 
             <div className={styles.content}>
@@ -71,7 +71,7 @@ export default function PreviewPane({
                             <Icons8Icon id="explorer" size={24} className="text-gray-600" />
                         </div>
                         <p className="text-xs font-medium text-gray-400">Nothing selected</p>
-                        <p className="text-[10px] text-gray-600 mt-2 leading-relaxed max-w-[200px]">
+                        <p className="text-xs bndz-panel-muted mt-2 leading-relaxed max-w-[200px]">
                             Select folders or files in the list, pick an icon, then apply.
                         </p>
                     </div>
@@ -79,19 +79,19 @@ export default function PreviewPane({
                     <div className="flex flex-col gap-3 h-full">
                         {selectedIcon ? (
                             <div className="shrink-0 p-3 rounded-xl border border-pink-500/20 bg-pink-500/5">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-pink-300/80 mb-2">Selected icon</div>
+                                <div className="bndz-plugin-section-title text-pink-300/80 mb-2">Selected icon</div>
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 rounded-lg bg-black/30 flex items-center justify-center ring-1 ring-white/10">
                                         <IconPreviewImage path={selectedPreviewPath} size={40} />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="text-[12px] font-semibold text-white truncate">{selectedIcon.name}</div>
-                                        <div className="text-[10px] text-gray-500">Before → after on each target</div>
+                                        <div className="text-xs bndz-panel-muted">Before → after on each target</div>
                                     </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="shrink-0 p-3 rounded-xl border border-white/8 bg-white/3 text-[10px] text-gray-500 text-center">
+                            <div className="shrink-0 p-3 rounded-xl border border-white/8 bg-white/3 text-xs bndz-panel-muted text-center">
                                 Click an icon in the grid to preview changes
                             </div>
                         )}
@@ -104,11 +104,11 @@ export default function PreviewPane({
                                 const isDir = isDrive || !name.includes('.');
                                 return (
                                     <div key={i} className="bg-white/4 border border-white/6 rounded-xl px-3 py-2.5">
-                                        <div className="text-[10px] font-mono text-gray-600 truncate mb-2" title={win}>{name}</div>
+                                        <div className="text-xs bndz-mono bndz-panel-muted truncate mb-2" title={win}>{name}</div>
                                         <div className="flex items-center justify-center gap-3">
                                             <div className="flex flex-col items-center gap-1">
                                                 <ShellNativeIcon path={win} isDir={isDir} size={36} eager />
-                                                <span className="text-[9px] text-gray-600 uppercase">Now</span>
+                                                <span className="text-xs bndz-panel-muted">Now</span>
                                             </div>
                                             <Icons8Icon id="arrow_right_ui" size={14} className="text-pink-400/60 shrink-0" />
                                             <div className="flex flex-col items-center gap-1">
@@ -119,7 +119,7 @@ export default function PreviewPane({
                                                         <Icons8Icon id="wand_ui" size={16} className="text-gray-600" />
                                                     )}
                                                 </div>
-                                                <span className="text-[9px] text-pink-400/70 uppercase">After</span>
+                                                <span className="text-xs text-pink-400/70">After</span>
                                             </div>
                                         </div>
                                     </div>

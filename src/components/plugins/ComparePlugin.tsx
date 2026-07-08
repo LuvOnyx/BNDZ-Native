@@ -4,6 +4,14 @@ import PluginPanelShell from './PluginPanelShell';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { pushToast } from '../ToastHost';
+import {
+  PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
+  PluginCard,
+  PluginEmptyState,
+  PLUGIN_INPUT_CLASS,
+} from './PluginPanelPrimitives';
 
 export const ComparePluginDef = {
   id: 'compare',
@@ -81,91 +89,64 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
       title="Compare"
       icon="compare_ui"
       iconColor="#34d399"
-      subtitle="XYplorer-style binary file & folder diff"
+      subtitle="Binary file and folder diff"
       variant="embedded"
       toolbar={
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={() => setMode('files')}
-            className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${mode === 'files' ? 'bg-emerald-900/50 text-emerald-200' : 'text-gray-500'}`}
-          >
-            Files
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('dirs')}
-            className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${mode === 'dirs' ? 'bg-emerald-900/50 text-emerald-200' : 'text-gray-500'}`}
-          >
-            Folders
-          </button>
-        </div>
+        <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+          <PluginTab active={mode === 'files'} onClick={() => setMode('files')}>Files</PluginTab>
+          <PluginTab active={mode === 'dirs'} onClick={() => setMode('dirs')}>Folders</PluginTab>
+        </PluginTabStrip>
       }
     >
-      <div className="flex flex-col h-full min-h-0 p-3 gap-3">
+      <div className="flex flex-col h-full min-h-0 p-4 gap-3">
         <div className="grid grid-cols-2 gap-2">
-          <input
-            value={pathA}
-            onChange={e => setPathA(e.target.value)}
-            placeholder="Path A"
-            className="bg-[#111] border border-[#333] rounded px-2 py-1.5 text-[11px] text-gray-200"
-          />
-          <input
-            value={pathB}
-            onChange={e => setPathB(e.target.value)}
-            placeholder="Path B"
-            className="bg-[#111] border border-[#333] rounded px-2 py-1.5 text-[11px] text-gray-200"
-          />
+          <input value={pathA} onChange={e => setPathA(e.target.value)} placeholder="Path A" className={PLUGIN_INPUT_CLASS} />
+          <input value={pathB} onChange={e => setPathB(e.target.value)} placeholder="Path B" className={PLUGIN_INPUT_CLASS} />
         </div>
-        <button
-          type="button"
-          disabled={loading}
+        <PluginToolbarButton
+          icon={loading ? 'loading' : 'compare_ui'}
           onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
-          className="self-start flex items-center gap-2 px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-semibold"
+          disabled={loading}
         >
-          {loading ? <Icons8Icon id="loading" size={12} spin /> : <Icons8Icon id="compare_ui" size={12} />}
           Compare
-        </button>
+        </PluginToolbarButton>
 
         {mode === 'files' && fileResult?.ok && (
-          <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar border border-[#222] rounded p-3 text-[11px] space-y-2">
-            <div className={fileResult.identical ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+          <PluginCard className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar space-y-2">
+            <div className={`text-sm font-semibold ${fileResult.identical ? 'text-emerald-400' : 'text-amber-400'}`}>
               {fileResult.identical ? 'Identical files' : 'Files differ'}
             </div>
-            <div className="text-gray-400">SHA-256 A: <span className="text-gray-300 font-mono break-all">{fileResult.hashA}</span></div>
-            <div className="text-gray-400">SHA-256 B: <span className="text-gray-300 font-mono break-all">{fileResult.hashB}</span></div>
+            <div className="text-xs bndz-panel-muted">SHA-256 A: <span className="text-gray-300 bndz-mono break-all">{fileResult.hashA}</span></div>
+            <div className="text-xs bndz-panel-muted">SHA-256 B: <span className="text-gray-300 bndz-mono break-all">{fileResult.hashB}</span></div>
             {!fileResult.identical && fileResult.firstDiffOffset >= 0 && (
               <>
-                <div className="text-gray-500">First difference at byte {fileResult.firstDiffOffset}</div>
-                <div className="grid grid-cols-2 gap-2 font-mono text-[10px]">
-                  <pre className="bg-[#0a0a0a] p-2 rounded overflow-x-auto">{fileResult.previewA || '—'}</pre>
-                  <pre className="bg-[#0a0a0a] p-2 rounded overflow-x-auto">{fileResult.previewB || '—'}</pre>
+                <div className="text-xs bndz-panel-muted">First difference at byte {fileResult.firstDiffOffset}</div>
+                <div className="grid grid-cols-2 gap-2 bndz-mono text-xs">
+                  <pre className="bg-black/30 p-2 rounded overflow-x-auto border border-white/[0.06]">{fileResult.previewA || '—'}</pre>
+                  <pre className="bg-black/30 p-2 rounded overflow-x-auto border border-white/[0.06]">{fileResult.previewB || '—'}</pre>
                 </div>
               </>
             )}
-          </div>
+          </PluginCard>
         )}
 
         {mode === 'dirs' && dirResults.length > 0 && (
-          <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar border border-[#222] rounded">
+          <PluginCard className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar !p-0">
             {dirResults.map(row => (
-              <div key={row.id || row.name} className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.04] text-[11px]">
-                <span className={`shrink-0 w-16 uppercase text-[10px] ${
-                  row.status === 'same' ? 'text-emerald-400' :
-                  row.status === 'different' ? 'text-amber-400' : 'text-gray-500'
+              <div key={row.id || row.name} className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.04] text-xs">
+                <span className={`shrink-0 bndz-plugin-kind-pill ${
+                  row.status === 'same' ? 'text-emerald-400 border-emerald-500/30' :
+                  row.status === 'different' ? 'text-amber-400 border-amber-500/30' : 'text-gray-500'
                 }`}>{row.status}</span>
                 <Icons8Icon id="file_ui" size={12} className="shrink-0" />
                 <span className="truncate flex-1">{row.name}</span>
               </div>
             ))}
-          </div>
+          </PluginCard>
         )}
 
         {mode === 'dirs' && !loading && dirResults.length === 0 && (
-          <div className="text-center text-gray-600 text-xs py-6 flex flex-col items-center gap-2">
-            <Icons8Icon id="compare_ui" size={20} className="opacity-40" />
-            Run folder compare to see diff rows
-          </div>
+          <PluginEmptyState icon="compare_ui" description="Run folder compare to see diff rows." />
         )}
       </div>
     </PluginPanelShell>

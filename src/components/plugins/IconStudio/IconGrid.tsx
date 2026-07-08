@@ -197,7 +197,7 @@ export default function IconGrid({
                     <div className="w-14 h-14 rounded-xl bg-black/25 flex items-center justify-center ring-1 ring-white/5">
                         <IconPreviewImage path={previewPath} size={48} />
                     </div>
-                    <span className="font-medium text-[10px] text-gray-400 truncate w-full text-center">{icon.name}</span>
+                    <span className="text-xs font-medium text-gray-400 truncate w-full text-center">{icon.name}</span>
                 </button>
                 {isFocused && !isApplying && (
                     <button
@@ -226,7 +226,7 @@ export default function IconGrid({
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="text-sm font-semibold text-white truncate">{activeLibrary.name}</div>
-                                <div className="text-[10px] text-gray-500">
+                                <div className="text-xs bndz-panel-muted">
                                     {filteredIcons.length}{search.trim() ? ` of ${activeLibrary.icons.length}` : ''} icons
                                 </div>
                             </div>

@@ -1,11 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import DestinationPickerModal from '../DestinationPickerModal';
 import PluginPanelShell from './PluginPanelShell';
 import { pushToast } from '../ToastHost';
+import {
+  PluginToolbarButton,
+  PluginSectionTitle,
+  PluginCard,
+  PluginFieldLabel,
+  PluginEmptyState,
+  PLUGIN_INPUT_CLASS,
+} from './PluginPanelPrimitives';
 
 export const FolderSyncPluginDef = {
   id: 'folder-sync',
@@ -56,8 +63,7 @@ function normalizeJob(raw: Record<string, unknown>): FolderSyncJob {
 function formatWhen(iso?: string | null) {
   if (!iso) return 'Never';
   try {
-    const d = new Date(iso);
-    return d.toLocaleString();
+    return new Date(iso).toLocaleString();
   } catch {
     return '—';
   }
@@ -71,7 +77,7 @@ function StatusBadge({ status }: { status: string }) {
     { color: '#34d399', label: 'Ready', icon: 'check', spin: false };
   return (
     <span
-      className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border"
+      className="bndz-plugin-kind-pill inline-flex items-center gap-1"
       style={{ color: cfg.color, borderColor: `${cfg.color}44`, background: `${cfg.color}15` }}
     >
       <Icons8Icon id={cfg.icon} size={10} spin={cfg.spin} />
@@ -234,25 +240,19 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
       variant="embedded"
       subtitle="Auto-sync folders via robocopy"
       toolbar={
-        <div className="flex items-center gap-1.5">
+        <>
           {currentPath && (
             <>
-              <button type="button" onClick={() => usePaneAs('source')} className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-white/10 text-gray-400 hover:text-sky-300 hover:border-sky-500/30" title="Use current folder as source">
-                <Icons8Icon id="explorer" size={12} /> Pane → source
-              </button>
-              <button type="button" onClick={() => usePaneAs('dest')} className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-white/10 text-gray-400 hover:text-sky-300 hover:border-sky-500/30" title="Use current folder as destination">
-                <Icons8Icon id="explorer" size={12} /> Pane → dest
-              </button>
+              <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('source')} title="Use current folder as source">Pane → source</PluginToolbarButton>
+              <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('dest')} title="Use current folder as destination">Pane → dest</PluginToolbarButton>
             </>
           )}
-          <button type="button" onClick={startNewJob} className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md bg-sky-600 hover:bg-sky-500 text-white">
-            <Icons8Icon id="plus_ui" size={14} /> New sync
-          </button>
-        </div>
+          <PluginToolbarButton icon="plus_ui" onClick={startNewJob}>New sync</PluginToolbarButton>
+        </>
       }
     >
-    <div className="flex flex-col h-full min-h-0 bg-[#0e0e12] text-gray-200">
-      <div className="flex-1 overflow-y-auto styled-scrollbar p-4 space-y-3">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3">
         {loading && (
           <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
             <Icons8Icon id="loading" size={18} spin /> Loading sync jobs…
@@ -260,204 +260,155 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
         )}
 
         {!loading && jobs.length === 0 && !draft && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-dashed border-white/10 p-10 text-center"
-          >
-            <Icons8Icon id="sync_folders" size={40} className="mx-auto opacity-60 mb-3" />
-            <p className="text-[13px] text-gray-400 mb-1">No sync pairs yet</p>
-            <p className="text-[11px] text-gray-600 mb-4">Mirror a project folder to a backup drive, or keep two folders in sync automatically.</p>
-            <button type="button" onClick={startNewJob} className="text-sky-400 hover:text-sky-300 text-[12px] font-semibold">
-              Create your first sync →
-            </button>
-          </motion.div>
+          <div className="flex flex-col items-center gap-3 py-8">
+            <PluginEmptyState
+              icon="sync_folders"
+              title="No sync pairs yet"
+              description="Mirror a project folder to a backup drive, or keep two folders in sync automatically."
+            />
+            <PluginToolbarButton onClick={startNewJob}>Create your first sync</PluginToolbarButton>
+          </div>
         )}
 
-        <AnimatePresence>
-          {draft && (
-            <motion.div
-              key="draft"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-[#0c1929]/80 to-[#101014] p-4 space-y-3"
-            >
-              <div className="text-[11px] font-bold uppercase tracking-widest text-sky-400/80">
-                {editingId ? 'Edit sync pair' : 'New sync pair'}
-              </div>
+        {draft && (
+          <PluginCard className="border-sky-500/25 space-y-3">
+            <PluginSectionTitle icon="sync_folders">{editingId ? 'Edit sync pair' : 'New sync pair'}</PluginSectionTitle>
+            <div>
+              <PluginFieldLabel>Sync name</PluginFieldLabel>
               <input
-                className="w-full bg-[#1a1a22] border border-[#444] rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-sky-500"
+                className={PLUGIN_INPUT_CLASS}
                 placeholder="Sync name"
                 value={draft.name || ''}
                 onChange={e => setDraft({ ...draft, name: e.target.value })}
               />
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex-1 text-left bg-[#1a1a22] border border-[#444] rounded-lg px-3 py-2 text-[11px] font-mono truncate hover:border-sky-500/50"
-                  onClick={() => setPicker('source')}
-                >
-                  {draft.sourcePath || 'Pick source folder…'}
-                </button>
-                <Icons8Icon id="chevron_right" size={14} className="shrink-0" />
-                <button
-                  type="button"
-                  className="flex-1 text-left bg-[#1a1a22] border border-[#444] rounded-lg px-3 py-2 text-[11px] font-mono truncate hover:border-sky-500/50"
-                  onClick={() => setPicker('dest')}
-                >
-                  {draft.destPath || 'Pick destination…'}
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-4 text-[11px]">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={draft.watchEnabled !== false} onChange={e => setDraft({ ...draft, watchEnabled: e.target.checked })} className="accent-sky-500" />
-                  <Icons8Icon id="sparkles_ui" size={12} /> Watch for changes
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={!!draft.mirrorMode} onChange={e => setDraft({ ...draft, mirrorMode: e.target.checked })} className="accent-sky-500" />
-                  Mirror mode (delete extras in destination)
-                </label>
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={() => { setDraft(null); setEditingId(null); }} className="px-3 py-1.5 text-[11px] text-gray-400 hover:text-white">Cancel</button>
-                <button
-                  type="button"
-                  onClick={saveDraft}
-                  disabled={!draft.sourcePath || !draft.destPath}
-                  className="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-[11px] font-semibold"
-                >
-                  {editingId ? 'Save changes' : 'Save & enable'}
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
+                onClick={() => setPicker('source')}
+              >
+                {draft.sourcePath || 'Pick source folder…'}
+              </button>
+              <Icons8Icon id="chevron_right" size={14} className="shrink-0 text-gray-500" />
+              <button
+                type="button"
+                className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
+                onClick={() => setPicker('dest')}
+              >
+                {draft.destPath || 'Pick destination…'}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-4 text-xs text-gray-300">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={draft.watchEnabled !== false} onChange={e => setDraft({ ...draft, watchEnabled: e.target.checked })} className="accent-sky-500" />
+                <Icons8Icon id="sparkles_ui" size={12} /> Watch for changes
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={!!draft.mirrorMode} onChange={e => setDraft({ ...draft, mirrorMode: e.target.checked })} className="accent-sky-500" />
+                Mirror mode (delete extras in destination)
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <PluginToolbarButton onClick={() => { setDraft(null); setEditingId(null); }}>Cancel</PluginToolbarButton>
+              <PluginToolbarButton icon="check" active onClick={() => void saveDraft()} disabled={!draft.sourcePath || !draft.destPath}>
+                {editingId ? 'Save changes' : 'Save & enable'}
+              </PluginToolbarButton>
+            </div>
+          </PluginCard>
+        )}
 
         {jobs.map(job => {
           const prog = progress[job.id];
           const isSyncing = syncingId === job.id || job.lastStatus === 'syncing';
           return (
-            <motion.div
-              key={job.id}
-              layout
-              className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#18181f] to-[#101014] p-4 relative overflow-hidden"
-            >
-              <div className="flex items-start justify-between gap-3 mb-3">
+            <PluginCard key={job.id} className="relative overflow-hidden">
+              <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[13px] font-semibold text-white">{job.name}</span>
+                    <span className="text-sm font-semibold text-white">{job.name}</span>
                     <StatusBadge status={isSyncing ? 'syncing' : job.watchEnabled ? 'watching' : job.lastStatus} />
                   </div>
-                  <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-gray-500">
+                  <div className="mt-2 flex items-center gap-2 text-xs bndz-mono bndz-panel-muted">
                     <span className="truncate max-w-[45%]" title={job.sourcePath}>{job.sourcePath}</span>
                     <Icons8Icon id="chevron_right" size={10} className="shrink-0" />
                     <span className="truncate max-w-[45%]" title={job.destPath}>{job.destPath}</span>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-1 text-[9px] text-gray-600">
-                    <Icons8Icon id="clock_ui" size={9} /> Last sync: {formatWhen(job.lastSyncUtc)}
-                    {job.mirrorMode && <span className="ml-2 text-amber-500/80">• Mirror</span>}
+                  <div className="mt-1.5 flex items-center gap-1 text-xs bndz-panel-muted">
+                    <Icons8Icon id="clock_ui" size={10} /> Last sync: {formatWhen(job.lastSyncUtc)}
+                    {job.mirrorMode && <span className="ml-2 text-amber-400/80">• Mirror</span>}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <PluginToolbarButton
+                    icon={previewLoading === job.id ? 'loading' : 'table_ui'}
                     title="Preview diff"
                     disabled={previewLoading === job.id}
                     onClick={() => void loadPreview(job.id)}
-                    className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-sky-300 disabled:opacity-40"
-                  >
-                    {previewLoading === job.id ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="table_ui" size={14} />}
-                  </button>
-                  <button
-                    type="button"
-                    title="Edit job"
-                    onClick={() => startEditJob(job)}
-                    className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-amber-300"
-                  >
-                    <Icons8Icon id="pencil_ui" size={14} />
-                  </button>
-                  <button
-                    type="button"
+                  />
+                  <PluginToolbarButton icon="pencil_ui" title="Edit job" onClick={() => startEditJob(job)} />
+                  <PluginToolbarButton
+                    icon={isSyncing ? 'loading' : 'play_ui'}
                     title="Sync now"
                     disabled={isSyncing}
-                    onClick={() => runSync(job.id)}
-                    className="p-2 rounded-lg hover:bg-white/5 text-sky-400 disabled:opacity-40"
-                  >
-                    {isSyncing ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="play_ui" size={14} />}
-                  </button>
-                  <button
-                    type="button"
+                    onClick={() => void runSync(job.id)}
+                  />
+                  <PluginToolbarButton
+                    icon={job.watchEnabled ? 'close' : 'toggle_preview'}
                     title={job.watchEnabled ? 'Pause watching' : 'Enable watching'}
-                    onClick={() => toggleWatch(job)}
-                    className={`p-2 rounded-lg hover:bg-white/5 ${job.watchEnabled ? 'text-violet-400' : 'text-gray-500'}`}
-                  >
-                    <Icons8Icon id={job.watchEnabled ? 'close' : 'toggle_preview'} size={14} />
-                  </button>
-                  <button type="button" title="Remove" onClick={() => removeJob(job.id)} className="p-2 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400">
-                    <Icons8Icon id="delete" size={14} />
-                  </button>
+                    onClick={() => void toggleWatch(job)}
+                  />
+                  <PluginToolbarButton icon="delete" title="Remove" onClick={() => void removeJob(job.id)} />
                 </div>
               </div>
 
               {(isSyncing || prog) && (
                 <div className="space-y-1">
-                  <div className="h-1.5 rounded-full bg-[#2a2a32] overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-sky-500 to-cyan-400"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${prog?.percent ?? 30}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
+                  <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
+                    <div className="h-full bg-sky-500 rounded-full transition-all duration-300" style={{ width: `${prog?.percent ?? 30}%` }} />
                   </div>
-                  <p className="text-[9px] text-gray-500 truncate">{prog?.message || prog?.file || 'Syncing…'}</p>
+                  <p className="text-xs bndz-panel-muted truncate">{prog?.message || prog?.file || 'Syncing…'}</p>
                 </div>
               )}
 
               {job.lastError && (
-                <p className="mt-2 text-[10px] text-red-400/90 flex items-center gap-1">
+                <p className="mt-2 text-xs text-red-400/90 flex items-center gap-1">
                   <Icons8Icon id="warning" size={10} /> {job.lastError}
                 </p>
               )}
-            </motion.div>
+            </PluginCard>
           );
         })}
       </div>
 
       {preview && (
-        <div className="shrink-0 border-t border-white/10 bg-[#0c0c10] max-h-[40%] flex flex-col">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05]">
-            <div className="text-[11px] font-semibold text-sky-300 flex items-center gap-2">
+        <div className="shrink-0 border-t border-white/10 bg-black/20 max-h-[40%] flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06]">
+            <div className="text-xs font-semibold text-sky-300 flex items-center gap-2">
               <Icons8Icon id="table_ui" size={13} /> Sync preview
-              <span className="text-gray-500 font-normal">{preview.data.summary}</span>
+              <span className="bndz-panel-muted font-normal">{preview.data.summary}</span>
             </div>
-            <button type="button" onClick={() => setPreview(null)} className="p-1 rounded hover:bg-white/5 text-gray-500"><Icons8Icon id="close" size={14} /></button>
+            <PluginToolbarButton icon="close" onClick={() => setPreview(null)} />
           </div>
-          <div className="flex-1 overflow-y-auto styled-scrollbar p-3 grid grid-cols-2 gap-3 text-[10px] font-mono">
+          <div className="flex-1 overflow-y-auto bndz-scrollbar p-3 grid grid-cols-2 gap-3 bndz-mono text-xs">
             {([
               ['New files', preview.data.wouldCopy, 'text-emerald-400'],
               ['Updates', preview.data.wouldUpdate, 'text-amber-300'],
               ['Unchanged', preview.data.wouldSkip, 'text-gray-500'],
               ['Extra (mirror)', preview.data.extraInDest, 'text-rose-300'],
             ] as const).map(([label, items, color]) => (
-              <div key={label} className="rounded-lg border border-white/[0.06] bg-[#111116] p-2 min-h-[80px]">
-                <div className={`font-bold uppercase tracking-wider mb-1.5 ${color}`}>{label} ({items?.length ?? 0})</div>
-                <div className="space-y-0.5 max-h-28 overflow-y-auto styled-scrollbar text-gray-500">
+              <PluginCard key={label} className="!p-2 min-h-[80px]">
+                <div className={`bndz-plugin-section-title mb-1.5 ${color}`}>{label} ({items?.length ?? 0})</div>
+                <div className="space-y-0.5 max-h-28 overflow-y-auto bndz-scrollbar bndz-panel-muted">
                   {(items || []).slice(0, 40).map(p => <div key={p} className="truncate" title={p}>{p}</div>)}
-                  {(items?.length ?? 0) > 40 && <div className="text-gray-600">…and {(items?.length ?? 0) - 40} more</div>}
+                  {(items?.length ?? 0) > 40 && <div>…and {(items?.length ?? 0) - 40} more</div>}
                 </div>
-              </div>
+              </PluginCard>
             ))}
           </div>
-          <div className="px-4 py-2 border-t border-white/[0.05] flex justify-end gap-2">
-            <button type="button" onClick={() => setPreview(null)} className="px-3 py-1.5 text-[11px] text-gray-400">Close</button>
-            <button
-              type="button"
-              onClick={() => { void runSync(preview.jobId); setPreview(null); }}
-              className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold flex items-center gap-1"
-            >
-              <Icons8Icon id="play_ui" size={12} /> Run sync
-            </button>
+          <div className="px-4 py-2 border-t border-white/[0.06] flex justify-end gap-2">
+            <PluginToolbarButton onClick={() => setPreview(null)}>Close</PluginToolbarButton>
+            <PluginToolbarButton icon="play_ui" active onClick={() => { void runSync(preview.jobId); setPreview(null); }}>Run sync</PluginToolbarButton>
           </div>
         </div>
       )}
