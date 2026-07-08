@@ -29,11 +29,13 @@ export default function PluginPanelShell({
     return (
       <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[var(--bndz-surface-panel,#0a0a0a)] text-gray-300">
         {toolbar && (
-          <div className="shrink-0 px-3 py-1.5 border-b border-white/[0.06] flex items-center justify-end gap-2 bg-[#0d0d10]/90">
+          <div className="bndz-plugin-toolbar shrink-0 px-3 py-2 flex items-center justify-end gap-2">
             {toolbar}
           </div>
         )}
-        {status && <div className="shrink-0 px-4 py-1.5 border-b border-[#1a1a1a] text-xs">{status}</div>}
+        {status && (
+          <div className="shrink-0 px-4 py-2 border-b border-white/[0.06] bndz-panel-muted">{status}</div>
+        )}
         <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
       </div>
     );
@@ -41,17 +43,19 @@ export default function PluginPanelShell({
 
   return (
     <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[#0a0a0a] text-gray-300">
-      <div className="shrink-0 px-4 py-2.5 border-b border-[#222] bg-gradient-to-r from-[#141414] to-[#0f0f0f] flex items-center justify-between gap-3">
+      <div className="bndz-plugin-toolbar shrink-0 px-4 py-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Icons8Icon id={icon} size={15} />
-            <span className="font-bold text-sm text-white tracking-tight">{title}</span>
+            <Icons8Icon id={icon} size={16} className="shrink-0" />
+            <span className="font-semibold text-sm text-white tracking-tight">{title}</span>
           </div>
-          {subtitle && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{subtitle}</p>}
+          {subtitle && <p className="bndz-panel-muted mt-0.5 truncate">{subtitle}</p>}
         </div>
         {toolbar && <div className="flex items-center gap-2 shrink-0">{toolbar}</div>}
       </div>
-      {status && <div className="shrink-0 px-4 py-1.5 border-b border-[#1a1a1a] text-xs">{status}</div>}
+      {status && (
+        <div className="shrink-0 px-4 py-2 border-b border-white/[0.06] bndz-panel-muted">{status}</div>
+      )}
       <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
     </div>
   );

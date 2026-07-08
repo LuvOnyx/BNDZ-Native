@@ -32,10 +32,8 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       style={style}
       type="button"
       onClick={onClick}
-      className={`px-3 py-2 border-r border-white/[0.04] flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider transition-all duration-150 shrink-0 max-w-[148px] ${
-        isActive
-          ? 'bndz-bottom-tab-active text-sky-300'
-          : 'bg-transparent text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
+      className={`bndz-bottom-tab flex items-center gap-1.5 shrink-0 max-w-[160px] ${
+        isActive ? 'bndz-bottom-tab-active' : ''
       }`}
       title={plugin.name}
     >
@@ -200,14 +198,14 @@ export default function BottomPluginPanel(props: any & {
   if (orderedPlugins.length === 0) {
     return (
       <div className="bndz-bottom-panel flex flex-col h-full min-h-0 border-t border-white/[0.06]">
-        <div className="bndz-bottom-tabstrip flex items-center gap-2 px-4 py-2 border-b border-white/[0.05] text-[11px] font-bold uppercase tracking-wider text-gray-500 shrink-0">
-          <Icons8Icon id="extension_hub" size={12} />
-          Plugin Panel
+        <div className="bndz-bottom-tabstrip flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05] bndz-panel-muted shrink-0">
+          <Icons8Icon id="extension_hub" size={14} />
+          <span className="font-semibold">Plugin Panel</span>
         </div>
-        <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-600 text-xs gap-3">
+        <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
           <span>No plugins installed.</span>
           {onOpenPluginStore && (
-            <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-[#a475d4] hover:bg-[#8b5fbf] text-white rounded text-xs font-semibold transition-colors">
+            <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-[#a475d4] hover:bg-[#8b5fbf] text-white rounded-md text-sm font-semibold transition-colors">
               <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub
             </button>
           )}
@@ -235,21 +233,21 @@ export default function BottomPluginPanel(props: any & {
                 <button
                   type="button"
                   onClick={() => setOverflowOpen(v => !v)}
-                  className={`h-full px-2.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${
-                    overflowTabs.some((p: any) => p.id === activeTab) ? 'text-sky-300 bg-white/[0.04]' : 'text-gray-500 hover:text-gray-300'
+                  className={`bndz-bottom-tab h-full px-3 flex items-center gap-1.5 ${
+                    overflowTabs.some((p: any) => p.id === activeTab) ? 'bndz-bottom-tab-active' : ''
                   }`}
                 >
-                  More <Icons8Icon id="chevron_down" size={11} className={overflowOpen ? 'rotate-180' : ''} />
+                  More <Icons8Icon id="chevron_down" size={12} className={overflowOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
                 </button>
                 {overflowOpen && (
-                  <div className="absolute right-0 top-full z-50 min-w-[180px] py-1 bg-[#1a1a1f] border border-[#333] shadow-xl max-h-[240px] overflow-y-auto bndz-scrollbar">
+                  <div className="absolute right-0 top-full z-50 min-w-[200px] py-1 bg-[#1a1a1f] border border-[#333] shadow-xl max-h-[240px] overflow-y-auto bndz-scrollbar rounded-b-md">
                     {overflowTabs.map((plugin: any) => (
                       <button
                         key={plugin.id}
                         type="button"
                         onClick={() => handleTabClick(plugin.id)}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 hover:bg-[#094771]/40 ${
-                          activeTab === plugin.id ? 'text-sky-300' : 'text-gray-300'
+                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-[#094771]/40 ${
+                          activeTab === plugin.id ? 'text-sky-300 font-medium' : 'text-gray-300'
                         }`}
                       >
                         <Icons8Icon id={plugin.icon || 'dropstack'} size={12} /> {plugin.name}
@@ -281,7 +279,7 @@ export default function BottomPluginPanel(props: any & {
           );
         })}
         {!activeTab && (
-          <div className="flex items-center justify-center h-full text-gray-600 text-xs">
+          <div className="flex items-center justify-center h-full bndz-panel-muted">
             Select a plugin capability above.
           </div>
         )}

@@ -311,7 +311,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     return (
       <div className="bndz-preview-panel w-full h-full flex flex-col items-center justify-center text-gray-500 p-4 shrink-0 z-10 select-none">
         <Icons8Icon id="file_ui" size={48} className="mb-4 opacity-20" />
-        <span className="text-[13px]">Select a file to preview</span>
+        <span className="text-sm bndz-panel-muted">Select a file to preview</span>
       </div>
     );
   }
@@ -349,12 +349,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     if (!isDir || folderChildren.length === 0) return null;
     return (
       <div className="flex flex-col min-h-0 flex-1 overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]">
-        <div className="text-[9px] uppercase tracking-wider text-gray-500 px-2 py-1.5 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+        <div className="bndz-panel-section-title px-2 py-1.5 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
           <span>Contents preview</span>
           {browsePath && path && browsePath !== path && (
             <button
               type="button"
-              className="text-sky-400/90 hover:text-sky-300 normal-case tracking-normal text-[10px]"
+              className="text-sky-400/90 hover:text-sky-300 normal-case tracking-normal text-xs font-medium"
               onClick={() => {
                 const parent = browsePath.replace(/\/[^/]+$/, '') || path;
                 setBrowsePath(parent);
@@ -372,8 +372,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               type="button"
               onClick={() => openChild(c)}
               onDoubleClick={() => openChild(c, { navigateMain: true })}
-              className={`w-full flex items-center gap-2 px-2 py-1 text-[10px] text-gray-300 text-left transition-colors ${
-                selectedChild === c.name ? 'bg-sky-500/20 text-sky-100' : 'hover:bg-white/[0.06]'
+              className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
+                selectedChild === c.name ? 'bg-sky-500/20 text-sky-100' : 'hover:bg-white/[0.06] text-gray-300'
               }`}
               title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
             >
@@ -383,7 +383,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             </button>
           ))}
           {folderStats && folderStats.files + folderStats.folders > folderChildren.length && (
-            <div className="text-[9px] text-gray-600 px-2 py-1">+ more items…</div>
+            <div className="bndz-panel-muted px-2 py-1">+ more items…</div>
           )}
         </div>
       </div>
@@ -394,7 +394,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     if (!catalogs.length) return null;
     return (
       <div className="flex flex-col min-h-0 max-h-[120px] overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]">
-        <div className="text-[9px] uppercase tracking-wider text-violet-300/80 px-2 py-1.5 border-b border-violet-500/15 flex items-center gap-1.5 shrink-0">
+        <div className="bndz-panel-section-title px-2 py-1.5 border-b border-violet-500/15 flex items-center gap-1.5 shrink-0 text-violet-300/80">
           <Icons8Icon id="table_ui" size={10} />
           <span>Catalogs</span>
         </div>
@@ -404,7 +404,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               key={cat.id}
               type="button"
               onClick={() => onNavigate?.(`/vf/${cat.id}`)}
-              className="w-full flex items-center gap-2 px-2 py-1 text-[10px] text-gray-300 hover:bg-violet-500/10 text-left transition-colors"
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-300 hover:bg-violet-500/10 text-left transition-colors"
               title={`${cat.paths.length} item(s) · Open virtual catalog`}
             >
               <Icons8Icon id="table_ui" size={10} className="shrink-0" />
@@ -498,14 +498,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 <button
                   type="button"
                   onClick={() => setMdView('render')}
-                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${mdView === 'render' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${mdView === 'render' ? 'bndz-preview-tab-active' : ''}`}
                 >
                   Preview
                 </button>
                 <button
                   type="button"
                   onClick={() => setMdView('source')}
-                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${mdView === 'source' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${mdView === 'source' ? 'bndz-preview-tab-active' : ''}`}
                 >
                   Source
                 </button>
@@ -537,14 +537,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 <button
                   type="button"
                   onClick={() => setHtmlView('render')}
-                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${htmlView === 'render' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${htmlView === 'render' ? 'bndz-preview-tab-active' : ''}`}
                 >
                   Preview
                 </button>
                 <button
                   type="button"
                   onClick={() => setHtmlView('source')}
-                  className={`px-2.5 py-1 text-[10px] font-semibold rounded ${htmlView === 'source' ? 'bg-sky-600 text-white' : 'text-gray-400 hover:bg-white/5'}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${htmlView === 'source' ? 'bndz-preview-tab-active' : ''}`}
                 >
                   Source
                 </button>
@@ -586,13 +586,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       if (isBinary || (!isDir && hexContent)) {
           return (
               <div className="w-full h-full flex flex-col bndz-preview-stage p-4 overflow-hidden">
-                  <div className="flex items-center gap-2 mb-4 text-[#eab308] font-mono text-[11px] pb-2 border-b border-[#333]">
+                  <div className="flex items-center gap-2 mb-4 text-[#eab308] bndz-mono text-xs pb-2 border-b border-[#333]">
                       <Icons8Icon id="code_ui" size={14} /> <span>HEX INSPECTOR (First 256 Bytes)</span>
                   </div>
                   {isLoadingContent && <div className="text-xs text-gray-500 font-mono animate-pulse">Mapping virtual stream...</div>}
                   {contentError && <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 rounded">{contentError}</div>}
                   {!isLoadingContent && !contentError && hexContent && (
-                      <pre className="text-[11px] font-mono text-gray-400 leading-relaxed overflow-y-auto bndz-scrollbar break-all whitespace-pre-wrap select-text">
+                      <pre className="text-xs bndz-mono text-gray-400 leading-relaxed overflow-y-auto bndz-scrollbar break-all whitespace-pre-wrap select-text">
                          {hexContent}
                       </pre>
                   )}
@@ -621,24 +621,24 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <div className="flex flex-col items-center drop-shadow-2xl">{getPreviewIcon()}</div>
                  )}
                  {isDir && folderStats && (
-                    <div className="text-[11px] text-white/55 text-center font-medium tracking-wide">
+                    <div className="text-xs text-white/55 text-center font-medium tracking-wide">
                        {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
                     </div>
                  )}
                  {isDir && !folderStats && (
-                    <div className="text-[10px] text-white/40 animate-pulse">Calculating folder size…</div>
+                    <div className="bndz-panel-muted text-center animate-pulse">Calculating folder size…</div>
                  )}
                  {isDrive && (entity as any).driveInfo && (
-                    <div className="text-[11px] text-white/55 text-center">
+                    <div className="text-xs text-white/55 text-center">
                        {formatSize((entity as any).driveInfo.freeSpace)} free of {formatSize((entity as any).driveInfo.totalSpace)}
                     </div>
                  )}
              </div>
              <div className="absolute bottom-3 right-3 flex gap-1.5">
                 {isDir ? (
-                   <span className="bndz-glass-chip text-[#dcb67a] text-[9px] px-2.5 py-1 uppercase font-semibold tracking-wider">DIR</span>
+                   <span className="bndz-glass-chip text-[#dcb67a] text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">DIR</span>
                 ) : ext && (
-                   <span className="bndz-glass-chip text-white/90 text-[9px] px-2.5 py-1 uppercase font-semibold tracking-wider">{ext}</span>
+                   <span className="bndz-glass-chip text-white/90 text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">{ext}</span>
                 )}
              </div>
          </div>
@@ -668,25 +668,23 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   return (
     <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 overflow-hidden">
-       <div className="bndz-preview-tabstrip border-b border-[#3a3a3a] px-2 py-1 flex justify-between items-center z-10 shrink-0 select-none gap-2">
-          <div className="flex gap-1">
+       <div className="bndz-preview-tabstrip px-2 py-1 flex justify-between items-center z-10 shrink-0 select-none gap-2">
+          <div className="flex gap-0.5">
              {tabs.filter(t => t.show).map(t => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => setActiveTab(t.id)}
-                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-[var(--bndz-radius-sm)] transition-all duration-150 ${
-                    activeTab === t.id ? 'bndz-preview-tab-active text-sky-100' : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.04]'
-                  }`}
+                  className={`bndz-preview-tab ${activeTab === t.id ? 'bndz-preview-tab-active' : ''}`}
                 >
                   {t.label}
                 </button>
              ))}
           </div>
           <div className="flex gap-0.5">
-             <button type="button" onClick={openInShell} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Open"><Icons8Icon id="folder_open_ui" size={12} /></button>
-             <button type="button" onClick={copyPath} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Copy path"><Icons8Icon id="copy_path" size={12} /></button>
-             <button type="button" onClick={showProperties} className="p-1 hover:bg-[#333] rounded-[var(--bndz-radius-sm)]" title="Properties"><Icons8Icon id="sys_properties" size={12} /></button>
+             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open"><Icons8Icon id="folder_open_ui" size={13} /></button>
+             <button type="button" onClick={copyPath} className="bndz-preview-action-btn" title="Copy path"><Icons8Icon id="copy_path" size={13} /></button>
+             <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={13} /></button>
           </div>
        </div>
        
@@ -701,8 +699,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 className="flex flex-col flex-1"
              >
                 {(activeTab === 'preview' || activeTab === 'media') && (
-                <div className={`w-full shrink-0 border-b border-[#282830] relative group flex flex-col min-h-0 ${
-                  isArchive || isTorrent ? 'h-[420px]' : isDir && activeTab === 'preview' ? 'flex-1 min-h-[200px]' : 'h-[340px]'
+                <div className={`bndz-preview-stage w-full shrink-0 border-b border-white/[0.06] relative group flex flex-col min-h-0 ${
+                  isArchive || isTorrent ? 'min-h-[240px]' : 'flex-1'
                 }`}>
                     {activeTab === 'preview' && (isArchive || isTorrent) ? (
                       isTorrent && path ? <TorrentPreviewPanel path={path} /> : path ? <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} /> : null
@@ -728,13 +726,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     {/* Primary Identifier */}
                     <div className="pb-3 border-b border-[#282830]">
                        <h2 className="text-[14px] font-bold text-white break-words leading-tight">{entity.name}</h2>
-                       <div className="text-[11px] text-gray-500 mt-1 uppercase tracking-widest font-mono">
+                       <div className="bndz-panel-muted mt-1 bndz-mono">
                           {isDrive ? (entity as any).typeDescription : (isDir ? 'File Folder' : `${ext.toUpperCase()} File`)}
                        </div>
                     </div>
 
                     {/* Quick Stats Grid */}
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-[80px_1fr] gap-y-2 text-[11px] font-mono leading-relaxed">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-[80px_1fr] gap-y-2 text-xs leading-relaxed">
                        {isDrive ? (
                            <>
                                <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> Total Size:</div>
@@ -765,19 +763,19 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                                {path && (
                                   <>
                                      <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="info_ui" size={10} /> Path:</div>
-                                     <div className="text-gray-400 text-[10px] break-all leading-snug">{toWindowsPath(path)}</div>
+                                     <div className="bndz-mono text-gray-400 break-all leading-snug">{toWindowsPath(path)}</div>
                                   </>
                                )}
                                {fileHashes?.md5 && (
                                   <>
                                      <div className="text-gray-500">MD5:</div>
-                                     <div className="text-gray-400 text-[9px] break-all font-mono">{fileHashes.md5}</div>
+                                     <div className="text-gray-400 break-all bndz-mono">{fileHashes.md5}</div>
                                   </>
                                )}
                                {fileHashes?.sha256 && (
                                   <>
                                      <div className="text-gray-500">SHA-256:</div>
-                                     <div className="text-gray-400 text-[9px] break-all font-mono">{fileHashes.sha256}</div>
+                                     <div className="text-gray-400 break-all bndz-mono">{fileHashes.sha256}</div>
                                   </>
                                )}
                                <div className="text-gray-500">Created:</div>
@@ -791,11 +789,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
                     {/* Security & Access Box */}
                     <div className="mt-2 border bndz-preview-detail-card rounded-[4px] p-3 shadow-inner">
-                       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">
+                       <div className="flex items-center gap-1.5 bndz-panel-section-title mb-2">
                           <Icons8Icon id="shield_ui" size={12} /> Access Properties
                        </div>
                        
-                       <div className="grid grid-cols-[80px_1fr] gap-y-1.5 text-[11px] font-mono">
+                       <div className="grid grid-cols-[80px_1fr] gap-y-1.5 text-xs">
                           <div className="text-gray-500">Owner:</div>
                           <div className="text-gray-300 flex items-center break-all">{extendedDetails ? (extendedDetails["Owner"] || 'SYSTEM\\Administrator') : 'Fetching...'}</div>
                           
@@ -811,21 +809,21 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                        <div className="mt-3 pt-3 border-t border-[#282830] flex gap-4">
                           <label className="flex items-center gap-1.5 cursor-not-allowed">
                              <input type="checkbox" className="accent-sky-500 bg-[#222] border-[#444] rounded-sm" readOnly checked={extendedDetails ? extendedDetails["ReadOnly"] === "true" : (entity as any).readOnly !== false} /> 
-                             <span className="text-[11px] text-gray-300">Read-only</span>
+                             <span className="text-gray-300">Read-only</span>
                           </label>
                           <label className="flex items-center gap-1.5 cursor-not-allowed">
                              <input type="checkbox" className="accent-sky-500 bg-[#222] border-[#444] rounded-sm" readOnly checked={extendedDetails ? extendedDetails["Hidden"] === "true" : (entity as any).hidden === true} /> 
-                             <span className="text-[11px] text-gray-300">Hidden</span>
+                             <span className="text-gray-300">Hidden</span>
                           </label>
                        </div>
                     </div>
 
                     {extendedDetails && Object.keys(extendedDetails).length > 0 && (
                        <div className="border bndz-preview-detail-card rounded-[4px] p-3">
-                          <div className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2 flex items-center gap-1">
+                          <div className="bndz-panel-section-title mb-2 flex items-center gap-1">
                              <Icons8Icon id="database_ui" size={12} /> Extended Metadata
                           </div>
-                          <div className="grid grid-cols-[90px_1fr] gap-y-1 text-[10px] font-mono max-h-[160px] overflow-y-auto styled-scrollbar">
+                          <div className="grid grid-cols-[90px_1fr] gap-y-1 text-xs max-h-[160px] overflow-y-auto bndz-scrollbar">
                              {Object.entries(extendedDetails).filter(([k]) => !['Owner', 'ACL Rule', 'ReadOnly', 'Hidden'].includes(k)).map(([k, v]) => (
                                 <React.Fragment key={k}>
                                    <div className="text-gray-500">{k}:</div>
@@ -843,9 +841,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   <div className="shrink-0 border-t border-white/[0.06] bg-gradient-to-r from-[#0d0d12] to-[#111118] grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
                     <div className="min-w-0 flex flex-col justify-center">
                       <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
-                      <p className="text-[10px] text-sky-400/70 uppercase tracking-widest mt-1 font-medium">Folder</p>
+                      <p className="bndz-panel-section-title mt-1">Folder</p>
                       {folderStats && (
-                        <p className="text-[10px] text-gray-500 mt-2 font-mono">
+                        <p className="bndz-panel-muted mt-2 bndz-mono">
                           {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
                         </p>
                       )}
@@ -857,7 +855,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 ) : (
                 <div className="px-4 py-3 border-t border-white/[0.06] bg-gradient-to-r from-[#0d0d12] to-[#111118] shrink-0">
                    <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
-                   <p className="text-[10px] text-sky-400/70 uppercase tracking-widest mt-1 font-medium">
+                   <p className="bndz-panel-section-title mt-1 text-sky-400/80">
                       {isDrive ? (entity as any).typeDescription : `${ext.toUpperCase()} file`}
                    </p>
                 </div>

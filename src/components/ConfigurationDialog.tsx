@@ -9,6 +9,7 @@ import IconConfiguratorTab from './IconConfiguratorTab';
 import ContextMenuConfiguratorTab from './ContextMenuConfiguratorTab';
 import ThemesTabContent from './settings/ThemesTabContent';
 import AppearanceTabContent from './settings/AppearanceTabContent';
+import FontsTabContent from './settings/FontsTabContent';
 import KeyboardShortcutsTab from './settings/KeyboardShortcutsTab';
 import ColorsTabContent from './settings/ColorsTabContent';
 import UdcEditorTab from './settings/UdcEditorTab';
@@ -2168,68 +2169,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             </TabsContent>
 
             <TabsContent value="Fonts" className="m-0 border-0 p-0 outline-none">
-               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Fonts</h1>
-               
-               <div className="space-y-[20px] max-w-[560px]">
-                  <div className="flex items-center gap-[42px]">
-                     <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">UI font size:</span>
-                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.fontSize ?? 12} onChange={e => updateLocalConfig({ fontSize: parseInt(e.target.value) })}>
-                        {[10, 11, 12, 13, 14, 15, 16, 18, 20].map(n => <option key={n} value={n}>{n}px</option>)}
-                     </select>
-                  </div>
-                  <div className="flex items-center gap-[42px]">
-                     <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">UI font family:</span>
-                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm flex-1 outline-none" value={localConfig.uiFontFamily || 'Segoe UI, system-ui, sans-serif'} onChange={e => updateLocalConfig({ uiFontFamily: e.target.value })}>
-                        <option value="Segoe UI, system-ui, sans-serif">Segoe UI</option>
-                        <option value="Inter, system-ui, sans-serif">Inter</option>
-                        <option value="Roboto, system-ui, sans-serif">Roboto</option>
-                        <option value="Tahoma, system-ui, sans-serif">Tahoma</option>
-                        <option value="Arial, Helvetica, sans-serif">Arial</option>
-                        <option value="Verdana, Geneva, sans-serif">Verdana</option>
-                        <option value="Georgia, serif">Georgia</option>
-                        <option value="Cascadia Code, Consolas, monospace">Cascadia Code</option>
-                     </select>
-                  </div>
-                  <div className="flex items-center gap-[42px]">
-                     <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">Monospace font:</span>
-                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm flex-1 outline-none" value={localConfig.uiFontFamilyMono || 'Cascadia Code, Consolas, monospace'} onChange={e => updateLocalConfig({ uiFontFamilyMono: e.target.value })}>
-                        <option value="Cascadia Code, Consolas, monospace">Cascadia Code</option>
-                        <option value="Consolas, Courier New, monospace">Consolas</option>
-                        <option value="Courier New, monospace">Courier New</option>
-                        <option value="Lucida Console, monospace">Lucida Console</option>
-                     </select>
-                  </div>
-                  <div className="flex items-center gap-[42px]">
-                     <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">List row height:</span>
-                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.rowHeight ?? 22} onChange={e => updateLocalConfig({ rowHeight: parseInt(e.target.value) })}>
-                        {[18, 20, 22, 24, 26, 28, 32].map(n => <option key={n} value={n}>{n}px</option>)}
-                     </select>
-                  </div>
-                  <div className="flex items-center gap-[42px]">
-                     <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">Corner radius:</span>
-                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm w-[120px] outline-none" value={localConfig.uiCornerRadius || 'soft'} onChange={e => updateLocalConfig({ uiCornerRadius: e.target.value })}>
-                        <option value="sharp">Sharp</option>
-                        <option value="soft">Soft</option>
-                        <option value="round">Round</option>
-                     </select>
-                  </div>
-                  <div className="space-y-2 pt-2 border-t border-[#333]">
-                     <Checkbox label="Compact toolbar (smaller buttons)" checked={!!localConfig.compactToolbar} onChange={e => updateLocalConfig({ compactToolbar: e.target.checked })} />
-                     <Checkbox label="Dense menubar" checked={!!localConfig.denseMenubar} onChange={e => updateLocalConfig({ denseMenubar: e.target.checked })} />
-                     <Checkbox label="Accent borders on panels" checked={!!localConfig.showPanelAccentBorders} onChange={e => updateLocalConfig({ showPanelAccentBorders: e.target.checked })} />
-                     <Checkbox label="Animate panel transitions" checked={localConfig.animatePanelTransitions !== false} onChange={e => updateLocalConfig({ animatePanelTransitions: e.target.checked })} />
-                  </div>
-                  <div className="rounded-lg border border-[#333] bg-[#141418] p-3 text-[13px]" style={{ fontFamily: localConfig.uiFontFamily || 'Segoe UI, system-ui, sans-serif', fontSize: localConfig.fontSize || 12 }}>
-                     Preview — The quick brown fox jumps over the lazy dog.
-                     <div className="mt-2 font-mono text-[11px] text-gray-400" style={{ fontFamily: localConfig.uiFontFamilyMono || 'Cascadia Code, Consolas, monospace' }}>
-                       C:\Users\preview\Documents\sample.txt — 1.24 MB
-                     </div>
-                  </div>
-               </div>
-               
-               <div className="mt-[32px]">
-                  <Checkbox label={<span>Ena<span className="underline decoration-1 underline-offset-[3px]">b</span>le zoom by Ctrl+mouse wheel</span>} checked={localConfig.enableZoomByCtrlMouseWheel ?? false} onChange={e => updateLocalConfig({ enableZoomByCtrlMouseWheel: e.target.checked })} />
-               </div>
+              <FontsTabContent localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
             </TabsContent>
 
             <TabsContent value="Templates" className="m-0 border-0 p-0 outline-none flex flex-col h-full">

@@ -543,6 +543,7 @@ export default function BNDZUI() {
   const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState(config.previewPanelOpen !== false);
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(config.bottomPanelOpen !== false);
   const bottomPanelRef = usePanelRef();
+  const previewPanelRef = usePanelRef();
   const previewPanelInnerRef = useRef<HTMLDivElement>(null);
   const dualPaneSecondRef = useRef<HTMLDivElement>(null);
   const innerGroupRef = useGroupRef();
@@ -560,6 +561,17 @@ export default function BNDZUI() {
     applySettingsRuntime(config);
   }, [config.theme, config.applyColors, config.accent, config.bgMain,
     config.appearanceChromePalette, config.appearanceSurfaceStyle, config.appearanceSelectionStyle]);
+
+  useEffect(() => {
+    applySettingsRuntime(config);
+  }, [
+    config.fontSize, config.uiFontFamily, config.uiFontWeight, config.uiFontFamilyMono,
+    config.treeFontFamily, config.listFontFamily, config.previewFontFamily,
+    config.bottomFontFamily, config.statusFontFamily, config.chromeFontFamily,
+    config.treeFontSize, config.listFontSize, config.previewFontSize,
+    config.bottomFontSize, config.statusFontSize, config.chromeFontSize,
+    config.rowHeight,
+  ]);
 
   /** One-time upgrade for panel defaults + sidebar cloud section */
   useEffect(() => {
@@ -650,6 +662,13 @@ export default function BNDZUI() {
     if (effectiveBottomOpen) panel.expand();
     else panel.collapse();
   }, [effectiveBottomOpen, bottomPanelRef]);
+
+  useEffect(() => {
+    const panel = previewPanelRef.current;
+    if (!panel) return;
+    if (effectivePreviewOpen) panel.expand();
+    else panel.collapse();
+  }, [effectivePreviewOpen, previewPanelRef]);
 
   const [isToolbarConfigOpen, setIsToolbarConfigOpen] = useState(false);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
@@ -6950,9 +6969,12 @@ export default function BNDZUI() {
             />
             <ResizablePanel
                id="preview"
+               panelRef={previewPanelRef}
                defaultSize={panelPct(outerDefaultLayout.preview!)}
                minSize={panelPct(MIN_PREVIEW_SIZE)}
                maxSize={panelPct(MAX_PREVIEW_SIZE)}
+               collapsible
+               collapsedSize={0}
                className="bndz-chrome-preview border-l border-[#282830] overflow-hidden z-10 flex min-h-0 bndz-gpu-layer"
             >
                <div

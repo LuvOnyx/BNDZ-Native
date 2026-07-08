@@ -692,6 +692,229 @@ html.theme-light .nav-tree-row:hover {
   backface-visibility: hidden;
 }
 
+/* Panel typography — driven by Configuration → Fonts */
+.bndz-chrome-sidebar,
+.bndz-nav-tree,
+.bndz-chrome-sidebar .bndz-nav-tree {
+  font-family: var(--bndz-font-tree-family, var(--bndz-font-family));
+  font-size: var(--bndz-font-tree-size, var(--bndz-font-size));
+  font-weight: var(--bndz-font-tree-weight, var(--bndz-font-weight-ui, 500));
+  line-height: var(--bndz-font-tree-line-height, 1.35);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.bndz-file-list-scroll,
+.fs-list-header,
+.bndz-list-select-cell {
+  font-family: var(--bndz-font-list-family, var(--bndz-font-family));
+  font-size: var(--bndz-font-list-size, var(--bndz-font-size));
+  font-weight: var(--bndz-font-list-weight, var(--bndz-font-weight-ui, 500));
+  line-height: var(--bndz-font-list-line-height, 1.3);
+}
+
+.bndz-chrome-preview,
+.bndz-preview-panel {
+  font-family: var(--bndz-font-preview-family, var(--bndz-font-family));
+  font-size: var(--bndz-font-preview-size, var(--bndz-font-size));
+  font-weight: var(--bndz-font-preview-weight, var(--bndz-font-weight-ui, 500));
+  line-height: var(--bndz-font-preview-line-height, 1.4);
+}
+
+.bndz-chrome-bottom,
+.bndz-bottom-panel,
+.bndz-plugin-tier {
+  font-family: var(--bndz-font-bottom-family, var(--bndz-font-family));
+  font-size: var(--bndz-font-bottom-size, var(--bndz-font-size));
+  font-weight: var(--bndz-font-bottom-weight, var(--bndz-font-weight-ui, 500));
+  line-height: var(--bndz-font-bottom-line-height, 1.35);
+}
+
+.bndz-chrome-statusbar {
+  font-family: var(--bndz-font-status-family, var(--bndz-font-family));
+  font-size: var(--bndz-font-status-size, 11px);
+  font-weight: var(--bndz-font-status-weight, 500);
+  line-height: var(--bndz-font-status-line-height, 1.25);
+}
+
+.bndz-chrome-menubar,
+.bndz-chrome-toolbar,
+.bndz-chrome-tabs {
+  font-family: var(--bndz-font-chrome-family, var(--bndz-font-family));
+  font-size: var(--bndz-font-chrome-size, var(--bndz-font-size));
+  font-weight: var(--bndz-font-chrome-weight, var(--bndz-font-weight-ui, 500));
+}
+
+.bndz-mono,
+.font-mono,
+.bndz-preview-panel .font-mono,
+.bndz-plugin-tier .font-mono {
+  font-family: var(--bndz-font-family-mono) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.bndz-panel-muted {
+  color: var(--bndz-text-muted, rgba(255, 255, 255, 0.5));
+  font-size: 0.92em;
+  font-weight: var(--bndz-font-weight-ui, 500);
+}
+
+.bndz-panel-section-title {
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bndz-text-muted, rgba(255, 255, 255, 0.45));
+}
+
+/* Preview panel native chrome */
+.bndz-preview-tabstrip {
+  min-height: 34px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%), var(--bndz-surface-chrome, #1a1a1f);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bndz-preview-tab {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  padding: 5px 12px;
+  border-radius: var(--bndz-radius-sm);
+  color: rgba(255, 255, 255, 0.55);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.bndz-preview-tab:hover {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bndz-preview-tab-active {
+  background: rgba(14, 165, 233, 0.18) !important;
+  color: #e0f2fe !important;
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.25);
+}
+
+.bndz-preview-stage {
+  flex: 1 1 auto;
+  min-height: 140px;
+  background: #0a0a0e;
+}
+
+.bndz-media-transport {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.45) 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.bndz-media-transport-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+
+.bndz-media-transport-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.bndz-media-transport-btn--primary {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+}
+
+.bndz-media-transport-btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 100%);
+  color: #fff;
+}
+
+.bndz-media-seek {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bndz-media-seek-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  pointer-events: none;
+}
+
+.bndz-media-seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  margin-left: -6px;
+  border-radius: 999px;
+  background: #f0f9ff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.bndz-media-seek:hover .bndz-media-seek-thumb,
+.bndz-media-seek:focus-within .bndz-media-seek-thumb {
+  opacity: 1;
+}
+
+/* Bottom plugin panel chrome */
+.bndz-bottom-tabstrip {
+  min-height: 36px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%), #12141a;
+}
+
+.bndz-bottom-tab {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  padding: 6px 12px;
+  color: rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.bndz-bottom-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bndz-bottom-tab-active {
+  color: #bae6fd !important;
+  background: rgba(14, 165, 233, 0.12) !important;
+  box-shadow: inset 0 -2px 0 #38bdf8;
+}
+
+.bndz-plugin-toolbar {
+  min-height: 36px;
+  background: rgba(13, 13, 16, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bndz-resize-handle-glow[data-disabled],
+.bndz-resize-handle-glow-v[data-disabled] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Premium plugin panel harmonization tier */
 .bndz-plugin-tier {
   font-feature-settings: 'kern' 1, 'liga' 1;

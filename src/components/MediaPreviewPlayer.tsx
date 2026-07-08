@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import MediaSeekBar from './MediaSeekBar';
 import { toWindowsPath } from '../lib/pathUtils';
 import { getMimeType } from '../lib/mediaTypes';
 
@@ -8,18 +9,20 @@ interface MediaPreviewPlayerProps {
   type: 'audio' | 'video';
   title?: string;
   poster?: string;
-  /** Windows path for IPC blob fallback when virtual stream fails */
   filePath?: string | null;
   extension?: string;
   autoplay?: boolean;
-  /** Prefer IPC blob load in WebView2 (most reliable for audio) */
   preferBlob?: boolean;
 }
 
+const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
-  const m = Math.floor(seconds / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
@@ -34,6 +37,7 @@ export default function MediaPreviewPlayer({
   const [volume, setVolume] = useState(0.85);
   const [muted, setMuted] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const isNativeHost = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
   const [resolvedSrc, setResolvedSrc] = useState(() => (isNativeHost && type === 'audio' ? '' : src));
   const [mimeType, setMimeType] = useState(getMimeType(extension));
@@ -48,6 +52,7 @@ export default function MediaPreviewPlayer({
     setPlaying(!el.paused && !el.ended);
     setVolume(el.volume);
     setMuted(el.muted);
+    setPlaybackRate(el.playbackRate);
   }, []);
 
   useEffect(() => {
@@ -114,7 +119,7 @@ export default function MediaPreviewPlayer({
     };
     void init();
     return () => { cancelled = true; };
-  }, [src, extension, filePath, preferBlob, type, loadViaBlob]);
+  }, [src, extension, filePath, preferBlob, type, loadViaBlob, isNativeHost]);
 
   useEffect(() => {
     const el = mediaRef.current;
@@ -172,11 +177,29 @@ export default function MediaPreviewPlayer({
     setMuted(el.muted);
   };
 
+  const cycleRate = () => {
+    const el = mediaRef.current;
+    if (!el) return;
+    const idx = RATES.indexOf(playbackRate);
+    const next = RATES[(idx + 1) % RATES.length];
+    el.playbackRate = next;
+    setPlaybackRate(next);
+  };
+
   const toggleFullscreen = () => {
     const el = mediaRef.current as HTMLVideoElement | null;
     if (!el || type !== 'video') return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen?.();
+  };
+
+  const togglePiP = async () => {
+    const el = mediaRef.current as HTMLVideoElement | null;
+    if (!el || type !== 'video' || !document.pictureInPictureEnabled) return;
+    try {
+      if (document.pictureInPictureElement) await document.exitPictureInPicture();
+      else await el.requestPictureInPicture();
+    } catch { /* unsupported */ }
   };
 
   useEffect(() => {
@@ -190,9 +213,7 @@ export default function MediaPreviewPlayer({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [type, loadError, togglePlay, skip, toggleFullscreen, toggleMute]);
-
-  const progress = duration > 0 ? (current / duration) * 100 : 0;
+  }, [type, togglePlay, skip, toggleFullscreen, toggleMute]);
 
   const tryAutoplay = useCallback(() => {
     if (!autoplay) return;
@@ -220,17 +241,17 @@ export default function MediaPreviewPlayer({
   };
 
   return (
-    <div className={`w-full h-full flex flex-col bndz-glass-panel overflow-hidden ${type === 'video' ? '' : 'justify-center'}`}>
-      <div className={`relative flex-1 flex items-center justify-center min-h-0 ${type === 'audio' ? 'py-6' : ''}`}>
+    <div className={`w-full h-full flex flex-col overflow-hidden bg-[#0a0a0e] ${type === 'video' ? '' : 'justify-center'}`}>
+      <div className={`relative flex-1 flex items-center justify-center min-h-0 bndz-preview-stage ${type === 'audio' ? 'py-8' : ''}`}>
         {loadError ? (
           <div className="flex flex-col items-center gap-3 px-6 text-center">
             <Icons8Icon id="warning" size={40} className="opacity-80" />
-            <p className="text-xs text-gray-400 max-w-[240px] leading-relaxed">{loadError}</p>
+            <p className="text-sm text-gray-400 max-w-[260px] leading-relaxed">{loadError}</p>
             {filePath && (
               <button
                 type="button"
                 onClick={() => import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(filePath), 'open'))}
-                className="text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 bg-sky-600/20 border border-sky-500/40 text-sky-400 rounded hover:bg-sky-600/30"
+                className="text-xs font-semibold px-3 py-1.5 bg-sky-600/20 border border-sky-500/40 text-sky-300 rounded-md hover:bg-sky-600/30"
               >
                 Open in Default Player
               </button>
@@ -247,15 +268,10 @@ export default function MediaPreviewPlayer({
           />
         ) : (
           <>
-            <audio
-              key={resolvedSrc}
-              ref={mediaRef as React.RefObject<HTMLAudioElement>}
-              className="hidden"
-              {...mediaProps}
-            />
-            <div className="flex flex-col items-center gap-3 px-6 text-center">
-              <div className="w-24 h-24 rounded-3xl bndz-glass-surface border border-sky-500/20 flex items-center justify-center shadow-lg">
-                <Icons8Icon id="volume_ui" size={40} />
+            <audio key={resolvedSrc} ref={mediaRef as React.RefObject<HTMLAudioElement>} className="hidden" {...mediaProps} />
+            <div className="flex flex-col items-center gap-4 px-8 text-center">
+              <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-sky-500/15 to-violet-500/10 border border-white/10 flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+                <Icons8Icon id="music_ui" size={44} />
               </div>
               {title && <p className="text-sm font-semibold text-white truncate max-w-full">{title}</p>}
             </div>
@@ -263,46 +279,41 @@ export default function MediaPreviewPlayer({
         )}
 
         {buffering && !loadError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-            <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+            <div className="w-9 h-9 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
       </div>
 
-      <div className="shrink-0 border-t border-white/10 px-3 py-2.5 flex flex-col gap-2 backdrop-blur-md bg-black/20">
-        {type === 'video' && title && (
-          <div className="text-[11px] text-gray-400 truncate font-medium">{title}</div>
+      <div className="shrink-0 bndz-media-transport px-3 py-2.5 flex flex-col gap-2">
+        {(type === 'video' || title) && (
+          <div className="flex items-center justify-between gap-2 min-h-[18px]">
+            <div className="text-xs text-gray-300 truncate font-medium">{title || 'Media'}</div>
+            <div className="bndz-mono text-[11px] text-gray-500 shrink-0">
+              {formatTime(current)} / {formatTime(duration)}
+            </div>
+          </div>
         )}
 
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Back 10s">
-            <Icons8Icon id="skip_back_ui" size={14} />
+          <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Back 10s">
+            <Icons8Icon id="skip_back_ui" size={15} />
           </button>
-          <button type="button" onClick={togglePlay} disabled={!!loadError} className="p-2 bg-sky-500/90 hover:bg-sky-400 rounded-full text-white shadow-lg disabled:opacity-30" title={playing ? 'Pause' : 'Play'}>
+          <button type="button" onClick={togglePlay} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--primary" title={playing ? 'Pause' : 'Play'}>
             {playing ? <Icons8Icon id="pause_ui" size={16} /> : <Icons8Icon id="play_ui" size={16} className="ml-0.5" />}
           </button>
-          <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Forward 10s">
-            <Icons8Icon id="skip_forward_ui" size={14} />
+          <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Forward 10s">
+            <Icons8Icon id="skip_forward_ui" size={15} />
           </button>
 
-          <span className="text-[10px] font-mono text-gray-500 w-[72px] text-right shrink-0">
-            {formatTime(current)} / {formatTime(duration)}
-          </span>
+          <MediaSeekBar value={current} max={duration || 0} disabled={!!loadError} onChange={seek} />
 
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            step={0.1}
-            value={current}
-            onChange={e => seek(parseFloat(e.target.value))}
-            disabled={!!loadError}
-            className="flex-1 h-1 accent-sky-500 cursor-pointer min-w-0 disabled:opacity-30"
-            style={{ background: `linear-gradient(to right, #0ea5e9 ${progress}%, #333 ${progress}%)` }}
-          />
+          <button type="button" onClick={cycleRate} disabled={!!loadError} className="bndz-media-transport-btn w-10 text-[11px] font-semibold bndz-mono" title="Playback speed">
+            {playbackRate}x
+          </button>
 
-          <button type="button" onClick={toggleMute} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30">
-            {muted || volume === 0 ? <Icons8Icon id="volume_off_ui" size={14} /> : <Icons8Icon id="volume_ui" size={14} />}
+          <button type="button" onClick={toggleMute} disabled={!!loadError} className="bndz-media-transport-btn" title={muted ? 'Unmute' : 'Mute'}>
+            {muted || volume === 0 ? <Icons8Icon id="volume_off_ui" size={15} /> : <Icons8Icon id="volume_ui" size={15} />}
           </button>
           <input
             type="range"
@@ -312,13 +323,19 @@ export default function MediaPreviewPlayer({
             value={muted ? 0 : volume}
             onChange={e => setVol(parseFloat(e.target.value))}
             disabled={!!loadError}
-            className="w-16 h-1 accent-sky-500 cursor-pointer shrink-0 disabled:opacity-30"
+            className="w-14 h-1 accent-sky-500 cursor-pointer shrink-0 disabled:opacity-30"
+            aria-label="Volume"
           />
 
           {type === 'video' && (
-            <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="p-1.5 hover:bg-[#2a2a2a] rounded text-gray-400 hover:text-white disabled:opacity-30" title="Fullscreen">
-              <Icons8Icon id="maximize_ui" size={14} />
-            </button>
+            <>
+              <button type="button" onClick={togglePiP} disabled={!!loadError} className="bndz-media-transport-btn" title="Picture in picture">
+                <Icons8Icon id="picture_ui" size={15} />
+              </button>
+              <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="bndz-media-transport-btn" title="Fullscreen">
+                <Icons8Icon id="maximize_ui" size={15} />
+              </button>
+            </>
           )}
         </div>
       </div>

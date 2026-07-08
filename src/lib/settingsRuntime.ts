@@ -621,7 +621,7 @@ function clearColorCssVars(root: HTMLElement): void {
   root.style.removeProperty('--accent-muted');
 }
 
-/** Apply document-level settings (CSS variables, body classes, theme) */
+import { buildPanelTypographyCssVars } from './panelTypography';
 export function applySettingsRuntime(config: AppConfig): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
@@ -635,6 +635,11 @@ export function applySettingsRuntime(config: AppConfig): void {
   root.style.setProperty('--bndz-tab-font-size', `${rt.ui.tabFontSize}px`);
   root.style.setProperty('--bndz-tab-bar-height', `${rt.ui.tabBarHeight}px`);
   root.style.setProperty('--bndz-row-height', `${rt.ui.rowHeight}px`);
+
+  const panelFontVars = buildPanelTypographyCssVars(config);
+  for (const [key, value] of Object.entries(panelFontVars)) {
+    root.style.setProperty(key, value);
+  }
   root.style.setProperty('--bndz-preview-delay', `${rt.preview.delayMs}ms`);
   root.dataset.showExtensions = String(rt.list.showExtensions);
   root.dataset.sortFoldersFirst = String(rt.sort.foldersFirst);
