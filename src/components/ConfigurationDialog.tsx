@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import { CloseGlyph, MinimizeGlyph } from './ChromeGlyphs';
 import { useAppConfig } from '../data/configContext';
@@ -61,6 +61,32 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   const [showConditionalFormattingDialog, setShowConditionalFormattingDialog] = useState(false);
   const [showJumpDialog, setShowJumpDialog] = useState(false);
   const [jumpQuery, setJumpQuery] = useState('');
+  const [runtimeInfo, setRuntimeInfo] = useState<{
+    version: string;
+    iniPath: string;
+    is64Bit: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      IPC.getAppRuntimeInfo().then(info => {
+        if (!active || !info) return;
+        setRuntimeInfo({
+          version: info.version || '1.0.0',
+          iniPath: info.iniPath || '',
+          is64Bit: info.is64Bit !== false,
+        });
+      }).catch(() => {});
+    });
+    return () => { active = false; };
+  }, []);
+
+  const configTitleSuffix = runtimeInfo?.iniPath
+    ? `@ ${runtimeInfo.iniPath} - ${runtimeInfo.version} (${runtimeInfo.is64Bit ? '64' : '32'}-bit)`
+    : runtimeInfo
+      ? `BNDZ ${runtimeInfo.version}`
+      : 'BNDZ';
 
   const categoryIcons: Record<string, React.ReactNode> = {
     General: <Icons8Icon id="config" size={13} className="opacity-70" />,
@@ -114,7 +140,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
       <div className="bg-[#a475d4] px-3 py-[5px] flex items-center justify-between cursor-move rounded-t-lg">
          <div className="text-[12px] text-black flex items-center gap-2 font-medium">
             <span className="text-black font-bold text-[14px]">BNDZ</span>
-            Configuration - BNDZ @ C:\Users\mikey\AppData\Roaming\BNDZ64\BNDZ.ini - 28.30.0600 (64-bit)
+            Configuration - {configTitleSuffix}
          </div>
          <div className="flex text-black gap-[1px] justify-center items-center h-full pb-1">
             <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">

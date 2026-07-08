@@ -2558,6 +2558,15 @@ namespace BNDZ
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
+                else if (type == "GET_APP_RUNTIME_INFO")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "APP_RUNTIME_INFO_RESULT", id = idProp, payload = _settingsManager.GetRuntimeInfo() };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() => {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                    });
+                }
                 else if (type == "CHECK_FOR_UPDATES")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;

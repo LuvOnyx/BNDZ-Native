@@ -714,6 +714,34 @@ export const IPC = {
     return Promise.resolve('1.0.0');
   },
 
+  getAppRuntimeInfo(): Promise<{
+    version: string;
+    iniPath: string;
+    jsonConfigPath: string;
+    is64Bit: boolean;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_appRuntime`;
+      return _nativeCall<{
+        version: string;
+        iniPath: string;
+        jsonConfigPath: string;
+        is64Bit: boolean;
+      }>('GET_APP_RUNTIME_INFO', 'APP_RUNTIME_INFO_RESULT', id).catch(() => ({
+        version: '1.0.0',
+        iniPath: '',
+        jsonConfigPath: '',
+        is64Bit: true,
+      }));
+    }
+    return Promise.resolve({
+      version: '1.0.0',
+      iniPath: '%AppData%\\BNDZ64\\BNDZ.ini',
+      jsonConfigPath: '%AppData%\\BNDZ64\\bndz_config.json',
+      is64Bit: true,
+    });
+  },
+
   checkForUpdates(manifestUrl?: string): Promise<{
     currentVersion: string;
     latestVersion?: string | null;

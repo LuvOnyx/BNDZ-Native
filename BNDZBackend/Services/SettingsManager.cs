@@ -39,6 +39,18 @@ namespace BNDZ.Services
             }
         }
 
+        public string IniSettingsPath => _iniSettings.IniPath;
+
+        public string JsonConfigPath => _configFilePath;
+
+        public object GetRuntimeInfo() => new
+        {
+            version = BndzUpdateService.GetCurrentVersion(),
+            iniPath = _iniSettings.IniPath,
+            jsonConfigPath = _configFilePath,
+            is64Bit = Environment.Is64BitProcess,
+        };
+
         public string? LoadSettings()
         {
             try
