@@ -36,14 +36,14 @@ export default function IconStudioPlugin({
 
     return (
         <IconStudioProvider nativeSyncEnabled={isPluginTabActive !== false}>
-            <PluginPanelShell title="Icon Studio" icon="icon_studio" iconColor="#ec4899" variant="embedded">
-            <IconStudioInner
-                selectedItems={selectedItems}
-                selectedTargetTypes={selectedTargetTypes}
-                focusedPath={focusedPath}
-                targetCount={targetCount}
-                activeStep={activeStep}
-            />
+            <PluginPanelShell title="Icon Studio" icon="icon_studio" iconColor="#94a3b8" variant="embedded">
+                <IconStudioInner
+                    selectedItems={selectedItems}
+                    selectedTargetTypes={selectedTargetTypes}
+                    focusedPath={focusedPath}
+                    targetCount={targetCount}
+                    activeStep={activeStep}
+                />
             </PluginPanelShell>
         </IconStudioProvider>
     );
@@ -66,57 +66,57 @@ function IconStudioInner({
 
     return (
         <div className={`${styles.container} flex-col`}>
-            <div className={`${styles.workflowBar} shrink-0 flex items-center justify-between px-4 h-10 gap-3`}>
+            <div className={`${styles.workflowBar} shrink-0 flex items-center justify-between px-4 h-9 gap-3`}>
                 <div className="flex items-center gap-1 min-w-0">
                     {STEPS.map((step, i) => (
                         <React.Fragment key={step.n}>
-                            <div className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md transition-colors ${
-                                activeStep >= step.n ? 'text-pink-200' : 'bndz-panel-muted'
+                            <div className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded-md ${
+                                activeStep >= step.n ? 'text-gray-200' : 'bndz-panel-muted'
                             }`}>
-                                <span className={`w-5 h-5 rounded-full text-xs font-semibold flex items-center justify-center transition-colors ${
+                                <span className={`w-5 h-5 rounded-md text-xs font-semibold flex items-center justify-center ${
                                     activeStep >= step.n
-                                        ? 'bg-pink-500/90 text-white'
-                                        : 'bg-white/5 text-gray-500'
+                                        ? 'bg-sky-600/25 text-sky-200 border border-sky-500/30'
+                                        : 'bg-white/[0.04] text-gray-500 border border-white/[0.06]'
                                 }`}>{step.n}</span>
                                 <span className="text-xs font-medium hidden sm:inline">{step.label}</span>
                             </div>
-                            {i < STEPS.length - 1 && <div className="w-4 h-px bg-white/10" />}
+                            {i < STEPS.length - 1 && <div className="w-3 h-px bg-white/[0.08]" />}
                         </React.Fragment>
                     ))}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     {targetCount > 0 ? (
-                        <span className="bndz-plugin-kind-pill inline-flex items-center gap-1 border border-emerald-500/25 text-emerald-300 bg-emerald-500/10">
-                            <Icons8Icon id="sparkles_ui" size={11} /> {targetCount} target{targetCount !== 1 ? 's' : ''} ready
+                        <span className="bndz-plugin-kind-pill inline-flex items-center gap-1 text-emerald-300/90 border border-emerald-500/20 bg-emerald-500/8">
+                            {targetCount} target{targetCount !== 1 ? 's' : ''}
                         </span>
                     ) : (
-                        <span className="text-xs bndz-panel-muted">Select folders/files in the list first</span>
+                        <span className="text-xs bndz-panel-muted hidden sm:inline">Select items in the file list</span>
                     )}
                     <label className="flex items-center gap-1.5 text-xs bndz-panel-muted cursor-pointer shrink-0" title="Allow overwriting read-only or system-protected icons">
                         <input
                             type="checkbox"
                             checked={config.allowGlobalIconOverwrite ?? false}
                             onChange={e => updateConfig({ allowGlobalIconOverwrite: e.target.checked })}
-                            className="accent-pink-500"
+                            className="accent-sky-500"
                         />
                         <Icons8Icon id="shield_ui" size={11} className="opacity-60" />
                         <span className="hidden md:inline">Force apply</span>
                     </label>
                 </div>
             </div>
-                <div className="flex flex-1 min-h-0 w-full">
-                    <LibraryManager />
-                    <IconGrid
-                        selectedItems={selectedItems || []}
-                        targetTypes={selectedTargetTypes}
-                        focusedPath={focusedPath || '/'}
-                    />
-                    <PreviewPane
-                        selectedItems={selectedItems || []}
-                        targetTypes={selectedTargetTypes}
-                        focusedPath={focusedPath || '/'}
-                    />
-                </div>
+            <div className="flex flex-1 min-h-0 w-full">
+                <LibraryManager />
+                <IconGrid
+                    selectedItems={selectedItems || []}
+                    targetTypes={selectedTargetTypes}
+                    focusedPath={focusedPath || '/'}
+                />
+                <PreviewPane
+                    selectedItems={selectedItems || []}
+                    targetTypes={selectedTargetTypes}
+                    focusedPath={focusedPath || '/'}
+                />
             </div>
+        </div>
     );
 }

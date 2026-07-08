@@ -1,28 +1,27 @@
+/* Icon Studio — flat native panel chrome (matches bndz-plugin-* tokens) */
+
 .container {
     display: flex;
     width: 100%;
     height: 100%;
-    background: radial-gradient(ellipse 120% 80% at 10% 0%, rgba(236, 72, 153, 0.06) 0%, transparent 55%),
-                radial-gradient(ellipse 80% 60% at 90% 100%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
-                #08080a;
+    background: var(--bndz-surface-panel, #0e0e12);
     overflow: hidden;
     color: #e8e8ec;
-    font-family: ui-sans-serif, system-ui, sans-serif;
     min-height: 0;
 }
 
 .workflowBar {
-    background: linear-gradient(180deg, rgba(22, 22, 28, 0.95) 0%, rgba(14, 14, 18, 0.98) 100%);
+    background: rgba(13, 13, 16, 0.96);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .sidebar {
-    width: 252px;
+    width: 220px;
+    min-width: 176px;
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     flex-direction: column;
-    background: rgba(12, 12, 16, 0.85);
-    backdrop-filter: blur(12px);
+    background: rgba(11, 11, 14, 0.98);
     z-index: 10;
 }
 
@@ -31,58 +30,64 @@
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     flex-direction: column;
-    background: rgba(16, 16, 20, 0.6);
+    background: rgba(14, 14, 18, 0.6);
     min-width: 0;
 }
 
 .rightPane {
-    width: 300px;
+    width: 280px;
+    min-width: 240px;
     display: flex;
     flex-direction: column;
     position: relative;
-    background: rgba(12, 12, 16, 0.85);
-    backdrop-filter: blur(12px);
+    background: rgba(11, 11, 14, 0.98);
 }
 
 .header {
-    height: 52px;
+    height: 40px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 18px;
+    padding: 0 14px;
     flex-shrink: 0;
-    background: rgba(20, 20, 26, 0.7);
+    background: rgba(16, 16, 20, 0.85);
 }
 
 .content {
     flex: 1;
-    padding: 14px;
+    padding: 12px;
     overflow-y: auto;
     min-height: 0;
 }
 
 .libItem {
     border: 1px solid transparent;
-    transition: all 0.18s ease;
+    border-radius: 6px;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .libItemActive {
-    background: linear-gradient(135deg, rgba(236, 72, 153, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
-    border-color: rgba(236, 72, 153, 0.25);
-    box-shadow: 0 0 20px rgba(236, 72, 153, 0.06);
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.22);
 }
 
 .iconTile {
-    background: rgba(24, 24, 30, 0.8);
+    background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 8px;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .iconTile:hover:not(:disabled) {
-    border-color: rgba(236, 72, 153, 0.45);
-    box-shadow: 0 8px 24px rgba(236, 72, 153, 0.12);
-    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.iconTileSelected {
+    border-color: rgba(56, 189, 248, 0.35) !important;
+    background: rgba(56, 189, 248, 0.06) !important;
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.15);
 }
 
 .applyOverlay {
@@ -92,19 +97,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(8, 8, 12, 0.72);
-    backdrop-filter: blur(8px);
+    background: rgba(8, 8, 12, 0.75);
+    backdrop-filter: blur(4px);
     pointer-events: all;
 }
 
 .spinnerRing {
-    width: 56px;
-    height: 56px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    border: 3px solid rgba(236, 72, 153, 0.15);
-    border-top-color: #ec4899;
-    border-right-color: #a855f7;
-    animation: iconStudioSpin 0.85s cubic-bezier(0.5, 0.1, 0.3, 1) infinite;
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    border-top-color: #38bdf8;
+    animation: iconStudioSpin 0.75s linear infinite;
 }
 
 @keyframes iconStudioSpin {

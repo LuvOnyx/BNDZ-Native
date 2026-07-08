@@ -3,6 +3,7 @@ import { Icons8Icon } from '../../Icons8Icon';
 import { CloseGlyph } from '../../ChromeGlyphs';
 import { useIconStudio } from './IconStudioContext';
 import styles from './IconStudio.module.css';
+import { PluginToolbarButton, PLUGIN_INPUT_CLASS } from '../PluginPanelPrimitives';
 
 export default function LibraryManager() {
     const { libraries, activeLibraryId, setActiveLibraryId, createLibrary, deleteLibrary, renameLibrary, importLibraryFromFolder, isImporting, resyncLibrary, exportLibrary } = useIconStudio();
@@ -25,23 +26,21 @@ export default function LibraryManager() {
     return (
         <div className={`${styles.sidebar} relative`}>
             {isImporting && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-[2px] pointer-events-none">
-                    <div className={`${styles.spinnerRing} w-10 h-10`} />
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 pointer-events-none">
+                    <div className={`${styles.spinnerRing}`} />
                 </div>
             )}
-            <div className="px-4 py-3.5 border-b border-white/6">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500/25 to-purple-600/20 flex items-center justify-center ring-1 ring-pink-500/20">
-                        <Icons8Icon id="palette_ui" size={16} className="text-pink-300" />
-                    </div>
-                    <div>
-                        <div className="text-sm font-semibold text-white tracking-tight">Libraries</div>
+            <div className="px-3 py-2.5 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                    <Icons8Icon id="layers_ui" size={14} className="text-gray-400 shrink-0" />
+                    <div className="min-w-0">
+                        <div className="text-xs font-semibold text-white">Libraries</div>
                         <div className="text-xs bndz-panel-muted">{libraries.length} collection{libraries.length !== 1 ? 's' : ''}</div>
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-1 min-h-0">
+            <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-0.5 min-h-0">
                 {libraries.length === 0 ? (
                     <div className="text-center py-8 px-3 bndz-panel-muted text-xs leading-relaxed">
                         No libraries yet.<br />Import or create one below.
@@ -50,19 +49,19 @@ export default function LibraryManager() {
                     <div
                         key={lib.id}
                         onClick={() => { if (editingId !== lib.id) setActiveLibraryId(lib.id); }}
-                        className={`${styles.libItem} group flex items-center justify-between p-2.5 rounded-xl cursor-pointer ${
-                            activeLibraryId === lib.id ? styles.libItemActive + ' text-white' : 'text-gray-400 hover:bg-white/4 hover:text-gray-200'
+                        className={`${styles.libItem} group flex items-center justify-between p-2 cursor-pointer ${
+                            activeLibraryId === lib.id ? `${styles.libItemActive} text-white` : 'text-gray-400 hover:bg-white/[0.03] hover:text-gray-200'
                         }`}
                     >
-                        <div className="flex items-center gap-2.5 overflow-hidden flex-1 min-w-0">
-                            <Icons8Icon id="layers_ui" size={14} className={activeLibraryId === lib.id ? 'text-pink-400 shrink-0' : 'text-gray-600 shrink-0'} />
+                        <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+                            <Icons8Icon id="layers_ui" size={13} className={activeLibraryId === lib.id ? 'text-sky-400 shrink-0' : 'text-gray-600 shrink-0'} />
                             {editingId === lib.id ? (
                                 <form onSubmit={(e) => submitRename(e, lib.id)} className="flex-1" onClick={e => e.stopPropagation()}>
                                     <input
                                         autoFocus
                                         value={editName}
                                         onChange={e => setEditName(e.target.value)}
-                                        className="w-full bg-black/30 text-white text-xs px-2 py-1 outline-none border border-pink-500/30 rounded-md"
+                                        className={`${PLUGIN_INPUT_CLASS} !py-1`}
                                     />
                                 </form>
                             ) : (
@@ -89,33 +88,23 @@ export default function LibraryManager() {
                 ))}
             </div>
 
-            <div className="p-3 border-t border-white/6 flex flex-col gap-2">
+            <div className="p-2 border-t border-white/[0.06] flex flex-col gap-1.5">
                 {activeLibraryId && (
                     <div className="flex gap-1.5">
-                        <button
-                            type="button"
-                            title="Resync from source folder"
-                            onClick={() => void resyncLibrary(activeLibraryId)}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors"
-                        >
-                            <Icons8Icon id="refresh" size={12} /> Resync
-                        </button>
-                        <button
-                            type="button"
-                            title="Export library JSON"
-                            onClick={() => exportLibrary(activeLibraryId)}
-                            className="flex-1 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors"
-                        >
-                            <Icons8Icon id="download" size={12} /> Export
-                        </button>
+                        <PluginToolbarButton icon="refresh" onClick={() => void resyncLibrary(activeLibraryId)} title="Resync from source folder">
+                            Resync
+                        </PluginToolbarButton>
+                        <PluginToolbarButton icon="download" onClick={() => exportLibrary(activeLibraryId)} title="Export library JSON">
+                            Export
+                        </PluginToolbarButton>
                     </div>
                 )}
-                <button type="button" onClick={importLibraryFromFolder} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-pink-600/90 to-purple-600/90 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-semibold py-2.5 rounded-lg shadow-md shadow-pink-900/15 transition-all">
-                    <Icons8Icon id="folder_open_ui" size={14} /> Import folder
-                </button>
-                <button type="button" onClick={() => createLibrary('New Library')} className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/8 border border-white/8 text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors">
-                    <Icons8Icon id="plus_ui" size={14} /> New empty library
-                </button>
+                <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder} active>
+                    Import folder
+                </PluginToolbarButton>
+                <PluginToolbarButton icon="plus_ui" onClick={() => createLibrary('New Library')}>
+                    New library
+                </PluginToolbarButton>
             </div>
         </div>
     );

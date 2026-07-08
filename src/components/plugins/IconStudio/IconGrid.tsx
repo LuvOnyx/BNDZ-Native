@@ -10,6 +10,7 @@ import { resolveIconFilePath } from '../../../lib/iconPathUtils';
 import { applyIconToTargets } from './iconApply';
 import { IPC } from '../../../lib/ipcBridge';
 import { pushToast } from '../../ToastHost';
+import { PluginToolbarButton, PluginEmptyState, PLUGIN_INPUT_CLASS } from '../PluginPanelPrimitives';
 
 const ICON_EXTENSIONS = ['.ico', '.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif'];
 const COL_MIN = 108;
@@ -190,12 +191,12 @@ export default function IconGrid({
                     }}
                     title={canApply ? `Apply to ${selectedItems.length} item(s) · Enter` : 'Select targets in file list'}
                     disabled={isApplying}
-                    className={`${styles.iconTile} w-full flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${
-                        isFocused || isSelected ? 'ring-2 ring-pink-500/50 border-pink-500/40' : ''
+                    className={`${styles.iconTile} w-full flex flex-col items-center gap-2 p-2.5 transition-colors ${
+                        isFocused || isSelected ? styles.iconTileSelected : ''
                     }`}
                 >
-                    <div className="w-14 h-14 rounded-xl bg-black/25 flex items-center justify-center ring-1 ring-white/5">
-                        <IconPreviewImage path={previewPath} size={48} />
+                    <div className="w-12 h-12 rounded-lg bg-black/25 flex items-center justify-center border border-white/[0.06]">
+                        <IconPreviewImage path={previewPath} size={40} />
                     </div>
                     <span className="text-xs font-medium text-gray-400 truncate w-full text-center">{icon.name}</span>
                 </button>
@@ -220,18 +221,16 @@ export default function IconGrid({
             {activeLibrary ? (
                 <>
                     <div className={styles.header}>
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500/20 to-purple-600/20 flex items-center justify-center ring-1 ring-pink-500/20 shrink-0">
-                                <Icons8Icon id="palette_ui" size={15} className="text-pink-300" />
-                            </div>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <Icons8Icon id="palette_ui" size={14} className="text-gray-400 shrink-0" />
                             <div className="min-w-0 flex-1">
-                                <div className="text-sm font-semibold text-white truncate">{activeLibrary.name}</div>
+                                <div className="text-xs font-semibold text-white truncate">{activeLibrary.name}</div>
                                 <div className="text-xs bndz-panel-muted">
                                     {filteredIcons.length}{search.trim() ? ` of ${activeLibrary.icons.length}` : ''} icons
                                 </div>
                             </div>
                         </div>
-                        <div className="relative shrink-0 w-[160px] mr-2 hidden sm:block">
+                        <div className="relative shrink-0 w-[148px] mr-2 hidden sm:block">
                             <Icons8Icon id="search" size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
                             <input
                                 ref={searchRef}
@@ -239,17 +238,12 @@ export default function IconGrid({
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                                 placeholder="Filter icons…"
-                                className="w-full bg-black/30 border border-white/8 rounded-lg pl-7 pr-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-pink-500/40"
+                                className={`${PLUGIN_INPUT_CLASS} !pl-7 !py-1`}
                             />
                         </div>
-                        <button
-                            type="button"
-                            onClick={importLibraryFromFolder}
-                            disabled={overlayBusy}
-                            className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 px-3 py-1.5 rounded-lg shadow-lg shadow-pink-900/20 transition-all disabled:opacity-50 shrink-0"
-                        >
-                            <Icons8Icon id="folder_open_ui" size={12} /> Import
-                        </button>
+                        <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder} disabled={overlayBusy}>
+                            Import
+                        </PluginToolbarButton>
                     </div>
 
                     <div className="px-3 pb-2 sm:hidden">
@@ -260,7 +254,7 @@ export default function IconGrid({
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                                 placeholder="Filter icons…"
-                                className="w-full bg-black/30 border border-white/8 rounded-lg pl-7 pr-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-pink-500/40"
+                                className={`${PLUGIN_INPUT_CLASS} !pl-7 !py-1`}
                             />
                         </div>
                     </div>
@@ -278,7 +272,7 @@ export default function IconGrid({
                             <div className={styles.applyOverlay}>
                                 <div className="flex flex-col items-center gap-4">
                                     <div className={styles.spinnerRing} />
-                                    <span className="text-[11px] font-medium text-pink-200/80 tracking-wide">
+                                    <span className="text-xs bndz-panel-muted">
                                         {isImporting ? 'Importing icons…' : 'Applying icon…'}
                                     </span>
                                 </div>
@@ -286,9 +280,9 @@ export default function IconGrid({
                         )}
 
                         {isDragOver && !overlayBusy && (
-                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none rounded-lg m-2 border border-dashed border-pink-400/40">
-                                <Icons8Icon id="upload" size={36} className="text-pink-400 mb-2" />
-                                <p className="text-sm font-medium text-white">Drop icons here</p>
+                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 pointer-events-none rounded-md m-2 border border-dashed border-white/15">
+                                <Icons8Icon id="upload" size={28} className="text-gray-400 mb-2" />
+                                <p className="text-xs text-gray-300">Drop icons here</p>
                             </div>
                         )}
 
@@ -319,51 +313,39 @@ export default function IconGrid({
                                 })}
                             </div>
                         ) : activeLibrary.icons.length > 0 ? (
-                            <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-gray-500 gap-2">
-                                <Icons8Icon id="search" size={24} className="opacity-30" />
-                                <p className="text-sm">No icons match &quot;{search.trim()}&quot;</p>
-                            </div>
+                            <PluginEmptyState icon="search" description={`No icons match "${search.trim()}"`} />
                         ) : (
-                            <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-gray-500 gap-3">
-                                <Icons8Icon id="wand_ui" size={28} className="opacity-25" />
-                                <p className="text-sm text-gray-400">This library is empty</p>
-                                <p className="text-[11px] text-gray-600 max-w-[240px] text-center">Drop .ico / .png files here or import a folder</p>
-                                <button type="button" onClick={importLibraryFromFolder} className="mt-1 flex items-center gap-2 px-4 py-2 rounded-lg bg-pink-600/15 border border-pink-500/25 text-pink-300 text-xs font-semibold hover:bg-pink-600/25 transition-colors">
-                                    <Icons8Icon id="folder_open_ui" size={14} /> Import icons
-                                </button>
+                            <div className="h-full min-h-[200px] flex flex-col items-center justify-center gap-3">
+                                <PluginEmptyState icon="wand_ui" title="Library is empty" description="Drop .ico / .png files here or import a folder." />
+                                <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder}>Import icons</PluginToolbarButton>
                             </div>
                         )}
                     </div>
                 </>
             ) : (
                 <div
-                    className="h-full flex flex-col items-center justify-center text-gray-500 gap-4 p-8"
+                    className="h-full flex flex-col items-center justify-center gap-3 p-6"
                     onDrop={handleDrop}
                     onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
                     onDragLeave={() => setIsDragOver(false)}
                 >
-                    <Icons8Icon id="palette_ui" size={40} className="opacity-20" />
-                    <p className="text-center text-sm text-gray-400 max-w-[280px]">Create or import a library to get started</p>
+                    <PluginEmptyState icon="palette_ui" title="No library selected" description="Create or import a library to get started." />
                     <div className="flex gap-2">
-                        <button type="button" onClick={() => createLibrary('My Icons')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 bg-white/5 text-gray-200 text-xs font-semibold hover:bg-white/10">
-                            <Icons8Icon id="folder_plus_ui" size={14} /> New library
-                        </button>
-                        <button type="button" onClick={importLibraryFromFolder} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-pink-600/80 to-purple-600/80 text-white text-xs font-semibold">
-                            <Icons8Icon id="folder_open_ui" size={14} /> Import folder
-                        </button>
+                        <PluginToolbarButton icon="folder_plus_ui" onClick={() => createLibrary('My Icons')}>New library</PluginToolbarButton>
+                        <PluginToolbarButton icon="folder_open_ui" onClick={importLibraryFromFolder}>Import folder</PluginToolbarButton>
                     </div>
                 </div>
             )}
 
             {ctxMenu && (
                 <div
-                    className="fixed z-[10000] min-w-[160px] py-1 rounded-lg border border-white/10 bg-[#1a1a22] shadow-xl text-[11px]"
+                    className="fixed z-[10000] min-w-[160px] py-1 rounded-md border border-white/10 bg-[#1a1a1f] shadow-xl text-xs"
                     style={{ left: ctxMenu.x, top: ctxMenu.y }}
                     onClick={e => e.stopPropagation()}
                 >
                     <button
                         type="button"
-                        className="w-full px-3 py-1.5 text-left hover:bg-pink-500/15 text-gray-200 flex items-center gap-2 disabled:opacity-40"
+                        className="w-full px-3 py-1.5 text-left hover:bg-white/[0.05] text-gray-200 flex items-center gap-2 disabled:opacity-40"
                         disabled={!selectedItems.length}
                         onClick={() => { void runApply(ctxMenu.icon); setCtxMenu(null); }}
                     >
