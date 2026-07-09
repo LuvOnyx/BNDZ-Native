@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Icons8Icon } from './Icons8Icon';
-import { CloseGlyph } from './ChromeGlyphs';
+import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { ShellNativeIcon } from './ShellNativeIcon';
 
 const PRESET_COLORS = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#A855F7', '#EC4899', '#6B7280'];
@@ -93,51 +92,30 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[250] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.96, opacity: 0, y: 12 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.96, opacity: 0, y: 12 }}
-          className="w-full max-w-2xl bg-[#121212] border border-[#333] shadow-2xl rounded-2xl flex flex-col overflow-hidden max-h-[85vh]"
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="px-6 py-4 border-b border-[#2a2a2a] bg-gradient-to-r from-[#1a1030] via-[#141414] to-[#0f1a28] flex justify-between items-center shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-pink-600/20 border border-pink-500/30 flex items-center justify-center">
-                <Icons8Icon id="tag_manager" size={18} />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-white tracking-tight">Tag Manager</h2>
-                <p className="text-[11px] text-gray-500">{tags.length} tags · {taggedItems.length} tagged items in cache</p>
-              </div>
+    <BndzWindowFrame
+      title="Tag Manager"
+      subtitle={`${tags.length} tags · ${taggedItems.length} tagged items in cache`}
+      iconId="tag_manager"
+      onClose={onClose}
+      widthClass="w-[min(720px,calc(100vw-2rem))]"
+      heightClass="h-[min(520px,calc(100vh-2rem))]"
+      zIndexClass="z-[250]"
+    >
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="w-[42%] border-r border-[#333] flex flex-col min-h-0">
+          <div className="p-4 border-b border-[#333] space-y-3 shrink-0">
+            <div className="flex gap-2">
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addTag()}
+                placeholder="New tag name..."
+                className="bndz-native-input flex-1 text-sm"
+              />
+              <button onClick={addTag} className="bndz-native-dialog-primary px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 shrink-0">
+                <Icons8Icon id="plus_ui" size={14} /> Add
+              </button>
             </div>
-            <button onClick={onClose} className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-[#222]">
-              <CloseGlyph size={18} />
-            </button>
-          </div>
-
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            <div className="w-[42%] border-r border-[#2a2a2a] flex flex-col min-h-0">
-              <div className="p-4 border-b border-[#222] space-y-3 shrink-0">
-                <div className="flex gap-2">
-                  <input
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addTag()}
-                    placeholder="New tag name..."
-                    className="flex-1 bg-[#0a0a0a] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-pink-500/60"
-                  />
-                  <button onClick={addTag} className="px-3 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-sm font-semibold flex items-center gap-1 shrink-0">
-                    <Icons8Icon id="plus_ui" size={14} /> Add
-                  </button>
-                </div>
                 <div className="flex gap-1.5 flex-wrap">
                   {PRESET_COLORS.map(c => (
                     <button
@@ -154,8 +132,8 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
                 {tags.map(tag => (
                   <div
                     key={tag.name}
-                    className={`group flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                      activeFilter === tag.name ? 'bg-pink-950/30 border-pink-500/40' : 'bg-[#0d0d0d] border-[#222] hover:border-[#444]'
+                    className={`group flex items-center gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${
+                      activeFilter === tag.name ? 'bg-sky-950/30 border-sky-500/40' : 'bg-[#0d0d0d] border-[#333] hover:border-[#555]'
                     }`}
                     onClick={() => setActiveFilter(activeFilter === tag.name ? null : tag.name)}
                   >
@@ -226,9 +204,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
                 ))}
               </div>
             </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    </BndzWindowFrame>
   );
 }

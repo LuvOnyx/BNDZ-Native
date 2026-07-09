@@ -21,6 +21,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzWindowFrame } from './native/BndzWindowFrame';
 
 export type ToolbarItemDef = {
   id: string;
@@ -190,7 +191,7 @@ function ToolbarDropZone({ children }: { children: React.ReactNode }) {
     <div
       ref={setNodeRef}
       className={`rounded-xl border min-h-[48px] flex px-3 py-2 items-center flex-wrap shadow-inner relative transition-all ${
-        isOver ? 'border-sky-500/60 bg-sky-950/20 ring-1 ring-sky-500/30' : 'border-[#444] bg-gradient-to-b from-[#2a2a30] to-[#222228]'
+        isOver ? 'border-sky-500/60 bg-sky-950/20 ring-1 ring-sky-500/30' : 'border-[#444] bg-[#222228]'
       }`}
     >
       {children}
@@ -322,16 +323,15 @@ export default function ToolbarConfigurator({
     }, [allPaletteItems, search, activeCategory]);
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[200] p-4 text-gray-200">
-            <div className="bg-gradient-to-br from-[#1c1c22] to-[#141418] border border-white/10 shadow-2xl rounded-2xl w-full max-w-6xl flex flex-col max-h-[88vh] overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-[#252530]/90 to-[#1a1a22]/90 rounded-t-2xl">
-                    <div>
-                        <h2 className="text-lg font-bold flex items-center gap-2"><Icons8Icon id="wrench" size={18} className="text-sky-400"/> Toolbar Designer</h2>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Drag commands onto the preview bar · {allPaletteItems.length} available</p>
-                    </div>
-                    <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors">✕</button>
-                </div>
-                
+        <BndzWindowFrame
+            title="Toolbar Designer"
+            subtitle={`Drag commands onto the preview bar · ${allPaletteItems.length} available`}
+            iconId="wrench"
+            onClose={onClose}
+            zIndexClass="z-[200]"
+            widthClass="w-[min(1152px,calc(100vw-2rem))]"
+            heightClass="h-[min(88vh,calc(100vh-2rem))]"
+        >
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <div className="flex flex-1 overflow-hidden min-h-0">
                     <div className="w-[38%] border-r border-white/10 flex flex-col bg-[#12121a]/80">
@@ -381,7 +381,7 @@ export default function ToolbarConfigurator({
                                 </select>
                                 <button className="text-xs bg-[#2a2a32] hover:bg-[#35353f] border border-[#555] px-2.5 py-1.5 rounded-lg transition-colors" onClick={handleAddNewProfile}>+ New profile</button>
                             </div>
-                            <button onClick={handleSave} className="flex items-center gap-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg shadow-sky-900/30 transition-all">
+                            <button onClick={handleSave} className="bndz-native-dialog-primary flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold">
                                 <Icons8Icon id="check" size={14} /> Save toolbar
                             </button>
                         </div>
@@ -407,7 +407,6 @@ export default function ToolbarConfigurator({
                     </div>
                 </div>
                 </DndContext>
-            </div>
-        </div>
+        </BndzWindowFrame>
     );
 }

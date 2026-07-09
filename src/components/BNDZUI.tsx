@@ -38,6 +38,7 @@ import { IPC, RenameOperation } from '../lib/ipcBridge';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { executeUndoWithTimeout, executeRedoWithTimeout } from '../lib/undoRedo';
 import CommandPalette, { buildDefaultPaletteActions } from './CommandPalette';
+import { NativeDialogShell } from './native/NativeDialogShell';
 import type { TabState } from './tabTypes';
 import { runAddressQuickScript } from '../lib/addressQuickScripts';
 import { createFindingTab, findingTabLabel, isFindingTab } from '../lib/findingTab';
@@ -7157,74 +7158,91 @@ export default function BNDZUI() {
       
       {/* Overlays / Modals */}
       {isSaveTabsetOpen && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-           <div className="bg-[#1f1f1f] border border-[#444] rounded-md shadow-2xl p-6 w-[400px]">
-               <h2 className="text-white text-lg font-semibold mb-4">Save Tabset As...</h2>
-               <div className="mb-4">
-                  <label className="block text-gray-300 text-sm mb-2">Tabset Name</label>
-                  <input
-                     autoFocus
-                     type="text"
-                     value={tabsetNameInput}
-                     onChange={(e) => setTabsetNameInput(e.target.value)}
-                     className="w-full bg-[#111] text-white border border-[#444] rounded px-3 py-1.5 outline-none focus:border-sky-500"
-                     onKeyDown={(e) => {
-                         if (e.key === 'Enter' && tabsetNameInput.trim()) {
-                             const newTabset = { id: `ts-${Date.now()}`, name: tabsetNameInput.trim(), panes: JSON.parse(JSON.stringify(panes)) };
-                             updateConfig({ savedTabsets: [...(config.savedTabsets || []), newTabset] });
-                             setIsSaveTabsetOpen(false);
-                             setToastMessage(`Saved Tabset: ${newTabset.name}`);
-                         }
-                         if (e.key === 'Escape') setIsSaveTabsetOpen(false);
-                     }}
-                  />
-               </div>
-               <div className="flex justify-end gap-2">
-                  <button onClick={() => setIsSaveTabsetOpen(false)} className="px-4 py-1.5 text-gray-300 hover:bg-[#333] rounded">Cancel</button>
-                  <button onClick={() => {
-                      if (!tabsetNameInput.trim()) return;
-                      const newTabset = { id: `ts-${Date.now()}`, name: tabsetNameInput.trim(), panes: JSON.parse(JSON.stringify(panes)) };
-                      updateConfig({ savedTabsets: [...(config.savedTabsets || []), newTabset] });
-                      setIsSaveTabsetOpen(false);
-                      setToastMessage(`Saved Tabset: ${newTabset.name}`);
-                  }} className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded">Save</button>
-               </div>
-           </div>
-        </div>
+        <NativeDialogShell
+          open={isSaveTabsetOpen}
+          title="Save Tabset As…"
+          iconId="bookmark"
+          size="sm"
+          zIndexClass="z-50"
+          onClose={() => setIsSaveTabsetOpen(false)}
+          footerButtons={[
+            { label: 'Cancel', onClick: () => setIsSaveTabsetOpen(false) },
+            {
+              label: 'Save',
+              style: 'primary',
+              onClick: () => {
+                if (!tabsetNameInput.trim()) return;
+                const newTabset = { id: `ts-${Date.now()}`, name: tabsetNameInput.trim(), panes: JSON.parse(JSON.stringify(panes)) };
+                updateConfig({ savedTabsets: [...(config.savedTabsets || []), newTabset] });
+                setIsSaveTabsetOpen(false);
+                setToastMessage(`Saved Tabset: ${newTabset.name}`);
+              },
+            },
+          ]}
+        >
+          <label className="bndz-native-field-label block mb-2">Tabset name</label>
+          <input
+            autoFocus
+            type="text"
+            value={tabsetNameInput}
+            onChange={(e) => setTabsetNameInput(e.target.value)}
+            className="bndz-native-input w-full"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && tabsetNameInput.trim()) {
+                const newTabset = { id: `ts-${Date.now()}`, name: tabsetNameInput.trim(), panes: JSON.parse(JSON.stringify(panes)) };
+                updateConfig({ savedTabsets: [...(config.savedTabsets || []), newTabset] });
+                setIsSaveTabsetOpen(false);
+                setToastMessage(`Saved Tabset: ${newTabset.name}`);
+              }
+              if (e.key === 'Escape') setIsSaveTabsetOpen(false);
+            }}
+          />
+        </NativeDialogShell>
       )}
 
       {isLoadTabsetOpen && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setIsLoadTabsetOpen(false)}>
-           <div className="bg-[#1f1f1f] border border-[#444] rounded-md shadow-2xl p-6 w-[400px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-               <h2 className="text-white text-lg font-semibold mb-4">Load Tabset</h2>
-               <div className="flex-1 overflow-y-auto min-h-[100px] mb-4 border border-[#333] rounded">
-                   {!(config.savedTabsets && config.savedTabsets.length > 0) ? (
-                       <div className="text-gray-500 text-sm p-4 text-center">No saved tabsets.</div>
-                   ) : (
-                       config.savedTabsets.map((ts) => (
-                           <div key={ts.id} className="flex justify-between items-center px-4 py-2 hover:bg-[#2a2d2e] border-b border-[#333] last:border-0 cursor-pointer text-gray-200" onClick={() => {
-                               setPanes(JSON.parse(JSON.stringify(ts.panes)));
-                               setIsDualPane((ts.panes as PaneState[]).length > 1);
-                               updateConfig({ lastActiveTabsetId: ts.id });
-                               setIsLoadTabsetOpen(false);
-                               setToastMessage(`Loaded Tabset: ${ts.name}`);
-                           }}>
-                               <span>{ts.name}</span>
-                               <button onClick={(e) => {
-                                   e.stopPropagation();
-                                   updateConfig({ savedTabsets: config.savedTabsets?.filter(s => s.id !== ts.id) });
-                               }} className="text-gray-500 hover:text-red-400">
-                                   <Icons8Icon id="trash_ui" size={14} />
-                               </button>
-                           </div>
-                       ))
-                   )}
-               </div>
-               <div className="flex justify-end">
-                  <button onClick={() => setIsLoadTabsetOpen(false)} className="px-4 py-1.5 text-gray-300 hover:bg-[#333] rounded">Close</button>
-               </div>
-           </div>
-        </div>
+        <NativeDialogShell
+          open={isLoadTabsetOpen}
+          title="Load Tabset"
+          iconId="bookmark"
+          size="sm"
+          zIndexClass="z-50"
+          onClose={() => setIsLoadTabsetOpen(false)}
+          footerButtons={[{ label: 'Close', onClick: () => setIsLoadTabsetOpen(false) }]}
+          maxHeightClass="max-h-[80vh]"
+        >
+          <div className="overflow-y-auto min-h-[100px] max-h-[320px] border border-white/10 rounded-lg">
+            {!(config.savedTabsets && config.savedTabsets.length > 0) ? (
+              <div className="bndz-native-dialog-muted text-sm p-4 text-center">No saved tabsets.</div>
+            ) : (
+              config.savedTabsets.map((ts) => (
+                <div
+                  key={ts.id}
+                  className="flex justify-between items-center px-4 py-2 hover:bg-white/5 border-b border-white/5 last:border-0 cursor-pointer"
+                  onClick={() => {
+                    setPanes(JSON.parse(JSON.stringify(ts.panes)));
+                    setIsDualPane((ts.panes as PaneState[]).length > 1);
+                    updateConfig({ lastActiveTabsetId: ts.id });
+                    setIsLoadTabsetOpen(false);
+                    setToastMessage(`Loaded Tabset: ${ts.name}`);
+                  }}
+                >
+                  <span>{ts.name}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateConfig({ savedTabsets: config.savedTabsets?.filter(s => s.id !== ts.id) });
+                    }}
+                    className="text-gray-500 hover:text-red-400"
+                  >
+                    <Icons8Icon id="trash_ui" size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </NativeDialogShell>
       )}
 
       {isSmartToolsOpen && (
@@ -7308,10 +7326,10 @@ export default function BNDZUI() {
                };
                const fileLabel = (prog.file || '').split(/[/\\]/).pop() || 'items';
                return (
-               <div key={opId} className="pointer-events-auto rounded-xl border border-violet-500/25 bg-gradient-to-br from-[#14141c]/95 to-[#0d0d12]/95 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.45)] p-4">
+               <div key={opId} className="bndz-native-transfer-toast">
                  <div className="flex items-center gap-3 mb-3">
                    {prog.percentage < 100 ? (
-                     <div className="w-9 h-9 rounded-lg bg-violet-500/15 flex items-center justify-center ring-1 ring-violet-400/20">
+                     <div className="w-9 h-9 rounded-lg bg-sky-500/15 flex items-center justify-center ring-1 ring-sky-400/20">
                        <Icons8Icon id="loading" size={18} spin />
                      </div>
                    ) : (
@@ -7323,13 +7341,13 @@ export default function BNDZUI() {
                      <div className="text-[13px] font-semibold text-white truncate">
                        {prog.percentage < 100 ? `Moving ${prog.itemsCompleted} of ${prog.totalItems || '?'}` : 'Complete'}
                      </div>
-                     <div className="text-[11px] text-gray-400 truncate" title={prog.file}>{fileLabel}</div>
+                     <div className="text-[11px] bndz-native-dialog-muted truncate" title={prog.file}>{fileLabel}</div>
                    </div>
-                   <span className="text-[12px] font-mono text-violet-300">{Math.round(prog.percentage)}%</span>
+                   <span className="text-[12px] font-mono text-sky-300">{Math.round(prog.percentage)}%</span>
                  </div>
-                 <div className="h-1.5 rounded-full bg-black/40 overflow-hidden mb-2">
+                 <div className="bndz-native-progress-track mb-2">
                    <div
-                     className={`h-full rounded-full transition-all duration-300 ${prog.percentage >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-violet-500 to-fuchsia-400'}`}
+                     className={`bndz-native-progress-fill ${prog.percentage >= 100 ? '!bg-emerald-500' : ''}`}
                      style={{ width: `${prog.percentage}%` }}
                    />
                  </div>

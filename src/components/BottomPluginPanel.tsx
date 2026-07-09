@@ -205,7 +205,7 @@ export default function BottomPluginPanel(props: any & {
         <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
           <span>No plugins installed.</span>
           {onOpenPluginStore && (
-            <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-[#a475d4] hover:bg-[#8b5fbf] text-white rounded-md text-sm font-semibold transition-colors">
+            <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-sky-700 hover:bg-sky-600 text-white rounded-md text-sm font-semibold transition-colors">
               <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub
             </button>
           )}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Icons8Icon } from './Icons8Icon';
-import { CloseGlyph, MinimizeGlyph } from './ChromeGlyphs';
 import { useAppConfig } from '../data/configContext';
+import { BndzWindowFrame } from './native/BndzWindowFrame';
+import { NativeDialogShell } from './native/NativeDialogShell';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Checkbox } from './ui/checkbox';
 import ConditionalFormattingDialog from './ConditionalFormattingDialog';
@@ -26,7 +27,7 @@ const DevOnly = ({ children }: { children: React.ReactNode }) => (
 
 const SectionHeader = ({ title }: { title: string }) => (
   <h3 className="text-[13px] font-bold text-white mt-6 mb-2 px-1 flex items-center gap-2 first:mt-0">
-    <span className="w-1 h-4 rounded-full bg-gradient-to-b from-sky-400 to-violet-500 shrink-0" />
+    <span className="bndz-settings-category-accent w-1 h-4 rounded-full shrink-0" />
     {title}
   </h3>
 );
@@ -235,40 +236,15 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
     }),
   })).filter(cat => cat.items.length > 0);
 
-  const categoryAccent: Record<string, string> = {
-    General: 'from-sky-500/20 to-transparent border-sky-500/25',
-    'Colors and Styles': 'from-violet-500/20 to-transparent border-violet-500/25',
-    Information: 'from-emerald-500/20 to-transparent border-emerald-500/25',
-    'File Operations': 'from-amber-500/20 to-transparent border-amber-500/25',
-    'Find and Filter': 'from-cyan-500/20 to-transparent border-cyan-500/25',
-    Preview: 'from-pink-500/20 to-transparent border-pink-500/25',
-    'Tabs and Panes': 'from-indigo-500/20 to-transparent border-indigo-500/25',
-    Other: 'from-gray-500/20 to-transparent border-gray-500/30',
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-hidden">
-      <div className="w-[850px] h-[650px] bg-[#1e1e1e] border border-[#555] shadow-2xl flex flex-col font-sans select-none overflow-hidden rounded-t-lg ring-1 ring-black/50">
-      
-      {/* Title Bar */}
-      <div className="bg-[#a475d4] px-3 py-[5px] flex items-center justify-between cursor-move rounded-t-lg">
-         <div className="text-[12px] text-black flex items-center gap-2 font-medium">
-            <span className="text-black font-bold text-[14px]">BNDZ</span>
-            Configuration - {configTitleSuffix}
-         </div>
-         <div className="flex text-black gap-[1px] justify-center items-center h-full pb-1">
-            <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-              <MinimizeGlyph size={14} className="text-black" />
-            </button>
-            <button className="hover:bg-white/20 p-1 rounded-sm flex items-center justify-center">
-              <span className="inline-block w-[11px] h-[11px] border border-black/70" />
-            </button>
-            <button className="hover:bg-red-500 hover:text-white p-1 rounded-sm flex items-center justify-center transition-colors" onClick={onClose}>
-              <CloseGlyph size={14} className="text-black" />
-            </button>
-         </div>
-      </div>
-
+    <BndzWindowFrame
+      title="Configuration"
+      subtitle={configTitleSuffix}
+      iconId="config"
+      onClose={onClose}
+      widthClass="w-[min(850px,calc(100vw-2rem))]"
+      heightClass="h-[min(650px,calc(100vh-2rem))]"
+    >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-row flex-1 min-h-0 overflow-hidden" orientation="vertical">
          {/* Sidebar Tabs */}
          <div className="bndz-settings-nav w-[240px] bg-[#141418] border-r border-[#333] shrink-0 flex flex-col min-h-0">
@@ -295,7 +271,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             <TabsList variant="line" className="!flex !flex-col !items-stretch !justify-start !w-full !h-auto !p-2 !gap-0 !rounded-none !bg-transparent">
                {filteredCategories.map((cat, i) => (
                  <div key={i} className="mb-3 last:mb-2">
-                    <div className={`bndz-settings-category mb-1 px-2.5 py-1.5 rounded-md border bg-gradient-to-r flex items-center justify-between gap-1.5 ${categoryAccent[cat.name] || categoryAccent.Other}`}>
+                    <div className="bndz-settings-category mb-1 px-2.5 py-1.5 rounded-md border flex items-center justify-between gap-1.5">
                       <span className="flex items-center gap-1.5 text-gray-300 min-w-0">
                         {categoryIcons[cat.name]}
                         <span className="truncate">{cat.name}</span>
@@ -885,8 +861,11 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             <TabsContent value="File Info Tips & Hover Box" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">File Info Tips & Hover Box</h1>
 
-              <div className="mb-6 rounded-xl border border-[#444] bg-gradient-to-br from-[#1c1c22] to-[#141418] p-4">
-                <h2 className="text-[13px] font-bold text-white mb-3">Animated hover tooltips</h2>
+              <div className="bndz-settings-section mb-6">
+                <div className="bndz-settings-section-header">
+                  <h2 className="text-[13px] font-bold text-white">Animated hover tooltips</h2>
+                </div>
+                <div className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] text-gray-300 w-[100px]">Show delay</span>
@@ -918,10 +897,14 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                 <div className="mt-3">
                   <Checkbox label="Show full path in tooltip" checked={localConfig.hoverTooltipShowPath !== false} onChange={e => updateLocalConfig({ hoverTooltipShowPath: e.target.checked })} disabled={!localConfig.showFileInfoTips && !localConfig.showTooltips} />
                 </div>
+                </div>
               </div>
 
-              <div className="mb-6 rounded-xl border border-[#444] bg-gradient-to-br from-[#1a1a22] to-[#121218] p-4">
-                <h2 className="text-[13px] font-bold text-white mb-3">Notifications</h2>
+              <div className="bndz-settings-section mb-6">
+                <div className="bndz-settings-section-header">
+                  <h2 className="text-[13px] font-bold text-white">Notifications</h2>
+                </div>
+                <div className="p-4">
                 <Checkbox label="Show Windows toast notifications (Action Center)" checked={localConfig.useNativeWindowsNotifications !== false} onChange={e => updateLocalConfig({ useNativeWindowsNotifications: e.target.checked })} />
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-[12px] text-gray-300">Folder size toast cooldown</span>
@@ -937,6 +920,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                 </div>
                 <div className="mt-2">
                   <Checkbox label="Only notify when sizes are freshly calculated (not from cache)" checked={localConfig.folderSizeToastOnlyWhenFetched !== false} onChange={e => updateLocalConfig({ folderSizeToastOnlyWhenFetched: e.target.checked })} />
+                </div>
                 </div>
               </div>
               
@@ -2417,54 +2401,54 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
       </div>
 
       <ConditionalFormattingDialog open={showConditionalFormattingDialog} onOpenChange={setShowConditionalFormattingDialog} />
-      
-      {showJumpDialog && (
-        <div className="fixed inset-0 flex items-center justify-center z-[100] bg-black/60 backdrop-blur-sm overflow-hidden" onMouseDown={() => { setShowJumpDialog(false); setJumpQuery(''); }}>
-            <div className="bg-gradient-to-br from-[#1e1e28] to-[#141418] border border-white/10 rounded-xl shadow-2xl p-4 w-[440px]" onMouseDown={e => e.stopPropagation()}>
-                <h3 className="text-white text-sm font-bold mb-1">Jump to Setting</h3>
-                <p className="text-[10px] text-gray-500 mb-3">Search tabs and common options</p>
-                <input
-                  autoFocus
-                  value={jumpQuery}
-                  onChange={e => setJumpQuery(e.target.value)}
-                  className="w-full bg-[#0d0d10] border border-[#444] rounded-lg text-white text-[12px] px-3 py-2 mb-2 outline-none focus:border-sky-500"
-                  placeholder="e.g. tooltip, theme, dual pane..."
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') { setShowJumpDialog(false); setJumpQuery(''); }
-                    if (e.key === 'Enter' && jumpResults[0]) {
-                      setActiveTab(jumpResults[0].tab);
-                      setShowJumpDialog(false);
-                      setJumpQuery('');
-                    }
-                  }}
-                />
-                <div className="max-h-[220px] overflow-y-auto bndz-scrollbar mb-3 space-y-1">
-                  {jumpQuery.trim() && jumpResults.length === 0 && (
-                    <div className="text-[11px] text-gray-500 px-2 py-3 text-center">No matching settings</div>
-                  )}
-                  {jumpResults.map(hit => (
-                    <button
-                      key={`${hit.tab}::${hit.label}`}
-                      type="button"
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-sky-600/20 border border-transparent hover:border-sky-500/30 transition-colors"
-                      onClick={() => {
-                        setActiveTab(hit.tab);
-                        setShowJumpDialog(false);
-                        setJumpQuery('');
-                      }}
-                    >
-                      <div className="text-[12px] text-white">{hit.label}</div>
-                      <div className="text-[10px] text-gray-500">{hit.tab}</div>
-                    </button>
-                  ))}
-                </div>
-                <div className="flex justify-end gap-2">
-                    <ActionBtn label="Cancel" onClick={() => { setShowJumpDialog(false); setJumpQuery(''); }} />
-                </div>
-            </div>
+
+      <NativeDialogShell
+        open={showJumpDialog}
+        title="Jump to Setting"
+        subtitle="Search tabs and common options"
+        iconId="search"
+        size="sm"
+        zIndexClass="z-[100]"
+        onClose={() => { setShowJumpDialog(false); setJumpQuery(''); }}
+        footerButtons={[{ label: 'Cancel', onClick: () => { setShowJumpDialog(false); setJumpQuery(''); } }]}
+        bodyClassName="!py-3"
+      >
+        <input
+          autoFocus
+          value={jumpQuery}
+          onChange={e => setJumpQuery(e.target.value)}
+          className="bndz-native-input w-full mb-3"
+          placeholder="e.g. tooltip, theme, dual pane..."
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') { setShowJumpDialog(false); setJumpQuery(''); }
+            if (e.key === 'Enter' && jumpResults[0]) {
+              setActiveTab(jumpResults[0].tab);
+              setShowJumpDialog(false);
+              setJumpQuery('');
+            }
+          }}
+        />
+        <div className="max-h-[220px] overflow-y-auto bndz-scrollbar space-y-1">
+          {jumpQuery.trim() && jumpResults.length === 0 && (
+            <div className="text-[11px] bndz-native-dialog-muted px-2 py-3 text-center">No matching settings</div>
+          )}
+          {jumpResults.map(hit => (
+            <button
+              key={`${hit.tab}::${hit.label}`}
+              type="button"
+              className="bndz-command-palette-item w-full text-left px-3 py-2"
+              onClick={() => {
+                setActiveTab(hit.tab);
+                setShowJumpDialog(false);
+                setJumpQuery('');
+              }}
+            >
+              <div className="text-[12px]">{hit.label}</div>
+              <div className="text-[10px] bndz-native-dialog-muted">{hit.tab}</div>
+            </button>
+          ))}
         </div>
-      )}
-    </div>
-    </div>
+      </NativeDialogShell>
+    </BndzWindowFrame>
   )
 }

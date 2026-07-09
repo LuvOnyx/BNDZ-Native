@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Icons8Icon } from './Icons8Icon';
-import { CloseGlyph } from './ChromeGlyphs';
+import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { toWindowsPath } from '../lib/pathUtils';
 import BndzAssistantPanel from './assistant/BndzAssistantPanel';
 import BndzDuplicatesPanel from './duplicates/BndzDuplicatesPanel';
@@ -69,56 +68,38 @@ export default function SmartToolsDialog({
         onClose();
     };
 
+    const selectionLabel = paths.length > 0 ? `${paths.length} selected` : undefined;
+
     return (
-        <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
-                onClick={onClose}
-            >
-                <motion.div
-                    initial={{ scale: 0.98, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.98, opacity: 0 }}
-                    transition={{ duration: 0.12 }}
-                    className="w-full max-w-2xl bg-[#2b2b2b] border border-[#454545] shadow-[0_8px_32px_rgba(0,0,0,0.55)] flex flex-col overflow-hidden max-h-[88vh]"
-                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                >
-                    <div className="bg-[#323232] px-4 py-2.5 flex justify-between items-center border-b border-[#454545] shrink-0">
-                        <div className="flex items-center gap-2">
-                            <Icons8Icon id="smart_tools" size={16} />
-                            <h2 className="text-[13px] font-semibold text-gray-100">Smart Tools</h2>
-                            {paths.length > 0 && (
-                                <span className="text-[10px] bg-[#094771] text-white px-2 py-0.5">{paths.length} selected</span>
-                            )}
-                        </div>
-                        <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-white hover:bg-[#3d3d3d]">
-                            <CloseGlyph size={14} />
-                        </button>
-                    </div>
+        <BndzWindowFrame
+            title="Smart Tools"
+            subtitle={selectionLabel}
+            iconId="smart_tools"
+            onClose={onClose}
+            widthClass="w-[min(640px,calc(100vw-2rem))]"
+            heightClass="h-[min(560px,calc(100vh-2rem))]"
+            zIndexClass="z-[100]"
+        >
+            <div className="flex border-b border-[#333] bg-[#1a1a1e] shrink-0">
+                {([
+                    { id: 'organize' as const, label: 'Organize', iconId: 'category_ui' },
+                    { id: 'assistant' as const, label: 'Assistant', iconId: 'sparkles_ui' },
+                    { id: 'duplicates' as const, label: 'Duplicates', iconId: 'copy' },
+                ]).map(t => (
+                    <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTab(t.id)}
+                        className={`flex items-center gap-1.5 px-4 py-2 text-[12px] border-b-2 ${
+                            tab === t.id ? 'border-sky-500 text-white bg-[#222228]' : 'border-transparent text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        <Icons8Icon id={t.iconId} size={12} /> {t.label}
+                    </button>
+                ))}
+            </div>
 
-                    <div className="flex border-b border-[#454545] bg-[#2b2b2b]">
-                        {([
-                            { id: 'organize' as const, label: 'Organize', iconId: 'category_ui' },
-                            { id: 'assistant' as const, label: 'Assistant', iconId: 'sparkles_ui' },
-                            { id: 'duplicates' as const, label: 'Duplicates', iconId: 'copy' },
-                        ]).map(t => (
-                            <button
-                                key={t.id}
-                                type="button"
-                                onClick={() => setTab(t.id)}
-                                className={`flex items-center gap-1.5 px-4 py-2 text-[12px] border-b-2 ${
-                                    tab === t.id ? 'border-sky-500 text-white bg-[#333]' : 'border-transparent text-gray-500 hover:text-gray-300'
-                                }`}
-                            >
-                                <Icons8Icon id={t.iconId} size={12} /> {t.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="p-4 flex flex-col gap-3 overflow-y-auto flex-1 min-h-0">
+            <div className="p-4 flex flex-col gap-3 overflow-y-auto flex-1 min-h-0 bg-[#1a1a1e]">
                         {tab === 'organize' && (
                             <div className="flex flex-col gap-2">
                                 <button
@@ -207,8 +188,6 @@ export default function SmartToolsDialog({
                             />
                         )}
                     </div>
-                </motion.div>
-            </motion.div>
-        </AnimatePresence>
+        </BndzWindowFrame>
     );
 }

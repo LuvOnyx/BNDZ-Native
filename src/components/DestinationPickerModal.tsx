@@ -130,12 +130,11 @@ export default function DestinationPickerModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[600] flex items-center justify-center p-6 bndz-destination-picker"
+      className="bndz-native-scrim fixed inset-0 z-[600] flex items-center justify-center p-6"
       onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="absolute inset-0 bg-black/70" />
       <div
-        className="bndz-destination-picker-modal relative w-full max-w-[780px] max-h-[min(580px,82vh)] rounded-2xl flex flex-col overflow-hidden"
+        className="bndz-native-dialog relative w-full max-w-[780px] max-h-[min(580px,82vh)] rounded-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="destination-picker-title"

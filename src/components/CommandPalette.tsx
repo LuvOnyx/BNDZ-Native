@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Icons8Icon } from './Icons8Icon';
 import { fuzzyFilterByName } from '../lib/fuzzyFilter';
 
@@ -35,8 +34,6 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Ranked fuzzy match using the same engine (uFuzzy) the rest of the app uses,
-  // over a composite of label + keywords + hint for strong recall.
   const filtered = useMemo(() => {
     const q = query.trim();
     if (!q) return actions;
@@ -47,13 +44,11 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
     return fuzzyFilterByName(withHay, q) as PaletteAction[];
   }, [actions, query]);
 
-  // Keep the highlighted item valid as the result set changes.
   useEffect(() => { setSelectedIndex(0); }, [query, isOpen]);
   useEffect(() => {
     if (selectedIndex > filtered.length - 1) setSelectedIndex(Math.max(0, filtered.length - 1));
   }, [filtered.length, selectedIndex]);
 
-  // Scroll the highlighted item into view when navigating with the keyboard.
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(`[data-palette-idx="${selectedIndex}"]`);
     el?.scrollIntoView({ block: 'nearest' });
@@ -69,94 +64,80 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.12 }}
-        className="fixed inset-0 z-[100] flex items-start justify-center pt-[18vh] bg-black/55 backdrop-blur-md"
-        onClick={onClose}
+    <div
+      className="bndz-native-scrim fixed inset-0 z-[100] flex items-start justify-center pt-[18vh]"
+      onClick={onClose}
+    >
+      <div
+        className="bndz-command-palette w-full max-w-xl rounded-2xl overflow-hidden"
+        data-testid="command-palette"
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
-        <motion.div
-          initial={{ scale: 0.97, opacity: 0, y: -12 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.98, opacity: 0, y: -8 }}
-          transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
-          className="bndz-command-palette w-full max-w-xl rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/60"
-          data-testid="command-palette"
-          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        >
-          <div className="flex items-center px-4 py-3.5 border-b border-white/8 bg-gradient-to-r from-[#1a1a22]/98 to-[#14141a]/98">
-            <Icons8Icon id="search" size={18} className="mr-3 shrink-0" />
-            <input
-              type="text"
-              autoFocus
-              placeholder="Search commands, plugins, actions…"
-              className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder-gray-500"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  setSelectedIndex(i => Math.min(i + 1, filtered.length - 1));
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  setSelectedIndex(i => Math.max(i - 1, 0));
-                } else if (e.key === 'Home') {
-                  e.preventDefault();
-                  setSelectedIndex(0);
-                } else if (e.key === 'End') {
-                  e.preventDefault();
-                  setSelectedIndex(Math.max(0, filtered.length - 1));
-                } else if (e.key === 'Enter') {
-                  e.preventDefault();
-                  runAt(selectedIndex);
-                }
-              }}
-            />
-            <div className="flex items-center gap-1 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-black/30 border border-white/8 px-2 py-1 rounded-md">
-              <Icons8Icon id="command_ui" size={10} /> ⇧P
-            </div>
+        <div className="bndz-command-palette-header flex items-center px-4 py-3.5">
+          <Icons8Icon id="search" size={18} className="mr-3 shrink-0" />
+          <input
+            type="text"
+            autoFocus
+            placeholder="Search commands, plugins, actions…"
+            className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder-gray-500"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSelectedIndex(i => Math.min(i + 1, filtered.length - 1));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSelectedIndex(i => Math.max(i - 1, 0));
+              } else if (e.key === 'Home') {
+                e.preventDefault();
+                setSelectedIndex(0);
+              } else if (e.key === 'End') {
+                e.preventDefault();
+                setSelectedIndex(Math.max(0, filtered.length - 1));
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                runAt(selectedIndex);
+              }
+            }}
+          />
+          <div className="flex items-center gap-1 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-black/30 border border-white/8 px-2 py-1 rounded-md">
+            <Icons8Icon id="command_ui" size={10} /> ⇧P
           </div>
-          <div ref={listRef} className="p-2 min-h-[150px] max-h-[320px] overflow-y-auto styled-scrollbar bg-gradient-to-b from-[#121218]/98 to-[#0e0e14]/98">
-            {filtered.length === 0 && (
-              <div className="px-3 py-6 text-center text-gray-500 text-sm">No matching commands</div>
-            )}
-            {filtered.map((action, idx) => {
-              const isSelected = idx === selectedIndex;
-              return (
-                <button
-                  key={action.id}
-                  type="button"
-                  data-palette-idx={idx}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors group border ${
-                    isSelected
-                      ? 'bg-sky-500/15 border-sky-500/30 text-white'
-                      : 'text-gray-300 border-transparent hover:bg-sky-500/10 hover:border-sky-500/20'
-                  }`}
-                  onMouseMove={() => setSelectedIndex(idx)}
-                  onClick={() => runAt(idx)}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Icons8Icon id={action.icon} size={14} className="shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-sm truncate">{action.label}</div>
-                      {action.hint && <div className="text-[10px] text-gray-500 truncate">{action.hint}</div>}
-                    </div>
+        </div>
+        <div ref={listRef} className="bndz-command-palette-list p-2 min-h-[150px] max-h-[320px] overflow-y-auto styled-scrollbar">
+          {filtered.length === 0 && (
+            <div className="px-3 py-6 text-center text-gray-500 text-sm">No matching commands</div>
+          )}
+          {filtered.map((action, idx) => {
+            const isSelected = idx === selectedIndex;
+            return (
+              <button
+                key={action.id}
+                type="button"
+                data-palette-idx={idx}
+                className={`bndz-command-palette-item w-full flex items-center justify-between px-3 py-2.5 text-left group ${isSelected ? 'bndz-command-palette-item--active' : ''}`}
+                onMouseMove={() => setSelectedIndex(idx)}
+                onClick={() => runAt(idx)}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icons8Icon id={action.icon} size={14} className="shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-sm truncate">{action.label}</div>
+                    {action.hint && <div className="text-[10px] text-gray-500 truncate">{action.hint}</div>}
                   </div>
-                  <Icons8Icon
-                    id="arrow_right_ui"
-                    size={12}
-                    className={`shrink-0 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                  />
-                </button>
-              );
-            })}
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+                </div>
+                <Icons8Icon
+                  id="arrow_right_ui"
+                  size={12}
+                  className={`shrink-0 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
