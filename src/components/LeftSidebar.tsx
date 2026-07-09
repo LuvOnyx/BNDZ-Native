@@ -137,7 +137,8 @@ export function LeftSidebar({
                         onDragOver={e => handleDragOver(e, key)}
                     >
                         <div 
-                            className="sidebar-section-header flex items-center justify-between px-4 py-1.5 cursor-pointer text-gray-400 group mx-1 rounded-md shrink-0"
+                            data-section={key}
+                            className={`sidebar-section-header bndz-sidebar-section-header bndz-sidebar-section-${key} flex items-center justify-between px-4 py-1.5 cursor-pointer text-gray-400 group mx-1 rounded-md shrink-0`}
                             onClick={(e) => { e.stopPropagation(); toggleSection(key); }}
                         >
                             <div className="flex items-center gap-1.5">

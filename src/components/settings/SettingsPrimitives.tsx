@@ -14,15 +14,19 @@ export function SettingsTabHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6 pb-5 border-b border-[#333]">
-      <div className="min-w-0">
-        <h1 className="text-[20px] font-bold text-white mb-1 leading-tight flex items-center gap-2">
-          {icon && <Icons8Icon id={icon} size={20} className="shrink-0" />}
-          {title}
-        </h1>
-        {description && (
-          <p className="text-[12px] text-[#a0a0a0] max-w-[520px] leading-relaxed">{description}</p>
+    <div className="bndz-settings-page-header flex items-start justify-between gap-4 mb-5 pb-4 border-b border-[#333]">
+      <div className="min-w-0 flex items-start gap-3">
+        {icon && (
+          <div className="bndz-settings-page-icon shrink-0 mt-0.5">
+            <Icons8Icon id={icon} size={16} />
+          </div>
         )}
+        <div className="min-w-0">
+          <h1 className="text-[17px] font-semibold text-white tracking-tight leading-tight">{title}</h1>
+          {description && (
+            <p className="text-[12px] text-[#9ca3af] mt-1 max-w-[520px] leading-relaxed">{description}</p>
+          )}
+        </div>
       </div>
       {children}
     </div>
@@ -43,8 +47,8 @@ export function SettingsSection({
   return (
     <section className={`bndz-settings-section ${className}`}>
       <div className="bndz-settings-section-header">
-        <h3 className="text-[13px] font-bold text-white">{title}</h3>
-        {description && <p className="bndz-panel-muted mt-0.5">{description}</p>}
+        <h3 className="text-[13px] font-semibold text-white tracking-tight">{title}</h3>
+        {description && <p className="bndz-panel-muted mt-0.5 text-[11px]">{description}</p>}
       </div>
       <div className="p-4 space-y-[6px]">{children}</div>
     </section>
@@ -76,7 +80,7 @@ export function SettingsSelectRow({
     <div className="flex items-center gap-4 py-1">
       <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">{label}</span>
       <select
-        className={`bg-[#141418] border border-[#444] text-[#e0e0e0] text-[12px] px-2.5 py-1.5 rounded-lg outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 ${className}`}
+        className={`bndz-native-input text-[12px] px-2.5 py-1.5 ${className}`}
         value={value}
         onChange={e => onChange(e.target.value)}
       >

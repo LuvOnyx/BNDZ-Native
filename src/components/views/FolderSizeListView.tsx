@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import { ShellNativeIcon } from '../ShellNativeIcon';
+import { SizeBar, type SizeBarStyle } from '../SizeBar';
+import { useAppConfig } from '../../data/configContext';
 
 export type FolderSizeListItem = {
   name: string;
@@ -24,6 +26,8 @@ function formatBytes(n: number) {
 
 /** Explorer-style size view — sorted rows with proportional bars (no treemap sitemap). */
 export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFolderSizes }: Props) {
+  const { config } = useAppConfig();
+  const barStyle = (config.folderSizeBarStyle || 'bar') as SizeBarStyle;
   const sorted = useMemo(
     () => [...items].sort((a, b) => (b.size || 0) - (a.size || 0)),
     [items],
@@ -79,12 +83,7 @@ export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFo
                 <ShellNativeIcon path={item.path || item.name} isDir={isDir} size={16} />
                 <span className="truncate">{item.name}</span>
               </span>
-              <div className="h-2 rounded-[var(--bndz-radius-sm)] bg-black/35 overflow-hidden border border-white/[0.04]">
-                <div
-                  className={`h-full rounded-[var(--bndz-radius-sm)] ${isDir ? 'bg-gradient-to-r from-sky-600/80 to-sky-400/70' : 'bg-gradient-to-r from-violet-600/70 to-violet-400/60'}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
+              <SizeBar percent={pct} isDir={isDir} style={barStyle} widthClass="w-full" />
               <span className="text-[11px] text-gray-400 text-right tabular-nums">{formatBytes(item.size || 0)}</span>
             </button>
           );

@@ -1635,9 +1635,9 @@ html[data-theme] .bndz-destination-picker-footer {
 }
 
 .bndz-native-dialog-icon {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1815,6 +1815,87 @@ html[data-theme] .bndz-destination-picker-footer {
 .bndz-settings-category-accent {
   background: var(--accent, #0ea5e9);
   opacity: 0.85;
+}
+
+.bndz-settings-page-header {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+}
+
+.bndz-settings-page-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Sidebar section gradient accents (Appearance → Sidebar section colors) */
+html[data-nav-tree-colors="off"] .bndz-sidebar-section-header {
+  background: transparent !important;
+  border-bottom-color: transparent !important;
+}
+
+html[data-nav-tree-colors="subtle"] .bndz-sidebar-section-drives,
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-drives {
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.12) 0%, transparent 72%);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+}
+
+html[data-nav-tree-colors="subtle"] .bndz-sidebar-section-quickAccess,
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-quickAccess {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.12) 0%, transparent 72%);
+  border-bottom: 1px solid rgba(52, 211, 153, 0.12);
+}
+
+html[data-nav-tree-colors="subtle"] .bndz-sidebar-section-cloud,
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-cloud {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.1) 0%, transparent 72%);
+  border-bottom: 1px solid rgba(34, 211, 238, 0.1);
+}
+
+html[data-nav-tree-colors="subtle"] .bndz-sidebar-section-miniTree,
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-miniTree {
+  background: linear-gradient(90deg, rgba(167, 139, 250, 0.1) 0%, transparent 72%);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+}
+
+html[data-nav-tree-colors="subtle"] .bndz-sidebar-section-tree,
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.1) 0%, transparent 72%);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.1);
+}
+
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-drives {
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.22) 0%, transparent 78%);
+}
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-quickAccess {
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.2) 0%, transparent 78%);
+}
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-cloud {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.18) 0%, transparent 78%);
+}
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-miniTree {
+  background: linear-gradient(90deg, rgba(167, 139, 250, 0.18) 0%, transparent 78%);
+}
+html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.18) 0%, transparent 78%);
+}
+
+.bndz-toolbar-config-palette-item {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.bndz-toolbar-config-preview {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.15) 100%);
+  min-height: 52px;
+  padding: 8px 10px;
 }
 
 .bndz-native-transfer-toast {

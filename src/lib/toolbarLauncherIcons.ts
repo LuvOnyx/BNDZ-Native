@@ -1,5 +1,5 @@
 /** Bump when PNG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '5';
+export const LAUNCHER_ICON_REV = '6';
 
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
@@ -21,6 +21,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   select_all: 'select_all.png',
   invert_selection: 'invert_selection.png',
   copy_path: 'copy_path.png',
+  copy_to: 'copy_to.png',
   new_folder: 'new_folder.png',
   new_file: 'new_file.png',
   compress: 'compress.png',

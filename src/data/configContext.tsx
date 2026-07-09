@@ -97,6 +97,8 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     customEventActions: [] as CustomEventAction[],
     mouseBindings: {} as Record<string, string>,
     sidebarOrder: ['storage', 'quick', 'cloud', 'tree'],
+    folderSizeBarStyle: 'bar',
+    appearanceNavTreeColors: 'subtle',
     installedPlugins: ['properties', 'context-menu-manager', 'icon-studio', 'batch-rename', 'find', 'dropstack', 'filters', 'metadata', 'storage-cleanup', 'folder-sync', 'catalog'],
 };
 

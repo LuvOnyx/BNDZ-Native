@@ -100,6 +100,8 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
       } else {
         setShellStatus(result.message);
         updateGlobalConfig(nextConfig);
+        const { markShellIntegrationApplied } = await import('../lib/shellIntegrationRuntime');
+        markShellIntegrationApplied(nextConfig);
       }
     } catch (err) {
       setShellStatus(err instanceof Error ? err.message : 'Shell integration change failed.');
@@ -236,6 +238,17 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
     }),
   })).filter(cat => cat.items.length > 0);
 
+  const categoryAccent: Record<string, string> = {
+    General: 'from-sky-500/22 to-transparent border-sky-500/30',
+    'Colors and Styles': 'from-violet-500/22 to-transparent border-violet-500/30',
+    Information: 'from-emerald-500/22 to-transparent border-emerald-500/30',
+    'File Operations': 'from-amber-500/22 to-transparent border-amber-500/30',
+    'Find and Filter': 'from-cyan-500/22 to-transparent border-cyan-500/30',
+    Preview: 'from-pink-500/22 to-transparent border-pink-500/30',
+    'Tabs and Panes': 'from-indigo-500/22 to-transparent border-indigo-500/30',
+    Other: 'from-slate-500/22 to-transparent border-slate-500/35',
+  };
+
   return (
     <BndzWindowFrame
       title="Configuration"
@@ -271,7 +284,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             <TabsList variant="line" className="!flex !flex-col !items-stretch !justify-start !w-full !h-auto !p-2 !gap-0 !rounded-none !bg-transparent">
                {filteredCategories.map((cat, i) => (
                  <div key={i} className="mb-3 last:mb-2">
-                    <div className="bndz-settings-category mb-1 px-2.5 py-1.5 rounded-md border flex items-center justify-between gap-1.5">
+                    <div className={`bndz-settings-category mb-1 px-2.5 py-1.5 rounded-md border bg-gradient-to-r flex items-center justify-between gap-1.5 ${categoryAccent[cat.name] || categoryAccent.Other}`}>
                       <span className="flex items-center gap-1.5 text-gray-300 min-w-0">
                         {categoryIcons[cat.name]}
                         <span className="truncate">{cat.name}</span>

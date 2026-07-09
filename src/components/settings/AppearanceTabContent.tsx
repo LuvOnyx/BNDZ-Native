@@ -8,6 +8,7 @@ import {
   TAB_STYLE_OPTIONS,
   CHROME_PALETTE_OPTIONS,
   GRID_SELECTION_OPTIONS,
+  NAV_TREE_COLOR_OPTIONS,
   type SelectionStyle,
   type SurfaceStyle,
   type CornerRadius,
@@ -15,7 +16,9 @@ import {
   type TabStyle,
   type ChromePalette,
   type GridSelectionStyle,
+  type NavTreeColorMode,
 } from '../../lib/appearanceVariants';
+import { SIZE_BAR_STYLE_OPTIONS, type SizeBarStyle, SizeBar } from '../SizeBar';
 import { applySettingsRuntime } from '../../lib/settingsRuntime';
 import type { AppConfig } from '../../data/configContext';
 
@@ -175,6 +178,30 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           options={TAB_STYLE_OPTIONS}
           onChange={v => patch({ appearanceTabStyle: v })}
         />
+      </SettingsSection>
+
+      <SettingsSection title="Navigation & size bars">
+        <VariantSelect<NavTreeColorMode>
+          label="Sidebar section colors"
+          description="Gradient accents on Drives, Rapid access, Tree headers"
+          value={localConfig.appearanceNavTreeColors || 'subtle'}
+          options={NAV_TREE_COLOR_OPTIONS}
+          onChange={v => patch({ appearanceNavTreeColors: v })}
+        />
+        <VariantSelect<SizeBarStyle>
+          label="Folder size bars"
+          description="Size column & folder-size view indicators"
+          value={localConfig.folderSizeBarStyle || 'bar'}
+          options={SIZE_BAR_STYLE_OPTIONS}
+          onChange={v => patch({ folderSizeBarStyle: v })}
+        />
+        <div className="py-3 flex items-center gap-4">
+          <span className="text-[11px] text-white/50 w-[100px] shrink-0">Preview</span>
+          <div className="flex flex-col gap-2">
+            <SizeBar percent={72} style={(localConfig.folderSizeBarStyle || 'bar') as SizeBarStyle} widthClass="w-24" />
+            <SizeBar percent={45} isDir={false} style={(localConfig.folderSizeBarStyle || 'bar') as SizeBarStyle} widthClass="w-24" />
+          </div>
+        </div>
       </SettingsSection>
 
       <p className="text-[10px] text-white/35 mt-4 leading-relaxed max-w-xl">

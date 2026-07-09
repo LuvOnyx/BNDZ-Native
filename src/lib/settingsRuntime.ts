@@ -671,11 +671,13 @@ export function applySettingsRuntime(config: AppConfig): void {
 
   applyAppearanceVariants(config, root);
 
-  applyBackendSettings(config);
+  import('./shellIntegrationRuntime').then(({ scheduleBackendSettings }) => {
+    scheduleBackendSettings(config);
+  });
 }
 
 export function applyBackendSettings(config: AppConfig): void {
-  import('./shellIntegrationRuntime').then(({ applyBackendSettings: applyShell }) => {
-    void applyShell(config);
+  import('./shellIntegrationRuntime').then(({ scheduleBackendSettings }) => {
+    scheduleBackendSettings(config, true);
   });
 }

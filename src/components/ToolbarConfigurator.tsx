@@ -91,7 +91,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
   { id: 'storage_cleanup', label: 'Storage Cleanup', color: '#f87171', category: 'plugins' },
   { id: 'sys_properties', label: 'BNDZ Properties', color: '#c084fc', category: 'plugins' },
   { id: 'config', label: 'Configuration', color: '#888', category: 'plugins' },
-  { id: 'extension_hub', label: 'Extension Hub', color: '#a475d4', category: 'plugins' },
+  { id: 'extension_hub', label: 'Extension Hub', color: '#38bdf8', category: 'plugins' },
   { id: 'wrench', label: 'Customize Toolbar', color: '#3b82f6', category: 'plugins' },
   { id: 'cmd', label: 'Command Prompt', color: '#eee', category: 'windows' },
   { id: 'ps', label: 'PowerShell', color: '#3b82f6', category: 'windows' },
@@ -171,7 +171,7 @@ function PaletteDraggable({ item, onAdd }: { item: typeof AVAILABLE_ITEMS[0]; on
       type="button"
       {...listeners}
       {...attributes}
-      className={`group w-full flex items-center justify-between p-2 hover:bg-white/[0.04] rounded-lg cursor-grab active:cursor-grabbing border border-transparent hover:border-white/10 transition-all text-left ${isDragging ? 'opacity-40' : ''}`}
+      className={`bndz-toolbar-config-palette-item group w-full flex items-center justify-between p-2 hover:bg-white/[0.04] cursor-grab active:cursor-grabbing transition-all text-left ${isDragging ? 'opacity-40' : ''}`}
       onClick={onAdd}
     >
       <div className="flex items-center gap-3 min-w-0">
@@ -190,8 +190,8 @@ function ToolbarDropZone({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-xl border min-h-[48px] flex px-3 py-2 items-center flex-wrap shadow-inner relative transition-all ${
-        isOver ? 'border-sky-500/60 bg-sky-950/20 ring-1 ring-sky-500/30' : 'border-[#444] bg-[#222228]'
+      className={`bndz-toolbar-config-preview flex px-3 py-2 items-center flex-wrap relative transition-all ${
+        isOver ? 'border-sky-500/60 bg-sky-950/20 ring-1 ring-sky-500/30' : ''
       }`}
     >
       {children}
@@ -344,9 +344,9 @@ export default function ToolbarConfigurator({
                               className="w-full bg-[#0d0d12] border border-[#444] rounded-lg px-3 py-2 text-sm outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/20"
                            />
                            <div className="flex flex-wrap gap-1">
-                             <button type="button" onClick={() => setActiveCategory('all')} className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${activeCategory === 'all' ? 'bg-sky-600/30 border-sky-500/50 text-sky-200' : 'border-[#444] text-gray-500 hover:text-gray-300'}`}>All</button>
+                             <button type="button" onClick={() => setActiveCategory('all')} className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${activeCategory === 'all' ? 'bg-sky-600/30 border-sky-500/50 text-sky-200' : 'border-[#444] text-gray-500 hover:text-gray-300'}`}>All</button>
                              {TOOLBAR_CATEGORIES.map(cat => (
-                               <button key={cat.id} type="button" onClick={() => setActiveCategory(cat.id)} className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${activeCategory === cat.id ? 'border-white/20 text-white' : 'border-[#444] text-gray-500 hover:text-gray-300'}`} style={activeCategory === cat.id ? { backgroundColor: `${cat.color}22`, borderColor: `${cat.color}55`, color: cat.color } : undefined}>{cat.label}</button>
+                               <button key={cat.id} type="button" onClick={() => setActiveCategory(cat.id)} className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${activeCategory === cat.id ? 'border-white/20 text-white' : 'border-[#444] text-gray-500 hover:text-gray-300'}`} style={activeCategory === cat.id ? { backgroundColor: `${cat.color}22`, borderColor: `${cat.color}55`, color: cat.color } : undefined}>{cat.label}</button>
                              ))}
                            </div>
                         </div>

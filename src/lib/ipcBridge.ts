@@ -892,7 +892,7 @@ export const IPC = {
   setAsDefaultManager(enable: boolean): Promise<ShellIntegrationResult> {
     if (this.isNative) {
       const id = `${Date.now()}_setDefault`;
-      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setDefault', enable })
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setDefault', enable }, 60000)
         .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
@@ -901,7 +901,7 @@ export const IPC = {
   setInContextMenu(enable: boolean): Promise<ShellIntegrationResult> {
     if (this.isNative) {
       const id = `${Date.now()}_setContextMenu`;
-      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setContextMenu', enable })
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setContextMenu', enable }, 60000)
         .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
@@ -910,7 +910,7 @@ export const IPC = {
   setWin11MoreOptions(enable: boolean): Promise<ShellIntegrationResult> {
     if (this.isNative) {
       const id = `${Date.now()}_setWin11`;
-      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setWin11MoreOptions', enable })
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setWin11MoreOptions', enable }, 60000)
         .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
@@ -919,7 +919,7 @@ export const IPC = {
   isElevated(): Promise<boolean> {
     if (this.isNative) {
       const id = `${Date.now()}_elevated`;
-      return _nativeCall<{ elevated?: boolean }>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'isElevated' })
+      return _nativeCall<{ elevated?: boolean }>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'isElevated' }, 30000)
         .then(r => !!r?.elevated)
         .catch(() => false);
     }
@@ -929,7 +929,7 @@ export const IPC = {
   getDefaultFileManagerStatus(): Promise<DefaultFileManagerStatus> {
     if (this.isNative) {
       const id = `${Date.now()}_defaultFmStatus`;
-      return _nativeCall<DefaultFileManagerStatus>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'getDefaultStatus' })
+      return _nativeCall<DefaultFileManagerStatus>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'getDefaultStatus' }, 30000)
         .then(r => r ?? { active: false, directoryOpen: false, folderOpen: false, driveOpen: false });
     }
     return Promise.resolve({ active: false, directoryOpen: false, folderOpen: false, driveOpen: false });
@@ -938,7 +938,7 @@ export const IPC = {
   relaunchAsAdmin(): Promise<ShellIntegrationResult> {
     if (this.isNative) {
       const id = `${Date.now()}_relaunchAdmin`;
-      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'relaunchAdmin' })
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'relaunchAdmin' }, 60000)
         .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });

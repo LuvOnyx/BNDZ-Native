@@ -11,6 +11,7 @@ import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
+import { SizeBar, type SizeBarStyle } from './SizeBar';
 import IndexProgressChip from './IndexProgressChip';
 import DriveCard from './DriveCard';
 import {
@@ -4102,9 +4103,12 @@ export default function BNDZUI() {
           return (
             <div key={colId} className="bndz-list-select-cell px-2 text-right text-gray-400 flex justify-end items-center gap-2">
               {barPct > 0 && (
-                <span className="hidden sm:inline-flex h-1.5 w-12 rounded-full bg-black/30 overflow-hidden shrink-0" title="Relative folder size in this directory">
-                  <span className="h-full rounded-full bg-gradient-to-r from-sky-600/80 to-sky-400/70" style={{ width: `${barPct}%` }} />
-                </span>
+                <SizeBar
+                  percent={barPct}
+                  isDir={isDir}
+                  style={(config.folderSizeBarStyle || 'bar') as SizeBarStyle}
+                  className="hidden sm:inline-flex"
+                />
               )}
               {sizeLabel}
               {filterResult?.badgeColor && (
@@ -5977,7 +5981,7 @@ export default function BNDZUI() {
                         }
                     }}><Icons8Icon id="copy_path" size={14} /> Copy Path</div>
 
-                    <MenubarSubmenu label="Copy To...">
+                    <MenubarSubmenu label="Copy To..." iconId="copy_to">
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
                               const other = panes.find(p => p.id !== activePaneId);
                               const dest = other?.tabs[other.activeTabIndex]?.path;

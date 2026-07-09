@@ -7,6 +7,8 @@ export type DensityStyle = 'compact' | 'comfortable' | 'spacious';
 export type TabStyle = 'underline' | 'segment' | 'flat';
 export type ChromePalette = 'neutral' | 'cool' | 'warm';
 export type GridSelectionStyle = 'subtle' | 'filled' | 'border';
+export type NavTreeColorMode = 'off' | 'subtle' | 'vivid';
+export type SizeBarStyle = 'bar' | 'segment' | 'meter';
 
 export const SELECTION_STYLE_OPTIONS: { id: SelectionStyle; label: string; hint: string }[] = [
   { id: 'classic', label: 'Classic', hint: 'Solid row fill (Windows Explorer–like)' },
@@ -53,6 +55,12 @@ export const GRID_SELECTION_OPTIONS: { id: GridSelectionStyle; label: string; hi
   { id: 'border', label: 'Border only', hint: 'Accent outline on grid items' },
 ];
 
+export const NAV_TREE_COLOR_OPTIONS: { id: NavTreeColorMode; label: string; hint: string }[] = [
+  { id: 'subtle', label: 'Subtle', hint: 'Soft gradient accents on sidebar sections (default)' },
+  { id: 'vivid', label: 'Vivid', hint: 'Stronger category colors for faster scanning' },
+  { id: 'off', label: 'Off', hint: 'Flat monochrome sidebar headers' },
+];
+
 const RADIUS_MAP: Record<CornerRadius, { sm: string; md: string; lg: string }> = {
   sharp: { sm: '3px', md: '4px', lg: '5px' },
   rounded: { sm: '5px', md: '6px', lg: '8px' },
@@ -80,6 +88,8 @@ export function resolveAppearance(config: AppConfig) {
     tabs: (config.appearanceTabStyle as TabStyle) || 'underline',
     chrome: (config.appearanceChromePalette as ChromePalette) || 'cool',
     gridSelection: (config.appearanceGridSelection as GridSelectionStyle) || 'subtle',
+    navTreeColors: (config.appearanceNavTreeColors as NavTreeColorMode) || 'subtle',
+    sizeBar: (config.folderSizeBarStyle as SizeBarStyle) || 'bar',
   };
 }
 
@@ -93,6 +103,8 @@ export function applyAppearanceVariants(config: AppConfig, root: HTMLElement = d
   root.dataset.tabStyle = a.tabs;
   root.dataset.chromePalette = a.chrome;
   root.dataset.gridSelection = a.gridSelection;
+  root.dataset.navTreeColors = a.navTreeColors;
+  root.dataset.sizeBarStyle = a.sizeBar;
 
   const r = RADIUS_MAP[a.corners];
   root.style.setProperty('--bndz-radius-sm', r.sm);

@@ -1773,44 +1773,55 @@ namespace BNDZ
                     _ = Task.Run(() =>
                     {
                         object resultPayload;
-                        switch (action)
+                        try
                         {
-                            case "setContextMenu":
+                            switch (action)
                             {
-                                bool enable = payload.GetProperty("enable").GetBoolean();
-                                resultPayload = _shellIntegrationService.SetInContextMenu(enable);
-                                break;
+                                case "setContextMenu":
+                                {
+                                    bool enable = payload.GetProperty("enable").GetBoolean();
+                                    resultPayload = _shellIntegrationService.SetInContextMenu(enable);
+                                    break;
+                                }
+                                case "setDefault":
+                                {
+                                    bool enable = payload.GetProperty("enable").GetBoolean();
+                                    resultPayload = _shellIntegrationService.SetAsDefaultFileManager(enable);
+                                    break;
+                                }
+                                case "setWin11MoreOptions":
+                                {
+                                    bool enable = payload.GetProperty("enable").GetBoolean();
+                                    resultPayload = _shellIntegrationService.SetWin11MoreOptions(enable);
+                                    break;
+                                }
+                                case "relaunchAdmin":
+                                    resultPayload = _shellIntegrationService.RelaunchAsAdministrator();
+                                    break;
+                                case "isElevated":
+                                    resultPayload = new { elevated = _shellIntegrationService.IsElevated() };
+                                    break;
+                                case "getDefaultStatus":
+                                    resultPayload = _shellIntegrationService.GetDefaultFileManagerStatus();
+                                    break;
+                                default:
+                                    resultPayload = new { success = false, message = $"Unknown shell action: {action}" };
+                                    break;
                             }
-                            case "setDefault":
-                            {
-                                bool enable = payload.GetProperty("enable").GetBoolean();
-                                resultPayload = _shellIntegrationService.SetAsDefaultFileManager(enable);
-                                break;
-                            }
-                            case "setWin11MoreOptions":
-                            {
-                                bool enable = payload.GetProperty("enable").GetBoolean();
-                                resultPayload = _shellIntegrationService.SetWin11MoreOptions(enable);
-                                break;
-                            }
-                            case "relaunchAdmin":
-                                resultPayload = _shellIntegrationService.RelaunchAsAdministrator();
-                                break;
-                            case "isElevated":
-                                resultPayload = new { elevated = _shellIntegrationService.IsElevated() };
-                                break;
-                            case "getDefaultStatus":
-                                resultPayload = _shellIntegrationService.GetDefaultFileManagerStatus();
-                                break;
-                            default:
-                                resultPayload = new { success = false, message = $"Unknown shell action: {action}" };
-                                break;
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { success = false, message = ex.Message, needsElevation = ex is UnauthorizedAccessException };
                         }
 
                         var response = new { type = "SHELL_INTEGRATION_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => {
-                            MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                            try
+                            {
+                                MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                            }
+                            catch { }
                         });
                     });
                 }
