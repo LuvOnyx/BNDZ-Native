@@ -23,7 +23,7 @@ export default function ListDragGhost({ ghost }: Props) {
   return (
     <div
       className="fixed z-[300] pointer-events-none"
-      style={{ left: ghost.x + 14, top: ghost.y + 10 }}
+      style={{ left: ghost.x + 12, top: ghost.y + 8, transform: 'translate3d(0,0,0)' }}
     >
       <div
         className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--bndz-radius-md)] border border-white/15 shadow-xl backdrop-blur-md"

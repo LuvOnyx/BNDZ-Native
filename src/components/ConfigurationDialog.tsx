@@ -249,6 +249,17 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
     Other: 'from-slate-500/22 to-transparent border-slate-500/35',
   };
 
+  const categoryTabActive: Record<string, string> = {
+    General: 'data-[state=active]:bg-sky-600/18 data-[state=active]:text-sky-100 data-[state=active]:border-sky-500/35',
+    'Colors and Styles': 'data-[state=active]:bg-violet-600/18 data-[state=active]:text-violet-100 data-[state=active]:border-violet-500/35',
+    Information: 'data-[state=active]:bg-emerald-600/18 data-[state=active]:text-emerald-100 data-[state=active]:border-emerald-500/35',
+    'File Operations': 'data-[state=active]:bg-amber-600/18 data-[state=active]:text-amber-100 data-[state=active]:border-amber-500/35',
+    'Find and Filter': 'data-[state=active]:bg-cyan-600/18 data-[state=active]:text-cyan-100 data-[state=active]:border-cyan-500/35',
+    Preview: 'data-[state=active]:bg-pink-600/18 data-[state=active]:text-pink-100 data-[state=active]:border-pink-500/35',
+    'Tabs and Panes': 'data-[state=active]:bg-indigo-600/18 data-[state=active]:text-indigo-100 data-[state=active]:border-indigo-500/35',
+    Other: 'data-[state=active]:bg-slate-600/18 data-[state=active]:text-slate-100 data-[state=active]:border-slate-500/35',
+  };
+
   return (
     <BndzWindowFrame
       title="Configuration"
@@ -296,7 +307,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                        <TabsTrigger 
                          key={j} 
                          value={item} 
-                         className="!flex-none !grow-0 !shrink-0 !h-auto !min-h-[26px] !w-full !justify-start !text-left !px-2.5 !py-1.5 !text-[12px] !font-normal !rounded-md !border !border-transparent !whitespace-normal !leading-snug data-[state=active]:bg-sky-600/20 data-[state=active]:text-sky-100 data-[state=active]:border-sky-500/30 text-[#c8c8c8] hover:bg-white/5 data-[state=active]:hover:bg-sky-600/20 !shadow-none after:!hidden"
+                         className={`!flex-none !grow-0 !shrink-0 !h-auto !min-h-[26px] !w-full !justify-start !text-left !px-2.5 !py-1.5 !text-[12px] !font-normal !rounded-md !border !border-transparent !whitespace-normal !leading-snug text-[#c8c8c8] hover:bg-white/5 !shadow-none after:!hidden ${categoryTabActive[cat.name] || categoryTabActive.Other}`}
                        >
                          {item}
                        </TabsTrigger>

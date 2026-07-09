@@ -1141,6 +1141,26 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: inset -2px 0 0 0 rgb(56 189 248);
 }
 
+.bndz-col-resize-handle {
+  touch-action: none;
+}
+
+.bndz-tab-drop-before {
+  box-shadow: inset 2px 0 0 0 rgb(56 189 248);
+}
+
+.bndz-tab-drop-after {
+  box-shadow: inset -2px 0 0 0 rgb(56 189 248);
+}
+
+.bndz-sidebar-drop-before {
+  box-shadow: inset 0 2px 0 0 rgb(56 189 248);
+}
+
+.bndz-sidebar-drop-after {
+  box-shadow: inset 0 -2px 0 0 rgb(56 189 248);
+}
+
 @keyframes bndz-icon8-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -1972,9 +1992,9 @@ html[data-theme] .bndz-destination-picker-footer {
   background: rgba(255, 255, 255, 0.02);
 }
 
-.bndz-settings-category {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+.bndz-settings-nav .bndz-settings-category {
+  border-width: 1px;
+  border-style: solid;
 }
 
 .bndz-settings-category-accent {

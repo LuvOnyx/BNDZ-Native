@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import { dropSideFromPointer, computeReorderInsertIndex, reorderArrayMove } from '../lib/reorderOnDrop';
 
 const SECTION_KEY_MAP: Record<string, string> = {
     storage: 'drives',
@@ -59,6 +60,7 @@ export function LeftSidebar({
     const [order, setOrder] = useState(mappedOrder);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dropSide, setDropSide] = useState<'before' | 'after'>('before');
   const dragOrderRef = React.useRef(order);
 
   useEffect(() => {
@@ -91,22 +93,34 @@ export function LeftSidebar({
     e.preventDefault();
     e.stopPropagation();
     if (!draggedItem || draggedItem === id) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const side = dropSideFromPointer(e.clientX, e.clientY, rect, 'y');
     setDragOverId(id);
-    setOrder(prev => {
-      const newOrder = [...prev];
-      const draggedIdx = newOrder.indexOf(draggedItem);
-      const targetIdx = newOrder.indexOf(id);
-      if (draggedIdx < 0 || targetIdx < 0 || draggedIdx === targetIdx) return prev;
-      newOrder.splice(draggedIdx, 1);
-      newOrder.splice(targetIdx, 0, draggedItem);
-      return newOrder;
-    });
+    setDropSide(side);
+  };
+
+  const handleDrop = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedItem || draggedItem === id) {
+      setDraggedItem(null);
+      setDragOverId(null);
+      return;
+    }
+    const fromIdx = order.indexOf(draggedItem);
+    const toIdx = order.indexOf(id);
+    if (fromIdx >= 0 && toIdx >= 0) {
+      const insertIdx = computeReorderInsertIndex(fromIdx, toIdx, dropSide === 'after');
+      const next = reorderArrayMove(order, fromIdx, insertIdx);
+      setOrder(next);
+      dragOrderRef.current = next;
+      onSectionOrderChange?.(next.map(k => REVERSE_SECTION_MAP[k] || k));
+    }
+    setDraggedItem(null);
+    setDragOverId(null);
   };
 
   const handleDragEnd = () => {
-    if (draggedItem && onSectionOrderChange) {
-      onSectionOrderChange(dragOrderRef.current.map(k => REVERSE_SECTION_MAP[k] || k));
-    }
     setDraggedItem(null);
     setDragOverId(null);
   };
@@ -133,8 +147,9 @@ export function LeftSidebar({
                     <div 
                         key={key} 
                         id={`section-${key}`}
-                        className={`transition-[transform,opacity] duration-150 ease-out ${draggedItem === key ? 'opacity-40 scale-[0.98]' : ''} ${dragOverId === key && draggedItem !== key ? 'ring-1 ring-sky-500/30' : ''} ${key === 'tree' ? 'flex-[3] flex flex-col min-h-[min(560px,52vh)] mb-1' : key === 'miniTree' ? 'mb-2 shrink-0 max-h-[160px] overflow-hidden flex flex-col' : 'mb-3 shrink-0'}`}
+                        className={`transition-opacity duration-150 ease-out ${draggedItem === key ? 'opacity-40' : ''} ${dragOverId === key && draggedItem !== key ? (dropSide === 'before' ? 'bndz-sidebar-drop-before' : 'bndz-sidebar-drop-after') : ''} ${key === 'tree' ? 'flex-[3] flex flex-col min-h-[min(560px,52vh)] mb-1' : key === 'miniTree' ? 'mb-2 shrink-0 max-h-[160px] overflow-hidden flex flex-col' : 'mb-3 shrink-0'}`}
                         onDragOver={e => handleDragOver(e, key)}
+                        onDrop={e => handleDrop(e, key)}
                     >
                         <div 
                             data-section={key}

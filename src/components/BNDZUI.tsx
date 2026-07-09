@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from 'react';
 import { flushSync } from 'react-dom';
-import { Icons8Icon } from './Icons8Icon';
+import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { CloseGlyph } from './ChromeGlyphs';
 import { normalizeDirEntries } from '../lib/normalizeDirEntry';
 import { createInitialFileSystem, getDirContents, getEntityByPath, updateFileSystem } from '../data/initialFS';
@@ -48,6 +48,8 @@ import { recordNavVisit, buildMiniTreeFromVisits } from '../lib/navigationHistor
 import { buildPathSuggestions } from '../lib/addressAutocomplete';
 import { summarizeSelection, formatSelectionSummaryLine } from '../lib/selectionSummary';
 import { highlightNameMatch } from '../lib/liveFilterHighlight';
+import { createRafPointerThrottler } from '../lib/pointerDragGhost';
+import { dropSideFromPointer, computeReorderInsertIndex } from '../lib/reorderOnDrop';
 import { filterByName } from '../lib/fuzzyFilter';
 import MiniTreePanel from './MiniTreePanel';
 import AddressAutocompleteDropdown from './AddressAutocompleteDropdown';
@@ -1139,6 +1141,8 @@ export default function BNDZUI() {
   } | null>(null);
   const listGestureClickRef = useRef<((e: React.MouseEvent, id: string) => void) | null>(null);
   const [columnDrag, setColumnDrag] = useState<{ sourceId: ListColumnId; overId: ListColumnId | null; overSide: 'before' | 'after' } | null>(null);
+  const columnResizeActiveRef = useRef(false);
+  const columnHeaderPressRef = useRef<{ colId: ListColumnId; x: number; y: number; moved: boolean } | null>(null);
   const [columnPicker, setColumnPicker] = useState<{ x: number; y: number } | null>(null);
   const [renamingFavoritePath, setRenamingFavoritePath] = useState<string | null>(null);
   const [favoriteDrag, setFavoriteDrag] = useState<{ sourcePath: string; overPath: string | null } | null>(null);
@@ -1162,6 +1166,7 @@ export default function BNDZUI() {
   const restoredTabsetRef = useRef(false);
   const dualPaneInitRef = useRef(false);
   const startColumnResize = (colId: ListColumnId, startX: number, headerEl: HTMLElement) => {
+    columnResizeActiveRef.current = true;
     const startWidth = headerEl.getBoundingClientRect().width;
     const onMove = (ev: MouseEvent) => {
       const next = Math.max(56, Math.min(520, startWidth + (ev.clientX - startX)));
@@ -1170,6 +1175,7 @@ export default function BNDZUI() {
       });
     };
     const onUp = () => {
+      columnResizeActiveRef.current = false;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
@@ -2068,6 +2074,7 @@ export default function BNDZUI() {
   const [librariesExpanded, setLibrariesExpanded] = useState(true);
   const [destinationPicker, setDestinationPicker] = useState<{ mode: 'copy' | 'move'; sources: string[] } | null>(null);
   const [draggedTab, setDraggedTab] = useState<{ paneId: string; index: number } | null>(null);
+  const [tabDropIndicator, setTabDropIndicator] = useState<{ paneId: string; index: number; side: 'before' | 'after' } | null>(null);
   const [tabFileDropTarget, setTabFileDropTarget] = useState<{ paneId: string; tabIndex: number } | null>(null);
   const [newTabDropPaneId, setNewTabDropPaneId] = useState<string | null>(null);
   const tabFileDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4330,16 +4337,20 @@ export default function BNDZUI() {
              const name = isFindingTab(tab) ? findingTabLabel(tab) : getPaneTabLabel(tab.path);
              const isTabDragging = draggedTab?.paneId === pane.id && draggedTab.index === idx;
              const isTabFileDropHover = tabFileDropTarget?.paneId === pane.id && tabFileDropTarget.tabIndex === idx;
+             const tabDropBefore = tabDropIndicator?.paneId === pane.id && tabDropIndicator.index === idx && tabDropIndicator.side === 'before';
+             const tabDropAfter = tabDropIndicator?.paneId === pane.id && tabDropIndicator.index === idx && tabDropIndicator.side === 'after';
              return (
                <div 
                  key={tab.id}
                  data-tab-id={tab.id}
                  data-tab-index={idx}
                  draggable={!tab.locked}
+                 className={`relative bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-all duration-200 ease-out ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${isTabFileDropHover ? 'ring-2 ring-sky-400/80 bg-sky-950/40' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${tabDropBefore ? 'bndz-tab-drop-before' : ''} ${tabDropAfter ? 'bndz-tab-drop-after' : ''}`}
                  onDragStart={(e) => {
                    if (tab.locked) { e.preventDefault(); return; }
                    e.stopPropagation();
                    setDraggedTab({ paneId: pane.id, index: idx });
+                   setTabDropIndicator(null);
                    e.dataTransfer.effectAllowed = 'move';
                  }}
                  onDragOver={(e) => {
@@ -4351,17 +4362,26 @@ export default function BNDZUI() {
                      dropModifierRef.current.copy = copy;
                      e.dataTransfer.dropEffect = copy ? 'copy' : 'move';
                      setTabFileDropTarget({ paneId: pane.id, tabIndex: idx });
+                     setTabDropIndicator(null);
                      scheduleTabSwitchOnFileDrag(pane.id, idx);
                      return;
                    }
                    if (!draggedTab || draggedTab.paneId !== pane.id || draggedTab.index === idx) return;
-                   reorderTab(pane.id, draggedTab.index, idx);
-                   setDraggedTab({ paneId: pane.id, index: idx });
+                   const rect = e.currentTarget.getBoundingClientRect();
+                   const side = dropSideFromPointer(e.clientX, e.clientY, rect, 'x');
+                   setTabDropIndicator(prev =>
+                     prev?.paneId === pane.id && prev.index === idx && prev.side === side
+                       ? prev
+                       : { paneId: pane.id, index: idx, side },
+                   );
                  }}
                  onDragLeave={(e) => {
                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                      if (tabFileDropTarget?.paneId === pane.id && tabFileDropTarget.tabIndex === idx) {
                        setTabFileDropTarget(null);
+                     }
+                     if (tabDropIndicator?.paneId === pane.id && tabDropIndicator.index === idx) {
+                       setTabDropIndicator(null);
                      }
                      if (tabFileDragHoverRef.current?.paneId === pane.id && tabFileDragHoverRef.current?.tabIndex === idx) {
                        tabFileDragHoverRef.current = null;
@@ -4380,10 +4400,21 @@ export default function BNDZUI() {
                      const targetTab = pane.tabs[idx];
                      setActiveTab(pane.id, idx);
                      handleDrop(e, null, targetTab.path);
+                     setTabDropIndicator(null);
                      return;
                    }
+                   if (draggedTab && draggedTab.paneId === pane.id && tabDropIndicator?.paneId === pane.id) {
+                     const insertIdx = computeReorderInsertIndex(
+                       draggedTab.index,
+                       tabDropIndicator.index,
+                       tabDropIndicator.side === 'after',
+                     );
+                     reorderTab(pane.id, draggedTab.index, insertIdx);
+                   }
+                   setDraggedTab(null);
+                   setTabDropIndicator(null);
                  }}
-                 onDragEnd={() => setDraggedTab(null)}
+                 onDragEnd={() => { setDraggedTab(null); setTabDropIndicator(null); }}
                  onClick={(e) => { e.stopPropagation(); setActiveTab(pane.id, idx); }}
                  onAuxClick={(e) => {
                    if (e.button !== 1) return;
@@ -4396,7 +4427,6 @@ export default function BNDZUI() {
                    e.stopPropagation();
                    setTabContextMenu({ x: e.clientX, y: e.clientY, paneId: pane.id, tabIndex: idx });
                  }}
-                 className={`bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-all duration-200 ease-out ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${isTabFileDropHover ? 'ring-2 ring-sky-400/80 bg-sky-950/40' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''}`}
                  style={{
                    ...(config.applyColors ? {
                     backgroundColor: isTabActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
@@ -4715,20 +4745,29 @@ export default function BNDZUI() {
            {getVisibleListColumns(config, { isGlobalSearch: isGlobal }).map(col => (
              <div
                key={col.id}
-               draggable
-               className={`${col.widthClass || 'shrink-0'} relative px-2 border-r border-[#333] flex items-center justify-between ${col.sortable ? 'cursor-pointer hover:bg-[#2a2a2a]' : ''} ${col.align === 'right' ? 'text-right' : ''} ${columnDrag?.sourceId === col.id ? 'opacity-40' : ''} ${columnDrag?.overId === col.id ? (columnDrag.overSide === 'before' ? 'bndz-col-drop-before' : 'bndz-col-drop-after') : ''}`}
+               className={`group/col ${col.widthClass || 'shrink-0'} relative pl-1 pr-0 border-r border-[#333] flex items-center gap-0.5 ${col.sortable ? 'cursor-pointer hover:bg-[#2a2a2a]' : ''} ${col.align === 'right' ? 'text-right' : ''} ${columnDrag?.sourceId === col.id ? 'opacity-40' : ''} ${columnDrag?.overId === col.id ? (columnDrag.overSide === 'before' ? 'bndz-col-drop-before' : 'bndz-col-drop-after') : ''}`}
                style={getColumnStyle(col)}
-               onClick={col.sortable ? () => toggleSort(pane.id, col.id as SortColumnId) : undefined}
-               onDragStart={e => {
-                 e.dataTransfer.effectAllowed = 'move';
-                 e.dataTransfer.setData('text/plain', col.id);
-                 setColumnDrag({ sourceId: col.id, overId: null, overSide: 'before' });
-               }}
+               onMouseDown={col.sortable ? (e) => {
+                 if ((e.target as HTMLElement).closest('.bndz-col-resize-handle, .bndz-col-reorder-grip')) return;
+                 columnHeaderPressRef.current = { colId: col.id, x: e.clientX, y: e.clientY, moved: false };
+               } : undefined}
+               onMouseMove={col.sortable ? (e) => {
+                 const press = columnHeaderPressRef.current;
+                 if (!press || press.colId !== col.id) return;
+                 if (Math.abs(e.clientX - press.x) > 3 || Math.abs(e.clientY - press.y) > 3) press.moved = true;
+               } : undefined}
+               onClick={col.sortable ? () => {
+                 if (columnResizeActiveRef.current) return;
+                 const press = columnHeaderPressRef.current;
+                 columnHeaderPressRef.current = null;
+                 if (press?.moved || columnDrag) return;
+                 toggleSort(pane.id, col.id as SortColumnId);
+               } : undefined}
                onDragOver={e => {
                  if (!columnDrag) return;
                  e.preventDefault();
                  const rect = e.currentTarget.getBoundingClientRect();
-                 const overSide = e.clientX - rect.left < rect.width / 2 ? 'before' : 'after';
+                 const overSide = dropSideFromPointer(e.clientX, e.clientY, rect, 'x');
                  setColumnDrag(prev => (prev && prev.overId === col.id && prev.overSide === overSide) ? prev : { ...prev!, overId: col.id, overSide });
                }}
                onDrop={e => {
@@ -4739,16 +4778,30 @@ export default function BNDZUI() {
                  updateConfig({ listColumnOrder: nextOrder });
                  setColumnDrag(null);
                }}
-               onDragEnd={() => setColumnDrag(null)}
              >
-               <span className={col.align === 'right' ? 'flex-1 text-right' : ''}>{col.label}</span>
+               <div
+                 draggable
+                 className="bndz-col-reorder-grip shrink-0 opacity-25 group-hover/col:opacity-55 hover:!opacity-90 cursor-grab active:cursor-grabbing p-0.5 -ml-0.5 rounded"
+                 title="Drag to reorder column"
+                 onMouseDown={e => e.stopPropagation()}
+                 onDragStart={e => {
+                   e.stopPropagation();
+                   e.dataTransfer.effectAllowed = 'move';
+                   e.dataTransfer.setData('text/plain', col.id);
+                   setColumnDrag({ sourceId: col.id, overId: null, overSide: 'before' });
+                 }}
+                 onDragEnd={() => setColumnDrag(null)}
+               >
+                 <DragHandleGlyph size={10} />
+               </div>
+               <span className={`flex-1 min-w-0 truncate ${col.align === 'right' ? 'text-right' : ''}`}>{col.label}</span>
                {col.sortable && pane.sortColumn === col.id && (
-                 <span className="text-[10px] ml-1">{pane.sortDirection === 'asc' ? '▲' : '▼'}</span>
+                 <span className="text-[10px] ml-0.5 shrink-0">{pane.sortDirection === 'asc' ? '▲' : '▼'}</span>
                )}
                <div
                  draggable={false}
-                 className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-sky-500/40 z-10"
-                 onMouseDown={e => { e.stopPropagation(); startColumnResize(col.id, e.clientX, e.currentTarget.parentElement as HTMLElement); }}
+                 className="bndz-col-resize-handle absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-sky-500/35 active:bg-sky-500/50 z-10 touch-none"
+                 onMouseDown={e => { e.preventDefault(); e.stopPropagation(); startColumnResize(col.id, e.clientX, e.currentTarget.parentElement as HTMLElement); }}
                />
              </div>
            ))}
@@ -4942,6 +4995,25 @@ export default function BNDZUI() {
                 return path;
               };
 
+              let ghostThrottler: ((x: number, y: number) => void) | null = null;
+
+              const updateListDragGhost = (ev: PointerEvent) => {
+                const g = listGestureRef.current;
+                if (!g || g.mode !== 'drag') return;
+                const anchorEnt = contents?.find((c: any) => c.id === entityId);
+                setListDragGhost({
+                  x: ev.clientX,
+                  y: ev.clientY,
+                  label: anchorEnt?.name || 'Item',
+                  count: g.dragSelection.length,
+                  copy: g.copyDrag,
+                  isDirectory: anchorEnt?.type === 'directory',
+                  previewPath: buildDragPaths(entityId, g.dragSelection)[0]
+                    ? toWindowsPath(buildDragPaths(entityId, g.dragSelection)[0])
+                    : undefined,
+                });
+              };
+
               const onMove = (ev: PointerEvent) => {
                 if (ev.pointerId !== capturePointerId) return;
                 if (!listGestureRef.current) return;
@@ -5012,6 +5084,9 @@ export default function BNDZUI() {
                     isDirectory: anchorEnt?.type === 'directory',
                     previewPath: dragPaths[0] ? toWindowsPath(dragPaths[0]) : undefined,
                   });
+                  ghostThrottler = createRafPointerThrottler((x, y) => {
+                    updateListDragGhost({ clientX: x, clientY: y } as PointerEvent);
+                  });
                   bindKeyModifiers();
                   try { listEl.setPointerCapture(capturePointerId); } catch { /* ignore */ }
                 }
@@ -5031,19 +5106,7 @@ export default function BNDZUI() {
                       : null;
                     resolveDropTarget(ev.clientX, ev.clientY, hoverPath ? contentsForPanePath(hoverPath) : contents);
                   } else setDragTargetHighlight(null);
-                  const g = listGestureRef.current;
-                  const anchorEnt = contents?.find((c: any) => c.id === entityId);
-                  setListDragGhost({
-                    x: ev.clientX,
-                    y: ev.clientY,
-                    label: anchorEnt?.name || 'Item',
-                    count: g.dragSelection.length,
-                    copy: g.copyDrag,
-                    isDirectory: anchorEnt?.type === 'directory',
-                    previewPath: buildDragPaths(entityId, g.dragSelection)[0]
-                      ? toWindowsPath(buildDragPaths(entityId, g.dragSelection)[0])
-                      : undefined,
-                  });
+                  ghostThrottler?.(ev.clientX, ev.clientY);
 
                   if (!oleDragStarted && getFileDragSession()) {
                     const overInternalChrome = isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY);

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Icons8Icon } from './Icons8Icon';
+import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { TreeShellIcon } from './TreeShellIcon';
 import TreeGlider, { type TreeGliderAnchor } from './TreeGlider';
 import { IPC } from '../lib/ipcBridge';
@@ -92,6 +92,7 @@ function TreeRow({
   dropBefore,
   dropAfter,
   onDragStart,
+  onReorderDragStart,
   onDragOver,
   onDragEnd,
   onDrop,
@@ -119,6 +120,7 @@ function TreeRow({
   dropBefore?: boolean;
   dropAfter?: boolean;
   onDragStart?: (e: React.DragEvent, row: FlatNavRow) => void;
+  onReorderDragStart?: (e: React.DragEvent, row: FlatNavRow) => void;
   onDragOver?: (e: React.DragEvent, row: FlatNavRow) => void;
   onDragEnd?: () => void;
   onDrop?: (e: React.DragEvent, row: FlatNavRow) => void;
@@ -160,19 +162,19 @@ function TreeRow({
     }
   };
 
-  const canDragFile = !!row.path && !row.isPlaceholder && !disallowDragFromTree;
   const canReorder = !!row.draggable && !row.isPlaceholder && !disallowDragFromTree;
+  const canDragFile = !!row.path && !row.isPlaceholder && !disallowDragFromTree && !canReorder;
   const isFileDropTarget = !!row.path && fileDropTarget === row.path;
 
   const rowEl = (
       <div
-      className={`nav-tree-row group flex items-center py-[3px] pr-2 cursor-pointer whitespace-nowrap rounded-sm mx-0.5 transition-colors duration-100 ${
+      className={`nav-tree-row group/tree group flex items-center py-[3px] pr-2 cursor-pointer whitespace-nowrap rounded-sm mx-0.5 transition-colors duration-100 ${
         isSelected ? 'nav-tree-row-selected' : 'hover:bg-[#2a2d2e]/90'
       } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''}`}
       style={{ paddingLeft: `${indentPx}px` }}
       data-nav-path={row.path || undefined}
-      draggable={(canDragFile || canReorder) && !row.isPlaceholder}
-      onDragStart={(canDragFile || canReorder) ? e => {
+      draggable={canDragFile && !row.isPlaceholder}
+      onDragStart={canDragFile ? e => {
         e.stopPropagation();
         onDragStart?.(e, row);
       } : undefined}
@@ -186,7 +188,7 @@ function TreeRow({
       onDrop={e => {
         onDrop?.(e, row);
       }}
-      onDragEnd={(canDragFile || canReorder) ? onDragEnd : undefined}
+      onDragEnd={canDragFile ? onDragEnd : undefined}
       onMouseEnter={e => {
         tipHandlers?.onMouseEnter?.(e);
         if (showGlider && row.path && !row.isPlaceholder) {
@@ -213,6 +215,21 @@ function TreeRow({
         if (!row.isPlaceholder) onContextMenu(e, row.path, row.label);
       }}
     >
+      {canReorder && (
+        <div
+          draggable
+          className="nav-tree-reorder-grip shrink-0 opacity-30 group-hover/tree:opacity-60 hover:!opacity-90 cursor-grab active:cursor-grabbing p-0.5 -ml-1 mr-0.5 rounded"
+          title="Drag to reorder"
+          onMouseDown={e => e.stopPropagation()}
+          onDragStart={e => {
+            e.stopPropagation();
+            onReorderDragStart?.(e, row);
+          }}
+          onDragEnd={onDragEnd}
+        >
+          <DragHandleGlyph size={10} />
+        </div>
+      )}
       {row.hasChildren ? (
         <button
           type="button"
@@ -354,23 +371,18 @@ export function VirtualizedNavTree({
     clearExpandDragTimer();
   }, [clearGliderTimer, clearExpandDragTimer]);
 
-  const handleDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
-    if (row.treeKey && row.draggable) {
-      setDragKey(row.treeKey);
-      e.dataTransfer.setData(BNDZ_TREE_REORDER_MIME, row.treeKey);
-    }
-    if (row.path) {
-      const winPath = toWindowsPath(row.path);
-      setBndzFileDragData(e, {
-        sourcePaneId: 'tree',
-        sourcePath: row.path,
-        paths: [winPath],
-        fromTree: true,
-      });
-      if (e.altKey) {
-        e.preventDefault();
-        IPC.startDrag([winPath]);
-      }
+  const handleFileDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
+    if (!row.path) return;
+    const winPath = toWindowsPath(row.path);
+    setBndzFileDragData(e, {
+      sourcePaneId: 'tree',
+      sourcePath: row.path,
+      paths: [winPath],
+      fromTree: true,
+    });
+    if (e.altKey) {
+      e.preventDefault();
+      IPC.startDrag([winPath]);
     }
     e.dataTransfer.effectAllowed = 'copyMove';
     const ghost = document.createElement('div');
@@ -381,6 +393,23 @@ export function VirtualizedNavTree({
     e.dataTransfer.setDragImage(ghost, 12, 16);
     requestAnimationFrame(() => document.body.removeChild(ghost));
   }, []);
+
+  const handleReorderDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
+    if (!row.treeKey || !row.draggable) return;
+    setDragKey(row.treeKey);
+    e.dataTransfer.clearData();
+    e.dataTransfer.setData(BNDZ_TREE_REORDER_MIME, row.treeKey);
+    e.dataTransfer.effectAllowed = 'move';
+    const ghost = document.createElement('div');
+    ghost.className = 'nav-tree-drag-ghost';
+    ghost.textContent = row.label;
+    ghost.style.cssText = 'position:fixed;top:-1000px;padding:4px 10px;background:#2a2a2e;border:1px solid #666;border-radius:4px;color:#fff;font-size:12px;pointer-events:none;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 12, 16);
+    requestAnimationFrame(() => document.body.removeChild(ghost));
+  }, []);
+
+  const handleDragStart = handleFileDragStart;
 
   const handleDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {
     if (!dragKey || !row.treeKey || dragKey === row.treeKey || row.depth !== 0) return;
@@ -575,6 +604,7 @@ export function VirtualizedNavTree({
       dropBefore={dropTargetKey === row.treeKey && !dropAfter}
       dropAfter={dropTargetKey === row.treeKey && dropAfter}
       onDragStart={handleDragStart}
+      onReorderDragStart={handleReorderDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDrop={handleDrop}
