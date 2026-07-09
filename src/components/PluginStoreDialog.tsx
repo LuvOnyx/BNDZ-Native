@@ -81,11 +81,10 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                                     <div className="font-semibold text-[13px] text-white truncate">{plugin.name}</div>
                                     <div className="text-[11px] text-gray-400 truncate mt-0.5" title={plugin.description}>{plugin.description}</div>
                                     <div className="flex items-center justify-between mt-2 text-[10px]">
-                                        <div className="text-gray-500 flex gap-2">
-                                            <span>BNDZ Dev</span>
-                                            <span>★ 5.0</span>
+                                        <div className="text-gray-500 truncate">
+                                            {plugin.targetPanel === 'bottom' ? 'Bottom panel' : 'Sidebar'} · {plugin.isNative ? 'Native' : 'Web'}
                                         </div>
-                                        {plugin.isInstalled && <span className="bg-sky-500/20 text-sky-400 px-1 rounded border border-sky-500/30 font-mono">INSTALLED</span>}
+                                        {plugin.isInstalled && <span className="bg-[#094771]/40 text-[#9cdcfe] px-1.5 py-px rounded border border-[#0078d4]/30 font-mono text-[9px]">INSTALLED</span>}
                                     </div>
                                 </div>
                             </div>
@@ -102,23 +101,22 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                                 </div>
                                 <div className="flex flex-col justify-center flex-1">
                                     <div className="flex items-baseline gap-3 mb-1">
-                                        <h1 className="text-3xl font-bold text-white tracking-tight">{activePlugin.name}</h1>
-                                        <span className="text-sm font-mono text-gray-500 bg-[#111] px-2 py-0.5 rounded border border-[#333]">v1.4.2</span>
+                                        <h1 className="text-2xl font-semibold text-white tracking-tight">{activePlugin.name}</h1>
+                                        <span className="text-[11px] font-mono text-gray-500 bg-[#111] px-2 py-0.5 rounded border border-[#333]">{activePlugin.id}</span>
                                     </div>
-                                    <div className="flex items-center gap-4 text-xs text-[#007acc] mb-4">
-                                        <span className="hover:underline cursor-pointer">BNDZ Dev</span>
-                                        <div className="flex items-center gap-1 text-gray-400"><Icons8Icon id="download" size={12} /> 1.2M</div>
-                                        <div className="flex items-center gap-1 text-gray-400"><Icons8Icon id="star_ui" size={12} /> 1K+</div>
-                                        <div className="flex items-center gap-1 text-gray-400"><Icons8Icon id="go_network" size={12} /> Registry</div>
+                                    <div className="flex items-center gap-3 text-[11px] text-gray-500 mb-3">
+                                        <span>{activePlugin.targetPanel === 'bottom' ? 'Bottom panel extension' : 'Sidebar extension'}</span>
+                                        <span>·</span>
+                                        <span>{activePlugin.isNative ? 'Native host' : 'Hosted UI'}</span>
                                     </div>
-                                    <p className="text-[13px] text-gray-300 mb-6">{activePlugin.description}</p>
+                                    <p className="text-[13px] text-gray-300 mb-5 leading-relaxed">{activePlugin.description}</p>
                                     <div className="flex gap-3">
                                         <button 
                                             onClick={() => togglePluginInstall(activePlugin.id)}
-                                            className={`px-6 py-2 rounded text-[13px] font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500/50 ${
+                                            className={`px-5 py-1.5 rounded text-[12px] font-semibold transition-colors focus:outline-none focus:ring-1 focus:ring-[#0078d4]/50 ${
                                                 activePlugin.isInstalled 
                                                     ? 'bg-[#333333] hover:bg-[#444444] text-white border border-[#555]' 
-                                                    : 'bg-[#007acc] hover:bg-[#005c99] text-white border border-[#007acc]'
+                                                    : 'bg-[#0078d4] hover:bg-[#006cbd] text-white border border-[#0078d4]'
                                             }`}
                                         >
                                             {activePlugin.isInstalled ? 'Uninstall Extension' : 'Install Extension'}
@@ -135,18 +133,11 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                             </div>
                             <div className="flex-1 p-8 overflow-y-auto styled-scrollbar bg-[#1e1e1e] min-h-0">
                                 <div className="max-w-3xl">
-                                    <h2 className="text-lg font-bold text-white mb-4 border-b border-[#333] pb-2">Extension Overview</h2>
-                                    <p className="text-sm text-gray-400 mb-6 leading-relaxed">
-                                        This extension deeply integrates {activePlugin.name.toLowerCase()} capabilities directly into BNDZ. 
-                                        Providing first-class citizen support for native OS level file modifications.
-                                        {activePlugin.isNative && " Utilizes C# Native PInvoke bindings for ultra-fast COM interface calls."}
+                                    <h2 className="text-[13px] font-semibold text-white mb-3 border-b border-[#333] pb-2">About this extension</h2>
+                                    <p className="text-[12px] text-gray-400 mb-4 leading-relaxed">
+                                        {activePlugin.description}
+                                        {activePlugin.isNative && ' This extension uses native Windows integration for file operations.'}
                                     </p>
-                                    <h3 className="font-semibold text-white mb-2">Features</h3>
-                                    <ul className="list-disc pl-5 text-sm text-gray-400 space-y-2 mb-8">
-                                        <li>Seamless multi-threading execution.</li>
-                                        <li>Instant state hydration without reloading.</li>
-                                        <li>Global application context injection.</li>
-                                    </ul>
                                 </div>
                             </div>
                         </>

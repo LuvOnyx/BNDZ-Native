@@ -31,6 +31,12 @@ assert.equal(shouldAllowDragStart(false), false);
 
 console.log('interaction smoke tests passed');
 
+import { renderStatusBarTemplate } from '../src/lib/statusBarTemplate.ts';
+assert.equal(
+  renderStatusBarTemplate('<items> item(s) | <selected> selected', { items: 12, selected: 2 }),
+  '12 item(s) | 2 selected',
+);
+
 import { resolveAppearance, applyAppearanceVariants } from '../src/lib/appearanceVariants.ts';
 
 const fakeDoc = { dataset: {}, style: { setProperty: () => {} } };

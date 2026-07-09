@@ -69,7 +69,7 @@ export default function CommandPalette({ isOpen, onClose, actions = [] }: Props)
       onClick={onClose}
     >
       <div
-        className="bndz-command-palette w-full max-w-xl rounded-2xl overflow-hidden"
+        className="bndz-command-palette w-full max-w-xl rounded-[var(--bndz-radius-md)] overflow-hidden"
         data-testid="command-palette"
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >

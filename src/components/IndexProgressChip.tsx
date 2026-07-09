@@ -16,21 +16,21 @@ export default function IndexProgressChip({ filesIndexed, currentPath, root, err
 
   return (
     <span
-      className="bndz-glass-chip inline-flex items-center gap-2 ml-2 pl-2.5 pr-2 py-0.5 max-w-[min(420px,45vw)]"
+      className="bndz-status-bar-chip"
       title={error || currentPath || root || 'Indexing files'}
       role="status"
     >
-      <Icons8Icon id="database_ui" size={12} className="shrink-0" />
+      <Icons8Icon id="database_ui" size={12} className="shrink-0 opacity-80" />
       {error ? (
-        <span className="truncate text-[10px] text-red-300/90 font-medium">Index failed · {error}</span>
+        <span className="truncate text-red-300/90">Index failed · {error}</span>
       ) : (
-        <span className="truncate text-[10px] text-sky-100/90 font-medium">
-          Indexing <span className="text-sky-300/80">{filesIndexed.toLocaleString()}</span>
-          {file ? <span className="text-white/40 ml-1">· {file}</span> : null}
-          {rootLabel && !file ? <span className="text-white/40 ml-1">· {rootLabel}</span> : null}
+        <span className="truncate">
+          Indexing {filesIndexed.toLocaleString()}
+          {file ? <span className="text-[#888] ml-1">· {file}</span> : null}
+          {rootLabel && !file ? <span className="text-[#888] ml-1">· {rootLabel}</span> : null}
         </span>
       )}
-      {!error && <Icons8Icon id="loading" size={10} spin className="shrink-0" />}
+      {!error && <Icons8Icon id="loading" size={10} spin className="shrink-0 opacity-70" />}
     </span>
   );
 }

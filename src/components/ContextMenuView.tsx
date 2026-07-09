@@ -297,7 +297,7 @@ function ContextMenuView({
         <ClampedFixedMenu
           x={menu.x}
           y={menu.y}
-          className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[220px] text-sm bndz-scrollbar"
+          className="bndz-context-menu py-1 min-w-[220px] text-sm bndz-scrollbar"
           onMouseDown={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
         >
@@ -318,7 +318,7 @@ function ContextMenuView({
       <ClampedFixedMenu
         x={menu.x}
         y={menu.y}
-        className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[220px] text-sm bndz-scrollbar"
+        className="bndz-context-menu py-1 min-w-[220px] text-sm bndz-scrollbar"
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
       >
@@ -488,7 +488,7 @@ function ContextMenuView({
       <ClampedFixedMenu
         x={menu.x}
         y={menu.y}
-        className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[200px] bndz-scrollbar"
+        className="bndz-context-menu py-1 min-w-[200px] bndz-scrollbar"
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
       >
@@ -557,7 +557,7 @@ function ContextMenuView({
     <ClampedFixedMenu
       x={menu.x}
       y={menu.y}
-      className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[220px] bndz-scrollbar"
+      className="bndz-context-menu py-1 min-w-[220px] bndz-scrollbar"
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >

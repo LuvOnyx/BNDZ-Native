@@ -41,7 +41,7 @@ export function MenubarPortalMenu({ open, anchorEl, minWidth = 200, children }: 
     <div
       data-bndz-menubar-menu
       data-open="true"
-      className="fixed z-[500] bndz-glass-surface border border-white/10 shadow-2xl py-1.5 min-w-[200px] bndz-scrollbar"
+      className="fixed z-[500] bndz-menubar-menu border border-[#454545] shadow-lg py-1 min-w-[200px] bndz-scrollbar"
       style={{
         top: pos.top,
         left: pos.left,

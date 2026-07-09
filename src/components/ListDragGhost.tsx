@@ -26,8 +26,8 @@ export default function ListDragGhost({ ghost }: Props) {
       style={{ left: ghost.x + 12, top: ghost.y + 8, transform: 'translate3d(0,0,0)' }}
     >
       <div
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--bndz-radius-md)] border border-white/15 shadow-xl backdrop-blur-md"
-        style={{ background: 'rgba(22, 24, 32, 0.94)' }}
+        className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--bndz-radius-md)] border border-[#454545] shadow-lg"
+        style={{ background: 'rgba(37, 37, 38, 0.96)' }}
       >
         <div className="relative flex items-center justify-center w-7 h-7 rounded-[var(--bndz-radius-sm)] bg-black/20">
           {ghost.previewPath ? (

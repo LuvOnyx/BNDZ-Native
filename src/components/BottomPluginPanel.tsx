@@ -218,7 +218,7 @@ export default function BottomPluginPanel(props: any & {
     <div ref={panelRef} className="bndz-bottom-panel flex flex-col h-full min-h-0" tabIndex={-1}>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="bndz-bottom-tabstrip flex border-b border-white/[0.05] shrink-0 overflow-x-auto scrollbar-hidden backdrop-blur-sm items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
+          <div className="bndz-bottom-tabstrip flex border-b border-[#333] shrink-0 overflow-x-auto scrollbar-hidden items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
             {primaryTabs.map((plugin: any) => (
               <SortableTab
                 key={plugin.id}

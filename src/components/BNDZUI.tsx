@@ -48,6 +48,7 @@ import { recordNavVisit, buildMiniTreeFromVisits } from '../lib/navigationHistor
 import { buildPathSuggestions } from '../lib/addressAutocomplete';
 import { summarizeSelection, formatSelectionSummaryLine } from '../lib/selectionSummary';
 import { highlightNameMatch } from '../lib/liveFilterHighlight';
+import { renderStatusBarTemplate } from '../lib/statusBarTemplate';
 import { createRafPointerThrottler } from '../lib/pointerDragGhost';
 import { dropSideFromPointer, computeReorderInsertIndex } from '../lib/reorderOnDrop';
 import { filterByName } from '../lib/fuzzyFilter';
@@ -476,6 +477,7 @@ export default function BNDZUI() {
   const [indexProgress, setIndexProgress] = useState<{
     currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string;
   } | null>(null);
+  const [appVersion, setAppVersion] = useState('1.0.0');
   const [virtualViewErrors, setVirtualViewErrors] = useState<Record<string, string>>({});
   const [folderSizeSync, setFolderSizeSync] = useState<{
     active: boolean; current: number; total: number; path: string; percent: number;
@@ -1085,6 +1087,11 @@ export default function BNDZUI() {
       }
     });
   }, [refreshIndexedRoots]);
+
+  useEffect(() => {
+    if (!IPC.isNative) return;
+    IPC.getAppVersion().then(v => { if (v) setAppVersion(v); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const onRootsChanged = () => { void refreshIndexedRoots(); };
@@ -7013,7 +7020,7 @@ export default function BNDZUI() {
                   }
                />
             </ResizablePanel>
-            <ResizableHandle direction="horizontal" disabled={!uiRuntime.treePanel} className="bndz-resize-handle-glow w-1 bg-[#282830] transition-colors hover:bg-sky-500 cursor-col-resize shrink-0 z-20" />
+            <ResizableHandle direction="horizontal" disabled={!uiRuntime.treePanel} className="bndz-resize-handle w-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-col-resize shrink-0 z-20" />
 
             {/* Center Workspace Area */}
             <ResizablePanel
@@ -7072,7 +7079,7 @@ export default function BNDZUI() {
                   <ResizableHandle
                      direction="vertical"
                      disabled={!effectiveBottomOpen}
-                     className="bndz-resize-handle-glow-v h-1 bg-[#282830] transition-colors hover:bg-sky-500 cursor-row-resize shrink-0 z-20"
+                     className="bndz-resize-handle h-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-20"
                   />
                   {/* Bottom Plugin Panel — always mounted; collapsed via panelRef when hidden */}
                   <ResizablePanel
@@ -7113,7 +7120,7 @@ export default function BNDZUI() {
             <ResizableHandle
                direction="horizontal"
                disabled={!effectivePreviewOpen}
-               className="bndz-resize-handle-glow w-1 bg-[#282830] transition-colors hover:bg-sky-500 cursor-col-resize shrink-0 z-20"
+               className="bndz-resize-handle w-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-col-resize shrink-0 z-20"
             />
             <ResizablePanel
                id="preview"
@@ -7156,10 +7163,23 @@ export default function BNDZUI() {
       </div>
 
       {/* Footer Status Bar scoped to active pane metrics */}
-      <div className="bndz-chrome-statusbar status-bar-glow border-t border-[#333] px-3 py-1 flex items-center justify-between text-gray-400 shrink-0 gap-3 min-h-[28px]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+      {uiRuntime.showStatusBar && (
+      <div className="bndz-chrome-statusbar border-t border-[#333] px-3 py-1 flex items-center justify-between text-[#a0a0a0] shrink-0 gap-3 min-h-[26px] text-[11px]" style={{ background: 'var(--bndz-surface-chrome)' }}>
          <div className="truncate">
-           {activeContents ? `${activeContents.length} item(s)` : `${drives.length} drive(s)`}
-           {activeTab.selectedItems.length > 0 ? ` | ${selectionSummaryLine || `${activeTab.selectedItems.length} selected`}` : ''}
+           {config.useStatusBarTemplate && config.unwiredConfig14 ? (
+             <span>{renderStatusBarTemplate(String(config.unwiredConfig14), {
+               items: activeContents?.length ?? drives.length,
+               selected: activeTab.selectedItems.length,
+               path: currentTab.path,
+               app: 'BNDZ',
+               ver: appVersion,
+             })}</span>
+           ) : (
+             <>
+               {activeContents ? `${activeContents.length} item(s)` : `${drives.length} drive(s)`}
+               {activeTab.selectedItems.length > 0 ? ` | ${selectionSummaryLine || `${activeTab.selectedItems.length} selected`}` : ''}
+             </>
+           )}
            {isGlobal && isGlobalSearchLoading && (
              <span className="text-amber-400/90 ml-2">Searching…</span>
            )}
@@ -7180,14 +7200,14 @@ export default function BNDZUI() {
              <button
                type="button"
                onClick={() => setActiveTagFilter(null)}
-               className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-violet-200 hover:text-white"
+               className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-[#c4b5fd] hover:text-white"
                title="Clear tag filter"
              >
                Tag: {activeTagFilter} ×
              </button>
            )}
            {isBottomPanelOpen && activeBottomPluginLabel && (
-             <span className="ml-2 text-sky-300/80 hidden sm:inline">
+             <span className="ml-2 text-[#888] hidden sm:inline">
                Plugin · {activeBottomPluginLabel}
              </span>
            )}
@@ -7214,14 +7234,18 @@ export default function BNDZUI() {
               return (
                 <div className="flex items-center gap-2" title={`${formatSize(totalFree)} free of ${formatSize(totalCap)} (${pctFree}% free)`}>
                   <Icons8Icon id="hard_drive_ui" size={12} />
-                  <span className="bndz-glass-chip text-[10px] px-2.5 py-1 font-mono text-white/70">
+                  <span className="bndz-glass-chip text-[10px] px-2 py-0.5 font-mono text-[#c8c8c8]">
                     {drives.length} vol · {formatSize(totalFree)} free ({pctFree}%)
                   </span>
                 </div>
               );
             })()}
+            {config.showVersionInformationInTheStatusBar && (
+              <span className="text-[10px] font-mono text-[#888] hidden lg:inline">BNDZ {appVersion}</span>
+            )}
          </div>
       </div>
+      )}
       
       {/* Overlays / Modals */}
       {isSaveTabsetOpen && (
@@ -7382,54 +7406,6 @@ export default function BNDZUI() {
         </Suspense>
       )}
 
-      {/* Global Progress Bars */}
-      {Object.keys(transferProgress).length > 0 && (
-         <div className="absolute bottom-24 right-5 w-[380px] flex flex-col gap-2.5 z-40 pointer-events-none">
-            {Object.keys(transferProgress).map((opId) => {
-               const prog = transferProgress[opId];
-               const formatBytes = (bytes: number) => {
-                 if (bytes === 0) return '0 B';
-                 const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-                 const i = Math.floor(Math.log(bytes) / Math.log(k));
-                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-               };
-               const fileLabel = (prog.file || '').split(/[/\\]/).pop() || 'items';
-               return (
-               <div key={opId} className="bndz-native-transfer-toast">
-                 <div className="flex items-center gap-3 mb-3">
-                   {prog.percentage < 100 ? (
-                     <div className="w-9 h-9 rounded-lg bg-sky-500/15 flex items-center justify-center ring-1 ring-sky-400/20">
-                       <Icons8Icon id="loading" size={18} spin />
-                     </div>
-                   ) : (
-                     <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center ring-1 ring-emerald-400/20">
-                       <Icons8Icon id="sparkles_ui" size={18} />
-                     </div>
-                   )}
-                   <div className="min-w-0 flex-1">
-                     <div className="text-[13px] font-semibold text-white truncate">
-                       {prog.percentage < 100 ? `Moving ${prog.itemsCompleted} of ${prog.totalItems || '?'}` : 'Complete'}
-                     </div>
-                     <div className="text-[11px] bndz-native-dialog-muted truncate" title={prog.file}>{fileLabel}</div>
-                   </div>
-                   <span className="text-[12px] font-mono text-sky-300">{Math.round(prog.percentage)}%</span>
-                 </div>
-                 <div className="bndz-native-progress-track mb-2">
-                   <div
-                     className={`bndz-native-progress-fill ${prog.percentage >= 100 ? '!bg-emerald-500' : ''}`}
-                     style={{ width: `${prog.percentage}%` }}
-                   />
-                 </div>
-                 <div className="flex justify-between text-[10px] text-gray-500 font-mono">
-                   <span>{prog.percentage < 100 && prog.speedBytesPerSecond > 0 ? `${formatBytes(prog.speedBytesPerSecond)}/s` : ''}</span>
-                   <span>{formatBytes(prog.bytesTransferred)} / {formatBytes(prog.totalBytes)}</span>
-                 </div>
-               </div>
-               );
-            })}
-         </div>
-      )}
-
       {tabContextMenu && (() => {
         const pane = panes.find(p => p.id === tabContextMenu.paneId);
         const tab = pane?.tabs[tabContextMenu.tabIndex];
@@ -7469,7 +7445,7 @@ export default function BNDZUI() {
         <ClampedFixedMenu
           x={columnPicker.x}
           y={columnPicker.y}
-          className="bndz-context-menu shadow-2xl rounded-md py-1 min-w-[190px] bndz-scrollbar"
+          className="bndz-context-menu py-1 min-w-[190px] bndz-scrollbar"
           onMouseDown={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
         >
