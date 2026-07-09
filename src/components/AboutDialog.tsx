@@ -49,11 +49,12 @@ export default function AboutDialog({
   return (
     <NativeDialogShell
       open
-      title="BNDZ"
-      subtitle="File Manager for Windows"
+      title="About BNDZ"
+      subtitle="File manager for Windows"
       tone="info"
-      iconId="hard_drive_ui"
+      variant="sheet"
       onClose={onClose}
+      showCloseButton
       zIndexClass="z-[520]"
       size="md"
       footerButtons={[{ label: 'Close', style: 'primary', onClick: onClose }]}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BndzNativeDialog } from './BndzNativeDialog';
+import { NativeDialogCheckbox } from './native/NativeDialogShell';
 
 interface QuitConfirmDialogProps {
   open: boolean;
@@ -19,29 +20,29 @@ export default function QuitConfirmDialog({
   const [minimizeToTray, setMinimizeToTray] = useState(false);
 
   const fromTray = source === 'tray';
+  const quitting = fromTray || source === 'menu';
 
   return (
     <BndzNativeDialog
       open={open}
-      title={fromTray ? 'Quit BNDZ?' : 'Close BNDZ?'}
-      subtitle="BNDZ"
+      title={quitting ? 'Quit BNDZ?' : 'Close BNDZ?'}
       tone="warning"
-      iconId="close"
+      iconId="warning"
       onClose={onCancel}
       zIndexClass="z-[650]"
       message={
-        fromTray || source === 'menu'
-          ? 'BNDZ can keep running in the system tray with quick access to the launcher and file manager.'
-          : 'Are you sure you want to close? BNDZ can stay in the system tray so you can open it again quickly.'
+        quitting
+          ? 'BNDZ can keep running in the system tray so you can open the launcher and file manager quickly.'
+          : 'Close the window, or keep BNDZ in the system tray for quick access.'
       }
       buttons={[
         {
-          label: 'No, stay open',
+          label: 'Stay open',
           style: 'secondary',
           onClick: onCancel,
         },
         {
-          label: `Yes, ${fromTray ? 'quit' : 'close'}`,
+          label: quitting ? 'Quit' : 'Close',
           style: 'primary',
           onClick: () => {
             if (minimizeToTray) onMinimizeToTray(true);
@@ -50,15 +51,13 @@ export default function QuitConfirmDialog({
         },
       ]}
     >
-      <label className="flex items-center gap-2.5 cursor-pointer select-none -mt-1">
-        <input
-          type="checkbox"
-          className="accent-[var(--accent,#0ea5e9)]"
-          checked={minimizeToTray}
-          onChange={e => setMinimizeToTray(e.target.checked)}
-        />
-        <span className="text-[12px] bndz-native-dialog-muted">Minimize to system tray instead</span>
-      </label>
+      <NativeDialogCheckbox
+        checked={minimizeToTray}
+        onChange={setMinimizeToTray}
+        className="mt-3"
+      >
+        Minimize to system tray instead
+      </NativeDialogCheckbox>
     </BndzNativeDialog>
   );
 }

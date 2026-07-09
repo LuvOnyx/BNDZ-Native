@@ -3,6 +3,7 @@ import { Icons8Icon } from './Icons8Icon';
 import { ShellNativeIcon } from './ShellNativeIcon';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import { BndzNativeDialog } from './BndzNativeDialog';
+import { NativeDialogCheckbox } from './native/NativeDialogShell';
 import { subscribeNativeConfirm, type NativeConfirmOptions } from '../lib/nativeDialog';
 
 export type ModalAction = {
@@ -63,6 +64,8 @@ function FileConflictModal({
       title={config.title}
       subtitle="Choose what to do with this file."
       tone="conflict"
+      variant="sheet"
+      size="lg"
       onClose={onClose}
       buttons={[
         { label: 'Cancel', style: 'secondary', onClick: onClose },
@@ -91,15 +94,13 @@ function FileConflictModal({
           </div>
         </div>
 
-        <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={applyToAll}
-            onChange={e => setApplyToAll(e.target.checked)}
-            className="accent-[var(--accent,#0ea5e9)]"
-          />
-          <span className="text-[11px] bndz-native-dialog-muted">Apply to all conflicts in this operation</span>
-        </label>
+        <NativeDialogCheckbox
+          checked={applyToAll}
+          onChange={setApplyToAll}
+          className="mt-1"
+        >
+          Apply to all conflicts in this operation
+        </NativeDialogCheckbox>
       </div>
     </BndzNativeDialog>
   );
@@ -131,24 +132,18 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
     <BndzNativeDialog
       open
       title={config.title}
-      subtitle="BNDZ"
       tone={type === 'destructive' ? 'destructive' : type === 'warning' ? 'warning' : type === 'conflict' ? 'conflict' : 'info'}
       message={config.message}
       onClose={onClose}
       buttons={buttons}
     >
       {config.neverShowAgain && (
-        <label className="mt-4 flex items-center gap-2.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={neverAgain}
-            onChange={e => setNeverAgain(e.target.checked)}
-            className="accent-[var(--accent,#0ea5e9)]"
-          />
-          <span className="text-[12px] bndz-native-dialog-muted">
-            {config.neverShowAgain.label || "Don't ask again"}
-          </span>
-        </label>
+        <NativeDialogCheckbox
+          checked={neverAgain}
+          onChange={setNeverAgain}
+        >
+          {config.neverShowAgain.label || "Don't ask again"}
+        </NativeDialogCheckbox>
       )}
     </BndzNativeDialog>
   );
@@ -170,14 +165,14 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
         message: options.message,
         actions: [
           {
-            label: options.confirmLabel || 'Continue',
-            style: options.destructive ? 'destructive' : 'primary',
-            action: () => resolve(true),
-          },
-          {
             label: options.cancelLabel || 'Cancel',
             style: 'secondary',
             action: () => resolve(false),
+          },
+          {
+            label: options.confirmLabel || 'Continue',
+            style: options.destructive ? 'destructive' : 'primary',
+            action: () => resolve(true),
           },
         ],
       });

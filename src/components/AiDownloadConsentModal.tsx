@@ -53,8 +53,8 @@ export default function AiDownloadConsentModal({
       open={open}
       title="Enable Local AI"
       subtitle="One-time download · fully offline after"
-      iconId="brain_ui"
       tone="info"
+      variant="sheet"
       size="lg"
       zIndexClass="z-[600]"
       onClose={canDismiss ? onCancel : undefined}

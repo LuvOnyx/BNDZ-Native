@@ -25,27 +25,27 @@ export default function TrialExpiredGate({
       open
       title="Your 14-day trial has ended"
       subtitle="Activate BNDZ to continue using the file manager"
-      iconId="key_ui"
       tone="warning"
+      variant="alert"
       size="sm"
       zIndexClass="z-[99999]"
       showCloseButton={false}
       footer={
-        <div className="w-full flex flex-col items-center gap-3">
+        <div className="w-full flex flex-col items-stretch gap-2">
           <button
             type="button"
             onClick={onRegister}
-            className="bndz-native-dialog-primary w-full py-2.5 rounded-lg text-sm font-semibold"
+            className="bndz-native-btn bndz-native-btn--primary w-full"
           >
             Enter license key
           </button>
-          <p className="text-[10px] bndz-native-dialog-muted">
+          <p className="text-[10px] bndz-native-dialog-muted text-center">
             Help → Register BNDZ · Purchase at your vendor portal
           </p>
         </div>
       }
     >
-      <p className="text-[13px] bndz-native-dialog-muted leading-relaxed text-center">
+      <p className="bndz-native-alert-message text-center">
         Activate BNDZ with your license key to continue.
         Your settings and workspace are preserved.
       </p>

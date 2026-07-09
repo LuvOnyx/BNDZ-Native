@@ -134,7 +134,7 @@ export default function DestinationPickerModal({
       onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}
     >
       <div
-        className="bndz-native-dialog relative w-full max-w-[780px] max-h-[min(580px,82vh)] rounded-2xl flex flex-col overflow-hidden"
+        className="bndz-native-dialog relative w-full max-w-[780px] max-h-[min(580px,82vh)] flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="destination-picker-title"

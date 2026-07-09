@@ -55,8 +55,9 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       title="Register BNDZ"
       subtitle="Activate your license on this PC"
       tone="info"
-      iconId="key_ui"
+      variant="sheet"
       onClose={onClose}
+      showCloseButton
       zIndexClass="z-[520]"
       size="md"
       footerButtons={

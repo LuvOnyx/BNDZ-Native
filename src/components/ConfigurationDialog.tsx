@@ -2419,10 +2419,11 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
         open={showJumpDialog}
         title="Jump to Setting"
         subtitle="Search tabs and common options"
-        iconId="search"
+        variant="sheet"
         size="sm"
         zIndexClass="z-[100]"
         onClose={() => { setShowJumpDialog(false); setJumpQuery(''); }}
+        showCloseButton
         footerButtons={[{ label: 'Cancel', onClick: () => { setShowJumpDialog(false); setJumpQuery(''); } }]}
         bodyClassName="!py-3"
       >

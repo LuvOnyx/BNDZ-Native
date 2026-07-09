@@ -17,10 +17,13 @@ export default function HelpTopicsDialog({ onClose }: { onClose: () => void }) {
       title="Help Topics"
       subtitle="Quick guide to BNDZ"
       tone="info"
+      variant="sheet"
       iconId="bookopen_ui"
       onClose={onClose}
+      showCloseButton
       buttons={[{ label: 'Close', style: 'primary', onClick: onClose }]}
       zIndexClass="z-[520]"
+      size="lg"
     >
       <div className="space-y-2 max-h-[50vh] overflow-y-auto bndz-scrollbar -mt-1">
         {TOPICS.map(t => (

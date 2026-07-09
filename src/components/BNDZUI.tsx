@@ -7165,10 +7165,11 @@ export default function BNDZUI() {
         <NativeDialogShell
           open={isSaveTabsetOpen}
           title="Save Tabset As…"
-          iconId="bookmark"
+          variant="sheet"
           size="sm"
           zIndexClass="z-50"
           onClose={() => setIsSaveTabsetOpen(false)}
+          showCloseButton
           footerButtons={[
             { label: 'Cancel', onClick: () => setIsSaveTabsetOpen(false) },
             {
@@ -7208,10 +7209,11 @@ export default function BNDZUI() {
         <NativeDialogShell
           open={isLoadTabsetOpen}
           title="Load Tabset"
-          iconId="bookmark"
+          variant="sheet"
           size="sm"
           zIndexClass="z-50"
           onClose={() => setIsLoadTabsetOpen(false)}
+          showCloseButton
           footerButtons={[{ label: 'Close', onClick: () => setIsLoadTabsetOpen(false) }]}
           maxHeightClass="max-h-[80vh]"
         >
