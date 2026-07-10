@@ -74,7 +74,7 @@ import {
 } from '../lib/slowDoubleClickRename';
 import { shouldSuppressNativeEntityTitle } from '../lib/tooltipSettings';
 import CustomColumnCell from './CustomColumnCell';
-import { parseCustomColumnListId, resolveCustomColumns } from '../lib/customColumns';
+import { parseCustomColumnListId, resolveCustomColumns, setCustomColumnEnabled } from '../lib/customColumns';
 import { hideFloatingTooltip, getFloatingTooltip, isShiftKeyHeld, subscribeShiftKey, getHoverPending, subscribeFloatingTooltip } from '../lib/floatingTooltip';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import FloatingTooltipHost from './FloatingTooltipHost';
@@ -7796,6 +7796,26 @@ export default function BNDZUI() {
               </label>
             );
           })}
+          <div className="my-1 border-t border-white/[0.08]" />
+          <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-500">Metadata columns</div>
+          {resolveCustomColumns(config).map(col => (
+            <label
+              key={col.id}
+              className="bndz-context-menu-item px-3 py-[3px] flex items-center gap-2 text-[12px] select-none leading-[22px] cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={col.enabled}
+                onChange={() => {
+                  updateConfig({
+                    customColumns: setCustomColumnEnabled(config, col.id, !col.enabled),
+                  });
+                }}
+                className="accent-[#0078d4]"
+              />
+              {col.label}
+            </label>
+          ))}
         </ClampedFixedMenu>
       )}
 

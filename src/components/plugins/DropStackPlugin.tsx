@@ -8,6 +8,8 @@ import {
   PluginToolbarButton,
   PluginCard,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
 } from './PluginPanelPrimitives';
 
 const STACK_KEY = 'bndz-dropstack-v1';
@@ -114,15 +116,23 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
             iconColor="#a78bfa"
             variant="embedded"
             subtitle="Stage files from multiple locations, then batch transfer"
-            toolbar={
-                <>
-                    <PluginToolbarButton icon="plus_ui" onClick={addSelected} disabled={!selectedItems?.length}>Add selection</PluginToolbarButton>
-                    <PluginToolbarButton icon="copy" onClick={() => void executeBatch('copy')} disabled={!stack.length || operating}>Copy all</PluginToolbarButton>
-                    <PluginToolbarButton icon="chevron_right" onClick={() => void executeBatch('move')} disabled={!stack.length || operating}>Move all</PluginToolbarButton>
-                </>
-            }
         >
-            <div className="flex h-full gap-4 p-4 min-h-0">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                <PluginHeroStrip
+                    icon={<Icons8Icon id="dropstack" size={52} className="opacity-90" />}
+                    name="Transfer staging area"
+                    typeLabel="Batch queue"
+                    path={focusedPath || undefined}
+                    actions={
+                        <>
+                            <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={addSelected} disabled={!selectedItems?.length}>Add selection</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="copy" onClick={() => void executeBatch('copy')} disabled={!stack.length || operating}>Copy all</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="chevron_right" onClick={() => void executeBatch('move')} disabled={!stack.length || operating}>Move all</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="delete" onClick={clearStack} disabled={!stack.length}>Clear</PluginHeroActionButton>
+                        </>
+                    }
+                />
+            <div className="flex flex-1 h-full gap-4 p-5 min-h-0">
                 <PluginCard className="w-[280px] !p-0 flex flex-col overflow-hidden shrink-0">
                     <div className="px-3 py-2.5 border-b border-white/[0.06] flex justify-between items-center gap-2">
                         <span className="bndz-plugin-section-title">Stash ({stack.length})</span>
@@ -153,7 +163,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                     </div>
                 </PluginCard>
                 <div
-                    className={`flex-1 flex flex-col justify-center items-center text-xs gap-3 border border-dashed rounded-lg transition-colors ${dragOver ? 'border-violet-400/50 bg-violet-500/5' : 'border-white/10'}`}
+                    className={`bndz-plugin-dropzone flex-1 flex flex-col justify-center items-center text-xs gap-3 transition-colors ${dragOver ? 'bndz-plugin-dropzone-active' : ''}`}
                     onDrop={handleDrop}
                     onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
@@ -163,6 +173,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                     <p>Destination: <span className="bndz-mono text-gray-300">{focusedPath || '—'}</span></p>
                     <p className="text-xs bndz-panel-muted">Persisted between sessions · drag to reorder</p>
                 </div>
+            </div>
             </div>
         </PluginPanelShell>
     );

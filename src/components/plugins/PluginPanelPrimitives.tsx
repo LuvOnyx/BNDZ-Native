@@ -2,10 +2,10 @@ import React, { ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 
 export const PLUGIN_INPUT_CLASS =
-  'w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-[#0078d4]/50';
+  'bndz-plugin-input w-full rounded-lg px-3 py-2 text-xs text-slate-100 outline-none';
 
 export const PLUGIN_SELECT_CLASS =
-  'bg-black/30 border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 outline-none focus:border-[#0078d4]/50';
+  'bndz-plugin-input bndz-plugin-select w-full rounded-lg px-3 py-2 text-xs text-slate-100 outline-none';
 
 /** Compact toolbar control for bottom plugin panels */
 export function PluginToolbarButton({

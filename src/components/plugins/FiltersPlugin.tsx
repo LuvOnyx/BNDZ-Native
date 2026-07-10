@@ -9,6 +9,8 @@ import {
   PluginCard,
   PluginFieldLabel,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
@@ -81,14 +83,19 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
         <PluginPanelShell
             title="Visual Filters"
             icon="filters"
-            iconColor="#0078d4"
+            iconColor="#38bdf8"
             variant="embedded"
             subtitle={`${filters.filter(f => f.isActive).length} active rules`}
-            toolbar={
-                <PluginToolbarButton icon="plus_ui" onClick={startNew}>New rule</PluginToolbarButton>
-            }
         >
-            <div className="w-full h-full p-4 flex gap-4 overflow-hidden min-h-0">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                <PluginHeroStrip
+                    icon={<Icons8Icon id="filters" size={52} className="opacity-90" />}
+                    name="List color rules"
+                    typeLabel="Visual filters"
+                    meta={<span className="bndz-panel-muted text-xs">{filters.length} rule(s) configured</span>}
+                    actions={<PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNew}>New rule</PluginHeroActionButton>}
+                />
+            <div className="w-full flex-1 p-5 flex gap-4 overflow-hidden min-h-0">
                 <div className="flex-1 overflow-y-auto bndz-scrollbar space-y-2 min-h-0">
                     {filters.length === 0 && (
                         <PluginEmptyState
@@ -171,6 +178,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                         <PluginEmptyState icon="pencil_ui" description="Select a rule to edit or create a new one." />
                     )}
                 </div>
+            </div>
             </div>
         </PluginPanelShell>
     );

@@ -11,6 +11,8 @@ import {
   PluginCard,
   PluginFieldLabel,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
@@ -251,8 +253,22 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
         </>
       }
     >
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <PluginHeroStrip
+        icon={<Icons8Icon id="sync_folders" size={52} className="opacity-90" />}
+        name={jobs.length ? `${jobs.length} sync pair${jobs.length === 1 ? '' : 's'}` : 'Folder sync'}
+        typeLabel="Robocopy engine"
+        path={currentPath ? toWindowsPath(currentPath) : undefined}
+        meta={
+          <span className="bndz-panel-muted text-xs">
+            {jobs.filter(j => j.watchEnabled).length} watching · {syncingId ? 'Sync in progress' : 'Ready'}
+          </span>
+        }
+        actions={
+          <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNewJob}>New sync</PluginHeroActionButton>
+        }
+      />
+      <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3 min-h-0">
         {loading && (
           <div className="flex items-center justify-center py-16 text-gray-500 gap-2 text-sm">
             <Icons8Icon id="loading" size={18} spin /> Loading sync jobs…

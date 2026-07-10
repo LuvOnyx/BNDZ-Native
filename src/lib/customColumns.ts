@@ -14,21 +14,22 @@ export type CustomColumnDef = {
 const PHOTO_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico', 'cur', 'tif', 'tiff', 'heic', 'heif', 'raw', 'cr2', 'nef', 'arw', 'dng']);
 const MEDIA_EXTS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma', 'mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'wmv']);
 
+/** Metadata columns — hidden until user enables them in Choose Columns. */
 export const DEFAULT_CUSTOM_COLUMNS: CustomColumnDef[] = [
-  { id: 'dimensions', label: 'Dimensions', propertyKey: 'Dimensions', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: true, widthPx: 110 },
-  { id: 'aspect_ratio', label: 'Aspect Ratio', propertyKey: 'Aspect Ratio', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: true, widthPx: 90 },
-  { id: 'date_taken', label: 'Date Taken', propertyKey: 'Date Taken', pattern: '{Photo}', enabled: true, widthPx: 140 },
-  { id: 'camera_model', label: 'Camera Model', propertyKey: 'Camera Model', pattern: '{Photo}', enabled: true, widthPx: 140 },
+  { id: 'dimensions', label: 'Dimensions', propertyKey: 'Dimensions', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: false, widthPx: 110 },
+  { id: 'aspect_ratio', label: 'Aspect Ratio', propertyKey: 'Aspect Ratio', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: false, widthPx: 90 },
+  { id: 'date_taken', label: 'Date Taken', propertyKey: 'Date Taken', pattern: '{Photo}', enabled: false, widthPx: 140 },
+  { id: 'camera_model', label: 'Camera Model', propertyKey: 'Camera Model', pattern: '{Photo}', enabled: false, widthPx: 140 },
   { id: 'f_stop', label: 'F-Stop', propertyKey: 'F-Stop', pattern: '{Photo}', enabled: false, widthPx: 72 },
   { id: 'exposure_time', label: 'Exposure Time', propertyKey: 'Exposure Time', pattern: '{Photo}', enabled: false, widthPx: 100 },
-  { id: 'length', label: 'Length', propertyKey: 'Duration', pattern: '{Media}', enabled: true, widthPx: 90 },
+  { id: 'length', label: 'Length', propertyKey: 'Duration', pattern: '{Media}', enabled: false, widthPx: 90 },
   { id: 'sample_rate', label: 'Sample Rate', propertyKey: 'Sample Rate', pattern: '{Media}', enabled: false, widthPx: 100 },
   { id: 'bit_depth', label: 'Bit Depth', propertyKey: 'Bit Depth', pattern: '{Media}', enabled: false, widthPx: 80 },
-  { id: 'bit_rate', label: 'Bit Rate', propertyKey: 'Audio Bitrate', pattern: '{Media}', enabled: true, widthPx: 90 },
+  { id: 'bit_rate', label: 'Bit Rate', propertyKey: 'Audio Bitrate', pattern: '{Media}', enabled: false, widthPx: 90 },
   { id: 'channels', label: 'Channels', propertyKey: 'Channels', pattern: '{Media}', enabled: false, widthPx: 80 },
   { id: 'focal_length', label: 'Focal Length', propertyKey: 'Focal Length', pattern: '{Photo}', enabled: false, widthPx: 100 },
   { id: 'iso_speed', label: 'ISO Speed', propertyKey: 'ISO Speed', pattern: '{Photo}', enabled: false, widthPx: 80 },
-  { id: 'version', label: 'Version', propertyKey: 'File Version', pattern: 'exe;dll', enabled: true, widthPx: 100 },
+  { id: 'version', label: 'Version', propertyKey: 'File Version', pattern: 'exe;dll', enabled: false, widthPx: 100 },
   { id: 'md5', label: 'MD5', propertyKey: 'md5', pattern: '*.*', enabled: false, widthPx: 220 },
 ];
 
@@ -41,6 +42,14 @@ export function resolveCustomColumns(config?: { customColumns?: CustomColumnDef[
     if (!merged.some(m => m.id === row.id)) merged.push({ ...row });
   }
   return merged;
+}
+
+export function setCustomColumnEnabled(
+  config: { customColumns?: CustomColumnDef[] } | null | undefined,
+  columnId: string,
+  enabled: boolean,
+): CustomColumnDef[] {
+  return resolveCustomColumns(config).map(c => (c.id === columnId ? { ...c, enabled } : c));
 }
 
 export function customColumnListId(id: string): string {
@@ -90,7 +99,7 @@ export function createCustomColumnRow(existing: CustomColumnDef[]): CustomColumn
     label: `Custom ${n}`,
     propertyKey: 'Dimensions',
     pattern: '*.*',
-    enabled: true,
+    enabled: false,
     widthPx: 120,
   };
 }

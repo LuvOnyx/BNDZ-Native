@@ -11,6 +11,8 @@ import {
   PluginCard,
   PluginFieldLabel,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
@@ -298,7 +300,21 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                 </>
             }
         >
-        <div className="flex w-full h-full overflow-hidden min-h-0">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
+            <PluginHeroStrip
+                icon={<Icons8Icon id="shell_menus" size={52} className="opacity-90" />}
+                name={tab === 'global' ? 'Windows Explorer menus' : 'BNDZ context menus'}
+                typeLabel={tab === 'global' ? 'OS-wide shell' : 'In-app only'}
+                meta={<span className="bndz-panel-muted text-xs">{actions.length} action(s) · {selectionHint}</span>}
+                actions={
+                    tab === 'global' ? (
+                        <PluginHeroActionButton icon="check" variant="primary" onClick={saveGlobalActions}>Deploy</PluginHeroActionButton>
+                    ) : (
+                        <PluginHeroActionButton icon="check" variant="primary" onClick={saveAppActions}>Save</PluginHeroActionButton>
+                    )
+                }
+            />
+        <div className="flex w-full flex-1 overflow-hidden min-h-0">
             <PluginSidebar className="!w-[200px] !min-w-[176px] p-2">
                 <button
                     type="button"
@@ -389,6 +405,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                     )}
                 </div>
             </div>
+        </div>
         </div>
         </PluginPanelShell>
     );

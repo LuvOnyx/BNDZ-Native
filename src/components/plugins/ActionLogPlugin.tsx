@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
-import { PluginToolbarButton, PluginEmptyState, PLUGIN_SELECT_CLASS } from './PluginPanelPrimitives';
+import { PluginToolbarButton, PluginEmptyState, PluginHeroStrip, PluginHeroActionButton, PLUGIN_SELECT_CLASS } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { useAppConfig } from '../../data/configContext';
@@ -153,6 +153,19 @@ export default function ActionLogPlugin() {
         </>
       }
     >
+      <div className="flex flex-col h-full min-h-0 overflow-hidden">
+        <PluginHeroStrip
+          icon={<Icons8Icon id="clock_ui" size={52} className="opacity-90" />}
+          name="Action history"
+          typeLabel="Undo & redo log"
+          meta={<span className="bndz-panel-muted text-xs">{visibleItems.length} of {items.length} action(s){kindFilter !== 'all' ? ` · ${kindFilter}` : ''}</span>}
+          actions={
+            <>
+              <PluginHeroActionButton icon="undo" onClick={() => void runUndo()} disabled={!canUndo || !loggingEnabled}>Undo</PluginHeroActionButton>
+              <PluginHeroActionButton icon="redo" onClick={() => void runRedo()} disabled={!canRedo || !loggingEnabled}>Redo</PluginHeroActionButton>
+            </>
+          }
+        />
       {!loggingEnabled && (
         <div className="mx-4 mt-3 mb-1 rounded border border-amber-500/30 bg-amber-950/25 px-3 py-2 text-[11px] text-amber-100">
           Action logging is disabled. Enable <strong>Log actions and enable undo/redo</strong> in Settings → File Operations → Undo &amp; Action Log.
@@ -193,6 +206,7 @@ export default function ActionLogPlugin() {
             </span>
           </div>
         ))}
+      </div>
       </div>
     </PluginPanelShell>
   );

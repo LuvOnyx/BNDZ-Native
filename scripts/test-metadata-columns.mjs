@@ -21,7 +21,7 @@ assert.strictEqual(matchesColumnPattern('*.png;*.gif', { extension: 'png', type:
 assert.strictEqual(matchesColumnPattern('*.*', { extension: 'dat', type: 'file' }), true);
 assert.strictEqual(matchesColumnPattern('*.*', { extension: '', type: 'directory' }), false);
 
-const cols = resolveCustomColumns();
+const cols = resolveCustomColumns().map(c => ({ ...c, enabled: true }));
 const photoCol = pickCustomColumnForEntity(cols, { extension: 'jpg', type: 'file' });
 assert.ok(photoCol?.propertyKey === 'Dimensions' || photoCol?.propertyKey === 'Date Taken');
 
@@ -45,5 +45,8 @@ const filtered = filterTreeListEntities(
 );
 assert.strictEqual(filtered.length, 1);
 assert.strictEqual(filtered[0].name, 'normal');
+
+const defaults = resolveCustomColumns();
+assert.strictEqual(defaults.every(c => !c.enabled), true, 'metadata columns should be off by default');
 
 console.log('metadata columns + tree/list filter tests passed');

@@ -11,6 +11,8 @@ import {
   PluginCard,
   PluginStatCard,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PluginFieldLabel,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
@@ -203,6 +205,24 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
       }
     >
     <div className="h-full flex flex-col overflow-hidden relative">
+      <PluginHeroStrip
+        icon={<Icons8Icon id="storage_cleanup" size={52} className="opacity-90" />}
+        name={folderLabel}
+        typeLabel="Storage analysis"
+        path={currentPath && currentPath !== '/' ? currentPath : undefined}
+        meta={
+          <span className="bndz-panel-muted text-xs">
+            {items.length} item(s) · {dupGroups.length ? `${dupGroups.length} duplicate group(s)` : 'No duplicate scan yet'}
+            {duplicateWaste > 0 ? ` · ${formatStorageSize(duplicateWaste)} recoverable` : ''}
+          </span>
+        }
+        actions={
+          <>
+            <PluginHeroActionButton icon="copy" variant="primary" onClick={() => openWizard('cleanup')}>Cleanup</PluginHeroActionButton>
+            <PluginHeroActionButton icon="folder_plus_ui" onClick={() => openWizard('organize')}>Organize</PluginHeroActionButton>
+          </>
+        }
+      />
       {wizardMode && (
         <StorageCleanupWizard
           mode={wizardMode}

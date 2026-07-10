@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { formatLibrariesForConfig } from '../lib/iconLibraryUtils';
 import { SETTINGS_DEFAULTS, SETTINGS_VALUE_PATCHES } from '../lib/settingsDefaults';
 import { applySettingsRuntime, applyBackendSettings } from '../lib/settingsRuntime';
-import { DEFAULT_CUSTOM_COLUMNS, type CustomColumnDef } from '../lib/customColumns';
+import { DEFAULT_CUSTOM_COLUMNS, resolveCustomColumns, type CustomColumnDef } from '../lib/customColumns';
 import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/fileInfoTipFields';
 import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib/hoverBoxConfig';
 import { DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES, type TreeListItemType } from '../lib/treeListItemFilter';
@@ -166,6 +166,17 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.tooltipBehaviorVersion = 3;
     }
     if (merged.showTreeGlider !== false) merged.showTreeGlider = false;
+    if ((merged.customColumnsVersion ?? 0) < 1) {
+        const cols = resolveCustomColumns(merged);
+        merged.customColumns = cols.map(c => ({ ...c, enabled: false }));
+        merged.customColumnsVersion = 1;
+    }
+    if ((merged.customColumnsVersion ?? 0) < 2) {
+        // v2: metadata columns must stay in Choose Columns only — never on by default.
+        const cols = resolveCustomColumns(merged);
+        merged.customColumns = cols.map(c => ({ ...c, enabled: false }));
+        merged.customColumnsVersion = 2;
+    }
     if (merged.inTreeAsWell === undefined) merged.inTreeAsWell = true;
     if ((merged.folderSizeViewVersion ?? 0) < 1) {
         merged.folderSizeVisualization = 'list';

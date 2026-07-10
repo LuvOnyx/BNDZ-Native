@@ -10,6 +10,8 @@ import {
   PluginTab,
   PluginCard,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
@@ -93,6 +95,30 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
       variant="embedded"
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
+        <PluginHeroStrip
+          icon={<Icons8Icon id="compare_ui" size={52} className="opacity-90" />}
+          name={pathA && pathB ? 'Compare paths' : 'File & folder compare'}
+          typeLabel={mode === 'files' ? 'Binary file diff' : 'Directory diff'}
+          meta={
+            <span className="bndz-panel-muted text-xs">
+              {fileResult?.ok
+                ? (fileResult.identical ? 'Files are identical' : 'Files differ')
+                : dirResults.length
+                  ? `${dirResults.length} difference(s)`
+                  : 'Select two paths to compare'}
+            </span>
+          }
+          actions={
+            <PluginHeroActionButton
+              icon={loading ? 'loading' : 'compare_ui'}
+              variant="primary"
+              onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
+              disabled={loading || !pathA.trim() || !pathB.trim()}
+            >
+              Compare
+            </PluginHeroActionButton>
+          }
+        />
         <PluginTabStrip>
           <PluginTab active={mode === 'files'} onClick={() => setMode('files')}>Files</PluginTab>
           <PluginTab active={mode === 'dirs'} onClick={() => setMode('dirs')}>Folders</PluginTab>
@@ -102,13 +128,6 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
           <input value={pathA} onChange={e => setPathA(e.target.value)} placeholder="Path A" className={PLUGIN_INPUT_CLASS} />
           <input value={pathB} onChange={e => setPathB(e.target.value)} placeholder="Path B" className={PLUGIN_INPUT_CLASS} />
         </div>
-        <PluginToolbarButton
-          icon={loading ? 'loading' : 'compare_ui'}
-          onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
-          disabled={loading}
-        >
-          Compare
-        </PluginToolbarButton>
 
         {mode === 'files' && fileResult?.ok && (
           <PluginCard className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar space-y-2">

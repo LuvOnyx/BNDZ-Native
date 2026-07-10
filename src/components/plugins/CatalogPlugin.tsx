@@ -10,6 +10,8 @@ import {
   PluginSectionTitle,
   PluginCard,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
@@ -144,7 +146,20 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
         </>
       }
     >
-      <div className="flex flex-col gap-3 p-4 text-xs text-gray-300 h-full min-h-0">
+      <div className="flex flex-col h-full min-h-0 overflow-hidden">
+        <PluginHeroStrip
+          icon={<Icons8Icon id="bookmark" size={52} className="opacity-90" />}
+          name={catalogs.length ? `${catalogs.length} catalog${catalogs.length === 1 ? '' : 's'}` : 'Virtual catalogs'}
+          typeLabel="VF collections"
+          meta={<span className="bndz-panel-muted text-xs">Browse at {VF_ROOT} · {selectedPaths.length ? `${selectedPaths.length} selected` : 'Select items to add'}</span>}
+          actions={
+            <>
+              <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={() => void createCatalog()} disabled={!draftName.trim()}>Create</PluginHeroActionButton>
+              <PluginHeroActionButton icon="download" onClick={exportCatalogs}>Export</PluginHeroActionButton>
+            </>
+          }
+        />
+      <div className="flex flex-col gap-3 p-4 text-xs text-gray-300 flex-1 min-h-0 overflow-hidden">
         <div className="flex gap-2 shrink-0">
           <input
             value={draftName}
@@ -221,6 +236,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
         <button type="button" onClick={() => onNavigate?.(VF_ROOT)} className="text-[#7eb8e8] hover:underline text-left text-xs shrink-0">
           Open catalog root (/vf) in active pane
         </button>
+      </div>
       </div>
     </PluginPanelShell>
   );

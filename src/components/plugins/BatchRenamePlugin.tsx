@@ -8,6 +8,8 @@ import {
   PluginControlSection,
   PluginFieldLabel,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
@@ -251,7 +253,36 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                 </PluginToolbarButton>
             }
         >
-            <div className="w-full h-full flex text-gray-200 overflow-hidden">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                <PluginHeroStrip
+                    icon={<Icons8Icon id="batch_rename" size={52} className="opacity-90" />}
+                    name={targets.length ? `${targets.length} item${targets.length === 1 ? '' : 's'} to rename` : 'Batch rename'}
+                    typeLabel="Rename engine"
+                    meta={
+                        <span className="bndz-panel-muted text-xs">
+                            {collisions.length ? `${collisions.length} pending change(s)` : 'Select files in the list'}
+                            {batchNameConflicts.size > 0 ? ` · ${batchNameConflicts.size} collision(s)` : ''}
+                        </span>
+                    }
+                    actions={
+                        <>
+                            <PluginHeroActionButton
+                                icon={committing ? 'loading' : 'check'}
+                                variant="primary"
+                                onClick={() => void handleCommit()}
+                                disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
+                            >
+                                Apply renames
+                            </PluginHeroActionButton>
+                            {targets.length > 0 && (
+                                <PluginHeroActionButton icon="reset_ui" onClick={() => { setAiOverrides({}); setFindStr(''); setReplaceStr(''); }}>
+                                    Reset rules
+                                </PluginHeroActionButton>
+                            )}
+                        </>
+                    }
+                />
+            <div className="w-full flex-1 flex text-gray-200 overflow-hidden min-h-0">
                 <div className="bndz-plugin-sidebar max-w-[300px] flex flex-col overflow-y-auto bndz-scrollbar p-0">
                     <PluginControlSection title="Find & replace" icon="search">
                         <div>
@@ -391,6 +422,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                         </table>
                     )}
                 </div>
+            </div>
             </div>
         </PluginPanelShell>
     );

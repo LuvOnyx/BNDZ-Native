@@ -9,6 +9,8 @@ import {
   PluginSidebar,
   PluginSectionTitle,
   PluginCard,
+  PluginHeroStrip,
+  PluginHeroActionButton,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
@@ -186,7 +188,25 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 </div>
             }
         >
-            <div className="flex w-full h-full min-h-0">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                <PluginHeroStrip
+                    icon={<Icons8Icon id="find" size={52} className="opacity-90" />}
+                    name={query.trim() || 'Fast search'}
+                    typeLabel={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced find' : mode === 'duplicates' ? 'Duplicate finder' : 'Local folder'}
+                    path={mode === 'local' ? scopePath : undefined}
+                    meta={<span className="bndz-panel-muted text-xs">{status || (searching ? 'Searching…' : 'Enter a query and press Search')}</span>}
+                    actions={
+                        <PluginHeroActionButton
+                            icon={searching ? 'loading' : 'play_ui'}
+                            variant="primary"
+                            onClick={() => void doSearch()}
+                            disabled={searching}
+                        >
+                            {mode === 'duplicates' ? 'Scan' : 'Search'}
+                        </PluginHeroActionButton>
+                    }
+                />
+            <div className="flex w-full flex-1 min-h-0">
                 <PluginSidebar>
                     <PluginSectionTitle icon="filters">Mode</PluginSectionTitle>
                     <div className="flex flex-col gap-1">
@@ -359,6 +379,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         )}
                     </div>
                 </div>
+            </div>
             </div>
         </PluginPanelShell>
     );
