@@ -306,12 +306,21 @@ export default function BNDZUI() {
   // of whether there was anything to undo/redo.
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const lastActionUtcRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     let unsub: (() => void) | undefined;
     import('../lib/ipcBridge').then(({ IPC }) => {
       if (!IPC.isNative) return;
-      IPC.getActionLog().then(r => { setCanUndo(!!r.canUndo); setCanRedo(!!r.canRedo); });
-      unsub = IPC.onActionLogChanged(state => { setCanUndo(state.canUndo); setCanRedo(state.canRedo); });
+      IPC.getActionLog().then(r => {
+        setCanUndo(!!r.canUndo);
+        setCanRedo(!!r.canRedo);
+        lastActionUtcRef.current = (r as { lastActionUtc?: string }).lastActionUtc;
+      });
+      unsub = IPC.onActionLogChanged(state => {
+        setCanUndo(state.canUndo);
+        setCanRedo(state.canRedo);
+        lastActionUtcRef.current = state.lastActionUtc;
+      });
     });
     return () => unsub?.();
   }, []);
@@ -1197,7 +1206,19 @@ export default function BNDZUI() {
       pushToast({ kind: 'warning', title: redo ? 'Redo' : 'Undo', message: 'Enable action log in Settings → Undo & Action Log.' });
       return;
     }
-    if (fileOps.promptUndoRedo) {
+    if (fileOps.useNativeEngine && !(redo ? canRedo : canUndo)) {
+      pushToast({
+        kind: 'warning',
+        title: redo ? 'Redo' : 'Undo',
+        message: 'The Windows shell engine does not log new actions. Switch to the BNDZ engine in Settings → File Operations to record undoable operations.',
+      });
+      return;
+    }
+    const needsPrompt =
+      fileOps.promptUndoRedo === 'always'
+      || (fileOps.promptUndoRedo === 'if_old' && lastActionUtcRef.current
+        && (Date.now() - Date.parse(lastActionUtcRef.current)) > 10 * 60 * 1000);
+    if (needsPrompt) {
       const approved = await confirm({
         title: redo ? 'Redo last action?' : 'Undo last action?',
         message: redo ? 'Re-apply the last undone file operation.' : 'Reverse the last file operation.',
@@ -1222,7 +1243,7 @@ export default function BNDZUI() {
       dismissToast(toastId);
       pushToast({ kind: 'error', title: redo ? 'Redo failed' : 'Undo failed', message: err?.message || 'Operation timed out or was interrupted.' });
     }
-  }, [activePaneId, panes, refetchPath, refreshPathsForPanes, config, confirm]);
+  }, [activePaneId, panes, refetchPath, refreshPathsForPanes, config, confirm, canRedo, canUndo]);
 
   // Trigger Global Search
   useEffect(() => {
@@ -1637,6 +1658,24 @@ export default function BNDZUI() {
 
   const handleDeletePaths = (paths: string[]) => {
     if (!paths.length) return;
+    if (isRecycleBinPath(currentPath)) {
+      void (async () => {
+        const { IPC } = await import('../lib/ipcBridge');
+        const result = await IPC.purgeRecycleItems(paths);
+        if (result.purged > 0) {
+          setToastMessage(
+            result.failed > 0
+              ? `Permanently deleted ${result.purged} item(s); ${result.failed} could not be deleted.`
+              : `Permanently deleted ${result.purged} item(s).`,
+            result.failed > 0 ? 'warning' : 'success',
+          );
+        } else {
+          setToastMessage('Could not permanently delete the selected item(s).', 'warning', 'Delete failed');
+        }
+        void refetchPath(currentPath);
+      })();
+      return;
+    }
     const items = paths.map(p => ({ name: p.split(/[/\\]/).pop() || p, path: p }));
     handleDeleteRequest(items, paths[0].substring(0, Math.max(paths[0].lastIndexOf('/'), paths[0].lastIndexOf('\\'))) || currentPath);
   };
@@ -7528,6 +7567,21 @@ export default function BNDZUI() {
               );
             } else {
               setToastMessage('Could not restore the selected item(s).', 'warning', 'Restore failed');
+            }
+            void refetchPath(currentPath);
+          }}
+          onPurgeRecycleItems={async paths => {
+            const { IPC } = await import('../lib/ipcBridge');
+            const result = await IPC.purgeRecycleItems(paths);
+            if (result.purged > 0) {
+              setToastMessage(
+                result.failed > 0
+                  ? `Permanently deleted ${result.purged} item(s); ${result.failed} could not be deleted.`
+                  : `Permanently deleted ${result.purged} item(s).`,
+                result.failed > 0 ? 'warning' : 'success',
+              );
+            } else {
+              setToastMessage('Could not permanently delete the selected item(s).', 'warning', 'Delete failed');
             }
             void refetchPath(currentPath);
           }}

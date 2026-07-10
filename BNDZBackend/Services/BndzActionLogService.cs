@@ -35,6 +35,11 @@ public sealed class BndzActionLogService
         get { lock (_lock) return _redo.Count > 0; }
     }
 
+    public DateTime? GetLastUndoEntryUtc()
+    {
+        lock (_lock) return _undo.Count > 0 ? _undo[^1].Utc : null;
+    }
+
     public void Record(ActionLogEntry entry)
     {
         lock (_lock)
@@ -185,6 +190,11 @@ public sealed class BndzActionLogService
                 foreach (var file in entry.TargetPaths)
                     await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "create-file",
                         new List<string>(), file, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
+                break;
+
+            case ActionKind.Delete:
+                await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "delete",
+                    entry.SourcePaths.ToList(), "", bypassRecycleBin: !entry.UsedRecycleBin, recordActionLog: false).ConfigureAwait(false);
                 break;
 
             default:

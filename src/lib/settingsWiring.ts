@@ -129,14 +129,22 @@ export function buildShellRuntime(config: AppConfig) {
 export function buildFileOpsRuntime(config: AppConfig) {
   const engine = readSettingString(config, 'fileOperationEngine', 'bndz');
   const useNative = engine === 'native' || engine === 'windows';
+  const singleStepRaw = config.allowOnlySingleStepUndoRedo;
+  const singleStepUndo = singleStepRaw === true
+    || (typeof singleStepRaw === 'string' && singleStepRaw.toLowerCase().includes('single step'));
+  const promptRaw = config.promptBeforeUndoRedo;
+  let promptUndoRedo: 'never' | 'always' | 'if_old' = 'if_old';
+  if (promptRaw === true || promptRaw === 'Always') promptUndoRedo = 'always';
+  else if (promptRaw === false || promptRaw === 'Never') promptUndoRedo = 'never';
   return {
     engine: useNative ? 'native' as const : 'bndz' as const,
     useNativeEngine: useNative,
     queueOperations: readSettingBool(config, 'queueFileOperations', true),
     backgroundProcessing: readSettingBool(config, 'enableBackgroundProcessing', true),
     logActions: readSettingBool(config, 'logActionsAndEnableUndoRedo', true),
-    singleStepUndo: readSettingBool(config, 'allowOnlySingleStepUndoRedo', false),
-    promptUndoRedo: readSettingBool(config, 'promptBeforeUndoRedo', false),
+    singleStepUndo,
+    promptUndoRedo,
+    maxActionLogEntries: readSettingNumber(config, 'allowedNumberOfEntriesInTheActionLog', 256),
   };
 }
 

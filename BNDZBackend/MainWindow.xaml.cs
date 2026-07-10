@@ -1032,7 +1032,13 @@ namespace BNDZ
                     {
                         type = "ACTION_LOG_RESULT",
                         id = idProp,
-                        payload = new { items, canUndo = _actionLogService.CanUndo, canRedo = _actionLogService.CanRedo },
+                        payload = new
+                        {
+                            items,
+                            canUndo = _actionLogService.CanUndo,
+                            canRedo = _actionLogService.CanRedo,
+                            lastActionUtc = _actionLogService.GetLastUndoEntryUtc()?.ToString("O"),
+                        },
                     };
                     MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
                 }
@@ -1629,27 +1635,7 @@ namespace BNDZ
                     var sources = new List<string>();
                     foreach (var el in payload.GetProperty("sources").EnumerateArray())
                         sources.Add(NormalizeFsPath(el.GetString() ?? ""));
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await _archiveService.CreateArchiveAsync(sources, target, format, (pct, file) =>
-                            {
-                                var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
-                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
-                            });
-                            var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = target, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
-                        }
-                        catch (Exception ex)
-                        {
-                            // error must NOT also report percentage=100 — the frontend treats that as
-                            // success and previously showed a green "complete" toast for failed archives.
-                            var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
-                        }
-                    });
+                    _ = HandleCreateArchiveAsync(operationId, sources, target, format);
                 }
                 else if (type == "EXTRACT_ARCHIVE")
                 {
@@ -1657,25 +1643,7 @@ namespace BNDZ
                     string operationId = payload.TryGetProperty("operationId", out var opEl) ? opEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
                     string archivePath = NormalizeFsPath(payload.GetProperty("path").GetString() ?? "");
                     string dest = NormalizeFsPath(payload.GetProperty("destination").GetString() ?? "");
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await _archiveService.ExtractArchiveAsync(archivePath, dest, (pct, file) =>
-                            {
-                                var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
-                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
-                            });
-                            var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = dest, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
-                        }
-                        catch (Exception ex)
-                        {
-                            var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
-                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
-                        }
-                    });
+                    _ = HandleExtractArchiveAsync(operationId, archivePath, dest);
                 }
                 else if (type == "CREATE_LINK")
                 {
@@ -2750,16 +2718,21 @@ namespace BNDZ
                             if (!string.IsNullOrWhiteSpace(s)) restorePaths.Add(s);
                         }
                     }
-                    _ = Task.Run(async () =>
+                    _ = HandleRestoreRecycleItemsAsync(idProp, restorePaths);
+                }
+                else if (type == "PURGE_RECYCLE_ITEMS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement3) ? idElement3.GetString() : null;
+                    var purgePaths = new List<string>();
+                    if (root.TryGetProperty("payload", out var purgePayload) && purgePayload.TryGetProperty("paths", out var pathsEl3) && pathsEl3.ValueKind == JsonValueKind.Array)
                     {
-                        var (restored, failed) = RecycleBinService.Restore(restorePaths);
-                        var response = new { type = "RESTORE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { restored, failed } };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        await PostToUiAsync(() =>
+                        foreach (var p in pathsEl3.EnumerateArray())
                         {
-                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
-                        });
-                    });
+                            var s = p.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) purgePaths.Add(s);
+                        }
+                    }
+                    _ = HandlePurgeRecycleItemsAsync(idProp, purgePaths);
                 }
                 else if (type == "COMPARE_DIRECTORIES")
                 {
@@ -3124,7 +3097,7 @@ namespace BNDZ
         private void ApplyFileOperationPreferences()
         {
             var prefs = FileOperationPreferences.Current;
-            _actionLogService.SetMaxEntries(prefs.SingleStepUndo ? 1 : 256);
+            _actionLogService.SetMaxEntries(prefs.SingleStepUndo ? 1 : prefs.MaxActionLogEntries);
             _fileTransferQueue.SetPersistenceEnabled(prefs.PersistTransferQueue);
         }
 
@@ -3427,6 +3400,142 @@ namespace BNDZ
             }
         }
 
+        private async Task HandleCreateArchiveAsync(string operationId, List<string> sources, string target, string format)
+        {
+            var label = $"Create archive · {Path.GetFileName(target)}";
+            _fileTransferQueue.RegisterJob(operationId, "archive-create", label, "bndz", Math.Max(sources.Count, 1), "archive", FileTransferPriority.Low);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                try
+                {
+                    await _archiveService.CreateArchiveAsync(sources, target, format, (pct, file) =>
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        _fileTransferQueue.UpdateProgress(operationId, pct, file, pct, 100);
+                        var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
+                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
+                    }).ConfigureAwait(false);
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = target, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
+                    PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
+                }
+                catch (OperationCanceledException)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
+                    PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
+                    throw;
+                }
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
+            }
+            catch { /* progress posted */ }
+        }
+
+        private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest)
+        {
+            var label = $"Extract archive · {Path.GetFileName(archivePath)}";
+            _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Low);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                try
+                {
+                    await _archiveService.ExtractArchiveAsync(archivePath, dest, (pct, file) =>
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        _fileTransferQueue.UpdateProgress(operationId, pct, file, pct, 100);
+                        var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
+                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
+                    }).ConfigureAwait(false);
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = dest, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
+                    PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
+                }
+                catch (OperationCanceledException)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
+                    PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
+                    throw;
+                }
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
+            }
+            catch { /* progress posted */ }
+        }
+
+        private async Task HandleRestoreRecycleItemsAsync(string? idProp, List<string> restorePaths)
+        {
+            var operationId = $"recycle-restore-{DateTime.UtcNow.Ticks}";
+            var label = restorePaths.Count == 1 ? "Restore from Recycle Bin" : $"Restore {restorePaths.Count} items";
+            _fileTransferQueue.RegisterJob(operationId, "restore", label, "bndz", restorePaths.Count, "recycle", FileTransferPriority.High);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                ct.ThrowIfCancellationRequested();
+                var (restored, failed) = RecycleBinService.Restore(restorePaths);
+                if (failed > 0 && restored == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not restore {failed} item(s).");
+                else _fileTransferQueue.MarkCompleted(operationId);
+                var response = new { type = "RESTORE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { restored, failed } };
+                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                await PostToUiAsync(() =>
+                {
+                    try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
+                });
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
+            }
+            catch { /* response posted */ }
+        }
+
+        private async Task HandlePurgeRecycleItemsAsync(string? idProp, List<string> purgePaths)
+        {
+            var operationId = $"recycle-purge-{DateTime.UtcNow.Ticks}";
+            var label = purgePaths.Count == 1 ? "Delete permanently" : $"Delete {purgePaths.Count} items permanently";
+            _fileTransferQueue.RegisterJob(operationId, "purge", label, "bndz", purgePaths.Count, "recycle", FileTransferPriority.High);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                ct.ThrowIfCancellationRequested();
+                var (purged, failed) = RecycleBinService.Purge(purgePaths);
+                if (failed > 0 && purged == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not delete {failed} item(s).");
+                else _fileTransferQueue.MarkCompleted(operationId);
+                var response = new { type = "PURGE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { purged, failed } };
+                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                await PostToUiAsync(() =>
+                {
+                    try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
+                });
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
+            }
+            catch { /* response posted */ }
+        }
+
         private async Task HandleUndoRedoAsync(bool undo, string? idProp)
         {
             if (!FileOperationPreferences.Current.LogActions)
@@ -3445,23 +3554,71 @@ namespace BNDZ
                 return;
             }
 
-            var result = undo
-                ? await _actionLogService.UndoAsync(_fileOperationService).ConfigureAwait(false)
-                : await _actionLogService.RedoAsync(_fileOperationService).ConfigureAwait(false);
-
-            var response = new
+            if (FileOperationPreferences.UseNativeEngine && !(undo ? _actionLogService.CanUndo : _actionLogService.CanRedo))
             {
-                type = "UNDO_REDO_RESULT",
-                id = idProp,
-                payload = new { ok = result.Ok, message = result.Message },
-            };
-            var json = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                var nativeMsg = new
+                {
+                    type = "UNDO_REDO_RESULT",
+                    id = idProp,
+                    payload = new
+                    {
+                        ok = false,
+                        message = "Nothing to undo/redo. The Windows shell engine does not log new actions — switch to the BNDZ engine in Settings → File Operations to record undoable operations.",
+                    },
+                };
+                await PostToUiAsync(() =>
+                {
+                    MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(nativeMsg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                });
+                return;
+            }
 
-            await PostToUiAsync(() =>
+            var operationId = $"{(undo ? "undo" : "redo")}-{DateTime.UtcNow.Ticks}";
+            var label = undo ? "Undo last action" : "Redo last action";
+            _fileTransferQueue.RegisterJob(operationId, undo ? "undo" : "redo", label, "bndz", 1, "fs", FileTransferPriority.High);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
             {
-                MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
-                PostActionLogChanged();
-            });
+                ct.ThrowIfCancellationRequested();
+                var result = undo
+                    ? await _actionLogService.UndoAsync(_fileOperationService).ConfigureAwait(false)
+                    : await _actionLogService.RedoAsync(_fileOperationService).ConfigureAwait(false);
+
+                if (result.Ok) _fileTransferQueue.MarkCompleted(operationId);
+                else _fileTransferQueue.MarkFailed(operationId, result.Message);
+
+                var response = new
+                {
+                    type = "UNDO_REDO_RESULT",
+                    id = idProp,
+                    payload = new { ok = result.Ok, message = result.Message },
+                };
+                var json = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+                await PostToUiAsync(() =>
+                {
+                    MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
+                    PostActionLogChanged();
+                });
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                var cancelled = new
+                {
+                    type = "UNDO_REDO_RESULT",
+                    id = idProp,
+                    payload = new { ok = false, message = "Cancelled" },
+                };
+                await PostToUiAsync(() =>
+                {
+                    MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(cancelled, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                });
+            }
         }
 
         private void PostActionLogChanged()
@@ -3470,7 +3627,12 @@ namespace BNDZ
             var evt = new
             {
                 type = "ACTION_LOG_CHANGED",
-                payload = new { canUndo = _actionLogService.CanUndo, canRedo = _actionLogService.CanRedo },
+                payload = new
+                {
+                    canUndo = _actionLogService.CanUndo,
+                    canRedo = _actionLogService.CanRedo,
+                    lastActionUtc = _actionLogService.GetLastUndoEntryUtc()?.ToString("O"),
+                },
             };
             MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         }

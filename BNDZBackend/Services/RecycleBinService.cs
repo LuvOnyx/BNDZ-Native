@@ -177,5 +177,37 @@ public static class RecycleBinService
         return (restored, targets.Count - restored);
     }
 
+    /// <summary>Permanently delete items still in the Recycle Bin (shell parsing names from GetContents).</summary>
+    public static (int purged, int failed) Purge(IEnumerable<string> parsingNames)
+    {
+        var targets = new HashSet<string>(parsingNames.Select(p => p.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
+        int purged = 0, failed = 0;
+        try
+        {
+            foreach (var item in RecycleBin.GetItems())
+            {
+                using (item)
+                {
+                    var parsingName = (item.ParsingName ?? "").Replace('\\', '/');
+                    if (!targets.Contains(parsingName)) continue;
+                    try
+                    {
+                        item.InvokeVerb("delete");
+                        purged++;
+                    }
+                    catch
+                    {
+                        failed++;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            failed += targets.Count - purged;
+        }
+        return (purged, failed);
+    }
+
     private static string NormalizeWinPath(string p) => p.Replace('/', '\\').TrimEnd('\\');
 }

@@ -49,6 +49,11 @@ export function formatTransferAction(action: string): string {
     case 'folder-sync': return 'Sync';
     case 'archive-add': return 'Archive';
     case 'archive-extract': return 'Extract';
+    case 'archive-create': return 'Archive';
+    case 'undo': return 'Undo';
+    case 'redo': return 'Redo';
+    case 'restore': return 'Restore';
+    case 'purge': return 'Delete';
     default: return action;
   }
 }
@@ -56,6 +61,7 @@ export function formatTransferAction(action: string): string {
 export function formatTransferCategory(category: string): string {
   switch (category) {
     case 'archive': return 'Archive';
+    case 'recycle': return 'Recycle Bin';
     case 'folder-sync': return 'Sync';
     default: return category;
   }

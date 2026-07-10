@@ -18,6 +18,15 @@ public sealed class FileOperationPreferences
     /// <summary>When using native engine, show Explorer progress dialogs (false = silent shell ops).</summary>
     public bool NativeShowProgress { get; set; } = true;
     public bool PersistTransferQueue { get; set; } = true;
+    public int MaxActionLogEntries { get; set; } = 256;
+    public UndoPromptMode UndoPrompt { get; set; } = UndoPromptMode.IfOlderThan10Minutes;
+
+    public enum UndoPromptMode
+    {
+        Never,
+        Always,
+        IfOlderThan10Minutes,
+    }
 
     public static bool UseNativeEngine =>
         string.Equals(Current.Engine, "native", StringComparison.OrdinalIgnoreCase)
@@ -36,9 +45,11 @@ public sealed class FileOperationPreferences
                 QueueOperations = ReadBool(root, "queueFileOperations", true),
                 BackgroundProcessing = ReadBool(root, "enableBackgroundProcessing", true),
                 LogActions = ReadBool(root, "logActionsAndEnableUndoRedo", true),
-                SingleStepUndo = ReadBool(root, "allowOnlySingleStepUndoRedo", false),
+                SingleStepUndo = ReadSingleStepUndo(root),
                 NativeShowProgress = ReadBool(root, "nativeShellShowProgress", true),
                 PersistTransferQueue = ReadBool(root, "persistTransferQueue", true),
+                MaxActionLogEntries = ReadInt(root, "allowedNumberOfEntriesInTheActionLog", 256),
+                UndoPrompt = ReadUndoPrompt(root),
             };
             Current = p;
         }
@@ -68,6 +79,44 @@ public sealed class FileOperationPreferences
         }
 
         return "bndz";
+    }
+
+    private static bool ReadSingleStepUndo(JsonElement root)
+    {
+        if (!root.TryGetProperty("allowOnlySingleStepUndoRedo", out var prop)) return false;
+        return prop.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String => (prop.GetString() ?? "").Contains("single step", StringComparison.OrdinalIgnoreCase),
+            _ => false,
+        };
+    }
+
+    private static UndoPromptMode ReadUndoPrompt(JsonElement root)
+    {
+        if (!root.TryGetProperty("promptBeforeUndoRedo", out var prop)) return UndoPromptMode.IfOlderThan10Minutes;
+        return prop.ValueKind switch
+        {
+            JsonValueKind.True => UndoPromptMode.Always,
+            JsonValueKind.False => UndoPromptMode.Never,
+            JsonValueKind.String => (prop.GetString() ?? "") switch
+            {
+                var s when s.Equals("Always", StringComparison.OrdinalIgnoreCase) => UndoPromptMode.Always,
+                var s when s.Equals("Never", StringComparison.OrdinalIgnoreCase) => UndoPromptMode.Never,
+                _ => UndoPromptMode.IfOlderThan10Minutes,
+            },
+            _ => UndoPromptMode.IfOlderThan10Minutes,
+        };
+    }
+
+    private static int ReadInt(JsonElement root, string name, int defaultValue)
+    {
+        if (!root.TryGetProperty(name, out var prop)) return defaultValue;
+        if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out var n)) return Math.Clamp(n, 16, 4096);
+        if (prop.ValueKind == JsonValueKind.String && int.TryParse(prop.GetString(), out var parsed)) return Math.Clamp(parsed, 16, 4096);
+        if (prop.ValueKind == JsonValueKind.True) return defaultValue;
+        return defaultValue;
     }
 
     private static bool ReadBool(JsonElement root, string name, bool defaultValue)

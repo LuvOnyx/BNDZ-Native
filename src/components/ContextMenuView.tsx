@@ -70,6 +70,7 @@ interface ContextMenuViewProps {
   onGroupByChange?: (value: ListGroupBy) => void;
   /** Restore the selected item(s) from the Recycle Bin to their original location. */
   onRestoreRecycleItems?: (panePaths: string[]) => void | Promise<void>;
+  onPurgeRecycleItems?: (panePaths: string[]) => void | Promise<void>;
   onSelectAll?: () => void;
   onInvertSelection?: () => void;
 }
@@ -80,7 +81,7 @@ function ContextMenuView({
   setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
-  onRestoreRecycleItems, onSelectAll, onInvertSelection,
+  onRestoreRecycleItems, onPurgeRecycleItems, onSelectAll, onInvertSelection,
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
   const targetPaths = resolveContextTargetPaths(menu);
@@ -226,7 +227,11 @@ function ContextMenuView({
       return;
     }
     if (v === 'delete' || v === 'trash') {
-      onDeletePaths(wins);
+      if (isRecycleBinPath(menu.path)) {
+        onPurgeRecycleItems?.(wins);
+      } else {
+        onDeletePaths(wins);
+      }
       onClose();
       return;
     }
@@ -636,10 +641,14 @@ function ContextMenuView({
       )}
 
       {/* Standard file operations */}
-      <ContextMenuItem label="Cut" iconVerb="cut" onClick={() => handleVerb('cut')} />
-      <ContextMenuItem label="Copy" iconVerb="copy" onClick={() => handleVerb('copy')} />
-      <ContextMenuItem label="Paste" iconVerb="paste" onClick={() => handleVerb('paste')} />
-      {!isBackground && onCopyTo && (
+      {!isInRecycleBin && (
+        <>
+          <ContextMenuItem label="Cut" iconVerb="cut" onClick={() => handleVerb('cut')} />
+          <ContextMenuItem label="Copy" iconVerb="copy" onClick={() => handleVerb('copy')} />
+          <ContextMenuItem label="Paste" iconVerb="paste" onClick={() => handleVerb('paste')} />
+        </>
+      )}
+      {!isBackground && !isInRecycleBin && onCopyTo && (
         <ContextMenuItem
           label="Copy to..."
           iconVerb="copy"
@@ -650,7 +659,7 @@ function ContextMenuView({
           }}
         />
       )}
-      {!isBackground && onMoveTo && (
+      {!isBackground && !isInRecycleBin && onMoveTo && (
         <ContextMenuItem
           label="Move to..."
           iconVerb="cut"
@@ -661,8 +670,14 @@ function ContextMenuView({
           }}
         />
       )}
-      <ContextMenuItem label="Delete" iconVerb="delete" onClick={() => handleVerb('delete')} />
-      <ContextMenuItem label="Rename" iconVerb="rename" onClick={() => handleVerb('rename')} />
+      {isInRecycleBin ? (
+        <ContextMenuItem label="Delete permanently" iconVerb="delete" onClick={() => handleVerb('delete')} />
+      ) : (
+        <>
+          <ContextMenuItem label="Delete" iconVerb="delete" onClick={() => handleVerb('delete')} />
+          <ContextMenuItem label="Rename" iconVerb="rename" onClick={() => handleVerb('rename')} />
+        </>
+      )}
 
       {!isBackground && showShareMenu && (
         <ContextSubmenu label="Share" iconVerb="share" onOpen={() => setShareRequested(true)}>

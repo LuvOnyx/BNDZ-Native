@@ -84,8 +84,9 @@ public sealed class NativeShellFileOperationService
         int total)
     {
         var flags = ShellFileOperations.OperationFlags.NoConfirmation
-            | ShellFileOperations.OperationFlags.NoErrorUI
-            | ShellFileOperations.OperationFlags.AllowUndo;
+            | ShellFileOperations.OperationFlags.NoErrorUI;
+        if (!(action == "delete" && bypassRecycleBin))
+            flags |= ShellFileOperations.OperationFlags.AllowUndo;
         if (!showProgress)
             flags |= ShellFileOperations.OperationFlags.Silent;
 
@@ -105,10 +106,7 @@ public sealed class NativeShellFileOperationService
                 foreach (var src in sources)
                 {
                     using var item = new ShellItem(src);
-                    if (bypassRecycleBin)
-                        op.QueueDeleteOperation(item);
-                    else
-                        op.QueueDeleteOperation(item);
+                    op.QueueDeleteOperation(item);
                 }
                 break;
 

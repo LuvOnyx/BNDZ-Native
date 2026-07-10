@@ -138,7 +138,7 @@ export const IPC = {
   _folderSyncProgressListeners: [] as Array<(progress: any) => void>,
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
   _openPathListeners: [] as Array<(path: string) => void>,
-  _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean }) => void>,
+  _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean; lastActionUtc?: string }) => void>,
   _fileTransferQueueListeners: [] as Array<(state: FileTransferQueueState) => void>,
   _startupActionListeners: [] as Array<(action: string) => void>,
   _aiDownloadProgressListeners: [] as Array<(progress: { percent: number }) => void>,
@@ -181,6 +181,7 @@ export const IPC = {
           this._actionLogListeners.forEach(cb => cb({
             canUndo: !!payload.canUndo,
             canRedo: !!payload.canRedo,
+            lastActionUtc: payload.lastActionUtc,
           }));
         } else if (data.type === 'FILE_TRANSFER_QUEUE_CHANGED') {
           const payload = data.payload ?? {};
@@ -531,7 +532,7 @@ export const IPC = {
     return Promise.resolve({ items: [], canUndo: false, canRedo: false });
   },
 
-  onActionLogChanged(callback: (state: { canUndo: boolean; canRedo: boolean }) => void) {
+  onActionLogChanged(callback: (state: { canUndo: boolean; canRedo: boolean; lastActionUtc?: string }) => void) {
     this.init();
     this._actionLogListeners.push(callback);
     return () => {
@@ -1076,6 +1077,14 @@ export const IPC = {
       return _nativeCall<{ restored: number; failed: number }>('RESTORE_RECYCLE_ITEMS', 'RESTORE_RECYCLE_ITEMS_RESULT', id, { paths }, 60000);
     }
     return Promise.resolve({ restored: 0, failed: paths.length });
+  },
+
+  purgeRecycleItems(paths: string[]): Promise<{ purged: number; failed: number }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_purgeRecycleItems`;
+      return _nativeCall<{ purged: number; failed: number }>('PURGE_RECYCLE_ITEMS', 'PURGE_RECYCLE_ITEMS_RESULT', id, { paths }, 60000);
+    }
+    return Promise.resolve({ purged: 0, failed: paths.length });
   },
 
   getDirContents(path: string): Promise<any[]> {
