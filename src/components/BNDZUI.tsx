@@ -519,6 +519,7 @@ export default function BNDZUI() {
   } | null>(null);
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [virtualViewErrors, setVirtualViewErrors] = useState<Record<string, string>>({});
+  const [pathLoadErrors, setPathLoadErrors] = useState<Record<string, string>>({});
   const [folderSizeSync, setFolderSizeSync] = useState<{
     active: boolean; current: number; total: number; path: string; percent: number;
   } | null>(null);
@@ -718,6 +719,7 @@ export default function BNDZUI() {
 
   const [isToolbarConfigOpen, setIsToolbarConfigOpen] = useState(false);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [configInitialTab, setConfigInitialTab] = useState<string | undefined>(undefined);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [licenseEpoch, setLicenseEpoch] = useState(0);
@@ -972,8 +974,11 @@ export default function BNDZUI() {
         IPC.getDirContents(path).then(data => {
           const normalized = normalizeDirEntries(data);
           setPathContentsCache(prev => setPathCacheEntry(prev, path, normalized));
+          setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
           void prefetchIconsForEntities(normalized, path);
-        }).catch(() => {
+        }).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : 'Could not load folder contents.';
+          setPathLoadErrors(prev => ({ ...prev, [path]: message }));
           setPathContentsCache(prev => setPathCacheEntry(prev, path, prev[path] !== undefined ? prev[path] : []));
         }).finally(() => {
           dirFetchInFlightRef.current.delete(path);
@@ -1002,11 +1007,17 @@ export default function BNDZUI() {
       }
       const normalized = normalizeDirEntries(data);
       cachePathContents(path, normalized);
+      setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
     } catch (err: unknown) {
       if (isBndzVirtualPath(path)) {
         setVirtualViewErrors(prev => ({
           ...prev,
           [path]: err instanceof Error ? err.message : 'Failed to load smart view.',
+        }));
+      } else if (!isVirtualCatalogPath(path)) {
+        setPathLoadErrors(prev => ({
+          ...prev,
+          [path]: err instanceof Error ? err.message : 'Failed to load folder.',
         }));
       }
       cachePathContents(path, []);
@@ -2589,7 +2600,7 @@ export default function BNDZUI() {
       syncPanes: syncPanesToSamePath,
       saveTabset: () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
       focusFilter: () => omniFilterRef.current?.focus(),
-      openSettings: () => setIsConfigDialogOpen(true),
+      openSettings: () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
       newFindingTab: (q) => addFindingTab(paneId, q),
       navigate: (path) => setCurrentPath(path, paneId),
       setFilter: setFilterText,
@@ -3479,15 +3490,32 @@ export default function BNDZUI() {
   };
 
   const executeFolderSync = async (mode: 'mirror' | 'updateTarget') => {
-      const { IPC } = await import('../lib/ipcBridge');
-      if (panes.length >= 2) {
-          const pathA = panes[0].tabs[panes[0].activeTabIndex].path;
-          const pathB = panes[1].tabs[panes[1].activeTabIndex].path;
-          IPC.executeFsOperation(`sync-${Date.now()}`, 'copy', pathA, pathB);
+      if (panes.length < 2) {
+          pushToast({ kind: 'warning', title: 'Sync', message: 'Open two panes with folders to sync.' });
+          return;
       }
-      setToastMessage(`Executed Sync: ${mode}`);
-      setIsSyncMode(false);
-      setSyncResults({});
+      const pathA = toWindowsPath(panes[0].tabs[panes[0].activeTabIndex].path);
+      const pathB = toWindowsPath(panes[1].tabs[panes[1].activeTabIndex].path);
+      setIsSyncing(true);
+      try {
+          const { IPC } = await import('../lib/ipcBridge');
+          const res = await IPC.syncFolders(pathA, pathB, 'dual-pane-sync', 'copy', mode === 'mirror');
+          if (res.ok) {
+              pushToast({
+                  kind: 'success',
+                  title: mode === 'mirror' ? 'Mirror sync complete' : 'Update sync complete',
+                  message: `Synchronized to ${pathB}`,
+              });
+              refreshActiveList();
+              await executeCompare();
+          } else {
+              pushToast({ kind: 'error', title: 'Sync failed', message: res.error || 'Could not sync folders.' });
+          }
+      } catch {
+          pushToast({ kind: 'error', title: 'Sync failed', message: 'Could not sync folders.' });
+      } finally {
+          setIsSyncing(false);
+      }
   };
 
   const refreshNavigationTree = () => {
@@ -3901,7 +3929,7 @@ export default function BNDZUI() {
       syncPanes: syncPanesToSamePath,
       saveTabset: () => { setIsSaveTabsetOpen(true); setTabsetNameInput(''); },
       focusFilter: () => omniFilterRef.current?.focus(),
-      openSettings: () => setIsConfigDialogOpen(true),
+      openSettings: () => { setConfigInitialTab(undefined); setIsConfigDialogOpen(true); },
       newFindingTab: (q: string) => addFindingTab(activePaneId, q),
       navigate: (p: string) => setCurrentPath(p, activePaneId),
       setFilter: setFilterText,
@@ -5384,6 +5412,21 @@ export default function BNDZUI() {
               window.addEventListener('pointerup', onUp);
            }}
         >
+          {pathLoadErrors[normPanePath] && !isPaneLoading && (
+            <div className="mx-3 mt-2 mb-1 flex items-center gap-2 rounded border border-rose-500/30 bg-rose-950/30 px-3 py-2 text-[11px] text-rose-200">
+              <Icons8Icon id="warning" size={14} className="shrink-0 text-rose-300" />
+              <span className="flex-1 min-w-0 truncate" title={pathLoadErrors[normPanePath]}>
+                {pathLoadErrors[normPanePath]}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 px-2 py-0.5 border border-rose-500/40 rounded text-[10px] hover:bg-rose-500/10"
+                onClick={() => void refetchPath(normPanePath)}
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {isPaneLoading && (
              <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500 min-h-[200px]">
                <Icons8Icon id="loading" size={24} spin />
@@ -5619,6 +5662,8 @@ export default function BNDZUI() {
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
                       ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30" : ""}
                       ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
+                      ${colorFilterResult?.className || ''}
+                      ${config.coloredLines && colorFilterResult ? 'border-l-2 border-l-[#0078d4]/50' : ''}
                       ${syncOpacity ? "opacity-50" : ""}`}
                     style={{
                         ...(showSelectionChrome && config.listSelectionHighlightColor
@@ -6092,20 +6137,21 @@ export default function BNDZUI() {
                     })}><Icons8Icon id="new_file" size={14} /> New Text Document</div>
 
                     <MenubarSubmenu label="New (Other)">
-                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
                               if (!paths.length) { setToastMessage('Select files to archive.'); return; }
                               const dest = `${toWindowsPath(currentTab.path)}\\Archive-${Date.now()}.zip`;
-                              import('../lib/ipcBridge').then(({ IPC }) => IPC.createArchive(paths.map(toWindowsPath), dest, 'zip'));
-                              setToastMessage('Creating archive...');
+                              const { IPC } = await import('../lib/ipcBridge');
+                              const res = await IPC.createArchive(paths.map(toWindowsPath), dest, 'zip');
+                              setToastMessage(res.ok ? 'Archive created.' : (res.error || 'Archive failed.'));
                             })}>ZIP Archive</div>
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
                               if (paths.length !== 1) { setToastMessage('Select one item for a shortcut.'); return; }
                               const { IPC } = await import('../lib/ipcBridge');
                               const target = toWindowsPath(paths[0]);
-                              await IPC.createLink(`${target}.lnk`, target, 'symlink');
-                              setToastMessage('Shortcut created.');
+                              const res = await IPC.createLink(`${target}.lnk`, target, 'shortcut');
+                              setToastMessage(res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.'));
                             })}>Shortcut</div>
                     </MenubarSubmenu>
 
@@ -6530,7 +6576,10 @@ export default function BNDZUI() {
              {config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Help'} anchorEl={menubarAnchors.current['Help']} minWidth={220}>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setShowHelpTopics(true))}>Help Topics</div>
-                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setToastMessage('F2 Rename · Ctrl+C/X/V · Del Delete · / Fuzzy filter · Ctrl+Tab Switch pane'))}>Keyboard Shortcuts</div>
+                    <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                      setConfigInitialTab('Keyboard Shortcuts');
+                      setIsConfigDialogOpen(true);
+                    })}>Keyboard Shortcuts</div>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setIsConfigDialogOpen(true))}>Settings Reference...</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1.5 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
@@ -7130,6 +7179,7 @@ export default function BNDZUI() {
                       onGliderCopy={(path) => setClipboardState([path], 'copy')}
                       onGliderMove={(path) => setClipboardState([path], 'cut')}
                       onGliderPaste={(path) => void executePaste(path)}
+                      clipboard={clipboard}
                       onFileDrop={async (payload, destPath, op) => {
                         const destWin = toWindowsPath(destPath);
                         const sourcePaths = payload.paths.map(p => toWindowsPath(p));
@@ -7544,7 +7594,10 @@ export default function BNDZUI() {
 
       {isConfigDialogOpen && (
         <Suspense fallback={null}>
-          <ConfigurationDialog onClose={() => setIsConfigDialogOpen(false)} />
+          <ConfigurationDialog
+            initialTab={configInitialTab}
+            onClose={() => { setConfigInitialTab(undefined); setIsConfigDialogOpen(false); }}
+          />
         </Suspense>
       )}
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { pushToast } from './ToastHost';
 import type { FileTransferJobDto, FileTransferQueueState } from '../lib/ipcBridge';
 import {
   formatTransferAction,
@@ -16,9 +17,13 @@ type Props = {
 function JobRow({
   job,
   onCancel,
+  errorExpanded,
+  onToggleError,
 }: {
   job: FileTransferJobDto;
   onCancel: (id: string) => void;
+  errorExpanded: boolean;
+  onToggleError: () => void;
 }) {
   const canCancel = job.status === 'queued' || job.status === 'running';
   const engineLabel = job.engine === 'native' ? 'Windows' : job.engine === 'teracopy' ? 'TeraCopy' : 'BNDZ';
@@ -69,7 +74,16 @@ function JobRow({
           <div className="text-[10px] text-gray-500 mt-0.5 font-mono tabular-nums">{progressLine}</div>
         )}
         {job.error && (
-          <div className="text-[10px] text-rose-300/90 truncate mt-0.5">{job.error}</div>
+          <div className="mt-0.5">
+            <button
+              type="button"
+              onClick={onToggleError}
+              className={`text-left text-[10px] text-rose-300/90 hover:text-rose-200 ${errorExpanded ? 'whitespace-pre-wrap break-words' : 'truncate block w-full'}`}
+              title={errorExpanded ? 'Collapse error' : 'Expand error'}
+            >
+              {job.error}
+            </button>
+          </div>
         )}
         <div className="bndz-transfer-progress-track mt-1.5 h-1 overflow-hidden">
           <div
@@ -100,6 +114,7 @@ function JobRow({
 export default function FileTransferQueuePanel({ className = '' }: Props) {
   const [state, setState] = useState<FileTransferQueueState>({ queuedCount: 0, activeCount: 0, jobs: [] });
   const [expanded, setExpanded] = useState(true);
+  const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
@@ -130,10 +145,18 @@ export default function FileTransferQueuePanel({ className = '' }: Props) {
 
   const jobs = visibleTransferJobs(state.jobs);
   const completedRecent = jobs.filter(j => j.status === 'completed').length;
+  const failedRecent = jobs.filter(j => j.status === 'failed').length;
+  const hasFinished = jobs.some(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled');
 
   const handleCancel = async (operationId: string) => {
     const { IPC } = await import('../lib/ipcBridge');
     await IPC.cancelFileTransfer(operationId);
+  };
+
+  const handleClearFinished = async () => {
+    const { IPC } = await import('../lib/ipcBridge');
+    await IPC.clearFileTransferHistory();
+    setExpandedErrors({});
   };
 
   return (
@@ -154,7 +177,18 @@ export default function FileTransferQueuePanel({ className = '' }: Props) {
           {completedRecent > 0 && state.activeCount === 0 && state.queuedCount === 0
             ? `${completedRecent} completed`
             : ''}
+          {failedRecent > 0 ? `${state.activeCount === 0 && state.queuedCount === 0 ? '' : ' · '}${failedRecent} failed` : ''}
         </span>
+        {hasFinished && state.activeCount === 0 && (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); void handleClearFinished(); }}
+            className="ml-1 text-[10px] px-1.5 py-0.5 border border-[#555] text-gray-400 hover:text-white hover:bg-[#094771]/40"
+            title="Clear completed and failed transfers"
+          >
+            Clear
+          </button>
+        )}
         <Icons8Icon
           id="chevron_right"
           size={10}
@@ -164,7 +198,16 @@ export default function FileTransferQueuePanel({ className = '' }: Props) {
       {expanded && (
         <div className="max-h-[200px] overflow-y-auto bndz-scrollbar px-3 py-1">
           {jobs.map(job => (
-            <JobRow key={job.operationId} job={job} onCancel={handleCancel} />
+            <JobRow
+              key={job.operationId}
+              job={job}
+              onCancel={handleCancel}
+              errorExpanded={!!expandedErrors[job.operationId]}
+              onToggleError={() => setExpandedErrors(prev => ({
+                ...prev,
+                [job.operationId]: !prev[job.operationId],
+              }))}
+            />
           ))}
         </div>
       )}

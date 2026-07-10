@@ -283,6 +283,21 @@ public sealed class FileTransferQueueService
         NotifyChanged();
     }
 
+    public int ClearFinishedJobs()
+    {
+        var toRemove = _jobs
+            .Where(kv => kv.Value.Status is FileTransferJobStatus.Completed
+                or FileTransferJobStatus.Cancelled
+                or FileTransferJobStatus.Failed)
+            .Select(kv => kv.Key)
+            .ToList();
+        foreach (var id in toRemove)
+            _jobs.TryRemove(id, out _);
+        if (toRemove.Count > 0)
+            NotifyChanged();
+        return toRemove.Count;
+    }
+
     public bool Cancel(string operationId)
     {
         lock (_pendingLock)

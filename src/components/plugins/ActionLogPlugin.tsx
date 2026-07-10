@@ -5,6 +5,7 @@ import { PluginToolbarButton, PluginEmptyState } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { useAppConfig } from '../../data/configContext';
+import { buildFileOpsRuntime } from '../../lib/settingsWiring';
 
 export const ActionLogPluginDef = {
   id: 'action-log',
@@ -78,8 +79,16 @@ export default function ActionLogPlugin() {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [kindFilter, setKindFilter] = useState<string>('all');
   const [, setTick] = useState(0);
   const dateFormat = config.dateFormatInActionLabels || 'Age of action (how long ago)';
+  const fileOps = buildFileOpsRuntime(config);
+  const loggingEnabled = fileOps.logActions;
+
+  const visibleItems = kindFilter === 'all'
+    ? items
+    : items.filter(entry => entry.kind === kindFilter);
+  const kindOptions = ['all', ...Array.from(new Set(items.map(i => i.kind)))];
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -126,14 +135,29 @@ export default function ActionLogPlugin() {
       variant="embedded"
       toolbar={
         <>
-          <PluginToolbarButton icon="undo" disabled={!canUndo} onClick={() => void runUndo()}>Undo</PluginToolbarButton>
-          <PluginToolbarButton icon="redo" disabled={!canRedo} onClick={() => void runRedo()}>Redo</PluginToolbarButton>
+          <PluginToolbarButton icon="undo" disabled={!canUndo || !loggingEnabled} onClick={() => void runUndo()}>Undo</PluginToolbarButton>
+          <PluginToolbarButton icon="redo" disabled={!canRedo || !loggingEnabled} onClick={() => void runRedo()}>Redo</PluginToolbarButton>
+          <select
+            value={kindFilter}
+            onChange={e => setKindFilter(e.target.value)}
+            className="bg-[#1a1a1a] border border-[#444] text-[10px] text-gray-300 rounded px-1.5 py-1"
+            title="Filter by action type"
+          >
+            {kindOptions.map(k => (
+              <option key={k} value={k}>{k === 'all' ? 'All types' : k}</option>
+            ))}
+          </select>
           <button type="button" onClick={() => void refresh()} className="p-1.5 rounded-md hover:bg-white/5 text-gray-500" title="Refresh">
             <Icons8Icon id="refresh" size={13} />
           </button>
         </>
       }
     >
+      {!loggingEnabled && (
+        <div className="mx-4 mt-3 mb-1 rounded border border-amber-500/30 bg-amber-950/25 px-3 py-2 text-[11px] text-amber-100">
+          Action logging is disabled. Enable <strong>Log actions and enable undo/redo</strong> in Settings → File Operations → Undo &amp; Action Log.
+        </div>
+      )}
       <div className="h-full overflow-y-auto bndz-scrollbar">
         {loading && (
           <div className="flex items-center justify-center gap-2 py-10 text-gray-500 text-xs">
@@ -147,7 +171,7 @@ export default function ActionLogPlugin() {
             description="Copy, move, rename, sync, and archive operations appear here when action logging is enabled in Settings → File Operations."
           />
         )}
-        {!loading && items.map((entry, index) => (
+        {!loading && visibleItems.map((entry, index) => (
           <div
             key={entry.id}
             className={`flex items-start gap-3 px-4 py-2.5 border-b border-white/[0.04] text-xs transition-colors ${

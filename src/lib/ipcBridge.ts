@@ -478,11 +478,14 @@ export const IPC = {
     label?: string,
     priority?: 'low' | 'normal' | 'high',
     recreateSourceStructure?: boolean,
-  ): Promise<void> {
+  ): Promise<{ ok: boolean; error?: string }> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({
-        type: 'EXECUTE_FS_OPERATION',
-        payload: {
+      const timeoutMs = action === 'copy' || action === 'move' ? 600_000 : 120_000;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'EXECUTE_FS_OPERATION',
+        'FS_OPERATION_RESULT',
+        operationId,
+        {
           operationId,
           action,
           source,
@@ -492,11 +495,11 @@ export const IPC = {
           priority,
           recreateSourceStructure: !!recreateSourceStructure,
         },
-      });
-      return;
+        timeoutMs,
+      );
     }
     if (action === 'undo' || action === 'redo' || action === 'copy') {
-      return;
+      return { ok: true };
     }
     const res = await fetch('/api/fs/operation', {
       method: 'POST',
@@ -507,6 +510,7 @@ export const IPC = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `FS operation failed (${res.status})`);
     }
+    return { ok: true };
   },
 
   executeBatchRename(
@@ -585,6 +589,17 @@ export const IPC = {
       );
     }
     return Promise.resolve({ ok: false, operationId });
+  },
+
+  clearFileTransferHistory(): Promise<{ cleared: number }> {
+    if (this.isNative) {
+      return _nativeCall<{ cleared: number }>(
+        'CLEAR_FILE_TRANSFER_HISTORY',
+        'CLEAR_FILE_TRANSFER_HISTORY_RESULT',
+        undefined,
+      );
+    }
+    return Promise.resolve({ cleared: 0 });
   },
 
   onFileTransferQueueChanged(callback: (state: FileTransferQueueState) => void) {
@@ -793,7 +808,13 @@ export const IPC = {
     return data.renamedFiles;
   },
 
-  syncFolders(source: string, target: string, entityId: string, action: 'copy' | 'move' = 'move'): Promise<{ ok: boolean; error?: string }> {
+  syncFolders(
+    source: string,
+    target: string,
+    entityId: string,
+    action: 'copy' | 'move' = 'move',
+    mirrorMode = false,
+  ): Promise<{ ok: boolean; error?: string }> {
     if (this.isNative) {
       const operationId = `sync-${Date.now()}`;
       const id = `${Date.now()}_syncFolders`;
@@ -801,7 +822,7 @@ export const IPC = {
         'SYNC_FOLDERS',
         'SYNC_FOLDERS_RESULT',
         id,
-        { source, target, entityId, action, operationId },
+        { source, target, entityId, action, operationId, mirrorMode },
         600_000,
       );
     }
@@ -1383,24 +1404,38 @@ export const IPC = {
     return Promise.resolve({ name: 'Sample', files: [], totalSize: 0 });
   },
 
-  createArchive(sources: string[], target: string, format: 'zip' | '7z' | 'tar' | 'gz' | 'rar' = 'zip'): void {
+  createArchive(
+    sources: string[],
+    target: string,
+    format: 'zip' | '7z' | 'tar' | 'gz' | 'rar' = 'zip',
+  ): Promise<{ ok: boolean; error?: string }> {
     if (this.isNative) {
       const operationId = `archive-${Date.now()}`;
-      (window as any).chrome.webview.postMessage({
-        type: 'CREATE_ARCHIVE',
-        payload: { operationId, sources, target, format },
-      });
+      const id = `${Date.now()}_createArchive`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'CREATE_ARCHIVE',
+        'CREATE_ARCHIVE_RESULT',
+        id,
+        { operationId, sources, target, format },
+        600_000,
+      );
     }
+    return Promise.resolve({ ok: false, error: 'Native only' });
   },
 
-  extractArchive(archivePath: string, destination: string): void {
+  extractArchive(archivePath: string, destination: string): Promise<{ ok: boolean; error?: string }> {
     if (this.isNative) {
       const operationId = `extract-${Date.now()}`;
-      (window as any).chrome.webview.postMessage({
-        type: 'EXTRACT_ARCHIVE',
-        payload: { operationId, path: archivePath, destination },
-      });
+      const id = `${Date.now()}_extractArchive`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'EXTRACT_ARCHIVE',
+        'EXTRACT_ARCHIVE_RESULT',
+        id,
+        { operationId, path: archivePath, destination },
+        600_000,
+      );
     }
+    return Promise.resolve({ ok: false, error: 'Native only' });
   },
 
   createLink(linkPath: string, targetPath: string, linkType: 'symlink' | 'hardlink' | 'junction' | 'shortcut'): Promise<{ success: boolean; error?: string }> {

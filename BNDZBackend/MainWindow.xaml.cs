@@ -702,7 +702,8 @@ namespace BNDZ
                         return;
                     }
 
-                    _ = HandleExecuteFsOperationAsync(operationId, action, sources, target, bypassRecycleBin, label, priority, recreateSourceStructure);
+                    var fsOpIdProp = root.TryGetProperty("id", out var fsOpIdEl) ? fsOpIdEl.GetString() : null;
+                    _ = HandleExecuteFsOperationAsync(operationId, action, sources, target, bypassRecycleBin, label, priority, recreateSourceStructure, fsOpIdProp);
                 }
                 else if (type == "GET_FILE_TRANSFER_QUEUE")
                 {
@@ -720,6 +721,16 @@ namespace BNDZ
                     bool cancelled = !string.IsNullOrEmpty(opId) && _fileTransferQueue.Cancel(opId);
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var response = new { type = "CANCEL_FILE_TRANSFER_RESULT", id = idProp, payload = new { ok = cancelled, operationId = opId } };
+                    PostToUi(() =>
+                    {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
+                    });
+                }
+                else if (type == "CLEAR_FILE_TRANSFER_HISTORY")
+                {
+                    var cleared = _fileTransferQueue.ClearFinishedJobs();
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "CLEAR_FILE_TRANSFER_HISTORY_RESULT", id = idProp, payload = new { cleared } };
                     PostToUi(() =>
                     {
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
@@ -1144,7 +1155,8 @@ namespace BNDZ
                     string operationId = payload.TryGetProperty("operationId", out var opEl)
                         ? opEl.GetString() ?? $"sync-{DateTime.UtcNow.Ticks}"
                         : $"sync-{DateTime.UtcNow.Ticks}";
-                    _ = HandleSyncFoldersAsync(operationId, source, target, idProp);
+                    bool mirrorMode = payload.TryGetProperty("mirrorMode", out var mirrorEl) && mirrorEl.ValueKind == JsonValueKind.True;
+                    _ = HandleSyncFoldersAsync(operationId, source, target, idProp, mirrorMode);
                 }
                 else if (type == "FOLDER_SYNC_GET_JOBS")
                 {
@@ -1670,21 +1682,23 @@ namespace BNDZ
                 else if (type == "CREATE_ARCHIVE")
                 {
                     var payload = root.GetProperty("payload");
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
                     string operationId = payload.TryGetProperty("operationId", out var opEl) ? opEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
                     string target = NormalizeFsPath(payload.GetProperty("target").GetString() ?? "");
                     string format = payload.TryGetProperty("format", out var fmtEl) ? fmtEl.GetString() ?? "zip" : "zip";
                     var sources = new List<string>();
                     foreach (var el in payload.GetProperty("sources").EnumerateArray())
                         sources.Add(NormalizeFsPath(el.GetString() ?? ""));
-                    _ = HandleCreateArchiveAsync(operationId, sources, target, format);
+                    _ = HandleCreateArchiveAsync(operationId, sources, target, format, idProp);
                 }
                 else if (type == "EXTRACT_ARCHIVE")
                 {
                     var payload = root.GetProperty("payload");
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
                     string operationId = payload.TryGetProperty("operationId", out var opEl) ? opEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
                     string archivePath = NormalizeFsPath(payload.GetProperty("path").GetString() ?? "");
                     string dest = NormalizeFsPath(payload.GetProperty("destination").GetString() ?? "");
-                    _ = HandleExtractArchiveAsync(operationId, archivePath, dest);
+                    _ = HandleExtractArchiveAsync(operationId, archivePath, dest, idProp);
                 }
                 else if (type == "CREATE_LINK")
                 {
@@ -3185,7 +3199,8 @@ namespace BNDZ
             bool bypassRecycleBin,
             string? labelOverride,
             FileTransferPriority priority = FileTransferPriority.Normal,
-            bool recreateSourceStructure = false)
+            bool recreateSourceStructure = false,
+            string? idProp = null)
         {
             var prefs = FileOperationPreferences.Current;
             if (!recreateSourceStructure
@@ -3325,21 +3340,44 @@ namespace BNDZ
                         QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
                     FlushFsEvents();
                     await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
                     OnProgress(operationId, 100, ex.Message, 0, 0, 0, 0, 1);
+                    await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
                     throw;
                 }
             }
 
-            await RunTransferWorkAsync(operationId, ExecuteCoreAsync, priority).ConfigureAwait(false);
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, priority).ConfigureAwait(false);
+            }
+            catch { /* response posted */ }
+        }
+
+        private async Task PostFsOperationResultAsync(string? idProp, bool ok, string? error)
+        {
+            if (string.IsNullOrEmpty(idProp)) return;
+            var response = new
+            {
+                type = "FS_OPERATION_RESULT",
+                id = idProp,
+                payload = new { ok, error },
+            };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            await PostToUiAsync(() =>
+            {
+                MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+            }).ConfigureAwait(false);
         }
 
         private async Task HandleFolderSyncRunAsync(string? idProp, string jobId)
@@ -3474,7 +3512,7 @@ namespace BNDZ
             }
         }
 
-        private async Task HandleCreateArchiveAsync(string operationId, List<string> sources, string target, string format)
+        private async Task HandleCreateArchiveAsync(string operationId, List<string> sources, string target, string format, string? idProp = null)
         {
             var label = $"Create archive · {Path.GetFileName(target)}";
             _fileTransferQueue.RegisterJob(operationId, "archive-create", label, "bndz", Math.Max(sources.Count, 1), "archive", FileTransferPriority.Low);
@@ -3495,10 +3533,12 @@ namespace BNDZ
                     _fileTransferQueue.MarkCompleted(operationId);
                     var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = target, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
                     PostToUi(() => { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)); PostActionLogChanged(); });
+                    await PostArchiveResultAsync("CREATE_ARCHIVE_RESULT", idProp, true, null).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    await PostArchiveResultAsync("CREATE_ARCHIVE_RESULT", idProp, false, "Cancelled").ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
@@ -3506,6 +3546,7 @@ namespace BNDZ
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
                     var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
                     PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
+                    await PostArchiveResultAsync("CREATE_ARCHIVE_RESULT", idProp, false, ex.Message).ConfigureAwait(false);
                     throw;
                 }
             }
@@ -3517,7 +3558,7 @@ namespace BNDZ
             catch { /* progress posted */ }
         }
 
-        private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest)
+        private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest, string? idProp = null)
         {
             var label = $"Extract archive · {Path.GetFileName(archivePath)}";
             _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Low);
@@ -3538,10 +3579,12 @@ namespace BNDZ
                     _fileTransferQueue.MarkCompleted(operationId);
                     var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = dest, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
                     PostToUi(() => { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)); PostActionLogChanged(); });
+                    await PostArchiveResultAsync("EXTRACT_ARCHIVE_RESULT", idProp, true, null).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    await PostArchiveResultAsync("EXTRACT_ARCHIVE_RESULT", idProp, false, "Cancelled").ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
@@ -3549,6 +3592,7 @@ namespace BNDZ
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
                     var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
                     PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
+                    await PostArchiveResultAsync("EXTRACT_ARCHIVE_RESULT", idProp, false, ex.Message).ConfigureAwait(false);
                     throw;
                 }
             }
@@ -3558,6 +3602,22 @@ namespace BNDZ
                 await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
             }
             catch { /* progress posted */ }
+        }
+
+        private async Task PostArchiveResultAsync(string responseType, string? idProp, bool ok, string? error)
+        {
+            if (string.IsNullOrEmpty(idProp)) return;
+            var response = new
+            {
+                type = responseType,
+                id = idProp,
+                payload = new { ok, error },
+            };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            await PostToUiAsync(() =>
+            {
+                MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+            }).ConfigureAwait(false);
         }
 
         private async Task HandleRestoreRecycleItemsAsync(string? idProp, List<string> restorePaths)
@@ -3815,16 +3875,21 @@ namespace BNDZ
             catch { /* response posted */ }
         }
 
-        private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp)
+        private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp, bool mirrorMode = false)
         {
-            var label = $"Sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}";
+            var label = mirrorMode
+                ? $"Mirror sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}"
+                : $"Update sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}";
             _fileTransferQueue.RegisterJob(operationId, "folder-sync", label, "bndz", 1, "folder-sync", FileTransferPriority.Low);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 try
                 {
-                    await SyncDirectoriesTrueAsync(sourceDir, targetDir, operationId, ct).ConfigureAwait(false);
+                    var exitCode = await RunRobocopySyncAsync(sourceDir, targetDir, mirrorMode, operationId, ct).ConfigureAwait(false);
+                    if (exitCode >= 8)
+                        throw new IOException($"Robocopy exited with code {exitCode}");
+
                     if (FileOperationPreferences.Current.CopyTagsOnBackupAndSync)
                     {
                         var mappings = new List<(string source, string dest)>();
@@ -3925,6 +3990,55 @@ namespace BNDZ
                 await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Normal).ConfigureAwait(false);
             }
             catch { /* response posted */ }
+        }
+
+        private async Task<int> RunRobocopySyncAsync(string sourceDir, string targetDir, bool mirrorMode, string operationId, CancellationToken ct)
+        {
+            sourceDir = sourceDir.Replace("/", "\\").TrimEnd('\\');
+            targetDir = targetDir.Replace("/", "\\").TrimEnd('\\');
+            if (!Directory.Exists(sourceDir))
+                throw new DirectoryNotFoundException($"Source not found: {sourceDir}");
+            Directory.CreateDirectory(targetDir);
+
+            var args = mirrorMode
+                ? $"\"{sourceDir}\" \"{targetDir}\" /MIR /Z /R:2 /W:2 /NP /NDL /NFL /NJH /NJS"
+                : $"\"{sourceDir}\" \"{targetDir}\" /E /XO /Z /R:2 /W:2 /NP /NDL /NFL /NJH /NJS";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "robocopy",
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+
+            using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            proc.OutputDataReceived += (_, e) =>
+            {
+                if (!string.IsNullOrWhiteSpace(e.Data))
+                    _fileTransferQueue.UpdateProgress(operationId, 50, e.Data.Trim(), 0, 100);
+            };
+            proc.Exited += (_, _) => tcs.TrySetResult(proc.ExitCode);
+
+            if (!proc.Start())
+                throw new InvalidOperationException("Failed to start robocopy");
+
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+
+            using var reg = ct.Register(() =>
+            {
+                try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); } catch { }
+                tcs.TrySetCanceled(ct);
+            });
+
+            var exitCode = await tcs.Task.ConfigureAwait(false);
+            _fileTransferQueue.UpdateProgress(operationId, 100, null, 100, 100);
+            return exitCode;
         }
 
         private async Task SyncDirectoriesTrueAsync(string sourceDir, string targetDir, string operationId, CancellationToken ct)

@@ -12,7 +12,7 @@ import {
   isContextMenuBackground,
   contextMenuRefreshLabel,
 } from '../lib/contextMenuActions';
-import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath } from '../lib/pathUtils';
+import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
 import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
@@ -98,6 +98,7 @@ function ContextMenuView({
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareRequested, setShareRequested] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [menuFilter, setMenuFilter] = useState('');
 
   const staticShareMain: import('../lib/ipcBridge').ShareMenuItem[] = !isBackground && targetPaths.length > 0
@@ -142,17 +143,22 @@ function ContextMenuView({
     if (isBackground || !targetPaths.length || !shareRequested) {
       setShareItems([]);
       setShareLoading(false);
+      setShareError(null);
       return;
     }
     let active = true;
     setShareLoading(true);
+    setShareError(null);
     (async () => {
       try {
         const IPC = await runIpc();
         const items = await IPC.fetchShareMenuItems(targetPaths[0]);
         if (active) setShareItems(items || []);
-      } catch {
-        if (active) setShareItems([]);
+      } catch (err: unknown) {
+        if (active) {
+          setShareItems([]);
+          setShareError(err instanceof Error ? err.message : 'Could not load share options.');
+        }
       } finally {
         if (active) setShareLoading(false);
       }
@@ -306,7 +312,7 @@ function ContextMenuView({
           onMouseDown={e => e.stopPropagation()}
           onClick={e => e.stopPropagation()}
         >
-          <ContextMenuItem label="Open" iconVerb="open" className="font-semibold" onClick={() => { onClose(); }} />
+          <ContextMenuItem label="Open" iconVerb="open" className="font-semibold" onClick={() => { addTab(activePaneId, RECYCLE_BIN_PATH); onClose(); }} />
           <ContextMenuItem
             label="Empty Recycle Bin"
             iconVerb="delete"
@@ -553,8 +559,8 @@ function ContextMenuView({
     const parent = win.replace(/\\[^\\]+$/, '');
     const folder = win.split('\\').pop()?.replace(/\.[^.]+$/, '') || 'extracted';
     const IPC = await runIpc();
-    IPC.extractArchive(win, `${parent}\\${folder}`);
-    setToastMessage(`Extracting to ${folder}…`);
+    const res = await IPC.extractArchive(win, `${parent}\\${folder}`);
+    setToastMessage(res.ok ? `Extracted to ${folder}` : (res.error || 'Extract failed.'));
     onClose();
   };
 
@@ -723,6 +729,9 @@ function ContextMenuView({
           )}
           {shareLoading && shareSendTo.length === 0 && shareCloud.length === 0 && (
             <div className="px-3 py-1.5 text-[11px] text-[#888]">Loading share options…</div>
+          )}
+          {shareError && !shareLoading && (
+            <div className="px-3 py-1.5 text-[11px] text-rose-300/90">{shareError}</div>
           )}
         </ContextSubmenu>
       )}
@@ -895,7 +904,8 @@ function ContextMenuView({
             const wins = targetPaths.map(p => toWindowsPath(p));
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.zip` : 'Archive.zip';
-            IPC.createArchive(wins, `${parent}\\${name}`, 'zip');
+            const res = await IPC.createArchive(wins, `${parent}\\${name}`, 'zip');
+            setToastMessage(res.ok ? 'ZIP archive created.' : (res.error || 'Archive failed.'));
             onClose();
           }}
         />
@@ -908,7 +918,8 @@ function ContextMenuView({
             const wins = targetPaths.map(p => toWindowsPath(p));
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.7z` : 'Archive.7z';
-            IPC.createArchive(wins, `${parent}\\${name}`, '7z');
+            const res = await IPC.createArchive(wins, `${parent}\\${name}`, '7z');
+            setToastMessage(res.ok ? '7z archive created.' : (res.error || 'Archive failed.'));
             onClose();
           }}
         />
@@ -921,7 +932,8 @@ function ContextMenuView({
             const wins = targetPaths.map(p => toWindowsPath(p));
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.rar` : 'Archive.rar';
-            IPC.createArchive(wins, `${parent}\\${name}`, 'rar' as any);
+            const res = await IPC.createArchive(wins, `${parent}\\${name}`, 'rar' as any);
+            setToastMessage(res.ok ? 'RAR archive created.' : (res.error || 'Archive failed.'));
             onClose();
           }}
         />

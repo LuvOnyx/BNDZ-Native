@@ -337,12 +337,18 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const zoom = config.selectConfig || "100%";
   const animDuration = previewRt.animDuration;
 
-  const extractArchive = () => {
+  const extractArchive = async () => {
     if (!path) return;
     const win = toWindowsPath(path);
     const base = win.replace(/\\[^\\]+$/, '');
     const name = entity.name.replace(/\.[^.]+$/, '');
-    import('../lib/ipcBridge').then(({ IPC }) => IPC.extractArchive(win, `${base}\\${name}`));
+    const { IPC } = await import('../lib/ipcBridge');
+    const res = await IPC.extractArchive(win, `${base}\\${name}`);
+    if (!res.ok) {
+      window.dispatchEvent(new CustomEvent('bndz-native-alert', {
+        detail: { title: 'Extract failed', message: res.error || 'Could not extract archive.' },
+      }));
+    }
   };
 
   const renderFolderContentsPreview = () => {
@@ -391,7 +397,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   };
 
   const renderCatalogQuickPanel = () => {
-    if (!catalogs.length) return null;
+    if (!config.catalog || !catalogs.length) return null;
     return (
       <div className="flex flex-col min-h-0 max-h-[120px] overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]">
         <div className="bndz-panel-section-title px-2 py-1.5 border-b border-violet-500/15 flex items-center gap-1.5 shrink-0 text-violet-300/80">

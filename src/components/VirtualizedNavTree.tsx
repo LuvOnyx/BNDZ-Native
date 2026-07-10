@@ -16,6 +16,8 @@ import {
   setBndzFileDragData,
   type BndzFileDragPayload,
 } from '../lib/bndzDrag';
+import type { ClipboardAction } from '../data/ClipboardContext';
+import { getClipboardMarkForEntity } from '../lib/clipboardVisual';
 import { toWindowsPath } from '../lib/pathUtils';
 import { isPathUnderIndexedRoot } from '../lib/indexedRoots';
 import {
@@ -53,6 +55,7 @@ interface VirtualizedNavTreeProps {
   showIndexBadges?: boolean;
   /** External file-drop hover path (e.g. internal pointer drag from list pane). */
   fileDropTarget?: string | null;
+  clipboard?: { items: string[]; action: ClipboardAction | null };
 }
 
 async function loadDirectoryChildren(
@@ -106,6 +109,7 @@ function TreeRow({
   onGliderLeave,
   indexedRoots,
   showIndexBadges,
+  clipboard,
 }: {
   row: FlatNavRow;
   config: AppConfig;
@@ -134,6 +138,7 @@ function TreeRow({
   onGliderLeave?: () => void;
   indexedRoots?: string[];
   showIndexBadges?: boolean;
+  clipboard?: VirtualizedNavTreeProps['clipboard'];
 }) {
   const isSelected = row.selected || (row.path && currentPath === row.path);
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
@@ -169,12 +174,15 @@ function TreeRow({
   const treeColorFilter = treeRt.applyColorFilters && row.path
     ? evaluateColorFilter({ name: row.label, path: row.path, type: 'directory' }, config.colorFilters, config)
     : null;
+  const clipboardMark = row.path && clipboard?.items?.length && clipboard.action
+    ? getClipboardMarkForEntity(toWindowsPath(row.path), clipboard as { items: string[]; action: ClipboardAction })
+    : null;
 
   const rowEl = (
       <div
       className={`nav-tree-row group/tree group flex items-center py-[3px] pr-2 cursor-pointer whitespace-nowrap rounded-sm mx-0.5 transition-colors duration-100 ${
         isSelected ? 'nav-tree-row-selected' : 'hover:bg-[#2a2d2e]/90'
-      } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''} ${treeColorFilter?.className || ''}`}
+      } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''} ${treeColorFilter?.className || ''} ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}`}
       style={{ paddingLeft: `${indentPx}px`, ...(treeColorFilter?.inlineStyle && !isSelected ? treeColorFilter.inlineStyle : {}) }}
       data-nav-path={row.path || undefined}
       draggable={canDragFile && !row.isPlaceholder}
@@ -318,6 +326,7 @@ export function VirtualizedNavTree({
   onGliderPaste,
   indexedRoots,
   fileDropTarget: externalFileDropTarget,
+  clipboard,
 }: VirtualizedNavTreeProps) {
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -622,6 +631,7 @@ export function VirtualizedNavTree({
       onGliderLeave={handleGliderLeave}
       indexedRoots={indexedRoots}
       showIndexBadges={showIndexBadges}
+      clipboard={clipboard}
     />
   );
   };

@@ -38,6 +38,7 @@ function KeybindingRow({
   onCapture,
   onReset,
   onClear,
+  disabled = false,
 }: {
   action: KeybindingActionDef;
   value: string;
@@ -45,6 +46,7 @@ function KeybindingRow({
   onCapture: (shortcut: string) => void;
   onReset: () => void;
   onClear: () => void;
+  disabled?: boolean;
 }) {
   const [recording, setRecording] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -70,11 +72,13 @@ function KeybindingRow({
       <span className="text-[12px] text-gray-300 flex-1 min-w-0 truncate">{action.label}</span>
       <button
         ref={btnRef}
-        onClick={() => setRecording(true)}
+        onClick={() => !disabled && setRecording(true)}
         onKeyDown={handleKeyDown}
         onBlur={() => setRecording(false)}
+        disabled={disabled}
         className={[
           'font-mono text-[11px] rounded-sm px-3 py-1 min-w-[130px] text-center border transition-colors',
+          disabled ? 'opacity-50 cursor-not-allowed border-[#333] text-gray-500' :
           recording
             ? 'border-[#0078d4] bg-[#0078d4]/10 text-[#99c9f0] animate-pulse'
             : conflict
@@ -104,6 +108,7 @@ function KeybindingRow({
 }
 
 export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }: Props) {
+  const customEnabled = !!localConfig.customKeyboardShortcuts;
   const conflicts = useMemo(() => findKeybindingConflicts(localConfig), [localConfig]);
   const conflictIds = useMemo(() => new Set(Object.values(conflicts).flat()), [conflicts]);
 
@@ -139,14 +144,22 @@ export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }:
         </div>
         <button
           onClick={resetAll}
-          className="text-[11px] text-gray-400 hover:text-white border border-[#444] rounded-sm px-3 py-1 hover:bg-[#2a2a2a]"
+          disabled={!customEnabled}
+          className="text-[11px] text-gray-400 hover:text-white border border-[#444] rounded-sm px-3 py-1 hover:bg-[#2a2a2a] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Reset all to defaults
         </button>
       </div>
       <p className="text-[12px] text-gray-400 -mt-3">
-        Click a shortcut, then press the key combination you want. Press Esc to cancel. Conflicts are highlighted in red.
+        {customEnabled
+          ? 'Click a shortcut, then press the key combination you want. Press Esc to cancel. Conflicts are highlighted in red.'
+          : 'Built-in shortcuts are active. Enable Custom Keyboard Shortcuts in Settings → Features to rebind keys.'}
       </p>
+      {!customEnabled && (
+        <div className="rounded border border-[#444] bg-[#1a1a1a] px-3 py-2 text-[11px] text-gray-400">
+          Custom rebinding is disabled. Reference shortcuts below still work with the default bindings.
+        </div>
+      )}
 
       {Object.keys(conflicts).length > 0 && (
         <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
@@ -170,6 +183,7 @@ export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }:
                   onCapture={s => setShortcut(action, s)}
                   onReset={() => setShortcut(action, action.default)}
                   onClear={() => setShortcut(action, '')}
+                  disabled={!customEnabled}
                 />
               ))}
             </div>

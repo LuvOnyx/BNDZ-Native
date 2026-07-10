@@ -38,7 +38,7 @@ const ActionBtn = ({ label, className = '', onClick }: any) => (
   </button>
 )
 
-export default function ConfigurationDialog({ onClose }: { onClose: () => void }) {
+export default function ConfigurationDialog({ onClose, initialTab }: { onClose: () => void; initialTab?: string }) {
   const { config: globalConfig, updateConfig: updateGlobalConfig } = useAppConfig();
   const [localConfig, setLocalConfig] = useState(globalConfig);
   const [hasChanges, setHasChanges] = useState(false);
@@ -176,7 +176,11 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
     );
   };
 
-  const [activeTab, setActiveTab] = useState("Shell Integration");
+  const [activeTab, setActiveTab] = useState(initialTab || "Shell Integration");
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
   const [navFilter, setNavFilter] = useState('');
   const [showConditionalFormattingDialog, setShowConditionalFormattingDialog] = useState(false);
   const [showJumpDialog, setShowJumpDialog] = useState(false);
