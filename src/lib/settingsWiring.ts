@@ -120,6 +120,7 @@ export function buildShellRuntime(config: AppConfig) {
     confirmDelete: readSettingBool(config, 'confirmDeleteOperations', true),
     confirmMove: readSettingBool(config, 'confirmCopyAndMoveOperations'),
     confirmDrag: readSettingBool(config, 'confirmDragAndDrop'),
+    suppressDeleteConfirm: readSettingBool(config, 'suppressDeleteConfirmationDialog'),
     bypassRecycle: readSettingBool(config, 'bypassRecycleBin'),
     deleteToRecycle: readSettingBool(config, 'deleteToRecycleBin', true),
   };

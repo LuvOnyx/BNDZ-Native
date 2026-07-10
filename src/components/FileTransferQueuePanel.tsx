@@ -21,7 +21,7 @@ function JobRow({
   onCancel: (id: string) => void;
 }) {
   const canCancel = job.status === 'queued' || job.status === 'running';
-  const engineLabel = job.engine === 'native' ? 'Windows' : 'BNDZ';
+  const engineLabel = job.engine === 'native' ? 'Windows' : job.engine === 'teracopy' ? 'TeraCopy' : 'BNDZ';
   const progressLine = formatTransferProgressLine(job);
   const statusColor =
     job.status === 'failed' ? 'text-rose-300'

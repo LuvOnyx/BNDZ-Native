@@ -522,10 +522,11 @@ export const IPC = {
     }
   },
 
-  clearThumbnailCache() {
+  clearThumbnailCache(): Promise<{ success: boolean; filesRemoved?: number; bytesFreed?: number; error?: string }> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'CLEAR_THUMBNAIL_CACHE' });
+      return _nativeCall('CLEAR_THUMBNAIL_CACHE', 'CLEAR_THUMBNAIL_CACHE_RESULT', undefined, undefined, 60_000);
     }
+    return Promise.resolve({ success: false, error: 'Native only' });
   },
 
   executeUndo(timeoutMs = 120_000): Promise<{ ok: boolean; message: string }> {

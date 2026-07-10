@@ -128,6 +128,17 @@ public sealed class BndzActionLogService
 
     public void Record(ActionLogEntry entry)
     {
+        var maxItems = FileOperationPreferences.Current.MaxItemsPerLoggedAction;
+        if (maxItems > 0)
+        {
+            if (entry.SourcePaths.Count > maxItems)
+                entry.SourcePaths = entry.SourcePaths.Take(maxItems).ToList();
+            if (entry.TargetPaths.Count > maxItems)
+                entry.TargetPaths = entry.TargetPaths.Take(maxItems).ToList();
+            if (entry.SourcePaths.Count == 0 && entry.TargetPaths.Count == 0)
+                return;
+        }
+
         lock (_lock)
         {
             _redo.Clear();
@@ -222,10 +233,26 @@ public sealed class BndzActionLogService
 
             case ActionKind.CreateFile:
             case ActionKind.CreateLink:
-                foreach (var file in entry.TargetPaths)
+                foreach (var linkPath in entry.TargetPaths)
                 {
-                    if (File.Exists(file)) File.Delete(file);
-                    else if (Directory.Exists(file)) Directory.Delete(file, false);
+                    if (File.Exists(linkPath)) File.Delete(linkPath);
+                    else if (Directory.Exists(linkPath)) Directory.Delete(linkPath, false);
+                }
+                break;
+
+            case ActionKind.SyncFolder:
+            case ActionKind.ExtractArchive:
+                foreach (var created in entry.TargetPaths)
+                {
+                    if (File.Exists(created)) File.Delete(created);
+                    else if (Directory.Exists(created)) Directory.Delete(created, true);
+                }
+                break;
+
+            case ActionKind.CreateArchive:
+                foreach (var archive in entry.TargetPaths)
+                {
+                    if (File.Exists(archive)) File.Delete(archive);
                 }
                 break;
 
@@ -290,6 +317,17 @@ public sealed class BndzActionLogService
                     new LinkService().CreateLink(linkPath, target, entry.LinkType ?? "symlink");
                 }
                 break;
+
+            case ActionKind.CreateArchive:
+                foreach (var archive in entry.TargetPaths)
+                {
+                    if (File.Exists(archive)) File.Delete(archive);
+                }
+                break;
+
+            case ActionKind.ExtractArchive:
+            case ActionKind.SyncFolder:
+                throw new NotSupportedException($"Redo for {entry.Kind} is not supported — re-run the operation manually.");
 
             case ActionKind.Delete:
                 await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "delete",
@@ -368,6 +406,33 @@ public sealed class BndzActionLogService
             LinkType = linkType,
         };
 
+    public static ActionLogEntry ForSyncFolder(string source, string target)
+        => new()
+        {
+            Kind = ActionKind.SyncFolder,
+            Label = $"Sync {Path.GetFileName(source.TrimEnd('\\', '/'))} → {Path.GetFileName(target.TrimEnd('\\', '/'))}",
+            SourcePaths = new List<string> { source },
+            TargetPaths = new List<string> { target },
+        };
+
+    public static ActionLogEntry ForCreateArchive(string archivePath, IReadOnlyList<string> sources)
+        => new()
+        {
+            Kind = ActionKind.CreateArchive,
+            Label = $"Create archive · {Path.GetFileName(archivePath)}",
+            SourcePaths = sources.ToList(),
+            TargetPaths = new List<string> { archivePath },
+        };
+
+    public static ActionLogEntry ForExtractArchive(string archivePath, string destination)
+        => new()
+        {
+            Kind = ActionKind.ExtractArchive,
+            Label = $"Extract · {Path.GetFileName(archivePath)}",
+            SourcePaths = new List<string> { archivePath },
+            TargetPaths = new List<string> { destination },
+        };
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -432,6 +497,9 @@ public enum ActionKind
     CreateDirectory,
     CreateFile,
     CreateLink,
+    SyncFolder,
+    CreateArchive,
+    ExtractArchive,
 }
 
 public sealed class ActionLogEntry

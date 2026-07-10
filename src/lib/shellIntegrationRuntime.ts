@@ -36,7 +36,10 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
   if (!IPC.isNative) return;
 
   if (config.clearThumbnailCacheOnExit) {
-    const handler = () => { IPC.clearIconCache(); };
+    const handler = () => {
+      void IPC.clearThumbnailCache();
+      void IPC.clearIconCache();
+    };
     window.removeEventListener('beforeunload', handler);
     window.addEventListener('beforeunload', handler);
   }

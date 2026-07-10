@@ -1,0 +1,73 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+
+namespace BNDZ.Services;
+
+/// <summary>Clears Windows Explorer thumbcache databases and BNDZ icon/thumbnail caches.</summary>
+public static class ThumbnailCacheService
+{
+    public static ThumbnailClearResult ClearAll()
+    {
+        int filesRemoved = 0;
+        long bytesFreed = 0;
+        var errors = new System.Collections.Generic.List<string>();
+
+        void TryDelete(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return;
+                var len = new FileInfo(path).Length;
+                File.Delete(path);
+                filesRemoved++;
+                bytesFreed += len;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{Path.GetFileName(path)}: {ex.Message}");
+            }
+        }
+
+        try
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var explorerDir = Path.Combine(localAppData, "Microsoft", "Windows", "Explorer");
+            if (Directory.Exists(explorerDir))
+            {
+                foreach (var file in Directory.EnumerateFiles(explorerDir, "thumbcache_*.db", SearchOption.TopDirectoryOnly))
+                    TryDelete(file);
+                foreach (var file in Directory.EnumerateFiles(explorerDir, "iconcache_*.db", SearchOption.TopDirectoryOnly))
+                    TryDelete(file);
+            }
+
+            var bndzDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BNDZ64", "thumbcache");
+            if (Directory.Exists(bndzDir))
+            {
+                foreach (var file in Directory.EnumerateFiles(bndzDir, "*", SearchOption.AllDirectories))
+                    TryDelete(file);
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add(ex.Message);
+        }
+
+        return new ThumbnailClearResult
+        {
+            Success = errors.Count == 0,
+            FilesRemoved = filesRemoved,
+            BytesFreed = bytesFreed,
+            Error = errors.Count > 0 ? string.Join("; ", errors.Take(3)) : null,
+        };
+    }
+
+    public sealed class ThumbnailClearResult
+    {
+        public bool Success { get; init; }
+        public int FilesRemoved { get; init; }
+        public long BytesFreed { get; init; }
+        public string? Error { get; init; }
+    }
+}

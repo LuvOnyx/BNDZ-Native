@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,9 +38,6 @@ public class FileOperationService
     private BndzActionLogService? _actionLog;
 
     public void SetActionLog(BndzActionLogService? actionLog) => _actionLog = actionLog;
-
-    public Task ExecuteUndoAsync() => Task.CompletedTask;
-    public Task ExecuteRedoAsync() => Task.CompletedTask;
 
     public async Task ExecuteOperationAsync(
         string operationId,
@@ -98,7 +96,13 @@ public class FileOperationService
 
                 case "copy":
                 {
-                    var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict, cancellationToken).ConfigureAwait(false);
+                    var prefs = FileOperationPreferences.Current;
+                    if (prefs.CheckSpaceBeforeCopy || prefs.UseCustomCopy)
+                    {
+                        var plan = FileOperationPathPlanner.Plan("copy", sources, target);
+                        FileOperationPathPlanner.EnsureDestinationSpace(target, FileOperationPathPlanner.EstimateBytesForPlan(plan));
+                    }
+                    var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove).ConfigureAwait(false);
                     if (created.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForCopy(sources, created));
                     break;
@@ -106,7 +110,13 @@ public class FileOperationService
 
                 case "move":
                 {
-                    var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict, cancellationToken).ConfigureAwait(false);
+                    var prefs = FileOperationPreferences.Current;
+                    if (prefs.CheckSpaceBeforeCopy || prefs.UseCustomCopy)
+                    {
+                        var plan = FileOperationPathPlanner.Plan("move", sources, target);
+                        FileOperationPathPlanner.EnsureDestinationSpace(target, FileOperationPathPlanner.EstimateBytesForPlan(plan));
+                    }
+                    var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove).ConfigureAwait(false);
                     if (movedTo.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForMove(sources, movedTo));
                     break;
@@ -245,7 +255,8 @@ public class FileOperationService
         bool move,
         Action<string, int, string, long, long, double, int, int>? onProgress,
         Func<string, string, string, string, Task<string>>? onConflict,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool preservePermissions = false)
     {
         var createdPaths = new List<string>();
         if (string.IsNullOrEmpty(targetDir))
@@ -322,6 +333,7 @@ public class FileOperationService
             if (move && i == 0 && work.Count == 1 && File.Exists(src) && !File.Exists(dest))
             {
                 File.Move(src, dest, overwrite: true);
+                if (preservePermissions) TryPreservePermissions(src, dest);
                 createdPaths.Add(dest);
             }
             else if (move && Directory.Exists(src) && work.Count > 1)
@@ -333,6 +345,7 @@ public class FileOperationService
                 await CopyFileBufferedAsync(src, dest, cancellationToken).ConfigureAwait(false);
                 if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
                     throw new IOException($"Copy verification failed for {Path.GetFileName(src)}");
+                if (preservePermissions) TryPreservePermissions(src, dest);
                 createdPaths.Add(dest);
                 if (move) try { File.Delete(src); } catch { /* best effort */ }
             }
@@ -435,6 +448,27 @@ public class FileOperationService
         while (path.Contains("\\\\")) path = path.Replace("\\\\", "\\");
         if (path.Length == 2 && path[1] == ':') path += "\\";
         return path;
+    }
+
+    private static void TryPreservePermissions(string source, string destination)
+    {
+        try
+        {
+            if (File.Exists(source) && File.Exists(destination))
+            {
+                var acl = new FileInfo(source).GetAccessControl();
+                new FileInfo(destination).SetAccessControl(acl);
+            }
+            else if (Directory.Exists(source) && Directory.Exists(destination))
+            {
+                var acl = new DirectoryInfo(source).GetAccessControl();
+                new DirectoryInfo(destination).SetAccessControl(acl);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[FileOperation] Preserve permissions failed: {ex.Message}");
+        }
     }
 }
 

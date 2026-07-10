@@ -247,6 +247,9 @@ function InlineRenameInput({
   onChange,
   onCommit,
   onCancel,
+  showNameLength,
+  serialRename,
+  onSerialNavigate,
 }: {
   value: string;
   entity: any;
@@ -254,6 +257,9 @@ function InlineRenameInput({
   onChange: (value: string) => void;
   onCommit: () => void;
   onCancel: () => void;
+  showNameLength?: boolean;
+  serialRename?: boolean;
+  onSerialNavigate?: (direction: 'prev' | 'next') => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cancelledRef = useRef(false);
@@ -264,10 +270,11 @@ function InlineRenameInput({
   }, [entity?.id, entity?.name, entity?.extension, config.hideExtensionsFromRenameEditBox, config.hideShortcutExtensions, config.excludeFileExtensionFromInitialSelection, config.preselectName]);
 
   return (
+    <div className="flex flex-col gap-0.5 w-[90%]">
     <input
       ref={inputRef}
       type="text"
-      className="bg-[#111] text-white border border-[#007acc] px-1 outline-none w-[90%]"
+      className="bg-[#111] text-white border border-[#007acc] px-1 outline-none w-full"
       value={value}
       onChange={e => onChange(e.target.value)}
       onBlur={() => {
@@ -278,6 +285,16 @@ function InlineRenameInput({
         onCommit();
       }}
       onKeyDown={e => {
+        if (serialRename && e.key === 'ArrowDown') {
+          e.preventDefault();
+          onSerialNavigate?.('next');
+          return;
+        }
+        if (serialRename && e.key === 'ArrowUp') {
+          e.preventDefault();
+          onSerialNavigate?.('prev');
+          return;
+        }
         if (e.key === 'Enter') {
           e.preventDefault();
           e.currentTarget.blur();
@@ -291,6 +308,10 @@ function InlineRenameInput({
       onClick={e => e.stopPropagation()}
       onDoubleClick={e => e.stopPropagation()}
     />
+    {showNameLength && (
+      <span className="text-[9px] text-gray-500 tabular-nums">{value.length} characters</span>
+    )}
+    </div>
   );
 }
 
@@ -731,6 +752,7 @@ export default function BNDZUI() {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [tagAssignmentActive, setTagAssignmentActive] = useState(false);
   const [inlineRename, setInlineRename] = useState<{ path: string, entityId: string, currentName: string } | null>(null);
+  const [renameDialog, setRenameDialog] = useState<{ path: string; entityId: string; entity: any; value: string } | null>(null);
   const [lastClickData, setLastClickData] = useState<{ id: string, time: number } | null>(null);
   const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectionChromeReady, setSelectionChromeReady] = useState<Set<string>>(() => new Set());
@@ -751,7 +773,12 @@ export default function BNDZUI() {
     }, 200);
   };
   const beginInlineRename = React.useCallback((path: string, entityId: string, entity: any) => {
-    setInlineRename({ path, entityId, currentName: getRenameInitialValue(entity, config) });
+    const initial = getRenameInitialValue(entity, config);
+    if (config.useDialogToRenameSingleItems) {
+      setRenameDialog({ path, entityId, entity, value: initial });
+      return;
+    }
+    setInlineRename({ path, entityId, currentName: initial });
   }, [config]);
   const [showQuickActionsBar, setShowQuickActionsBar] = useState(false);
   const quickActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -982,6 +1009,49 @@ export default function BNDZUI() {
       });
     }
   }, [cachePathContents, config.globalSearchLimit]);
+
+  const commitRenameForEntity = React.useCallback(async (
+    entity: any,
+    panePath: string,
+    editedValue: string,
+  ) => {
+    let targetName = resolveRenameTargetName(entity, editedValue, config);
+    if (settingsRt.rename.autoReplaceInvalidChars) {
+      targetName = targetName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
+    }
+    if (!targetName) {
+      setToastMessage('Name cannot be empty.', 'warning');
+      return false;
+    }
+    if (/[<>:"/\\|?*\x00-\x1F]/.test(targetName)) {
+      setToastMessage('Name contains characters Windows does not allow.', 'warning');
+      return false;
+    }
+    if (targetName === entity.name) return true;
+
+    const sourcePath = entity.path ? normalizePanePath(entity.path) : joinPanePath(panePath, entity);
+    let targetPath: string;
+    if (settingsRt.rename.allowMoveOnRename && /[\\/]/.test(editedValue.trim())) {
+      targetPath = toWindowsPath(editedValue.trim());
+    } else {
+      const targetDir = sourcePath.replace(/[/\\][^/\\]+$/, '');
+      targetPath = targetDir ? `${targetDir}/${targetName}` : joinPanePath(panePath, { name: targetName });
+    }
+
+    const displayTarget = targetPath.split(/[/\\]/).pop() || targetName;
+    const renameLabel = `Rename: ${entity.name} → ${displayTarget}`;
+    const { IPC } = await import('../lib/ipcBridge');
+    await IPC.executeFsOperation(
+      `rename-${Date.now()}`,
+      'move',
+      toWindowsPath(sourcePath),
+      toWindowsPath(targetPath),
+      false,
+      renameLabel,
+    );
+    if (settingsRt.rename.resortAfterRename) void refetchPath(panePath);
+    return true;
+  }, [config, settingsRt.rename, refetchPath]);
 
   const prefetchPathQuiet = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
@@ -1635,8 +1705,8 @@ export default function BNDZUI() {
       ? `${options?.permanent ? 'Permanently remove' : 'Delete'} "${items[0].name}"?${bypassRecycle ? '\n\n(Bypassing Recycle Bin)' : '\n\nItems will be moved to the Recycle Bin.'}`
       : `${options?.permanent ? 'Permanently delete' : 'Delete'} ${items.length} items?${bypassRecycle ? '\n\n(Bypassing Recycle Bin)' : '\n\nItems will be moved to the Recycle Bin.'}\n\n• ${names}${items.length > 5 ? '\n• ...' : ''}`;
 
-    // Only skip confirmation when user has explicitly turned it off in Settings
-    if (config.confirmDeleteOperations === false) {
+    // Skip confirmation when suppressed in File Operations or explicitly disabled in Shell settings
+    if (config.suppressDeleteConfirmationDialog || config.confirmDeleteOperations === false) {
       executeDelete();
       return;
     }
@@ -5468,30 +5538,28 @@ export default function BNDZUI() {
                     
                 const commitInlineRename = () => {
                   if (!inlineRename || inlineRename.entityId !== entity.id || inlineRename.path !== panePath) return;
-                  const targetName = resolveRenameTargetName(entity, inlineRename.currentName, config);
-                  if (!targetName) {
-                    setToastMessage('Name cannot be empty.', 'warning');
-                    setInlineRename(null);
-                    return;
-                  }
-                  if (/[<>:"\/\\|?*\x00-\x1F]/.test(targetName)) {
-                    setToastMessage('Name contains characters Windows does not allow.', 'warning');
-                    setInlineRename(null);
-                    return;
-                  }
-                  if (targetName === entity.name) {
-                    setInlineRename(null);
-                    return;
-                  }
+                  void commitRenameForEntity(entity, panePath, inlineRename.currentName).then(ok => {
+                    if (ok) setInlineRename(null);
+                  });
+                };
 
-                  const sourcePath = isGlobal && entity.path ? entity.path : joinPanePath(panePath, entity);
-                  const targetDir = sourcePath.replace(/[/\\][^/\\]+$/, '');
-                  const targetPath = targetDir ? `${targetDir}/${targetName}` : joinPanePath(panePath, { name: targetName });
-                  const renameLabel = `Rename: ${entity.name} → ${targetName}`;
-                  void import("../lib/ipcBridge").then(({ IPC }) =>
-                    IPC.executeFsOperation(`rename-${Date.now()}`, "move", toWindowsPath(sourcePath), toWindowsPath(targetPath), false, renameLabel),
-                  );
-                  setInlineRename(null);
+                const handleSerialRenameNavigate = (direction: 'prev' | 'next') => {
+                  if (!inlineRename || inlineRename.entityId !== entity.id) return;
+                  const pane = panes.find(p => p.id === activePaneId);
+                  const tab = pane?.tabs[pane.activeTabIndex];
+                  const ids = tab?.selectedItems?.length ? tab.selectedItems : [entity.id];
+                  const idx = ids.indexOf(entity.id);
+                  const nextIdx = direction === 'next' ? idx + 1 : idx - 1;
+                  if (nextIdx < 0 || nextIdx >= ids.length) return;
+                  void commitRenameForEntity(entity, panePath, inlineRename.currentName).then(() => {
+                    const nextEntity = contents?.find(c => c.id === ids[nextIdx]);
+                    if (!nextEntity) return;
+                    setInlineRename({
+                      path: panePath,
+                      entityId: ids[nextIdx],
+                      currentName: getRenameInitialValue(nextEntity, config),
+                    });
+                  });
                 };
 
                 const renameInput = inlineRename?.entityId === entity.id && inlineRename?.path === panePath ? (
@@ -5499,6 +5567,9 @@ export default function BNDZUI() {
                        value={inlineRename.currentName}
                        entity={entity}
                        config={config}
+                       showNameLength={settingsRt.rename.showNameLength}
+                       serialRename={settingsRt.rename.serialRename}
+                       onSerialNavigate={handleSerialRenameNavigate}
                        onChange={value => setInlineRename({ ...inlineRename, currentName: value })}
                        onCommit={commitInlineRename}
                        onCancel={() => setInlineRename(null)}
@@ -7283,6 +7354,50 @@ export default function BNDZUI() {
       )}
       
       {/* Overlays / Modals */}
+      {renameDialog && (
+        <NativeDialogShell
+          open={!!renameDialog}
+          title="Rename"
+          variant="sheet"
+          size="sm"
+          zIndexClass="z-50"
+          onClose={() => setRenameDialog(null)}
+          showCloseButton
+          footerButtons={[
+            { label: 'Cancel', onClick: () => setRenameDialog(null) },
+            {
+              label: 'Rename',
+              style: 'primary',
+              onClick: () => {
+                if (!renameDialog) return;
+                void commitRenameForEntity(renameDialog.entity, renameDialog.path, renameDialog.value).then(ok => {
+                  if (ok) setRenameDialog(null);
+                });
+              },
+            },
+          ]}
+        >
+          <label className="bndz-native-field-label block mb-2">New name</label>
+          <input
+            autoFocus
+            type="text"
+            value={renameDialog.value}
+            onChange={(e) => setRenameDialog({ ...renameDialog, value: e.target.value })}
+            className="bndz-native-input w-full"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                void commitRenameForEntity(renameDialog.entity, renameDialog.path, renameDialog.value).then(ok => {
+                  if (ok) setRenameDialog(null);
+                });
+              }
+            }}
+          />
+          {settingsRt.rename.showNameLength && (
+            <p className="text-[10px] text-gray-500 mt-2 tabular-nums">{renameDialog.value.length} characters</p>
+          )}
+        </NativeDialogShell>
+      )}
+
       {isSaveTabsetOpen && (
         <NativeDialogShell
           open={isSaveTabsetOpen}

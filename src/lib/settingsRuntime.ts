@@ -91,6 +91,11 @@ export interface SettingsRuntimeContext {
     hideExtensionInBox: boolean;
     excludeExtFromSelection: boolean;
     showNameLength: boolean;
+    serialRename: boolean;
+    useRenameDialog: boolean;
+    allowMoveOnRename: boolean;
+    resortAfterRename: boolean;
+    autoReplaceInvalidChars: boolean;
   };
   mouse: ReturnType<typeof buildMouseRuntime>;
   search: ReturnType<typeof buildSearchRuntime>;
@@ -176,6 +181,11 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       hideExtensionInBox: !!config.hideExtensionsFromRenameEditBox,
       excludeExtFromSelection: !!config.excludeFileExtensionFromInitialSelection,
       showNameLength: !!config.showNameLengthWhileRenaming,
+      serialRename: !!config.serialRenameWithUpAndDownKeys,
+      useRenameDialog: !!config.useDialogToRenameSingleItems,
+      allowMoveOnRename: !!config.allowMoveOnRename,
+      resortAfterRename: !!config.resortListImmediatelyAfterRename,
+      autoReplaceInvalidChars: !!config.autoReplaceInvalidCharacters,
     },
     mouse: buildMouseRuntime(config),
     search: buildSearchRuntime(config),

@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -43,6 +44,7 @@ namespace BNDZ
         private readonly ArchiveService _archiveService = new();
         private readonly TorrentParserService _torrentParserService = new();
         private readonly LinkService _linkService = new();
+        private readonly ExternalCopyHandlerService _externalCopyHandler = new();
         private readonly CloudStorageService _cloudStorageService = new();
         private readonly IconLibraryScanner _iconLibraryScanner = new();
         private readonly FolderSizeService _folderSizeService = new();
@@ -752,8 +754,19 @@ namespace BNDZ
                 }
                 else if (type == "CLEAR_THUMBNAIL_CACHE")
                 {
-                    PostToUi(() => {
-                        Console.WriteLine("[Mock] Native thumbnail cache cleared.");
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var result = ThumbnailCacheService.ClearAll();
+                        _iconCacheDb.Clear();
+                        var response = new
+                        {
+                            type = "CLEAR_THUMBNAIL_CACHE_RESULT",
+                            id = idProp,
+                            payload = new { success = result.Success, filesRemoved = result.FilesRemoved, bytesFreed = result.BytesFreed, error = result.Error },
+                        };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "RESOLVE_CONFLICT")
@@ -3172,9 +3185,12 @@ namespace BNDZ
             FileTransferPriority priority = FileTransferPriority.Normal)
         {
             var prefs = FileOperationPreferences.Current;
-            var engine = FileOperationPreferences.UseNativeEngine ? "native" : "bndz";
+            var engine = FileOperationPreferences.ResolveOperationEngine(action, sources, target);
             var label = BuildFileOpLabel(action, sources, labelOverride);
             _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority);
+
+            if (prefs.DefaultRepeatOnCollision && (action == "copy" || action == "move"))
+                _conflictBatchResolution[operationId] = "replace";
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
@@ -3205,7 +3221,20 @@ namespace BNDZ
 
                 try
                 {
-                    if (FileOperationPreferences.UseNativeEngine)
+                    if (engine == "teracopy" && action is "copy" or "move")
+                    {
+                        var result = _externalCopyHandler.Execute(action, sources, target, action == "move");
+                        if (!result.Ok)
+                        {
+                            if (result.NotInstalled)
+                                throw new InvalidOperationException(result.Error ?? "TeraCopy is not installed. Install TeraCopy or change the copy handler in Settings.");
+                            throw new IOException(result.Error ?? "TeraCopy operation failed.");
+                        }
+                        OnProgress(operationId, 100, target, 0, 0, 0, sources.Count, sources.Count);
+                        if (prefs.LogActions)
+                            RecordExternalActionLog(action, sources, target, bypassRecycleBin);
+                    }
+                    else if (engine == "native")
                     {
                         await _nativeFileOperationService.ExecuteOperationAsync(
                             operationId,
@@ -3215,7 +3244,9 @@ namespace BNDZ
                             bypassRecycleBin,
                             OnProgress,
                             ct,
-                            prefs.NativeShowProgress).ConfigureAwait(false);
+                            prefs.ShouldShowNativeProgress(action, sources, target)).ConfigureAwait(false);
+                        if (prefs.LogActions)
+                            RecordExternalActionLog(action, sources, target, bypassRecycleBin);
                     }
                     else
                     {
@@ -3443,9 +3474,11 @@ namespace BNDZ
                         var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
                         PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
                     }).ConfigureAwait(false);
+                    if (FileOperationPreferences.Current.LogActions)
+                        _actionLogService.Record(BndzActionLogService.ForCreateArchive(target, sources));
                     _fileTransferQueue.MarkCompleted(operationId);
                     var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = target, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
-                    PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
+                    PostToUi(() => { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)); PostActionLogChanged(); });
                 }
                 catch (OperationCanceledException)
                 {
@@ -3484,9 +3517,11 @@ namespace BNDZ
                         var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
                         PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
                     }).ConfigureAwait(false);
+                    if (FileOperationPreferences.Current.LogActions)
+                        _actionLogService.Record(BndzActionLogService.ForExtractArchive(archivePath, dest));
                     _fileTransferQueue.MarkCompleted(operationId);
                     var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = dest, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
-                    PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)));
+                    PostToUi(() => { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(done)); PostActionLogChanged(); });
                 }
                 catch (OperationCanceledException)
                 {
@@ -3581,25 +3616,6 @@ namespace BNDZ
                 return;
             }
 
-            if (FileOperationPreferences.UseNativeEngine && !(undo ? _actionLogService.CanUndo : _actionLogService.CanRedo))
-            {
-                var nativeMsg = new
-                {
-                    type = "UNDO_REDO_RESULT",
-                    id = idProp,
-                    payload = new
-                    {
-                        ok = false,
-                        message = "Nothing to undo/redo. The Windows shell engine does not log new actions — switch to the BNDZ engine in Settings → File Operations to record undoable operations.",
-                    },
-                };
-                await PostToUiAsync(() =>
-                {
-                    MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(nativeMsg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                });
-                return;
-            }
-
             var operationId = $"{(undo ? "undo" : "redo")}-{DateTime.UtcNow.Ticks}";
             var label = undo ? "Undo last action" : "Redo last action";
             _fileTransferQueue.RegisterJob(operationId, undo ? "undo" : "redo", label, "bndz", 1, "fs", FileTransferPriority.High);
@@ -3645,6 +3661,56 @@ namespace BNDZ
                 {
                     MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(cancelled, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
                 });
+            }
+        }
+
+        private void RecordExternalActionLog(string action, List<string> sources, string target, bool bypassRecycleBin)
+        {
+            try
+            {
+                action = (action ?? "").ToLowerInvariant();
+                switch (action)
+                {
+                    case "copy":
+                    {
+                        var plan = FileOperationPathPlanner.Plan("copy", sources, target);
+                        var created = plan.Select(p => p.Dest).ToList();
+                        if (created.Count > 0)
+                            _actionLogService.Record(BndzActionLogService.ForCopy(sources, created));
+                        break;
+                    }
+                    case "move":
+                    case "rename":
+                    {
+                        var plan = FileOperationPathPlanner.Plan(action, sources, target);
+                        var moved = plan.Select(p => p.Dest).ToList();
+                        if (moved.Count > 0)
+                            _actionLogService.Record(BndzActionLogService.ForMove(sources, moved));
+                        break;
+                    }
+                    case "delete":
+                        if (sources.Count > 0)
+                            _actionLogService.Record(BndzActionLogService.ForDelete(sources, !bypassRecycleBin));
+                        break;
+                    case "create-dir":
+                    {
+                        var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                        if (!string.IsNullOrEmpty(dir))
+                            _actionLogService.Record(BndzActionLogService.ForCreateDir(dir));
+                        break;
+                    }
+                    case "create-file":
+                    {
+                        var file = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                        if (!string.IsNullOrEmpty(file))
+                            _actionLogService.Record(BndzActionLogService.ForCreateFile(file));
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ActionLog] Record external failed: {ex.Message}");
             }
         }
 
@@ -3743,6 +3809,11 @@ namespace BNDZ
                 try
                 {
                     await SyncDirectoriesTrueAsync(sourceDir, targetDir, operationId, ct).ConfigureAwait(false);
+                    if (FileOperationPreferences.Current.LogActions)
+                    {
+                        _actionLogService.Record(BndzActionLogService.ForSyncFolder(sourceDir, targetDir));
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
                     _fileTransferQueue.MarkCompleted(operationId);
                     var response = new { type = "SYNC_FOLDERS_RESULT", id = idProp, payload = new { ok = true } };
                     await PostToUiAsync(() =>

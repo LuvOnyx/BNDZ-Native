@@ -4,6 +4,7 @@ import PluginPanelShell from './PluginPanelShell';
 import { PluginToolbarButton, PluginEmptyState } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
+import { useAppConfig } from '../../data/configContext';
 
 export const ActionLogPluginDef = {
   id: 'action-log',
@@ -30,20 +31,36 @@ const KIND_STYLES: Record<string, { label: string; className: string }> = {
   CreateDirectory: { label: 'Folder', className: 'text-amber-300/90 border-amber-500/30 bg-amber-500/10' },
   CreateFile: { label: 'File', className: 'text-amber-300/90 border-amber-500/30 bg-amber-500/10' },
   CreateLink: { label: 'Link', className: 'text-cyan-300/90 border-cyan-500/30 bg-cyan-500/10' },
+  SyncFolder: { label: 'Sync', className: 'text-blue-300/90 border-blue-500/30 bg-blue-500/10' },
+  CreateArchive: { label: 'Archive', className: 'text-orange-300/90 border-orange-500/30 bg-orange-500/10' },
+  ExtractArchive: { label: 'Extract', className: 'text-orange-300/90 border-orange-500/30 bg-orange-500/10' },
 };
 
-function formatRelativeTime(iso: string): string {
+function formatActionTimestamp(iso: string, mode: string): string {
   if (!iso) return '';
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const diffSec = Math.round((Date.now() - then) / 1000);
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+
+  if (mode.includes('Absolute')) {
+    return date.toLocaleString();
+  }
+
+  if (mode.includes('Relative to today')) {
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    return sameDay
+      ? `Today ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : date.toLocaleDateString();
+  }
+
+  const diffSec = Math.round((Date.now() - date.getTime()) / 1000);
   if (diffSec < 5) return 'just now';
   if (diffSec < 60) return `${diffSec}s ago`;
   const diffMin = Math.round(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.round(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
-  return new Date(iso).toLocaleString();
+  return date.toLocaleString();
 }
 
 function kindBadge(kind: string) {
@@ -56,11 +73,13 @@ function kindBadge(kind: string) {
 }
 
 export default function ActionLogPlugin() {
+  const { config } = useAppConfig();
   const [items, setItems] = useState<LogEntry[]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
+  const dateFormat = config.dateFormatInActionLabels || 'Age of action (how long ago)';
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -125,7 +144,7 @@ export default function ActionLogPlugin() {
           <PluginEmptyState
             icon="clock_ui"
             title="No logged actions yet"
-            description="Copy, move, rename, and delete operations appear here when action logging is enabled in Settings → File Operations."
+            description="Copy, move, rename, sync, and archive operations appear here when action logging is enabled in Settings → File Operations."
           />
         )}
         {!loading && items.map((entry, index) => (
@@ -146,7 +165,7 @@ export default function ActionLogPlugin() {
               )}
             </div>
             <span className="shrink-0 bndz-panel-muted bndz-mono text-[10px] tabular-nums" title={entry.utc ? new Date(entry.utc).toLocaleString() : ''}>
-              {formatRelativeTime(entry.utc)}
+              {formatActionTimestamp(entry.utc, dateFormat)}
             </span>
           </div>
         ))}

@@ -521,7 +521,15 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                  <Checkbox label={<span>Enable high-res thumbnails for images &amp; media</span>} checked={localConfig.enableNativeThumbnails !== false} onChange={e => updateLocalConfig({ enableNativeThumbnails: e.target.checked, ...(e.target.checked ? {} : { clearThumbnailCacheOnExit: false }) })} />
                  <Checkbox label={<span>Use Iconify SVG icons for known file types</span>} checked={localConfig.enableIconifyFileIcons ?? true} onChange={e => updateLocalConfig({ enableIconifyFileIcons: e.target.checked })} disabled={!!localConfig.showCachedIconsOnly} />
                  <Checkbox label={<span>Clear Thumbnail Cache on exit</span>} checked={localConfig.clearThumbnailCacheOnExit ?? false} onChange={e => { updateLocalConfig({ clearThumbnailCacheOnExit: e.target.checked }); }} disabled={!localConfig.enableNativeThumbnails} />
-                 <ActionBtn label="Clear Thumbnail Cache Now" className="w-[180px] mt-2 mb-2" onClick={() => import('../lib/ipcBridge').then(m => m.IPC.clearThumbnailCache())} disabled={!localConfig.enableNativeThumbnails} />
+                 <ActionBtn label="Clear Thumbnail Cache Now" className="w-[180px] mt-2 mb-2" disabled={!localConfig.enableNativeThumbnails} onClick={() => {
+                   void import('../lib/ipcBridge').then(async ({ IPC }) => {
+                     const r = await IPC.clearThumbnailCache();
+                     setShellStatus(r.success
+                       ? `Cleared ${r.filesRemoved ?? 0} cache file(s).`
+                       : (r.error || 'Could not clear thumbnail cache.'));
+                     window.setTimeout(() => setShellStatus(null), 4000);
+                   });
+                 }} />
                  
                  <Checkbox label={<span>Use generic icons for super-fast <span className="underline decoration-1 underline-offset-[3px]">b</span>rowsing</span>} checked={localConfig.useGenericIconsForSuperFastBrowsing ?? false} onChange={e => updateLocalConfig({ useGenericIconsForSuperFastBrowsing: e.target.checked })} />
                  <div className="ml-[20px] space-y-[6px]">
@@ -1154,13 +1162,13 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
 
               <SectionHeader title="Backup Operations" />
               <div className="ml-2 mb-4">
-                 <ActionBtn label="Configure..." className="w-[120px]" />
+                 <ActionBtn label="Configure..." className="w-[120px]" onClick={() => { applyChanges(); onClose(); window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'folder-sync' } })); }} />
               </div>
               
               <SectionHeader title="Custom Copy Operations" />
               <div className="ml-2 mb-4 space-y-[6px]">
                  <div className="mb-[10px]">
-                    <ActionBtn label="Configure..." className="w-[120px]" />
+                    <ActionBtn label="Configure..." className="w-[120px]" onClick={() => setActiveTab('File Operations')} />
                  </div>
                  <Checkbox label={<span>Use Custom Copy</span>} checked={localConfig.useCustomCopy ?? false} onChange={e => updateLocalConfig({ useCustomCopy: e.target.checked })} />
                  <div className="ml-[20px] space-y-[6px]">
@@ -1181,11 +1189,24 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               <SectionHeader title="External Copy Handlers" />
               <div className="ml-2 mb-4 space-y-[6px]">
                  <div className="mb-[10px]">
-                    <ActionBtn label="Configure..." className="w-[120px]" />
+                    <ActionBtn label="Configure..." className="w-[120px]" onClick={() => setActiveTab('File Operations')} />
                  </div>
                  <div className="flex flex-col gap-1 mt-[10px]">
                      <span className="text-[12px] text-[#e0e0e0]">Select copy <span className="underline decoration-1 underline-offset-[3px]">h</span>andler:</span>
-                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[250px] outline-none" value={localConfig.selectCopyHandler || ""} onChange={e => updateLocalConfig({selectCopyHandler: e.target.value})}><option>Default Windows handler</option><option>BNDZ custom handler</option><option>TeraCopy</option></select>
+                     <select
+                       className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[250px] outline-none"
+                       value={localConfig.selectCopyHandler || 'BNDZ custom handler'}
+                       onChange={e => {
+                         const v = e.target.value;
+                         const engine = v.includes('Windows') || v.includes('Default') ? 'native' : 'bndz';
+                         updateLocalConfig({ selectCopyHandler: v, fileOperationEngine: engine });
+                       }}
+                     >
+                       <option>Default Windows handler</option>
+                       <option>BNDZ custom handler</option>
+                       <option>TeraCopy</option>
+                     </select>
+                     <p className="text-[11px] text-gray-500 max-w-[560px]">TeraCopy is used when installed; otherwise BNDZ shows an error and you can pick another handler.</p>
                  </div>
               </div>
               
