@@ -68,6 +68,10 @@ import { ThumbnailIcon } from './ThumbnailIcon';
 import { ShellNativeIcon } from './ShellNativeIcon';
 import ToolbarConfigurator, { resolveToolbarItem } from './ToolbarConfigurator';
 import { createEntityTooltipHandlers } from '../lib/entityTooltip';
+import {
+  advanceSlowDoubleClickRename,
+  clearSlowDoubleClickTimer,
+} from '../lib/slowDoubleClickRename';
 import { shouldSuppressNativeEntityTitle } from '../lib/tooltipSettings';
 import CustomColumnCell from './CustomColumnCell';
 import { parseCustomColumnListId, resolveCustomColumns } from '../lib/customColumns';
@@ -2229,7 +2233,7 @@ export default function BNDZUI() {
     return {
       label: node.name,
       icon: 'folder_open_ui',
-      iconColor: "#dcb67a",
+      iconColor: "#38bdf8",
       selected: currentPath === path,
       expanded: isExpanded,
       onClick: () => { setCurrentPath(path); },
@@ -2290,7 +2294,7 @@ export default function BNDZUI() {
         isDynamic: true,
         useShellIcon: true,
         icon: 'folder_open_ui',
-        iconColor: '#dcb67a',
+        iconColor: '#38bdf8',
       });
     };
 
@@ -2384,7 +2388,7 @@ export default function BNDZUI() {
         path: '/shell:Libraries',
         iconPath: SHELL_CLSID.libraries,
         icon: 'folder_open_ui',
-        iconColor: '#dcb67a',
+        iconColor: '#38bdf8',
         useShellIcon: true,
         onClick: () => setCurrentPath('/shell:Libraries'),
         expanded: librariesExpanded,
@@ -4179,24 +4183,23 @@ export default function BNDZUI() {
         }
 
         const now = Date.now();
-        if (renameTimerRef.current) {
-          clearTimeout(renameTimerRef.current);
-          renameTimerRef.current = null;
+        if (wasAlreadySelected) {
+          advanceSlowDoubleClickRename({
+            key: id,
+            wasAlreadyActive: true,
+            lastClick: lastClickData ? { key: lastClickData.id, time: lastClickData.time } : null,
+            now,
+            timerRef: renameTimerRef,
+            onRename: () => {
+              if (entity) beginInlineRename(panePath, id, entity);
+            },
+          });
+          setLastClickData({ id, time: now });
+          if (renameTimerRef.current) return;
+        } else {
+          clearSlowDoubleClickTimer(renameTimerRef);
+          setLastClickData({ id, time: now });
         }
-        if (wasAlreadySelected && lastClickData?.id === id) {
-          const delay = now - lastClickData.time;
-          if (delay >= 900 && delay <= 2200) {
-            if (entity) {
-              renameTimerRef.current = setTimeout(() => {
-                renameTimerRef.current = null;
-                beginInlineRename(panePath, id, entity);
-              }, 350);
-              setLastClickData({ id, time: now });
-              return;
-            }
-          }
-        }
-        setLastClickData({ id, time: now });
       }
     };
     listGestureClickRef.current = handleEntityClicked;
@@ -4216,10 +4219,7 @@ export default function BNDZUI() {
     };
 
     const handleEntityDoubleClicked = (entity: any) => {
-      if (renameTimerRef.current) {
-        clearTimeout(renameTimerRef.current);
-        renameTimerRef.current = null;
-      }
+      clearSlowDoubleClickTimer(renameTimerRef);
       setActivePaneId(pane.id);
       setFocusedItemId(entity.id);
       scheduleSelectionChrome([entity.id], true);

@@ -339,7 +339,7 @@ export default function PropertiesPlugin({
                 </>
             }
         >
-        <div className="flex-1 w-full flex flex-col overflow-hidden text-gray-300 min-h-0">
+        <div className="flex-1 w-full flex flex-col overflow-hidden text-slate-300 min-h-0">
             <PluginIdentityHeader
                 icon={
                     <PreviewHeroIcon

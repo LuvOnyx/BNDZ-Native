@@ -27,7 +27,7 @@ export default function PluginPanelShell({
 }: PluginPanelShellProps) {
   if (variant === 'embedded') {
     return (
-      <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[var(--bndz-surface-panel,#0a0a0a)] text-gray-300">
+      <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[var(--bndz-surface-panel,#0c0e14)] text-slate-300">
         {toolbar && (
           <div className="bndz-plugin-toolbar shrink-0 px-3 py-2 flex items-center justify-end gap-2">
             {toolbar}
@@ -42,7 +42,7 @@ export default function PluginPanelShell({
   }
 
   return (
-    <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[#0a0a0a] text-gray-300">
+    <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[#0c0e14] text-slate-300">
       <div className="bndz-plugin-toolbar shrink-0 px-4 py-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

@@ -655,7 +655,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              </div>
              <div className="absolute bottom-3 right-3 flex gap-1.5">
                 {isDir ? (
-                   <span className="bndz-glass-chip text-[#dcb67a] text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">DIR</span>
+                   <span className="bndz-glass-chip text-[#38bdf8] text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">DIR</span>
                 ) : ext && (
                    <span className="bndz-glass-chip text-white/90 text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">{ext}</span>
                 )}

@@ -516,7 +516,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   visibleTimeInMilliseconds: false,
   visualStyleTabs: false,
   wheelScrollLines: false,
-  whenHoveringOverTheFilename: true,
+  whenHoveringOverTheFilename: false,
   whenHoveringOverTheIcon: false,
   withBorder: false,
   wrapAroundList: false,

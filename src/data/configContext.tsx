@@ -123,7 +123,7 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     tooltipTextColor: '#e8e8e8',
     tooltipMutedColor: '#9ca3af',
     tooltipCornerRadius: 16,
-    whenHoveringOverTheFilename: true,
+    whenHoveringOverTheFilename: false,
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
@@ -156,9 +156,14 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.tooltipBehaviorVersion = 1;
     }
     if ((merged.tooltipBehaviorVersion ?? 0) < 2) {
-        if (merged.whenHoveringOverTheFilename === false) merged.whenHoveringOverTheFilename = true;
         merged.listHoverTooltipsEnabled = merged.listHoverTooltipsEnabled !== false;
         merged.tooltipBehaviorVersion = 2;
+    }
+    if ((merged.tooltipBehaviorVersion ?? 0) < 3) {
+        // v2 incorrectly forced filename-hover tooltips always on — restore shift-gated defaults.
+        merged.whenHoveringOverTheFilename = false;
+        merged.onlyWhileTheShiftKeyIsHeldDown = merged.onlyWhileTheShiftKeyIsHeldDown !== false;
+        merged.tooltipBehaviorVersion = 3;
     }
     if (merged.inTreeAsWell === undefined) merged.inTreeAsWell = true;
     if ((merged.folderSizeViewVersion ?? 0) < 1) {

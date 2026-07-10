@@ -37,7 +37,6 @@ export function shouldShowRichTooltips(config: Record<string, any>): boolean {
 }
 
 export function isShiftRequiredForTooltips(config: Record<string, any>): boolean {
-  if (config.showHoverBox && config.showFileInfoTips === false) return false;
   return config.onlyWhileTheShiftKeyIsHeldDown !== false;
 }
 
@@ -103,7 +102,8 @@ export function bindFloatingTooltipHandlers(
       if (!content) return;
       if (!shouldShowTooltipOnSurface(config, surface)) return;
       const payload = hoverBox ? { ...content, mode: 'hoverbox' as const } : content;
-      const showImmediately = hoverBox || !requireShift;
+      // Advanced floating tooltips only appear while Left Shift is held — never on plain hover.
+      const showImmediately = false;
       setHoverPending(payload, e.clientX, e.clientY, theme, showImmediately, delayMs);
     },
     onMouseMove: (e) => {

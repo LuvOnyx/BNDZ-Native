@@ -24,6 +24,7 @@ import {
   classifyTooltipMedia,
   resolveTooltipMedia,
 } from './tooltipMedia';
+import { hideFloatingTooltip, isShiftKeyHeld, subscribeShiftKey } from './floatingTooltip';
 
 function formatSize(bytes?: number): string {
   if (bytes == null || bytes === 0) return '—';
@@ -35,6 +36,9 @@ function formatSize(bytes?: number): string {
 }
 
 const AUDIO_META_KEYS = ['Duration', 'Audio Bitrate', 'Sample Rate', 'Bit Depth', 'Channels'];
+
+/** Cool slate accent — not the legacy brown DIR badge. */
+export const DIR_BADGE_COLOR = '#38bdf8';
 
 export type EntityTooltipBuildOpts = {
   metadata?: Record<string, string>;
@@ -156,10 +160,30 @@ export function buildEntityTooltipContent(
     lines,
     media: opts?.media,
     badge: isDir
-      ? { text: 'DIR', color: '#dcb67a' }
+      ? { text: 'DIR', color: DIR_BADGE_COLOR }
       : { text: (entity.extension || 'FILE').toUpperCase().slice(0, 6), color: '#60a5fa' },
     mode: opts?.hoverBox ? 'hoverbox' : 'tip',
   };
+}
+
+type ActiveEntityHover = {
+  disarm: () => void;
+  tryArm: (e?: React.MouseEvent) => void;
+};
+
+let activeEntityHover: ActiveEntityHover | null = null;
+let shiftHookInstalled = false;
+
+function ensureShiftTooltipHook() {
+  if (shiftHookInstalled || typeof window === 'undefined') return;
+  shiftHookInstalled = true;
+  subscribeShiftKey(() => {
+    if (isShiftKeyHeld() && activeEntityHover) {
+      activeEntityHover.tryArm();
+    } else {
+      hideFloatingTooltip();
+    }
+  });
 }
 
 export function createEntityTooltipHandlers(
@@ -170,6 +194,8 @@ export function createEntityTooltipHandlers(
   formatSizeFn: (n?: number) => string,
   opts?: { surface?: TooltipSurface; context?: HoverBoxContext; disabled?: boolean },
 ) {
+  ensureShiftTooltipHook();
+
   const surface = opts?.surface ?? 'filename';
   const context = opts?.context ?? 'list';
   if (opts?.disabled || !shouldShowTooltipForEntity(entity, config, context)) {
@@ -182,6 +208,9 @@ export function createEntityTooltipHandlers(
   const needsMeta = !!config.showHoverBox || !!config.extraFields || config.showPhotoDataInTheHoverBox || needsAudioMeta;
   const hoverBox = !!config.showHoverBox;
   let cachedContent: HoverTooltipContent | null = null;
+  let isHovering = false;
+  let lastEvent: React.MouseEvent | null = null;
+  let loadGeneration = 0;
 
   const loadContent = async (): Promise<HoverTooltipContent | null> => {
     if (cachedContent) return cachedContent;
@@ -211,22 +240,44 @@ export function createEntityTooltipHandlers(
     return cachedContent;
   };
 
+  const disarm = () => {
+    isHovering = false;
+    lastEvent = null;
+    cachedContent = null;
+    loadGeneration += 1;
+    if (activeEntityHover?.disarm === disarm) activeEntityHover = null;
+    hideFloatingTooltip();
+  };
+
+  const tryArm = async (e?: React.MouseEvent) => {
+    const ev = e ?? lastEvent;
+    if (!isHovering || !ev || !isShiftKeyHeld()) return;
+    if (!shouldShowTooltipOnSurface(config, surface)) return;
+
+    const generation = ++loadGeneration;
+    const content = await loadContent();
+    if (generation !== loadGeneration || !isHovering || !isShiftKeyHeld()) return;
+    if (!content) return;
+
+    const handlers = bindFloatingTooltipHandlers(content, config, { surface, context });
+    handlers.onMouseEnter(ev);
+  };
+
+  const hoverController: ActiveEntityHover = { disarm, tryArm };
+
   return {
     onMouseEnter: (e: React.MouseEvent) => {
       if (!shouldShowTooltipOnSurface(config, surface)) return;
-      void loadContent().then(content => {
-        if (!content) return;
-        const handlers = bindFloatingTooltipHandlers(content, config, { surface, context });
-        handlers.onMouseEnter(e);
-      });
+      isHovering = true;
+      lastEvent = e;
+      activeEntityHover = hoverController;
+      if (isShiftKeyHeld()) void tryArm(e);
     },
     onMouseMove: (e: React.MouseEvent) => {
-      if (!cachedContent) return;
+      lastEvent = e;
+      if (!cachedContent || !isShiftKeyHeld()) return;
       bindFloatingTooltipHandlers(cachedContent, config, { surface, context }).onMouseMove(e);
     },
-    onMouseLeave: () => {
-      cachedContent = null;
-      bindFloatingTooltipHandlers(null, config).onMouseLeave();
-    },
+    onMouseLeave: () => disarm(),
   };
 }

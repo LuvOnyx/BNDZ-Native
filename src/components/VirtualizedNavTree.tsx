@@ -29,6 +29,11 @@ import {
   type DynamicTreeState,
   type FlatNavRow,
 } from '../lib/navTreeModel';
+import {
+  advanceSlowDoubleClickRename,
+  clearSlowDoubleClickTimer,
+  type SlowClickStamp,
+} from '../lib/slowDoubleClickRename';
 
 const ROW_HEIGHT = 26;
 const VIRTUAL_THRESHOLD = 32;
@@ -115,6 +120,8 @@ function TreeRow({
   indexedRoots,
   showIndexBadges,
   clipboard,
+  treeLastClickRef,
+  treeRenameTimerRef,
 }: {
   row: FlatNavRow;
   config: AppConfig;
@@ -144,6 +151,8 @@ function TreeRow({
   indexedRoots?: string[];
   showIndexBadges?: boolean;
   clipboard?: VirtualizedNavTreeProps['clipboard'];
+  treeLastClickRef: React.MutableRefObject<SlowClickStamp>;
+  treeRenameTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
 }) {
   const isSelected = row.selected || (row.path && currentPath === row.path);
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
@@ -165,10 +174,20 @@ function TreeRow({
       row.staticClick?.();
     }
 
-    if (row.path && currentPath === row.path && !e.ctrlKey && !e.shiftKey) {
-      setTimeout(() => {
-        setInlineRename({ path: row.path!, entityId: 'TREE', currentName: row.label });
-      }, 500);
+    if (row.path && !e.ctrlKey && !e.shiftKey) {
+      const wasAlreadySelected = currentPath === row.path;
+      if (wasAlreadySelected) {
+        treeLastClickRef.current = advanceSlowDoubleClickRename({
+          key: row.path,
+          wasAlreadyActive: true,
+          lastClick: treeLastClickRef.current,
+          timerRef: treeRenameTimerRef,
+          onRename: () => setInlineRename({ path: row.path!, entityId: 'TREE', currentName: row.label }),
+        });
+      } else {
+        clearSlowDoubleClickTimer(treeRenameTimerRef);
+        treeLastClickRef.current = { key: row.path, time: Date.now() };
+      }
     }
   };
 
@@ -220,6 +239,8 @@ function TreeRow({
       onClick={handleClick}
       onDoubleClick={e => {
         e.stopPropagation();
+        clearSlowDoubleClickTimer(treeRenameTimerRef);
+        treeLastClickRef.current = null;
         if (!expandOnSingleClick && row.hasChildren) onToggle(row);
         else if (row.path) onNavigate(row.path);
       }}
@@ -344,6 +365,8 @@ export function VirtualizedNavTree({
   const [fileDropTargetPath, setFileDropTargetPath] = useState<string | null>(null);
   const effectiveFileDropTarget = externalFileDropTarget ?? fileDropTargetPath;
   const [gliderAnchor, setGliderAnchor] = useState<TreeGliderAnchor | null>(null);
+  const treeLastClickRef = useRef<SlowClickStamp>(null);
+  const treeRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gliderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -638,6 +661,8 @@ export function VirtualizedNavTree({
       indexedRoots={indexedRoots}
       showIndexBadges={showIndexBadges}
       clipboard={clipboard}
+      treeLastClickRef={treeLastClickRef}
+      treeRenameTimerRef={treeRenameTimerRef}
     />
   );
   };
