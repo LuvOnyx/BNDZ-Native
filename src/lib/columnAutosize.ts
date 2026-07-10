@@ -1,8 +1,37 @@
 import type { ListColumnDef, ListColumnId } from './listColumns';
 import { formatAttributesLabel, formatFsDateTime } from './listColumns';
+import type { AppConfig } from '../data/configContext';
 
 const MEASURE_FONT = '11px "Segoe UI", system-ui, sans-serif';
 let measureCanvas: HTMLCanvasElement | null = null;
+
+export type ColumnAutosizeLimits = {
+  minW: number;
+  maxW: number;
+  nameMinW: number;
+  nameMaxW: number;
+  rightMargin: number;
+};
+
+export function parseColumnAutosizeLimits(config?: AppConfig | null): ColumnAutosizeLimits {
+  const num = (key: string, fallback: number) => {
+    const raw = config?.[key as keyof AppConfig];
+    const n = parseInt(String(raw ?? ''), 10);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const nameMin = num('unwiredConfig6', 200);
+  const nameMax = num('unwiredConfig5', 1000);
+  const colMin = num('unwiredConfig3', 175);
+  const colMax = num('unwiredConfig4', 0);
+  const rightMargin = num('unwiredConfig7', 0);
+  return {
+    minW: colMin,
+    maxW: colMax > 0 ? colMax : 520,
+    nameMinW: nameMin,
+    nameMaxW: nameMax > 0 ? nameMax : 1000,
+    rightMargin,
+  };
+}
 
 function measureTextWidth(text: string): number {
   if (typeof document === 'undefined') return text.length * 7;
@@ -58,12 +87,12 @@ export function computeAutosizedColumnWidths(
   options?: {
     disregardHeaders?: boolean;
     alwaysAutosizeSize?: boolean;
+    limits?: ColumnAutosizeLimits;
   },
 ): Partial<Record<ListColumnId, number>> {
   const widths: Partial<Record<ListColumnId, number>> = {};
-  const pad = 18;
-  const minW = 56;
-  const maxW = 520;
+  const limits = options?.limits ?? parseColumnAutosizeLimits();
+  const pad = 18 + limits.rightMargin;
 
   for (const col of columns) {
     if (col.id === 'size' && !options?.alwaysAutosizeSize && items.every(it => it.type === 'directory')) {
@@ -76,6 +105,8 @@ export function computeAutosizedColumnWidths(
       max = Math.max(max, measureTextWidth(text) + pad);
     }
     if (max > 0) {
+      const minW = col.id === 'name' ? limits.nameMinW : limits.minW;
+      const maxW = col.id === 'name' ? limits.nameMaxW : limits.maxW;
       widths[col.id] = Math.round(Math.max(minW, Math.min(maxW, max)));
     }
   }

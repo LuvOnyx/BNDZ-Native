@@ -24,6 +24,11 @@ export interface SettingsRuntimeContext {
     underlineSelected: boolean;
     showSelectionHighlight: boolean;
     showSelectionCheckboxes: boolean;
+    dimmedIcons: boolean;
+    coloredLines: boolean;
+    dimSelectedIcons: boolean;
+    ghostHiddenIcons: boolean;
+    lighterDetailColumns: boolean;
     verticalGridLines: boolean;
     wrapAround: boolean;
     autoSelectFirst: boolean;
@@ -122,6 +127,11 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
     zebraRows: !!config.selectConfig5 && config.selectConfig5 !== 'Solid Color' && config.selectConfig5 !== false,
     showSelectionHighlight: config.listShowSelectionHighlight !== false,
     showSelectionCheckboxes: !!config.listShowSelectionCheckboxes,
+    dimmedIcons: !!config.dimmedIcons,
+    coloredLines: !!config.coloredLines,
+    dimSelectedIcons: !!config.drawSelectedListIconsDimmed,
+    ghostHiddenIcons: !!config.drawHiddenIconsGhosted,
+    lighterDetailColumns: !!config.lighterTextInDetailsColumns,
     },
     sort: {
       method: config.sortMethod || 'Natural',
@@ -264,7 +274,14 @@ export function compareEntities(
   pane?: PaneSortState
 ): number {
   const rt = buildSettingsRuntime(config);
-  if (rt.sort.foldersFirst) {
+
+  if (config.onSortingKeepTaggedItemsOnTop) {
+    const tagsA = (a.tags?.length ?? 0) > 0 ? 1 : 0;
+    const tagsB = (b.tags?.length ?? 0) > 0 ? 1 : 0;
+    if (tagsA !== tagsB) return tagsB - tagsA;
+  }
+
+  if (rt.sort.foldersFirst || config.sortFoldersApart) {
     const dirA = a.type === 'directory' ? -1 : 1;
     const dirB = b.type === 'directory' ? -1 : 1;
     if (dirA !== dirB) return dirA - dirB;
@@ -287,13 +304,33 @@ export function compareEntities(
     return mul * String(typeA).localeCompare(String(typeB));
   }
   if (col === 'size') {
+    if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
+    if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
     return mul * ((a.size || 0) - (b.size || 0));
   }
   if (col === 'modified') {
+    if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
+    if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
     return mul * ((new Date(a.modified).getTime() || 0) - (new Date(b.modified).getTime() || 0));
   }
   if (col === 'created') {
+    if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
+    if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
     return mul * ((new Date(a.created).getTime() || 0) - (new Date(b.created).getTime() || 0));
+  }
+  if (col === 'tags' && config.mixedSortOnTagColumns) {
+    const tagA = (a.tags || []).join(',');
+    const tagB = (b.tags || []).join(',');
+    if (a.type === 'directory' && b.type !== 'directory') return -1;
+    if (b.type === 'directory' && a.type !== 'directory') return 1;
+    return mul * tagA.localeCompare(tagB);
+  }
+  if (col === 'path' && config.mixedSortOnPathColumns) {
+    const pathA = String(a.path || a.id || '');
+    const pathB = String(b.path || b.id || '');
+    if (a.type === 'directory' && b.type !== 'directory') return -1;
+    if (b.type === 'directory' && a.type !== 'directory') return 1;
+    return mul * pathA.localeCompare(pathB);
   }
   return 0;
 }
@@ -321,7 +358,12 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
     && String(ext || '').toLowerCase() === 'lnk'
     && config.hideShortcutExtensions !== false;
   if (!isDir && ext && (config.showFileExtensions === false || hideShortcutExtension)) {
-    return name.replace(new RegExp(`\\.${ext}$`, 'i'), '');
+    name = name.replace(new RegExp(`\\.${ext}$`, 'i'), '');
+  }
+  if (config.truncateFilenamesInTheMiddle && name.length > 28) {
+    const head = Math.ceil((28 - 1) / 2);
+    const tail = Math.floor((28 - 1) / 2);
+    name = `${name.slice(0, head)}…${name.slice(name.length - tail)}`;
   }
   return name;
 }
@@ -443,7 +485,19 @@ export function evaluateColorFilter(
   for (const row of filters) {
     if (!row.c || !row.t) continue;
     if (matchesColorFilter(row.t.trim(), { name, ext, attrs, size, modified, entity })) {
-      return parseFilterStyle(row.style);
+      const parsed = parseFilterStyle(row.style);
+      const drawClasses = config ? [
+        config.drawBackgroundColorsAsRoundedRectangles ? 'bndz-filter-bg-rounded' : '',
+        config.drawBackgroundColorsInDistinctiveShapes ? 'bndz-filter-bg-shape' : '',
+        config.drawBackgroundColorsAsWideAsTheColumn ? 'bndz-filter-bg-wide' : '',
+      ].filter(Boolean).join(' ') : '';
+      const nameOnly = config?.applyTextColorsToTheNameColumnOnly;
+      return {
+        className: [parsed.className, drawClasses].filter(Boolean).join(' ') || undefined,
+        inlineStyle: nameOnly
+          ? (parsed.inlineStyle?.color ? { color: parsed.inlineStyle.color } : undefined)
+          : parsed.inlineStyle,
+      };
     }
   }
   return null;

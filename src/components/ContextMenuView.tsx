@@ -19,6 +19,7 @@ import { dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
+import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
 import type { SortColumnId } from '../lib/listColumns';
 import type { ListGroupBy } from '../lib/listGrouping';
@@ -860,12 +861,12 @@ function ContextMenuView({
               // Shell Menus plugin command-based actions
               else if (cmd === 'refresh') runRefresh();
               else if (cmd === 'copyPath') IPC.shellExecute('copyPath', targetPaths);
-              else if (cmd === 'openTerminal') IPC.shellExecute('openTerminal', targetPaths);
+              else if (cmd === 'openTerminal') IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
               else if (cmd === 'openExplorer') IPC.shellExecute('openExplorer', targetPaths);
               else if (cmd) {
                 // Arbitrary command: expand %1 with first target and run via shell
                 const expanded = cmd.replace(/%1/g, toWindowsPath(targetPaths[0] || ''));
-                IPC.shellExecute('runCommand', expanded);
+                IPC.shellExecute('runCommand', expanded, menu.path, buildShellExecuteOptions(config));
               }
               onClose();
             }}
@@ -879,7 +880,7 @@ function ContextMenuView({
           iconVerb="terminal"
           onClick={async () => {
             const IPC = await runIpc();
-            IPC.shellExecute('openTerminal', targetPaths);
+            IPC.shellExecute('openTerminal', targetPaths, undefined, buildShellExecuteOptions(config));
             onClose();
           }}
         />

@@ -291,6 +291,55 @@ namespace BNDZ
             return path;
         }
 
+        private static string ExpandShellTemplate(string template, string workingDir, string itemPath, string command)
+        {
+            if (string.IsNullOrEmpty(template)) return template ?? "";
+            return template
+                .Replace("%WD%", workingDir ?? "", StringComparison.OrdinalIgnoreCase)
+                .Replace("%PATH%", itemPath ?? "", StringComparison.OrdinalIgnoreCase)
+                .Replace("%CMD%", command ?? "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void StartShellProcess(string workingDir, string? command, JsonElement? shellElement)
+        {
+            string fileName = "cmd.exe";
+            string arguments = string.IsNullOrWhiteSpace(command) ? "" : "/c " + command;
+            var windowStyle = string.IsNullOrWhiteSpace(command)
+                ? ProcessWindowStyle.Normal
+                : ProcessWindowStyle.Hidden;
+
+            if (shellElement is JsonElement shell && shell.ValueKind == JsonValueKind.Object
+                && shell.TryGetProperty("useCustom", out var useCustom) && useCustom.GetBoolean()
+                && shell.TryGetProperty("interpreter", out var interpEl))
+            {
+                var interpreter = interpEl.GetString() ?? "";
+                if (!string.IsNullOrWhiteSpace(interpreter))
+                {
+                    fileName = interpreter;
+                    var argsTemplate = shell.TryGetProperty("args", out var argsEl) ? argsEl.GetString() ?? "" : "";
+                    if (!string.IsNullOrWhiteSpace(argsTemplate))
+                    {
+                        arguments = ExpandShellTemplate(argsTemplate, workingDir, workingDir, command ?? "");
+                    }
+                    else if (!string.IsNullOrWhiteSpace(command))
+                    {
+                        arguments = "/c " + command;
+                    }
+                }
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = fileName,
+                UseShellExecute = true,
+                WindowStyle = windowStyle,
+            };
+            if (!string.IsNullOrWhiteSpace(arguments)) psi.Arguments = arguments;
+            if (!string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir))
+                psi.WorkingDirectory = workingDir;
+            Process.Start(psi);
+        }
+
         /// <summary>Ask the AI service to propose new names for a batch of files, returning
         /// {originalName, newName, reason} operations. Returns an empty list if AI is
         /// unavailable or the response cannot be parsed.</summary>
@@ -824,6 +873,7 @@ namespace BNDZ
                     string path = paths.Count > 0 ? paths[0] : "";
                     
                     string workingDir = payload.TryGetProperty("workingDir", out var wdProp) ? wdProp.GetString() ?? "" : "";
+                    JsonElement? shellElement = payload.TryGetProperty("shell", out var shellProp) ? shellProp : null;
                     
                     if (workingDir.StartsWith("/")) workingDir = workingDir.Substring(1);
                     workingDir = workingDir.Replace("/", "\\");
@@ -857,7 +907,7 @@ namespace BNDZ
                     {
                         var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
                         if (!string.IsNullOrEmpty(startPath)) {
-                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "cmd.exe", WorkingDirectory = startPath, UseShellExecute = true });
+                            try { StartShellProcess(startPath, null, shellElement); } catch { }
                         }
                     }
                     else if (action == "runCommand")
@@ -870,13 +920,10 @@ namespace BNDZ
                         {
                             try
                             {
-                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = "cmd.exe",
-                                    Arguments = "/c " + rawCmd,
-                                    UseShellExecute = true,
-                                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
-                                });
+                                var startPath = !string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir)
+                                    ? workingDir
+                                    : (Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? "");
+                                StartShellProcess(startPath, rawCmd, shellElement);
                             }
                             catch { }
                         }

@@ -50,6 +50,7 @@ import { buildPathSuggestions } from '../lib/addressAutocomplete';
 import { summarizeSelection, formatSelectionSummaryLine } from '../lib/selectionSummary';
 import { highlightNameMatch } from '../lib/liveFilterHighlight';
 import { renderStatusBarTemplate } from '../lib/statusBarTemplate';
+import { renderTitleBarTemplate } from '../lib/titleBarTemplate';
 import { createRafPointerThrottler } from '../lib/pointerDragGhost';
 import { dropSideFromPointer, computeReorderInsertIndex } from '../lib/reorderOnDrop';
 import { filterByName } from '../lib/fuzzyFilter';
@@ -125,7 +126,7 @@ import {
   type ListColumnId,
   type SortColumnId,
 } from '../lib/listColumns';
-import { computeAutosizedColumnWidths } from '../lib/columnAutosize';
+import { computeAutosizedColumnWidths, parseColumnAutosizeLimits } from '../lib/columnAutosize';
 import RapidAccessPopup from './RapidAccessPopup';
 import ClipboardMarkBadge from './ClipboardMarkBadge';
 import {
@@ -184,6 +185,7 @@ import {
   normalizeOuterLayout,
   panelPct,
 } from '../lib/workspaceLayout';
+import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 
 const BNDZ_APP_ICON = '/bndz-light.png';
@@ -520,6 +522,7 @@ export default function BNDZUI() {
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [virtualViewErrors, setVirtualViewErrors] = useState<Record<string, string>>({});
   const [pathLoadErrors, setPathLoadErrors] = useState<Record<string, string>>({});
+  const [lastLoadDurationMs, setLastLoadDurationMs] = useState<number | null>(null);
   const [folderSizeSync, setFolderSizeSync] = useState<{
     active: boolean; current: number; total: number; path: string; percent: number;
   } | null>(null);
@@ -993,6 +996,7 @@ export default function BNDZUI() {
     const path = normalizePanePath(rawPath);
     if (!path) return;
     const { IPC } = await import('../lib/ipcBridge');
+    const loadStarted = performance.now();
     setLoadingPaths(prev => new Set(prev).add(path));
     try {
       let data: any[];
@@ -1008,6 +1012,7 @@ export default function BNDZUI() {
       const normalized = normalizeDirEntries(data);
       cachePathContents(path, normalized);
       setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
+      setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
     } catch (err: unknown) {
       if (isBndzVirtualPath(path)) {
         setVirtualViewErrors(prev => ({
@@ -1884,6 +1889,29 @@ export default function BNDZUI() {
     if (!selected.length) return '';
     return formatSelectionSummaryLine(summarizeSelection(selected), formatSize);
   }, [activeTab.selectedItems, currentPath, pathContentsCache]);
+
+  useEffect(() => {
+    const template = config.unwiredConfig13;
+    if (template) {
+      document.title = renderTitleBarTemplate(String(template), {
+        path: activeTab.path,
+        app: 'BNDZ',
+        ver: appVersion,
+        selection: selectionSummaryLine,
+      }) || 'BNDZ';
+    } else {
+      document.title = 'BNDZ';
+    }
+  }, [config.unwiredConfig13, activeTab.path, appVersion, selectionSummaryLine]);
+
+  const statusBarFreeLabel = useMemo(() => {
+    const totalCap = drives.reduce((s, d) => s + (d.totalSpace || 0), 0);
+    const totalFree = drives.reduce((s, d) => s + (d.freeSpace || 0), 0);
+    const pctFree = totalCap > 0 ? Math.round((totalFree / totalCap) * 100) : 0;
+    return `${formatSize(totalFree)} free (${pctFree}%)`;
+  }, [drives]);
+
+  const statusBarClipboardLabel = useMemo(() => describeClipboardState(clipboard) || '', [clipboard]);
 
   const listIconSz = config.listIconSize ?? 16;
   const gridIconSz = config.gridIconSize ?? 48;
@@ -3657,6 +3685,7 @@ export default function BNDZUI() {
       const widths = computeAutosizedColumnWidths(items, cols, {
         disregardHeaders: !!config.onAutosizeDisregardTheColumnHeaders,
         alwaysAutosizeSize: !!config.alwaysAutosizeTheSizeColumn,
+        limits: parseColumnAutosizeLimits(config),
       });
       if (Object.keys(widths).length > 0) {
         updateConfig({ listColumnWidths: { ...(config.listColumnWidths || {}), ...widths } });
@@ -4230,6 +4259,7 @@ export default function BNDZUI() {
     ) => {
       const { isDir, displayName, renameInput, filterResult, filterColor, entityTags, panePath } = opts;
       const textStyle = filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {};
+      const mutedColClass = settingsRt.list.lighterDetailColumns ? 'bndz-detail-col-muted' : '';
       switch (colId) {
         case 'name':
           return (
@@ -4246,7 +4276,7 @@ export default function BNDZUI() {
           );
         case 'type':
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 bndz-list-col-muted whitespace-nowrap overflow-hidden text-ellipsis text-gray-400">
+            <div key={colId} className={`bndz-list-select-cell px-2 bndz-list-col-muted whitespace-nowrap overflow-hidden text-ellipsis text-gray-400 ${mutedColClass}`}>
               {entity.typeDescription || (isDir ? 'File Folder' : `${(entity as any).extension || ''} File`)}
             </div>
           );
@@ -4266,7 +4296,7 @@ export default function BNDZUI() {
             ? Math.max(4, Math.round((folderBytes / maxFolderSizeInDir) * 100))
             : 0;
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 text-right text-gray-400 flex justify-end items-center gap-2">
+            <div key={colId} className={`bndz-list-select-cell px-2 text-right text-gray-400 flex justify-end items-center gap-2 ${mutedColClass}`}>
               {barPct > 0 && (
                 <SizeBar
                   percent={barPct}
@@ -4284,19 +4314,19 @@ export default function BNDZUI() {
         }
         case 'modified':
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
+            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`}>
               {formatFsDateTime(entity.modified)}
             </div>
           );
         case 'created':
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
+            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`}>
               {formatFsDateTime((entity as any).created)}
             </div>
           );
         case 'attributes':
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 text-gray-500 font-mono text-[10px] tracking-wider whitespace-nowrap overflow-hidden text-ellipsis" title={(entity.attributes || []).join(', ')}>
+            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-500 font-mono text-[10px] tracking-wider whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`} title={(entity.attributes || []).join(', ')}>
               {formatAttributesLabel(entity.attributes)}
             </div>
           );
@@ -5574,6 +5604,11 @@ export default function BNDZUI() {
                 const drive = (entity as any).driveInfo;
                 const entityWinPath = resolveEntityWindowsPath(panePath, entity);
                 const clipboardMark = getClipboardMarkForEntity(entityWinPath, clipboard);
+                const iconDimClass = [
+                  clipboardMark && listRt.dimmedIcons ? 'bndz-icon-dimmed' : '',
+                  showSelectionChrome && listRt.dimSelectedIcons ? 'bndz-icon-dimmed' : '',
+                  (entity.attributes || []).includes('hidden') && listRt.ghostHiddenIcons ? 'bndz-icon-ghosted' : '',
+                ].filter(Boolean).join(' ');
                 let filterResult = applyVisualFilters(entity, config.visualFilters);
                 const colorFilterResult = evaluateColorFilter(entity, config.colorFilters, config);
                 let filterColor = filterResult?.hexColor; 
@@ -5662,8 +5697,9 @@ export default function BNDZUI() {
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
                       ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30" : ""}
                       ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
+                      ${config.coloredLines && clipboardMark ? 'fs-item-clipboard-colored-line' : ''}
                       ${colorFilterResult?.className || ''}
-                      ${config.coloredLines && colorFilterResult ? 'border-l-2 border-l-[#0078d4]/50' : ''}
+                      ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[#0078d4]/50' : ''}
                       ${syncOpacity ? "opacity-50" : ""}`}
                     style={{
                         ...(showSelectionChrome && config.listSelectionHighlightColor
@@ -5778,7 +5814,7 @@ export default function BNDZUI() {
                            {computedViewMode === 'grid' ? (
                              <>
                                <div className="bndz-list-select-cell flex-1 flex flex-col items-center justify-center min-h-[48px] relative w-full">
-                                  <div className="bndz-clipboard-icon-slot flex-1 flex items-center justify-center min-h-[48px] relative w-full">
+                                  <div className={`bndz-clipboard-icon-slot flex-1 flex items-center justify-center min-h-[48px] relative w-full ${iconDimClass}`}>
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={gridMetrics.icon} />
                                   {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
                                   {filterResult?.badgeColor && (
@@ -5800,7 +5836,7 @@ export default function BNDZUI() {
                            ) : computedViewMode === 'list' ? (
                              <>
                              <div className="bndz-list-select-cell flex items-center min-w-0 flex-1">
-                               <div className="bndz-clipboard-icon-slot flex justify-center shrink-0" style={{ width: listMetrics.iconSlot }}>
+                               <div className={`bndz-clipboard-icon-slot flex justify-center shrink-0 ${iconDimClass}`} style={{ width: listMetrics.iconSlot }}>
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={listMetrics.icon} />
                                   {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
                                </div>
@@ -5842,7 +5878,7 @@ export default function BNDZUI() {
                                    />
                                  </div>
                                )}
-                               <div className={`${detailsIconColClass} bndz-list-select-cell bndz-clipboard-icon-slot flex justify-center shrink-0`}>
+                               <div className={`${detailsIconColClass} bndz-list-select-cell bndz-clipboard-icon-slot flex justify-center shrink-0 ${iconDimClass}`}>
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={detailsIconSize} />
                                   {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
                                </div>
@@ -6460,7 +6496,7 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={async () => {
                       const paths = getSelectedEntityPaths();
                       const { IPC } = await import('../lib/ipcBridge');
-                      IPC.shellExecute('openTerminal', paths.length ? paths : currentTab.path);
+                      IPC.shellExecute('openTerminal', paths.length ? paths : currentTab.path, undefined, buildShellExecuteOptions(config));
                       closeMenu();
                     }}>Open Terminal Here</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setIsCommandPaletteOpen(true); closeMenu(); }}>Command Palette</div>
@@ -6852,7 +6888,7 @@ export default function BNDZUI() {
                            case 'terminal_here': {
                                const ap = panes.find(p => p.id === activePaneId);
                                const tabPath = ap?.tabs[ap.activeTabIndex]?.path;
-                               if (tabPath) IPC.shellExecute('openTerminal', toWindowsPath(tabPath));
+                               if (tabPath) IPC.shellExecute('openTerminal', toWindowsPath(tabPath), undefined, buildShellExecuteOptions(config));
                                break;
                            }
                            case 'toggle_dual_pane': toggleDualPane(); break;
@@ -6972,7 +7008,7 @@ export default function BNDZUI() {
               if (ent) IPC.shellExecute('copyPath', toWindowsPath(joinPanePath(currentPath, ent)));
             },
             onOpenTerminal: () => {
-              IPC.shellExecute('openTerminal', toWindowsPath(currentPath));
+              IPC.shellExecute('openTerminal', toWindowsPath(currentPath), undefined, buildShellExecuteOptions(config));
             },
             onOpenExplorer: () => {
               IPC.shellExecute('openExplorer', toWindowsPath(currentPath));
@@ -7357,8 +7393,13 @@ export default function BNDZUI() {
                items: activeContents?.length ?? drives.length,
                selected: activeTab.selectedItems.length,
                path: currentTab.path,
+               free: statusBarFreeLabel,
+               volumes: drives.length,
                app: 'BNDZ',
                ver: appVersion,
+               selectionSummary: selectionSummaryLine,
+               durationMs: lastLoadDurationMs ?? undefined,
+               clipboard: statusBarClipboardLabel,
              })}</span>
            ) : (
              <>

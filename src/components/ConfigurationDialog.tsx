@@ -20,6 +20,20 @@ import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { searchJumpSettings } from '../lib/jumpToSettingIndex';
 import { mergeUserCommands } from '../lib/userCommands';
 import BndzIndexManagerPanel from './settings/BndzIndexManagerPanel';
+import {
+  createColorFilterRow,
+  moveColorFilterRow,
+  updateColorFilterStyle,
+  type ColorFilterRow,
+} from '../lib/colorFilterConfig';
+import {
+  pickNativeFolder,
+  pickHexColor,
+  createPreviewFormatRow,
+  editPreviewFormatRow,
+  removePreviewFormatRow,
+  editColorFilterExpression,
+} from '../lib/configurationDialogHelpers';
 
 const DevOnly = ({ children }: { children: React.ReactNode }) => (
   import.meta.env.DEV ? <>{children}</> : null
@@ -32,8 +46,14 @@ const SectionHeader = ({ title }: { title: string }) => (
   </h3>
 );
 
-const ActionBtn = ({ label, className = '', onClick }: any) => (
-  <button className={`bg-[#2a2a2a] hover:bg-[#444] border border-[#555] rounded-sm text-[12px] px-4 py-1 text-white ${className}`} onClick={onClick}>
+const ActionBtn = ({ label, className = '', onClick, disabled, title }: any) => (
+  <button
+    type="button"
+    disabled={disabled}
+    title={title}
+    className={`bg-[#2a2a2a] hover:bg-[#444] border border-[#555] rounded-sm text-[12px] px-4 py-1 text-white disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-[#2a2a2a] ${className}`}
+    onClick={onClick}
+  >
     {label}
   </button>
 )
@@ -45,6 +65,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const [applyFeedback, setApplyFeedback] = useState<'idle' | 'applied'>('idle');
   const [shellStatus, setShellStatus] = useState<string | null>(null);
   const [shellBusy, setShellBusy] = useState(false);
+  const [selectedColorFilterIdx, setSelectedColorFilterIdx] = useState(0);
+  const [selectedPreviewFormatIdx, setSelectedPreviewFormatIdx] = useState(0);
   const updateLocalConfig = (updates: any) => {
     setLocalConfig(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
@@ -71,6 +93,97 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     window.setTimeout(() => setApplyFeedback('idle'), 2200);
   };
   const okChanges = () => { applyChanges(); onClose(); };
+
+  const colorFilters = (localConfig.colorFilters || []) as ColorFilterRow[];
+  const previewFormats = localConfig.previewFormats || [];
+
+  const addColorFilter = () => {
+    const rows = [...colorFilters, createColorFilterRow(colorFilters)];
+    updateLocalConfig({ colorFilters: rows });
+    setSelectedColorFilterIdx(rows.length - 1);
+  };
+
+  const editColorFilter = () => {
+    const next = editColorFilterExpression(colorFilters, selectedColorFilterIdx);
+    if (next) updateLocalConfig({ colorFilters: next });
+  };
+
+  const deleteColorFilter = () => {
+    if (!colorFilters.length) return;
+    const next = colorFilters.filter((_, i) => i !== selectedColorFilterIdx);
+    updateLocalConfig({ colorFilters: next });
+    setSelectedColorFilterIdx(Math.max(0, Math.min(selectedColorFilterIdx, next.length - 1)));
+  };
+
+  const moveColorFilter = (direction: -1 | 1) => {
+    const next = moveColorFilterRow(colorFilters, selectedColorFilterIdx, direction);
+    if (next !== colorFilters) {
+      updateLocalConfig({ colorFilters: next });
+      setSelectedColorFilterIdx(Math.max(0, Math.min(selectedColorFilterIdx + direction, next.length - 1)));
+    }
+  };
+
+  const setColorFilterPart = async (part: 'text' | 'bg', clear = false) => {
+    const row = colorFilters[selectedColorFilterIdx];
+    if (!row) return;
+    let color: string | null = null;
+    if (!clear) {
+      const textMatch = row.style.match(/text-\[([^\]]+)\]/);
+      const bgMatch = row.style.match(/bg-\[([^\]]+)\]/);
+      const initial = part === 'text' ? (textMatch?.[1] || '#e0e0e0') : (bgMatch?.[1] || '#333333');
+      color = await pickHexColor(initial.startsWith('#') ? initial : `#${initial}`);
+      if (!color) return;
+    }
+    const next = [...colorFilters];
+    next[selectedColorFilterIdx] = {
+      ...row,
+      style: updateColorFilterStyle(row.style, part, clear ? null : color),
+    };
+    updateLocalConfig({ colorFilters: next });
+  };
+
+  const addPreviewFormat = () => {
+    const rows = [...previewFormats, createPreviewFormatRow(previewFormats)];
+    updateLocalConfig({ previewFormats: rows });
+    setSelectedPreviewFormatIdx(rows.length - 1);
+  };
+
+  const editPreviewFormat = () => {
+    const next = editPreviewFormatRow(previewFormats, selectedPreviewFormatIdx);
+    if (next) updateLocalConfig({ previewFormats: next });
+  };
+
+  const removePreviewFormat = () => {
+    if (!previewFormats.length) return;
+    const next = removePreviewFormatRow(previewFormats, selectedPreviewFormatIdx);
+    updateLocalConfig({ previewFormats: next });
+    setSelectedPreviewFormatIdx(Math.max(0, Math.min(selectedPreviewFormatIdx, next.length - 1)));
+  };
+
+  const browseFolderInto = async (key: string, description: string) => {
+    const picked = await pickNativeFolder(description);
+    if (picked) updateLocalConfig({ [key]: picked });
+  };
+
+  const clearThumbnailCachePath = () => updateLocalConfig({ Config4: 'Thumbnails\\' });
+
+  const clearThumbnailCacheNow = () => {
+    void import('../lib/ipcBridge').then(async ({ IPC }) => {
+      const r = await IPC.clearThumbnailCache();
+      setShellStatus(r.success
+        ? `Cleared ${r.filesRemoved ?? 0} cache file(s).`
+        : (r.error || 'Could not clear thumbnail cache.'));
+      window.setTimeout(() => setShellStatus(null), 4000);
+    });
+  };
+
+  const applyStylesToCurrentTab = () => {
+    window.dispatchEvent(new CustomEvent('bndz-apply-list-styles', {
+      detail: { scope: localConfig.applyListStylesGlobally ? 'global' : 'active-tab' },
+    }));
+    setShellStatus('List styles applied to the active tab.');
+    window.setTimeout(() => setShellStatus(null), 2500);
+  };
 
   const applyShellToggle = async (
     updates: Record<string, boolean>,
@@ -452,7 +565,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </SettingsSection>
 
               <SettingsSection title="Items in tree and list">
-                 <ActionBtn label={<span>Select Item<span className="underline decoration-1 underline-offset-[3px]">s</span>...</span>} className="px-6 py-[2px] bg-[#1a1a1a]" />
+                 <ActionBtn label={<span>Select Item<span className="underline decoration-1 underline-offset-[3px]">s</span>...</span>} className="px-6 py-[2px] bg-[#1a1a1a]" disabled title="Bulk item selection is available from the main list (Ctrl+A, marquee select)." />
               </SettingsSection>
             </TabsContent>
 
@@ -538,15 +651,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <Checkbox label={<span>Enable high-res thumbnails for images &amp; media</span>} checked={localConfig.enableNativeThumbnails !== false} onChange={e => updateLocalConfig({ enableNativeThumbnails: e.target.checked, ...(e.target.checked ? {} : { clearThumbnailCacheOnExit: false }) })} />
                  <Checkbox label={<span>Use Iconify SVG icons for known file types</span>} checked={localConfig.enableIconifyFileIcons ?? true} onChange={e => updateLocalConfig({ enableIconifyFileIcons: e.target.checked })} disabled={!!localConfig.showCachedIconsOnly} />
                  <Checkbox label={<span>Clear Thumbnail Cache on exit</span>} checked={localConfig.clearThumbnailCacheOnExit ?? false} onChange={e => { updateLocalConfig({ clearThumbnailCacheOnExit: e.target.checked }); }} disabled={!localConfig.enableNativeThumbnails} />
-                 <ActionBtn label="Clear Thumbnail Cache Now" className="w-[180px] mt-2 mb-2" disabled={!localConfig.enableNativeThumbnails} onClick={() => {
-                   void import('../lib/ipcBridge').then(async ({ IPC }) => {
-                     const r = await IPC.clearThumbnailCache();
-                     setShellStatus(r.success
-                       ? `Cleared ${r.filesRemoved ?? 0} cache file(s).`
-                       : (r.error || 'Could not clear thumbnail cache.'));
-                     window.setTimeout(() => setShellStatus(null), 4000);
-                   });
-                 }} />
+                 <ActionBtn label="Clear Thumbnail Cache Now" className="w-[180px] mt-2 mb-2" disabled={!localConfig.enableNativeThumbnails} onClick={clearThumbnailCacheNow} />
                  
                  <Checkbox label={<span>Use generic icons for super-fast <span className="underline decoration-1 underline-offset-[3px]">b</span>rowsing</span>} checked={localConfig.useGenericIconsForSuperFastBrowsing ?? false} onChange={e => updateLocalConfig({ useGenericIconsForSuperFastBrowsing: e.target.checked })} />
                  <div className="ml-[20px] space-y-[6px]">
@@ -862,12 +967,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     ))}
                  </div>
                  <div className="flex flex-col gap-[6px]">
-                    <ActionBtn label="New" className="w-[100px]" />
-                    <ActionBtn label={<span>Edi<span className="underline decoration-1 underline-offset-[3px]">t</span></span>} className="w-[100px]" />
-                    <ActionBtn label="Delete" className="w-[100px]" />
+                    <ActionBtn label="New" className="w-[100px]" onClick={openTagManagerFromConfig} title="Create labels in Tag Manager" />
+                    <ActionBtn label={<span>Edi<span className="underline decoration-1 underline-offset-[3px]">t</span></span>} className="w-[100px]" onClick={openTagManagerFromConfig} title="Edit labels in Tag Manager" />
+                    <ActionBtn label="Delete" className="w-[100px]" onClick={openTagManagerFromConfig} title="Remove labels in Tag Manager" />
                     <div className="flex-1"></div>
-                    <ActionBtn label={<span>Te<span className="underline decoration-1 underline-offset-[3px]">x</span>t Color...</span>} className="w-[120px]" />
-                    <ActionBtn label={<span>Bac<span className="underline decoration-1 underline-offset-[3px]">k</span> Color...</span>} className="w-[120px]" />
+                    <ActionBtn label={<span>Te<span className="underline decoration-1 underline-offset-[3px]">x</span>t Color...</span>} className="w-[120px]" onClick={openTagManagerFromConfig} title="Label colors are managed in Tag Manager" />
+                    <ActionBtn label={<span>Bac<span className="underline decoration-1 underline-offset-[3px]">k</span> Color...</span>} className="w-[120px]" onClick={openTagManagerFromConfig} title="Label colors are managed in Tag Manager" />
                  </div>
               </div>
               
@@ -891,7 +996,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
             <TabsContent value="Custom Columns" className="m-0 border-0 p-0 outline-none flex flex-col h-full">
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Custom Columns</h1>
-              <p className="text-[12px] text-[#e0e0e0] mb-[8px] mt-1">Custom column definitions:</p>
+              <p className="text-[11px] text-[#888] mb-3">Built-in metadata columns are listed below. Custom EXIF/media column authoring ships in a future release — use Tree and List to show/hide standard columns.</p>
               
               <div className="border border-[#555] bg-[#0c0c0c] flex-1 overflow-y-auto mb-4 p-[2px] styled-scrollbar">
                  {["Dimensions, Special Property (png;gif;bmp;webp;ico;cur;{Photo};Ink)", "Aspect Ratio, Special Property (png;gif;bmp;webp;ico;cur;{Photo};Ink)", "Date Taken, Special Property ({Photo})", "Camera Model, Special Property ({Photo})", "F-Stop, Special Property ({Photo})", "Exposure Time, Special Property ({Photo})", "Length, Special Property ({Media})", "Sample Rate, Special Property ({Media})", "Bit Depth, Special Property ({Media})", "Bit Rate, Special Property ({Media})", "Channels, Special Property ({Media})", "Focal Length, Special Property ({Photo})", "ISO Speed, Special Property ({Photo})", "Mixed, Mixed (*.*)", "Version, Special Property (exe;dll)", "MD5, Special Property (*.*)", ...Array(12).fill("(Undefined)")].map((c, i) => (
@@ -991,11 +1096,11 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      <div className="ml-[20px]">
                         <Checkbox label={<span>Sho<span className="underline decoration-1 underline-offset-[3px]">w</span> these fields:</span>} checked={localConfig.showTheseFields ?? false} onChange={e => updateLocalConfig({ showTheseFields: e.target.checked })} disabled={!localConfig.showFileInfoTips || !localConfig.useStandardShellFileInfoTips} />
                         <div className="my-[4px] ml-[20px]">
-                           <ActionBtn label="Select Standard Fields..." className="w-[200px]" />
+                           <ActionBtn label="Select Standard Fields..." className="w-[200px]" disabled title="Standard shell fields are applied automatically when Use standard shell file info tips is enabled." />
                         </div>
                         <Checkbox label={<span>Extra fields:</span>} checked={localConfig.extraFields ?? false} onChange={e => updateLocalConfig({ extraFields: e.target.checked })} disabled={!localConfig.showFileInfoTips || !localConfig.useStandardShellFileInfoTips} />
                         <div className="my-[4px] ml-[20px]">
-                           <ActionBtn label="Select Extra Fields..." className="w-[200px]" />
+                           <ActionBtn label="Select Extra Fields..." className="w-[200px]" disabled title="Extra metadata fields editor ships in a future release." />
                         </div>
                      </div>
                   </div>
@@ -1009,9 +1114,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      </div>
                      <Checkbox label={<span>Hold Shift while <span className="underline decoration-1 underline-offset-[3px]">h</span>overing</span>} checked={localConfig.onlyWhileTheShiftKeyIsHeldDown ?? true} onChange={e => updateLocalConfig({ onlyWhileTheShiftKeyIsHeldDown: e.target.checked })} disabled={!localConfig.showHoverBox} />
                      <div className="flex gap-2 mt-2">
-                        <ActionBtn label="Select Item Types..." className="w-[180px]" />
-                        <ActionBtn label="Select Context..." className="w-[180px]" />
-                        <ActionBtn label="Tips..." className="w-[80px]" />
+                        <ActionBtn label="Select Item Types..." className="w-[180px]" disabled title="Hover box item-type filters ship in a future release." />
+                        <ActionBtn label="Select Context..." className="w-[180px]" disabled title="Hover box context filters ship in a future release." />
+                        <ActionBtn label="Tips..." className="w-[80px]" onClick={() => setActiveTab('File Info Tips & Hover Box')} title="Open hover box settings" />
                      </div>
                   </div>
               </div>
@@ -1678,7 +1783,11 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               
               <div className="border border-[#555] bg-[#0c0c0c] flex-1 overflow-y-auto mb-4 p-[2px] styled-scrollbar">
                  {localConfig.previewFormats.map((c, i) => (
-                    <div key={i} className={`flex text-[12px] items-center gap-2 px-1 py-[2px] hover:bg-[#333] text-[#e0e0e0]`}>
+                    <div
+                      key={i}
+                      className={`flex text-[12px] items-center gap-2 px-1 py-[2px] hover:bg-[#333] text-[#e0e0e0] cursor-pointer ${i === selectedPreviewFormatIdx ? 'bg-[#094771]/35 ring-1 ring-[#0078d4]/40' : ''}`}
+                      onClick={() => setSelectedPreviewFormatIdx(i)}
+                    >
                         <span className={`w-4 text-right text-[#888]`}>{i + 1}</span>
                         <input type="checkbox" checked={c.c} onChange={(e) => {
                              const newArr = [...localConfig.previewFormats];
@@ -1691,9 +1800,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
               
               <div className="flex justify-end gap-2 mt-auto">
-                 <ActionBtn label="Add..." className="w-[100px]" />
-                 <ActionBtn label="Edit..." className="w-[100px]" />
-                 <ActionBtn label="Remove" className="w-[100px]" />
+                 <ActionBtn label="Add..." className="w-[100px]" onClick={addPreviewFormat} />
+                 <ActionBtn label="Edit..." className="w-[100px]" onClick={editPreviewFormat} disabled={!previewFormats.length} />
+                 <ActionBtn label="Remove" className="w-[100px]" onClick={removePreviewFormat} disabled={!previewFormats.length} />
               </div>
             </TabsContent>
 
@@ -1703,11 +1812,23 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <div className="flex gap-[42px] mb-4 mt-[10px] ml-2">
                   <span className="text-[12px] text-[#e0e0e0] w-[180px]">Thumbnail widths and heights:</span>
                   <div className="flex flex-col gap-2">
-                     {[{n:"Size #1", v1:"64", v2:"64"}, {n:"Size #2", v1:"192", v2:"192"}, {n:"Size #3", v1:"300", v2:"200"}].map((s, i) => (
+                     {[{n:"Size #1", wKey:"Config5", hKey:"Config5", v1:"64", v2:"64"}, {n:"Size #2", wKey:"Config6", hKey:"Config6", v1:"192", v2:"192"}, {n:"Size #3", wKey:"gridIconSize", hKey:"listIconSize", v1:"300", v2:"200"}].map((s, i) => (
                         <div key={i} className="flex gap-2 items-center">
                            <span className="text-[12px] text-[#e0e0e0] w-[50px]">{s.n}</span>
-                           <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[80px] outline-none"><option>{s.v1}</option><option>NaN</option><option>NaN</option></select>
-                           <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[80px] outline-none"><option>{s.v2}</option><option>NaN</option><option>NaN</option></select>
+                           <select
+                             className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[80px] outline-none"
+                             value={String((localConfig as any)[s.wKey] || s.v1)}
+                             onChange={e => updateLocalConfig({ [s.wKey]: e.target.value })}
+                           >
+                             {['32','48','64','96','128','192','256','300'].map(v => <option key={v} value={v}>{v}</option>)}
+                           </select>
+                           <select
+                             className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[80px] outline-none"
+                             value={String((localConfig as any)[s.hKey] || s.v2)}
+                             onChange={e => updateLocalConfig({ [s.hKey]: e.target.value })}
+                           >
+                             {['32','48','64','96','128','192','256','300'].map(v => <option key={v} value={v}>{v}</option>)}
+                           </select>
                         </div>
                      ))}
                   </div>
@@ -1723,8 +1844,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      <div className="flex items-center gap-2 mt-2">
                         <span className="text-[12px] text-[#e0e0e0] w-[80px]">Cache path:</span>
                         <input type="text" className="bg-[#1e1e1e] border border-[#666] text-white text-[12px] px-2 w-[220px] h-6 outline-none" value={localConfig.Config4 || "Thumbnails\\"} onChange={e => updateLocalConfig({ Config4: e.target.value })}  />
-                        <ActionBtn label="..." className="w-[30px] h-6 min-h-[24px]" />
-                        <ActionBtn label="Clear..." className="w-[60px] h-6 min-h-[24px] ml-auto" />
+                        <ActionBtn label="..." className="w-[30px] h-6 min-h-[24px]" onClick={() => void browseFolderInto('Config4', 'Select thumbnail cache folder')} />
+                        <ActionBtn label="Clear..." className="w-[60px] h-6 min-h-[24px] ml-auto" onClick={clearThumbnailCachePath} title="Reset cache path to default" />
                      </div>
                      <div className="ml-[90px] mt-1">
                         <Checkbox label={<span>Resolve cache path from c<span className="underline decoration-1 underline-offset-[3px]">u</span>rrent folder</span>} checked={localConfig.resolveCachePathFromCurrentFolder ?? false} onChange={e => updateLocalConfig({ resolveCachePathFromCurrentFolder: e.target.checked })} disabled={!localConfig.cacheThumbnailsOnDisk} />
@@ -1890,7 +2011,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">New tab <span className="underline decoration-1 underline-offset-[3px]">p</span>ath:</span>
                     <div className="flex items-center gap-2 flex-1">
                        <input type="text" className="bg-[#1e1e1e] border border-[#666] text-white text-[12px] px-2 flex-1 h-6 outline-none" value={localConfig.newTabPath || ""} onChange={e => updateLocalConfig({newTabPath: e.target.value})} />
-                       <ActionBtn label="..." className="w-[30px] h-6 min-h-[24px]" />
+                       <ActionBtn label="..." className="w-[30px] h-6 min-h-[24px]" onClick={() => void browseFolderInto('newTabPath', 'Select default new tab folder')} />
                     </div>
                  </div>
                  <div className="flex items-center gap-[42px] mb-[6px]">
@@ -1972,7 +2093,15 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Tab c<span className="underline decoration-1 underline-offset-[3px]">a</span>ptions:</span>
                     <div className="flex items-center gap-2 flex-1">
                        <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[280px] outline-none" value={localConfig.tabCaptions || "Folder only"} onChange={e => updateLocalConfig({tabCaptions: e.target.value})}><option>Folder only</option><option>Full path</option><option>Custom</option></select>
-                       <ActionBtn label="Custom..." className="w-[80px]" />
+                       <ActionBtn
+                         label="Custom..."
+                         className="w-[80px]"
+                         disabled={localConfig.tabCaptions !== 'Custom'}
+                         onClick={() => {
+                           const next = window.prompt('Custom tab caption template (e.g. <folder> - <path>):', localConfig.tabCaptionTemplate || '<folder>');
+                           if (next != null && next.trim()) updateLocalConfig({ tabCaptionTemplate: next.trim(), tabCaptions: 'Custom' });
+                         }}
+                       />
                     </div>
                  </div>
                  <div className="flex items-center gap-[42px]">
@@ -2282,7 +2411,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">A</span>pply list styles globally</span>} checked={localConfig.applyListStylesGlobally ?? false} onChange={e => updateLocalConfig({ applyListStylesGlobally: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">R</span>emember list settings per tab</span>} checked={localConfig.rememberListSettingsPerTab ?? false} onChange={e => updateLocalConfig({ rememberListSettingsPerTab: e.target.checked })} />
                  <div className="ml-[20px] mb-4">
-                    <ActionBtn label="Apply to..." className="px-6 py-[2px] bg-[#1a1a1a]" />
+                    <ActionBtn label="Apply to..." className="px-6 py-[2px] bg-[#1a1a1a]" onClick={applyStylesToCurrentTab} title="Apply current list style settings to the active tab" />
                  </div>
                  
                  <Checkbox label={<span>Mirror tree bo<span className="underline decoration-1 underline-offset-[3px]">x</span> color in list</span>} checked={localConfig.mirrorTreeBoxColorInList ?? false} onChange={e => updateLocalConfig({ mirrorTreeBoxColorInList: e.target.checked })} />
@@ -2371,7 +2500,11 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <div className="flex gap-4 flex-1 overflow-hidden min-h-[300px]">
                   <div className="flex-1 border border-[#444] bg-[#111] overflow-y-auto w-full p-2 text-[13px] font-mono leading-tight space-y-[2px]">
                     {localConfig.colorFilters.map((row, i) => (
-                       <div key={row.i} className="flex gap-2 items-center">
+                       <div
+                         key={row.i}
+                         className={`flex gap-2 items-center cursor-pointer rounded px-1 ${i === selectedColorFilterIdx ? 'bg-[#094771]/40 ring-1 ring-[#0078d4]/50' : 'hover:bg-[#222]'}`}
+                         onClick={() => setSelectedColorFilterIdx(i)}
+                       >
                           <span className="w-[18px] text-right text-gray-500">{row.i}</span>
                           <input type="checkbox" checked={row.c} onChange={(e) => {
                              const newArr = [...localConfig.colorFilters];
@@ -2383,24 +2516,24 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     ))}
                  </div>
                  <div className="w-[100px] flex flex-col gap-2 relative">
-                    <ActionBtn label="New" className="w-full text-center py-[4px]" />
-                    <ActionBtn label="Edit" className="w-full text-center py-[4px]" />
-                    <ActionBtn label="Delete" className="w-full text-center py-[4px]" />
+                    <ActionBtn label="New" className="w-full text-center py-[4px]" onClick={addColorFilter} />
+                    <ActionBtn label="Edit" className="w-full text-center py-[4px]" onClick={editColorFilter} disabled={!colorFilters.length} />
+                    <ActionBtn label="Delete" className="w-full text-center py-[4px]" onClick={deleteColorFilter} disabled={!colorFilters.length} />
                     <div className="h-4"></div>
                     <ActionBtn label="Advanced Rules..." className="w-full text-center py-[4px] bg-[#094771]/35 text-[#7eb8e8] border-[#0078d4]/40 hover:bg-[#094771]/55" onClick={() => setShowConditionalFormattingDialog(true)} />
                     <div className="h-4"></div>
-                    <ActionBtn label="Up" className="w-full text-center py-[4px]" />
-                    <ActionBtn label="Down" className="w-full text-center py-[4px]" />
+                    <ActionBtn label="Up" className="w-full text-center py-[4px]" onClick={() => moveColorFilter(-1)} disabled={selectedColorFilterIdx <= 0} />
+                    <ActionBtn label="Down" className="w-full text-center py-[4px]" onClick={() => moveColorFilter(1)} disabled={selectedColorFilterIdx >= colorFilters.length - 1} />
                     
                     <div className="absolute bottom-0 left-0 w-full space-y-2">
                        <span className="text-[12px] text-white">Define colors:</span>
                        <div className="flex gap-1 w-full">
-                          <ActionBtn label="Text..." className="flex-1 py-[4px]" />
-                          <ActionBtn label="Clear" className="px-2 py-[4px]" />
+                          <ActionBtn label="Text..." className="flex-1 py-[4px]" onClick={() => void setColorFilterPart('text')} disabled={!colorFilters.length} />
+                          <ActionBtn label="Clear" className="px-2 py-[4px]" onClick={() => void setColorFilterPart('text', true)} disabled={!colorFilters.length} />
                        </div>
                        <div className="flex gap-1 w-full">
-                          <ActionBtn label="Back..." className="flex-1 py-[4px]" />
-                          <ActionBtn label="Clear" className="px-2 py-[4px]" />
+                          <ActionBtn label="Back..." className="flex-1 py-[4px]" onClick={() => void setColorFilterPart('bg')} disabled={!colorFilters.length} />
+                          <ActionBtn label="Clear" className="px-2 py-[4px]" onClick={() => void setColorFilterPart('bg', true)} disabled={!colorFilters.length} />
                        </div>
                     </div>
                  </div>

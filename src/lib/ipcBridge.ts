@@ -664,9 +664,17 @@ export const IPC = {
     }
   },
 
-  shellExecute(action: 'open' | 'openWith' | 'copyPath' | 'compress' | 'openTerminal' | 'openExplorer' | 'executeScript' | string, path: string | string[], workingDir?: string) {
+  shellExecute(
+    action: 'open' | 'openWith' | 'copyPath' | 'compress' | 'openTerminal' | 'openExplorer' | 'executeScript' | string,
+    path: string | string[],
+    workingDir?: string,
+    shell?: { useCustom?: boolean; interpreter?: string; args?: string },
+  ) {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'SHELL_EXECUTE', payload: { action, path, workingDir } });
+      (window as any).chrome.webview.postMessage({
+        type: 'SHELL_EXECUTE',
+        payload: { action, path, workingDir, ...(shell ? { shell } : {}) },
+      });
     } else {
       if (action === 'copyPath') {
         const text = Array.isArray(path) ? path.join('\n') : path;
