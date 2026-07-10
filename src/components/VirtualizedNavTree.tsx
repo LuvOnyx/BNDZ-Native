@@ -600,7 +600,7 @@ export function VirtualizedNavTree({
 
   const renderRow = (row: FlatNavRow) => {
     const treeTipContent = showTreeTips && !row.isPlaceholder ? buildTreeTooltipContent(row, config) : null;
-    const tipHandlers = bindFloatingTooltipHandlers(treeTipContent, config);
+    const tipHandlers = bindFloatingTooltipHandlers(treeTipContent, config, { context: 'tree', surface: 'filename' });
     return (
     <TreeRow
       key={row.id}

@@ -45,7 +45,8 @@ export default function FloatingTooltipHost() {
 
   if (typeof document === 'undefined') return null;
 
-  const pos = tip ? clampPosition(tip.x, tip.y) : { left: 0, top: 0 };
+  const pos = tip ? clampPosition(tip.x, tip.y, tip.content.mode === 'hoverbox' ? 420 : 320, tip.content.mode === 'hoverbox' ? 280 : 160) : { left: 0, top: 0 };
+  const isHoverBox = tip?.content.mode === 'hoverbox';
   const variant = tip ? (TOOLTIP_VARIANTS[tip.theme] || TOOLTIP_VARIANTS.glass) : TOOLTIP_VARIANTS.glass;
 
   return createPortal(
@@ -63,11 +64,11 @@ export default function FloatingTooltipHost() {
             filter: { duration: 0.05 },
             scale: { duration: 0.07 },
           }}
-          className="fixed z-[700] pointer-events-none max-w-[320px]"
+          className={`fixed z-[700] pointer-events-none ${isHoverBox ? 'max-w-[420px]' : 'max-w-[320px]'}`}
           style={{ left: pos.left, top: pos.top }}
         >
           <motion.div
-            className={`${variant.panel} overflow-hidden`}
+            className={`${variant.panel} overflow-hidden ${isHoverBox ? 'bndz-hoverbox-panel' : ''}`}
             initial={{ boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}
             animate={{ boxShadow: '0 10px 36px rgba(0,0,0,0.5)' }}
             exit={{ boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}

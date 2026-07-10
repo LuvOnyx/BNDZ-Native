@@ -16,6 +16,8 @@ export interface HoverTooltipContent {
   lines?: TooltipLine[];
   badge?: { text: string; color?: string };
   icon?: React.ReactNode;
+  /** `hoverbox` renders a wider premium panel (XYplorer Hover Box). */
+  mode?: 'tip' | 'hoverbox';
 }
 
 export type HoverTooltipTheme = 'glass' | 'minimal' | 'accent' | 'mono';

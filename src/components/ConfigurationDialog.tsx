@@ -20,6 +20,20 @@ import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { searchJumpSettings } from '../lib/jumpToSettingIndex';
 import { mergeUserCommands } from '../lib/userCommands';
 import BndzIndexManagerPanel from './settings/BndzIndexManagerPanel';
+import CustomColumnsTabContent from './settings/CustomColumnsTabContent';
+import FieldPickerDialog from './settings/FieldPickerDialog';
+import {
+  STANDARD_FILE_INFO_FIELDS,
+  EXTRA_FILE_INFO_FIELDS,
+  DEFAULT_STANDARD_FIELD_IDS,
+  DEFAULT_EXTRA_FIELD_IDS,
+} from '../lib/fileInfoTipFields';
+import {
+  HOVER_BOX_ITEM_TYPES,
+  HOVER_BOX_CONTEXTS,
+  DEFAULT_HOVER_BOX_ITEM_TYPES,
+  DEFAULT_HOVER_BOX_CONTEXTS,
+} from '../lib/hoverBoxConfig';
 import {
   createColorFilterRow,
   moveColorFilterRow,
@@ -67,6 +81,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const [shellBusy, setShellBusy] = useState(false);
   const [selectedColorFilterIdx, setSelectedColorFilterIdx] = useState(0);
   const [selectedPreviewFormatIdx, setSelectedPreviewFormatIdx] = useState(0);
+  const [fieldPicker, setFieldPicker] = useState<null | 'standard' | 'extra' | 'hoverTypes' | 'hoverContexts'>(null);
   const updateLocalConfig = (updates: any) => {
     setLocalConfig(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
@@ -995,22 +1010,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="Custom Columns" className="m-0 border-0 p-0 outline-none flex flex-col h-full">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Custom Columns</h1>
-              <p className="text-[11px] text-[#888] mb-3">Built-in metadata columns are listed below. Custom EXIF/media column authoring ships in a future release — use Tree and List to show/hide standard columns.</p>
-              
-              <div className="border border-[#555] bg-[#0c0c0c] flex-1 overflow-y-auto mb-4 p-[2px] styled-scrollbar">
-                 {["Dimensions, Special Property (png;gif;bmp;webp;ico;cur;{Photo};Ink)", "Aspect Ratio, Special Property (png;gif;bmp;webp;ico;cur;{Photo};Ink)", "Date Taken, Special Property ({Photo})", "Camera Model, Special Property ({Photo})", "F-Stop, Special Property ({Photo})", "Exposure Time, Special Property ({Photo})", "Length, Special Property ({Media})", "Sample Rate, Special Property ({Media})", "Bit Depth, Special Property ({Media})", "Bit Rate, Special Property ({Media})", "Channels, Special Property ({Media})", "Focal Length, Special Property ({Photo})", "ISO Speed, Special Property ({Photo})", "Mixed, Mixed (*.*)", "Version, Special Property (exe;dll)", "MD5, Special Property (*.*)", ...Array(12).fill("(Undefined)")].map((c, i) => (
-                    <div key={i} className={`flex text-[12px] items-center gap-2 px-1 py-[2px] hover:bg-[#333] ${i===0 ? 'bg-[#334] text-white' : 'text-[#ccc]'}`}>
-                        <span className={`w-4 text-right ${i === 0 ? 'text-[#aaa]' : 'text-[#888]'}`}>{i + 1}</span>
-                        <span>{c}</span>
-                    </div>
-                 ))}
-              </div>
-              
-              <div className="flex justify-between">
-                 <ActionBtn label="Reset Columns..." className="w-[150px]" onClick={() => updateLocalConfig({ listColumnOrder: [], listColumnVisibility: {}, listColumnWidths: {} })} />
-                 <ActionBtn label="Edit..." className="w-[100px]" onClick={() => setActiveTab('Tree and List')} />
-              </div>
+              <CustomColumnsTabContent localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
             </TabsContent>
             
             <TabsContent value="File Info Tips & Hover Box" className="m-0 border-0 p-0 outline-none">
@@ -1096,11 +1096,11 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      <div className="ml-[20px]">
                         <Checkbox label={<span>Sho<span className="underline decoration-1 underline-offset-[3px]">w</span> these fields:</span>} checked={localConfig.showTheseFields ?? false} onChange={e => updateLocalConfig({ showTheseFields: e.target.checked })} disabled={!localConfig.showFileInfoTips || !localConfig.useStandardShellFileInfoTips} />
                         <div className="my-[4px] ml-[20px]">
-                           <ActionBtn label="Select Standard Fields..." className="w-[200px]" disabled title="Standard shell fields are applied automatically when Use standard shell file info tips is enabled." />
+                           <ActionBtn label="Select Standard Fields..." className="w-[200px]" onClick={() => setFieldPicker('standard')} disabled={!localConfig.showFileInfoTips || !localConfig.useStandardShellFileInfoTips} />
                         </div>
                         <Checkbox label={<span>Extra fields:</span>} checked={localConfig.extraFields ?? false} onChange={e => updateLocalConfig({ extraFields: e.target.checked })} disabled={!localConfig.showFileInfoTips || !localConfig.useStandardShellFileInfoTips} />
                         <div className="my-[4px] ml-[20px]">
-                           <ActionBtn label="Select Extra Fields..." className="w-[200px]" disabled title="Extra metadata fields editor ships in a future release." />
+                           <ActionBtn label="Select Extra Fields..." className="w-[200px]" onClick={() => setFieldPicker('extra')} disabled={!localConfig.showFileInfoTips || !localConfig.useStandardShellFileInfoTips || !localConfig.extraFields} />
                         </div>
                      </div>
                   </div>
@@ -1114,8 +1114,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      </div>
                      <Checkbox label={<span>Hold Shift while <span className="underline decoration-1 underline-offset-[3px]">h</span>overing</span>} checked={localConfig.onlyWhileTheShiftKeyIsHeldDown ?? true} onChange={e => updateLocalConfig({ onlyWhileTheShiftKeyIsHeldDown: e.target.checked })} disabled={!localConfig.showHoverBox} />
                      <div className="flex gap-2 mt-2">
-                        <ActionBtn label="Select Item Types..." className="w-[180px]" disabled title="Hover box item-type filters ship in a future release." />
-                        <ActionBtn label="Select Context..." className="w-[180px]" disabled title="Hover box context filters ship in a future release." />
+                        <ActionBtn label="Select Item Types..." className="w-[180px]" onClick={() => setFieldPicker('hoverTypes')} disabled={!localConfig.showHoverBox} />
+                        <ActionBtn label="Select Context..." className="w-[180px]" onClick={() => setFieldPicker('hoverContexts')} disabled={!localConfig.showHoverBox} />
                         <ActionBtn label="Tips..." className="w-[80px]" onClick={() => setActiveTab('File Info Tips & Hover Box')} title="Open hover box settings" />
                      </div>
                   </div>
@@ -2646,6 +2646,39 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       </div>
 
       <ConditionalFormattingDialog open={showConditionalFormattingDialog} onOpenChange={setShowConditionalFormattingDialog} />
+
+      <FieldPickerDialog
+        open={fieldPicker === 'standard'}
+        title="Standard file info fields"
+        items={STANDARD_FILE_INFO_FIELDS.map(f => ({ id: f.id, label: f.label }))}
+        selected={localConfig.shellInfoTipStandardFields || DEFAULT_STANDARD_FIELD_IDS}
+        onClose={() => setFieldPicker(null)}
+        onSave={ids => updateLocalConfig({ shellInfoTipStandardFields: ids, showTheseFields: ids.length > 0 })}
+      />
+      <FieldPickerDialog
+        open={fieldPicker === 'extra'}
+        title="Extra metadata fields"
+        items={EXTRA_FILE_INFO_FIELDS.map(f => ({ id: f.id, label: f.label, group: 'EXIF / media' }))}
+        selected={localConfig.shellInfoTipExtraFields || DEFAULT_EXTRA_FIELD_IDS}
+        onClose={() => setFieldPicker(null)}
+        onSave={ids => updateLocalConfig({ shellInfoTipExtraFields: ids, extraFields: ids.length > 0 })}
+      />
+      <FieldPickerDialog
+        open={fieldPicker === 'hoverTypes'}
+        title="Hover box — item types"
+        items={HOVER_BOX_ITEM_TYPES.map(t => ({ id: t.id, label: t.label }))}
+        selected={localConfig.hoverBoxItemTypes || DEFAULT_HOVER_BOX_ITEM_TYPES}
+        onClose={() => setFieldPicker(null)}
+        onSave={ids => updateLocalConfig({ hoverBoxItemTypes: ids })}
+      />
+      <FieldPickerDialog
+        open={fieldPicker === 'hoverContexts'}
+        title="Hover box — contexts"
+        items={HOVER_BOX_CONTEXTS.map(c => ({ id: c.id, label: c.label }))}
+        selected={localConfig.hoverBoxContexts || DEFAULT_HOVER_BOX_CONTEXTS}
+        onClose={() => setFieldPicker(null)}
+        onSave={ids => updateLocalConfig({ hoverBoxContexts: ids })}
+      />
 
       <NativeDialogShell
         open={showJumpDialog}

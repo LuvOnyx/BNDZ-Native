@@ -253,14 +253,68 @@ namespace BNDZ.Services
                 using var item = new ShellItem(filePath);
                 var props = item.Properties;
 
-                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Audio.EncodingBitrate, out var bitRate) && bitRate is uint br)
-                    meta["Audio Bitrate"] = $"{br / 1000} kbps";
-
                 if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Image.Dimensions, out var dims) && dims is string dimStr)
+                {
                     meta["Dimensions"] = dimStr;
+                    var parts = dimStr.Split('×', 'x', 'X');
+                    if (parts.Length == 2
+                        && int.TryParse(parts[0].Trim(), out var w)
+                        && int.TryParse(parts[1].Trim(), out var h)
+                        && h > 0)
+                    {
+                        meta["Aspect Ratio"] = $"{w}:{h} ({(w / (double)h):0.##}:1)";
+                    }
+                }
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.DateTaken, out var dateTaken) && dateTaken is DateTime dtTaken)
+                    meta["Date Taken"] = dtTaken.ToString("g");
+                else if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.DateTaken, out dateTaken) && dateTaken != null)
+                    meta["Date Taken"] = dateTaken.ToString() ?? "";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.CameraModel, out var camera) && camera != null)
+                    meta["Camera Model"] = camera.ToString() ?? "";
+                else if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.CameraManufacturer, out var maker) && maker != null)
+                    meta["Camera Model"] = maker.ToString() ?? "";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.FNumber, out var fnum) && fnum != null)
+                    meta["F-Stop"] = fnum is double fd ? $"f/{fd:0.#}" : fnum.ToString() ?? "";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.ExposureTime, out var exposure) && exposure != null)
+                    meta["Exposure Time"] = exposure.ToString() ?? "";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.FocalLength, out var focal) && focal != null)
+                    meta["Focal Length"] = focal is double fl ? $"{fl:0.#} mm" : focal.ToString() ?? "";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Photo.ISOSpeed, out var iso) && iso != null)
+                    meta["ISO Speed"] = iso.ToString() ?? "";
 
                 if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Media.Duration, out var duration) && duration is ulong dur)
                     meta["Duration"] = TimeSpan.FromTicks((long)dur).ToString(@"hh\:mm\:ss");
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Audio.EncodingBitrate, out var bitRate) && bitRate is uint br)
+                    meta["Audio Bitrate"] = $"{br / 1000} kbps";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Audio.SampleRate, out var sampleRate) && sampleRate is uint sr)
+                    meta["Sample Rate"] = $"{sr} Hz";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Audio.SampleSize, out var sampleSize) && sampleSize is uint bits)
+                    meta["Bit Depth"] = $"{bits} bit";
+
+                if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Audio.ChannelCount, out var channels) && channels is uint ch)
+                    meta["Channels"] = ch.ToString();
+
+                if (!isDir && File.Exists(filePath))
+                {
+                    try
+                    {
+                        var vi = System.Diagnostics.FileVersionInfo.GetVersionInfo(filePath);
+                        if (!string.IsNullOrWhiteSpace(vi.FileVersion))
+                            meta["File Version"] = vi.FileVersion;
+                        else if (!string.IsNullOrWhiteSpace(vi.ProductVersion))
+                            meta["File Version"] = vi.ProductVersion;
+                    }
+                    catch { }
+                }
 
                 if (TryGetProperty(props, Ole32.PROPERTYKEY.System.Author, out var authors) && authors is string[] authorList && authorList.Length > 0)
                     meta["Authors"] = string.Join(", ", authorList);

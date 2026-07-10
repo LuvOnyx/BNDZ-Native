@@ -1250,6 +1250,20 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   filter: grayscale(0.6);
 }
 
+.bndz-hoverbox-panel {
+  min-width: 300px;
+  border-color: rgba(0, 120, 212, 0.35) !important;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 120, 212, 0.12) !important;
+}
+
+.bndz-hoverbox-panel .bndz-floating-tooltip-title {
+  font-size: 14px;
+}
+
+.bndz-hoverbox-panel .bndz-floating-tooltip-value {
+  font-size: 11px;
+}
+
 .bndz-detail-col-muted {
   color: rgba(212, 212, 212, 0.72);
 }

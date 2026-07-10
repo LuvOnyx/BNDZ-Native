@@ -67,8 +67,10 @@ import { LeftSidebar } from './LeftSidebar';
 import { ThumbnailIcon } from './ThumbnailIcon';
 import { ShellNativeIcon } from './ShellNativeIcon';
 import ToolbarConfigurator, { resolveToolbarItem } from './ToolbarConfigurator';
-import { buildEntityTooltipContent } from '../lib/entityTooltip';
-import { shouldShowTooltipForEntity, bindFloatingTooltipHandlers, shouldSuppressNativeEntityTitle } from '../lib/tooltipSettings';
+import { createEntityTooltipHandlers } from '../lib/entityTooltip';
+import { shouldSuppressNativeEntityTitle } from '../lib/tooltipSettings';
+import CustomColumnCell from './CustomColumnCell';
+import { parseCustomColumnListId, resolveCustomColumns } from '../lib/customColumns';
 import { hideFloatingTooltip, getFloatingTooltip, isShiftKeyHeld, subscribeShiftKey, getHoverPending, subscribeFloatingTooltip } from '../lib/floatingTooltip';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import FloatingTooltipHost from './FloatingTooltipHost';
@@ -4260,6 +4262,20 @@ export default function BNDZUI() {
       const { isDir, displayName, renameInput, filterResult, filterColor, entityTags, panePath } = opts;
       const textStyle = filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {};
       const mutedColClass = settingsRt.list.lighterDetailColumns ? 'bndz-detail-col-muted' : '';
+      const customColId = parseCustomColumnListId(colId);
+      if (customColId) {
+        const colDef = resolveCustomColumns(config).find(c => c.id === customColId);
+        if (!colDef) return null;
+        return (
+          <CustomColumnCell
+            key={colId}
+            colId={colId}
+            entity={entity}
+            panePath={panePath}
+            propertyKey={colDef.propertyKey}
+          />
+        );
+      }
       switch (colId) {
         case 'name':
           return (
@@ -5679,10 +5695,14 @@ export default function BNDZUI() {
                   ? renameInput
                   : (highlightFilter ? highlightNameMatch(displayName, highlightFilter) : displayName);
 
-                const tooltipContent = (inlineRename?.entityId !== entity.id && shouldShowTooltipForEntity(entity, config))
-                  ? buildEntityTooltipContent(entity, panePath, config, folderSizeMap, formatSize)
-                  : null;
-                const tipHandlers = bindFloatingTooltipHandlers(tooltipContent, config);
+                const tipHandlers = createEntityTooltipHandlers(
+                  entity,
+                  panePath,
+                  config,
+                  folderSizeMap,
+                  formatSize,
+                  { context: 'list', disabled: inlineRename?.entityId === entity.id },
+                );
                 const suppressNativeTitle = shouldSuppressNativeEntityTitle(config);
 
                 const zebraAlt = listRt.zebraRows && !showSelectionChrome && rowIndex % 2 === 1;

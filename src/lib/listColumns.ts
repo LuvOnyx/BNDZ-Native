@@ -1,6 +1,8 @@
 import type { AppConfig } from '../data/configContext';
+import { customColumnListId, resolveCustomColumns } from './customColumns';
 
-export type ListColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'label' | 'comment' | 'path';
+export type BuiltinListColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'label' | 'comment' | 'path';
+export type ListColumnId = BuiltinListColumnId | `custom:${string}`;
 export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created';
 
 export interface ListColumnDef {
@@ -82,21 +84,34 @@ export function getVisibleListColumns(
   options?: { isGlobalSearch?: boolean },
 ): ListColumnDef[] {
   const vis = resolveListColumnVisibility(config, options);
-  const widths = (config.listColumnWidths || {}) as Partial<Record<ListColumnId, number>>;
+  const widths = (config.listColumnWidths || {}) as Partial<Record<string, number>>;
   const order = resolveListColumnOrder(config);
   const byId = new Map(LIST_COLUMN_DEFS.map(c => [c.id, c]));
-  return order
-    .map(id => byId.get(id))
-    .filter((col): col is ListColumnDef => !!col && vis[col.id])
+  const builtin = order
+    .map(id => byId.get(id as BuiltinListColumnId))
+    .filter((col): col is ListColumnDef => !!col && vis[col.id as BuiltinListColumnId])
     .map(col => {
       const px = widths[col.id];
       if (!px || px < 48) return col;
+      return { ...col, widthClass: '', widthPx: px };
+    });
+
+  const customCols = resolveCustomColumns(config)
+    .filter(c => c.enabled)
+    .map(c => {
+      const id = customColumnListId(c.id) as ListColumnId;
+      const px = c.widthPx || widths[id] || 120;
       return {
-        ...col,
+        id,
+        label: c.label,
         widthClass: '',
         widthPx: px,
-      };
+        align: 'left' as const,
+        sortable: false,
+      } satisfies ListColumnDef;
     });
+
+  return [...builtin, ...customCols];
 }
 
 export function getColumnStyle(col: ListColumnDef): { width: number; minWidth: number; maxWidth: number; flexShrink: 0 } | undefined {

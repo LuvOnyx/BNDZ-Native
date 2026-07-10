@@ -2,8 +2,11 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { formatLibrariesForConfig } from '../lib/iconLibraryUtils';
 import { SETTINGS_DEFAULTS, SETTINGS_VALUE_PATCHES } from '../lib/settingsDefaults';
 import { applySettingsRuntime, applyBackendSettings } from '../lib/settingsRuntime';
-import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
+import { DEFAULT_CUSTOM_COLUMNS, type CustomColumnDef } from '../lib/customColumns';
+import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/fileInfoTipFields';
+import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib/hoverBoxConfig';
 import type { CustomEventAction } from '../lib/customEventActions';
+import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
 
 export interface VisualFilter {
     id: string;
@@ -82,6 +85,11 @@ export interface AppConfig {
     previewCategories: Array<{n: string, d: string, c: boolean}>;
     previewFormats: Array<{i: string, n: string, c: boolean}>;
     colorFilters: Array<{i: number, c: boolean, t: string, style: string}>;
+    customColumns?: CustomColumnDef[];
+    shellInfoTipStandardFields?: string[];
+    shellInfoTipExtraFields?: string[];
+    hoverBoxItemTypes?: string[];
+    hoverBoxContexts?: string[];
 }
 
 const defaultStructuredConfig: Partial<AppConfig> = {
@@ -100,6 +108,11 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     folderSizeBarStyle: 'bar',
     appearanceNavTreeColors: 'subtle',
     installedPlugins: ['properties', 'context-menu-manager', 'icon-studio', 'batch-rename', 'find', 'dropstack', 'filters', 'metadata', 'storage-cleanup', 'folder-sync', 'catalog'],
+    customColumns: DEFAULT_CUSTOM_COLUMNS.map(c => ({ ...c })),
+    shellInfoTipStandardFields: [...DEFAULT_STANDARD_FIELD_IDS],
+    shellInfoTipExtraFields: [...DEFAULT_EXTRA_FIELD_IDS],
+    hoverBoxItemTypes: [...DEFAULT_HOVER_BOX_ITEM_TYPES],
+    hoverBoxContexts: [...DEFAULT_HOVER_BOX_CONTEXTS],
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
