@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { toWindowsPath } from '../lib/pathUtils';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
+import { useAppConfig } from './configContext';
+import { resolveRecreateStructureForPaste } from '../lib/pastePlanning';
 
 const CLIPBOARD_STORAGE_KEY = 'bndz-clipboard-v1';
 
@@ -48,6 +50,7 @@ const ClipboardContext = createContext<ClipboardContextValue | null>(null);
 
 export function ClipboardProvider({ children }: { children: React.ReactNode }) {
   const [clipboard, setClipboard] = useState<ClipboardState>(loadStoredClipboard);
+  const { config } = useAppConfig();
 
   const setClipboardState = useCallback((items: string[], action: ClipboardAction) => {
     const normalized = items.map(p => toWindowsPath(p)).filter(Boolean);
@@ -108,12 +111,16 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       : `${winSources.length} items`;
     const opId = `paste-${Date.now()}`;
 
-    await IPC.executeFsOperation(opId, op, winSources, dest, false, label, 'high');
+    const recreateSourceStructure = op === 'copy'
+      ? resolveRecreateStructureForPaste(config, winSources, msg => window.confirm(msg))
+      : false;
+
+    await IPC.executeFsOperation(opId, op, winSources, dest, false, label, 'high', recreateSourceStructure);
 
     if (clipboard.action === 'cut') {
       clearClipboard();
     }
-  }, [clipboard, clearClipboard]);
+  }, [clipboard, clearClipboard, config]);
 
   return (
     <ClipboardContext.Provider value={{ clipboard, copyToClipboard, setClipboardState, executePaste, clearClipboard }}>

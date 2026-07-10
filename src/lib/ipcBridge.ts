@@ -477,11 +477,21 @@ export const IPC = {
     bypassRecycleBin: boolean = false,
     label?: string,
     priority?: 'low' | 'normal' | 'high',
+    recreateSourceStructure?: boolean,
   ): Promise<void> {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({
         type: 'EXECUTE_FS_OPERATION',
-        payload: { operationId, action, source, target, bypassRecycleBin, label, priority },
+        payload: {
+          operationId,
+          action,
+          source,
+          target,
+          bypassRecycleBin,
+          label,
+          priority,
+          recreateSourceStructure: !!recreateSourceStructure,
+        },
       });
       return;
     }
@@ -783,14 +793,19 @@ export const IPC = {
     return data.renamedFiles;
   },
 
-  syncFolders(source: string, target: string, entityId: string, action: 'copy' | 'move' = 'move') {
+  syncFolders(source: string, target: string, entityId: string, action: 'copy' | 'move' = 'move'): Promise<{ ok: boolean; error?: string }> {
     if (this.isNative) {
       const operationId = `sync-${Date.now()}`;
-      (window as any).chrome.webview.postMessage({
-        type: 'SYNC_FOLDERS',
-        payload: { source, target, entityId, action, operationId },
-      });
+      const id = `${Date.now()}_syncFolders`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'SYNC_FOLDERS',
+        'SYNC_FOLDERS_RESULT',
+        id,
+        { source, target, entityId, action, operationId },
+        600_000,
+      );
     }
+    return Promise.resolve({ ok: false, error: 'Native only' });
   },
 
   getCloudProviders(): Promise<any[]> {

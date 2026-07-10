@@ -82,6 +82,22 @@ public sealed class BndzTagSidecarStore
 
     public IReadOnlyList<TagSidecarEntry> GetAll() => _map.Values.OrderBy(v => v.Path).ToList();
 
+    /// <summary>Copy label, comment, and tags from source paths to destination paths after copy/sync.</summary>
+    public void CopyMetadata(IEnumerable<(string source, string dest)> mappings)
+    {
+        var changed = false;
+        foreach (var (source, dest) in mappings)
+        {
+            var entry = Get(source);
+            if (entry == null) continue;
+            if (entry.Tags.Count == 0 && string.IsNullOrWhiteSpace(entry.Label) && string.IsNullOrWhiteSpace(entry.Comment))
+                continue;
+            ApplyMeta(dest, entry.Label, entry.Comment, entry.Tags);
+            changed = true;
+        }
+        if (changed) Save();
+    }
+
     public static List<Dictionary<string, object?>> EnrichDirResults(List<object> results, BndzTagSidecarStore store)
     {
         var list = new List<Dictionary<string, object?>>();

@@ -8,11 +8,32 @@ namespace BNDZ.Services;
 /// <summary>Plans destination paths and byte estimates for copy/move operations.</summary>
 public static class FileOperationPathPlanner
 {
-    public static List<(string Source, string Dest)> Plan(string action, IReadOnlyList<string> sources, string target)
+    public static bool ShouldRecreateStructure(IReadOnlyList<string> sources)
+    {
+        if (sources.Count <= 1) return false;
+        var parents = sources
+            .Select(s =>
+            {
+                var n = Normalize(s);
+                if (Directory.Exists(n)) return n.TrimEnd('\\', '/');
+                return Path.GetDirectoryName(n) ?? "";
+            })
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        return parents.Count() > 1;
+    }
+
+    public static List<(string Source, string Dest)> Plan(
+        string action,
+        IReadOnlyList<string> sources,
+        string target,
+        bool recreateSourceStructure = false)
     {
         var results = new List<(string, string)>();
         action = (action ?? "copy").ToLowerInvariant();
         var targetDir = Normalize(target);
+        var useStructure = recreateSourceStructure && ShouldRecreateStructure(sources);
+        var commonRoot = useStructure ? GetCommonDirectory(sources.Select(SourceRootForStructure).Where(p => !string.IsNullOrEmpty(p))) : "";
 
         if (action is "move" or "rename" && sources.Count == 1 && !string.IsNullOrEmpty(targetDir))
         {
@@ -39,11 +60,13 @@ public static class FileOperationPathPlanner
             var src = Normalize(raw);
             if (File.Exists(src))
             {
-                results.Add((src, Path.Combine(targetDir, Path.GetFileName(src))));
+                results.Add((src, ResolveFileDestination(src, targetDir, useStructure, commonRoot)));
             }
             else if (Directory.Exists(src))
             {
-                var destRoot = Path.Combine(targetDir, Path.GetFileName(src.TrimEnd('\\', '/')));
+                var destRoot = useStructure
+                    ? ResolveDirectoryRootDestination(src, targetDir, commonRoot)
+                    : Path.Combine(targetDir, Path.GetFileName(src.TrimEnd('\\', '/')));
                 foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
                 {
                     var rel = Path.GetRelativePath(src, file);
@@ -53,6 +76,72 @@ public static class FileOperationPathPlanner
         }
 
         return results;
+    }
+
+    private static string SourceRootForStructure(string raw)
+    {
+        var src = Normalize(raw);
+        if (Directory.Exists(src)) return src.TrimEnd('\\', '/');
+        return Path.GetDirectoryName(src) ?? "";
+    }
+
+    private static string ResolveFileDestination(string src, string targetDir, bool useStructure, string commonRoot)
+    {
+        if (!useStructure) return Path.Combine(targetDir, Path.GetFileName(src));
+
+        if (!string.IsNullOrEmpty(commonRoot)
+            && src.StartsWith(commonRoot, StringComparison.OrdinalIgnoreCase)
+            && src.Length > commonRoot.Length)
+        {
+            var rel = Path.GetRelativePath(commonRoot, src);
+            return Path.Combine(targetDir, rel);
+        }
+
+        var parent = Path.GetDirectoryName(src) ?? "";
+        var parentName = Path.GetFileName(parent.TrimEnd('\\', '/'));
+        if (!string.IsNullOrEmpty(parentName))
+            return Path.Combine(targetDir, parentName, Path.GetFileName(src));
+        return Path.Combine(targetDir, Path.GetFileName(src));
+    }
+
+    private static string ResolveDirectoryRootDestination(string src, string targetDir, string commonRoot)
+    {
+        var trimmed = src.TrimEnd('\\', '/');
+        if (!string.IsNullOrEmpty(commonRoot)
+            && trimmed.StartsWith(commonRoot, StringComparison.OrdinalIgnoreCase)
+            && trimmed.Length >= commonRoot.Length)
+        {
+            var rel = Path.GetRelativePath(commonRoot, trimmed);
+            return string.IsNullOrEmpty(rel) || rel == "."
+                ? Path.Combine(targetDir, Path.GetFileName(trimmed))
+                : Path.Combine(targetDir, rel);
+        }
+
+        return Path.Combine(targetDir, Path.GetFileName(trimmed));
+    }
+
+    private static string GetCommonDirectory(IEnumerable<string> paths)
+    {
+        var list = paths.Where(p => !string.IsNullOrWhiteSpace(p)).Select(Normalize).ToList();
+        if (list.Count == 0) return "";
+        if (list.Count == 1) return list[0].TrimEnd('\\', '/');
+
+        var segments = list
+            .Select(p => p.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            .ToList();
+        var minLen = segments.Min(s => s.Length);
+        var common = new List<string>();
+        for (int i = 0; i < minLen; i++)
+        {
+            var seg = segments[0][i];
+            if (segments.All(s => string.Equals(s[i], seg, StringComparison.OrdinalIgnoreCase)))
+                common.Add(seg);
+            else break;
+        }
+
+        return common.Count > 0
+            ? string.Join(Path.DirectorySeparatorChar, common).TrimEnd('\\', '/')
+            : "";
     }
 
     public static long EstimateBytes(IReadOnlyList<string> sources)

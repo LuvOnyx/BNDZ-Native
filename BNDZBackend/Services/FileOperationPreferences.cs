@@ -39,6 +39,8 @@ public sealed class FileOperationPreferences
     public bool PreservePermissionsOnMove { get; set; }
     public bool ProgressDialogModeless { get; set; }
     public string RecreateSourceFolderStructure { get; set; } = "Ask";
+    public bool CopyTagsOnCopyOperations { get; set; }
+    public bool CopyTagsOnBackupAndSync { get; set; }
 
     public enum UndoPromptMode
     {
@@ -76,6 +78,7 @@ public sealed class FileOperationPreferences
 
     public bool ShouldShowNativeProgress(string action, IReadOnlyList<string> sources, string target)
     {
+        if (ProgressDialogModeless) return false;
         if (!NativeShowProgress) return false;
         if (UseCustomCopy && action == "copy" && ForAllCopyOperations && NoProgressDialogOnDuplications)
             return false;
@@ -121,6 +124,8 @@ public sealed class FileOperationPreferences
                 PreservePermissionsOnMove = ReadBool(root, "preservePermissionsOnMoveOperation", false),
                 ProgressDialogModeless = ReadBool(root, "fileOperationProgressDialogModeless", false),
                 RecreateSourceFolderStructure = ReadString(root, "recreateSourceFolderStructure", "Ask"),
+                CopyTagsOnCopyOperations = ReadBool(root, "copyTagsOnCopyOperations", false),
+                CopyTagsOnBackupAndSync = ReadBool(root, "copyTagsOnBackupAndSyncOperations", false),
             };
             Current = p;
         }

@@ -49,6 +49,7 @@ public class FileOperationService
         Func<string, string, string, string, Task<string>>? onConflict = null,
         bool recordActionLog = true,
         Action<string, string>? onAccessDenied = null,
+        bool recreateSourceStructure = false,
         CancellationToken cancellationToken = default)
     {
         sources = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
@@ -102,7 +103,7 @@ public class FileOperationService
                         var plan = FileOperationPathPlanner.Plan("copy", sources, target);
                         FileOperationPathPlanner.EnsureDestinationSpace(target, FileOperationPathPlanner.EstimateBytesForPlan(plan));
                     }
-                    var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove).ConfigureAwait(false);
+                    var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove, recreateSourceStructure).ConfigureAwait(false);
                     if (created.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForCopy(sources, created));
                     break;
@@ -116,7 +117,7 @@ public class FileOperationService
                         var plan = FileOperationPathPlanner.Plan("move", sources, target);
                         FileOperationPathPlanner.EnsureDestinationSpace(target, FileOperationPathPlanner.EstimateBytesForPlan(plan));
                     }
-                    var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove).ConfigureAwait(false);
+                    var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove, recreateSourceStructure).ConfigureAwait(false);
                     if (movedTo.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForMove(sources, movedTo));
                     break;
@@ -256,7 +257,8 @@ public class FileOperationService
         Action<string, int, string, long, long, double, int, int>? onProgress,
         Func<string, string, string, string, Task<string>>? onConflict,
         CancellationToken cancellationToken,
-        bool preservePermissions = false)
+        bool preservePermissions = false,
+        bool recreateSourceStructure = false)
     {
         var createdPaths = new List<string>();
         if (string.IsNullOrEmpty(targetDir))
@@ -290,24 +292,12 @@ public class FileOperationService
         if (!Directory.Exists(targetDir))
             Directory.CreateDirectory(targetDir);
 
+        var plan = FileOperationPathPlanner.Plan(move ? "move" : "copy", sources, targetDir, recreateSourceStructure);
         var work = new List<(string src, string dest, long size)>();
-        foreach (var src in sources)
+        foreach (var (src, dest) in plan)
         {
-            if (File.Exists(src))
-            {
-                var dest = Path.Combine(targetDir, Path.GetFileName(src));
-                work.Add((src, dest, new FileInfo(src).Length));
-            }
-            else if (Directory.Exists(src))
-            {
-                var destRoot = Path.Combine(targetDir, Path.GetFileName(src.TrimEnd('\\', '/')));
-                foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
-                {
-                    var rel = Path.GetRelativePath(src, file);
-                    var dest = Path.Combine(destRoot, rel);
-                    work.Add((file, dest, new FileInfo(file).Length));
-                }
-            }
+            if (!File.Exists(src)) continue;
+            work.Add((src, dest, new FileInfo(src).Length));
         }
 
         long totalBytes = work.Sum(w => w.size);

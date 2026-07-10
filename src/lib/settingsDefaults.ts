@@ -310,7 +310,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   promptOnClosingALockedTab: false,
   queueFileOperations: true,
   reconnectMappedNetworkDrivesAtStartup: false,
-  recreateSourceFolderStructure: false,
+  recreateSourceFolderStructure: 'Ask',
   redirectTypingToLiveFilterBox: false,
   refreshDuringFileOperations: false,
   rememberListSettingsPerTab: false,

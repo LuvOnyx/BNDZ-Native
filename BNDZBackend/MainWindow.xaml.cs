@@ -688,6 +688,8 @@ namespace BNDZ
                     bool bypassRecycleBin = payload.TryGetProperty("bypassRecycleBin", out var brProp) ? brProp.GetBoolean() : false;
                     string? label = payload.TryGetProperty("label", out var labelProp) ? labelProp.GetString() : null;
                     var priority = ParseTransferPriority(payload);
+                    bool recreateSourceStructure = payload.TryGetProperty("recreateSourceStructure", out var rsProp)
+                        && rsProp.ValueKind == JsonValueKind.True;
 
                     if (action == "undo")
                     {
@@ -700,7 +702,7 @@ namespace BNDZ
                         return;
                     }
 
-                    _ = HandleExecuteFsOperationAsync(operationId, action, sources, target, bypassRecycleBin, label, priority);
+                    _ = HandleExecuteFsOperationAsync(operationId, action, sources, target, bypassRecycleBin, label, priority, recreateSourceStructure);
                 }
                 else if (type == "GET_FILE_TRANSFER_QUEUE")
                 {
@@ -3182,9 +3184,16 @@ namespace BNDZ
             string target,
             bool bypassRecycleBin,
             string? labelOverride,
-            FileTransferPriority priority = FileTransferPriority.Normal)
+            FileTransferPriority priority = FileTransferPriority.Normal,
+            bool recreateSourceStructure = false)
         {
             var prefs = FileOperationPreferences.Current;
+            if (!recreateSourceStructure
+                && string.Equals(prefs.RecreateSourceFolderStructure, "Always", StringComparison.OrdinalIgnoreCase)
+                && FileOperationPathPlanner.ShouldRecreateStructure(sources))
+            {
+                recreateSourceStructure = true;
+            }
             var engine = FileOperationPreferences.ResolveOperationEngine(action, sources, target);
             var label = BuildFileOpLabel(action, sources, labelOverride);
             _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority);
@@ -3293,7 +3302,14 @@ namespace BNDZ
                                     MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
                                 });
                             },
+                            recreateSourceStructure: recreateSourceStructure,
                             cancellationToken: ct).ConfigureAwait(false);
+                    }
+
+                    if (action is "copy" or "move" && prefs.CopyTagsOnCopyOperations)
+                    {
+                        var mappings = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
+                        _tagSidecarStore.CopyMetadata(mappings);
                     }
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
@@ -3809,6 +3825,16 @@ namespace BNDZ
                 try
                 {
                     await SyncDirectoriesTrueAsync(sourceDir, targetDir, operationId, ct).ConfigureAwait(false);
+                    if (FileOperationPreferences.Current.CopyTagsOnBackupAndSync)
+                    {
+                        var mappings = new List<(string source, string dest)>();
+                        foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+                        {
+                            var rel = Path.GetRelativePath(sourceDir, file);
+                            mappings.Add((file, Path.Combine(targetDir, rel)));
+                        }
+                        _tagSidecarStore.CopyMetadata(mappings);
+                    }
                     if (FileOperationPreferences.Current.LogActions)
                     {
                         _actionLogService.Record(BndzActionLogService.ForSyncFolder(sourceDir, targetDir));

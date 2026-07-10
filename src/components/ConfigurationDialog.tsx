@@ -50,6 +50,19 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
     setHasChanges(true);
     setApplyFeedback('idle');
   };
+
+  const openBottomPluginFromConfig = (pluginId: string) => {
+    if (hasChanges) applyChanges();
+    onClose();
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: pluginId } }));
+  };
+
+  const openTagManagerFromConfig = () => {
+    if (hasChanges) applyChanges();
+    onClose();
+    window.dispatchEvent(new CustomEvent('bndz-open-tag-manager'));
+  };
+
   const applyChanges = () => {
     updateGlobalConfig(localConfig);
     applySettingsRuntime(localConfig);
@@ -580,8 +593,8 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                  </div>
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">C</span>ustom items in the context menu</span>} checked={localConfig.customItemsInTheContextMenu ?? false} onChange={e => updateLocalConfig({ customItemsInTheContextMenu: e.target.checked })} />
                  <div className="ml-[20px] flex gap-2 mt-4 mb-4">
-                    <ActionBtn label="Folder Tree..." className="w-[150px]" />
-                    <ActionBtn label="File List..." className="w-[150px]" />
+                    <ActionBtn label="Folder Tree..." className="w-[150px]" onClick={() => { setActiveTab('Context Menu'); openBottomPluginFromConfig('context-menu'); }} />
+                    <ActionBtn label="File List..." className="w-[150px]" onClick={() => { setActiveTab('Context Menu'); openBottomPluginFromConfig('context-menu'); }} />
                  </div>
                  
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>ide shell extensions from shell context menu</span>} checked={localConfig.hideShellExtensionsFromShellContextMenu ?? false} onChange={e => updateLocalConfig({ hideShellExtensionsFromShellContextMenu: e.target.checked })} />
@@ -867,8 +880,8 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               </div>
               
               <div className="flex items-center gap-4 ml-2 mt-6">
-                 <ActionBtn label="Options..." className="w-[100px]" />
-                 <span className="text-[12px] text-[#e0e0e0]">Currently 0 items are tagged.</span>
+                 <ActionBtn label="Options..." className="w-[100px]" onClick={openTagManagerFromConfig} />
+                 <span className="text-[12px] text-[#e0e0e0]">Manage tags, labels, and colors in Tag Manager.</span>
               </div>
             </TabsContent>
 
@@ -886,8 +899,8 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               </div>
               
               <div className="flex justify-between">
-                 <ActionBtn label="Reset Columns..." className="w-[150px]" />
-                 <ActionBtn label="Edit..." className="w-[100px]" />
+                 <ActionBtn label="Reset Columns..." className="w-[150px]" onClick={() => updateLocalConfig({ listColumnOrder: [], listColumnVisibility: {}, listColumnWidths: {} })} />
+                 <ActionBtn label="Edit..." className="w-[100px]" onClick={() => setActiveTab('Tree and List')} />
               </div>
             </TabsContent>
             

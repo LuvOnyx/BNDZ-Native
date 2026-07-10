@@ -125,6 +125,8 @@ import {
   type ListColumnId,
   type SortColumnId,
 } from '../lib/listColumns';
+import { computeAutosizedColumnWidths } from '../lib/columnAutosize';
+import RapidAccessPopup from './RapidAccessPopup';
 import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath } from '../lib/pathUtils';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
 import { hasBndzFileDrag, readBndzFileDragData } from '../lib/bndzDrag';
@@ -750,6 +752,7 @@ export default function BNDZUI() {
     if (launch) setBottomPluginLaunch(launch);
   }, [ensurePluginInstalled]);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+  const [rapidAccessPopupOpen, setRapidAccessPopupOpen] = useState(false);
   const [tagAssignmentActive, setTagAssignmentActive] = useState(false);
   const [inlineRename, setInlineRename] = useState<{ path: string, entityId: string, currentName: string } | null>(null);
   const [renameDialog, setRenameDialog] = useState<{ path: string; entityId: string; entity: any; value: string } | null>(null);
@@ -3169,9 +3172,12 @@ export default function BNDZUI() {
     };
     window.addEventListener('bndz-navigate', onNavigate);
     window.addEventListener('bndz-open-bottom-plugin', onOpenPlugin);
+    const onOpenTagManager = () => setIsTagManagerOpen(true);
+    window.addEventListener('bndz-open-tag-manager', onOpenTagManager);
     return () => {
       window.removeEventListener('bndz-navigate', onNavigate);
       window.removeEventListener('bndz-open-bottom-plugin', onOpenPlugin);
+      window.removeEventListener('bndz-open-tag-manager', onOpenTagManager);
     };
   }, [activePaneId]);
 
@@ -3608,15 +3614,25 @@ export default function BNDZUI() {
       const p = panes.find(x => x.id === paneId);
       void refetchPath(p?.tabs[p?.activeTabIndex ?? 0]?.path || '/');
     },
-    openFavorites: () => setToastMessage('Favorites — use Rapid access in sidebar'),
+    openFavorites: () => setRapidAccessPopupOpen(true),
     openEditMenu: () => setOpenMenuId('Edit'),
     openSmallTabMenu: (x: number, y: number) => setTabContextMenu({ x, y, paneId, tabIndex: tabIndex ?? 0 }),
-    autosizeColumns: () => setToastMessage('Columns autosized'),
+    autosizeColumns: () => {
+      const items = getSortedContentsForActivePane();
+      const cols = getVisibleListColumns(config);
+      const widths = computeAutosizedColumnWidths(items, cols, {
+        disregardHeaders: !!config.onAutosizeDisregardTheColumnHeaders,
+        alwaysAutosizeSize: !!config.alwaysAutosizeTheSizeColumn,
+      });
+      if (Object.keys(widths).length > 0) {
+        updateConfig({ listColumnWidths: { ...(config.listColumnWidths || {}), ...widths } });
+      }
+    },
     runScript: (shell: string, script: string) => {
       void IPC.runUserScript(shell, script).then(res => setToastMessage(res.output.slice(0, 200) || (res.ok ? 'Script OK' : 'Script failed')));
     },
     toast: setToastMessage,
-  }), [panes, addTab, closeTabAt, goUp, openFolderInOppositePane, refetchPath, setToastMessage]);
+  }), [panes, addTab, closeTabAt, goUp, openFolderInOppositePane, refetchPath, setToastMessage, getSortedContentsForActivePane, config, updateConfig]);
 
   // Keyboard state
   useEffect(() => {
@@ -7555,6 +7571,13 @@ export default function BNDZUI() {
           />
         </Suspense>
       )}
+
+      <RapidAccessPopup
+        open={rapidAccessPopupOpen}
+        items={rapidAccessItems}
+        onClose={() => setRapidAccessPopupOpen(false)}
+        onNavigate={(path) => setCurrentPath(normalizePanePath(path))}
+      />
 
       {tabContextMenu && (() => {
         const pane = panes.find(p => p.id === tabContextMenu.paneId);
