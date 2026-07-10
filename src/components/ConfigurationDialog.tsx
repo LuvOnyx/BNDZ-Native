@@ -1140,6 +1140,16 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                  <p className="text-[11px] text-gray-500 mt-2 max-w-[560px]">
                    When queued, concurrent paste and drag-drop operations run one at a time. Disable queue only if you need overlapping shell dialogs (native engine).
                  </p>
+                 <div className="mt-3">
+                   <Checkbox
+                     label={<span><span className="underline decoration-1 underline-offset-[3px]">P</span>ersist transfer history across restarts</span>}
+                     checked={localConfig.persistTransferQueue ?? true}
+                     onChange={e => updateLocalConfig({ persistTransferQueue: e.target.checked })}
+                   />
+                   <p className="text-[11px] text-gray-500 mt-1 max-w-[560px]">
+                     Keeps recent transfer jobs in the queue panel after restart. Jobs interrupted by shutdown are marked accordingly.
+                   </p>
+                 </div>
               </div>
 
               <SectionHeader title="Backup Operations" />

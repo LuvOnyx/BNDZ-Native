@@ -1606,7 +1606,7 @@ export default function BNDZUI() {
         message: label,
         sticky: true,
       });
-      IPC.executeFsOperation(opId, 'delete', winPaths, '', bypassRecycle, label);
+      IPC.executeFsOperation(opId, 'delete', winPaths, '', bypassRecycle, label, 'high');
     };
 
     const names = items.map(x => x.name).slice(0, 5).join('\n• ');
@@ -2533,7 +2533,7 @@ export default function BNDZUI() {
     });
     const winSources = sources.map(s => toWindowsPath(s));
     const winDest = toWindowsPath(dest).replace(/\\$/, '');
-    IPC.executeFsOperation(opId, mode, winSources, winDest, false, label);
+    IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high');
     refreshWorkspace();
   };
 
@@ -2555,7 +2555,7 @@ export default function BNDZUI() {
       message: label,
       sticky: true,
     });
-    IPC.executeFsOperation(opId, op, sourcePaths.map(toWindowsPath), destWin, false, label);
+    IPC.executeFsOperation(opId, op, sourcePaths.map(toWindowsPath), destWin, false, label, 'high');
     if (!IPC.isNative && op === 'move' && sourcePath) {
       let newFs = fileSystem;
       for (const sp of sourcePaths) {

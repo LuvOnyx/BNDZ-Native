@@ -53,6 +53,8 @@ export interface FileTransferJobDto {
   action: string;
   label: string;
   engine: 'bndz' | 'native' | string;
+  category?: string;
+  priority?: 'low' | 'normal' | 'high' | string;
   status: FileTransferJobStatus;
   progress: number;
   currentFile?: string;
@@ -473,11 +475,12 @@ export const IPC = {
     target: string,
     bypassRecycleBin: boolean = false,
     label?: string,
+    priority?: 'low' | 'normal' | 'high',
   ): Promise<void> {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({
         type: 'EXECUTE_FS_OPERATION',
-        payload: { operationId, action, source, target, bypassRecycleBin, label },
+        payload: { operationId, action, source, target, bypassRecycleBin, label, priority },
       });
       return;
     }

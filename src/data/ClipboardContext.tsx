@@ -108,7 +108,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       : `${winSources.length} items`;
     const opId = `paste-${Date.now()}`;
 
-    await IPC.executeFsOperation(opId, op, winSources, dest, false, label);
+    await IPC.executeFsOperation(opId, op, winSources, dest, false, label, 'high');
 
     if (clipboard.action === 'cut') {
       clearClipboard();

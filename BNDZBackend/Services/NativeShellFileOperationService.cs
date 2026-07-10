@@ -6,11 +6,12 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Vanara.Windows.Shell;
 
 namespace BNDZ.Services;
 
 /// <summary>
-/// Windows shell file operations via SHFileOperation — Explorer progress UI and shell undo integration.
+/// Windows shell file operations via Vanara IFileOperation (ShellFileOperations) — Explorer progress UI and shell undo.
 /// </summary>
 public sealed class NativeShellFileOperationService
 {
@@ -58,42 +59,171 @@ public sealed class NativeShellFileOperationService
 
             onProgress?.Invoke(operationId, 0, sources.FirstOrDefault() ?? "", 0, 0, 0, 0, total);
 
-            switch (action)
+            try
             {
-                case "delete":
-                    ShellDelete(sources, bypassRecycleBin, showProgress);
-                    break;
-                case "copy":
-                    ShellCopyOrMove(sources, target, move: false, showProgress: showProgress);
-                    break;
-                case "move":
-                    if (sources.Count == 1 && IsSameDirectoryRename(sources[0], target))
-                        ShellCopyOrMove(sources, target, move: true, singleTargetFile: true, showProgress: showProgress);
-                    else
-                        ShellCopyOrMove(sources, target, move: true, showProgress: showProgress);
-                    break;
-                case "create-dir":
-                    if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
-                    else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
-                    break;
-                case "create-file":
-                {
-                    var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
-                    if (!string.IsNullOrEmpty(filePath))
-                    {
-                        var dir = Path.GetDirectoryName(filePath);
-                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                            Directory.CreateDirectory(dir);
-                        if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
-                    }
-                    break;
-                }
-                default:
-                    break;
+                ExecuteWithVanara(operationId, action, sources, target, bypassRecycleBin, showProgress, onProgress, total);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[NativeShell] Vanara IFileOperation failed, falling back to SHFileOperation: {ex.Message}");
+                ExecuteWithLegacyShell(action, sources, target, bypassRecycleBin, showProgress);
             }
 
             onProgress?.Invoke(operationId, 100, sources.LastOrDefault() ?? target, 0, 0, 0, total, total);
         }, cancellationToken);
+    }
+
+    private static void ExecuteWithVanara(
+        string operationId,
+        string action,
+        List<string> sources,
+        string target,
+        bool bypassRecycleBin,
+        bool showProgress,
+        Action<string, int, string, long, long, double, int, int>? onProgress,
+        int total)
+    {
+        var flags = ShellFileOperations.OperationFlags.NoConfirmation
+            | ShellFileOperations.OperationFlags.NoErrorUI
+            | ShellFileOperations.OperationFlags.AllowUndo;
+        if (!showProgress)
+            flags |= ShellFileOperations.OperationFlags.Silent;
+
+        using var op = new ShellFileOperations { Options = flags };
+        var completed = 0;
+
+        void Bump(string? current)
+        {
+            completed = Math.Min(completed + 1, total);
+            var pct = total > 0 ? (int)(completed * 100.0 / total) : 100;
+            onProgress?.Invoke(operationId, pct, current ?? "", 0, 0, 0, completed, total);
+        }
+
+        switch (action)
+        {
+            case "delete":
+                foreach (var src in sources)
+                {
+                    using var item = new ShellItem(src);
+                    if (bypassRecycleBin)
+                        op.QueueDeleteOperation(item);
+                    else
+                        op.QueueDeleteOperation(item);
+                }
+                break;
+
+            case "copy":
+                QueueCopyOrMove(op, sources, target, move: false, Bump);
+                break;
+
+            case "move":
+                if (sources.Count == 1 && IsSameDirectoryRename(sources[0], target))
+                    QueueSingleTargetMove(op, sources[0], target, Bump);
+                else
+                    QueueCopyOrMove(op, sources, target, move: true, Bump);
+                break;
+
+            case "create-dir":
+                if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
+                else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
+                return;
+
+            case "create-file":
+            {
+                var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                        Directory.CreateDirectory(dir);
+                    if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
+                }
+                return;
+            }
+
+            default:
+                return;
+        }
+
+        op.PerformOperations();
+        if (op.AnyOperationsAborted)
+            throw new OperationCanceledException("Windows shell operation was aborted.");
+    }
+
+    private static void QueueCopyOrMove(
+        ShellFileOperations op,
+        List<string> sources,
+        string targetDir,
+        bool move,
+        Action<string?> bump)
+    {
+        if (sources.Count == 0) return;
+        var dest = targetDir.TrimEnd('\\');
+        if (!Directory.Exists(dest) && sources.Count == 1 && File.Exists(sources[0]))
+            dest = Path.GetDirectoryName(dest) ?? dest;
+        Directory.CreateDirectory(dest);
+        using var destFolder = new ShellFolder(dest);
+
+        foreach (var src in sources)
+        {
+            using var sourceItem = new ShellItem(src);
+            if (move)
+            {
+                op.QueueMoveOperation(sourceItem, destFolder);
+                bump(src);
+            }
+            else
+            {
+                op.QueueCopyOperation(sourceItem, destFolder);
+                bump(src);
+            }
+        }
+    }
+
+    private static void QueueSingleTargetMove(ShellFileOperations op, string source, string targetPath, Action<string?> bump)
+    {
+        using var sourceItem = new ShellItem(source);
+        var destDir = Path.GetDirectoryName(targetPath) ?? "";
+        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+            Directory.CreateDirectory(destDir);
+        using var destFolder = new ShellFolder(destDir);
+        op.QueueMoveOperation(sourceItem, destFolder, Path.GetFileName(targetPath));
+        bump(targetPath);
+    }
+
+    private static void ExecuteWithLegacyShell(string action, List<string> sources, string target, bool bypassRecycleBin, bool showProgress)
+    {
+        switch (action)
+        {
+            case "delete":
+                ShellDelete(sources, bypassRecycleBin, showProgress);
+                break;
+            case "copy":
+                ShellCopyOrMove(sources, target, move: false, showProgress: showProgress);
+                break;
+            case "move":
+                if (sources.Count == 1 && IsSameDirectoryRename(sources[0], target))
+                    ShellCopyOrMove(sources, target, move: true, singleTargetFile: true, showProgress: showProgress);
+                else
+                    ShellCopyOrMove(sources, target, move: true, showProgress: showProgress);
+                break;
+            case "create-dir":
+                if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
+                else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
+                break;
+            case "create-file":
+            {
+                var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                        Directory.CreateDirectory(dir);
+                    if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
+                }
+                break;
+            }
+        }
     }
 
     private static void ShellDelete(List<string> sources, bool bypassRecycleBin, bool showProgress)
@@ -133,7 +263,6 @@ public sealed class NativeShellFileOperationService
             to = dest + "\0\0";
         }
 
-        // Explorer progress UI unless silent mode requested.
         var flags = (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI);
         if (!showProgress) flags |= FOF_SILENT;
         var fileop = new SHFILEOPSTRUCT

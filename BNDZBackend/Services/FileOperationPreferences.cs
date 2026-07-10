@@ -17,6 +17,7 @@ public sealed class FileOperationPreferences
     public bool SingleStepUndo { get; set; } = false;
     /// <summary>When using native engine, show Explorer progress dialogs (false = silent shell ops).</summary>
     public bool NativeShowProgress { get; set; } = true;
+    public bool PersistTransferQueue { get; set; } = true;
 
     public static bool UseNativeEngine =>
         string.Equals(Current.Engine, "native", StringComparison.OrdinalIgnoreCase)
@@ -37,6 +38,7 @@ public sealed class FileOperationPreferences
                 LogActions = ReadBool(root, "logActionsAndEnableUndoRedo", true),
                 SingleStepUndo = ReadBool(root, "allowOnlySingleStepUndoRedo", false),
                 NativeShowProgress = ReadBool(root, "nativeShellShowProgress", true),
+                PersistTransferQueue = ReadBool(root, "persistTransferQueue", true),
             };
             Current = p;
         }

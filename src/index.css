@@ -18,9 +18,13 @@
   --bndz-glass-border: rgba(255, 255, 255, 0.08);
   --bndz-glass-highlight: rgba(255, 255, 255, 0.04);
   --bndz-glass-blur: 12px;
-  --bndz-surface-base: #16181f;
-  --bndz-surface-raised: #1c1f28;
-  --bndz-surface-chrome: #12141a;
+  --bndz-surface-base: #252526;
+  --bndz-surface-raised: #2b2b2b;
+  --bndz-surface-chrome: #252526;
+  --bndz-surface-panel: #252526;
+  --bndz-border-subtle: #454545;
+  --bndz-transfer-accent: #0078d4;
+  --bndz-transfer-accent-dim: #094771;
 }
 
 /* ── Flat native surfaces (Explorer-style; no glass blur by default) ── */
@@ -2120,7 +2124,61 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
 }
 
 .bndz-theme-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  background: #2b2b2b;
+  border-radius: 0;
+}
+
+.bndz-theme-card-active {
+  box-shadow: inset 0 0 0 1px var(--accent, #0078d4);
+}
+
+/* Transfer queue — Explorer-flat rows, accent gradient on active progress only */
+.bndz-transfer-panel {
+  background: linear-gradient(180deg, #2b2b2b 0%, #252526 100%);
+  border-top: 1px solid var(--bndz-border-subtle, #454545);
+}
+
+.bndz-transfer-header {
+  background: #252526;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.bndz-transfer-header:hover {
+  background: #2a2a2a;
+}
+
+.bndz-transfer-row {
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.bndz-transfer-row:last-child {
+  border-bottom: none;
+}
+
+.bndz-transfer-progress-track {
+  background: #1a1a1a;
+  border: 1px solid #333;
+}
+
+.bndz-transfer-progress-fill {
+  background: linear-gradient(90deg, var(--bndz-transfer-accent-dim, #094771) 0%, var(--bndz-transfer-accent, #0078d4) 55%, #3aa0f3 100%);
+}
+
+.bndz-transfer-progress-fill.is-complete {
+  background: linear-gradient(90deg, #1d6f42 0%, #2d9f5f 100%);
+}
+
+.bndz-transfer-progress-fill.is-failed {
+  background: linear-gradient(90deg, #8b2f3a 0%, #c43c4a 100%);
+}
+
+.bndz-transfer-priority-high {
+  color: #99c9f0;
+}
+
+.bndz-transfer-category {
+  border-color: #454545;
+  color: #888;
 }
 
 html[data-theme] .sidebar-section-header:hover {

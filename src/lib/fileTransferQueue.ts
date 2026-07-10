@@ -46,7 +46,18 @@ export function formatTransferAction(action: string): string {
     case 'delete': return 'Delete';
     case 'create-dir': return 'New folder';
     case 'create-file': return 'New file';
+    case 'folder-sync': return 'Sync';
+    case 'archive-add': return 'Archive';
+    case 'archive-extract': return 'Extract';
     default: return action;
+  }
+}
+
+export function formatTransferCategory(category: string): string {
+  switch (category) {
+    case 'archive': return 'Archive';
+    case 'folder-sync': return 'Sync';
+    default: return category;
   }
 }
 

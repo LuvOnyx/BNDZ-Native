@@ -22,48 +22,40 @@ function ThemeCard({ preset, active, onClick }: { preset: ThemePreset; active: b
     <button
       type="button"
       onClick={onClick}
-      className={`bndz-theme-card group relative text-left overflow-hidden border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent,#0078d4)]/60 ${
+      className={`bndz-theme-card group relative text-left overflow-hidden border transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent,#0078d4)]/60 ${
         active
-          ? 'bndz-theme-card-active border-[var(--accent,#0078d4)] shadow-[0_0_0_1px_var(--accent,#0078d4)]'
+          ? 'bndz-theme-card-active border-[var(--accent,#0078d4)]'
           : 'border-[#454545] hover:border-[#666] hover:bg-[#2a2a2a]'
       }`}
     >
       <div className="h-[108px] relative overflow-hidden" style={{ background: preset.bg }}>
-        <div
-          className="absolute inset-0 opacity-50"
-          style={{ background: `radial-gradient(ellipse at 85% 15%, ${preset.accent}66 0%, transparent 58%)` }}
-        />
-        <div
-          className="absolute inset-0 opacity-25"
-          style={{ background: `linear-gradient(135deg, transparent 40%, ${preset.accent}33 100%)` }}
-        />
         <div className="absolute top-2.5 left-2.5 right-2.5 flex gap-2">
           <div
-            className="h-5 flex-1 rounded-lg opacity-95 shadow-sm"
-            style={{ background: surface, border: `1px solid ${preset.accent}22` }}
+            className="h-5 flex-1 opacity-95"
+            style={{ background: surface, border: `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : '#454545'}` }}
           />
-          <div className="w-9 h-5 rounded-lg shadow-sm" style={{ background: preset.accent }} />
+          <div className="w-9 h-5" style={{ background: preset.accent }} />
         </div>
         <div className="absolute bottom-2.5 left-2.5 right-2.5 flex gap-2">
           <div
-            className="w-[36%] h-[52px] rounded-xl shadow-inner"
-            style={{ background: surface, border: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}
+            className="w-[36%] h-[52px]"
+            style={{ background: surface, border: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : '#454545'}` }}
           />
           <div
-            className="flex-1 h-[52px] rounded-xl p-2 flex flex-col gap-1.5 shadow-inner"
-            style={{ background: surface, border: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}
+            className="flex-1 h-[52px] p-2 flex flex-col gap-1.5"
+            style={{ background: surface, border: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : '#454545'}` }}
           >
-            <div className="h-1.5 rounded-full w-full" style={{ background: preset.accent }} />
-            <div className="h-1.5 rounded-full w-4/5 opacity-45" style={{ background: preset.text }} />
-            <div className="h-1.5 rounded-full w-3/5 opacity-30" style={{ background: preset.text }} />
+            <div className="h-1.5 w-full" style={{ background: preset.accent }} />
+            <div className="h-1.5 w-4/5 opacity-45" style={{ background: preset.text }} />
+            <div className="h-1.5 w-3/5 opacity-30" style={{ background: preset.text }} />
           </div>
         </div>
         {active && (
           <div
-            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg"
+            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center border border-[#454545]"
             style={{ background: preset.accent }}
           >
-            <Icons8Icon id="check" size={15} />
+            <Icons8Icon id="check" size={13} />
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { Icons8Icon } from './Icons8Icon';
 import type { FileTransferJobDto, FileTransferQueueState } from '../lib/ipcBridge';
 import {
   formatTransferAction,
+  formatTransferCategory,
   formatTransferProgressLine,
   isTransferActive,
   visibleTransferJobs,
@@ -33,8 +34,13 @@ function JobRow({
     : job.status === 'completed' ? 'Done'
     : job.status;
 
+  const progressClass =
+    job.status === 'completed' ? 'is-complete'
+    : job.status === 'failed' ? 'is-failed'
+    : '';
+
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 py-1.5 border-b border-[#3a3a3a] last:border-b-0">
+    <div className="bndz-transfer-row grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 py-1.5 last:border-b-0">
       <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           {job.status === 'completed' && (
@@ -44,7 +50,15 @@ function JobRow({
           <span className="text-[9px] uppercase tracking-wide text-gray-500 shrink-0">
             {formatTransferAction(job.action)}
           </span>
-          <span className="text-[9px] px-1 py-px border border-[#454545] text-gray-500 shrink-0">
+          {job.category && job.category !== 'fs' && (
+            <span className="text-[9px] px-1 py-px border bndz-transfer-category shrink-0">
+              {formatTransferCategory(job.category)}
+            </span>
+          )}
+          {job.priority === 'high' && (
+            <span className="text-[9px] uppercase tracking-wide bndz-transfer-priority-high shrink-0">High</span>
+          )}
+          <span className="text-[9px] px-1 py-px border bndz-transfer-category shrink-0">
             {engineLabel}
           </span>
         </div>
@@ -57,11 +71,9 @@ function JobRow({
         {job.error && (
           <div className="text-[10px] text-rose-300/90 truncate mt-0.5">{job.error}</div>
         )}
-        <div className="mt-1.5 h-1 bg-[#1a1a1a] border border-[#333] overflow-hidden">
+        <div className="bndz-transfer-progress-track mt-1.5 h-1 overflow-hidden">
           <div
-            className={`h-full transition-[width] duration-300 ease-out ${
-              job.status === 'completed' ? 'bg-emerald-600' : job.status === 'failed' ? 'bg-rose-600' : 'bg-[#0078d4]'
-            }`}
+            className={`bndz-transfer-progress-fill h-full transition-[width] duration-300 ease-out ${progressClass}`}
             style={{ width: `${Math.max(0, Math.min(100, job.progress ?? 0))}%` }}
           />
         </div>
@@ -125,11 +137,11 @@ export default function FileTransferQueuePanel({ className = '' }: Props) {
   };
 
   return (
-    <div className={`shrink-0 border-t border-[#454545] bg-[#252526] ${className}`}>
+    <div className={`bndz-transfer-panel shrink-0 ${className}`}>
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[#2a2a2a] border-b border-[#333]"
+        className="bndz-transfer-header w-full flex items-center gap-2 px-3 py-1.5 text-left"
       >
         <Icons8Icon id="loading" size={12} spin={state.activeCount > 0} />
         <span className="text-[11px] font-semibold text-gray-200">
