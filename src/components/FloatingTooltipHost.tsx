@@ -2,22 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFloatingTooltip, subscribeFloatingTooltip } from '../lib/floatingTooltip';
+import type { TooltipMedia } from './HoverTooltip';
 
 const TOOLTIP_VARIANTS = {
   glass: {
-    panel: 'bndz-floating-tooltip-panel bndz-tooltip-glass rounded-xl',
+    panel: 'bndz-floating-tooltip-panel bndz-tooltip-glass',
     header: 'bndz-floating-tooltip-header',
   },
   minimal: {
-    panel: 'bndz-floating-tooltip-panel bndz-tooltip-minimal rounded-lg',
+    panel: 'bndz-floating-tooltip-panel bndz-tooltip-minimal',
     header: 'bndz-floating-tooltip-header',
   },
   accent: {
-    panel: 'bndz-floating-tooltip-panel bndz-tooltip-accent rounded-xl',
+    panel: 'bndz-floating-tooltip-panel bndz-tooltip-accent',
     header: 'bndz-floating-tooltip-header',
   },
   mono: {
-    panel: 'bndz-floating-tooltip-panel bndz-tooltip-mono rounded-md font-mono',
+    panel: 'bndz-floating-tooltip-panel bndz-tooltip-mono font-mono',
     header: 'bndz-floating-tooltip-header',
   },
 } as const;
@@ -38,6 +39,50 @@ function clampPosition(x: number, y: number, width = 320, height = 160) {
   return { left, top };
 }
 
+function TooltipMediaBlock({ media }: { media: TooltipMedia }) {
+  if (media.kind === 'audio') {
+    return (
+      <div className="bndz-tooltip-media-frame bndz-tooltip-media-audio px-3.5 pb-2.5 pointer-events-auto">
+        <audio
+          src={media.src}
+          controls
+          preload="metadata"
+          className="w-full h-8 rounded-lg"
+          aria-label={media.alt || 'Audio preview'}
+        />
+      </div>
+    );
+  }
+
+  if (media.kind === 'svg') {
+    return (
+      <div className="bndz-tooltip-media-frame px-3.5 pb-2.5">
+        <div className="bndz-tooltip-media-inner flex items-center justify-center p-3 min-h-[72px] max-h-[148px]">
+          <img
+            src={media.src}
+            alt={media.alt || 'SVG preview'}
+            className="max-w-full max-h-[132px] object-contain drop-shadow-md"
+            draggable={false}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bndz-tooltip-media-frame px-3.5 pb-2.5">
+      <div className="bndz-tooltip-media-inner flex items-center justify-center p-1 min-h-[72px] max-h-[148px]">
+        <img
+          src={media.src}
+          alt={media.alt || 'Preview'}
+          className="max-w-full max-h-[140px] object-contain rounded-lg drop-shadow-md"
+          draggable={false}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function FloatingTooltipHost() {
   const [tip, setTip] = useState(getFloatingTooltip());
 
@@ -45,8 +90,11 @@ export default function FloatingTooltipHost() {
 
   if (typeof document === 'undefined') return null;
 
-  const pos = tip ? clampPosition(tip.x, tip.y, tip.content.mode === 'hoverbox' ? 420 : 320, tip.content.mode === 'hoverbox' ? 280 : 160) : { left: 0, top: 0 };
+  const hasMedia = !!tip?.content.media;
   const isHoverBox = tip?.content.mode === 'hoverbox';
+  const panelWidth = isHoverBox || hasMedia ? 440 : 320;
+  const panelHeight = hasMedia ? 300 : isHoverBox ? 280 : 160;
+  const pos = tip ? clampPosition(tip.x, tip.y, panelWidth, panelHeight) : { left: 0, top: 0 };
   const variant = tip ? (TOOLTIP_VARIANTS[tip.theme] || TOOLTIP_VARIANTS.glass) : TOOLTIP_VARIANTS.glass;
 
   return createPortal(
@@ -64,16 +112,18 @@ export default function FloatingTooltipHost() {
             filter: { duration: 0.05 },
             scale: { duration: 0.07 },
           }}
-          className={`fixed z-[700] pointer-events-none ${isHoverBox ? 'max-w-[420px]' : 'max-w-[320px]'}`}
+          className={`fixed z-[700] pointer-events-none ${isHoverBox || hasMedia ? 'max-w-[440px]' : 'max-w-[320px]'}`}
           style={{ left: pos.left, top: pos.top }}
         >
           <motion.div
-            className={`${variant.panel} overflow-hidden ${isHoverBox ? 'bndz-hoverbox-panel' : ''}`}
+            className={`${variant.panel} bndz-tooltip-premium overflow-hidden ${isHoverBox ? 'bndz-hoverbox-panel' : ''}`}
+            style={{ borderRadius: 'var(--tooltip-radius, 16px)' }}
             initial={{ boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}
-            animate={{ boxShadow: '0 10px 36px rgba(0,0,0,0.5)' }}
+            animate={{ boxShadow: '0 14px 44px rgba(0,0,0,0.55)' }}
             exit={{ boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
             transition={EXIT}
           >
+            {tip.content.media && <TooltipMediaBlock media={tip.content.media} />}
             <div className={`px-3.5 py-2.5 ${variant.header} flex items-start gap-2.5`}>
               <div className="min-w-0 flex-1">
                 <div className="bndz-floating-tooltip-title text-[13px] font-semibold leading-tight">

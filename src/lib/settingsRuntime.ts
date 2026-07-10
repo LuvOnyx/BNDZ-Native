@@ -659,6 +659,12 @@ const THEME_CHROME_COLOR_MAP: [string, string][] = [
   ['--tooltip-border', 'colorConfig21'],
 ];
 
+const DEDICATED_TOOLTIP_COLOR_KEYS: [string, string][] = [
+  ['--tooltip-bg', 'tooltipBackgroundColor'],
+  ['--tooltip-text', 'tooltipTextColor'],
+  ['--tooltip-muted', 'tooltipMutedColor'],
+];
+
 function applyColorCssVars(config: AppConfig, root: HTMLElement): void {
   for (const [cssVar, configKey] of COLOR_CSS_MAP) {
     const val = config[configKey];
@@ -671,12 +677,22 @@ function applyColorCssVars(config: AppConfig, root: HTMLElement): void {
       if (cssVar === '--accent') root.style.setProperty('--accent-muted', `${val}33`);
     }
   }
+  for (const [cssVar, configKey] of DEDICATED_TOOLTIP_COLOR_KEYS) {
+    const val = config[configKey];
+    if (typeof val === 'string' && val.startsWith('#')) root.style.setProperty(cssVar, val);
+  }
+  const radius = config.tooltipCornerRadius;
+  if (typeof radius === 'number' && radius >= 0) {
+    root.style.setProperty('--tooltip-radius', `${radius}px`);
+  }
 }
 
 function clearColorCssVars(root: HTMLElement): void {
   for (const [cssVar] of COLOR_CSS_MAP) root.style.removeProperty(cssVar);
   for (const [cssVar] of THEME_CHROME_COLOR_MAP) root.style.removeProperty(cssVar);
+  for (const [cssVar] of DEDICATED_TOOLTIP_COLOR_KEYS) root.style.removeProperty(cssVar);
   root.style.removeProperty('--accent-muted');
+  root.style.removeProperty('--tooltip-radius');
 }
 
 import { buildPanelTypographyCssVars } from './panelTypography';

@@ -709,6 +709,27 @@ export default function BNDZUI() {
   }, [config.previewPanelEnabled, config.bottomPanelEnabled, isPreviewPanelOpen, isBottomPanelOpen]);
 
   useEffect(() => {
+    if (!config.checkForUpdatesAtStartup) return;
+    const manifestUrl = String(config.updateCheckUrl || '').trim();
+    if (!manifestUrl) return;
+    void import('../lib/ipcBridge').then(({ IPC }) => {
+      if (!IPC.isNative) return;
+      void IPC.checkForUpdates(manifestUrl).then(result => {
+        if (result?.updateAvailable) {
+          window.dispatchEvent(new CustomEvent('bndz-native-alert', {
+            detail: {
+              title: 'Update available',
+              message: result.latestVersion
+                ? `BNDZ ${result.latestVersion} is available. Open Help → About to download.`
+                : 'A newer version of BNDZ is available.',
+            },
+          }));
+        }
+      }).catch(() => {});
+    });
+  }, [config.checkForUpdatesAtStartup, config.updateCheckUrl]);
+
+  useEffect(() => {
     const panel = bottomPanelRef.current;
     if (!panel) return;
     if (effectiveBottomOpen) panel.expand();
@@ -7476,7 +7497,7 @@ export default function BNDZUI() {
                 <span className="bndz-status-clipboard-label">{describeClipboardState(clipboard)}</span>
               </span>
             )}
-            {getHoverPending() && config.showFileInfoTips !== false && (
+            {getHoverPending() && config.showFileInfoTips !== false && config.listHoverTooltipsEnabled !== false && (
               <span className={`bndz-shift-hint hidden md:inline-flex ${isShiftKeyHeld() ? 'bndz-shift-hint-active' : ''}`}>
                 <kbd>⇧</kbd> Shift + hover for file details
               </span>

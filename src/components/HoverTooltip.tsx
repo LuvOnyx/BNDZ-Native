@@ -10,12 +10,20 @@ export interface TooltipLine {
   accent?: string;
 }
 
+export interface TooltipMedia {
+  kind: 'image' | 'svg' | 'audio';
+  src: string;
+  alt?: string;
+  autoplay?: boolean;
+}
+
 export interface HoverTooltipContent {
   title: string;
   subtitle?: string;
   lines?: TooltipLine[];
   badge?: { text: string; color?: string };
   icon?: React.ReactNode;
+  media?: TooltipMedia;
   /** `hoverbox` renders a wider premium panel (XYplorer Hover Box). */
   mode?: 'tip' | 'hoverbox';
 }

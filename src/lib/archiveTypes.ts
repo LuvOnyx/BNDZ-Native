@@ -97,6 +97,73 @@ export interface ArchiveEntry {
   modified?: string;
 }
 
+export interface ArchiveTreeNode {
+  path: string;
+  name: string;
+  children: ArchiveTreeNode[];
+}
+
+/** Build a folder tree from a flat archive entry list (WinRAR-style navigation). */
+export function buildArchiveFolderTree(entries: ArchiveEntry[]): ArchiveTreeNode[] {
+  const childMap = new Map<string, Set<string>>();
+
+  const link = (parent: string, child: string) => {
+    if (!childMap.has(parent)) childMap.set(parent, new Set());
+    childMap.get(parent)!.add(child);
+  };
+
+  for (const raw of entries) {
+    const norm = normalizeArchivePath(raw.path).replace(/\/$/, '');
+    if (!norm) {
+      if (raw.isDirectory && raw.name) link('', raw.name);
+      continue;
+    }
+    const parts = norm.split('/').filter(Boolean);
+    let parent = '';
+    for (let i = 0; i < parts.length; i++) {
+      const isLast = i === parts.length - 1;
+      if (isLast && !raw.isDirectory) break;
+      link(parent, parts[i]);
+      parent = parent ? `${parent}/${parts[i]}` : parts[i];
+    }
+  }
+
+  const build = (parentPath: string): ArchiveTreeNode[] => {
+    const kids = childMap.get(parentPath);
+    if (!kids?.size) return [];
+    return [...kids]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .map(name => {
+        const path = parentPath ? `${parentPath}/${name}` : name;
+        return { path, name, children: build(path) };
+      });
+  };
+
+  return build('');
+}
+
+export type ArchiveSortKey = 'name' | 'size' | 'compressed' | 'modified';
+
+export function sortArchiveEntries(items: ArchiveEntry[], key: ArchiveSortKey, asc = true): ArchiveEntry[] {
+  const dir = asc ? 1 : -1;
+  return [...items].sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    switch (key) {
+      case 'size':
+        return (a.size - b.size) * dir;
+      case 'compressed':
+        return (a.compressedSize - b.compressedSize) * dir;
+      case 'modified': {
+        const ta = a.modified ? Date.parse(a.modified) : 0;
+        const tb = b.modified ? Date.parse(b.modified) : 0;
+        return (ta - tb) * dir;
+      }
+      default:
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) * dir;
+    }
+  });
+}
+
 export interface TorrentFileEntry {
   path: string;
   size: number;

@@ -114,19 +114,32 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                }
            }
         });
-        if (shellIsDir && folderBrowsePath) {
+        if (shellIsDir && folderBrowsePath && config.folderContentsPreview !== false) {
            const cached = pathContentsCache?.[folderBrowsePath];
+           const sortBy = String(config.folderContentsPreviewSortedBy || 'Name');
+           const sortItems = (items: any[]) => {
+             const dirsFirst = [...items].sort((a, b) => {
+               if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+               switch (sortBy) {
+                 case 'Size': return (b.size || 0) - (a.size || 0);
+                 case 'Date': return String(b.modified || '').localeCompare(String(a.modified || ''));
+                 case 'Type': return String(a.extension || '').localeCompare(String(b.extension || ''));
+                 default: return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+               }
+             });
+             return dirsFirst;
+           };
            const applyItems = (items: any[]) => {
               if (!active || !items) return;
-              const files = items.filter((i: any) => i.type === 'file').length;
-              const folders = items.filter((i: any) => i.type === 'directory').length;
-              const size = items.reduce((sum: number, i: any) => sum + (i.type === 'file' ? (i.size || 0) : 0), 0);
+              const sorted = sortItems(items);
+              const files = sorted.filter((i: any) => i.type === 'file').length;
+              const folders = sorted.filter((i: any) => i.type === 'directory').length;
+              const size = sorted.reduce((sum: number, i: any) => sum + (i.type === 'file' ? (i.size || 0) : 0), 0);
               setFolderStats({ files, folders, size });
               setFolderChildren(
-                items
+                sorted
                   .slice(0, 48)
                   .map((i: any) => ({ name: i.name, type: i.type, size: i.size }))
-                  .sort((a: any, b: any) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1))
               );
            };
            if (cached?.length) {
@@ -151,7 +164,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         setFolderStats(null);
         setFolderChildren([]);
      }
-  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, path, folderBrowsePath, pathContentsCache]);
+  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, config.folderContentsPreview, config.folderContentsPreviewSortedBy, path, folderBrowsePath, pathContentsCache]);
 
   const openChild = (child: { name: string; type: string }, opts?: { navigateMain?: boolean }) => {
     if (!folderBrowsePath) return;
@@ -352,9 +365,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   };
 
   const renderFolderContentsPreview = () => {
-    if (!isDir || folderChildren.length === 0) return null;
+    if (config.folderContentsPreview === false || !isDir || folderChildren.length === 0) return null;
     return (
-      <div className="flex flex-col min-h-0 flex-1 overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]">
+      <div className="flex flex-col min-h-0 flex-1 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]">
         <div className="bndz-panel-section-title px-2 py-1.5 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
           <span>Contents preview</span>
           {browsePath && path && browsePath !== path && (

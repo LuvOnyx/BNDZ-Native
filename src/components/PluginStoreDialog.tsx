@@ -48,7 +48,7 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
     return (
         <BndzWindowFrame
             title="Extension Hub"
-            subtitle="Browse and manage BNDZ extensions"
+            subtitle="Installed extensions and import"
             iconId="extension_hub"
             onClose={onClose}
             widthClass="w-[min(1000px,calc(100vw-2rem))]"
@@ -61,7 +61,7 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                             <Icons8Icon id="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2" />
                             <input 
                                 type="text" 
-                                placeholder="Search Extensions in Marketplace..." 
+                                placeholder="Search installed extensions…" 
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="bndz-native-input w-full pl-8 py-1.5 text-xs"

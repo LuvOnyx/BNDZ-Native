@@ -267,31 +267,84 @@ public sealed class ArchiveService
         return tempDir;
     }
 
-    public void AddFilesToArchive(string archivePath, IEnumerable<string> sourceFiles, IEnumerable<string>? entryNames = null)
+    public void AddFilesToArchive(string archivePath, IEnumerable<string> sourcePaths, IEnumerable<string>? entryNames = null)
     {
         archivePath = NormalizePath(archivePath);
-        var sources = sourceFiles.Select(NormalizePath).Where(File.Exists).ToList();
+        var sources = sourcePaths.Select(NormalizePath).Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
         var names = entryNames?.ToList();
-        if (sources.Count == 0) throw new InvalidOperationException("No valid files to add");
+        if (sources.Count == 0) throw new InvalidOperationException("No valid files or folders to add");
 
         var ext = Path.GetExtension(archivePath).TrimStart('.').ToLowerInvariant();
-        if (ext != "zip")
+        var filePairs = new List<(string fullPath, string entryName)>();
+
+        if (names != null && names.Count == sources.Count && sources.All(File.Exists))
         {
-            if (ext == "rar" && TryAddToRarViaWinRar(archivePath, sources, names))
-                return;
-            throw new NotSupportedException("Drag-in is supported for ZIP and RAR (WinRAR) archives. Extract and re-pack for other formats.");
+            for (int i = 0; i < sources.Count; i++)
+                filePairs.Add((sources[i], names[i].Replace('\\', '/')));
+        }
+        else
+        {
+            filePairs = CollectFiles(sources);
         }
 
-        using var zip = ZipFile.Open(archivePath, ZipArchiveMode.Update);
-        for (int i = 0; i < sources.Count; i++)
+        if (filePairs.Count == 0) throw new InvalidOperationException("No valid files to add");
+
+        if (ext == "zip")
         {
-            string src = sources[i];
-            string entryName = names != null && i < names.Count ? names[i] : Path.GetFileName(src);
-            entryName = entryName.Replace('\\', '/');
-            var existing = zip.GetEntry(entryName);
-            existing?.Delete();
-            zip.CreateEntryFromFile(src, entryName, CompressionLevel.Optimal);
+            AddFilesToZipArchive(archivePath, filePairs);
+            return;
         }
+
+        if (ext == "7z")
+        {
+            AddFilesTo7zArchive(archivePath, filePairs);
+            return;
+        }
+
+        if (ext == "rar" && TryAddToRarViaWinRar(archivePath, filePairs.Select(p => p.fullPath).ToList(), filePairs.Select(p => p.entryName).ToList()))
+            return;
+
+        throw new NotSupportedException("Drag-in is supported for ZIP, 7z, and RAR (WinRAR). Extract and re-pack for other formats.");
+    }
+
+    private static void AddFilesToZipArchive(string archivePath, List<(string fullPath, string entryName)> filePairs)
+    {
+        using var zip = ZipFile.Open(archivePath, ZipArchiveMode.Update);
+        foreach (var (fullPath, entryName) in filePairs)
+        {
+            var normalized = entryName.Replace('\\', '/');
+            zip.GetEntry(normalized)?.Delete();
+            zip.CreateEntryFromFile(fullPath, normalized, CompressionLevel.Optimal);
+        }
+    }
+
+    private static void AddFilesTo7zArchive(string archivePath, List<(string fullPath, string entryName)> filePairs)
+    {
+        var tempPath = archivePath + ".bndz.tmp";
+        if (File.Exists(tempPath)) File.Delete(tempPath);
+
+        using (var output = File.Open(tempPath, FileMode.CreateNew))
+        using (var writer = WriterFactory.OpenWriter(output, ArchiveType.SevenZip, new WriterOptions(CompressionType.Deflate)))
+        {
+            if (File.Exists(archivePath))
+            {
+                using var existing = ArchiveFactory.OpenArchive(archivePath);
+                foreach (var entry in existing.Entries.Where(e => !e.IsDirectory))
+                {
+                    using var stream = entry.OpenEntryStream();
+                    writer.Write(entry.Key ?? "", stream, entry.LastModifiedTime ?? DateTime.Now);
+                }
+            }
+
+            foreach (var (fullPath, entryName) in filePairs)
+            {
+                using var input = File.OpenRead(fullPath);
+                writer.Write(entryName.Replace('\\', '/'), input, File.GetLastWriteTime(fullPath));
+            }
+        }
+
+        File.Copy(tempPath, archivePath, overwrite: true);
+        File.Delete(tempPath);
     }
 
     public async Task ExtractArchiveAsync(string archivePath, string destinationDir, Action<int, string>? onProgress = null)

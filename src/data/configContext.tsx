@@ -116,6 +116,14 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     hoverBoxItemTypes: [...DEFAULT_HOVER_BOX_ITEM_TYPES],
     hoverBoxContexts: [...DEFAULT_HOVER_BOX_CONTEXTS],
     treeListVisibleItemTypes: [...DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES],
+    listHoverTooltipsEnabled: true,
+    showMediaPreviewInTooltips: true,
+    playAudioInHoverTooltips: false,
+    tooltipBackgroundColor: '#1e1e24',
+    tooltipTextColor: '#e8e8e8',
+    tooltipMutedColor: '#9ca3af',
+    tooltipCornerRadius: 16,
+    whenHoveringOverTheFilename: true,
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
@@ -146,6 +154,11 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if ((merged.tooltipBehaviorVersion ?? 0) < 1) {
         merged.onlyWhileTheShiftKeyIsHeldDown = true;
         merged.tooltipBehaviorVersion = 1;
+    }
+    if ((merged.tooltipBehaviorVersion ?? 0) < 2) {
+        if (merged.whenHoveringOverTheFilename === false) merged.whenHoveringOverTheFilename = true;
+        merged.listHoverTooltipsEnabled = merged.listHoverTooltipsEnabled !== false;
+        merged.tooltipBehaviorVersion = 2;
     }
     if (merged.inTreeAsWell === undefined) merged.inTreeAsWell = true;
     if ((merged.folderSizeViewVersion ?? 0) < 1) {

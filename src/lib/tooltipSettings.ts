@@ -47,6 +47,7 @@ export function shouldShowTooltipForEntity(
   context: HoverBoxContext = 'list',
 ): boolean {
   if (!shouldShowRichTooltips(config)) return false;
+  if (context === 'list' && config.listHoverTooltipsEnabled === false) return false;
   const ext = (entity?.extension || '').toLowerCase();
   const isExe = ext === 'exe' || ext === 'msi' || ext === 'bat' || ext === 'cmd';
   if (isExe && config.forExecutablesAsWell === false) return false;
@@ -95,6 +96,7 @@ export function bindFloatingTooltipHandlers(
   const requireShift = isShiftRequiredForTooltips(config);
   const hoverBox = !!config.showHoverBox;
   const surface = opts?.surface ?? 'filename';
+  const delayMs = typeof config.hoverTooltipDelayMs === 'number' ? Math.max(0, config.hoverTooltipDelayMs) : 420;
 
   return {
     onMouseEnter: (e) => {
@@ -102,7 +104,7 @@ export function bindFloatingTooltipHandlers(
       if (!shouldShowTooltipOnSurface(config, surface)) return;
       const payload = hoverBox ? { ...content, mode: 'hoverbox' as const } : content;
       const showImmediately = hoverBox || !requireShift;
-      setHoverPending(payload, e.clientX, e.clientY, theme, showImmediately);
+      setHoverPending(payload, e.clientX, e.clientY, theme, showImmediately, delayMs);
     },
     onMouseMove: (e) => {
       if (!content) return;

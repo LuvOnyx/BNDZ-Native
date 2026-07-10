@@ -20,6 +20,10 @@ import {
   type TooltipSurface,
 } from './tooltipSettings';
 import type { HoverBoxContext } from './hoverBoxConfig';
+import {
+  classifyTooltipMedia,
+  resolveTooltipMedia,
+} from './tooltipMedia';
 
 function formatSize(bytes?: number): string {
   if (bytes == null || bytes === 0) return '—';
@@ -30,10 +34,13 @@ function formatSize(bytes?: number): string {
   return `${v < 10 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
 }
 
+const AUDIO_META_KEYS = ['Duration', 'Audio Bitrate', 'Sample Rate', 'Bit Depth', 'Channels'];
+
 export type EntityTooltipBuildOpts = {
   metadata?: Record<string, string>;
   md5?: string;
   hoverBox?: boolean;
+  media?: HoverTooltipContent['media'];
 };
 
 export function buildEntityTooltipContent(
@@ -112,6 +119,14 @@ export function buildEntityTooltipContent(
     }
   }
 
+  if (config.showAudioInfoAndTags && !isDir) {
+    for (const key of AUDIO_META_KEYS) {
+      if (meta[key] && !lines.some(l => l.label === key)) {
+        pushLine(key, meta[key]);
+      }
+    }
+  }
+
   if (opts?.hoverBox && showPhotoDataInHoverBox(config)) {
     for (const key of ['Date Taken', 'Camera Model', 'F-Stop', 'Exposure Time', 'Focal Length', 'ISO Speed']) {
       if (meta[key] && !lines.some(l => l.label === key)) {
@@ -120,7 +135,7 @@ export function buildEntityTooltipContent(
     }
   }
 
-  if (!lines.length && !useStandard) {
+  if (!lines.length && !useStandard && !opts?.media) {
     if (isDir) {
       const cached = folderSizeMap[fullPath.toLowerCase()];
       const sizeLabel = formatFolderSizeLabel(cached, {
@@ -139,6 +154,7 @@ export function buildEntityTooltipContent(
     title: entity.name,
     subtitle: isDir ? 'Folder' : entity.extension ? `.${entity.extension} file` : 'File',
     lines,
+    media: opts?.media,
     badge: isDir
       ? { text: 'DIR', color: '#dcb67a' }
       : { text: (entity.extension || 'FILE').toUpperCase().slice(0, 6), color: '#60a5fa' },
@@ -160,25 +176,37 @@ export function createEntityTooltipHandlers(
     return { onMouseEnter: () => {}, onMouseMove: () => {}, onMouseLeave: () => {} };
   }
 
-  const needsMeta = !!config.showHoverBox || !!config.extraFields || config.showPhotoDataInTheHoverBox;
+  const mediaKind = entity.type !== 'directory' ? classifyTooltipMedia(entity.extension) : null;
+  const needsMedia = !!mediaKind;
+  const needsAudioMeta = !!config.showAudioInfoAndTags && mediaKind === 'audio';
+  const needsMeta = !!config.showHoverBox || !!config.extraFields || config.showPhotoDataInTheHoverBox || needsAudioMeta;
   const hoverBox = !!config.showHoverBox;
   let cachedContent: HoverTooltipContent | null = null;
 
   const loadContent = async (): Promise<HoverTooltipContent | null> => {
     if (cachedContent) return cachedContent;
+    const path = toWindowsPath(entity.path || joinPanePath(panePath, entity));
     let metadata: Record<string, string> | undefined;
-    if (needsMeta && entity.type !== 'directory') {
-      const path = toWindowsPath(entity.path || joinPanePath(panePath, entity));
-      try {
-        const entry = await getExtendedMetadataCached(path, { includeMd5: false });
-        metadata = entry.meta;
-      } catch {
-        metadata = undefined;
+    let media: HoverTooltipContent['media'];
+
+    if (entity.type !== 'directory') {
+      if (needsMedia && mediaKind) {
+        media = (await resolveTooltipMedia(path, mediaKind, config)) ?? undefined;
+      }
+      if (needsMeta || needsMedia) {
+        try {
+          const entry = await getExtendedMetadataCached(path, { includeMd5: false });
+          metadata = entry.meta;
+        } catch {
+          metadata = undefined;
+        }
       }
     }
+
     cachedContent = buildEntityTooltipContent(entity, panePath, config, folderSizeMap, formatSizeFn, {
       metadata,
       hoverBox,
+      media,
     });
     return cachedContent;
   };
@@ -188,7 +216,8 @@ export function createEntityTooltipHandlers(
       if (!shouldShowTooltipOnSurface(config, surface)) return;
       void loadContent().then(content => {
         if (!content) return;
-        bindFloatingTooltipHandlers(content, config, { surface, context }).onMouseEnter(e);
+        const handlers = bindFloatingTooltipHandlers(content, config, { surface, context });
+        handlers.onMouseEnter(e);
       });
     },
     onMouseMove: (e: React.MouseEvent) => {

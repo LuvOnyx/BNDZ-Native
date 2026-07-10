@@ -1060,8 +1060,33 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     </select>
                   </div>
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 space-y-[6px]">
                   <Checkbox label="Show full path in tooltip" checked={localConfig.hoverTooltipShowPath !== false} onChange={e => updateLocalConfig({ hoverTooltipShowPath: e.target.checked })} disabled={!localConfig.showFileInfoTips && !localConfig.showTooltips} />
+                  <Checkbox label={<span>Enable list hover tooltips</span>} checked={localConfig.listHoverTooltipsEnabled !== false} onChange={e => updateLocalConfig({ listHoverTooltipsEnabled: e.target.checked })} />
+                  <Checkbox label={<span>Show image / SVG preview in tooltip</span>} checked={localConfig.showMediaPreviewInTooltips !== false} onChange={e => updateLocalConfig({ showMediaPreviewInTooltips: e.target.checked })} disabled={!localConfig.showFileInfoTips && !localConfig.listHoverTooltipsEnabled} />
+                  <Checkbox label={<span>Play audio in tooltip</span>} checked={localConfig.playAudioInHoverTooltips ?? false} onChange={e => updateLocalConfig({ playAudioInHoverTooltips: e.target.checked })} disabled={!localConfig.showFileInfoTips && !localConfig.listHoverTooltipsEnabled} />
+                </div>
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-gray-300 w-[100px]">Background</span>
+                    <input type="color" value={localConfig.tooltipBackgroundColor || '#1e1e24'} onChange={e => updateLocalConfig({ tooltipBackgroundColor: e.target.value })} className="w-8 h-7 bg-transparent border border-[#555] rounded cursor-pointer" />
+                    <input type="text" value={localConfig.tooltipBackgroundColor || '#1e1e24'} onChange={e => updateLocalConfig({ tooltipBackgroundColor: e.target.value })} className="flex-1 h-7 bg-[#111] border border-[#555] rounded px-2 text-[11px] text-white font-mono" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-gray-300 w-[100px]">Text color</span>
+                    <input type="color" value={localConfig.tooltipTextColor || '#e8e8e8'} onChange={e => updateLocalConfig({ tooltipTextColor: e.target.value })} className="w-8 h-7 bg-transparent border border-[#555] rounded cursor-pointer" />
+                    <input type="text" value={localConfig.tooltipTextColor || '#e8e8e8'} onChange={e => updateLocalConfig({ tooltipTextColor: e.target.value })} className="flex-1 h-7 bg-[#111] border border-[#555] rounded px-2 text-[11px] text-white font-mono" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-gray-300 w-[100px]">Muted text</span>
+                    <input type="color" value={localConfig.tooltipMutedColor || '#9ca3af'} onChange={e => updateLocalConfig({ tooltipMutedColor: e.target.value })} className="w-8 h-7 bg-transparent border border-[#555] rounded cursor-pointer" />
+                    <input type="text" value={localConfig.tooltipMutedColor || '#9ca3af'} onChange={e => updateLocalConfig({ tooltipMutedColor: e.target.value })} className="flex-1 h-7 bg-[#111] border border-[#555] rounded px-2 text-[11px] text-white font-mono" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-gray-300 w-[100px]">Corner radius</span>
+                    <input type="number" min={8} max={28} value={localConfig.tooltipCornerRadius ?? 16} onChange={e => updateLocalConfig({ tooltipCornerRadius: Math.max(8, Math.min(28, parseInt(e.target.value, 10) || 16)) })} className="w-[72px] h-7 bg-[#111] border border-[#555] rounded px-2 text-[12px] text-white" />
+                    <span className="text-[11px] text-gray-500">px</span>
+                  </div>
                 </div>
                 </div>
               </div>
@@ -2559,7 +2584,6 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Templates</h1>
                
                <div className="max-w-[550px] space-y-[24px]">
-                  <DevOnly>
                   <div>
                      <span className="text-[12px] font-bold text-white mb-[8px] block">Filename Affixes</span>
                      <div className="flex gap-2 items-center mb-1">
@@ -2611,7 +2635,6 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      </div>
                      <p className="text-[12px] text-[#e0e0e0] ml-[20px] mt-1">Use &lt;command&gt; as placeholder for address bar input (!-escape).</p>
                   </div>
-                  </DevOnly>
                </div>
             </TabsContent>
 
@@ -2623,7 +2646,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <ContextMenuConfiguratorTab />
             </TabsContent>
 
-            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "Safety Belts, Network", "Controls & More", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane"].includes(item)).map(item => (
+            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts"].includes(item)).map(item => (
                <TabsContent key={item} value={item} className="m-0 border-0 p-0 outline-none">
                   <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">{item}</h1>
                   <p className="text-[#a0a0a0] text-[13px]">Configuration options for this section are disabled in the current preview.</p>

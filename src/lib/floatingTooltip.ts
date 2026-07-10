@@ -12,11 +12,13 @@ interface HoverPending {
   x: number;
   y: number;
   theme: HoverTooltipTheme;
+  showImmediately: boolean;
 }
 
 let state: FloatingTooltipState | null = null;
 let hoverPending: HoverPending | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
+let showTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
 
 /** Grace period before fade-out when the pointer leaves */
@@ -34,10 +36,33 @@ function clearHideTimer() {
   }
 }
 
+function clearShowTimer() {
+  if (showTimer) {
+    clearTimeout(showTimer);
+    showTimer = null;
+  }
+}
+
 function clearVisibleTooltip() {
   clearHideTimer();
   if (!state) return;
   state = null;
+  notify();
+}
+
+function revealPending() {
+  if (!hoverPending) return;
+  const canShow = hoverPending.showImmediately || isShiftKeyHeld();
+  if (!canShow) {
+    clearVisibleTooltip();
+    return;
+  }
+  state = {
+    content: hoverPending.content,
+    x: hoverPending.x,
+    y: hoverPending.y,
+    theme: hoverPending.theme,
+  };
   notify();
 }
 
@@ -54,34 +79,35 @@ export function getHoverPending(): HoverPending | null {
   return hoverPending;
 }
 
-/** Register hovered item — tooltip appears only while Left Shift is held */
+/** Register hovered item — tooltip appears after delay and/or while Left Shift is held */
 export function setHoverPending(
   content: HoverTooltipContent | null,
   x: number,
   y: number,
   theme: HoverTooltipTheme = 'glass',
   showImmediately = false,
+  delayMs = 0,
 ) {
   clearHideTimer();
+  clearShowTimer();
   if (!content) {
     hoverPending = null;
     clearVisibleTooltip();
     return;
   }
-  hoverPending = { content, x, y, theme };
-  const canShow = showImmediately || isShiftKeyHeld();
-  if (canShow) {
-    state = { content, x, y, theme };
-    notify();
+  hoverPending = { content, x, y, theme, showImmediately };
+  const runShow = () => revealPending();
+  if (delayMs > 0) {
+    showTimer = setTimeout(runShow, delayMs);
   } else {
-    clearVisibleTooltip();
+    runShow();
   }
 }
 
 export function updateHoverPendingPosition(x: number, y: number) {
   if (!hoverPending) return;
   hoverPending = { ...hoverPending, x, y };
-  if (!isShiftKeyHeld()) {
+  if (!hoverPending.showImmediately && !isShiftKeyHeld()) {
     clearVisibleTooltip();
     return;
   }
@@ -94,13 +120,7 @@ export function updateHoverPendingPosition(x: number, y: number) {
 export function refreshTooltipForShiftChange(shiftHeld: boolean) {
   if (shiftHeld && hoverPending) {
     clearHideTimer();
-    state = {
-      content: hoverPending.content,
-      x: hoverPending.x,
-      y: hoverPending.y,
-      theme: hoverPending.theme,
-    };
-    notify();
+    revealPending();
     return;
   }
   clearVisibleTooltip();
@@ -126,6 +146,7 @@ export function moveFloatingTooltip(x: number, y: number) {
 
 /** Mouse left the row — clear pending hover and fade out */
 export function hideFloatingTooltip() {
+  clearShowTimer();
   hoverPending = null;
   dismissVisibleTooltip();
 }

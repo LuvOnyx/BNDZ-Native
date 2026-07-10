@@ -1256,6 +1256,27 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 120, 212, 0.12) !important;
 }
 
+.bndz-tooltip-premium {
+  border-radius: var(--tooltip-radius, 16px);
+}
+
+.bndz-tooltip-media-frame {
+  padding-top: 0.625rem;
+}
+
+.bndz-tooltip-media-inner {
+  border-radius: calc(var(--tooltip-radius, 16px) - 4px);
+  background: color-mix(in srgb, var(--tooltip-bg, #1a1a24) 82%, #000 18%);
+  border: 1px solid var(--tooltip-border, rgba(255, 255, 255, 0.1));
+  overflow: hidden;
+}
+
+.bndz-tooltip-media-audio .bndz-tooltip-media-inner,
+.bndz-tooltip-media-audio {
+  background: color-mix(in srgb, var(--tooltip-bg, #1a1a24) 88%, #000 12%);
+  border-radius: calc(var(--tooltip-radius, 16px) - 4px);
+}
+
 .bndz-hoverbox-panel .bndz-floating-tooltip-title {
   font-size: 14px;
 }
