@@ -47,6 +47,7 @@ export interface SettingsRuntimeContext {
     rememberState: boolean;
     lockState: boolean;
     skipInvisible: boolean;
+    applyColorFilters: boolean;
   };
   preview: {
     enabled: boolean;
@@ -137,6 +138,7 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       rememberState: !!config.rememberStateOfTree,
       lockState: !!config.lockTreeState,
       skipInvisible: !!config.skipInvisibleSubfolders,
+      applyColorFilters: config.applyColorFiltersToTheTree === true && config.enableColorFilters !== false,
     },
     preview: {
       enabled: true,

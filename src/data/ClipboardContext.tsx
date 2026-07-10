@@ -5,6 +5,8 @@ import { useAppConfig } from './configContext';
 import { resolveRecreateStructureForPaste } from '../lib/pastePlanning';
 
 const CLIPBOARD_STORAGE_KEY = 'bndz-clipboard-v1';
+const CLIPBOARD_HISTORY_KEY = 'bndz-clipboard-history-v1';
+const MAX_CLIPBOARD_HISTORY = 16;
 
 function loadStoredClipboard(): ClipboardState {
   try {
@@ -21,6 +23,18 @@ function loadStoredClipboard(): ClipboardState {
   }
 }
 
+function loadClipboardHistory(): ClipboardHistoryEntry[] {
+  try {
+    const raw = sessionStorage.getItem(CLIPBOARD_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ClipboardHistoryEntry[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(e => e?.items?.length && (e.action === 'copy' || e.action === 'cut'));
+  } catch {
+    return [];
+  }
+}
+
 function persistClipboard(state: ClipboardState) {
   try {
     if (!state.items.length || !state.action) {
@@ -31,6 +45,19 @@ function persistClipboard(state: ClipboardState) {
   } catch { /* best effort */ }
 }
 
+function persistClipboardHistory(history: ClipboardHistoryEntry[]) {
+  try {
+    if (!history.length) sessionStorage.removeItem(CLIPBOARD_HISTORY_KEY);
+    else sessionStorage.setItem(CLIPBOARD_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_CLIPBOARD_HISTORY)));
+  } catch { /* best effort */ }
+}
+
+function sameClipboard(a: ClipboardState, b: ClipboardState): boolean {
+  return a.action === b.action
+    && a.items.length === b.items.length
+    && a.items.every((p, i) => p === b.items[i]);
+}
+
 export type ClipboardAction = 'copy' | 'cut' | '';
 
 export interface ClipboardState {
@@ -38,10 +65,16 @@ export interface ClipboardState {
   action: ClipboardAction;
 }
 
+export interface ClipboardHistoryEntry extends ClipboardState {
+  at: number;
+}
+
 interface ClipboardContextValue {
   clipboard: ClipboardState;
+  clipboardHistory: ClipboardHistoryEntry[];
   copyToClipboard: (items: string[]) => void;
   setClipboardState: (items: string[], action: ClipboardAction) => void;
+  restorePreviousClipboard: () => boolean;
   executePaste: (targetDir: string) => Promise<void>;
   clearClipboard: () => void;
 }
@@ -50,14 +83,30 @@ const ClipboardContext = createContext<ClipboardContextValue | null>(null);
 
 export function ClipboardProvider({ children }: { children: React.ReactNode }) {
   const [clipboard, setClipboard] = useState<ClipboardState>(loadStoredClipboard);
+  const [clipboardHistory, setClipboardHistory] = useState<ClipboardHistoryEntry[]>(loadClipboardHistory);
   const { config } = useAppConfig();
+  const logClipboard = !!config.logClipboardContentsAndEnableRestore;
+
+  const pushHistory = useCallback((prev: ClipboardState) => {
+    if (!logClipboard || !prev.items.length || !prev.action) return;
+    setClipboardHistory(h => {
+      const entry: ClipboardHistoryEntry = { ...prev, at: Date.now() };
+      const next = [entry, ...h.filter(e => !sameClipboard(e, prev))].slice(0, MAX_CLIPBOARD_HISTORY);
+      persistClipboardHistory(next);
+      return next;
+    });
+  }, [logClipboard]);
 
   const setClipboardState = useCallback((items: string[], action: ClipboardAction) => {
     const normalized = items.map(p => toWindowsPath(p)).filter(Boolean);
+    if (!normalized.length || !action) return;
     const next = { items: normalized, action };
+    setClipboard(prev => {
+      if (!sameClipboard(prev, next)) pushHistory(prev);
+      return next;
+    });
     persistClipboard(next);
-    setClipboard(next);
-  }, []);
+  }, [pushHistory]);
 
   const copyToClipboard = useCallback((items: string[]) => {
     setClipboardState(items, 'copy');
@@ -65,9 +114,23 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
 
   const clearClipboard = useCallback(() => {
     const empty = { items: [], action: '' as ClipboardAction };
+    setClipboard(prev => {
+      if (prev.items.length && prev.action) pushHistory(prev);
+      return empty;
+    });
     persistClipboard(empty);
-    setClipboard(empty);
-  }, []);
+  }, [pushHistory]);
+
+  const restorePreviousClipboard = useCallback((): boolean => {
+    if (!clipboardHistory.length) return false;
+    const [entry, ...rest] = clipboardHistory;
+    setClipboardHistory(rest);
+    persistClipboardHistory(rest);
+    const restored = { items: [...entry.items], action: entry.action };
+    setClipboard(restored);
+    persistClipboard(restored);
+    return true;
+  }, [clipboardHistory]);
 
   useEffect(() => {
     persistClipboard(clipboard);
@@ -78,15 +141,9 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     const onFocus = () => {
       const stored = loadStoredClipboard();
       if (stored.items.length && stored.action) {
-        setClipboard(prev => {
-          if (prev.items.length === stored.items.length
-            && prev.action === stored.action
-            && prev.items.every((p, i) => p === stored.items[i])) {
-            return prev;
-          }
-          return stored;
-        });
+        setClipboard(prev => (sameClipboard(prev, stored) ? prev : stored));
       }
+      if (logClipboard) setClipboardHistory(loadClipboardHistory());
     };
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
@@ -94,7 +151,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
     };
-  }, [clipboard]);
+  }, [clipboard, logClipboard]);
 
   const executePaste = useCallback(async (targetDir: string) => {
     if (!clipboard.items.length || !clipboard.action) return;
@@ -123,7 +180,15 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
   }, [clipboard, clearClipboard, config]);
 
   return (
-    <ClipboardContext.Provider value={{ clipboard, copyToClipboard, setClipboardState, executePaste, clearClipboard }}>
+    <ClipboardContext.Provider value={{
+      clipboard,
+      clipboardHistory,
+      copyToClipboard,
+      setClipboardState,
+      restorePreviousClipboard,
+      executePaste,
+      clearClipboard,
+    }}>
       {children}
     </ClipboardContext.Provider>
   );
@@ -134,8 +199,10 @@ export function useClipboard(): ClipboardContextValue {
   if (!ctx) {
     return {
       clipboard: { items: [], action: '' },
+      clipboardHistory: [],
       copyToClipboard: () => {},
       setClipboardState: () => {},
+      restorePreviousClipboard: () => false,
       executePaste: async () => {},
       clearClipboard: () => {},
     };

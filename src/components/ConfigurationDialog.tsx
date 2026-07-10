@@ -804,12 +804,12 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>ave settings on exit</span>} checked={localConfig.saveSettingsOnExit ?? false} onChange={e => updateLocalConfig({ saveSettingsOnExit: e.target.checked })} />
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">I</span>nclude most-recently-used lists on save</span>} checked={localConfig.includeMostRecentlyUsedListsOnSave ?? false} onChange={e => updateLocalConfig({ includeMostRecentlyUsedListsOnSave: e.target.checked })} />
                   <div className="ml-[24px] mb-2">
-                     <ActionBtn label="Apply to..." className="px-6 py-[2px] bg-[#1a1a1a]" />
+                     <ActionBtn label="Apply to..." className="px-6 py-[2px] bg-[#1a1a1a]" onClick={() => setActiveTab('Colors')} />
                   </div>
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">B</span>ackup settings on save</span>} checked={localConfig.backupSettingsOnSave ?? false} onChange={e => updateLocalConfig({ backupSettingsOnSave: e.target.checked })} />
                   <Checkbox label={<span>Save changes to disk immediately</span>} checked={localConfig.saveChangesToDiskImmediately ?? false} onChange={e => updateLocalConfig({ saveChangesToDiskImmediately: e.target.checked })} />
                   <div className="ml-[24px] mb-[20px]">
-                     <ActionBtn label="Apply to..." className="px-6 py-[2px] bg-[#1a1a1a]" />
+                     <ActionBtn label="Apply to..." className="px-6 py-[2px] bg-[#1a1a1a]" onClick={() => setActiveTab('Colors')} />
                   </div>
               </div>
             </TabsContent>
@@ -1665,7 +1665,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                        </div>
                     ))}
                  </div>
-                 <ActionBtn label="Find..." className="w-[80px]" />
+                 <ActionBtn label="Find..." className="w-[80px]" onClick={() => openBottomPluginFromConfig('find')} />
               </div>
 
               <div className="flex flex-col gap-1 mb-1 mt-6">
@@ -2342,7 +2342,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   
                   <Checkbox label={<span>Use empty cell defaults</span>} checked={localConfig.useEmptyCellDefaults ?? false} onChange={e => updateLocalConfig({ useEmptyCellDefaults: e.target.checked })} />
                   <div className="ml-[20px] mt-1">
-                     <ActionBtn label="Configure..." className="px-6 py-[2px] bg-[#1a1a1a]" />
+                     <ActionBtn label="Configure..." className="px-6 py-[2px] bg-[#1a1a1a]" onClick={() => setShowConditionalFormattingDialog(true)} />
                   </div>
               </div>
             </TabsContent>

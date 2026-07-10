@@ -112,12 +112,17 @@ public class FileOperationService
                 case "move":
                 {
                     var prefs = FileOperationPreferences.Current;
+                    var archiveFolderRename = prefs.SetArchiveAttributeOnFolderRename
+                        && sources.Count == 1
+                        && Directory.Exists(sources[0]);
                     if (prefs.CheckSpaceBeforeCopy || prefs.UseCustomCopy)
                     {
                         var plan = FileOperationPathPlanner.Plan("move", sources, target);
                         FileOperationPathPlanner.EnsureDestinationSpace(target, FileOperationPathPlanner.EstimateBytesForPlan(plan));
                     }
                     var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove, recreateSourceStructure).ConfigureAwait(false);
+                    if (archiveFolderRename && Directory.Exists(target))
+                        TrySetArchiveAttribute(target);
                     if (movedTo.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForMove(sources, movedTo));
                     break;
@@ -411,6 +416,21 @@ public class FileOperationService
         {
             Debug.WriteLine($"Copy verify failed: {ex.Message}");
             return false;
+        }
+    }
+
+    private static void TrySetArchiveAttribute(string path)
+    {
+        try
+        {
+            if (!Directory.Exists(path)) return;
+            var attrs = File.GetAttributes(path);
+            if ((attrs & FileAttributes.Archive) == 0)
+                File.SetAttributes(path, attrs | FileAttributes.Archive);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Set archive attribute failed for {path}: {ex.Message}");
         }
     }
 

@@ -1191,6 +1191,99 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   min-height: 100%;
 }
 
+/* Clipboard visual marks (copy / cut) */
+.fs-item-clipboard-copy {
+  background: linear-gradient(90deg, rgba(79, 195, 247, 0.14) 0%, rgba(79, 195, 247, 0.05) 42%, transparent 100%) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(79, 195, 247, 0.38),
+    inset 3px 0 0 #4fc3f7;
+}
+
+.fs-item-clipboard-cut {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.12) 0%, rgba(251, 191, 36, 0.04) 42%, transparent 100%) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 191, 36, 0.32),
+    inset 3px 0 0 #fbbf24;
+  opacity: 0.62;
+  filter: grayscale(0.25);
+}
+
+.fs-grid-item.fs-item-clipboard-copy,
+.fs-grid-item.fs-item-clipboard-cut {
+  border-radius: 6px;
+}
+
+.bndz-clipboard-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px 1px 3px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  user-select: none;
+}
+
+.bndz-clipboard-mark--copy {
+  color: #b8ecff;
+  background: linear-gradient(180deg, rgba(0, 120, 212, 0.92), rgba(0, 90, 158, 0.95));
+  border: 1px solid rgba(127, 212, 255, 0.45);
+}
+
+.bndz-clipboard-mark--cut {
+  color: #fff4d0;
+  background: linear-gradient(180deg, rgba(180, 120, 20, 0.92), rgba(140, 90, 10, 0.95));
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.bndz-clipboard-mark--compact {
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.bndz-clipboard-icon-slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bndz-clipboard-icon-slot .bndz-clipboard-mark {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  z-index: 3;
+}
+
+.bndz-status-clipboard {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c8e8ff;
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 220px;
+}
+
+.bndz-status-clipboard--cut {
+  color: #fde68a;
+}
+
+.bndz-status-clipboard-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Density */
 html[data-density="compact"] .fs-list-item {
   min-height: 20px;

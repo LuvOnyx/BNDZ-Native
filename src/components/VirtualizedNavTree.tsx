@@ -4,7 +4,7 @@ import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { TreeShellIcon } from './TreeShellIcon';
 import TreeGlider, { type TreeGliderAnchor } from './TreeGlider';
 import { IPC } from '../lib/ipcBridge';
-import { buildSettingsRuntime } from '../lib/settingsRuntime';
+import { buildSettingsRuntime, evaluateColorFilter } from '../lib/settingsRuntime';
 import { reorderNavTreeKeys } from '../lib/navTreeOrder';
 import type { AppConfig } from '../data/configContext';
 import { buildTreeTooltipContent } from '../lib/treeTooltip';
@@ -165,13 +165,17 @@ function TreeRow({
   const canReorder = !!row.draggable && !row.isPlaceholder && !disallowDragFromTree;
   const canDragFile = !!row.path && !row.isPlaceholder && !disallowDragFromTree && !canReorder;
   const isFileDropTarget = !!row.path && fileDropTarget === row.path;
+  const treeRt = buildSettingsRuntime(config).tree;
+  const treeColorFilter = treeRt.applyColorFilters && row.path
+    ? evaluateColorFilter({ name: row.label, path: row.path, type: 'directory' }, config.colorFilters, config)
+    : null;
 
   const rowEl = (
       <div
       className={`nav-tree-row group/tree group flex items-center py-[3px] pr-2 cursor-pointer whitespace-nowrap rounded-sm mx-0.5 transition-colors duration-100 ${
         isSelected ? 'nav-tree-row-selected' : 'hover:bg-[#2a2d2e]/90'
-      } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''}`}
-      style={{ paddingLeft: `${indentPx}px` }}
+      } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''} ${treeColorFilter?.className || ''}`}
+      style={{ paddingLeft: `${indentPx}px`, ...(treeColorFilter?.inlineStyle && !isSelected ? treeColorFilter.inlineStyle : {}) }}
       data-nav-path={row.path || undefined}
       draggable={canDragFile && !row.isPlaceholder}
       onDragStart={canDragFile ? e => {

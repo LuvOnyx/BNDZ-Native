@@ -41,6 +41,7 @@ public sealed class FileOperationPreferences
     public string RecreateSourceFolderStructure { get; set; } = "Ask";
     public bool CopyTagsOnCopyOperations { get; set; }
     public bool CopyTagsOnBackupAndSync { get; set; }
+    public bool SetArchiveAttributeOnFolderRename { get; set; }
 
     public enum UndoPromptMode
     {
@@ -126,6 +127,7 @@ public sealed class FileOperationPreferences
                 RecreateSourceFolderStructure = ReadString(root, "recreateSourceFolderStructure", "Ask"),
                 CopyTagsOnCopyOperations = ReadBool(root, "copyTagsOnCopyOperations", false),
                 CopyTagsOnBackupAndSync = ReadBool(root, "copyTagsOnBackupAndSyncOperations", false),
+                SetArchiveAttributeOnFolderRename = ReadBool(root, "setArchiveAttributeOnFolderRename", false),
             };
             Current = p;
         }

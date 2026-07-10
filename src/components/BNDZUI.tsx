@@ -127,6 +127,12 @@ import {
 } from '../lib/listColumns';
 import { computeAutosizedColumnWidths } from '../lib/columnAutosize';
 import RapidAccessPopup from './RapidAccessPopup';
+import ClipboardMarkBadge from './ClipboardMarkBadge';
+import {
+  describeClipboardState,
+  getClipboardMarkForEntity,
+  resolveEntityWindowsPath,
+} from '../lib/clipboardVisual';
 import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath } from '../lib/pathUtils';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
 import { hasBndzFileDrag, readBndzFileDragData } from '../lib/bndzDrag';
@@ -319,7 +325,7 @@ function InlineRenameInput({
 
 export default function BNDZUI() {
   const { showModal, confirm } = useModal();
-  const { clipboard, setClipboardState, executePaste } = useClipboard();
+  const { clipboard, clipboardHistory, setClipboardState, executePaste, restorePreviousClipboard } = useClipboard();
   const { config, updateConfig } = useAppConfig();
   const keyboardMap = useMemo(() => buildSettingsRuntime(config).keyboard, [config]);
   const settingsRt = useMemo(() => buildSettingsRuntime(config), [config]);
@@ -5523,10 +5529,8 @@ export default function BNDZUI() {
                 const isDir = entity.type === "directory";
                 const isDrive = !!(entity as any).driveInfo;
                 const drive = (entity as any).driveInfo;
-                // clipboard.items holds absolute Windows paths, not entity ids — comparing
-                // by .id here always failed silently, so cut items never visually dimmed.
-                const entityWinPath = toWindowsPath(joinPanePath(panePath, entity)).toLowerCase();
-                const isCut = clipboard?.action === 'cut' && clipboard.items.some(p => toWindowsPath(p).toLowerCase() === entityWinPath);
+                const entityWinPath = resolveEntityWindowsPath(panePath, entity);
+                const clipboardMark = getClipboardMarkForEntity(entityWinPath, clipboard);
                 let filterResult = applyVisualFilters(entity, config.visualFilters);
                 const colorFilterResult = evaluateColorFilter(entity, config.colorFilters, config);
                 let filterColor = filterResult?.hexColor; 
@@ -5614,7 +5618,8 @@ export default function BNDZUI() {
                       ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : mouseRt.highlightHovered ? 'hover:bg-[#2a2d2e]' : ''}
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
                       ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30" : ""}
-                      ${isCut || syncOpacity ? "opacity-50 grayscale" : ""}`}
+                      ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
+                      ${syncOpacity ? "opacity-50" : ""}`}
                     style={{
                         ...(showSelectionChrome && config.listSelectionHighlightColor
                           ? { backgroundColor: config.listSelectionHighlightColor }
@@ -5728,8 +5733,9 @@ export default function BNDZUI() {
                            {computedViewMode === 'grid' ? (
                              <>
                                <div className="bndz-list-select-cell flex-1 flex flex-col items-center justify-center min-h-[48px] relative w-full">
-                                  <div className="flex-1 flex items-center justify-center min-h-[48px] relative w-full">
+                                  <div className="bndz-clipboard-icon-slot flex-1 flex items-center justify-center min-h-[48px] relative w-full">
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={gridMetrics.icon} />
+                                  {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
                                   {filterResult?.badgeColor && (
                                       <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full ring-1 ring-black" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
                                   )}
@@ -5749,8 +5755,9 @@ export default function BNDZUI() {
                            ) : computedViewMode === 'list' ? (
                              <>
                              <div className="bndz-list-select-cell flex items-center min-w-0 flex-1">
-                               <div className="flex justify-center shrink-0" style={{ width: listMetrics.iconSlot }}>
+                               <div className="bndz-clipboard-icon-slot flex justify-center shrink-0" style={{ width: listMetrics.iconSlot }}>
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={listMetrics.icon} />
+                                  {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
                                </div>
                                <div className="flex-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
                                   {displayLabel}
@@ -5790,8 +5797,9 @@ export default function BNDZUI() {
                                    />
                                  </div>
                                )}
-                               <div className={`${detailsIconColClass} bndz-list-select-cell flex justify-center shrink-0`}>
+                               <div className={`${detailsIconColClass} bndz-list-select-cell bndz-clipboard-icon-slot flex justify-center shrink-0`}>
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={detailsIconSize} />
+                                  {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
                                </div>
                                <div className="flex-1 flex items-center min-w-0 bndz-list-columns">
                                  {visibleListColumns.map((col, colIdx) => (
@@ -6148,6 +6156,12 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       void executePaste(currentTab.path);
                     })}><Icons8Icon id="clipboard" size={14} /> Paste</div>
+                    {config.logClipboardContentsAndEnableRestore && clipboardHistory.length > 0 && (
+                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                        if (restorePreviousClipboard()) setToastMessage('Previous clipboard restored.');
+                        else setToastMessage('No clipboard history.', 'warning');
+                      })}><Icons8Icon id="undo" size={14} /> Restore Previous Clipboard</div>
+                    )}
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const items = pathContentsCache[currentTab.path] || [];
@@ -7344,6 +7358,12 @@ export default function BNDZUI() {
            )}
          </div>
          <div className="flex items-center gap-4 shrink-0">
+            {describeClipboardState(clipboard) && (
+              <span className={`bndz-status-clipboard ${clipboard.action === 'cut' ? 'bndz-status-clipboard--cut' : ''}`} title="Internal clipboard">
+                <Icons8Icon id={clipboard.action === 'cut' ? 'cut' : 'copy'} size={11} />
+                <span className="bndz-status-clipboard-label">{describeClipboardState(clipboard)}</span>
+              </span>
+            )}
             {getHoverPending() && config.showFileInfoTips !== false && (
               <span className={`bndz-shift-hint hidden md:inline-flex ${isShiftKeyHeld() ? 'bndz-shift-hint-active' : ''}`}>
                 <kbd>⇧</kbd> Shift + hover for file details

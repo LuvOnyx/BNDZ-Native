@@ -157,6 +157,16 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
 
     const handleCommit = async () => {
         if (!collisions.length || committing) return;
+
+        if (config?.previewAllRenameSpecialOperations) {
+            const lines = collisions.slice(0, 24).map(p => `${p.oldName}  →  ${p.newName}`);
+            const more = collisions.length > 24 ? `\n…and ${collisions.length - 24} more` : '';
+            const ok = window.confirm(
+                `Apply ${collisions.length} rename operation(s)?\n\n${lines.join('\n')}${more}`,
+            );
+            if (!ok) return;
+        }
+
         setCommitting(true);
 
         try {

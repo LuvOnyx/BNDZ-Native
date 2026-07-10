@@ -234,12 +234,12 @@ namespace BNDZ.Services
                         var di = new DirectoryInfo(filePath);
                         var ds = di.GetAccessControl();
                         meta["Owner"] = ds.GetOwner(typeof(NTAccount))?.ToString() ?? "Unknown";
-                        meta["ACL Rule"] = "R W X"; // Mocked representation since full ACL parsing is complex for UI
+                        meta["ACL Rule"] = SummarizeAcl(ds);
                     } else {
                         var fi = new FileInfo(filePath);
                         var fs = fi.GetAccessControl();
                         meta["Owner"] = fs.GetOwner(typeof(NTAccount))?.ToString() ?? "Unknown";
-                        meta["ACL Rule"] = "R W X"; 
+                        meta["ACL Rule"] = SummarizeAcl(fs);
                         meta["File Size"] = fi.Length.ToString();
                         meta["Created"] = fi.CreationTime.ToString();
                         meta["Modified"] = fi.LastWriteTime.ToString();
@@ -268,6 +268,43 @@ namespace BNDZ.Services
             }
             catch {}
             return meta;
+        }
+
+        private static string SummarizeAcl(FileSystemSecurity security)
+        {
+            try
+            {
+                var tokens = new System.Collections.Generic.SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (FileSystemAccessRule rule in security.GetAccessRules(true, true, typeof(NTAccount)))
+                {
+                    if (rule.AccessControlType != AccessControlType.Allow) continue;
+                    var rights = rule.FileSystemRights;
+                    if ((rights & FileSystemRights.FullControl) != 0)
+                    {
+                        tokens.Clear();
+                        tokens.UnionWith(new[] { "F", "R", "W", "X" });
+                        break;
+                    }
+                    if ((rights & (FileSystemRights.ReadData | FileSystemRights.Read | FileSystemRights.ListDirectory)) != 0)
+                        tokens.Add("R");
+                    if ((rights & (FileSystemRights.WriteData | FileSystemRights.Write | FileSystemRights.CreateFiles | FileSystemRights.CreateDirectories | FileSystemRights.AppendData)) != 0)
+                        tokens.Add("W");
+                    if ((rights & (FileSystemRights.ExecuteFile | FileSystemRights.ReadAndExecute)) != 0)
+                        tokens.Add("X");
+                    if ((rights & FileSystemRights.Delete) != 0)
+                        tokens.Add("D");
+                    if ((rights & FileSystemRights.Modify) != 0)
+                    {
+                        tokens.Add("R");
+                        tokens.Add("W");
+                    }
+                }
+                return tokens.Count > 0 ? string.Join(" ", tokens) : "—";
+            }
+            catch
+            {
+                return "—";
+            }
         }
 
         private static string TryGetShellImageBase64(ShellItem item, ShellItemGetImageOptions flags)
