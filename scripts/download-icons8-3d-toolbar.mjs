@@ -1,6 +1,7 @@
 /**
- * Cross-platform Icons8 3D Fluency toolbar icon downloader.
+ * Cross-platform Icons8 toolbar icon downloader.
  * Slug map is parsed from scripts/download-icons8-3d-toolbar.ps1 (single source of truth).
+ * Icons in $fluencyIds use the user's Fluency collection CDN (style-fluency).
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
@@ -10,6 +11,12 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dest = path.join(root, 'public', 'launcher-icons');
 const size = Number(process.env.ICONS8_SIZE || 48);
+
+/** BNDZ ids that use Icons8 Fluency (user collection) instead of 3D Fluency. */
+const FLUENCY_IDS = new Set([
+  'go_home', 'properties', 'view_grid', 'view_columns',
+  'toggle_dual_pane', 'toggle_bottom',
+]);
 
 function parseSlugMapFromPs1() {
   const ps1 = readFileSync(path.join(root, 'scripts', 'download-icons8-3d-toolbar.ps1'), 'utf8');
@@ -32,7 +39,8 @@ let ok = 0;
 let fail = 0;
 
 for (const [id, slug] of entries) {
-  const url = `https://img.icons8.com/3d-fluency/${size}/${slug}.png`;
+  const style = FLUENCY_IDS.has(id) ? 'fluency' : '3d-fluency';
+  const url = `https://img.icons8.com/${style}/${size}/${slug}.png`;
   const out = path.join(dest, `${id}.png`);
   try {
     const res = await fetch(url);
@@ -41,10 +49,10 @@ for (const [id, slug] of entries) {
     await writeFile(out, buf);
     ok++;
   } catch (err) {
-    console.warn(`Failed ${id} <- ${slug}:`, err.message || err);
+    console.warn(`Failed ${id} <- ${slug} (${style}):`, err.message || err);
     fail++;
   }
 }
 
-console.log(`==> Icons8 3D toolbar icons: ${ok} ok, ${fail} failed -> ${dest}`);
+console.log(`==> Icons8 toolbar icons: ${ok} ok, ${fail} failed -> ${dest}`);
 if (fail > 0) process.exitCode = 1;

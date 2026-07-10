@@ -15,7 +15,7 @@ $map = @{
     nav_back = 'arrow-left'
     nav_forward = 'arrow-right'
     nav_up = 'arrow-up'
-    go_home = 'home'
+    go_home = 'home'             # Fluency: Home
     refresh = 'refresh'
     folder_size_sync = 'bar-chart'
     go_recycle_bin = 'trash-can'
@@ -35,19 +35,19 @@ $map = @{
     new_file = 'add-file'
     compress = 'archive'
     extract = 'archive'
-    properties = 'info'
+    properties = 'info'          # Fluency: Info
     sync_folders = 'synchronize'
     map_network_drive = 'globe'
     share = 'link'
     burn_disc = 'cd'
     view_details = 'view'
-    view_grid = 'icons'   # grid view — icon mosaic
+    view_grid = 'table'          # Fluency: Table (grid view)
     view_list = 'menu'
-    view_columns = 'flow-chart'
+    view_columns = 'view-column' # Fluency: View Column
     search = 'search'
-    toggle_dual_pane = 'table'   # side-by-side panes
+    toggle_dual_pane = 'right-navigation-toolbar' # Fluency: Right Navigation Toolbar
     toggle_preview = 'view'      # right preview panel
-    toggle_bottom = 'stack'
+    toggle_bottom = 'show-bottom-panel'           # Fluency: Show Bottom Panel
     smart_tools = 'sparkles'
     tag_manager = 'price-tag'
     icon_studio = 'color-palette'
@@ -199,12 +199,20 @@ $map = @{
     panel_bottom_ui = 'stack'
 }
 
-$base = "https://img.icons8.com/3d-fluency/$Size"
+# Icons sourced from user's Fluency collection (style-fluency) — use fluency CDN, not 3d-fluency.
+$fluencyIds = @(
+    'go_home', 'properties', 'view_grid', 'view_columns',
+    'toggle_dual_pane', 'toggle_bottom'
+)
+
+$base3d = "https://img.icons8.com/3d-fluency/$Size"
+$baseFluency = "https://img.icons8.com/fluency/$Size"
 $ok = 0
 $fail = 0
 
 foreach ($pair in $map.GetEnumerator()) {
     $out = Join-Path $dest "$($pair.Key).png"
+    $base = if ($fluencyIds -contains $pair.Key) { $baseFluency } else { $base3d }
     $url = "$base/$($pair.Value).png"
     try {
         Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -TimeoutSec 20

@@ -37,6 +37,7 @@ public sealed class FileTransferJob
     public FileTransferJobStatus Status { get; set; } = FileTransferJobStatus.Queued;
     public int Progress { get; set; }
     public string? CurrentFile { get; set; }
+    public string? DestinationPath { get; set; }
     public string? Error { get; set; }
     public DateTime QueuedUtc { get; init; } = DateTime.UtcNow;
     public DateTime? StartedUtc { get; set; }
@@ -59,6 +60,7 @@ public sealed class FileTransferJob
         status = Status.ToString().ToLowerInvariant(),
         progress = Progress,
         currentFile = CurrentFile,
+        destinationPath = DestinationPath,
         error = Error,
         queuedUtc = QueuedUtc,
         startedUtc = StartedUtc,
@@ -83,6 +85,7 @@ internal sealed class PersistedTransferJob
     public string Status { get; set; } = "";
     public int Progress { get; set; }
     public string? CurrentFile { get; set; }
+    public string? DestinationPath { get; set; }
     public string? Error { get; set; }
     public DateTime QueuedUtc { get; set; }
     public DateTime? StartedUtc { get; set; }
@@ -168,6 +171,7 @@ public sealed class FileTransferQueueService
                 job.Status = status;
                 job.Progress = row.Progress;
                 job.CurrentFile = row.CurrentFile;
+                job.DestinationPath = row.DestinationPath;
                 job.Error = row.Error;
                 job.StartedUtc = row.StartedUtc;
                 job.CompletedUtc = row.CompletedUtc ?? DateTime.UtcNow;
@@ -214,7 +218,8 @@ public sealed class FileTransferQueueService
         string engine,
         int itemsTotal = 1,
         string category = "fs",
-        FileTransferPriority priority = FileTransferPriority.Normal)
+        FileTransferPriority priority = FileTransferPriority.Normal,
+        string? destinationPath = null)
     {
         var job = new FileTransferJob
         {
@@ -225,6 +230,7 @@ public sealed class FileTransferQueueService
             Category = category,
             Priority = priority,
             ItemsTotal = Math.Max(itemsTotal, 1),
+            DestinationPath = string.IsNullOrWhiteSpace(destinationPath) ? null : destinationPath,
         };
         _jobs[operationId] = job;
         NotifyChanged();
@@ -490,6 +496,7 @@ public sealed class FileTransferQueueService
                         Status = j.Status.ToString(),
                         Progress = j.Progress,
                         CurrentFile = j.CurrentFile,
+                        DestinationPath = j.DestinationPath,
                         Error = j.Error,
                         QueuedUtc = j.QueuedUtc,
                         StartedUtc = j.StartedUtc,

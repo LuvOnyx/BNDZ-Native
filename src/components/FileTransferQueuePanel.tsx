@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
-import { pushToast } from './ToastHost';
 import type { FileTransferJobDto, FileTransferQueueState } from '../lib/ipcBridge';
 import {
   formatTransferAction,
   formatTransferCategory,
+  formatTransferDestination,
   formatTransferProgressLine,
   isTransferActive,
   visibleTransferJobs,
@@ -12,6 +12,7 @@ import {
 
 type Props = {
   className?: string;
+  enabled?: boolean;
 };
 
 function JobRow({
@@ -28,6 +29,7 @@ function JobRow({
   const canCancel = job.status === 'queued' || job.status === 'running';
   const engineLabel = job.engine === 'native' ? 'Windows' : job.engine === 'teracopy' ? 'TeraCopy' : 'BNDZ';
   const progressLine = formatTransferProgressLine(job);
+  const destination = formatTransferDestination(job);
   const statusColor =
     job.status === 'failed' ? 'text-rose-300'
     : job.status === 'completed' ? 'text-emerald-300'
@@ -67,6 +69,11 @@ function JobRow({
             {engineLabel}
           </span>
         </div>
+        {destination && (
+          <div className="text-[10px] text-[#7eb8e8]/90 truncate mt-0.5 font-mono" title={destination}>
+            → {destination}
+          </div>
+        )}
         {job.currentFile && job.status === 'running' && (
           <div className="text-[10px] text-gray-500 truncate mt-0.5 font-mono">{job.currentFile}</div>
         )}
@@ -111,12 +118,13 @@ function JobRow({
 }
 
 /** Docked transfer queue — visible while jobs are queued, running, or recently finished. */
-export default function FileTransferQueuePanel({ className = '' }: Props) {
+export default function FileTransferQueuePanel({ className = '', enabled = true }: Props) {
   const [state, setState] = useState<FileTransferQueueState>({ queuedCount: 0, activeCount: 0, jobs: [] });
   const [expanded, setExpanded] = useState(true);
   const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    if (!enabled) return;
     let unsub: (() => void) | undefined;
     let alive = true;
     let tick: ReturnType<typeof setInterval> | undefined;
@@ -138,7 +146,9 @@ export default function FileTransferQueuePanel({ className = '' }: Props) {
       unsub?.();
       if (tick) clearInterval(tick);
     };
-  }, []);
+  }, [enabled]);
+
+  if (!enabled) return null;
 
   const active = isTransferActive(state);
   if (!active) return null;
@@ -161,40 +171,42 @@ export default function FileTransferQueuePanel({ className = '' }: Props) {
 
   return (
     <div className={`bndz-transfer-panel shrink-0 ${className}`}>
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        className="bndz-transfer-header w-full flex items-center gap-2 px-3 py-1.5 text-left"
-      >
-        <Icons8Icon id="loading" size={12} spin={state.activeCount > 0} />
-        <span className="text-[11px] font-semibold text-gray-200">
-          Transfers
-        </span>
-        <span className="text-[10px] text-gray-500">
-          {state.activeCount > 0 ? `${state.activeCount} active` : ''}
-          {state.activeCount > 0 && state.queuedCount > 0 ? ' · ' : ''}
-          {state.queuedCount > 0 ? `${state.queuedCount} queued` : ''}
-          {completedRecent > 0 && state.activeCount === 0 && state.queuedCount === 0
-            ? `${completedRecent} completed`
-            : ''}
-          {failedRecent > 0 ? `${state.activeCount === 0 && state.queuedCount === 0 ? '' : ' · '}${failedRecent} failed` : ''}
-        </span>
+      <div className="bndz-transfer-header w-full flex items-center gap-2 px-3 py-1.5">
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+        >
+          <Icons8Icon id="loading" size={12} spin={state.activeCount > 0} />
+          <span className="text-[11px] font-semibold text-gray-200">
+            Transfers
+          </span>
+          <span className="text-[10px] text-gray-500 truncate">
+            {state.activeCount > 0 ? `${state.activeCount} active` : ''}
+            {state.activeCount > 0 && state.queuedCount > 0 ? ' · ' : ''}
+            {state.queuedCount > 0 ? `${state.queuedCount} queued` : ''}
+            {completedRecent > 0 && state.activeCount === 0 && state.queuedCount === 0
+              ? `${completedRecent} completed`
+              : ''}
+            {failedRecent > 0 ? `${state.activeCount === 0 && state.queuedCount === 0 ? '' : ' · '}${failedRecent} failed` : ''}
+          </span>
+          <Icons8Icon
+            id="chevron_right"
+            size={10}
+            className={`ml-auto opacity-60 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}
+          />
+        </button>
         {hasFinished && state.activeCount === 0 && (
           <button
             type="button"
-            onClick={e => { e.stopPropagation(); void handleClearFinished(); }}
-            className="ml-1 text-[10px] px-1.5 py-0.5 border border-[#555] text-gray-400 hover:text-white hover:bg-[#094771]/40"
+            onClick={() => void handleClearFinished()}
+            className="text-[10px] px-1.5 py-0.5 border border-[#555] text-gray-400 hover:text-white hover:bg-[#094771]/40 shrink-0"
             title="Clear completed and failed transfers"
           >
             Clear
           </button>
         )}
-        <Icons8Icon
-          id="chevron_right"
-          size={10}
-          className={`ml-auto opacity-60 transition-transform ${expanded ? 'rotate-90' : ''}`}
-        />
-      </button>
+      </div>
       {expanded && (
         <div className="max-h-[200px] overflow-y-auto bndz-scrollbar px-3 py-1">
           {jobs.map(job => (

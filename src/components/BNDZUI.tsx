@@ -168,6 +168,7 @@ import {
   buildSettingsRuntime,
 } from '../lib/settingsRuntime';
 import { buildFileOpsRuntime } from '../lib/settingsWiring';
+import { resolvePaneTab } from '../lib/paneTabGuards';
 import { matchesShortcut, matchesTypeAhead } from '../lib/keyboardShortcuts';
 import { useBndzPanelMotion } from '../hooks/useBndzPanelMotion';
 import { useBndzTabMotion } from '../hooks/useBndzTabMotion';
@@ -336,6 +337,7 @@ export default function BNDZUI() {
   const { clipboard, clipboardHistory, setClipboardState, executePaste, restorePreviousClipboard } = useClipboard();
   const { config, updateConfig } = useAppConfig();
   const keyboardMap = useMemo(() => buildSettingsRuntime(config).keyboard, [config]);
+  const fileOpsRt = useMemo(() => buildFileOpsRuntime(config), [config]);
   const settingsRt = useMemo(() => buildSettingsRuntime(config), [config]);
   const { ensurePluginInstalled } = usePluginRegistry();
 
@@ -1464,6 +1466,10 @@ export default function BNDZUI() {
          e.preventDefault();
          setIsCommandPaletteOpen(prev => !prev);
       }
+      if (!isInput && keyboardMap.search && matchesShortcut(e, keyboardMap.search)) {
+         e.preventDefault();
+         omniFilterRef.current?.focus();
+      }
       // Quick Look overlay (Space) — Spacedrive QuickPreview pattern, BNDZ-native
       if (!isInput && e.code === 'Space' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
          const activePane = panes.find(p => p.id === activePaneId);
@@ -1507,9 +1513,8 @@ export default function BNDZUI() {
       const isCutShortcut = matchesShortcut(e, keyboardMap.cut);
       if (!isInput && (matchesShortcut(e, keyboardMap.copy) || isCutShortcut)) {
           const activePane = panes.find(p => p.id === activePaneId);
-          if (activePane) {
-              const tab = activePane.tabs[activePane.activeTabIndex];
-              if (tab.selectedItems.length > 0) {
+          const tab = resolvePaneTab(activePane);
+          if (tab && tab.selectedItems.length > 0) {
                  const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
                  const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id)).map((x: any) => ({
                     id: x.id,
@@ -1524,15 +1529,12 @@ export default function BNDZUI() {
                      );
                  }
               }
-          }
       }
 
       if (!isInput && matchesShortcut(e, keyboardMap.paste)) {
           const activePane = panes.find(p => p.id === activePaneId);
-          if (activePane) {
-              const tab = activePane.tabs[activePane.activeTabIndex];
-              executePaste(tab.path);
-          }
+          const tab = resolvePaneTab(activePane);
+          if (tab) executePaste(tab.path);
       }
 
       // Open focused/selected directory in the opposite pane (rebindable, default Alt+P)
@@ -1573,7 +1575,8 @@ export default function BNDZUI() {
          }
          if (focusedItemId && activePane) {
            e.preventDefault();
-           const tab = activePane.tabs[activePane.activeTabIndex];
+           const tab = resolvePaneTab(activePane);
+           if (!tab) return;
            const entity = safeGetDirContents(fileSystem, tab.path)?.find((x: any) => x.id === focusedItemId);
            if (entity) {
              beginInlineRename(tab.path, focusedItemId, entity);
@@ -3526,8 +3529,12 @@ export default function BNDZUI() {
       // Get current panes
       setPanes(currentPanes => {
           if (currentPanes.length >= 2) {
-             const pathA = currentPanes[0].tabs[currentPanes[0].activeTabIndex].path;
-             const pathB = currentPanes[1].tabs[currentPanes[1].activeTabIndex].path;
+             const pathA = resolvePaneTab(currentPanes[0])?.path;
+             const pathB = resolvePaneTab(currentPanes[1])?.path;
+             if (!pathA || !pathB) {
+                 setIsSyncing(false);
+                 return currentPanes;
+             }
              IPC.compareDirectories(pathA, pathB, config.syncUseHashing || false).then(res => {
                  const map: any = {};
                  (res || []).forEach((item: any) => {
@@ -3666,8 +3673,9 @@ export default function BNDZUI() {
 
   const goUp = (paneId: string = activePaneId) => {
     const p = panes.find(x => x.id === paneId);
-    if (!p) return;
-    const cPath = p.tabs[p.activeTabIndex].path;
+    const tab = resolvePaneTab(p);
+    if (!tab) return;
+    const cPath = tab.path;
     const norm = normalizePanePath(cPath);
     if (norm === '/vf' || norm.startsWith('/vf/')) {
       if (norm === '/vf') return;
@@ -4000,7 +4008,14 @@ export default function BNDZUI() {
   // --- Subcomponents ---
   const renderPane = (pane: PaneState, index: number) => {
     const isActive = pane.id === activePaneId;
-    const currentTab = pane.tabs[pane.activeTabIndex];
+    const currentTab = resolvePaneTab(pane);
+    if (!currentTab) {
+      return (
+        <div key={pane.id} className="flex-1 flex items-center justify-center text-gray-500 text-sm min-h-0">
+          No active tab
+        </div>
+      );
+    }
     const isNeutralDefault = currentTab.viewMode === undefined;
     const computedViewMode = currentTab.viewMode || 'details';
     const compactRowHeight = settingsRt.ui.rowHeight;
@@ -5970,7 +5985,9 @@ export default function BNDZUI() {
   };
 
   const currentPane = panes.find(p => p.id === activePaneId) || panes[0];
-  const currentTab = currentPane.tabs[currentPane.activeTabIndex];
+  const currentTab = resolvePaneTab(currentPane) ?? {
+    id: 'fallback', path: '/', history: ['/'], historyIndex: 0, selectedItems: [],
+  };
   const getResolvedEntity = (id: string | null) => {
       if (!id) return null;
       const cached = findEntityInCache(pathContentsCache, id);
@@ -6794,8 +6811,8 @@ export default function BNDZUI() {
                            case 'filters': openBottomPlugin('filters'); break;
                            case 'properties': {
                                const ap = panes.find(p => p.id === activePaneId);
-                               if (ap) {
-                                   const tab = ap.tabs[ap.activeTabIndex];
+                               const tab = resolvePaneTab(ap);
+                               if (tab) {
                                    const contents = getDirContents(fileSystem, tab.path);
                                    let paneTarget = tab.path;
                                    if (tab.selectedItems.length > 0) {
@@ -6831,8 +6848,8 @@ export default function BNDZUI() {
                            case 'cut':
                            case 'copy': {
                                const ap = panes.find(p => p.id === activePaneId);
-                               if (ap) {
-                                   const tab = ap.tabs[ap.activeTabIndex];
+                               const tab = resolvePaneTab(ap);
+                               if (tab && tab.selectedItems.length > 0) {
                                    const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
                                    const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
                                    if (selectedEntities.length > 0) {
@@ -6846,19 +6863,18 @@ export default function BNDZUI() {
                            }
                            case 'paste': {
                                const ap = panes.find(p => p.id === activePaneId);
-                               if (ap) executePaste(ap.tabs[ap.activeTabIndex].path);
+                               const tab = resolvePaneTab(ap);
+                               if (tab) executePaste(tab.path);
                                break;
                            }
                            case 'delete':
                               const activePaneForBtn = panes.find(p => p.id === activePaneId);
-                              if (activePaneForBtn) {
-                                  const tab = activePaneForBtn.tabs[activePaneForBtn.activeTabIndex];
-                                  if (tab.selectedItems.length > 0) {
-                                      const dirContents = safeGetDirContents(fileSystem, tab.path) || [];
-                                      const selectedEntities = dirContents.filter((x: any) => tab.selectedItems.includes(x.id));
-                                      if (selectedEntities.length > 0) {
-                                          handleDeleteRequest(selectedEntities, tab.path);
-                                      }
+                              const delTab = resolvePaneTab(activePaneForBtn);
+                              if (delTab && delTab.selectedItems.length > 0) {
+                                  const dirContents = safeGetDirContents(fileSystem, delTab.path) || [];
+                                  const selectedEntities = dirContents.filter((x: any) => delTab.selectedItems.includes(x.id));
+                                  if (selectedEntities.length > 0) {
+                                      handleDeleteRequest(selectedEntities, delTab.path);
                                   }
                               }
                               break;
@@ -7419,7 +7435,7 @@ export default function BNDZUI() {
       </div>
 
       {/* Transfer queue (native background jobs) */}
-      <FileTransferQueuePanel />
+      <FileTransferQueuePanel enabled={fileOpsRt.showTransferPanel} />
 
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (

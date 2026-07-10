@@ -121,6 +121,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   ctrlWheelScrollsThroughTheListViews: false,
   customItemsInTheContextMenu: false,
   customKeyboardShortcuts: false,
+  searchShortcut: 'Ctrl+F',
   cycleTabsInRecentlyUsedOrder: false,
   dateFormatInActionLabels: false,
   dateTimeAsFilenameSuffix: false,
@@ -151,7 +152,8 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   /** bndz = managed engine with in-app queue/progress; native = Windows shell transfers */
   fileOperationEngine: 'bndz',
   nativeShellShowProgress: true,
-  persistTransferQueue: true,
+    persistTransferQueue: true,
+    showTransferQueuePanel: true,
   enableBlowUpsOnFileIconsAsWell: false,
   enableColorFilters: false,
   enableExtendedPatternMatching: false,

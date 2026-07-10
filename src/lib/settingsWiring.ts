@@ -1,4 +1,5 @@
 import type { AppConfig } from '../data/configContext';
+import { KEYBINDING_ACTIONS, resolveShortcut } from './keybindings';
 import { SETTINGS_DEFAULTS } from './settingsDefaults';
 
 /** CamelCase → kebab-case for data-bndz-* attributes */
@@ -53,25 +54,19 @@ export function readSettingString(config: AppConfig, key: string, fallback = '')
   return typeof def === 'string' ? def : fallback;
 }
 
-/** Keyboard shortcut map from config keys */
+/** Keyboard shortcut map from config keys — respects customKeyboardShortcuts toggle. */
 export function buildKeyboardMap(config: AppConfig): Record<string, string> {
-  return {
-    copy: readSettingString(config, 'copyShortcut', 'Ctrl+C'),
-    cut: readSettingString(config, 'cutShortcut', 'Ctrl+X'),
-    paste: readSettingString(config, 'pasteShortcut', 'Ctrl+V'),
-    delete: readSettingString(config, 'deleteShortcut', 'Delete'),
-    rename: readSettingString(config, 'renameShortcut', 'F2'),
-    refresh: readSettingString(config, 'refreshShortcut', 'F5'),
-    search: readSettingString(config, 'searchShortcut', 'Ctrl+F'),
-    newFolder: readSettingString(config, 'newFolderShortcut', 'Ctrl+Shift+N'),
-    preview: readSettingString(config, 'previewShortcut', 'Alt+P'),
-    dualPane: readSettingString(config, 'dualPaneShortcut', 'Ctrl+\\'),
-    commandPalette: readSettingString(config, 'commandPaletteShortcut', 'Ctrl+Shift+P'),
-    inspector: readSettingString(config, 'inspectorShortcut', 'Ctrl+I'),
-    undo: readSettingString(config, 'undoShortcut', 'Ctrl+Z'),
-    redo: readSettingString(config, 'redoShortcut', 'Ctrl+Y'),
-    openInNewPane: readSettingString(config, 'openInNewPaneShortcut', 'Alt+P'),
-  };
+  const useCustom = readSettingBool(config, 'customKeyboardShortcuts', false);
+  const map: Record<string, string> = {};
+  for (const action of KEYBINDING_ACTIONS) {
+    map[action.id] = useCustom
+      ? resolveShortcut(config as Record<string, unknown>, action)
+      : action.default;
+  }
+  map.preview = useCustom
+    ? readSettingString(config, 'previewShortcut', 'Alt+P')
+    : 'Alt+P';
+  return map;
 }
 
 /** Mouse / usability flags */
@@ -148,6 +143,7 @@ export function buildFileOpsRuntime(config: AppConfig) {
     maxActionLogEntries: readSettingNumber(config, 'allowedNumberOfEntriesInTheActionLog', 256),
     rememberActionLog: readSettingBool(config, 'rememberTheLoggedActionsBetweenSessions', false),
     persistActionLogOnExit: readSettingBool(config, 'evenOnExitWithoutSaving', false),
+    showTransferPanel: readSettingBool(config, 'showTransferQueuePanel', true),
   };
 }
 

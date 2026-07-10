@@ -1316,6 +1316,16 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      Keeps recent transfer jobs in the queue panel after restart. Jobs interrupted by shutdown are marked accordingly.
                    </p>
                  </div>
+                 <div className="mt-3">
+                   <Checkbox
+                     label={<span>Show transfer <span className="underline decoration-1 underline-offset-[3px]">p</span>rogress panel</span>}
+                     checked={localConfig.showTransferQueuePanel ?? true}
+                     onChange={e => updateLocalConfig({ showTransferQueuePanel: e.target.checked })}
+                   />
+                   <p className="text-[11px] text-gray-500 mt-1 max-w-[560px]">
+                     Docked bar above the status line showing copy, move, and sync progress with destination paths. Uncheck to hide it entirely.
+                   </p>
+                 </div>
               </div>
 
               <SectionHeader title="Backup Operations" />

@@ -3258,7 +3258,7 @@ namespace BNDZ
             }
             var engine = FileOperationPreferences.ResolveOperationEngine(action, sources, target);
             var label = BuildFileOpLabel(action, sources, labelOverride);
-            _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority);
+            _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority, target);
 
             if (prefs.DefaultRepeatOnCollision && (action == "copy" || action == "move"))
                 _conflictBatchResolution[operationId] = "replace";
@@ -3432,7 +3432,7 @@ namespace BNDZ
             var syncJob = _folderSyncService.GetJobs().FirstOrDefault(j => j.Id == jobId);
             var operationId = $"folder-sync-{jobId}-{DateTime.UtcNow.Ticks}";
             var label = string.IsNullOrWhiteSpace(syncJob?.Name) ? "Folder sync" : syncJob!.Name;
-            _fileTransferQueue.RegisterJob(operationId, "folder-sync", label, "bndz", 1, "folder-sync", FileTransferPriority.Low);
+            _fileTransferQueue.RegisterJob(operationId, "folder-sync", label, "bndz", 1, "folder-sync", FileTransferPriority.Low, syncJob?.DestPath);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
@@ -3520,7 +3520,7 @@ namespace BNDZ
         {
             var operationId = $"archive-extract-{DateTime.UtcNow.Ticks}";
             var label = $"Extract · {Path.GetFileName(entryPath.TrimEnd('/', '\\'))}";
-            _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Low);
+            _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Low, destination);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
@@ -3927,7 +3927,7 @@ namespace BNDZ
             var label = mirrorMode
                 ? $"Mirror sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}"
                 : $"Update sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}";
-            _fileTransferQueue.RegisterJob(operationId, "folder-sync", label, "bndz", 1, "folder-sync", FileTransferPriority.Low);
+            _fileTransferQueue.RegisterJob(operationId, "folder-sync", label, "bndz", 1, "folder-sync", FileTransferPriority.Low, targetDir);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {

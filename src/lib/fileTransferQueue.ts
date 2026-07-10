@@ -95,6 +95,12 @@ export function formatTransferEta(seconds?: number | null): string {
   return s > 0 ? `${m}m ${s}s left` : `${m}m left`;
 }
 
+export function formatTransferDestination(job: FileTransferJobDto): string | null {
+  const dest = job.destinationPath?.trim();
+  if (!dest) return null;
+  return dest;
+}
+
 export function formatTransferProgressLine(job: FileTransferJobDto): string {
   const parts: string[] = [];
   if (job.bytesTransferred != null && job.totalBytes != null && job.totalBytes > 0) {

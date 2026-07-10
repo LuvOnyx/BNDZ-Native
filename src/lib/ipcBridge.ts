@@ -68,6 +68,7 @@ export interface FileTransferJobDto {
   totalBytes?: number;
   speedBytesPerSecond?: number;
   etaSeconds?: number | null;
+  destinationPath?: string;
 }
 
 export interface FileTransferQueueState {

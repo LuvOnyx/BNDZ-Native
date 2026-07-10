@@ -351,7 +351,7 @@ export default function PropertiesPlugin({
                 meta={isMulti ? <span className="bndz-panel-muted text-xs">{selectionCount} paths</span> : undefined}
                 actions={!isMulti ? (
                     <>
-                        <PluginHeroActionButton icon="external_link" variant="primary" onClick={openItem}>Open</PluginHeroActionButton>
+                        <PluginHeroActionButton icon="folder_open_ui" variant="primary" onClick={openItem}>Open</PluginHeroActionButton>
                         <PluginHeroActionButton icon="copy_path" onClick={copyPath} active={copied}>
                             {copied ? 'Copied!' : 'Copy path'}
                         </PluginHeroActionButton>

@@ -21,6 +21,7 @@ export interface KeybindingActionDef {
 
 export const KEYBINDING_ACTIONS: KeybindingActionDef[] = [
   { id: 'commandPalette', configKey: 'commandPaletteShortcut', label: 'Open command palette', default: 'Ctrl+Shift+P', category: 'General' },
+  { id: 'search', configKey: 'searchShortcut', label: 'Focus filter / search', default: 'Ctrl+F', category: 'General' },
   { id: 'inspector', configKey: 'inspectorShortcut', label: 'Toggle inspector / preview panel', default: 'Ctrl+I', category: 'View' },
   { id: 'dualPane', configKey: 'dualPaneShortcut', label: 'Toggle dual pane', default: 'Ctrl+\\', category: 'View' },
   { id: 'refresh', configKey: 'refreshShortcut', label: 'Refresh folder', default: 'F5', category: 'View' },
