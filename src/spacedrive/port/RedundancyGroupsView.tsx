@@ -39,12 +39,12 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
         <Icons8Icon id="disk_mgmt" size={14} className="shrink-0" />
         <span className="text-gray-300">{groups.length} redundant group(s)</span>
         {wastedBytes > 0 && (
-          <span className="text-sky-300/90 ml-auto">Up to {formatSize(wastedBytes)} recoverable</span>
+          <span className="text-[#99c9f0]/90 ml-auto">Up to {formatSize(wastedBytes)} recoverable</span>
         )}
         {groups.some(g => (g.paths?.length || 0) > 1) && (
           <button
             type="button"
-            className="text-[10px] text-sky-400 hover:text-sky-300 px-2 py-0.5 border border-sky-900/50 hover:border-sky-700 ml-1"
+            className="text-[10px] text-[#7eb8e8] hover:text-[#99c9f0] px-2 py-0.5 border border-[#0078d4]/30 hover:border-[#0078d4] ml-1"
             onClick={() => {
               const victims = groups.flatMap(g => (g.paths || []).slice(1));
               if (!victims.length) return;
@@ -128,7 +128,7 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                     <span className="text-[10px] text-gray-600 w-4 shrink-0">{pi + 1}</span>
                     <button
                       type="button"
-                      className="flex-1 text-left text-[11px] text-gray-300 font-mono truncate hover:text-sky-300"
+                      className="flex-1 text-left text-[11px] text-gray-300 font-mono truncate hover:text-[#99c9f0]"
                       onClick={() => onReveal?.(p)}
                       title={p}
                     >

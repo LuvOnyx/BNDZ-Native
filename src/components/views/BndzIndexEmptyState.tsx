@@ -50,7 +50,7 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-gray-500 gap-3 px-6 text-center">
-      <Icons8Icon id="database_ui" size={32} className="opacity-40 text-sky-400" />
+      <Icons8Icon id="database_ui" size={32} className="opacity-40 text-[#7eb8e8]" />
       <span className="text-[13px] text-gray-300 font-medium">{title}</span>
       {hint && <span className="text-[11px] text-gray-500 max-w-md">{hint}</span>}
       <button
@@ -63,7 +63,7 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
         Build search index
       </button>
       {indexing && (
-        <div className="text-[10px] text-sky-300/90 max-w-sm">
+        <div className="text-[10px] text-[#99c9f0]/90 max-w-sm">
           {filesIndexed > 0 && <span>{filesIndexed.toLocaleString()} indexed</span>}
           {currentFile && (
             <span className="block text-gray-500 truncate max-w-xs">
@@ -72,7 +72,7 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
           )}
         </div>
       )}
-      {message && !indexing && <span className="text-[10px] text-sky-300/90 max-w-sm">{message}</span>}
+      {message && !indexing && <span className="text-[10px] text-[#99c9f0]/90 max-w-sm">{message}</span>}
       <span className="text-[10px] text-gray-600">Or right-click any folder → Index folder for search</span>
     </div>
   );

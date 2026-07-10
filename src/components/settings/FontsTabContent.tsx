@@ -33,7 +33,7 @@ function zoneSizeKey(zone: PanelFontZone): keyof AppConfig {
 }
 
 const selectClass =
-  'bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm outline-none focus:border-sky-500/50';
+  'bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm outline-none focus:border-[#0078d4]/45';
 
 export default function FontsTabContent({ localConfig, updateLocalConfig }: Props) {
   const patch = (updates: Partial<AppConfig>) => {

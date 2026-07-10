@@ -14,13 +14,13 @@ export default function AddressAutocompleteDropdown({ suggestions, selectedIndex
   if (!suggestions.length) return null;
 
   return (
-    <div className="absolute left-0 right-0 top-full z-50 mt-0.5 bg-[#1a1a1a] border border-[#444] rounded shadow-2xl max-h-[240px] overflow-y-auto bndz-scrollbar">
+    <div className="absolute left-0 right-0 top-full z-50 mt-0.5 bg-[#2b2b2b] border border-[#454545] shadow-[0_2px_8px_rgba(0,0,0,0.35)] max-h-[240px] overflow-y-auto bndz-scrollbar">
       {suggestions.map((s, i) => (
         <button
           key={s.path}
           type="button"
           className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] ${
-            i === selectedIndex ? 'bg-sky-900/50 text-sky-100' : 'text-gray-300 hover:bg-[#252525]'
+            i === selectedIndex ? 'bg-[#094771] text-[#cce4f7]' : 'text-gray-300 hover:bg-[#094771]/50'
           }`}
           onMouseEnter={() => onHover(i)}
           onMouseDown={e => { e.preventDefault(); onSelect(s.path); }}

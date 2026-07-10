@@ -19,12 +19,12 @@ export default function LicenseBanner({ onRegister }: { onRegister: () => void }
     : `Trial: ${status.trialDaysRemaining} day${status.trialDaysRemaining === 1 ? '' : 's'} remaining.`;
 
   return (
-    <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-1.5 bg-gradient-to-r from-amber-950/50 via-[#1a1510] to-transparent border-b border-amber-500/20 text-[11px]">
+    <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-1.5 bg-[#2a2418] border-b border-amber-500/20 text-[11px]">
       <div className="flex items-center gap-2 text-amber-200/90 min-w-0">
         <Icons8Icon id="key_ui" size={13} className="shrink-0" />
         <span className="truncate">
           {trialLine}{' '}
-          <button type="button" onClick={onRegister} className="text-sky-400 hover:text-sky-300 underline underline-offset-2 font-medium">
+          <button type="button" onClick={onRegister} className="text-[#7eb8e8] hover:text-[#99c9f0] underline underline-offset-2 font-medium">
             {status.trialExpired ? 'Activate now' : 'Enter license key'}
           </button>
           {!status.trialExpired && ' for full support and updates.'}

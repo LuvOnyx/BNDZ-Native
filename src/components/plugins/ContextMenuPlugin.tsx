@@ -338,9 +338,9 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
                 <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-4 min-h-0">
                     {tab === 'global' && (
-                        <PluginCard className="flex gap-2.5 items-start border-[#0078d4]/25 bg-sky-950/10 !py-3">
+                        <PluginCard className="flex gap-2.5 items-start border-[#0078d4]/25 bg-[#094771]/15 !py-3">
                             <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80 text-[#99c9f0]" />
-                            <span className="text-xs text-sky-200/90">These entries appear in native File Explorer. Click <strong>Deploy</strong> after editing — admin rights may be required.</span>
+                            <span className="text-xs text-[#cce4f7]/90">These entries appear in native File Explorer. Click <strong>Deploy</strong> after editing — admin rights may be required.</span>
                         </PluginCard>
                     )}
 

@@ -22,22 +22,22 @@ export type HoverTooltipTheme = 'glass' | 'minimal' | 'accent' | 'mono';
 
 const TOOLTIP_THEMES: Record<HoverTooltipTheme, { panel: string; header: string; accent: string }> = {
   glass: {
-    panel: 'rounded-xl border border-white/10 bg-gradient-to-br from-[#1e1e28]/98 to-[#12121a]/98 backdrop-blur-xl shadow-2xl shadow-black/50',
-    header: 'border-b border-white/5',
-    accent: 'from-sky-500/60 via-violet-500/40 to-transparent',
+    panel: 'border border-[#454545] bg-[#2b2b2b] shadow-[0_2px_8px_rgba(0,0,0,0.35)]',
+    header: 'border-b border-[#454545]',
+    accent: 'from-[#0078d4]/50 to-transparent',
   },
   minimal: {
-    panel: 'rounded-lg border border-[#444] bg-[#1a1a1a]/95 backdrop-blur-md shadow-xl shadow-black/40',
-    header: 'border-b border-[#333]',
+    panel: 'border border-[#454545] bg-[#2b2b2b] shadow-[0_2px_8px_rgba(0,0,0,0.35)]',
+    header: 'border-b border-[#454545]',
     accent: 'from-[#555] to-transparent',
   },
   accent: {
-    panel: 'rounded-xl border border-sky-500/30 bg-gradient-to-br from-[#0c1929]/98 to-[#0a0f1a]/98 backdrop-blur-xl shadow-2xl shadow-sky-900/30',
-    header: 'border-b border-sky-500/20',
-    accent: 'from-sky-400 via-cyan-400 to-transparent',
+    panel: 'border border-[#0078d4]/35 bg-[#252526] shadow-[0_2px_8px_rgba(0,0,0,0.35)]',
+    header: 'border-b border-[#0078d4]/25',
+    accent: 'from-[#0078d4]/70 to-transparent',
   },
   mono: {
-    panel: 'rounded-md border border-[#555] bg-[#0d0d0d] font-mono shadow-lg',
+    panel: 'border border-[#555] bg-[#0d0d0d] font-mono shadow-[0_2px_6px_rgba(0,0,0,0.35)]',
     header: 'border-b border-[#333]',
     accent: 'from-[#888] to-transparent',
   },
@@ -155,7 +155,7 @@ export function HoverTooltip({ content, children, disabled, delayMs = 320, theme
                   {content.badge && (
                     <span
                       className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md shrink-0"
-                      style={{ background: `${content.badge.color || '#007acc'}22`, color: content.badge.color || '#38bdf8' }}
+                      style={{ background: `${content.badge.color || '#007acc'}22`, color: content.badge.color || '#0078d4' }}
                     >
                       {content.badge.text}
                     </span>

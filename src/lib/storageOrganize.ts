@@ -7,7 +7,7 @@ export interface OrganizeBucketConfig {
 export const ORGANIZE_BUCKETS: Record<string, OrganizeBucketConfig> = {
   Images: { re: /\.(png|jpe?g|gif|bmp|webp|svg|ico|heic|tiff?|raw)$/i, color: '#f472b6', icon: '🖼' },
   Videos: { re: /\.(mp4|mkv|avi|mov|wmv|webm|m4v)$/i, color: '#a78bfa', icon: '🎬' },
-  Audio: { re: /\.(mp3|wav|flac|aac|ogg|m4a|wma)$/i, color: '#38bdf8', icon: '🎵' },
+  Audio: { re: /\.(mp3|wav|flac|aac|ogg|m4a|wma)$/i, color: '#0078d4', icon: '🎵' },
   Documents: { re: /\.(pdf|docx?|xlsx?|pptx?|txt|rtf|odt|csv|md)$/i, color: '#fbbf24', icon: '📄' },
   Archives: { re: /\.(zip|rar|7z|tar|gz|bz2)$/i, color: '#fb923c', icon: '📦' },
   Code: { re: /\.(js|ts|jsx|tsx|py|cs|java|cpp|c|h|html|css|json|xml|sql)$/i, color: '#34d399', icon: '💻' },

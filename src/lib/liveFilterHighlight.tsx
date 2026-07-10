@@ -27,7 +27,7 @@ export function highlightNameMatch(name: string, filter: string): React.ReactNod
   return (
     <>
       {name.slice(0, idx)}
-      <mark className="bg-sky-500/30 text-inherit rounded-sm px-0.5">{name.slice(idx, idx + f.length)}</mark>
+      <mark className="bg-[#0078d4]/30 text-inherit rounded-sm px-0.5">{name.slice(idx, idx + f.length)}</mark>
       {name.slice(idx + f.length)}
     </>
   );

@@ -63,13 +63,13 @@ export default function FindingTabToolbar({ tab, config, loading, indexedRoots, 
         />
 
         {rootIndexed && (
-          <span className="px-1.5 py-px text-[9px] bg-sky-900/60 text-sky-300 rounded" title="Scope is indexed">IDX</span>
+          <span className="px-1.5 py-px text-[9px] bg-[#094771]/55 text-[#99c9f0] rounded" title="Scope is indexed">IDX</span>
         )}
 
         <select
           value={scope}
           onChange={e => onChange({ findingScope: e.target.value as IndexedSearchScope })}
-          className="text-[10px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-1.5 py-0.5 rounded outline-none focus:border-sky-500/50"
+          className="text-[10px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-1.5 py-0.5 rounded outline-none focus:border-[#0078d4]/50"
           title="Search scope"
         >
           <option value="library">Whole library</option>

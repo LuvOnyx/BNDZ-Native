@@ -16,6 +16,6 @@ export function buildTreeTooltipContent(
     title: row.label,
     subtitle: row.path ? 'Navigation' : 'Quick access',
     lines,
-    badge: row.path ? { text: 'GO', color: '#38bdf8' } : { text: 'PIN', color: '#a855f7' },
+    badge: row.path ? { text: 'GO', color: '#0078d4' } : { text: 'PIN', color: '#a855f7' },
   };
 }

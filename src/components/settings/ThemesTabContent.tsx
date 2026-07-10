@@ -22,10 +22,10 @@ function ThemeCard({ preset, active, onClick }: { preset: ThemePreset; active: b
     <button
       type="button"
       onClick={onClick}
-      className={`bndz-theme-card group relative text-left rounded-2xl overflow-hidden border transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent,#0ea5e9)]/60 ${
+      className={`bndz-theme-card group relative text-left overflow-hidden border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent,#0078d4)]/60 ${
         active
-          ? 'bndz-theme-card-active border-[var(--accent,#38bdf8)] shadow-[0_0_32px_color-mix(in_srgb,var(--accent,#38bdf8)_28%,transparent)] scale-[1.02]'
-          : 'border-white/10 hover:border-white/25 hover:shadow-xl hover:shadow-black/40 hover:-translate-y-0.5'
+          ? 'bndz-theme-card-active border-[var(--accent,#0078d4)] shadow-[0_0_0_1px_var(--accent,#0078d4)]'
+          : 'border-[#454545] hover:border-[#666] hover:bg-[#2a2a2a]'
       }`}
     >
       <div className="h-[108px] relative overflow-hidden" style={{ background: preset.bg }}>
@@ -68,8 +68,8 @@ function ThemeCard({ preset, active, onClick }: { preset: ThemePreset; active: b
         )}
       </div>
       <div
-        className={`px-3.5 py-3 flex items-center justify-between gap-2 backdrop-blur-sm ${
-          isLight ? 'bg-white/96' : 'bg-[#121218]/96'
+        className={`px-3.5 py-3 flex items-center justify-between gap-2 ${
+          isLight ? 'bg-white/96' : 'bg-[#2b2b2b]'
         }`}
       >
         <div className="min-w-0">
@@ -109,7 +109,7 @@ export default function ThemesTabContent({ activeTheme, onSelectTheme }: ThemesT
             Fine-tune any color afterward in the <strong className="text-violet-300/90 font-semibold">Colors</strong> tab.
           </p>
         </div>
-        <div className="hidden lg:flex items-center gap-2 text-[11px] text-sky-300/90 bg-sky-500/10 border border-sky-500/25 rounded-xl px-3.5 py-2.5 shadow-sm">
+        <div className="hidden lg:flex items-center gap-2 text-[11px] text-[#99c9f0] bg-[#094771]/25 border border-[#0078d4]/30 px-3.5 py-2.5">
           <Icons8Icon id="sparkles_ui" size={14} />
           <span>Live preview on click</span>
         </div>

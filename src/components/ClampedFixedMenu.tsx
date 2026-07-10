@@ -39,7 +39,7 @@ export default function ClampedFixedMenu({ x, y, className = '', children, onMou
     <div
       ref={ref}
       data-bndz-context-menu
-      className={`fixed z-[400] border border-white/10 shadow-2xl py-1.5 bndz-scrollbar ${className}`}
+      className={`fixed z-[400] border border-[#454545] bg-[#2b2b2b] shadow-[0_2px_8px_rgba(0,0,0,0.35)] py-1.5 bndz-scrollbar ${className}`}
       style={{
         top: pos.top,
         left: pos.left,

@@ -76,10 +76,10 @@ function KeybindingRow({
         className={[
           'font-mono text-[11px] rounded-sm px-3 py-1 min-w-[130px] text-center border transition-colors',
           recording
-            ? 'border-sky-400 bg-sky-500/10 text-sky-300 animate-pulse'
+            ? 'border-[#0078d4] bg-[#0078d4]/10 text-[#99c9f0] animate-pulse'
             : conflict
               ? 'border-red-500/60 bg-red-500/10 text-red-300'
-              : 'border-[#444] bg-[#1a1a1a] text-sky-400 hover:bg-[#222]',
+              : 'border-[#444] bg-[#1a1a1a] text-[#7eb8e8] hover:bg-[#222]',
         ].join(' ')}
         title={conflict ? 'Conflicts with another action' : 'Click, then press a key combination'}
       >

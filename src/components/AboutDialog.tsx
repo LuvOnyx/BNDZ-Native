@@ -88,7 +88,7 @@ export default function AboutDialog({
                     <p className="bndz-native-dialog-muted line-clamp-4 whitespace-pre-wrap">{updateInfo.releaseNotes}</p>
                   )}
                   {updateInfo.releaseUrl && (
-                    <a href={updateInfo.releaseUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-400 hover:underline">
+                    <a href={updateInfo.releaseUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#7eb8e8] hover:underline">
                       Download release <Icons8Icon id="external_link" size={11} />
                     </a>
                   )}
@@ -116,7 +116,7 @@ export default function AboutDialog({
               <button
                 key={key}
                 type="button"
-                className="text-sky-400/90 hover:text-sky-300 hover:underline"
+                className="text-[#7eb8e8]/90 hover:text-[#99c9f0] hover:underline"
                 onClick={() => {
                   void import('../lib/ipcBridge').then(({ IPC }) =>
                     IPC.openLegalDoc(key).then(r => {

@@ -219,7 +219,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             <button
               type="button"
               onClick={onExtract}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md bg-gradient-to-b from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-[#0067c0] hover:bg-[#0078d4] text-white"
             >
               <Icons8Icon id="download" size={13} /> Extract All
             </button>
@@ -250,7 +250,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search in archive…"
-              className="w-full pl-8 pr-2 py-1.5 text-[11px] bg-black/30 border border-white/10 rounded-md outline-none focus:border-sky-500/50 text-slate-200 placeholder:text-slate-500"
+              className="w-full pl-8 pr-2 py-1.5 text-[11px] bg-black/30 border border-white/10 outline-none focus:border-[#0078d4]/50 text-slate-200 placeholder:text-slate-500"
             />
           </div>
         </div>
@@ -290,7 +290,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             return (
               <div
                 key={`${entry.path}-${i}`}
-                className={`flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-white/[0.03] group transition-colors ${isSel ? 'bg-sky-900/40 border-l-2 border-l-sky-400' : 'hover:bg-white/[0.04] border-l-2 border-l-transparent'}`}
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-white/[0.03] group transition-colors ${isSel ? 'bg-[#094771]/40 border-l-2 border-l-[#0078d4]' : 'hover:bg-white/[0.04] border-l-2 border-l-transparent'}`}
                 onClick={() => openEntry(entry)}
                 onMouseDown={e => handleEntryMouseDown(entry, e)}
                 onDoubleClick={() => {
@@ -356,7 +356,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
                     <Icons8Icon id="file_ui" size={32} className="mx-auto mb-2 opacity-40" />
                     {formatArchiveSize(selected.size)}
                     <div className="mt-3 flex flex-col gap-1.5">
-                      <button type="button" onClick={() => void extractSelected()} className="px-3 py-1.5 rounded bg-sky-700/80 hover:bg-sky-600 text-white text-[10px] font-semibold">
+                      <button type="button" onClick={() => void extractSelected()} className="px-3 py-1.5 rounded bg-[#0067c0] hover:bg-[#0078d4] text-white text-[10px] font-semibold">
                         Extract Here
                       </button>
                       {isNative && (

@@ -133,7 +133,7 @@ export function TagManagerDialog({ isOpen, onClose, availableTags, onTagsUpdated
                   <div
                     key={tag.name}
                     className={`group flex items-center gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${
-                      activeFilter === tag.name ? 'bg-sky-950/30 border-sky-500/40' : 'bg-[#0d0d0d] border-[#333] hover:border-[#555]'
+                      activeFilter === tag.name ? 'bg-[#094771]/30 border-[#0078d4]/40' : 'bg-[#0d0d0d] border-[#333] hover:border-[#555]'
                     }`}
                     onClick={() => setActiveFilter(activeFilter === tag.name ? null : tag.name)}
                   >

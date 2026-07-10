@@ -50,7 +50,7 @@ export default function ConditionalFormattingDialog({ open, onOpenChange }: { op
                             <div className="flex gap-3 items-center">
                                 <div className="font-mono text-[10px] text-gray-500 w-4">#{idx+1}</div>
                                 <input 
-                                    className="h-8 bg-[#222] border border-[#444] rounded w-48 px-2 text-white text-xs outline-none focus:border-sky-500" 
+                                    className="h-8 bg-[#222] border border-[#444] rounded w-48 px-2 text-white text-xs outline-none focus:border-[#0078d4]" 
                                     placeholder="Rule Name" 
                                     value={rule.name} 
                                     onChange={(e) => updateRule(rule.id, { name: e.target.value })} 
@@ -80,7 +80,7 @@ export default function ConditionalFormattingDialog({ open, onOpenChange }: { op
                                     </select>
                                 ) : (
                                     <input 
-                                        className="h-8 bg-[#222] border border-[#444] rounded w-48 px-2 text-white text-xs outline-none focus:border-sky-500" 
+                                        className="h-8 bg-[#222] border border-[#444] rounded w-48 px-2 text-white text-xs outline-none focus:border-[#0078d4]" 
                                         placeholder={`Value for ${rule.matchType}`} 
                                         value={rule.matchValue} 
                                         onChange={(e) => updateRule(rule.id, { matchValue: e.target.value })} 
@@ -88,7 +88,7 @@ export default function ConditionalFormattingDialog({ open, onOpenChange }: { op
                                 )}
                                 
                                 <input 
-                                    className="h-8 bg-[#222] border border-[#444] rounded flex-1 px-2 text-white text-xs outline-none focus:border-sky-500" 
+                                    className="h-8 bg-[#222] border border-[#444] rounded flex-1 px-2 text-white text-xs outline-none focus:border-[#0078d4]" 
                                     placeholder="Folder Scope (e.g. /C:/Windows)" 
                                     value={rule.targetScope || ''} 
                                     onChange={(e) => updateRule(rule.id, { targetScope: e.target.value })} 
@@ -102,19 +102,19 @@ export default function ConditionalFormattingDialog({ open, onOpenChange }: { op
                             <div className="flex gap-3 items-center pl-7 text-xs mt-2">
                                 <span className="text-gray-400 w-16">Styles:</span>
                                 <input 
-                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-32 text-xs text-white outline-none focus:border-sky-500" 
+                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-32 text-xs text-white outline-none focus:border-[#0078d4]" 
                                     placeholder="Text Color (HEX)" 
                                     value={rule.textColor || rule.hexColor || ''} 
                                     onChange={(e) => updateRule(rule.id, { textColor: e.target.value, hexColor: e.target.value })} 
                                 />
                                 <input 
-                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-36 text-xs text-white outline-none focus:border-sky-500" 
+                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-36 text-xs text-white outline-none focus:border-[#0078d4]" 
                                     placeholder="Row Tint (e.g. #ff00001a)" 
                                     value={rule.rowTint || ''} 
                                     onChange={(e) => updateRule(rule.id, { rowTint: e.target.value })} 
                                 />
                                 <input 
-                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-32 text-xs text-white outline-none focus:border-sky-500" 
+                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-32 text-xs text-white outline-none focus:border-[#0078d4]" 
                                     placeholder="Badge Dot Color" 
                                     value={rule.badgeColor || ''} 
                                     onChange={(e) => updateRule(rule.id, { badgeColor: e.target.value })} 
@@ -130,7 +130,7 @@ export default function ConditionalFormattingDialog({ open, onOpenChange }: { op
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-[#333]">
                     <Button variant="ghost" className="h-8 text-xs hover:bg-[#333]" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button className="h-8 text-xs bg-sky-600 hover:bg-sky-500 text-white" onClick={handleSave}>Save Ruleset</Button>
+                    <Button className="h-8 text-xs bg-[#0067c0] hover:bg-[#0078d4] text-white" onClick={handleSave}>Save Ruleset</Button>
                 </div>
             </DialogContent>
         </Dialog>

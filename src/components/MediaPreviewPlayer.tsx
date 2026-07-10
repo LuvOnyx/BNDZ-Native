@@ -251,7 +251,7 @@ export default function MediaPreviewPlayer({
               <button
                 type="button"
                 onClick={() => import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(filePath), 'open'))}
-                className="text-xs font-semibold px-3 py-1.5 bg-sky-600/20 border border-sky-500/40 text-sky-300 rounded-md hover:bg-sky-600/30"
+                className="text-xs font-semibold px-3 py-1.5 bg-[#094771]/35 border border-[#0078d4]/40 text-[#99c9f0] hover:bg-[#094771]/55"
               >
                 Open in Default Player
               </button>
@@ -270,7 +270,7 @@ export default function MediaPreviewPlayer({
           <>
             <audio key={resolvedSrc} ref={mediaRef as React.RefObject<HTMLAudioElement>} className="hidden" {...mediaProps} />
             <div className="flex flex-col items-center gap-4 px-8 text-center">
-              <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-sky-500/15 to-violet-500/10 border border-white/10 flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+              <div className="w-28 h-28 bg-[#2b2b2b] border border-[#454545] flex items-center justify-center">
                 <Icons8Icon id="music_ui" size={44} />
               </div>
               {title && <p className="text-sm font-semibold text-white truncate max-w-full">{title}</p>}
@@ -280,7 +280,7 @@ export default function MediaPreviewPlayer({
 
         {buffering && !loadError && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-            <div className="w-9 h-9 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-9 h-9 border-2 border-[#0078d4] border-t-transparent rounded-full animate-spin" />
           </div>
         )}
       </div>
@@ -323,7 +323,7 @@ export default function MediaPreviewPlayer({
             value={muted ? 0 : volume}
             onChange={e => setVol(parseFloat(e.target.value))}
             disabled={!!loadError}
-            className="w-14 h-1 accent-sky-500 cursor-pointer shrink-0 disabled:opacity-30"
+            className="w-14 h-1 accent-[#0078d4] cursor-pointer shrink-0 disabled:opacity-30"
             aria-label="Volume"
           />
 

@@ -47,7 +47,7 @@ export default function TreeGlider({ anchor, canPaste, onCopy, onMove, onPaste, 
   return createPortal(
     <div
       ref={barRef}
-      className="tree-glider fixed z-[9999] flex items-center gap-0.5 px-1 py-0.5 rounded-md border border-sky-500/40 bg-[#1a1f2e]/95 shadow-lg shadow-black/40 backdrop-blur-sm"
+      className="tree-glider fixed z-[9999] flex items-center gap-0.5 px-1 py-0.5 rounded-md border border-[#0078d4]/40 bg-[#1a1f2e]/95 shadow-lg shadow-black/40 "
       style={{ top, left }}
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
@@ -55,7 +55,7 @@ export default function TreeGlider({ anchor, canPaste, onCopy, onMove, onPaste, 
       <button
         type="button"
         title="Copy to glider clipboard"
-        className="tree-glider-btn p-1 rounded hover:bg-sky-500/20 text-sky-300"
+        className="tree-glider-btn p-1 rounded hover:bg-[#094771]/30 text-[#99c9f0]"
         onClick={() => { onCopy(anchor.path); onDismiss(); }}
       >
         <Icons8Icon id="copy" size={13} />

@@ -22,7 +22,7 @@ export function SizeBar({
   if (pct <= 0) return null;
 
   const fillClass = isDir
-    ? 'bg-sky-500/85'
+    ? 'bg-[#0078d4]/85'
     : 'bg-violet-500/75';
 
   if (style === 'segment') {

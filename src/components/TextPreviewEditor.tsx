@@ -113,7 +113,7 @@ export default function TextPreviewEditor({
                 title="Save (Ctrl+S)"
                 disabled={!dirty || saving}
                 onClick={() => void save()}
-                className="p-1.5 hover:bg-[#333] rounded text-sky-400 hover:text-sky-300 disabled:opacity-30"
+                className="p-1.5 hover:bg-[#333] rounded text-[#7eb8e8] hover:text-[#99c9f0] disabled:opacity-30"
               >
                 <Icons8Icon id="check" size={13} />
               </button>

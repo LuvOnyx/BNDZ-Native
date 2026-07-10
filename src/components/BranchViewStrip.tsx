@@ -46,7 +46,7 @@ export default function BranchViewStrip({ panePath, contents, config, branchType
               type="button"
               onClick={() => onNavigate(childPath)}
               onDoubleClick={() => onNavigate(childPath)}
-              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] text-gray-300 bg-white/[0.04] hover:bg-sky-500/15 hover:text-sky-200 border border-white/[0.06] transition-colors"
+              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] text-gray-300 bg-white/[0.04] hover:bg-[#0078d4]/15 hover:text-[#cce4f7] border border-white/[0.06] transition-colors"
               title={childPath}
             >
               <ShellNativeIcon path={childPath} isDir size={14} />

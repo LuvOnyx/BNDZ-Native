@@ -82,7 +82,7 @@ export default function MillerColumnsView({
               <button
                 type="button"
                 className={`shrink-0 px-1.5 py-0.5 rounded hover:bg-white/[0.06] truncate max-w-[140px] ${
-                  i === columnPaths.length - 1 ? 'text-sky-300 font-medium' : 'text-gray-400'
+                  i === columnPaths.length - 1 ? 'text-[#99c9f0] font-medium' : 'text-gray-400'
                 }`}
                 onClick={() => onNavigate(seg)}
               >
@@ -118,7 +118,7 @@ export default function MillerColumnsView({
                       key={String(entity.id)}
                       type="button"
                       className={`w-full flex items-center gap-2 px-2 py-1.5 text-left text-[12px] hover:bg-white/[0.06] ${
-                        isSelected ? 'bg-sky-500/15 text-sky-200' : 'text-gray-300'
+                        isSelected ? 'bg-[#094771]/40 text-[#cce4f7]' : 'text-gray-300'
                       }`}
                       onClick={() => {
                         if (isDir) onNavigate(childPath);

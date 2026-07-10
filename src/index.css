@@ -822,13 +822,13 @@ html.theme-light .nav-tree-row:hover {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #0078d4 0%, #0284c7 100%);
+  background: #0078d4;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(0, 120, 212, 0.35);
+  box-shadow: none;
 }
 
 .bndz-media-transport-btn--primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 100%);
+  background: #1a86d9;
   color: #fff;
 }
 
@@ -845,7 +845,7 @@ html.theme-light .nav-tree-row:hover {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, #0284c7 0%, #0078d4 100%);
+  background: #0078d4;
   pointer-events: none;
 }
 

@@ -22,14 +22,14 @@ export default function LaunchSplash({ onDone }: { onDone: () => void }) {
           transition={{ duration: 0.35, ease: 'easeOut' }}
           className="fixed inset-0 z-[900] flex items-center justify-center bg-[#0a0a0e]"
         >
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(56,189,248,0.12),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(0,120,212,0.08),transparent_60%)]" />
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             className="relative flex flex-col items-center gap-4"
           >
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-500/25 to-violet-600/20 border border-white/10 flex items-center justify-center shadow-2xl shadow-sky-900/30">
+            <div className="w-16 h-16 bg-[#2b2b2b] border border-[#454545] flex items-center justify-center">
               <Icons8Icon id="disk_mgmt" size={32} />
             </div>
             <div className="text-center">
@@ -43,7 +43,7 @@ export default function LaunchSplash({ onDone }: { onDone: () => void }) {
               transition={{ delay: 0.2 }}
             >
               <motion.div
-                className="h-full bg-gradient-to-r from-sky-500 to-violet-500"
+                className="h-full bg-[#0078d4]"
                 initial={{ width: '0%' }}
                 animate={{ width: '100%' }}
                 transition={{ duration: 0.75, ease: 'easeOut' }}

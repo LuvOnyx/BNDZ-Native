@@ -146,7 +146,7 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
     >
       {iconNode ?? (iconId ? <Icons8Icon id={iconId} size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />)}
       <span className="flex-1">{label}</span>
-      {trailing ? <span className="text-sky-300/80 text-[10px] shrink-0">{trailing}</span> : null}
+      {trailing ? <span className="text-[#99c9f0]/80 text-[10px] shrink-0">{trailing}</span> : null}
     </div>
   );
 });

@@ -75,7 +75,7 @@ function IconStudioInner({
                             }`}>
                                 <span className={`w-5 h-5 rounded-md text-xs font-semibold flex items-center justify-center ${
                                     activeStep >= step.n
-                                        ? 'bg-sky-600/25 text-sky-200 border border-sky-500/30'
+                                        ? 'bg-[#094771]/30 text-[#cce4f7] border border-[#0078d4]/30'
                                         : 'bg-white/[0.04] text-gray-500 border border-white/[0.06]'
                                 }`}>{step.n}</span>
                                 <span className="text-xs font-medium hidden sm:inline">{step.label}</span>

@@ -201,7 +201,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 type="button"
                                 onClick={() => setMode(m.id)}
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left ${
-                                    mode === m.id ? 'bg-sky-900/50 text-sky-200 border border-sky-700/50' : 'text-gray-400 hover:bg-[#1a1a1a]'
+                                    mode === m.id ? 'bg-[#094771]/50 text-[#cce4f7] border border-[#0078d4]/40' : 'text-gray-400 hover:bg-[#1a1a1a]'
                                 }`}
                             >
                                 <Icons8Icon id={m.icon} size={12} /> {m.label}
@@ -220,7 +220,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     <button
                                         key={h}
                                         type="button"
-                                        className="text-left text-xs px-2 py-1 rounded-md text-gray-400 hover:bg-sky-900/30 hover:text-sky-200 truncate"
+                                        className="text-left text-xs px-2 py-1 rounded-md text-gray-400 hover:bg-[#094771]/30 hover:text-[#cce4f7] truncate"
                                         title={h}
                                         onClick={() => { setQuery(h); void doSearch(h); }}
                                     >

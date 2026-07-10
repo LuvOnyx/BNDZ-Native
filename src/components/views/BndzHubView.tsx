@@ -17,7 +17,7 @@ type Props = {
 
 const VIEWS = [
   { path: BNDZ_RECENT, icon: 'clock_ui', color: 'text-amber-400', desc: 'Recently modified files from your indexed libraries' },
-  { path: BNDZ_MEDIA, icon: 'film_ui', color: 'text-sky-400', desc: 'Photos and videos across indexed folders' },
+  { path: BNDZ_MEDIA, icon: 'film_ui', color: 'text-[#7eb8e8]', desc: 'Photos and videos across indexed folders' },
   { path: BNDZ_LARGE, icon: 'hard_drive_ui', color: 'text-violet-400', desc: 'Largest files — sorted and visualized by size' },
 ] as const;
 
@@ -46,7 +46,7 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
   return (
     <div className="flex flex-col gap-4 p-4 max-w-2xl">
       <div className="flex items-center gap-2 text-gray-300">
-        <Icons8Icon id="database_ui" size={18} className="text-sky-400" />
+        <Icons8Icon id="database_ui" size={18} className="text-[#7eb8e8]" />
         <div>
           <h2 className="text-[14px] font-semibold text-gray-100">Smart Views</h2>
           <p className="text-[11px] text-gray-500">

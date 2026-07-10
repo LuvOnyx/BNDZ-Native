@@ -93,7 +93,7 @@ export default function UdcEditorTab({ commands, onChange }: Props) {
         <button
           type="button"
           onClick={add}
-          className="flex items-center gap-1 text-[12px] text-sky-400 hover:underline mt-2"
+          className="flex items-center gap-1 text-[12px] text-[#7eb8e8] hover:underline mt-2"
         >
           <Icons8Icon id="plus_ui" size={14} /> Add command
         </button>

@@ -49,7 +49,7 @@ export default function DocxPreviewPanel({ url, title }: DocxPreviewPanelProps) 
   return (
     <div
       className="w-full h-full overflow-y-auto bndz-scrollbar bndz-preview-stage p-6 prose prose-invert prose-sm max-w-none
-        prose-headings:text-gray-100 prose-p:text-gray-300 prose-a:text-sky-400 prose-table:text-gray-300
+        prose-headings:text-gray-100 prose-p:text-gray-300 prose-a:text-[#7eb8e8] prose-table:text-gray-300
         prose-th:border-[#444] prose-td:border-[#333] prose-li:text-gray-300"
       dangerouslySetInnerHTML={{ __html: html ?? '' }}
       aria-label={title || 'Document preview'}

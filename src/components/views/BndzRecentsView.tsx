@@ -98,7 +98,7 @@ export default function BndzRecentsView({
       renderItem={(row) => {
         if (row.kind === 'header') {
           return (
-            <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-300/90 bg-[#1a1a1f]/95 border-y border-white/[0.06]">
+            <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#99c9f0]/90 bg-[#1a1a1f]/95 border-y border-white/[0.06]">
               {row.label}
             </div>
           );

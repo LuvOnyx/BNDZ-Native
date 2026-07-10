@@ -322,7 +322,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
     if (!loaded) {
         return (
             <div className="w-screen h-screen flex flex-col items-center justify-center bg-[#111114] text-gray-400 gap-3 select-none">
-                <div className="w-8 h-8 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+                <div className="w-8 h-8 rounded-full border-2 border-[#0078d4]/30 border-t-[#0078d4] animate-spin" />
                 <span className="text-[11px] tracking-wide text-gray-500">Loading BNDZ…</span>
             </div>
         );

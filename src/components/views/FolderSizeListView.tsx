@@ -52,7 +52,7 @@ export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFo
           <button
             type="button"
             onClick={onScanFolderSizes}
-            className="shrink-0 px-2.5 py-1 rounded-[var(--bndz-radius-sm)] bg-sky-900/50 text-sky-300 hover:bg-sky-800/60 border border-sky-500/25"
+            className="shrink-0 px-2.5 py-1 rounded-[var(--bndz-radius-sm)] bg-[#094771]/50 text-[#99c9f0] hover:bg-[#094771]/55 border border-[#0078d4]/25"
           >
             Scan sizes
           </button>
@@ -71,7 +71,7 @@ export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFo
             <button
               key={item.path || item.name}
               type="button"
-              className="grid grid-cols-[minmax(140px,1.2fr)_minmax(120px,2fr)_88px] gap-x-3 items-center w-full px-2 py-1.5 rounded-[var(--bndz-radius-sm)] hover:bg-white/[0.05] text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500/40"
+              className="grid grid-cols-[minmax(140px,1.2fr)_minmax(120px,2fr)_88px] gap-x-3 items-center w-full px-2 py-1.5 rounded-[var(--bndz-radius-sm)] hover:bg-white/[0.05] text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-[#0078d4]/40"
               onClick={() => { if (isDir && item.path) onNavigate(item.path); }}
               onDoubleClick={() => {
                 if (!item.path) return;

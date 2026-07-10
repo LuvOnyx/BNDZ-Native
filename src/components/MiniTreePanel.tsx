@@ -31,7 +31,7 @@ export default function MiniTreePanel({ nodes, activePath, onNavigate }: Props) 
             title={node.path}
             onClick={() => onNavigate(node.path)}
             className={`flex items-center gap-1.5 py-1 pr-2 rounded text-left text-[11px] w-full transition-colors ${
-              active ? 'bg-sky-900/40 text-sky-200' : 'text-gray-400 hover:bg-[#222] hover:text-gray-200'
+              active ? 'bg-[#094771]/40 text-[#cce4f7]' : 'text-gray-400 hover:bg-[#222] hover:text-gray-200'
             }`}
             style={{ paddingLeft: 8 + node.depth * 10 }}
           >

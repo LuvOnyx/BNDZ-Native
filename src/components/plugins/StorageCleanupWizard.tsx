@@ -221,15 +221,15 @@ export default function StorageCleanupWizard({
   };
 
   const title = mode === 'organize' ? 'Smart Organize Wizard' : 'Storage Cleanup Wizard';
-  const accent = mode === 'organize' ? '#34d399' : '#a78bfa';
+  const accent = mode === 'organize' ? '#34d399' : '#0078d4';
   const headerIconId = mode === 'organize' ? 'folder_plus_ui' : 'copy';
 
   return (
-    <div className="absolute inset-0 z-20 flex flex-col bg-[#09090d]/98 backdrop-blur-sm" data-testid="storage-cleanup-wizard">
+    <div className="absolute inset-0 z-20 flex flex-col bg-[#252526]" data-testid="storage-cleanup-wizard">
       {/* Header */}
-      <div className="shrink-0 px-5 py-4 border-b border-white/[0.06] flex items-center gap-4 bg-gradient-to-r from-[#101014] to-[#0d0d12]">
+      <div className="shrink-0 px-5 py-4 border-b border-[#454545] flex items-center gap-4 bg-[#2b2b2b]">
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
+          className="w-10 h-10 flex items-center justify-center shrink-0 border border-[#454545]"
           style={{ background: `${accent}18`, borderColor: `${accent}40` }}
         >
           <Icons8Icon id={headerIconId} size={18} />
@@ -347,7 +347,7 @@ export default function StorageCleanupWizard({
                     <span className="text-violet-300">{dupProgress.percent}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-[#1a1a22] overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-violet-600 to-fuchsia-500 rounded-full transition-all" style={{ width: `${dupProgress.percent}%` }} />
+                    <div className="h-full bg-[#0078d4] transition-all" style={{ width: `${dupProgress.percent}%` }} />
                   </div>
                   <div className="text-[10px] text-gray-600 font-mono truncate mt-2">{dupProgress.currentPath}</div>
                 </div>
@@ -357,7 +357,7 @@ export default function StorageCleanupWizard({
 
           {step === 'preview' && mode === 'organize' && (
             <motion.div key="preview-org" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4 max-w-3xl mx-auto">
-              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/15 px-5 py-4 flex items-center justify-between">
+              <div className="border border-emerald-500/25 bg-emerald-950/15 px-5 py-4 flex items-center justify-between">
                 <div>
                   <div className="text-[13px] font-bold text-emerald-200">{organizePlan.length} files will be organized</div>
                   <div className="text-[11px] text-gray-500 mt-1 font-mono truncate max-w-md">{folderWin}</div>
@@ -367,7 +367,7 @@ export default function StorageCleanupWizard({
               {Object.entries(organizeByBucket).sort((a, b) => b[1].length - a[1].length).map(([bucket, entries]) => {
                 const cfg = ORGANIZE_BUCKETS[bucket];
                 return (
-                  <div key={bucket} className="rounded-2xl border border-white/[0.06] bg-[#111116] overflow-hidden">
+                  <div key={bucket} className="border border-[#454545] bg-[#2b2b2b] overflow-hidden">
                     <div className="px-4 py-2.5 border-b border-white/[0.05] flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: cfg?.color || '#9ca3af' }}>
                       <span>{cfg?.icon || '📁'}</span>
                       {bucket}
@@ -393,20 +393,20 @@ export default function StorageCleanupWizard({
 
           {step === 'preview' && mode === 'cleanup' && (
             <motion.div key="preview-clean" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4 max-w-3xl mx-auto">
-              <div className="rounded-2xl border border-violet-500/25 bg-violet-950/15 px-5 py-4 flex items-center justify-between">
+              <div className="border border-[#0078d4]/30 bg-[#094771]/20 px-5 py-4 flex items-center justify-between">
                 <div>
-                  <div className="text-[13px] font-bold text-violet-200">
+                  <div className="text-[13px] font-bold text-[#cce4f7]">
                     {totalDeleteCount} duplicate files will be removed
                   </div>
                   <div className="text-[11px] text-emerald-400/90 mt-1">
                     Reclaim ~{formatStorageSize(totalReclaimable)} · {dupPreview.length} groups
                   </div>
                 </div>
-                <Icons8Icon id="shield_ui" size={20} className="text-violet-500/50" />
+                <Icons8Icon id="shield_ui" size={20} className="text-[#7eb8e8]/50" />
               </div>
               <div className="space-y-3 max-h-[360px] overflow-y-auto bndz-scrollbar pr-1">
                 {dupPreview.map(group => (
-                  <div key={group.hash} className="rounded-xl border border-white/[0.06] bg-[#111116] p-4">
+                  <div key={group.hash} className="border border-[#454545] bg-[#2b2b2b] p-4">
                     <div className="text-[11px] font-semibold text-gray-200 mb-2">
                       {group.paths.length} copies · {formatStorageSize(group.size)} each
                     </div>

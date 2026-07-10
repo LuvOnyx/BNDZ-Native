@@ -64,7 +64,7 @@ export function PortalComposer({
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-sky-900/40 border-2 border-dashed border-sky-400 text-[11px] text-sky-200 pointer-events-none">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#094771]/40 border-2 border-dashed border-[#0078d4] text-[11px] text-[#cce4f7] pointer-events-none">
           Drop files to attach context
         </div>
       )}

@@ -27,7 +27,7 @@ export function PreviewHeroIcon({
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <div
-        className="rounded-2xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/[0.06] flex items-center justify-center shadow-2xl"
+        className="rounded-md bg-[#2b2b2b] border border-[#454545] flex items-center justify-center"
         style={{ width: size + 24, height: size + 24 }}
       >
         {path ? (

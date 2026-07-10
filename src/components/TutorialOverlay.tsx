@@ -31,7 +31,7 @@ const TUTORIAL_STEPS = [
   {
     id: 'dualpane',
     iconId: 'columns_ui',
-    color: '#38bdf8',
+    color: '#0078d4',
     title: 'Dual pane & views',
     body: 'Open View → Dual Pane for side-by-side browsing. Switch between Details, Grid, and List views from the toolbar.',
     anchor: 'workspace',
@@ -120,7 +120,7 @@ function Spotlight({ rect }: { rect: DOMRect }) {
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="fixed z-[500] pointer-events-none rounded-xl ring-2 ring-sky-400/70 shadow-[0_0_28px_rgba(56,189,248,0.35)]"
+        className="fixed z-[500] pointer-events-none ring-2 ring-[#0078d4]/70 shadow-[0_0_12px_rgba(0,120,212,0.25)]"
         style={{ left: x, top: y, width: w, height: h }}
       />
     </>
@@ -256,7 +256,7 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
                 {TUTORIAL_STEPS.map((s, i) => (
                   <div
                     key={s.id}
-                    className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= stepIndex ? 'bg-sky-500' : 'bg-[#333]'}`}
+                    className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= stepIndex ? 'bg-[#0078d4]' : 'bg-[#333]'}`}
                   />
                 ))}
               </div>
@@ -283,7 +283,7 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
                       if (isLast) dismiss({ completed: true });
                       else setStepIndex(i => i + 1);
                     }}
-                    className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-bold text-white bg-sky-600 hover:bg-sky-500 rounded-md transition-colors shadow-lg shadow-sky-900/30"
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-bold text-white bg-[#0067c0] hover:bg-[#0078d4] rounded-md transition-colors shadow-lg "
                   >
                     {isLast ? 'Get started' : 'Next'}
                     {!isLast && <Icons8Icon id="chevron_right" size={14} />}

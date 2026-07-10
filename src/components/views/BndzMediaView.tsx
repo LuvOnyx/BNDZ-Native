@@ -66,7 +66,7 @@ function MediaTile({
     <div
       data-id={entity.id}
       className={`fs-item-wrapper relative aspect-square overflow-hidden cursor-default outline-none ${
-        isSelected ? 'ring-2 ring-sky-500 ring-inset' : ''
+        isSelected ? 'ring-2 ring-[#0078d4] ring-inset' : ''
       }`}
       onClick={e => onItemClick(e, entity)}
       onDoubleClick={() => onItemDoubleClick(entity)}
@@ -144,7 +144,7 @@ export default function BndzMediaView({
     <div className="flex flex-col gap-4 p-2">
       {groups.map(group => (
         <section key={group.label}>
-          <div className="sticky top-0 z-10 px-1 py-2 text-[13px] font-semibold text-gray-200 bg-[#1e1e1e]/95 backdrop-blur-sm border-b border-white/[0.06]">
+          <div className="sticky top-0 z-10 px-1 py-2 text-[13px] font-semibold text-gray-200 bg-[#1e1e1e]/95  border-b border-white/[0.06]">
             {group.label}
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-0.5 mt-1">

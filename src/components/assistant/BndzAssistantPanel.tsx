@@ -235,7 +235,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
               }`}
             >
               {m.text}
-              {m.streaming && <span className="inline-block w-1.5 h-3 ml-0.5 bg-sky-400/80 animate-pulse align-middle" />}
+              {m.streaming && <span className="inline-block w-1.5 h-3 ml-0.5 bg-[#0078d4]/80 animate-pulse align-middle" />}
             </div>
             {actions.length > 0 && (
               <div className="flex flex-wrap gap-1 pl-1">
@@ -244,7 +244,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
                     key={a.id}
                     type="button"
                     onClick={() => runAssistantAction(a)}
-                    className="px-2 py-0.5 text-[10px] bg-[#094771]/60 hover:bg-[#094771] border border-[#0a5a8c]/50 text-sky-100"
+                    className="px-2 py-0.5 text-[10px] bg-[#094771]/60 hover:bg-[#094771] border border-[#0a5a8c]/50 text-[#cce4f7]"
                   >
                     {a.label}
                   </button>
@@ -281,7 +281,7 @@ export default function BndzAssistantPanel({ selectedPaths, currentPath, initial
 
       {contextPaths.length > 0 && (
         <p className="text-[10px] text-gray-500 font-mono truncate flex items-center gap-1">
-          <Icons8Icon id="sparkles_ui" size={10} className="text-sky-400 shrink-0" />
+          <Icons8Icon id="sparkles_ui" size={10} className="text-[#7eb8e8] shrink-0" />
           {contextPaths.length} path(s) in context with metadata
         </p>
       )}

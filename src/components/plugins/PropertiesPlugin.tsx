@@ -522,7 +522,7 @@ export default function PropertiesPlugin({
                                         className="flex items-center gap-2.5 p-2 rounded-md border border-white/[0.06] bg-black/20 hover:bg-white/[0.04] transition-colors group text-left"
                                     >
                                         <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                            fileDetails?.attributes?.[attr] ? 'bg-[#0078d4] border-sky-500' : 'border-white/20 group-hover:border-sky-500/50'
+                                            fileDetails?.attributes?.[attr] ? 'bg-[#0078d4] border-[#0078d4]' : 'border-white/20 group-hover:border-[#0078d4]/45'
                                         }`}>
                                             {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={9} className="text-black" />}
                                         </div>
@@ -538,7 +538,7 @@ export default function PropertiesPlugin({
                     <PluginCard className="max-w-xl relative">
                         <PluginSectionTitle icon="key_ui">Cryptographic hashes</PluginSectionTitle>
                         {hash.loading && (
-                            <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col gap-2 items-center justify-center rounded-md">
+                            <div className="absolute inset-0 z-10 bg-black/50  flex flex-col gap-2 items-center justify-center rounded-md">
                                 <Icons8Icon id="loading" size={22} spin className="text-emerald-500" />
                                 <div className="text-xs text-emerald-400 font-medium">Computing…</div>
                             </div>

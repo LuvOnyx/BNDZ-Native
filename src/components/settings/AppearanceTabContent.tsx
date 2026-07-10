@@ -48,7 +48,7 @@ function VariantSelect<T extends string>({
       </div>
       <div className="flex-1 min-w-0">
         <select
-          className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-sky-500/50"
+          className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-[#0078d4]/45"
           value={value}
           onChange={e => onChange(e.target.value as T)}
         >
@@ -78,7 +78,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
           <input
             type="checkbox"
-            className="accent-sky-500"
+            className="accent-[#0078d4]"
             checked={localConfig.listShowSelectionHighlight !== false}
             onChange={e => patch({ listShowSelectionHighlight: e.target.checked })}
           />
@@ -87,7 +87,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
           <input
             type="checkbox"
-            className="accent-sky-500"
+            className="accent-[#0078d4]"
             checked={!!localConfig.listShowSelectionCheckboxes}
             onChange={e => patch({ listShowSelectionCheckboxes: e.target.checked })}
           />
@@ -117,7 +117,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
           <input
             type="checkbox"
-            className="accent-sky-500"
+            className="accent-[#0078d4]"
             checked={localConfig.showQuickActionsBar === true}
             onChange={e => patch({ showQuickActionsBar: e.target.checked })}
           />

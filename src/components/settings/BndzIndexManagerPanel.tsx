@@ -119,7 +119,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
       </div>
 
       {(indexing || progress) && (
-        <div className="text-[10px] text-sky-300/90 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1.5 space-y-0.5">
+        <div className="text-[10px] text-[#99c9f0]/90 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1.5 space-y-0.5">
           {indexing && !progress?.done && <Icons8Icon id="loading" size={12} spin className="inline mr-1" />}
           <span>
             {progress?.done
@@ -143,7 +143,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
         </button>
       </div>
 
-      {notice && <p className="text-[10px] text-sky-300/90">{notice}</p>}
+      {notice && <p className="text-[10px] text-[#99c9f0]/90">{notice}</p>}
 
       <div className="flex gap-2 max-w-lg">
         <input
@@ -151,7 +151,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
           value={folderPath}
           onChange={e => setFolderPath(e.target.value)}
           placeholder="/C:/Users/you/Documents"
-          className="flex-1 bg-[#0d0d10] border border-[#333] rounded px-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-sky-500/40"
+          className="flex-1 bg-[#0d0d10] border border-[#333] rounded px-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-[#0078d4]/40"
         />
         <button
           type="button"

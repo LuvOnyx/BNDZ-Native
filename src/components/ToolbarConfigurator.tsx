@@ -52,7 +52,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
   { id: 'refresh', label: 'Refresh', color: '#10b981', category: 'navigation' },
   { id: 'folder_size_sync', label: 'Folder Size Map / Sync', color: '#34d399', category: 'navigation' },
   { id: 'go_recycle_bin', label: 'Open Recycle Bin', color: '#c084fc', category: 'navigation' },
-  { id: 'go_network', label: 'Open Network', color: '#38bdf8', category: 'navigation' },
+  { id: 'go_network', label: 'Open Network', color: '#0078d4', category: 'navigation' },
   { id: 'new_tab', label: 'New Tab', color: '#fbbf24', category: 'navigation' },
   { id: 'cut', label: 'Cut', color: '#eab308', category: 'clipboard' },
   { id: 'copy', label: 'Copy', color: '#3b82f6', category: 'clipboard' },
@@ -75,7 +75,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
   { id: 'view_details', label: 'Details View', color: '#dcb67a', category: 'views' },
   { id: 'view_grid', label: 'Grid View', color: '#a855f7', category: 'views' },
   { id: 'view_list', label: 'List View', color: '#94a3b8', category: 'views' },
-  { id: 'search', label: 'Focus Search', color: '#38bdf8', category: 'views' },
+  { id: 'search', label: 'Focus Search', color: '#0078d4', category: 'views' },
   { id: 'toggle_dual_pane', label: 'Toggle Dual Pane', color: '#6db4e6', category: 'views' },
   { id: 'toggle_preview', label: 'Toggle Preview', color: '#6db4e6', category: 'views' },
   { id: 'toggle_bottom', label: 'Toggle Bottom Panel', color: '#6db4e6', category: 'views' },
@@ -91,14 +91,14 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
   { id: 'storage_cleanup', label: 'Storage Cleanup', color: '#f87171', category: 'plugins' },
   { id: 'sys_properties', label: 'BNDZ Properties', color: '#c084fc', category: 'plugins' },
   { id: 'config', label: 'Configuration', color: '#888', category: 'plugins' },
-  { id: 'extension_hub', label: 'Extension Hub', color: '#38bdf8', category: 'plugins' },
+  { id: 'extension_hub', label: 'Extension Hub', color: '#0078d4', category: 'plugins' },
   { id: 'wrench', label: 'Customize Toolbar', color: '#3b82f6', category: 'plugins' },
   { id: 'cmd', label: 'Command Prompt', color: '#eee', category: 'windows' },
   { id: 'ps', label: 'PowerShell', color: '#3b82f6', category: 'windows' },
   { id: 'terminal_here', label: 'Terminal Here', color: '#4ade80', category: 'windows' },
   { id: 'taskmgr', label: 'Task Manager', color: '#10b981', category: 'windows' },
   { id: 'regedit', label: 'Registry Editor', color: '#eab308', category: 'windows' },
-  { id: 'control_panel', label: 'Control Panel', color: '#38bdf8', category: 'windows' },
+  { id: 'control_panel', label: 'Control Panel', color: '#0078d4', category: 'windows' },
   { id: 'settings_app', label: 'Windows Settings', color: '#60a5fa', category: 'windows' },
   { id: 'device_manager', label: 'Device Manager', color: '#34d399', category: 'windows' },
   { id: 'services', label: 'Services', color: '#94a3b8', category: 'windows' },
@@ -106,7 +106,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
   { id: 'disk_mgmt', label: 'Disk Management', color: '#f87171', category: 'windows' },
   { id: 'computer_mgmt', label: 'Computer Management', color: '#6db4e6', category: 'windows' },
   { id: 'sysdm_cpl', label: 'System Properties', color: '#c084fc', category: 'windows' },
-  { id: 'network_connections', label: 'Network Connections', color: '#38bdf8', category: 'windows' },
+  { id: 'network_connections', label: 'Network Connections', color: '#0078d4', category: 'windows' },
   { id: 'printers', label: 'Printers', color: '#a78bfa', category: 'windows' },
   { id: 'programs_features', label: 'Programs & Features', color: '#fb923c', category: 'windows' },
   { id: 'firewall', label: 'Windows Firewall', color: '#ef4444', category: 'windows' },
@@ -115,7 +115,7 @@ export const AVAILABLE_ITEMS: ToolbarItemDef[] = [
   { id: 'msinfo', label: 'System Information', color: '#94a3b8', category: 'windows' },
   { id: 'dxdiag', label: 'DirectX Diagnostic', color: '#a855f7', category: 'windows' },
   { id: 'notepad', label: 'Notepad', color: '#e2e8f0', category: 'windows' },
-  { id: 'calc', label: 'Calculator', color: '#38bdf8', category: 'windows' },
+  { id: 'calc', label: 'Calculator', color: '#0078d4', category: 'windows' },
   { id: 'paint', label: 'Paint', color: '#ec4899', category: 'windows' },
   { id: 'snipping_tool', label: 'Snipping Tool', color: '#34d399', category: 'windows' },
   { id: 'explorer', label: 'File Explorer', color: '#dcb67a', category: 'windows' },
@@ -191,7 +191,7 @@ function ToolbarDropZone({ children }: { children: React.ReactNode }) {
     <div
       ref={setNodeRef}
       className={`bndz-toolbar-config-preview flex px-3 py-2 items-center flex-wrap relative transition-all ${
-        isOver ? 'border-sky-500/60 bg-sky-950/20 ring-1 ring-sky-500/30' : ''
+        isOver ? 'border-[#0078d4]/55 bg-[#094771]/25 ring-1 ring-[#0078d4]/30' : ''
       }`}
     >
       {children}
@@ -341,10 +341,10 @@ export default function ToolbarConfigurator({
                               placeholder="Search commands…" 
                               value={search}
                               onChange={e => setSearch(e.target.value)}
-                              className="w-full bg-[#0d0d12] border border-[#444] rounded-lg px-3 py-2 text-sm outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/20"
+                              className="w-full bg-[#0d0d12] border border-[#444] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0078d4]/55 focus:ring-1 focus:ring-[#0078d4]/20"
                            />
                            <div className="flex flex-wrap gap-1">
-                             <button type="button" onClick={() => setActiveCategory('all')} className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${activeCategory === 'all' ? 'bg-sky-600/30 border-sky-500/50 text-sky-200' : 'border-[#444] text-gray-500 hover:text-gray-300'}`}>All</button>
+                             <button type="button" onClick={() => setActiveCategory('all')} className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${activeCategory === 'all' ? 'bg-[#094771]/35 border-[#0078d4]/45 text-[#cce4f7]' : 'border-[#444] text-gray-500 hover:text-gray-300'}`}>All</button>
                              {TOOLBAR_CATEGORIES.map(cat => (
                                <button key={cat.id} type="button" onClick={() => setActiveCategory(cat.id)} className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${activeCategory === cat.id ? 'border-white/20 text-white' : 'border-[#444] text-gray-500 hover:text-gray-300'}`} style={activeCategory === cat.id ? { backgroundColor: `${cat.color}22`, borderColor: `${cat.color}55`, color: cat.color } : undefined}>{cat.label}</button>
                              ))}
@@ -373,7 +373,7 @@ export default function ToolbarConfigurator({
                                       setActiveIndex(idx);
                                       setCurrentLayout((profiles[idx] || []).map((i: any) => ({ uid: Math.random().toString(36).substring(7), id: i.id })));
                                    }}
-                                   className="bg-[#0d0d12] border border-[#555] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-sky-500/50"
+                                   className="bg-[#0d0d12] border border-[#555] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#0078d4]/45"
                                 >
                                     {profiles.map((_, i) => (
                                         <option key={i} value={i}>Toolbar {i + 1}</option>

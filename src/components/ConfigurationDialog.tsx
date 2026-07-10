@@ -239,7 +239,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   })).filter(cat => cat.items.length > 0);
 
   const categoryAccent: Record<string, string> = {
-    General: 'from-sky-500/22 to-transparent border-sky-500/30',
+    General: 'from-[#0078d4]/18 to-transparent border-[#0078d4]/30',
     'Colors and Styles': 'from-violet-500/22 to-transparent border-violet-500/30',
     Information: 'from-emerald-500/22 to-transparent border-emerald-500/30',
     'File Operations': 'from-amber-500/22 to-transparent border-amber-500/30',
@@ -250,7 +250,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
   };
 
   const categoryTabActive: Record<string, string> = {
-    General: 'data-[state=active]:bg-sky-600/18 data-[state=active]:text-sky-100 data-[state=active]:border-sky-500/35',
+    General: 'data-[state=active]:bg-[#094771]/35 data-[state=active]:text-[#cce4f7] data-[state=active]:border-[#0078d4]/35',
     'Colors and Styles': 'data-[state=active]:bg-violet-600/18 data-[state=active]:text-violet-100 data-[state=active]:border-violet-500/35',
     Information: 'data-[state=active]:bg-emerald-600/18 data-[state=active]:text-emerald-100 data-[state=active]:border-emerald-500/35',
     'File Operations': 'data-[state=active]:bg-amber-600/18 data-[state=active]:text-amber-100 data-[state=active]:border-amber-500/35',
@@ -280,13 +280,13 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                   placeholder="Filter settings…"
                   value={navFilter}
                   onChange={e => setNavFilter(e.target.value)}
-                  className="w-full bg-[#0d0d10] border border-[#333] rounded-lg pl-8 pr-2 py-1.5 text-[11px] text-gray-200 placeholder-gray-600 outline-none focus:border-sky-500/40 focus:ring-1 focus:ring-sky-500/15"
+                  className="w-full bg-[#0d0d10] border border-[#333] pl-8 pr-2 py-1.5 text-[11px] text-gray-200 placeholder-gray-600 outline-none focus:border-[#0078d4]/50"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => { setShowJumpDialog(true); setJumpQuery(''); }}
-                className="bndz-settings-jump w-full text-gray-500 hover:text-sky-400 py-1 transition-colors text-left"
+                className="bndz-settings-jump w-full text-gray-500 hover:text-[#7eb8e8] py-1 transition-colors text-left"
               >
                 Jump to setting (Ctrl+F)
               </button>
@@ -389,7 +389,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                    <select
                      value={localConfig.folderSizeVisualization === 'bubbles' ? 'bubbles' : localConfig.folderSizeVisualization === 'treemap' ? 'treemap' : 'list'}
                      onChange={e => updateLocalConfig({ folderSizeVisualization: e.target.value as 'list' | 'treemap' | 'bubbles' })}
-                     className="text-[11px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-2 py-1 rounded outline-none focus:border-sky-500/50"
+                     className="text-[11px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-2 py-1 outline-none focus:border-[#0078d4]/50"
                    >
                      <option value="list">Size list (recommended)</option>
                      <option value="treemap">Treemap (advanced)</option>
@@ -1386,7 +1386,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                     <p className="text-[12px] mt-[2px] ml-[22px] text-[#888]">Double-clicking drives or directories will open them in BNDZ. Unchecking restores Windows Explorer.</p>
                  </div>
                  {shellStatus && (
-                   <p className="text-[11px] ml-[22px] mt-2 text-sky-300/90">{shellStatus}</p>
+                   <p className="text-[11px] ml-[22px] mt-2 text-[#99c9f0]">{shellStatus}</p>
                  )}
               </div>
 
@@ -2300,7 +2300,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                     <ActionBtn label="Edit" className="w-full text-center py-[4px]" />
                     <ActionBtn label="Delete" className="w-full text-center py-[4px]" />
                     <div className="h-4"></div>
-                    <ActionBtn label="Advanced Rules..." className="w-full text-center py-[4px] bg-sky-600/20 text-sky-400 border-sky-600/50 hover:bg-sky-600/40" onClick={() => setShowConditionalFormattingDialog(true)} />
+                    <ActionBtn label="Advanced Rules..." className="w-full text-center py-[4px] bg-[#094771]/35 text-[#7eb8e8] border-[#0078d4]/40 hover:bg-[#094771]/55" onClick={() => setShowConditionalFormattingDialog(true)} />
                     <div className="h-4"></div>
                     <ActionBtn label="Up" className="w-full text-center py-[4px]" />
                     <ActionBtn label="Down" className="w-full text-center py-[4px]" />

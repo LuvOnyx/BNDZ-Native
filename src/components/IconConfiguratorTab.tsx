@@ -41,12 +41,12 @@ export default function IconConfiguratorTab() {
          </div>
 
          <div className="flex flex-col gap-4 border border-[#333] p-4 rounded-md bg-[#171717]">
-             <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Icons8Icon id="config" size={14} className="text-sky-400"/> System Overrides</h2>
+             <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Icons8Icon id="config" size={14} className="text-[#7eb8e8]"/> System Overrides</h2>
              
              <label className="flex items-center gap-3 text-sm cursor-pointer hover:text-white text-gray-300">
                   <input 
                       type="checkbox" 
-                      className="accent-sky-500 h-4 w-4"
+                      className="accent-[#0078d4] h-4 w-4"
                       checked={config.allowGlobalIconOverwrite ?? false}
                       onChange={(e) => updateConfig({ allowGlobalIconOverwrite: e.target.checked })}
                   />
@@ -56,7 +56,7 @@ export default function IconConfiguratorTab() {
               <label className="flex items-center gap-3 text-sm cursor-pointer hover:text-white text-gray-300">
                   <input 
                       type="checkbox" 
-                      className="accent-sky-500 h-4 w-4"
+                      className="accent-[#0078d4] h-4 w-4"
                       checked={config.autoConvertIcons ?? true}
                       onChange={(e) => updateConfig({ autoConvertIcons: e.target.checked })}
                   />
@@ -66,7 +66,7 @@ export default function IconConfiguratorTab() {
               <label className="flex items-center gap-3 text-sm cursor-pointer hover:text-white text-gray-300">
                   <input 
                       type="checkbox" 
-                      className="accent-sky-500 h-4 w-4"
+                      className="accent-[#0078d4] h-4 w-4"
                       checked={config.enableIconContextSubmenu ?? true}
                       onChange={(e) => updateConfig({ enableIconContextSubmenu: e.target.checked })}
                   />
@@ -83,7 +83,7 @@ export default function IconConfiguratorTab() {
                  <Button variant="outline" className="h-8 text-xs border-[#444] text-red-400 hover:text-red-300 hover:bg-red-950/30" onClick={clearCache}>
                      <Icons8Icon id="trash_ui" size={14} className="mr-2" /> Purge SSD Icon Cache
                  </Button>
-                 <Button variant="outline" className="h-8 text-xs border-[#444] text-sky-400 hover:text-sky-300 hover:bg-sky-950/30" onClick={rebuildCache}>
+                 <Button variant="outline" className="h-8 text-xs border-[#444] text-[#7eb8e8] hover:text-[#99c9f0] hover:bg-[#094771]/30" onClick={rebuildCache}>
                      <Icons8Icon id="refresh" size={14} className="mr-2" /> Force Rebuild Cache
                  </Button>
                  {cacheStatus && <span className="text-[11px] text-emerald-400">{cacheStatus}</span>}

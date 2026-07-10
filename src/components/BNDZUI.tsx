@@ -7590,7 +7590,7 @@ export default function BNDZUI() {
       )}
       {listDragOperation && (
         <div className="fixed inset-x-0 bottom-4 z-[70] pointer-events-none flex justify-center px-4">
-          <div className="bndz-glass-chip px-3 py-1.5 text-[11px] font-medium text-white/90 flex items-center gap-2 shadow-lg rounded-[var(--bndz-radius-md)]">
+          <div className="bndz-glass-chip px-3 py-1.5 text-[11px] font-medium text-white/90 flex items-center gap-2">
             {listDragOperation === 'copy' ? (
               <Icons8Icon id="copy" size={13} className="shrink-0" />
             ) : (

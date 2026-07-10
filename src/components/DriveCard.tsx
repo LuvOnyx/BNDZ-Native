@@ -38,7 +38,7 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
   if (layout === 'grid') {
     return (
       <div
-        className={`flex flex-col items-center w-full gap-2 p-2.5 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-sky-500/50 bg-sky-500/10' : 'border-white/[0.06]'}`}
+        className={`flex flex-col items-center w-full gap-2 p-2.5 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-[#0078d4]/50 bg-[#094771]/25' : 'border-white/[0.06]'}`}
       >
         <div className="bndz-list-select-cell flex flex-col items-center w-full gap-2">
           <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={40} eager />
@@ -55,7 +55,7 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
   if (layout === 'list') {
     return (
       <div
-        className={`flex items-center gap-2.5 w-full min-w-0 p-2 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-sky-500/50 bg-sky-500/10' : 'border-white/[0.06]'}`}
+        className={`flex items-center gap-2.5 w-full min-w-0 p-2 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-[#0078d4]/50 bg-[#094771]/25' : 'border-white/[0.06]'}`}
       >
         <div className="bndz-list-select-cell flex items-center gap-2.5 flex-1 min-w-0">
           <div className="shrink-0">
@@ -94,7 +94,7 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
 
   // compact — sidebar & list strip
   return (
-    <div className="px-3 py-1.5 cursor-pointer hover:bg-white/[0.04] border-l-2 border-transparent hover:border-sky-500/40 transition-colors">
+    <div className="px-3 py-1.5 cursor-pointer hover:bg-white/[0.04] border-l-2 border-transparent hover:border-[#0078d4]/40 transition-colors">
       <div className="flex items-center gap-2 mb-1 text-white/80">
         <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={14} eager />
         <span className="text-[11px] font-medium truncate">{displayLabel}</span>
