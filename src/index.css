@@ -988,6 +988,10 @@ html.theme-light .nav-tree-row:hover {
   background: linear-gradient(180deg, rgba(56, 189, 248, 0.05) 0%, transparent 100%);
 }
 
+.bndz-plugin-hero {
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.65) 0%, rgba(12, 14, 20, 0.35) 55%, transparent 100%);
+}
+
 .bndz-plugin-empty {
   color: rgba(148, 163, 184, 0.7);
 }

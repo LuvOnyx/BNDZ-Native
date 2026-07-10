@@ -532,7 +532,7 @@ export const SETTINGS_VALUE_PATCHES: Record<string, string | number | boolean> =
   listIconSize: 16,
   gridIconSize: 48,
   showMiniTree: true,
-  showTreeGlider: true,
+  showTreeGlider: false,
   fontSize: 12,
   uiFontFamily: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
   uiFontWeight: 500,

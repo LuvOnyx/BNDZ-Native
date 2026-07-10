@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
-import { PluginToolbarButton, PluginEmptyState } from './PluginPanelPrimitives';
+import { PluginToolbarButton, PluginEmptyState, PLUGIN_SELECT_CLASS } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { useAppConfig } from '../../data/configContext';
@@ -140,7 +140,7 @@ export default function ActionLogPlugin() {
           <select
             value={kindFilter}
             onChange={e => setKindFilter(e.target.value)}
-            className="bg-[#1a1a1a] border border-[#444] text-[10px] text-gray-300 rounded px-1.5 py-1"
+            className={PLUGIN_SELECT_CLASS}
             title="Filter by action type"
           >
             {kindOptions.map(k => (

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { TreeShellIcon } from './TreeShellIcon';
-import TreeGlider, { type TreeGliderAnchor } from './TreeGlider';
 import { IPC } from '../lib/ipcBridge';
 import { buildSettingsRuntime, evaluateColorFilter } from '../lib/settingsRuntime';
 import { filterTreeListEntities } from '../lib/treeListItemFilter';
@@ -52,11 +51,6 @@ interface VirtualizedNavTreeProps {
   onTreeOrderChange?: (order: string[]) => void;
   onFileDrop?: (payload: BndzFileDragPayload, destPath: string, op: 'copy' | 'move') => void;
   disallowDragFromTree?: boolean;
-  showGlider?: boolean;
-  canGliderPaste?: boolean;
-  onGliderCopy?: (path: string) => void;
-  onGliderMove?: (path: string) => void;
-  onGliderPaste?: (path: string) => void;
   indexedRoots?: string[];
   showIndexBadges?: boolean;
   /** External file-drop hover path (e.g. internal pointer drag from list pane). */
@@ -114,9 +108,6 @@ function TreeRow({
   fileDropTarget,
   tipHandlers,
   disallowDragFromTree,
-  showGlider,
-  onGliderHover,
-  onGliderLeave,
   indexedRoots,
   showIndexBadges,
   clipboard,
@@ -145,9 +136,6 @@ function TreeRow({
   fileDropTarget?: string | null;
   tipHandlers?: ReturnType<typeof bindFloatingTooltipHandlers>;
   disallowDragFromTree?: boolean;
-  showGlider?: boolean;
-  onGliderHover?: (row: FlatNavRow, el: HTMLElement) => void;
-  onGliderLeave?: () => void;
   indexedRoots?: string[];
   showIndexBadges?: boolean;
   clipboard?: VirtualizedNavTreeProps['clipboard'];
@@ -225,17 +213,9 @@ function TreeRow({
         onDrop?.(e, row);
       }}
       onDragEnd={canDragFile ? onDragEnd : undefined}
-      onMouseEnter={e => {
-        tipHandlers?.onMouseEnter?.(e);
-        if (showGlider && row.path && !row.isPlaceholder) {
-          onGliderHover?.(row, e.currentTarget as HTMLElement);
-        }
-      }}
+      onMouseEnter={tipHandlers?.onMouseEnter}
       onMouseMove={tipHandlers?.onMouseMove}
-      onMouseLeave={() => {
-        tipHandlers?.onMouseLeave?.();
-        if (showGlider) onGliderLeave?.();
-      }}
+      onMouseLeave={tipHandlers?.onMouseLeave}
       onClick={handleClick}
       onDoubleClick={e => {
         e.stopPropagation();
@@ -345,11 +325,6 @@ export function VirtualizedNavTree({
   onTreeOrderChange,
   onFileDrop,
   disallowDragFromTree,
-  showGlider,
-  canGliderPaste,
-  onGliderCopy,
-  onGliderMove,
-  onGliderPaste,
   indexedRoots,
   fileDropTarget: externalFileDropTarget,
   clipboard,
@@ -364,10 +339,8 @@ export function VirtualizedNavTree({
   const [dropAfter, setDropAfter] = useState(false);
   const [fileDropTargetPath, setFileDropTargetPath] = useState<string | null>(null);
   const effectiveFileDropTarget = externalFileDropTarget ?? fileDropTargetPath;
-  const [gliderAnchor, setGliderAnchor] = useState<TreeGliderAnchor | null>(null);
   const treeLastClickRef = useRef<SlowClickStamp>(null);
   const treeRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gliderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rt = useMemo(() => buildSettingsRuntime(config), [config]);
@@ -379,38 +352,9 @@ export function VirtualizedNavTree({
     }
   }, []);
 
-  const clearGliderTimer = useCallback(() => {
-    if (gliderTimerRef.current) {
-      clearTimeout(gliderTimerRef.current);
-      gliderTimerRef.current = null;
-    }
-  }, []);
-
-  const handleGliderHover = useCallback((row: FlatNavRow, el: HTMLElement) => {
-    if (!showGlider || !row.path) return;
-    clearGliderTimer();
-    gliderTimerRef.current = setTimeout(() => {
-      const rect = el.getBoundingClientRect();
-      const host = scrollRef.current?.getBoundingClientRect();
-      if (!host) return;
-      setGliderAnchor({
-        path: row.path!,
-        top: rect.top,
-        left: host.right - 88,
-        height: rect.height,
-      });
-    }, 280);
-  }, [showGlider, clearGliderTimer]);
-
-  const handleGliderLeave = useCallback(() => {
-    clearGliderTimer();
-    setGliderAnchor(null);
-  }, [clearGliderTimer]);
-
   useEffect(() => () => {
-    clearGliderTimer();
     clearExpandDragTimer();
-  }, [clearGliderTimer, clearExpandDragTimer]);
+  }, [clearExpandDragTimer]);
 
   const handleFileDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
     if (!row.path) return;
@@ -655,9 +599,6 @@ export function VirtualizedNavTree({
       fileDropTarget={effectiveFileDropTarget}
       tipHandlers={tipHandlers}
       disallowDragFromTree={disallowDragFromTree}
-      showGlider={showGlider}
-      onGliderHover={handleGliderHover}
-      onGliderLeave={handleGliderLeave}
       indexedRoots={indexedRoots}
       showIndexBadges={showIndexBadges}
       clipboard={clipboard}
@@ -708,14 +649,6 @@ export function VirtualizedNavTree({
           <div className="flex flex-col py-0.5">{flatRows.map(renderRow)}</div>
         )}
       </div>
-      <TreeGlider
-        anchor={gliderAnchor}
-        canPaste={!!canGliderPaste}
-        onCopy={path => onGliderCopy?.(path)}
-        onMove={path => onGliderMove?.(path)}
-        onPaste={path => onGliderPaste?.(path)}
-        onDismiss={handleGliderLeave}
-      />
     </div>
   );
 }

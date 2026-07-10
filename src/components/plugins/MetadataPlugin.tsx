@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
+  PluginTabStrip,
+  PluginTab,
   PluginSectionTitle,
   PluginCard,
   PluginFieldGrid,
   PluginFieldRow,
   PluginEmptyState,
+  PluginHeroStrip,
+  PluginHeroActionButton,
 } from './PluginPanelPrimitives';
 
 export const MetadataPluginDef = {
@@ -20,6 +24,29 @@ export const MetadataPluginDef = {
     isNative: true,
     targetPanel: 'bottom' as const,
 };
+
+const MEDIA_KEYS = new Set([
+    'Dimensions', 'Duration', 'Bitrate', 'Codec', 'Camera Model', 'Date Taken',
+    'F-Stop', 'Exposure Time', 'Focal Length', 'ISO Speed', 'Frame Rate',
+    'Audio Bitrate', 'Sample Rate', 'Channels',
+]);
+
+function groupMetadata(meta: Record<string, string>) {
+    const media: [string, string][] = [];
+    const system: [string, string][] = [];
+    const other: [string, string][] = [];
+    for (const [key, value] of Object.entries(meta)) {
+        if (!value) continue;
+        if (MEDIA_KEYS.has(key) || /camera|exif|audio|video|resolution/i.test(key)) {
+            media.push([key, value]);
+        } else if (/ACL|Owner|Archive|Hidden|System|ReadOnly|Created|Modified|Accessed|File Size/i.test(key)) {
+            system.push([key, value]);
+        } else {
+            other.push([key, value]);
+        }
+    }
+    return { media, system, other };
+}
 
 export default function MetadataPlugin({
     focusedPath,
@@ -36,6 +63,7 @@ export default function MetadataPlugin({
     const [hashes, setHashes] = useState<{ md5?: string; sha256?: string }>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'overview' | 'media' | 'system' | 'all'>('overview');
 
     const path = primarySelectedPath
         ? toWindowsPath(primarySelectedPath)
@@ -44,6 +72,9 @@ export default function MetadataPlugin({
             : entity?.path
                 ? toWindowsPath(entity.path)
                 : toWindowsPath(focusedPath || '');
+
+    const displayName = path.split(/[/\\]/).pop() || path;
+    const ext = entity?.type === 'file' ? ((entity as any)?.extension?.toLowerCase() || '') : '';
 
     useEffect(() => {
         if (!path) {
@@ -74,6 +105,8 @@ export default function MetadataPlugin({
         return () => { active = false; };
     }, [path, entity?.type]);
 
+    const grouped = useMemo(() => groupMetadata(meta), [meta]);
+
     const formatSize = (bytes: string | undefined) => {
         if (!bytes) return '--';
         const n = parseInt(bytes, 10);
@@ -83,78 +116,115 @@ export default function MetadataPlugin({
         return parseFloat((n / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    const openProperties = () => {
+        window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'properties' } }));
+    };
+
     if (!path) {
         return (
-            <PluginPanelShell
-                title="Metadata Inspector"
-                icon="metadata"
-                iconColor="#0078d4"
-                variant="embedded"
-                subtitle="No selection"
-            >
-                <PluginEmptyState
-                    icon="metadata"
-                    description="Select a file or folder in the list to inspect extended metadata and hashes."
-                />
+            <PluginPanelShell title="Metadata Inspector" icon="metadata" iconColor="#38bdf8" variant="embedded" subtitle="No selection">
+                <PluginEmptyState icon="metadata" description="Select a file or folder to inspect extended metadata, media tags, and hashes." />
             </PluginPanelShell>
         );
     }
+
+    const renderRows = (entries: [string, string][]) => (
+        <PluginFieldGrid className="mt-1">
+            {entries.map(([key, value]) => (
+                <PluginFieldRow key={key} label={key} mono>
+                    {key === 'File Size' ? formatSize(value) : value}
+                </PluginFieldRow>
+            ))}
+        </PluginFieldGrid>
+    );
 
     return (
         <PluginPanelShell
             title="Metadata Inspector"
             icon="metadata"
-            iconColor="#0078d4"
+            iconColor="#38bdf8"
             variant="embedded"
-            subtitle={path.split(/[/\\]/).pop() || path}
+            subtitle={displayName}
             status={loading ? (
-                <span className="flex items-center gap-2 text-gray-500"><Icons8Icon id="loading" size={12} spin /> Loading…</span>
+                <span className="flex items-center gap-2 text-slate-500"><Icons8Icon id="loading" size={12} spin /> Loading metadata…</span>
             ) : undefined}
         >
-            <div className="h-full overflow-y-auto bndz-scrollbar p-4 space-y-3">
-                <PluginCard className="flex items-center justify-between gap-3 !py-2.5">
-                    <p className="text-xs bndz-panel-muted leading-relaxed">
-                        Full ACL, tags, and hash analysis live in <strong className="text-white font-medium">System Properties</strong>.
-                    </p>
-                    <PluginToolbarButton
-                        onClick={() => window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'properties' } }))}
-                    >
-                        Open Properties
-                    </PluginToolbarButton>
-                </PluginCard>
-                {error && (
-                    <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-md text-red-400 text-xs">{error}</div>
-                )}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <PluginHeroStrip
+                    icon={<Icons8Icon id="metadata" size={56} className="opacity-90" />}
+                    name={displayName}
+                    typeLabel={ext ? `${ext.toUpperCase()} file` : entity?.type === 'directory' ? 'Folder' : 'Item'}
+                    path={path}
+                    actions={
+                        <>
+                            <PluginHeroActionButton icon="sys_properties" variant="primary" onClick={openProperties}>Full properties</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="copy_path" onClick={() => void navigator.clipboard.writeText(path)}>Copy path</PluginHeroActionButton>
+                        </>
+                    }
+                />
 
-                <PluginCard>
-                    <PluginFieldGrid>
-                        <PluginFieldRow label="Target path" mono>{path}</PluginFieldRow>
-                    </PluginFieldGrid>
-                </PluginCard>
+                <PluginTabStrip>
+                    <PluginTab active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PluginTab>
+                    <PluginTab active={activeTab === 'media'} onClick={() => setActiveTab('media')}>Media</PluginTab>
+                    <PluginTab active={activeTab === 'system'} onClick={() => setActiveTab('system')}>System</PluginTab>
+                    <PluginTab active={activeTab === 'all'} onClick={() => setActiveTab('all')}>All fields</PluginTab>
+                </PluginTabStrip>
 
-                {(hashes.md5 || hashes.sha256) && (
-                    <PluginCard>
-                        <PluginSectionTitle icon="disk_mgmt">Cryptographic hashes</PluginSectionTitle>
-                        <PluginFieldGrid>
-                            {hashes.md5 && <PluginFieldRow label="MD5" mono>{hashes.md5}</PluginFieldRow>}
-                            {hashes.sha256 && <PluginFieldRow label="SHA-256" mono>{hashes.sha256}</PluginFieldRow>}
-                        </PluginFieldGrid>
-                    </PluginCard>
-                )}
-
-                <PluginCard>
-                    <PluginSectionTitle icon="file_ui">Extended properties</PluginSectionTitle>
-                    {Object.entries(meta).length === 0 && !loading && (
-                        <div className="bndz-panel-muted italic">No extended metadata available.</div>
+                <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 space-y-4 min-h-0">
+                    {error && (
+                        <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg text-red-400 text-xs flex items-center gap-2">
+                            <Icons8Icon id="error_ui" size={14} /> {error}
+                        </div>
                     )}
-                    <PluginFieldGrid className="mt-1">
-                        {Object.entries(meta).map(([key, value]) => (
-                            <PluginFieldRow key={key} label={key} mono>
-                                {key === 'File Size' ? formatSize(value) : value}
-                            </PluginFieldRow>
-                        ))}
-                    </PluginFieldGrid>
-                </PluginCard>
+
+                    {activeTab === 'overview' && (
+                        <>
+                            {(hashes.md5 || hashes.sha256) && (
+                                <PluginCard>
+                                    <PluginSectionTitle icon="key_ui">Hashes</PluginSectionTitle>
+                                    <PluginFieldGrid>
+                                        {hashes.md5 && <PluginFieldRow label="MD5" mono>{hashes.md5}</PluginFieldRow>}
+                                        {hashes.sha256 && <PluginFieldRow label="SHA-256" mono>{hashes.sha256}</PluginFieldRow>}
+                                    </PluginFieldGrid>
+                                </PluginCard>
+                            )}
+                            <PluginCard>
+                                <PluginSectionTitle icon="file_ui">Key properties</PluginSectionTitle>
+                                {renderRows([...grouped.system.slice(0, 8), ...grouped.media.slice(0, 4)])}
+                                {!grouped.system.length && !grouped.media.length && !loading && (
+                                    <p className="bndz-panel-muted text-xs italic">No overview metadata available.</p>
+                                )}
+                            </PluginCard>
+                        </>
+                    )}
+
+                    {activeTab === 'media' && (
+                        <PluginCard>
+                            <PluginSectionTitle icon="picture_ui">Media & EXIF</PluginSectionTitle>
+                            {grouped.media.length ? renderRows(grouped.media) : (
+                                <p className="bndz-panel-muted text-xs italic">No media metadata for this item.</p>
+                            )}
+                        </PluginCard>
+                    )}
+
+                    {activeTab === 'system' && (
+                        <PluginCard>
+                            <PluginSectionTitle icon="shield_ui">System & NTFS</PluginSectionTitle>
+                            {grouped.system.length ? renderRows(grouped.system) : (
+                                <p className="bndz-panel-muted text-xs italic">No system metadata for this item.</p>
+                            )}
+                        </PluginCard>
+                    )}
+
+                    {activeTab === 'all' && (
+                        <PluginCard>
+                            <PluginSectionTitle icon="database_ui">All extended fields</PluginSectionTitle>
+                            {Object.entries(meta).length ? renderRows(Object.entries(meta)) : (
+                                !loading && <p className="bndz-panel-muted text-xs italic">No extended metadata available.</p>
+                            )}
+                        </PluginCard>
+                    )}
+                </div>
             </div>
         </PluginPanelShell>
     );

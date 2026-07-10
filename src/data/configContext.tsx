@@ -165,6 +165,7 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.onlyWhileTheShiftKeyIsHeldDown = merged.onlyWhileTheShiftKeyIsHeldDown !== false;
         merged.tooltipBehaviorVersion = 3;
     }
+    if (merged.showTreeGlider !== false) merged.showTreeGlider = false;
     if (merged.inTreeAsWell === undefined) merged.inTreeAsWell = true;
     if ((merged.folderSizeViewVersion ?? 0) < 1) {
         merged.folderSizeVisualization = 'list';

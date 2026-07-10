@@ -91,14 +91,13 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
       iconColor="#34d399"
       subtitle="Binary file and folder diff"
       variant="embedded"
-      toolbar={
-        <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
+    >
+      <div className="flex flex-col h-full min-h-0 overflow-hidden">
+        <PluginTabStrip>
           <PluginTab active={mode === 'files'} onClick={() => setMode('files')}>Files</PluginTab>
           <PluginTab active={mode === 'dirs'} onClick={() => setMode('dirs')}>Folders</PluginTab>
         </PluginTabStrip>
-      }
-    >
-      <div className="flex flex-col h-full min-h-0 p-4 gap-3">
+        <div className="flex flex-col flex-1 min-h-0 p-4 gap-3">
         <div className="grid grid-cols-2 gap-2">
           <input value={pathA} onChange={e => setPathA(e.target.value)} placeholder="Path A" className={PLUGIN_INPUT_CLASS} />
           <input value={pathB} onChange={e => setPathB(e.target.value)} placeholder="Path B" className={PLUGIN_INPUT_CLASS} />
@@ -148,6 +147,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath }: Props
         {mode === 'dirs' && !loading && dirResults.length === 0 && (
           <PluginEmptyState icon="compare_ui" description="Run folder compare to see diff rows." />
         )}
+        </div>
       </div>
     </PluginPanelShell>
   );

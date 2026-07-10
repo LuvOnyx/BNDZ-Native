@@ -40,7 +40,7 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400 p-0.5 -ml-1" onClick={e => e.stopPropagation()}>
         <DragHandleGlyph size={10} />
       </span>
-      {showIcons !== false && <Icons8Icon id={plugin.icon || 'dropstack'} size={12} className="shrink-0" />}
+      {showIcons !== false && <Icons8Icon id={plugin.icon || 'dropstack'} size={14} className="shrink-0" />}
       <span className="truncate">{plugin.name}</span>
     </button>
   );
@@ -191,7 +191,7 @@ export default function BottomPluginPanel(props: any & {
     if (launchContext && activeTab) onLaunchContextConsumed?.();
   }, [activeTab, launchContext, onLaunchContextConsumed]);
 
-  const visibleTabCount = 7;
+  const visibleTabCount = 13;
   const primaryTabs = orderedPlugins.slice(0, visibleTabCount);
   const overflowTabs = orderedPlugins.slice(visibleTabCount);
 

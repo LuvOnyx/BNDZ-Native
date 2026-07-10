@@ -7252,11 +7252,6 @@ export default function BNDZUI() {
                       navTreeOrder={config.navTreeOrder}
                       onTreeOrderChange={(order) => updateConfig({ navTreeOrder: order })}
                       disallowDragFromTree={settingsRt.mouse.disallowDragFromTree}
-                      showGlider={config.showTreeGlider !== false}
-                      canGliderPaste={!!clipboard.items?.length && !!clipboard.action}
-                      onGliderCopy={(path) => setClipboardState([path], 'copy')}
-                      onGliderMove={(path) => setClipboardState([path], 'cut')}
-                      onGliderPaste={(path) => void executePaste(path)}
                       clipboard={clipboard}
                       onFileDrop={async (payload, destPath, op) => {
                         const destWin = toWindowsPath(destPath);

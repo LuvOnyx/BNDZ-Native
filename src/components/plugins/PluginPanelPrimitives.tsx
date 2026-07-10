@@ -35,7 +35,7 @@ export function PluginToolbarButton({
           : 'bg-white/[0.03] border-white/10 text-gray-300 hover:bg-white/[0.06] hover:text-white'
       }`}
     >
-      {icon && <Icons8Icon id={icon} size={12} />}
+      {icon && <Icons8Icon id={icon} size={14} />}
       {children}
     </button>
   );
@@ -137,6 +137,69 @@ export function PluginFieldRow({
       <div className="bndz-plugin-field-label">{label}</div>
       <div className={mono ? 'bndz-plugin-field-value bndz-mono' : 'bndz-plugin-field-value'}>{children}</div>
     </>
+  );
+}
+
+export function PluginHeroActionButton({
+  children,
+  onClick,
+  disabled,
+  active,
+  icon,
+  variant = 'default',
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  icon?: string;
+  variant?: 'primary' | 'default';
+}) {
+  const base = 'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors disabled:opacity-40';
+  const styles = variant === 'primary'
+    ? 'bg-sky-500/15 border-sky-400/35 text-sky-300 hover:bg-sky-500/25'
+    : active
+      ? 'bg-[#094771]/35 border-[#38bdf8]/40 text-[#bae6fd]'
+      : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:border-white/20';
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className={`${base} ${styles}`}>
+      {icon && <Icons8Icon id={icon} size={13} />}
+      {children}
+    </button>
+  );
+}
+
+/** Premium hero strip — large icon, metadata, and vertical quick actions. */
+export function PluginHeroStrip({
+  icon,
+  name,
+  typeLabel,
+  path,
+  meta,
+  actions,
+}: {
+  icon: ReactNode;
+  name: string;
+  typeLabel?: string;
+  path?: string | null;
+  meta?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="bndz-plugin-hero shrink-0 border-b border-white/[0.08] px-5 py-4 flex gap-5 items-center min-w-0">
+      <div className="shrink-0 drop-shadow-lg">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <h2 className="text-base font-semibold text-white truncate leading-tight tracking-tight">{name}</h2>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {typeLabel && <span className="bndz-plugin-kind-pill">{typeLabel}</span>}
+          {meta}
+        </div>
+        {path && (
+          <p className="bndz-mono bndz-panel-muted mt-1.5 truncate text-xs" title={path}>{path}</p>
+        )}
+      </div>
+      {actions && <div className="flex flex-col gap-1.5 shrink-0">{actions}</div>}
+    </div>
   );
 }
 

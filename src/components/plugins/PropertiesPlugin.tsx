@@ -10,10 +10,12 @@ import {
   PluginFieldGrid,
   PluginFieldRow,
   PluginEmptyState,
-  PluginIdentityHeader,
+  PluginHeroStrip,
+  PluginHeroActionButton,
+  PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 import { FSEntity } from '../../types';
-import { toWindowsPath, normalizePanePath, isRecycleBinPath } from '../../lib/pathUtils';
+import { normalizePanePath, isRecycleBinPath } from '../../lib/pathUtils';
 import { formatPropertiesPath } from '../../lib/displayPath';
 import { getPaneTabLabel } from '../../lib/paneLabels';
 import { getLocationIconPath } from '../../lib/virtualLocations';
@@ -50,6 +52,7 @@ export default function PropertiesPlugin({
     const [sidecarDirty, setSidecarDirty] = useState(false);
     const [sidecarSaving, setSidecarSaving] = useState(false);
     const [hashCopied, setHashCopied] = useState<'md5' | 'sha256' | null>(null);
+    const [aclNotice, setAclNotice] = useState<string | null>(null);
 
     const selectionCount = selectedItems.length;
     const isMulti = selectionCount > 1;
@@ -241,6 +244,13 @@ export default function PropertiesPlugin({
         runIpc(IPC => { if (IPC.isNative) IPC.setFileAttributes(targetPath, newAttributes); });
     };
 
+    const toggleAcl = (type: 'read' | 'write' | 'execute') => {
+        if (!fileDetails || !targetPath) return;
+        const newAcl = { ...fileDetails.acl, [type]: !fileDetails.acl?.[type] };
+        setFileDetails({ ...fileDetails, acl: newAcl });
+        setAclNotice('Permission preview only — use Windows Security for full ACL editing.');
+    };
+
     const addTagChip = () => {
         const t = tagDraft.trim().toLowerCase();
         if (!t || sidecarTags.some(x => x.toLowerCase() === t)) { setTagDraft(''); return; }
@@ -279,14 +289,14 @@ export default function PropertiesPlugin({
     if (!targetPath && selectionCount === 0) {
         return (
             <PluginPanelShell
-                title="Properties"
+                title="System Properties"
                 icon="sys_properties"
-                iconColor="#0078d4"
+                iconColor="#38bdf8"
                 variant="embedded"
                 subtitle="No selection"
             >
                 <PluginEmptyState
-                    icon="layers_ui"
+                    icon="sys_properties"
                     description="Select items to inspect properties, attributes, hashes, and BNDZ tags."
                 />
             </PluginPanelShell>
@@ -317,36 +327,20 @@ export default function PropertiesPlugin({
 
     return (
         <PluginPanelShell
-            title="Properties"
+            title="System Properties"
             icon="sys_properties"
-            iconColor="#0078d4"
+            iconColor="#38bdf8"
             variant="embedded"
             subtitle={displayName}
-            toolbar={
-                <>
-                    {!isMulti && (
-                        <PluginToolbarButton icon="folder_open_ui" onClick={openItem}>Open</PluginToolbarButton>
-                    )}
-                    <PluginToolbarButton icon="copy_path" onClick={copyPath} active={copied}>
-                        {copied ? 'Copied' : 'Copy path'}
-                    </PluginToolbarButton>
-                    {!isMulti && (
-                        <>
-                            <PluginToolbarButton icon="folder_open_ui" onClick={showInExplorer}>Reveal</PluginToolbarButton>
-                            <PluginToolbarButton icon="config" onClick={showNativeProperties}>Windows props</PluginToolbarButton>
-                        </>
-                    )}
-                </>
-            }
         >
         <div className="flex-1 w-full flex flex-col overflow-hidden text-slate-300 min-h-0">
-            <PluginIdentityHeader
+            <PluginHeroStrip
                 icon={
                     <PreviewHeroIcon
                         path={heroIconPath}
                         isDir={isDir}
                         isDrive={!!driveInfo}
-                        size={48}
+                        size={96}
                         extension={ext}
                         preferThumbnail={!isDir && !isMulti}
                     />
@@ -355,6 +349,20 @@ export default function PropertiesPlugin({
                 typeLabel={typeLabel}
                 path={!isMulti ? targetPath : undefined}
                 meta={isMulti ? <span className="bndz-panel-muted text-xs">{selectionCount} paths</span> : undefined}
+                actions={!isMulti ? (
+                    <>
+                        <PluginHeroActionButton icon="external_link" variant="primary" onClick={openItem}>Open</PluginHeroActionButton>
+                        <PluginHeroActionButton icon="copy_path" onClick={copyPath} active={copied}>
+                            {copied ? 'Copied!' : 'Copy path'}
+                        </PluginHeroActionButton>
+                        <PluginHeroActionButton icon="folder_open_ui" onClick={showInExplorer}>Reveal</PluginHeroActionButton>
+                        <PluginHeroActionButton icon="sys_properties" onClick={showNativeProperties}>Windows props</PluginHeroActionButton>
+                    </>
+                ) : (
+                    <PluginHeroActionButton icon="copy_path" onClick={copyPath} active={copied}>
+                        {copied ? 'Copied!' : 'Copy path'}
+                    </PluginHeroActionButton>
+                )}
             />
 
             <PluginTabStrip>
@@ -365,7 +373,7 @@ export default function PropertiesPlugin({
                 ))}
             </PluginTabStrip>
 
-            <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 min-h-0">
+            <div className="flex-1 overflow-y-auto bndz-scrollbar p-5 min-h-0">
                 {error && (
                     <div className="mb-4 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                         <Icons8Icon id="error_ui" size={14} /> {error}
@@ -373,7 +381,7 @@ export default function PropertiesPlugin({
                 )}
 
                 {activeTab === 'general' && (
-                    <div className="flex flex-col gap-3 max-w-2xl">
+                    <div className="flex flex-col gap-4 max-w-2xl">
                         {isMulti ? (
                             <PluginCard>
                                 <PluginSectionTitle icon="layers_ui">Bulk selection</PluginSectionTitle>
@@ -381,12 +389,12 @@ export default function PropertiesPlugin({
                                     <PluginFieldRow label="Items">{selectionCount}</PluginFieldRow>
                                     <PluginFieldRow label="Primary" mono>{targetPath}</PluginFieldRow>
                                 </PluginFieldGrid>
-                                <div className="mt-3 max-h-[140px] overflow-y-auto bndz-scrollbar border border-white/[0.06] rounded-md">
+                                <div className="mt-3 max-h-[160px] overflow-y-auto bndz-scrollbar border border-white/[0.08] rounded-lg">
                                     {selectedItems.map((p, i) => (
                                         <div key={i} className="px-3 py-1.5 text-xs bndz-mono bndz-panel-muted border-b border-white/[0.04] last:border-0 truncate">{p}</div>
                                     ))}
                                 </div>
-                                <p className="bndz-panel-muted mt-3">Use the context menu for bulk copy, move, delete, or compress operations.</p>
+                                <p className="bndz-panel-muted mt-3 text-xs leading-relaxed">Use the context menu for bulk copy, move, delete, or compress operations.</p>
                             </PluginCard>
                         ) : driveInfo ? (
                             <PluginCard>
@@ -394,7 +402,7 @@ export default function PropertiesPlugin({
                                     <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
                                     <PluginFieldRow label="Capacity" mono>{formatSize(driveInfo.totalSpace)}</PluginFieldRow>
                                     <PluginFieldRow label="Free space" mono><span className="text-emerald-400">{formatSize(driveInfo.freeSpace)}</span></PluginFieldRow>
-                                    <PluginFieldRow label="Used" mono><span className="text-[#7eb8e8]">{formatSize(driveInfo.totalSpace - driveInfo.freeSpace)}</span></PluginFieldRow>
+                                    <PluginFieldRow label="Used" mono><span className="text-sky-300">{formatSize(driveInfo.totalSpace - driveInfo.freeSpace)}</span></PluginFieldRow>
                                     <PluginFieldRow label="Format">{driveInfo.format || 'NTFS'}</PluginFieldRow>
                                 </PluginFieldGrid>
                             </PluginCard>
@@ -446,7 +454,7 @@ export default function PropertiesPlugin({
                                             value={sidecarLabel}
                                             onChange={e => { setSidecarLabel(e.target.value); setSidecarDirty(true); }}
                                             placeholder="Custom label for this item"
-                                            className="w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-violet-500/50"
+                                            className={PLUGIN_INPUT_CLASS}
                                         />
                                     </PluginFieldRow>
                                     <PluginFieldRow label="Comment">
@@ -455,7 +463,7 @@ export default function PropertiesPlugin({
                                             onChange={e => { setSidecarComment(e.target.value); setSidecarDirty(true); }}
                                             placeholder="Notes or description"
                                             rows={3}
-                                            className="w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-violet-500/50 resize-y min-h-[56px]"
+                                            className={`${PLUGIN_INPUT_CLASS} resize-y min-h-[56px]`}
                                         />
                                     </PluginFieldRow>
                                     <PluginFieldRow label="Tags">
@@ -466,7 +474,7 @@ export default function PropertiesPlugin({
                                                         key={t}
                                                         type="button"
                                                         onClick={() => removeTagChip(t)}
-                                                        className="group bg-violet-500/10 text-xs px-2 py-0.5 rounded border border-violet-500/30 text-violet-200 hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-300 transition-colors"
+                                                        className="group bg-violet-500/10 text-xs px-2 py-0.5 rounded-md border border-violet-500/30 text-violet-200 hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-300 transition-colors"
                                                         title="Remove tag"
                                                     >
                                                         {t} <span className="opacity-0 group-hover:opacity-100">×</span>
@@ -482,7 +490,7 @@ export default function PropertiesPlugin({
                                                     onChange={e => setTagDraft(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTagChip(); } }}
                                                     placeholder="Add tag…"
-                                                    className="flex-1 bg-black/30 border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 outline-none focus:border-violet-500/50"
+                                                    className={`flex-1 ${PLUGIN_INPUT_CLASS}`}
                                                 />
                                                 <PluginToolbarButton onClick={addTagChip}>Add</PluginToolbarButton>
                                             </div>
@@ -495,7 +503,7 @@ export default function PropertiesPlugin({
                 )}
 
                 {activeTab === 'security' && !isMulti && (
-                    <div className="flex flex-col gap-3 max-w-xl">
+                    <div className="flex flex-col gap-4 max-w-xl">
                         <PluginCard>
                             <PluginSectionTitle
                                 icon="shield_ui"
@@ -505,11 +513,41 @@ export default function PropertiesPlugin({
                                     </PluginToolbarButton>
                                 }
                             >
-                                Security
+                                Access control
                             </PluginSectionTitle>
-                            <p className="text-xs bndz-panel-muted leading-relaxed">
-                                NTFS permissions and access control are managed by Windows. Use the button above to open the native Security editor for this item.
+                            <p className="text-xs bndz-panel-muted leading-relaxed mb-3">
+                                Effective permissions preview. Full ACL editing uses Windows Security.
                             </p>
+                            {aclNotice && (
+                                <p className="text-xs text-amber-400/90 mb-3">{aclNotice}</p>
+                            )}
+                            <div className="grid grid-cols-3 gap-2 mb-4">
+                                {(['read', 'write', 'execute'] as const).map(type => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => toggleAcl(type)}
+                                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-colors ${
+                                            fileDetails?.acl?.[type]
+                                                ? 'bg-pink-500/10 border-pink-500/40 text-pink-300'
+                                                : 'bg-black/20 border-white/[0.08] text-slate-400 hover:border-pink-500/30'
+                                        }`}
+                                    >
+                                        <Icons8Icon id="check" size={16} className={fileDetails?.acl?.[type] ? 'opacity-100' : 'opacity-0'} />
+                                        <span className="text-[11px] font-bold uppercase tracking-wide">{type}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            {Array.isArray(fileDetails?.aclRules) && fileDetails.aclRules.length > 0 && (
+                                <div className="rounded-lg border border-white/[0.08] bg-black/25 p-3 max-h-44 overflow-y-auto bndz-scrollbar">
+                                    <div className="bndz-plugin-section-title mb-2">NTFS rules</div>
+                                    <ul className="space-y-1">
+                                        {fileDetails.aclRules.map((rule: string, i: number) => (
+                                            <li key={i} className="text-[10px] bndz-mono text-slate-400 break-all leading-relaxed">{rule}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </PluginCard>
                         <PluginCard>
                             <PluginSectionTitle>NTFS attributes</PluginSectionTitle>
@@ -519,14 +557,14 @@ export default function PropertiesPlugin({
                                         key={attr}
                                         type="button"
                                         onClick={() => toggleAttribute(attr)}
-                                        className="flex items-center gap-2.5 p-2 rounded-md border border-white/[0.06] bg-black/20 hover:bg-white/[0.04] transition-colors group text-left"
+                                        className="flex items-center gap-2.5 p-2.5 rounded-lg border border-white/[0.08] bg-black/20 hover:bg-white/[0.04] transition-colors group text-left"
                                     >
                                         <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                            fileDetails?.attributes?.[attr] ? 'bg-[#0078d4] border-[#0078d4]' : 'border-white/20 group-hover:border-[#0078d4]/45'
+                                            fileDetails?.attributes?.[attr] ? 'bg-sky-500 border-sky-500' : 'border-white/20 group-hover:border-sky-400/45'
                                         }`}>
-                                            {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={9} className="text-black" />}
+                                            {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={9} />}
                                         </div>
-                                        <span className="text-xs text-gray-300">{attr}</span>
+                                        <span className="text-xs text-slate-300">{attr}</span>
                                     </button>
                                 ))}
                             </div>
@@ -538,8 +576,8 @@ export default function PropertiesPlugin({
                     <PluginCard className="max-w-xl relative">
                         <PluginSectionTitle icon="key_ui">Cryptographic hashes</PluginSectionTitle>
                         {hash.loading && (
-                            <div className="absolute inset-0 z-10 bg-black/50  flex flex-col gap-2 items-center justify-center rounded-md">
-                                <Icons8Icon id="loading" size={22} spin className="text-emerald-500" />
+                            <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col gap-2 items-center justify-center rounded-lg">
+                                <Icons8Icon id="loading" size={24} spin className="text-emerald-400" />
                                 <div className="text-xs text-emerald-400 font-medium">Computing…</div>
                             </div>
                         )}
@@ -558,7 +596,7 @@ export default function PropertiesPlugin({
                                     </div>
                                     <input
                                         readOnly
-                                        className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-xs text-gray-300 bndz-mono"
+                                        className={`w-full ${PLUGIN_INPUT_CLASS} bndz-mono py-2`}
                                         value={(hash as any)[kind] || 'Pending...'}
                                     />
                                 </div>
