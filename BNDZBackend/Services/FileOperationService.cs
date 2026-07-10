@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BNDZ.Services;
@@ -49,7 +50,8 @@ public class FileOperationService
         Action<string, int, string, long, long, double, int, int>? onProgress = null,
         Func<string, string, string, string, Task<string>>? onConflict = null,
         bool recordActionLog = true,
-        Action<string, string>? onAccessDenied = null)
+        Action<string, string>? onAccessDenied = null,
+        CancellationToken cancellationToken = default)
     {
         sources = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
         target = NormalizePath(target);
@@ -83,14 +85,14 @@ public class FileOperationService
                     break;
 
                 case "delete":
-                    await DeleteItemsAsync(operationId, sources, bypassRecycleBin, onProgress);
+                    await DeleteItemsAsync(operationId, sources, bypassRecycleBin, onProgress, cancellationToken);
                     if (sources.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForDelete(sources, !bypassRecycleBin));
                     break;
 
                 case "copy":
                 {
-                    var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict).ConfigureAwait(false);
+                    var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict, cancellationToken).ConfigureAwait(false);
                     if (created.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForCopy(sources, created));
                     break;
@@ -98,7 +100,7 @@ public class FileOperationService
 
                 case "move":
                 {
-                    var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict).ConfigureAwait(false);
+                    var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict, cancellationToken).ConfigureAwait(false);
                     if (movedTo.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForMove(sources, movedTo));
                     break;
@@ -125,11 +127,13 @@ public class FileOperationService
         string operationId,
         List<string> sources,
         bool bypassRecycleBin,
-        Action<string, int, string, long, long, double, int, int>? onProgress)
+        Action<string, int, string, long, long, double, int, int>? onProgress,
+        CancellationToken cancellationToken)
     {
         int total = sources.Count;
         for (int i = 0; i < sources.Count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var src = sources[i];
             try
             {
@@ -171,7 +175,8 @@ public class FileOperationService
         string targetDir,
         bool move,
         Action<string, int, string, long, long, double, int, int>? onProgress,
-        Func<string, string, string, string, Task<string>>? onConflict)
+        Func<string, string, string, string, Task<string>>? onConflict,
+        CancellationToken cancellationToken)
     {
         var createdPaths = new List<string>();
         if (string.IsNullOrEmpty(targetDir))
@@ -231,6 +236,7 @@ public class FileOperationService
 
         for (int i = 0; i < work.Count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var (src, dest, size) = work[i];
             var destDir = Path.GetDirectoryName(dest);
             if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
@@ -255,7 +261,7 @@ public class FileOperationService
             }
             else
             {
-                await CopyFileBufferedAsync(src, dest).ConfigureAwait(false);
+                await CopyFileBufferedAsync(src, dest, cancellationToken).ConfigureAwait(false);
                 if (!await VerifyCopyAsync(src, dest).ConfigureAwait(false))
                     throw new IOException($"Copy verification failed for {Path.GetFileName(src)}");
                 createdPaths.Add(dest);
@@ -288,7 +294,7 @@ public class FileOperationService
         return createdPaths;
     }
 
-    private static async Task CopyFileBufferedAsync(string sourceFile, string destinationFile)
+    private static async Task CopyFileBufferedAsync(string sourceFile, string destinationFile, CancellationToken cancellationToken = default)
     {
         const int bufferSize = 1024 * 1024;
         await using var sourceStream = new FileStream(
@@ -297,8 +303,14 @@ public class FileOperationService
         await using var destinationStream = new FileStream(
             destinationFile, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await sourceStream.CopyToAsync(destinationStream, bufferSize).ConfigureAwait(false);
-        await destinationStream.FlushAsync().ConfigureAwait(false);
+        var buffer = new byte[bufferSize];
+        int read;
+        while ((read = await sourceStream.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await destinationStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+        }
+        await destinationStream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<bool> VerifyCopyAsync(string sourceFile, string destinationFile)

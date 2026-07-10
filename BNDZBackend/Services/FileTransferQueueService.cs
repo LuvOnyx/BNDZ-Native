@@ -31,6 +31,10 @@ public sealed class FileTransferJob
     public DateTime? CompletedUtc { get; set; }
     public int ItemsTotal { get; set; } = 1;
     public int ItemsCompleted { get; set; }
+    public long BytesTransferred { get; set; }
+    public long TotalBytes { get; set; }
+    public double SpeedBytesPerSecond { get; set; }
+    public int? EtaSeconds { get; set; }
 
     public object ToDto() => new
     {
@@ -47,6 +51,10 @@ public sealed class FileTransferJob
         completedUtc = CompletedUtc,
         itemsTotal = ItemsTotal,
         itemsCompleted = ItemsCompleted,
+        bytesTransferred = BytesTransferred,
+        totalBytes = TotalBytes,
+        speedBytesPerSecond = SpeedBytesPerSecond,
+        etaSeconds = EtaSeconds,
     };
 }
 
@@ -76,7 +84,10 @@ public sealed class FileTransferQueueService
 
     public IReadOnlyList<object> GetSnapshot(int max = 32)
     {
+        var cutoff = DateTime.UtcNow.AddSeconds(-45);
         return _jobs.Values
+            .Where(j => j.Status is FileTransferJobStatus.Queued or FileTransferJobStatus.Running
+                || (j.CompletedUtc.HasValue && j.CompletedUtc.Value >= cutoff))
             .OrderByDescending(j => j.Status == FileTransferJobStatus.Running)
             .ThenByDescending(j => j.Status == FileTransferJobStatus.Queued)
             .ThenByDescending(j => j.QueuedUtc)
@@ -110,13 +121,25 @@ public sealed class FileTransferQueueService
     public bool TryGetJob(string operationId, out FileTransferJob? job) =>
         _jobs.TryGetValue(operationId, out job);
 
-    public void UpdateProgress(string operationId, int progress, string? currentFile, int itemsCompleted, int itemsTotal)
+    public void UpdateProgress(string operationId, int progress, string? currentFile, int itemsCompleted, int itemsTotal, long bytesTransferred = 0, long totalBytes = 0, double speedBytesPerSecond = 0)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
         job.Progress = Math.Clamp(progress, 0, 100);
         job.CurrentFile = currentFile;
         job.ItemsCompleted = itemsCompleted;
         job.ItemsTotal = Math.Max(itemsTotal, 1);
+        job.BytesTransferred = bytesTransferred;
+        job.TotalBytes = totalBytes;
+        job.SpeedBytesPerSecond = speedBytesPerSecond;
+        if (totalBytes > 0 && bytesTransferred > 0 && speedBytesPerSecond > 0)
+        {
+            var remaining = totalBytes - bytesTransferred;
+            job.EtaSeconds = remaining > 0 ? (int)Math.Ceiling(remaining / speedBytesPerSecond) : 0;
+        }
+        else
+        {
+            job.EtaSeconds = null;
+        }
         if (job.Status == FileTransferJobStatus.Queued)
         {
             job.Status = FileTransferJobStatus.Running;
@@ -204,12 +227,16 @@ public sealed class FileTransferQueueService
         }
         Interlocked.Increment(ref _activeCount);
         NotifyChanged();
+        var token = RegisterCancellation(operationId);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, cancellationToken);
         try
         {
-            await work(cancellationToken).ConfigureAwait(false);
+            await work(linked.Token).ConfigureAwait(false);
         }
         finally
         {
+            _cancelSources.TryRemove(operationId, out var cts);
+            cts?.Dispose();
             Interlocked.Decrement(ref _activeCount);
             NotifyChanged();
         }

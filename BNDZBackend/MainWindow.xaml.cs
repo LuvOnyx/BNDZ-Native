@@ -3186,7 +3186,7 @@ namespace BNDZ
             {
                 void OnProgress(string opId, int percentage, string currentFile, long bytesTransferred, long totalBytes, double speedBytesPerSecond, int itemsCompleted, int totalItems)
                 {
-                    _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems);
+                    _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems, bytesTransferred, totalBytes, speedBytesPerSecond);
                     var evt = new
                     {
                         type = "PROGRESS_UPDATE",
@@ -3220,7 +3220,8 @@ namespace BNDZ
                             target,
                             bypassRecycleBin,
                             OnProgress,
-                            ct).ConfigureAwait(false);
+                            ct,
+                            prefs.NativeShowProgress).ConfigureAwait(false);
                     }
                     else
                     {
@@ -3266,7 +3267,8 @@ namespace BNDZ
                                 {
                                     MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
                                 });
-                            }).ConfigureAwait(false);
+                            },
+                            cancellationToken: ct).ConfigureAwait(false);
                     }
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);

@@ -45,7 +45,8 @@ public sealed class NativeShellFileOperationService
         string target,
         bool bypassRecycleBin,
         Action<string, int, string, long, long, double, int, int>? onProgress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool showProgress = true)
     {
         return Task.Run(() =>
         {
@@ -60,16 +61,16 @@ public sealed class NativeShellFileOperationService
             switch (action)
             {
                 case "delete":
-                    ShellDelete(sources, bypassRecycleBin);
+                    ShellDelete(sources, bypassRecycleBin, showProgress);
                     break;
                 case "copy":
-                    ShellCopyOrMove(sources, target, move: false);
+                    ShellCopyOrMove(sources, target, move: false, showProgress: showProgress);
                     break;
                 case "move":
                     if (sources.Count == 1 && IsSameDirectoryRename(sources[0], target))
-                        ShellCopyOrMove(sources, target, move: true, singleTargetFile: true);
+                        ShellCopyOrMove(sources, target, move: true, singleTargetFile: true, showProgress: showProgress);
                     else
-                        ShellCopyOrMove(sources, target, move: true);
+                        ShellCopyOrMove(sources, target, move: true, showProgress: showProgress);
                     break;
                 case "create-dir":
                     if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
@@ -95,12 +96,12 @@ public sealed class NativeShellFileOperationService
         }, cancellationToken);
     }
 
-    private static void ShellDelete(List<string> sources, bool bypassRecycleBin)
+    private static void ShellDelete(List<string> sources, bool bypassRecycleBin, bool showProgress)
     {
         var from = string.Join('\0', sources) + "\0\0";
         var flags = (ushort)(FOF_NOCONFIRMATION | FOF_NOERRORUI);
         if (!bypassRecycleBin) flags |= FOF_ALLOWUNDO;
-        else flags |= FOF_SILENT;
+        if (!showProgress) flags |= FOF_SILENT;
 
         var fileop = new SHFILEOPSTRUCT
         {
@@ -114,7 +115,7 @@ public sealed class NativeShellFileOperationService
             throw new IOException($"Windows delete operation failed (code {result}).");
     }
 
-    private static void ShellCopyOrMove(List<string> sources, string targetDir, bool move, bool singleTargetFile = false)
+    private static void ShellCopyOrMove(List<string> sources, string targetDir, bool move, bool singleTargetFile = false, bool showProgress = true)
     {
         if (sources.Count == 0) return;
 
@@ -132,8 +133,9 @@ public sealed class NativeShellFileOperationService
             to = dest + "\0\0";
         }
 
-        // Explorer progress UI — no FOF_SILENT. Shell handles collisions.
+        // Explorer progress UI unless silent mode requested.
         var flags = (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI);
+        if (!showProgress) flags |= FOF_SILENT;
         var fileop = new SHFILEOPSTRUCT
         {
             wFunc = move ? FO_MOVE : FO_COPY,

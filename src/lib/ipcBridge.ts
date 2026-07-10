@@ -62,6 +62,10 @@ export interface FileTransferJobDto {
   completedUtc?: string;
   itemsTotal?: number;
   itemsCompleted?: number;
+  bytesTransferred?: number;
+  totalBytes?: number;
+  speedBytesPerSecond?: number;
+  etaSeconds?: number | null;
 }
 
 export interface FileTransferQueueState {

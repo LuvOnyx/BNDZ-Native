@@ -151,6 +151,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   enableBackgroundProcessing: true,
   /** bndz = managed engine with in-app queue/progress; native = Windows shell transfers */
   fileOperationEngine: 'bndz',
+  nativeShellShowProgress: true,
   enableBlowUpsOnFileIconsAsWell: false,
   enableColorFilters: false,
   enableExtendedPatternMatching: false,

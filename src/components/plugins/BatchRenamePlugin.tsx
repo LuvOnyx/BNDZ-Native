@@ -163,6 +163,8 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         let failed = 0;
 
         try {
+            const batchId = Date.now();
+            const batchLabel = `Batch rename (${collisions.length} items)`;
             for (const p of collisions) {
                 if (!p.parentDir) { failed++; continue; }
                 const dest = `${p.parentDir}\\${p.newName}`;
@@ -176,7 +178,10 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                         skipped++;
                         continue;
                     }
-                    await IPC.executeFsOperation(`rename-batch-${renamed}`, 'move', p.sourcePath, dest);
+                    const itemLabel = renamed === 0
+                        ? batchLabel
+                        : `Rename: ${p.oldName} → ${p.newName}`;
+                    await IPC.executeFsOperation(`rename-batch-${batchId}-${renamed}`, 'move', p.sourcePath, dest, false, itemLabel);
                     renamed++;
                 } catch {
                     failed++;

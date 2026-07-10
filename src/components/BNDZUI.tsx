@@ -1464,7 +1464,7 @@ export default function BNDZUI() {
          const tab = activePane?.tabs[activePane.activeTabIndex];
          if (tab?.path) {
            import('../lib/ipcBridge').then(({ IPC }) =>
-             IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(tab.path, 'New folder'), ''),
+             IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(tab.path, 'New folder'), '', false, 'New folder'),
            );
          }
       }
@@ -5448,8 +5448,9 @@ export default function BNDZUI() {
                   const sourcePath = isGlobal && entity.path ? entity.path : joinPanePath(panePath, entity);
                   const targetDir = sourcePath.replace(/[/\\][^/\\]+$/, '');
                   const targetPath = targetDir ? `${targetDir}/${targetName}` : joinPanePath(panePath, { name: targetName });
+                  const renameLabel = `Rename: ${entity.name} → ${targetName}`;
                   void import("../lib/ipcBridge").then(({ IPC }) =>
-                    IPC.executeFsOperation(`rename-${Date.now()}`, "move", toWindowsPath(sourcePath), toWindowsPath(targetPath)),
+                    IPC.executeFsOperation(`rename-${Date.now()}`, "move", toWindowsPath(sourcePath), toWindowsPath(targetPath), false, renameLabel),
                   );
                   setInlineRename(null);
                 };
@@ -5948,12 +5949,12 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                        const cPath = currentTab.path;
                        import('../lib/ipcBridge').then(({ IPC }) => {
-                         IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath || '/', 'New folder'), '');
+                         IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath || '/', 'New folder'), '', false, 'New folder');
                          setTimeout(() => refreshWorkspace(), 150);
                        });
                     })}><Icons8Icon id="new_folder" size={14} /> New Folder</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                       import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), ''));
+                       import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), '', false, 'New Text Document.txt'));
                     })}><Icons8Icon id="new_file" size={14} /> New Text Document</div>
 
                     <MenubarSubmenu label="New (Other)">
@@ -6542,14 +6543,14 @@ export default function BNDZUI() {
                            case 'new_folder': {
                                const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
                                if (cPath) {
-                                 IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath, 'New folder'), '');
+                                 IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath, 'New folder'), '', false, 'New folder');
                                  setTimeout(() => refreshWorkspace(), 150);
                                }
                                break;
                            }
                            case 'new_file': {
                                const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
-                               if (cPath) IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', `${cPath}/New Text Document.txt`, '');
+                               if (cPath) IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', `${cPath}/New Text Document.txt`, '', false, 'New Text Document.txt');
                                break;
                            }
                            case 'select_all': {

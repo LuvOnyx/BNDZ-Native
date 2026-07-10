@@ -1115,6 +1115,18 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
                     <option value="native">Windows shell (Explorer transfers)</option>
                   </select>
                 </div>
+                {localConfig.fileOperationEngine === 'native' && (
+                  <div className="mt-2">
+                    <Checkbox
+                      label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">E</span>xplorer progress dialogs</span>}
+                      checked={localConfig.nativeShellShowProgress ?? true}
+                      onChange={e => updateLocalConfig({ nativeShellShowProgress: e.target.checked })}
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1 max-w-[560px]">
+                      When off, shell copy/move/delete run silently in the background (no Explorer progress window).
+                    </p>
+                  </div>
+                )}
               </div>
 
               <SectionHeader title="Background Processing" />
