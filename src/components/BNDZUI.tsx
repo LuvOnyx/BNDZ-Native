@@ -10,6 +10,7 @@ import { useClipboard } from '../data/ClipboardContext';
 import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
+import FileTransferQueuePanel from './FileTransferQueuePanel';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
 import { SizeBar, type SizeBarStyle } from './SizeBar';
 import IndexProgressChip from './IndexProgressChip';
@@ -151,6 +152,7 @@ import {
   applyRenameInputSelection,
   buildSettingsRuntime,
 } from '../lib/settingsRuntime';
+import { buildFileOpsRuntime } from '../lib/settingsWiring';
 import { matchesShortcut, matchesTypeAhead } from '../lib/keyboardShortcuts';
 import { useBndzPanelMotion } from '../hooks/useBndzPanelMotion';
 import { useBndzTabMotion } from '../hooks/useBndzTabMotion';
@@ -1190,6 +1192,20 @@ export default function BNDZUI() {
   };
 
   const runUndoRedo = React.useCallback(async (redo = false) => {
+    const fileOps = buildFileOpsRuntime(config);
+    if (!fileOps.logActions) {
+      pushToast({ kind: 'warning', title: redo ? 'Redo' : 'Undo', message: 'Enable action log in Settings → Undo & Action Log.' });
+      return;
+    }
+    if (fileOps.promptUndoRedo) {
+      const approved = await confirm({
+        title: redo ? 'Redo last action?' : 'Undo last action?',
+        message: redo ? 'Re-apply the last undone file operation.' : 'Reverse the last file operation.',
+        type: 'warning',
+        confirmLabel: redo ? 'Redo' : 'Undo',
+      });
+      if (!approved) return;
+    }
     const toastId = `undo-${Date.now()}`;
     pushToast({ id: toastId, kind: 'progress', title: redo ? 'Redoing…' : 'Undoing…', message: 'Please wait', sticky: true });
     try {
@@ -1206,7 +1222,7 @@ export default function BNDZUI() {
       dismissToast(toastId);
       pushToast({ kind: 'error', title: redo ? 'Redo failed' : 'Undo failed', message: err?.message || 'Operation timed out or was interrupted.' });
     }
-  }, [activePaneId, panes, refetchPath, refreshPathsForPanes]);
+  }, [activePaneId, panes, refetchPath, refreshPathsForPanes, config, confirm]);
 
   // Trigger Global Search
   useEffect(() => {
@@ -1590,7 +1606,7 @@ export default function BNDZUI() {
         message: label,
         sticky: true,
       });
-      IPC.executeFsOperation(opId, 'delete', winPaths, '', bypassRecycle);
+      IPC.executeFsOperation(opId, 'delete', winPaths, '', bypassRecycle, label);
     };
 
     const names = items.map(x => x.name).slice(0, 5).join('\n• ');
@@ -2515,12 +2531,9 @@ export default function BNDZUI() {
       message: label,
       sticky: true,
     });
-    for (const src of sources) {
-      const name = src.split(/[/\\]/).pop() || 'item';
-      const winSrc = toWindowsPath(src);
-      const winDest = `${toWindowsPath(dest).replace(/\\$/, '')}\\${name}`;
-      IPC.executeFsOperation(opId, mode, winSrc, winDest);
-    }
+    const winSources = sources.map(s => toWindowsPath(s));
+    const winDest = toWindowsPath(dest).replace(/\\$/, '');
+    IPC.executeFsOperation(opId, mode, winSources, winDest, false, label);
     refreshWorkspace();
   };
 
@@ -2542,7 +2555,7 @@ export default function BNDZUI() {
       message: label,
       sticky: true,
     });
-    IPC.executeFsOperation(opId, op, sourcePaths, destWin);
+    IPC.executeFsOperation(opId, op, sourcePaths.map(toWindowsPath), destWin, false, label);
     if (!IPC.isNative && op === 'move' && sourcePath) {
       let newFs = fileSystem;
       for (const sp of sourcePaths) {
@@ -7140,6 +7153,9 @@ export default function BNDZUI() {
             </ResizablePanel>
          </ResizablePanelGroup>
       </div>
+
+      {/* Transfer queue (native background jobs) */}
+      <FileTransferQueuePanel />
 
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (

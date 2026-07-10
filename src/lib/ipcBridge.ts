@@ -46,6 +46,30 @@ export interface DefaultFileManagerStatus {
   driveOpen: boolean;
 }
 
+export type FileTransferJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface FileTransferJobDto {
+  operationId: string;
+  action: string;
+  label: string;
+  engine: 'bndz' | 'native' | string;
+  status: FileTransferJobStatus;
+  progress: number;
+  currentFile?: string;
+  error?: string;
+  queuedUtc?: string;
+  startedUtc?: string;
+  completedUtc?: string;
+  itemsTotal?: number;
+  itemsCompleted?: number;
+}
+
+export interface FileTransferQueueState {
+  queuedCount: number;
+  activeCount: number;
+  jobs: FileTransferJobDto[];
+}
+
 function _parseWebViewMessage(raw: unknown): any {
   if (raw == null) return null;
   if (typeof raw === 'string') {
@@ -109,6 +133,7 @@ export const IPC = {
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
   _openPathListeners: [] as Array<(path: string) => void>,
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean }) => void>,
+  _fileTransferQueueListeners: [] as Array<(state: FileTransferQueueState) => void>,
   _startupActionListeners: [] as Array<(action: string) => void>,
   _aiDownloadProgressListeners: [] as Array<(progress: { percent: number }) => void>,
   _indexProgressListeners: [] as Array<(progress: { currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string }) => void>,
@@ -151,6 +176,14 @@ export const IPC = {
             canUndo: !!payload.canUndo,
             canRedo: !!payload.canRedo,
           }));
+        } else if (data.type === 'FILE_TRANSFER_QUEUE_CHANGED') {
+          const payload = data.payload ?? {};
+          const state: FileTransferQueueState = {
+            queuedCount: payload.queuedCount ?? 0,
+            activeCount: payload.activeCount ?? 0,
+            jobs: Array.isArray(payload.jobs) ? payload.jobs : [],
+          };
+          this._fileTransferQueueListeners.forEach(cb => cb(state));
         } else if (data.type === 'BNDZ_STARTUP_ACTION') {
           const action = data.payload ?? '';
           if (action) this._startupActionListeners.forEach(cb => cb(String(action)));
@@ -434,12 +467,13 @@ export const IPC = {
     action: 'copy' | 'move' | 'delete' | 'create-dir' | 'create-file' | 'undo' | 'redo',
     source: string | string[],
     target: string,
-    bypassRecycleBin: boolean = false
+    bypassRecycleBin: boolean = false,
+    label?: string,
   ): Promise<void> {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({
         type: 'EXECUTE_FS_OPERATION',
-        payload: { operationId, action, source, target, bypassRecycleBin }
+        payload: { operationId, action, source, target, bypassRecycleBin, label },
       });
       return;
     }
@@ -495,6 +529,33 @@ export const IPC = {
     this._actionLogListeners.push(callback);
     return () => {
       this._actionLogListeners = this._actionLogListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  getFileTransferQueue(): Promise<FileTransferQueueState> {
+    if (this.isNative) {
+      return _nativeCall<FileTransferQueueState>('GET_FILE_TRANSFER_QUEUE', 'FILE_TRANSFER_QUEUE_RESULT', undefined);
+    }
+    return Promise.resolve({ queuedCount: 0, activeCount: 0, jobs: [] });
+  },
+
+  cancelFileTransfer(operationId: string): Promise<{ ok: boolean; operationId: string }> {
+    if (this.isNative) {
+      return _nativeCall<{ ok: boolean; operationId: string }>(
+        'CANCEL_FILE_TRANSFER',
+        'CANCEL_FILE_TRANSFER_RESULT',
+        undefined,
+        { operationId },
+      );
+    }
+    return Promise.resolve({ ok: false, operationId });
+  },
+
+  onFileTransferQueueChanged(callback: (state: FileTransferQueueState) => void) {
+    this.init();
+    this._fileTransferQueueListeners.push(callback);
+    return () => {
+      this._fileTransferQueueListeners = this._fileTransferQueueListeners.filter(cb => cb !== callback);
     };
   },
 

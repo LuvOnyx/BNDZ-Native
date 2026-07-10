@@ -125,6 +125,21 @@ export function buildShellRuntime(config: AppConfig) {
   };
 }
 
+/** File transfer / undo engine */
+export function buildFileOpsRuntime(config: AppConfig) {
+  const engine = readSettingString(config, 'fileOperationEngine', 'bndz');
+  const useNative = engine === 'native' || engine === 'windows';
+  return {
+    engine: useNative ? 'native' as const : 'bndz' as const,
+    useNativeEngine: useNative,
+    queueOperations: readSettingBool(config, 'queueFileOperations', true),
+    backgroundProcessing: readSettingBool(config, 'enableBackgroundProcessing', true),
+    logActions: readSettingBool(config, 'logActionsAndEnableUndoRedo', true),
+    singleStepUndo: readSettingBool(config, 'allowOnlySingleStepUndoRedo', false),
+    promptUndoRedo: readSettingBool(config, 'promptBeforeUndoRedo', false),
+  };
+}
+
 /** UI chrome / layout */
 export function buildUiRuntime(config: AppConfig) {
   return {

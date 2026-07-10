@@ -149,6 +149,8 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   dualPaneOpen: false,
   syncDualPaneScroll: true,
   enableBackgroundProcessing: true,
+  /** bndz = managed engine with in-app queue/progress; native = Windows shell transfers */
+  fileOperationEngine: 'bndz',
   enableBlowUpsOnFileIconsAsWell: false,
   enableColorFilters: false,
   enableExtendedPatternMatching: false,
@@ -238,7 +240,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   limitOriginalPreviewSize: false,
   limitOriginalPreviewSizeValue: false,
   lineFeedOnOversizedFilenames: false,
-  logActionsAndEnableUndoRedo: false,
+  logActionsAndEnableUndoRedo: true,
   logClipboardContentsAndEnableRestore: false,
   loop: false,
   makeSelectedTabBold: false,

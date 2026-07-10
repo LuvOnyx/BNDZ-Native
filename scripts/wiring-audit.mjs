@@ -55,6 +55,27 @@ if (!ipc.includes('onIndexProgress') || !fmUi.includes('onIndexProgress')) {
   ok('Wired: onIndexProgress');
 }
 
+for (const marker of ['GET_FILE_TRANSFER_QUEUE', 'CANCEL_FILE_TRANSFER', 'FILE_TRANSFER_QUEUE_CHANGED']) {
+  if (!mainCs.includes(`"${marker}"`) && !mainCs.includes(`type == "${marker}"`)) {
+    fail(`Missing backend handler: ${marker}`);
+  } else if (!ipc.includes(marker.replace('FILE_TRANSFER_QUEUE_CHANGED', 'onFileTransferQueueChanged').replace('GET_FILE_TRANSFER_QUEUE', 'getFileTransferQueue').replace('CANCEL_FILE_TRANSFER', 'cancelFileTransfer'))) {
+    // loose check for ipc symbols
+  }
+}
+if (!ipc.includes('getFileTransferQueue') || !fmUi.includes('FileTransferQueuePanel')) {
+  fail('Missing file transfer queue UI wiring');
+} else {
+  ok('Wired: file transfer queue');
+}
+
+const defaults = fs.readFileSync(path.join(ROOT, 'src/lib/settingsDefaults.ts'), 'utf8');
+if (!defaults.includes('fileOperationEngine')) fail('Missing fileOperationEngine default');
+else ok('fileOperationEngine setting present');
+
+const configDlg = fs.readFileSync(path.join(ROOT, 'src/components/ConfigurationDialog.tsx'), 'utf8');
+if (!configDlg.includes('fileOperationEngine')) fail('ConfigurationDialog missing fileOperationEngine');
+else ok('fileOperationEngine in Configuration UI');
+
 const pluginsDir = path.join(ROOT, 'src/components/plugins');
 for (const file of fs.readdirSync(pluginsDir, { recursive: true })) {
   if (!String(file).endsWith('.tsx')) continue;

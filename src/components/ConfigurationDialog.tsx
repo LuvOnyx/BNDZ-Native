@@ -1091,16 +1091,43 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
             <TabsContent value="File Operations" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">File Operations</h1>
               
+              <SectionHeader title="Transfer engine" />
+              <div className="ml-2 mb-4 space-y-[6px]">
+                <p className="text-[12px] text-[#b0b0b0] max-w-[620px] leading-relaxed">
+                  Choose how copy, move, delete, and rename run. <strong className="text-gray-200">BNDZ</strong> uses the
+                  in-app queue with detailed progress, conflict prompts, and action-log undo. <strong className="text-gray-200">Windows</strong> delegates
+                  to the shell (Explorer-style progress and shell undo for recycle-bin deletes).
+                </p>
+                <div className="flex flex-col gap-1 mt-2">
+                  <span className="text-[12px] text-[#e0e0e0]">File operation engine:</span>
+                  <select
+                    className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] w-[min(320px,100%)] outline-none focus:border-[#0078d4]/50"
+                    value={localConfig.fileOperationEngine === 'native' ? 'native' : 'bndz'}
+                    onChange={e => {
+                      const v = e.target.value;
+                      updateLocalConfig({
+                        fileOperationEngine: v,
+                        selectCopyHandler: v === 'native' ? 'Default Windows handler' : 'BNDZ custom handler',
+                      });
+                    }}
+                  >
+                    <option value="bndz">BNDZ engine (queued, in-app progress &amp; undo)</option>
+                    <option value="native">Windows shell (Explorer transfers)</option>
+                  </select>
+                </div>
+              </div>
+
               <SectionHeader title="Background Processing" />
               <div className="ml-2 mb-4">
                  <div className="flex items-center gap-[40px] mb-[6px]">
-                   <Checkbox label={<span>Enable <span className="underline decoration-1 underline-offset-[3px]">b</span>ackground processing</span>} checked={localConfig.enableBackgroundProcessing ?? false} onChange={e => updateLocalConfig({ enableBackgroundProcessing: e.target.checked })} />
-                   <ActionBtn label="Apply to..." />
+                   <Checkbox label={<span>Enable <span className="underline decoration-1 underline-offset-[3px]">b</span>ackground processing</span>} checked={localConfig.enableBackgroundProcessing ?? true} onChange={e => updateLocalConfig({ enableBackgroundProcessing: e.target.checked })} />
                  </div>
                  <div className="ml-[20px]">
-                    <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">Q</span>ueue file operations</span>} checked={localConfig.queueFileOperations ?? false} onChange={e => updateLocalConfig({ queueFileOperations: e.target.checked })} disabled={!localConfig.enableBackgroundProcessing} />
+                    <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">Q</span>ueue file operations</span>} checked={localConfig.queueFileOperations ?? true} onChange={e => updateLocalConfig({ queueFileOperations: e.target.checked })} disabled={!localConfig.enableBackgroundProcessing} />
                  </div>
-                 <p className="text-[12px] text-[#e0e0e0] mt-[8px]">Background Copy Handler: BNDZcopy.exe v2.20.0037 (64-bit)</p>
+                 <p className="text-[11px] text-gray-500 mt-2 max-w-[560px]">
+                   When queued, concurrent paste and drag-drop operations run one at a time. Disable queue only if you need overlapping shell dialogs (native engine).
+                 </p>
               </div>
 
               <SectionHeader title="Backup Operations" />
@@ -1157,7 +1184,7 @@ export default function ConfigurationDialog({ onClose }: { onClose: () => void }
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Undo & Action Log</h1>
               
               <div className="ml-2 mb-4 space-y-[6px]">
-                  <Checkbox label={<span>Log <span className="underline decoration-1 underline-offset-[3px]">a</span>ctions and enable undo/redo</span>} checked={localConfig.logActionsAndEnableUndoRedo ?? false} onChange={e => updateLocalConfig({ logActionsAndEnableUndoRedo: e.target.checked })} />
+                  <Checkbox label={<span>Log <span className="underline decoration-1 underline-offset-[3px]">a</span>ctions and enable undo/redo</span>} checked={localConfig.logActionsAndEnableUndoRedo ?? true} onChange={e => updateLocalConfig({ logActionsAndEnableUndoRedo: e.target.checked })} />
                   <Checkbox label={<span>Remembe<span className="underline decoration-1 underline-offset-[3px]">r</span> the logged actions between sessions</span>} checked={localConfig.rememberTheLoggedActionsBetweenSessions ?? false} onChange={e => updateLocalConfig({ rememberTheLoggedActionsBetweenSessions: e.target.checked })} />
                   <div className="ml-[20px] space-y-[6px]">
                      <Checkbox label={<span>Even on exit wit<span className="underline decoration-1 underline-offset-[3px]">h</span>out saving</span>} checked={localConfig.evenOnExitWithoutSaving ?? false} onChange={e => updateLocalConfig({ evenOnExitWithoutSaving: e.target.checked })} disabled={!localConfig.rememberTheLoggedActionsBetweenSessions} />

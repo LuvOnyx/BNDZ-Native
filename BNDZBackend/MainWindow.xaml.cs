@@ -32,7 +32,8 @@ namespace BNDZ
         private readonly ShellIntegrationService _shellIntegrationService;
         private readonly IconStudioService _iconStudioService;
         private readonly FileOperationService _fileOperationService;
-        private readonly FileOperationQueueService _fileOperationQueue = new();
+        private readonly NativeShellFileOperationService _nativeFileOperationService = new();
+        private readonly FileTransferQueueService _fileTransferQueue = new();
         private readonly FolderSyncService _folderSyncService = new();
         private readonly SettingsManager _settingsManager;
         private readonly NativeShellService _nativeShellService = new();
@@ -77,6 +78,17 @@ namespace BNDZ
             _fileOperationService = new FileOperationService();
             _fileOperationService.SetActionLog(_actionLogService);
             _settingsManager = new SettingsManager();
+            try
+            {
+                var bootSettings = _settingsManager.LoadSettings();
+                FileOperationPreferences.ApplyFromJson(bootSettings);
+                ApplyFileOperationPreferences();
+            }
+            catch { /* use defaults */ }
+            _fileTransferQueue.QueueChanged += () =>
+            {
+                PostFileTransferQueueChanged();
+            };
             _folderSyncService.SetProgressCallback(p =>
             {
                 var evt = new { type = "FOLDER_SYNC_PROGRESS", payload = p };
@@ -633,6 +645,7 @@ namespace BNDZ
                     
                     string target = NormalizeFsPath(payload.GetProperty("target").GetString() ?? "");
                     bool bypassRecycleBin = payload.TryGetProperty("bypassRecycleBin", out var brProp) ? brProp.GetBoolean() : false;
+                    string? label = payload.TryGetProperty("label", out var labelProp) ? labelProp.GetString() : null;
 
                     if (action == "undo")
                     {
@@ -644,82 +657,28 @@ namespace BNDZ
                         _ = HandleUndoRedoAsync(undo: false, idProp: root.TryGetProperty("id", out var rid) ? rid.GetString() : null);
                         return;
                     }
-                    if (action == "move" && sources.Count == 1)
+
+                    _ = HandleExecuteFsOperationAsync(operationId, action, sources, target, bypassRecycleBin, label);
+                }
+                else if (type == "GET_FILE_TRANSFER_QUEUE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "FILE_TRANSFER_QUEUE_RESULT", id = idProp, payload = _fileTransferQueue.GetQueueState() };
+                    PostToUi(() =>
                     {
-                        string source = sources[0];
-                        string? srcDir = Path.GetDirectoryName(source);
-                        string? destDir = Path.GetDirectoryName(target);
-                        if (!string.IsNullOrEmpty(srcDir) && string.Equals(srcDir, destDir, StringComparison.OrdinalIgnoreCase))
-                        {
-                            string newName = Path.GetFileName(target);
-                            _shellIntegrationService.RenameItem(source, newName);
-                            _actionLogService.Record(BndzActionLogService.ForMove(
-                                new List<string> { source },
-                                new List<string> { target },
-                                $"Rename {Path.GetFileName(source)}"));
-                            PostToUi(PostActionLogChanged);
-                            return;
-                        }
-                    }
-
-                    // Run through serialized queue so concurrent copy/paste operations do not overlap
-                    _ = _fileOperationQueue.EnqueueAsync(async _ =>
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
+                    });
+                }
+                else if (type == "CANCEL_FILE_TRANSFER")
+                {
+                    var payload = root.GetProperty("payload");
+                    string opId = payload.TryGetProperty("operationId", out var opProp) ? opProp.GetString() ?? "" : "";
+                    bool cancelled = !string.IsNullOrEmpty(opId) && _fileTransferQueue.Cancel(opId);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "CANCEL_FILE_TRANSFER_RESULT", id = idProp, payload = new { ok = cancelled, operationId = opId } };
+                    PostToUi(() =>
                     {
-                        await _fileOperationService.ExecuteOperationAsync(operationId, action, sources, target, bypassRecycleBin,
-                            onProgress: (opId, percentage, currentFile, bytesTransferred, totalBytes, speedBytesPerSecond, itemsCompleted, totalItems) =>
-                            {
-                                var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId = opId, percentage, currentFile, bytesTransferred, totalBytes, speedBytesPerSecond, itemsCompleted, totalItems } };
-                                PostToUi(() => {
-                                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
-                                });
-                            },
-                            onConflict: async (opId, fileName, srcPath, destPath) =>
-                            {
-                                if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
-                                {
-                                    return batchResolution;
-                                }
-
-                                var evt = new { type = "CONFLICT_DETECTED", payload = new { operationId = opId, fileName, sourcePath = srcPath, destPath } };
-                                var tcs = new TaskCompletionSource<string>();
-                                string conflictKey = $"{opId}:{fileName}";
-                                _conflictResolvers[conflictKey] = tcs;
-
-                                PostToUi(() => {
-                                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
-                                });
-
-                                return await tcs.Task;
-                            },
-                            onAccessDenied: (opId, message) =>
-                            {
-                                var evt = new
-                                {
-                                    type = "ELEVATION_REQUIRED",
-                                    payload = new
-                                    {
-                                        title = "Administrator approval required",
-                                        message = $"{message}\n\nSome file operations need elevated permissions. Restart BNDZ as administrator?",
-                                        context = "fileOperation",
-                                        operationId = opId,
-                                    }
-                                };
-                                PostToUi(() => {
-                                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
-                                });
-                            });
-                        _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
-
-                        foreach (var src in sources)
-                        {
-                            string dir = Directory.Exists(src) ? src : (Path.GetDirectoryName(src) ?? src);
-                            if (!string.IsNullOrEmpty(dir))
-                                QueueFsEvent(action == "delete" ? "Deleted" : "Changed", dir, Path.GetFileName(src) ?? "");
-                        }
-                        if (!string.IsNullOrEmpty(target) && (action == "copy" || action == "move"))
-                            QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
-                        FlushFsEvents();
-                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
                     });
                 }
                 else if (type == "START_DRAG")
@@ -1887,6 +1846,8 @@ namespace BNDZ
                         var payload = root.GetProperty("payload");
                         string jsonString = payload.GetRawText();
                         _settingsManager.SaveSettings(jsonString);
+                        FileOperationPreferences.ApplyFromJson(jsonString);
+                        ApplyFileOperationPreferences();
                     }
                     catch (Exception ex)
                     {
@@ -1900,6 +1861,8 @@ namespace BNDZ
                     {
                         string? settingsJson = _settingsManager.LoadSettings();
                         if (string.IsNullOrEmpty(settingsJson)) settingsJson = "null";
+                        FileOperationPreferences.ApplyFromJson(settingsJson == "null" ? null : settingsJson);
+                        ApplyFileOperationPreferences();
                         
                         var responseJson = "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":\"" + idProp + "\",\"payload\":" + settingsJson + "}";
                         PostToUi(() => {
@@ -3174,11 +3137,193 @@ namespace BNDZ
             }
         }
 
-        /// <summary>
-        /// True asynchronous directory synchronizer utilizing non-blocking I/O streams to saturate NVMe/SSD throughput.
-        /// </summary>
+        private void PostFileTransferQueueChanged()
+        {
+            if (MainWebView.CoreWebView2 == null) return;
+            var evt = new
+            {
+                type = "FILE_TRANSFER_QUEUE_CHANGED",
+                payload = _fileTransferQueue.GetQueueState(),
+            };
+            try
+            {
+                MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
+            }
+            catch { /* WebView may be tearing down */ }
+        }
+
+        private void ApplyFileOperationPreferences()
+        {
+            var prefs = FileOperationPreferences.Current;
+            _actionLogService.SetMaxEntries(prefs.SingleStepUndo ? 1 : 256);
+        }
+
+        private static string BuildFileOpLabel(string action, List<string> sources, string? labelOverride)
+        {
+            if (!string.IsNullOrWhiteSpace(labelOverride)) return labelOverride;
+            if (sources.Count == 1)
+            {
+                var name = Path.GetFileName(sources[0].TrimEnd('\\', '/'));
+                return string.IsNullOrEmpty(name) ? sources[0] : name;
+            }
+            return $"{sources.Count} items";
+        }
+
+        private async Task HandleExecuteFsOperationAsync(
+            string operationId,
+            string action,
+            List<string> sources,
+            string target,
+            bool bypassRecycleBin,
+            string? labelOverride)
+        {
+            var prefs = FileOperationPreferences.Current;
+            var engine = FileOperationPreferences.UseNativeEngine ? "native" : "bndz";
+            var label = BuildFileOpLabel(action, sources, labelOverride);
+            _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1));
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                void OnProgress(string opId, int percentage, string currentFile, long bytesTransferred, long totalBytes, double speedBytesPerSecond, int itemsCompleted, int totalItems)
+                {
+                    _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems);
+                    var evt = new
+                    {
+                        type = "PROGRESS_UPDATE",
+                        payload = new
+                        {
+                            operationId = opId,
+                            percentage,
+                            currentFile,
+                            bytesTransferred,
+                            totalBytes,
+                            speedBytesPerSecond,
+                            itemsCompleted,
+                            totalItems,
+                            engine,
+                        },
+                    };
+                    PostToUi(() =>
+                    {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
+                    });
+                }
+
+                try
+                {
+                    if (FileOperationPreferences.UseNativeEngine)
+                    {
+                        await _nativeFileOperationService.ExecuteOperationAsync(
+                            operationId,
+                            action,
+                            sources,
+                            target,
+                            bypassRecycleBin,
+                            OnProgress,
+                            ct).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await _fileOperationService.ExecuteOperationAsync(
+                            operationId,
+                            action,
+                            sources,
+                            target,
+                            bypassRecycleBin,
+                            onProgress: OnProgress,
+                            onConflict: async (opId, fileName, srcPath, destPath) =>
+                            {
+                                if (_conflictBatchResolution.TryGetValue(opId, out var batchResolution))
+                                    return batchResolution;
+
+                                var evt = new { type = "CONFLICT_DETECTED", payload = new { operationId = opId, fileName, sourcePath = srcPath, destPath } };
+                                var tcs = new TaskCompletionSource<string>();
+                                string conflictKey = $"{opId}:{fileName}";
+                                _conflictResolvers[conflictKey] = tcs;
+
+                                PostToUi(() =>
+                                {
+                                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
+                                });
+
+                                return await tcs.Task.ConfigureAwait(false);
+                            },
+                            recordActionLog: prefs.LogActions,
+                            onAccessDenied: (opId, message) =>
+                            {
+                                var evt = new
+                                {
+                                    type = "ELEVATION_REQUIRED",
+                                    payload = new
+                                    {
+                                        title = "Administrator approval required",
+                                        message = $"{message}\n\nSome file operations need elevated permissions. Restart BNDZ as administrator?",
+                                        context = "fileOperation",
+                                        operationId = opId,
+                                    },
+                                };
+                                PostToUi(() =>
+                                {
+                                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
+                                });
+                            }).ConfigureAwait(false);
+                    }
+
+                    _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
+                    _fileTransferQueue.MarkCompleted(operationId);
+
+                    foreach (var src in sources)
+                    {
+                        string dir = Directory.Exists(src) ? src : (Path.GetDirectoryName(src) ?? src);
+                        if (!string.IsNullOrEmpty(dir))
+                            QueueFsEvent(action == "delete" ? "Deleted" : "Changed", dir, Path.GetFileName(src) ?? "");
+                    }
+                    if (!string.IsNullOrEmpty(target) && (action == "copy" || action == "move"))
+                        QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
+                    FlushFsEvents();
+                    await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    OnProgress(operationId, 100, ex.Message, 0, 0, 0, 0, 1);
+                    throw;
+                }
+            }
+
+            if (prefs.QueueOperations)
+            {
+                await _fileTransferQueue.EnqueueAsync(operationId, ExecuteCoreAsync).ConfigureAwait(false);
+            }
+            else
+            {
+                await _fileTransferQueue.RunImmediateAsync(operationId, ExecuteCoreAsync).ConfigureAwait(false);
+            }
+        }
+
         private async Task HandleUndoRedoAsync(bool undo, string? idProp)
         {
+            if (!FileOperationPreferences.Current.LogActions)
+            {
+                var disabled = new
+                {
+                    type = "UNDO_REDO_RESULT",
+                    id = idProp,
+                    payload = new { ok = false, message = "Undo/redo requires \"Log actions and enable undo/redo\" in Settings." },
+                };
+                var disabledJson = JsonSerializer.Serialize(disabled, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                await PostToUiAsync(() =>
+                {
+                    MainWebView.CoreWebView2?.PostWebMessageAsJson(disabledJson);
+                });
+                return;
+            }
+
             var result = undo
                 ? await _actionLogService.UndoAsync(_fileOperationService).ConfigureAwait(false)
                 : await _actionLogService.RedoAsync(_fileOperationService).ConfigureAwait(false);
