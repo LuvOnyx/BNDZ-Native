@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace BNDZ.Services;
@@ -13,9 +14,94 @@ public sealed class BndzActionLogService
     private readonly object _lock = new();
     private readonly List<ActionLogEntry> _undo = new();
     private readonly List<ActionLogEntry> _redo = new();
+    private readonly string _persistPath;
     private int _maxEntries = 256;
+    private bool _persistBetweenSessions;
+    private bool _persistOnExitWithoutSaving;
+
+    public BndzActionLogService()
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var dir = Path.Combine(appData, "BNDZ64");
+        Directory.CreateDirectory(dir);
+        _persistPath = Path.Combine(dir, "action_log.json");
+    }
+
+    public void ConfigurePersistence(bool betweenSessions, bool onExitWithoutSaving)
+    {
+        lock (_lock)
+        {
+            _persistBetweenSessions = betweenSessions;
+            _persistOnExitWithoutSaving = onExitWithoutSaving;
+        }
+    }
 
     public void SetMaxEntries(int max) => _maxEntries = Math.Clamp(max, 16, 4096);
+
+    public void LoadPersistedIfEnabled()
+    {
+        lock (_lock)
+        {
+            if (!_persistBetweenSessions || !File.Exists(_persistPath)) return;
+            try
+            {
+                var json = File.ReadAllText(_persistPath);
+                var doc = JsonSerializer.Deserialize<PersistedActionLog>(json, JsonOptions);
+                if (doc == null) return;
+                _undo.Clear();
+                _redo.Clear();
+                foreach (var row in doc.Undo ?? new List<PersistedActionLogEntry>())
+                {
+                    var entry = row.ToEntry();
+                    if (entry != null) _undo.Add(entry);
+                }
+                foreach (var row in doc.Redo ?? new List<PersistedActionLogEntry>())
+                {
+                    var entry = row.ToEntry();
+                    if (entry != null) _redo.Add(entry);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ActionLog] Load failed: {ex.Message}");
+            }
+        }
+    }
+
+    public void PersistNow(bool force = false)
+    {
+        lock (_lock)
+        {
+            if (!force && !_persistBetweenSessions && !_persistOnExitWithoutSaving) return;
+            try
+            {
+                var doc = new PersistedActionLog
+                {
+                    Version = 1,
+                    Undo = _undo.Select(PersistedActionLogEntry.From).ToList(),
+                    Redo = _redo.Select(PersistedActionLogEntry.From).ToList(),
+                };
+                var json = JsonSerializer.Serialize(doc, JsonOptions);
+                File.WriteAllText(_persistPath, json);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ActionLog] Persist failed: {ex.Message}");
+            }
+        }
+    }
+
+    public void ClearPersisted()
+    {
+        try
+        {
+            if (File.Exists(_persistPath)) File.Delete(_persistPath);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ActionLog] Clear persisted failed: {ex.Message}");
+        }
+    }
 
     public IReadOnlyList<ActionLogEntryDto> GetRecent(int max = 64)
     {
@@ -49,6 +135,7 @@ public sealed class BndzActionLogService
             while (_undo.Count > _maxEntries)
                 _undo.RemoveAt(0);
         }
+        if (_persistBetweenSessions) PersistNow();
     }
 
     public async Task<ActionLogResult> UndoAsync(FileOperationService fileOps)
@@ -65,6 +152,7 @@ public sealed class BndzActionLogService
         {
             await ApplyInverseAsync(fileOps, entry).ConfigureAwait(false);
             lock (_lock) _redo.Add(entry);
+            if (_persistBetweenSessions) PersistNow();
             return ActionLogResult.Success($"Undid: {entry.Label}");
         }
         catch (Exception ex)
@@ -88,6 +176,7 @@ public sealed class BndzActionLogService
         {
             await ApplyForwardAsync(fileOps, entry).ConfigureAwait(false);
             lock (_lock) _undo.Add(entry);
+            if (_persistBetweenSessions) PersistNow();
             return ActionLogResult.Success($"Redid: {entry.Label}");
         }
         catch (Exception ex)
@@ -103,7 +192,8 @@ public sealed class BndzActionLogService
         {
             case ActionKind.Move:
             case ActionKind.Rename:
-                for (int i = 0; i < entry.SourcePaths.Count; i++)
+            case ActionKind.BatchRename:
+                for (int i = entry.SourcePaths.Count - 1; i >= 0; i--)
                 {
                     var from = entry.TargetPaths.ElementAtOrDefault(i) ?? entry.TargetPaths.LastOrDefault() ?? "";
                     var to = entry.SourcePaths[i];
@@ -131,19 +221,17 @@ public sealed class BndzActionLogService
                 break;
 
             case ActionKind.CreateFile:
+            case ActionKind.CreateLink:
                 foreach (var file in entry.TargetPaths)
                 {
                     if (File.Exists(file)) File.Delete(file);
+                    else if (Directory.Exists(file)) Directory.Delete(file, false);
                 }
                 break;
 
             case ActionKind.Delete:
                 if (!entry.UsedRecycleBin)
                     throw new InvalidOperationException("Permanent deletes (Recycle Bin bypassed) cannot be undone.");
-                // Restore each deleted item from the Recycle Bin by matching its original
-                // pre-deletion path (PKEY_Recycle_DeletedFrom) — not the same identifier the
-                // Recycle Bin panel's Restore button uses, since that one only knows the item's
-                // own Recycle Bin storage location, not where it came from.
                 var (restored, failed) = RecycleBinService.RestoreByOriginalPath(entry.SourcePaths);
                 if (failed > 0)
                     throw new InvalidOperationException($"Restored {restored} of {entry.SourcePaths.Count} item(s) — the rest could not be located in the Recycle Bin (already purged, emptied, or restored elsewhere).");
@@ -160,6 +248,7 @@ public sealed class BndzActionLogService
         {
             case ActionKind.Move:
             case ActionKind.Rename:
+            case ActionKind.BatchRename:
                 for (int i = 0; i < entry.SourcePaths.Count; i++)
                 {
                     var from = entry.SourcePaths[i];
@@ -192,6 +281,16 @@ public sealed class BndzActionLogService
                         new List<string>(), file, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
                 break;
 
+            case ActionKind.CreateLink:
+                for (int i = 0; i < entry.TargetPaths.Count; i++)
+                {
+                    var linkPath = entry.TargetPaths[i];
+                    var target = entry.SourcePaths.ElementAtOrDefault(i) ?? entry.SourcePaths.LastOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(target)) continue;
+                    new LinkService().CreateLink(linkPath, target, entry.LinkType ?? "symlink");
+                }
+                break;
+
             case ActionKind.Delete:
                 await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "delete",
                     entry.SourcePaths.ToList(), "", bypassRecycleBin: !entry.UsedRecycleBin, recordActionLog: false).ConfigureAwait(false);
@@ -215,6 +314,15 @@ public sealed class BndzActionLogService
             TargetPaths = targets.ToList(),
         };
     }
+
+    public static ActionLogEntry ForBatchRename(IReadOnlyList<string> sources, IReadOnlyList<string> targets, string? label = null)
+        => new()
+        {
+            Kind = ActionKind.BatchRename,
+            Label = label ?? $"Batch rename ({sources.Count} items)",
+            SourcePaths = sources.ToList(),
+            TargetPaths = targets.ToList(),
+        };
 
     public static ActionLogEntry ForCopy(IReadOnlyList<string> sources, IReadOnlyList<string> createdPaths)
         => new()
@@ -249,16 +357,81 @@ public sealed class BndzActionLogService
             Label = $"Create file {Path.GetFileName(path)}",
             TargetPaths = new List<string> { path },
         };
+
+    public static ActionLogEntry ForCreateLink(string linkPath, string targetPath, string linkType)
+        => new()
+        {
+            Kind = ActionKind.CreateLink,
+            Label = $"Create {linkType} · {Path.GetFileName(linkPath)}",
+            SourcePaths = new List<string> { targetPath },
+            TargetPaths = new List<string> { linkPath },
+            LinkType = linkType,
+        };
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private sealed class PersistedActionLog
+    {
+        public int Version { get; set; }
+        public List<PersistedActionLogEntry>? Undo { get; set; }
+        public List<PersistedActionLogEntry>? Redo { get; set; }
+    }
+
+    private sealed class PersistedActionLogEntry
+    {
+        public string Id { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Utc { get; set; } = "";
+        public List<string> SourcePaths { get; set; } = new();
+        public List<string> TargetPaths { get; set; } = new();
+        public bool UsedRecycleBin { get; set; }
+        public string? LinkType { get; set; }
+
+        public static PersistedActionLogEntry From(ActionLogEntry e) => new()
+        {
+            Id = e.Id,
+            Kind = e.Kind.ToString(),
+            Label = e.Label,
+            Utc = e.Utc.ToString("O"),
+            SourcePaths = e.SourcePaths,
+            TargetPaths = e.TargetPaths,
+            UsedRecycleBin = e.UsedRecycleBin,
+            LinkType = e.LinkType,
+        };
+
+        public ActionLogEntry? ToEntry()
+        {
+            if (!Enum.TryParse<ActionKind>(Kind, true, out var kind)) return null;
+            return new ActionLogEntry
+            {
+                Id = string.IsNullOrEmpty(Id) ? Guid.NewGuid().ToString("N") : Id,
+                Kind = kind,
+                Label = Label,
+                Utc = DateTime.TryParse(Utc, out var dt) ? dt : DateTime.UtcNow,
+                SourcePaths = SourcePaths ?? new List<string>(),
+                TargetPaths = TargetPaths ?? new List<string>(),
+                UsedRecycleBin = UsedRecycleBin,
+                LinkType = LinkType,
+            };
+        }
+    }
 }
 
 public enum ActionKind
 {
     Move,
     Rename,
+    BatchRename,
     Copy,
     Delete,
     CreateDirectory,
     CreateFile,
+    CreateLink,
 }
 
 public sealed class ActionLogEntry
@@ -270,6 +443,7 @@ public sealed class ActionLogEntry
     public List<string> SourcePaths { get; set; } = new();
     public List<string> TargetPaths { get; set; } = new();
     public bool UsedRecycleBin { get; set; }
+    public string? LinkType { get; set; }
 }
 
 public sealed class ActionLogEntryDto

@@ -499,6 +499,23 @@ export const IPC = {
     }
   },
 
+  executeBatchRename(
+    operationId: string,
+    renames: Array<{ source: string; target: string }>,
+    label?: string,
+  ): Promise<{ ok: boolean; renamed?: number; skipped?: number; failed?: number; error?: string }> {
+    if (this.isNative) {
+      return _nativeCall(
+        'EXECUTE_BATCH_RENAME',
+        'EXECUTE_BATCH_RENAME_RESULT',
+        operationId,
+        { operationId, renames, label },
+        300_000,
+      );
+    }
+    return Promise.resolve({ ok: false, error: 'Native only' });
+  },
+
   startDrag(paths: string | string[]) {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({ type: 'START_DRAG', payload: { paths } });
@@ -767,9 +784,10 @@ export const IPC = {
 
   syncFolders(source: string, target: string, entityId: string, action: 'copy' | 'move' = 'move') {
     if (this.isNative) {
+      const operationId = `sync-${Date.now()}`;
       (window as any).chrome.webview.postMessage({
         type: 'SYNC_FOLDERS',
-        payload: { source, target, entityId, action }
+        payload: { source, target, entityId, action, operationId },
       });
     }
   },

@@ -46,6 +46,8 @@ export function formatTransferAction(action: string): string {
     case 'delete': return 'Delete';
     case 'create-dir': return 'New folder';
     case 'create-file': return 'New file';
+    case 'batch-rename': return 'Batch rename';
+    case 'create-link': return 'Link';
     case 'folder-sync': return 'Sync';
     case 'archive-add': return 'Archive';
     case 'archive-extract': return 'Extract';

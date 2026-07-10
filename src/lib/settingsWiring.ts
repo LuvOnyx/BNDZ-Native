@@ -145,6 +145,8 @@ export function buildFileOpsRuntime(config: AppConfig) {
     singleStepUndo,
     promptUndoRedo,
     maxActionLogEntries: readSettingNumber(config, 'allowedNumberOfEntriesInTheActionLog', 256),
+    rememberActionLog: readSettingBool(config, 'rememberTheLoggedActionsBetweenSessions', false),
+    persistActionLogOnExit: readSettingBool(config, 'evenOnExitWithoutSaving', false),
   };
 }
 

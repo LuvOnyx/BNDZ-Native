@@ -62,27 +62,33 @@ public class FileOperationService
             switch (action)
             {
                 case "create-dir":
-                    if (!string.IsNullOrEmpty(target)) Directory.CreateDirectory(target);
-                    else if (sources.Count > 0) Directory.CreateDirectory(sources[0]);
+                {
+                    var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
+                    if (!string.IsNullOrEmpty(dir))
                     {
-                        var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
-                        if (!string.IsNullOrEmpty(dir) && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(dir));
+                        var existed = Directory.Exists(dir);
+                        Directory.CreateDirectory(dir);
+                        if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(dir));
                     }
-                    onProgress?.Invoke(operationId, 100, target, 0, 0, 0, 1, 1);
+                    onProgress?.Invoke(operationId, 100, dir, 0, 0, 0, 1, 1);
                     break;
+                }
 
                 case "create-file":
+                {
                     var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
                     if (!string.IsNullOrEmpty(filePath))
                     {
                         var dir = Path.GetDirectoryName(filePath);
                         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                             Directory.CreateDirectory(dir);
-                        if (!File.Exists(filePath)) File.WriteAllBytes(filePath, Array.Empty<byte>());
-                        if (recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(filePath));
+                        var existed = File.Exists(filePath);
+                        if (!existed) File.WriteAllBytes(filePath, Array.Empty<byte>());
+                        if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(filePath));
                     }
                     onProgress?.Invoke(operationId, 100, filePath, 0, 0, 0, 1, 1);
                     break;
+                }
 
                 case "delete":
                     await DeleteItemsAsync(operationId, sources, bypassRecycleBin, onProgress, cancellationToken);
@@ -121,6 +127,69 @@ public class FileOperationService
             Debug.WriteLine($"FileOperation {action} failed: {ex.Message}");
             onProgress?.Invoke(operationId, 100, ex.Message, 0, 0, 0, 1, 1);
         }
+    }
+
+    public async Task<BatchRenameResult> ExecuteBatchRenameAsync(
+        string operationId,
+        IReadOnlyList<(string Source, string Target)> renames,
+        bool recordActionLog = true,
+        Action<string, int, string, long, long, double, int, int>? onProgress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var appliedSources = new List<string>();
+        var appliedTargets = new List<string>();
+        var skipped = 0;
+        var total = renames.Count;
+
+        for (int i = 0; i < renames.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var (source, target) = renames[i];
+            source = NormalizePath(source);
+            target = NormalizePath(target);
+
+            if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(target))
+            {
+                skipped++;
+                continue;
+            }
+
+            if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase))
+            {
+                skipped++;
+                continue;
+            }
+
+            if (!File.Exists(source) && !Directory.Exists(source))
+                throw new FileNotFoundException($"Source not found: {source}");
+
+            if (File.Exists(target) || Directory.Exists(target))
+                throw new IOException($"Target already exists: {target}");
+
+            await ExecuteOperationAsync(
+                $"{operationId}-{i}",
+                "move",
+                new List<string> { source },
+                target,
+                bypassRecycleBin: true,
+                onProgress: onProgress,
+                recordActionLog: false,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            appliedSources.Add(source);
+            appliedTargets.Add(target);
+            onProgress?.Invoke(operationId, (int)((i + 1) * 100.0 / Math.Max(total, 1)), target, 0, 0, 0, i + 1, total);
+        }
+
+        if (appliedSources.Count > 0 && recordActionLog)
+            _actionLog?.Record(BndzActionLogService.ForBatchRename(appliedSources, appliedTargets));
+
+        return new BatchRenameResult
+        {
+            Renamed = appliedSources.Count,
+            Skipped = skipped,
+            Failed = 0,
+        };
     }
 
     private static async Task DeleteItemsAsync(
@@ -367,4 +436,11 @@ public class FileOperationService
         if (path.Length == 2 && path[1] == ':') path += "\\";
         return path;
     }
+}
+
+public sealed class BatchRenameResult
+{
+    public int Renamed { get; init; }
+    public int Skipped { get; init; }
+    public int Failed { get; init; }
 }

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Collections.Generic;
@@ -84,6 +85,7 @@ namespace BNDZ
                 var bootSettings = _settingsManager.LoadSettings();
                 FileOperationPreferences.ApplyFromJson(bootSettings);
                 ApplyFileOperationPreferences();
+                _actionLogService.LoadPersistedIfEnabled();
                 _fileTransferQueue.LoadPersistedHistory();
             }
             catch { /* use defaults */ }
@@ -225,6 +227,13 @@ namespace BNDZ
 
         protected override void OnClosed(EventArgs e)
         {
+            try
+            {
+                var prefs = FileOperationPreferences.Current;
+                if (prefs.RememberActionLogBetweenSessions || prefs.PersistActionLogOnExit)
+                    _actionLogService.PersistNow(force: true);
+            }
+            catch { /* best effort */ }
             BndzFileManagerIpcService.Instance.Dispose();
             _trayService?.Dispose();
             base.OnClosed(e);
@@ -634,7 +643,26 @@ namespace BNDZ
 
                 string? type = typeProp.GetString();
                 if (string.IsNullOrEmpty(type)) return;
-                if (type == "EXECUTE_FS_OPERATION")
+                else if (type == "EXECUTE_BATCH_RENAME")
+                {
+                    var payload = root.GetProperty("payload");
+                    string operationId = payload.TryGetProperty("operationId", out var opEl) ? opEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
+                    string? label = payload.TryGetProperty("label", out var labelEl) ? labelEl.GetString() : null;
+                    var renames = new List<(string Source, string Target)>();
+                    if (payload.TryGetProperty("renames", out var renamesEl) && renamesEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var row in renamesEl.EnumerateArray())
+                        {
+                            var src = row.TryGetProperty("source", out var sEl) ? NormalizeFsPath(sEl.GetString() ?? "") : "";
+                            var dst = row.TryGetProperty("target", out var tEl) ? NormalizeFsPath(tEl.GetString() ?? "") : "";
+                            if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(dst))
+                                renames.Add((src, dst));
+                        }
+                    }
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = HandleExecuteBatchRenameAsync(operationId, renames, label, idProp);
+                }
+                else if (type == "EXECUTE_FS_OPERATION")
                 {
                     var payload = root.GetProperty("payload");
                     string operationId = payload.GetProperty("operationId").GetString() ?? Guid.NewGuid().ToString();
@@ -1095,15 +1123,13 @@ namespace BNDZ
                 else if (type == "SYNC_FOLDERS")
                 {
                     var payload = root.GetProperty("payload");
-                    string source = payload.GetProperty("source").GetString() ?? "";
-                    string target = payload.GetProperty("target").GetString() ?? "";
-                    
-                    var id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
-
-                    await SyncDirectoriesTrueAsync(source, target);
-
-                    // Send response back
-                    MainWebView.CoreWebView2.PostWebMessageAsJson("{\"id\": \"" + id + "\", \"result\": \"ok\"}");
+                    string source = NormalizeFsPath(payload.GetProperty("source").GetString() ?? "");
+                    string target = NormalizeFsPath(payload.GetProperty("target").GetString() ?? "");
+                    var idProp = root.TryGetProperty("id", out var idPropEl) ? idPropEl.GetString() : null;
+                    string operationId = payload.TryGetProperty("operationId", out var opEl)
+                        ? opEl.GetString() ?? $"sync-{DateTime.UtcNow.Ticks}"
+                        : $"sync-{DateTime.UtcNow.Ticks}";
+                    _ = HandleSyncFoldersAsync(operationId, source, target, idProp);
                 }
                 else if (type == "FOLDER_SYNC_GET_JOBS")
                 {
@@ -1652,14 +1678,10 @@ namespace BNDZ
                     string linkPath = NormalizeFsPath(payload.GetProperty("linkPath").GetString() ?? "");
                     string targetPath = NormalizeFsPath(payload.GetProperty("targetPath").GetString() ?? "");
                     string linkType = payload.TryGetProperty("linkType", out var ltEl) ? ltEl.GetString() ?? "symlink" : "symlink";
-
-                    _ = Task.Run(() =>
-                    {
-                        var result = _linkService.CreateLink(linkPath, targetPath, linkType);
-                        var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = result };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
-                    });
+                    string operationId = payload.TryGetProperty("operationId", out var opEl)
+                        ? opEl.GetString() ?? $"link-{DateTime.UtcNow.Ticks}"
+                        : $"link-{DateTime.UtcNow.Ticks}";
+                    _ = HandleCreateLinkAsync(operationId, linkPath, targetPath, linkType, idProp);
                 }
                 else if (type == "SHELL_INTEGRATION")
                 {
@@ -3098,6 +3120,11 @@ namespace BNDZ
         {
             var prefs = FileOperationPreferences.Current;
             _actionLogService.SetMaxEntries(prefs.SingleStepUndo ? 1 : prefs.MaxActionLogEntries);
+            _actionLogService.ConfigurePersistence(prefs.RememberActionLogBetweenSessions, prefs.PersistActionLogOnExit);
+            if (prefs.RememberActionLogBetweenSessions)
+                _actionLogService.LoadPersistedIfEnabled();
+            else if (!prefs.PersistActionLogOnExit)
+                _actionLogService.ClearPersisted();
             _fileTransferQueue.SetPersistenceEnabled(prefs.PersistTransferQueue);
         }
 
@@ -3118,10 +3145,10 @@ namespace BNDZ
             FileTransferPriority priority = FileTransferPriority.Normal)
         {
             var prefs = FileOperationPreferences.Current;
-            if (prefs.QueueOperations)
-                await _fileTransferQueue.EnqueueAsync(operationId, work, default, priority).ConfigureAwait(false);
-            else
+            if (!prefs.BackgroundProcessing || !prefs.QueueOperations)
                 await _fileTransferQueue.RunImmediateAsync(operationId, work).ConfigureAwait(false);
+            else
+                await _fileTransferQueue.EnqueueAsync(operationId, work, default, priority).ConfigureAwait(false);
         }
 
         private static string BuildFileOpLabel(string action, List<string> sources, string? labelOverride)
@@ -3637,40 +3664,201 @@ namespace BNDZ
             MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         }
 
-        private async Task SyncDirectoriesTrueAsync(string sourceDir, string targetDir)
+        private async Task HandleExecuteBatchRenameAsync(
+            string operationId,
+            List<(string Source, string Target)> renames,
+            string? labelOverride,
+            string? idProp)
         {
-            // Standardize paths (mock logic handles virtual-local normalization)
+            var label = labelOverride ?? $"Batch rename ({renames.Count} items)";
+            _fileTransferQueue.RegisterJob(operationId, "batch-rename", label, "bndz", Math.Max(renames.Count, 1), "fs", FileTransferPriority.High);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                try
+                {
+                    var prefs = FileOperationPreferences.Current;
+                    void OnProgress(string opId, int percentage, string currentFile, long bytesTransferred, long totalBytes, double speedBytesPerSecond, int itemsCompleted, int totalItems)
+                    {
+                        _fileTransferQueue.UpdateProgress(opId, percentage, currentFile, itemsCompleted, totalItems, bytesTransferred, totalBytes, speedBytesPerSecond);
+                    }
+
+                    var result = await _fileOperationService.ExecuteBatchRenameAsync(
+                        operationId,
+                        renames,
+                        recordActionLog: prefs.LogActions && !FileOperationPreferences.UseNativeEngine,
+                        onProgress: OnProgress,
+                        cancellationToken: ct).ConfigureAwait(false);
+
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+
+                    var response = new
+                    {
+                        type = "EXECUTE_BATCH_RENAME_RESULT",
+                        id = idProp,
+                        payload = new { ok = true, renamed = result.Renamed, skipped = result.Skipped, failed = result.Failed },
+                    };
+                    await PostToUiAsync(() =>
+                    {
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    var response = new
+                    {
+                        type = "EXECUTE_BATCH_RENAME_RESULT",
+                        id = idProp,
+                        payload = new { ok = false, error = ex.Message },
+                    };
+                    await PostToUiAsync(() =>
+                    {
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                    });
+                    throw;
+                }
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
+            }
+            catch { /* response posted */ }
+        }
+
+        private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp)
+        {
+            var label = $"Sync · {Path.GetFileName(sourceDir.TrimEnd('\\', '/'))}";
+            _fileTransferQueue.RegisterJob(operationId, "folder-sync", label, "bndz", 1, "folder-sync", FileTransferPriority.Low);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                try
+                {
+                    await SyncDirectoriesTrueAsync(sourceDir, targetDir, operationId, ct).ConfigureAwait(false);
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    var response = new { type = "SYNC_FOLDERS_RESULT", id = idProp, payload = new { ok = true } };
+                    await PostToUiAsync(() =>
+                    {
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    var response = new { type = "SYNC_FOLDERS_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
+                    await PostToUiAsync(() =>
+                    {
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                    });
+                    throw;
+                }
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
+            }
+            catch { /* response posted */ }
+        }
+
+        private async Task HandleCreateLinkAsync(string operationId, string linkPath, string targetPath, string linkType, string? idProp)
+        {
+            var label = $"Create {linkType} · {Path.GetFileName(linkPath)}";
+            _fileTransferQueue.RegisterJob(operationId, "create-link", label, "bndz", 1, "fs", FileTransferPriority.Normal);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    _fileTransferQueue.UpdateProgress(operationId, 10, linkPath, 0, 1);
+                    var result = _linkService.CreateLink(linkPath, targetPath, linkType);
+                    if (!result.Success)
+                    {
+                        _fileTransferQueue.MarkFailed(operationId, result.Error ?? "Link creation failed");
+                    }
+                    else
+                    {
+                        if (FileOperationPreferences.Current.LogActions && !FileOperationPreferences.UseNativeEngine)
+                            _actionLogService.Record(BndzActionLogService.ForCreateLink(linkPath, targetPath, result.LinkType ?? linkType));
+                        _fileTransferQueue.MarkCompleted(operationId);
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+
+                    var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = result };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    await PostToUiAsync(() =>
+                    {
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = new LinkService.LinkResult { Success = false, Error = ex.Message } };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    await PostToUiAsync(() =>
+                    {
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                    });
+                    throw;
+                }
+            }
+
+            try
+            {
+                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Normal).ConfigureAwait(false);
+            }
+            catch { /* response posted */ }
+        }
+
+        private async Task SyncDirectoriesTrueAsync(string sourceDir, string targetDir, string operationId, CancellationToken ct)
+        {
             sourceDir = sourceDir.Replace("/", "\\");
             targetDir = targetDir.Replace("/", "\\");
-            
+
             if (!Directory.Exists(sourceDir)) return;
             Directory.CreateDirectory(targetDir);
 
-            // Enumerate files lazily to reduce memory footprint and avoid scanning blocks
-            var files = Directory.EnumerateFiles(sourceDir, "*.*", SearchOption.AllDirectories);
-            var tasks = new List<Task>();
+            var files = Directory.EnumerateFiles(sourceDir, "*.*", SearchOption.AllDirectories).ToList();
+            var total = Math.Max(files.Count, 1);
+            var completed = 0;
 
             foreach (var file in files)
             {
+                ct.ThrowIfCancellationRequested();
                 string refPath = Path.GetRelativePath(sourceDir, file);
                 string destPath = Path.Combine(targetDir, refPath);
-                
+
                 string? destDir = Path.GetDirectoryName(destPath);
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
                     Directory.CreateDirectory(destDir);
 
-                // Concurrent, true async I/O file copying avoids blocking ThreadPool threads
-                tasks.Add(CopyFileAsync(file, destPath));
-                
-                // Throttle concurrency if needed to avoid exhaustion, optimizing for SSDs
-                if (tasks.Count >= Environment.ProcessorCount * 4)
-                {
-                    var completedTask = await Task.WhenAny(tasks);
-                    tasks.Remove(completedTask);
-                }
+                await CopyFileAsync(file, destPath).ConfigureAwait(false);
+                completed++;
+                var pct = (int)(completed * 100.0 / total);
+                _fileTransferQueue.UpdateProgress(operationId, pct, file, completed, total);
             }
-            
-            await Task.WhenAll(tasks);
+
+            _fileTransferQueue.UpdateProgress(operationId, 100, null, total, total);
         }
 
         private async Task CopyFileAsync(string sourceFile, string destinationFile)

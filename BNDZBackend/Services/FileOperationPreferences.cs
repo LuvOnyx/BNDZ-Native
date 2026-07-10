@@ -18,6 +18,8 @@ public sealed class FileOperationPreferences
     /// <summary>When using native engine, show Explorer progress dialogs (false = silent shell ops).</summary>
     public bool NativeShowProgress { get; set; } = true;
     public bool PersistTransferQueue { get; set; } = true;
+    public bool RememberActionLogBetweenSessions { get; set; } = false;
+    public bool PersistActionLogOnExit { get; set; } = false;
     public int MaxActionLogEntries { get; set; } = 256;
     public UndoPromptMode UndoPrompt { get; set; } = UndoPromptMode.IfOlderThan10Minutes;
 
@@ -48,6 +50,8 @@ public sealed class FileOperationPreferences
                 SingleStepUndo = ReadSingleStepUndo(root),
                 NativeShowProgress = ReadBool(root, "nativeShellShowProgress", true),
                 PersistTransferQueue = ReadBool(root, "persistTransferQueue", true),
+                RememberActionLogBetweenSessions = ReadBool(root, "rememberTheLoggedActionsBetweenSessions", false),
+                PersistActionLogOnExit = ReadBool(root, "evenOnExitWithoutSaving", false),
                 MaxActionLogEntries = ReadInt(root, "allowedNumberOfEntriesInTheActionLog", 256),
                 UndoPrompt = ReadUndoPrompt(root),
             };

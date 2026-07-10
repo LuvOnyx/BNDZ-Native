@@ -158,44 +158,44 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
     const handleCommit = async () => {
         if (!collisions.length || committing) return;
         setCommitting(true);
-        let renamed = 0;
-        let skipped = 0;
-        let failed = 0;
 
         try {
-            const batchId = Date.now();
-            const batchLabel = `Batch rename (${collisions.length} items)`;
+            const renames: Array<{ source: string; target: string }> = [];
             for (const p of collisions) {
-                if (!p.parentDir) { failed++; continue; }
+                if (!p.parentDir) continue;
                 const dest = `${p.parentDir}\\${p.newName}`;
-                if (dest.toLowerCase() === p.sourcePath.toLowerCase()) {
-                    skipped++;
-                    continue;
-                }
-                try {
-                    const exists = await IPC.checkPathExists(dest);
-                    if (exists) {
-                        skipped++;
-                        continue;
-                    }
-                    const itemLabel = renamed === 0
-                        ? batchLabel
-                        : `Rename: ${p.oldName} → ${p.newName}`;
-                    await IPC.executeFsOperation(`rename-batch-${batchId}-${renamed}`, 'move', p.sourcePath, dest, false, itemLabel);
-                    renamed++;
-                } catch {
-                    failed++;
-                }
+                if (dest.toLowerCase() === p.sourcePath.toLowerCase()) continue;
+                const exists = await IPC.checkPathExists(dest);
+                if (exists) continue;
+                renames.push({ source: p.sourcePath, target: dest });
             }
-            if (failed === 0 && skipped === 0) {
-                pushToast({ kind: 'success', title: 'Rename complete', message: `${renamed} item(s) renamed.` });
+
+            if (!renames.length) {
+                pushToast({ kind: 'warning', title: 'Nothing to rename', message: 'All items were unchanged, skipped, or would collide.' });
+                return;
+            }
+
+            const operationId = `batch-rename-${Date.now()}`;
+            const label = `Batch rename (${renames.length} items)`;
+            const result = await IPC.executeBatchRename(operationId, renames, label);
+
+            if (result.ok) {
+                const renamed = result.renamed ?? 0;
+                const skipped = result.skipped ?? 0;
+                if (skipped === 0) {
+                    pushToast({ kind: 'success', title: 'Rename complete', message: `${renamed} item(s) renamed — undo restores all in one step.` });
+                } else {
+                    pushToast({
+                        kind: 'info',
+                        title: 'Rename finished',
+                        message: `${renamed} renamed, ${skipped} skipped.`,
+                    });
+                }
             } else {
-                pushToast({
-                    kind: skipped > 0 && renamed === 0 ? 'warning' : 'info',
-                    title: 'Rename finished',
-                    message: `${renamed} renamed, ${skipped} skipped (collision/unchanged), ${failed} failed.`,
-                });
+                pushToast({ kind: 'error', title: 'Rename failed', message: result.error || 'Batch rename could not complete.' });
             }
+        } catch (err: any) {
+            pushToast({ kind: 'error', title: 'Rename failed', message: err?.message || 'Unexpected error.' });
         } finally {
             setCommitting(false);
         }

@@ -93,27 +93,15 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
     const executeBatch = async (action: 'copy' | 'move') => {
         if (!stack.length || !focusedPath || operating) return;
         setOperating(true);
-        let ok = 0;
-        let failed = 0;
         try {
             const targetDir = toWindowsPath(focusedPath).replace(/\\$/, '');
-            for (const item of stack) {
-                const sourcePath = toWindowsPath(item);
-                const fileName = sourcePath.split(/[/\\]/).pop() || item;
-                const destPath = `${targetDir}\\${fileName}`;
-                try {
-                    await IPC.executeFsOperation(`stack-${action}-${Date.now()}-${fileName}`, action, sourcePath, destPath);
-                    ok++;
-                } catch {
-                    failed++;
-                }
-            }
-            if (failed === 0) {
-                pushToast({ kind: 'success', title: action === 'copy' ? 'Copied' : 'Moved', message: `${ok} item(s) to ${targetDir}` });
-                setStack([]);
-            } else {
-                pushToast({ kind: 'warning', title: 'Partial transfer', message: `${ok} succeeded, ${failed} failed.` });
-            }
+            const operationId = `dropstack-${action}-${Date.now()}`;
+            const label = `Drop stack ${action} (${stack.length} items)`;
+            await IPC.executeFsOperation(operationId, action, stack, targetDir, false, label, 'normal');
+            pushToast({ kind: 'success', title: action === 'copy' ? 'Copied' : 'Moved', message: `${stack.length} item(s) queued to ${targetDir}` });
+            setStack([]);
+        } catch {
+            pushToast({ kind: 'error', title: 'Transfer failed', message: 'Could not queue drop stack transfer.' });
         } finally {
             setOperating(false);
         }
