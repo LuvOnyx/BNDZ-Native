@@ -71,7 +71,7 @@ function formatWhen(iso?: string | null) {
 
 function StatusBadge({ status }: { status: string }) {
   const cfg =
-    status === 'syncing' ? { color: '#38bdf8', label: 'Syncing', icon: 'loading', spin: true } :
+    status === 'syncing' ? { color: '#0078d4', label: 'Syncing', icon: 'loading', spin: true } :
     status === 'error' ? { color: '#f87171', label: 'Error', icon: 'warning', spin: false } :
     status === 'watching' ? { color: '#a78bfa', label: 'Watching', icon: 'toggle_preview', spin: false } :
     { color: '#34d399', label: 'Ready', icon: 'check', spin: false };
@@ -236,7 +236,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
     <PluginPanelShell
       title="Folder Sync"
       icon="sync_folders"
-      iconColor="#38bdf8"
+      iconColor="#0078d4"
       variant="embedded"
       subtitle="Auto-sync folders via robocopy"
       toolbar={
@@ -271,7 +271,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
         )}
 
         {draft && (
-          <PluginCard className="border-sky-500/25 space-y-3">
+          <PluginCard className="border-[#0078d4]/30 space-y-3">
             <PluginSectionTitle icon="sync_folders">{editingId ? 'Edit sync pair' : 'New sync pair'}</PluginSectionTitle>
             <div>
               <PluginFieldLabel>Sync name</PluginFieldLabel>
@@ -301,11 +301,11 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
             </div>
             <div className="flex flex-wrap gap-4 text-xs text-gray-300">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={draft.watchEnabled !== false} onChange={e => setDraft({ ...draft, watchEnabled: e.target.checked })} className="accent-sky-500" />
+                <input type="checkbox" checked={draft.watchEnabled !== false} onChange={e => setDraft({ ...draft, watchEnabled: e.target.checked })} className="accent-[#0078d4]" />
                 <Icons8Icon id="sparkles_ui" size={12} /> Watch for changes
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={!!draft.mirrorMode} onChange={e => setDraft({ ...draft, mirrorMode: e.target.checked })} className="accent-sky-500" />
+                <input type="checkbox" checked={!!draft.mirrorMode} onChange={e => setDraft({ ...draft, mirrorMode: e.target.checked })} className="accent-[#0078d4]" />
                 Mirror mode (delete extras in destination)
               </label>
             </div>
@@ -365,7 +365,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
               {(isSyncing || prog) && (
                 <div className="space-y-1">
                   <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
-                    <div className="h-full bg-sky-500 rounded-full transition-all duration-300" style={{ width: `${prog?.percent ?? 30}%` }} />
+                    <div className="h-full bg-[#0078d4] rounded-full transition-all duration-300" style={{ width: `${prog?.percent ?? 30}%` }} />
                   </div>
                   <p className="text-xs bndz-panel-muted truncate">{prog?.message || prog?.file || 'Syncing…'}</p>
                 </div>
@@ -384,7 +384,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
       {preview && (
         <div className="shrink-0 border-t border-white/10 bg-black/20 max-h-[40%] flex flex-col">
           <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06]">
-            <div className="text-xs font-semibold text-sky-300 flex items-center gap-2">
+            <div className="text-xs font-semibold text-[#99c9f0] flex items-center gap-2">
               <Icons8Icon id="table_ui" size={13} /> Sync preview
               <span className="bndz-panel-muted font-normal">{preview.data.summary}</span>
             </div>

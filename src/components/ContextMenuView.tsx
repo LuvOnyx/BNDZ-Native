@@ -425,19 +425,19 @@ function ContextMenuView({
                   <ContextMenuItem
                     key={opt.value}
                     label={opt.label}
-                    iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{sortColumn === opt.value ? '●' : ''}</span>}
+                    iconNode={<span className="w-3.5 shrink-0 text-center text-[#99c9f0]">{sortColumn === opt.value ? '●' : ''}</span>}
                     onClick={() => { onSortBy(opt.value); onClose(); }}
                   />
                 ))}
                 <div className="bndz-context-menu-sep" />
                 <ContextMenuItem
                   label="Ascending"
-                  iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{sortDirection === 'asc' ? '●' : ''}</span>}
+                  iconNode={<span className="w-3.5 shrink-0 text-center text-[#99c9f0]">{sortDirection === 'asc' ? '●' : ''}</span>}
                   onClick={() => { onSetSortDirection?.('asc'); onClose(); }}
                 />
                 <ContextMenuItem
                   label="Descending"
-                  iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{sortDirection === 'desc' ? '●' : ''}</span>}
+                  iconNode={<span className="w-3.5 shrink-0 text-center text-[#99c9f0]">{sortDirection === 'desc' ? '●' : ''}</span>}
                   onClick={() => { onSetSortDirection?.('desc'); onClose(); }}
                 />
               </ContextSubmenu>
@@ -448,7 +448,7 @@ function ContextMenuView({
                   <ContextMenuItem
                     key={opt.value}
                     label={opt.label}
-                    iconNode={<span className="w-3.5 shrink-0 text-center text-sky-300">{(listGroupBy || 'none') === opt.value ? '●' : ''}</span>}
+                    iconNode={<span className="w-3.5 shrink-0 text-center text-[#99c9f0]">{(listGroupBy || 'none') === opt.value ? '●' : ''}</span>}
                     onClick={() => { onGroupByChange(opt.value); onClose(); }}
                   />
                 ))}
@@ -797,7 +797,7 @@ function ContextMenuView({
               placeholder="Filter menu…"
               value={menuFilter}
               onChange={e => setMenuFilter(e.target.value)}
-              className="w-full bg-[#111] border border-[#333] rounded px-2 py-1 text-[11px] text-white outline-none focus:border-sky-500"
+              className="w-full bg-[#111] border border-[#333] rounded px-2 py-1 text-[11px] text-white outline-none focus:border-[#0078d4]"
               onClick={e => e.stopPropagation()}
             />
           </div>

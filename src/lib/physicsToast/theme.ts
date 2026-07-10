@@ -11,8 +11,8 @@ export const PHYSICS_TOAST_COLORS: Record<ToastKind, string> = {
   success: '#34d399',
   error: '#fb7185',
   warning: '#fbbf24',
-  info: '#38bdf8',
-  progress: '#a78bfa',
+  info: '#0078d4',
+  progress: '#0078d4',
 };
 
 export const PHYSICS_TOAST_SURFACE = 'var(--bndz-surface-raised, #1a1d26)';

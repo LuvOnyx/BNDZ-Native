@@ -277,7 +277,7 @@ function TreeRow({
         <span className="text-[12px] select-none truncate nav-tree-label transition-colors flex items-center gap-1 min-w-0">
           <span className="truncate">{row.label}</span>
           {showIndexBadges && indexedRoots?.length && row.path && isPathUnderIndexedRoot(row.path, indexedRoots) && (
-            <span className="shrink-0 px-1 py-px text-[8px] font-medium bg-sky-900/70 text-sky-300 rounded" title="Search indexed">IDX</span>
+            <span className="shrink-0 px-1 py-px text-[8px] font-medium bg-[#094771]/70 text-[#99c9f0]" title="Search indexed">IDX</span>
           )}
         </span>
       )}

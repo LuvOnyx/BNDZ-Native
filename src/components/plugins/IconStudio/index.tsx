@@ -97,7 +97,7 @@ function IconStudioInner({
                             type="checkbox"
                             checked={config.allowGlobalIconOverwrite ?? false}
                             onChange={e => updateConfig({ allowGlobalIconOverwrite: e.target.checked })}
-                            className="accent-sky-500"
+                            className="accent-[#0078d4]"
                         />
                         <Icons8Icon id="shield_ui" size={11} className="opacity-60" />
                         <span className="hidden md:inline">Force apply</span>

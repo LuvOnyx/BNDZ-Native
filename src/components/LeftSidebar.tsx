@@ -127,7 +127,7 @@ export function LeftSidebar({
 
     const sections = {
         quickAccess: { content: quickAccessContent, label: "Rapid access", icon: 'star_ui', iconColor: "text-emerald-400" },
-        cloud: { content: cloudProvidersContent, label: "Cloud Drives", icon: 'go_network', iconColor: "text-sky-400" },
+        cloud: { content: cloudProvidersContent, label: "Cloud Drives", icon: 'go_network', iconColor: "text-[#7eb8e8]" },
         drives: { content: drivesContent, label: "Drives", icon: 'disk_mgmt', iconColor: "text-gray-400" },
         miniTree: { content: miniTreeContent, label: "Mini Tree", icon: 'mini_tree', iconColor: "text-violet-400" },
         tree: { content: treeContent, label: "Navigation Tree", icon: 'shell_menus', iconColor: "text-emerald-500" },

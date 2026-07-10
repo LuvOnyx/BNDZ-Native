@@ -69,7 +69,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
         matchValue: '',
         rowTint: 'rgba(0,122,204,0.12)',
         textColor: '#6db4e6',
-        badgeColor: '#38bdf8',
+        badgeColor: '#0078d4',
     });
 
     const previewStyle = editing ? {
@@ -81,7 +81,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
         <PluginPanelShell
             title="Visual Filters"
             icon="filters"
-            iconColor="#38bdf8"
+            iconColor="#0078d4"
             variant="embedded"
             subtitle={`${filters.filter(f => f.isActive).length} active rules`}
             toolbar={
@@ -99,7 +99,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                     )}
                     {filters.map(f => (
                         <PluginCard key={f.id} className={`flex items-center gap-3 !py-3 ${!f.isActive ? 'opacity-60' : ''}`}>
-                            <input type="checkbox" checked={f.isActive} onChange={e => toggleActive(f.id, e.target.checked)} className="accent-sky-500" />
+                            <input type="checkbox" checked={f.isActive} onChange={e => toggleActive(f.id, e.target.checked)} className="accent-[#0078d4]" />
                             <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: f.badgeColor || f.textColor || '#6db4e6' }} />
                             <div className="flex-1 min-w-0">
                                 <div className="text-xs font-semibold text-white truncate">{f.name}</div>
@@ -150,18 +150,18 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                                 </label>
                                 <label>
                                     <PluginFieldLabel>Badge</PluginFieldLabel>
-                                    <input type="color" value={editing.badgeColor || '#38bdf8'} onChange={e => setEditing({ ...editing, badgeColor: e.target.value })} className="w-full h-7 rounded cursor-pointer mt-0.5" />
+                                    <input type="color" value={editing.badgeColor || '#0078d4'} onChange={e => setEditing({ ...editing, badgeColor: e.target.value })} className="w-full h-7 rounded cursor-pointer mt-0.5" />
                                 </label>
                             </div>
                             <PluginCard className="!p-2 bg-black/20">
                                 <PluginFieldLabel>Live preview</PluginFieldLabel>
                                 <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs" style={previewStyle}>
-                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: editing.badgeColor || '#38bdf8' }} />
+                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: editing.badgeColor || '#0078d4' }} />
                                     {SAMPLE_ENTITY.name}
                                 </div>
                             </PluginCard>
                             <div className="flex gap-2 mt-auto">
-                                <button type="submit" className="bndz-plugin-btn flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium bg-sky-600/20 border-sky-500/35 text-sky-300">
+                                <button type="submit" className="bndz-plugin-btn flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium bg-[#094771]/35 border-[#0078d4]/40 text-[#99c9f0]">
                                     Save
                                 </button>
                                 <PluginToolbarButton onClick={() => setEditing(null)}>Cancel</PluginToolbarButton>

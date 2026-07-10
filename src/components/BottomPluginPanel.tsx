@@ -205,7 +205,7 @@ export default function BottomPluginPanel(props: any & {
         <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
           <span>No plugins installed.</span>
           {onOpenPluginStore && (
-            <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-sky-700 hover:bg-sky-600 text-white rounded-md text-sm font-semibold transition-colors">
+            <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-[#0067c0] hover:bg-[#0078d4] text-white text-sm font-semibold transition-colors">
               <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub
             </button>
           )}
@@ -247,7 +247,7 @@ export default function BottomPluginPanel(props: any & {
                         type="button"
                         onClick={() => handleTabClick(plugin.id)}
                         className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-[#094771]/40 ${
-                          activeTab === plugin.id ? 'text-sky-300 font-medium' : 'text-gray-300'
+                          activeTab === plugin.id ? 'text-[#99c9f0] font-medium' : 'text-gray-300'
                         }`}
                       >
                         <Icons8Icon id={plugin.icon || 'dropstack'} size={12} /> {plugin.name}

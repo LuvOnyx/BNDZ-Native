@@ -133,7 +133,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
     <PluginPanelShell
       title="Catalog"
       icon="bookmark"
-      iconColor="#38bdf8"
+      iconColor="#0078d4"
       variant="embedded"
       subtitle="Virtual collections — browse as /vf"
       toolbar={
@@ -218,7 +218,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
           </div>
         )}
 
-        <button type="button" onClick={() => onNavigate?.(VF_ROOT)} className="text-sky-400 hover:underline text-left text-xs shrink-0">
+        <button type="button" onClick={() => onNavigate?.(VF_ROOT)} className="text-[#7eb8e8] hover:underline text-left text-xs shrink-0">
           Open catalog root (/vf) in active pane
         </button>
       </div>

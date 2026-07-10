@@ -18,7 +18,7 @@ interface PluginPanelShellProps {
 export default function PluginPanelShell({
   title,
   icon,
-  iconColor = '#38bdf8',
+  iconColor = '#0078d4',
   subtitle,
   toolbar,
   children,

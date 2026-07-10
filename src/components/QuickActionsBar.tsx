@@ -22,7 +22,7 @@ type Props = {
 };
 
 const accentClass: Record<string, string> = {
-  sky: 'hover:bg-sky-500/15 hover:text-sky-300 hover:border-sky-500/30',
+  sky: 'hover:bg-[#094771]/40 hover:text-[#cce4f7] hover:border-[#0078d4]/35',
   amber: 'hover:bg-amber-500/15 hover:text-amber-300 hover:border-amber-500/30',
   rose: 'hover:bg-rose-500/15 hover:text-rose-300 hover:border-rose-500/30',
   emerald: 'hover:bg-emerald-500/15 hover:text-emerald-300 hover:border-emerald-500/30',
@@ -48,14 +48,14 @@ export default function QuickActionsBar({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -2 }}
           transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-          className="shrink-0 overflow-hidden border-b border-sky-500/15 bndz-quick-actions-bar"
+          className="shrink-0 overflow-hidden border-b border-[#454545] bndz-quick-actions-bar"
         >
-          <div className="pointer-events-auto bg-gradient-to-r from-[#1a2a42]/97 via-[#162035]/97 to-[#141820]/97 backdrop-blur-md border-b border-sky-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="pointer-events-auto bg-[#2b2b2b] border-b border-[#454545]">
             <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-hidden">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300/95 shrink-0 mr-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#cce4f7] shrink-0 mr-1">
                 {count} selected
               </span>
-              <div className="h-4 w-px bg-sky-500/25 shrink-0" />
+              <div className="h-4 w-px bg-[#555] shrink-0" />
               {actions.map(a => (
                 <button
                   key={a.id}

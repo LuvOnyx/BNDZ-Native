@@ -57,7 +57,7 @@ export function TabContextMenu({
     <ClampedFixedMenu x={x} y={y}>
       <div
         data-bndz-tab-context-menu
-        className="bndz-context-menu min-w-[220px] py-1 rounded-md shadow-2xl select-none"
+        className="bndz-context-menu min-w-[220px] py-1 select-none"
         onMouseDown={e => e.stopPropagation()}
       >
         <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider bndz-context-menu-icon border-b border-[var(--menu-border,rgba(255,255,255,0.1))] truncate">

@@ -54,7 +54,7 @@ export default function LibraryManager() {
                         }`}
                     >
                         <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
-                            <Icons8Icon id="layers_ui" size={13} className={activeLibraryId === lib.id ? 'text-sky-400 shrink-0' : 'text-gray-600 shrink-0'} />
+                            <Icons8Icon id="layers_ui" size={13} className={activeLibraryId === lib.id ? 'text-[#7eb8e8] shrink-0' : 'text-gray-600 shrink-0'} />
                             {editingId === lib.id ? (
                                 <form onSubmit={(e) => submitRename(e, lib.id)} className="flex-1" onClick={e => e.stopPropagation()}>
                                     <input

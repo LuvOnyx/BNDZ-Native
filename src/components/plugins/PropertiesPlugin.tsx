@@ -281,7 +281,7 @@ export default function PropertiesPlugin({
             <PluginPanelShell
                 title="Properties"
                 icon="sys_properties"
-                iconColor="#38bdf8"
+                iconColor="#0078d4"
                 variant="embedded"
                 subtitle="No selection"
             >
@@ -319,7 +319,7 @@ export default function PropertiesPlugin({
         <PluginPanelShell
             title="Properties"
             icon="sys_properties"
-            iconColor="#38bdf8"
+            iconColor="#0078d4"
             variant="embedded"
             subtitle={displayName}
             toolbar={
@@ -394,7 +394,7 @@ export default function PropertiesPlugin({
                                     <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
                                     <PluginFieldRow label="Capacity" mono>{formatSize(driveInfo.totalSpace)}</PluginFieldRow>
                                     <PluginFieldRow label="Free space" mono><span className="text-emerald-400">{formatSize(driveInfo.freeSpace)}</span></PluginFieldRow>
-                                    <PluginFieldRow label="Used" mono><span className="text-sky-400">{formatSize(driveInfo.totalSpace - driveInfo.freeSpace)}</span></PluginFieldRow>
+                                    <PluginFieldRow label="Used" mono><span className="text-[#7eb8e8]">{formatSize(driveInfo.totalSpace - driveInfo.freeSpace)}</span></PluginFieldRow>
                                     <PluginFieldRow label="Format">{driveInfo.format || 'NTFS'}</PluginFieldRow>
                                 </PluginFieldGrid>
                             </PluginCard>
@@ -522,7 +522,7 @@ export default function PropertiesPlugin({
                                         className="flex items-center gap-2.5 p-2 rounded-md border border-white/[0.06] bg-black/20 hover:bg-white/[0.04] transition-colors group text-left"
                                     >
                                         <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                            fileDetails?.attributes?.[attr] ? 'bg-sky-500 border-sky-500' : 'border-white/20 group-hover:border-sky-500/50'
+                                            fileDetails?.attributes?.[attr] ? 'bg-[#0078d4] border-sky-500' : 'border-white/20 group-hover:border-sky-500/50'
                                         }`}>
                                             {fileDetails?.attributes?.[attr] && <Icons8Icon id="check" size={9} className="text-black" />}
                                         </div>

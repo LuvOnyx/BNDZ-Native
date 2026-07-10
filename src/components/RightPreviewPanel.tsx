@@ -354,7 +354,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           {browsePath && path && browsePath !== path && (
             <button
               type="button"
-              className="text-sky-400/90 hover:text-sky-300 normal-case tracking-normal text-xs font-medium"
+              className="text-[#7eb8e8] hover:text-[#99c9f0] normal-case tracking-normal text-xs font-medium"
               onClick={() => {
                 const parent = browsePath.replace(/\/[^/]+$/, '') || path;
                 setBrowsePath(parent);
@@ -373,7 +373,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               onClick={() => openChild(c)}
               onDoubleClick={() => openChild(c, { navigateMain: true })}
               className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
-                selectedChild === c.name ? 'bg-sky-500/20 text-sky-100' : 'hover:bg-white/[0.06] text-gray-300'
+                selectedChild === c.name ? 'bg-[#094771]/35 text-[#cce4f7]' : 'hover:bg-white/[0.06] text-gray-300'
               }`}
               title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
             >
@@ -602,7 +602,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       return (
          <div className={`w-full h-full flex flex-col items-center justify-center p-6 relative bndz-preview-stage ${showThumb ? 'pattern-checkerboard' : ''}`}>
-             <div className="absolute inset-0 bg-gradient-to-b from-sky-500/[0.04] via-transparent to-violet-500/[0.03] pointer-events-none" />
+             <div className="absolute inset-0 " />
              <div className="bndz-glass-panel px-6 py-5 flex flex-col items-center gap-3 max-w-[min(88%,280px)] border border-white/[0.06]">
                  {path ? (
                     <PreviewHeroIcon
@@ -614,11 +614,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                        preferThumbnail={!isDir && isImage}
                     />
                  ) : thumbnailNative ? (
-                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[180px] max-h-[180px] object-contain drop-shadow-2xl rounded-xl" alt="Preview" />
+                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[180px] max-h-[180px] object-contain  " alt="Preview" />
                  ) : shellIcon ? (
-                    <img src={shellIcon} className="max-w-[112px] max-h-[112px] object-contain drop-shadow-2xl" alt="Shell Icon" />
+                    <img src={shellIcon} className="max-w-[112px] max-h-[112px] object-contain " alt="Shell Icon" />
                  ) : (
-                    <div className="flex flex-col items-center drop-shadow-2xl">{getPreviewIcon()}</div>
+                    <div className="flex flex-col items-center ">{getPreviewIcon()}</div>
                  )}
                  {isDir && folderStats && (
                     <div className="text-xs text-white/55 text-center font-medium tracking-wide">
@@ -736,7 +736,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                        {isDrive ? (
                            <>
                                <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> Total Size:</div>
-                               <div className="text-sky-300">{formatSize((entity as any).driveInfo.totalSpace)}</div>
+                               <div className="text-[#99c9f0]">{formatSize((entity as any).driveInfo.totalSpace)}</div>
                                <div className="text-gray-500 flex items-center gap-1">Free Space:</div>
                                <div className="text-emerald-400">{formatSize((entity as any).driveInfo.freeSpace)}</div>
                                <div className="text-gray-500 flex items-center gap-1">Format:</div>
@@ -745,7 +745,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                        ) : (
                            <>
                                <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> {isDir ? 'Size on disk:' : 'Size:'}</div>
-                               <div className="text-sky-300">
+                               <div className="text-[#99c9f0]">
                                   {isDir
                                     ? (folderStats ? formatSize(folderStats.size) : 'Calculating...')
                                     : ((entity as any).size != null ? formatSize((entity as any).size) : '--')}
@@ -808,11 +808,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                        
                        <div className="mt-3 pt-3 border-t border-[#282830] flex gap-4">
                           <label className="flex items-center gap-1.5 cursor-not-allowed">
-                             <input type="checkbox" className="accent-sky-500 bg-[#222] border-[#444] rounded-sm" readOnly checked={extendedDetails ? extendedDetails["ReadOnly"] === "true" : (entity as any).readOnly !== false} /> 
+                             <input type="checkbox" className="accent-[#0078d4] bg-[#222] border-[#444] rounded-sm" readOnly checked={extendedDetails ? extendedDetails["ReadOnly"] === "true" : (entity as any).readOnly !== false} /> 
                              <span className="text-gray-300">Read-only</span>
                           </label>
                           <label className="flex items-center gap-1.5 cursor-not-allowed">
-                             <input type="checkbox" className="accent-sky-500 bg-[#222] border-[#444] rounded-sm" readOnly checked={extendedDetails ? extendedDetails["Hidden"] === "true" : (entity as any).hidden === true} /> 
+                             <input type="checkbox" className="accent-[#0078d4] bg-[#222] border-[#444] rounded-sm" readOnly checked={extendedDetails ? extendedDetails["Hidden"] === "true" : (entity as any).hidden === true} /> 
                              <span className="text-gray-300">Hidden</span>
                           </label>
                        </div>
@@ -838,7 +838,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
                 {activeTab === 'preview' && (
                 isDir ? (
-                  <div className="shrink-0 border-t border-white/[0.06] bg-gradient-to-r from-[#0d0d12] to-[#111118] grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
+                  <div className="shrink-0 border-t border-white/[0.06] bg-[#252526] grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
                     <div className="min-w-0 flex flex-col justify-center">
                       <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
                       <p className="bndz-panel-section-title mt-1">Folder</p>
@@ -853,9 +853,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     </div>
                   </div>
                 ) : (
-                <div className="px-4 py-3 border-t border-white/[0.06] bg-gradient-to-r from-[#0d0d12] to-[#111118] shrink-0">
+                <div className="px-4 py-3 border-t border-white/[0.06] bg-[#252526] shrink-0">
                    <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
-                   <p className="bndz-panel-section-title mt-1 text-sky-400/80">
+                   <p className="bndz-panel-section-title mt-1 text-[#7eb8e8]">
                       {isDrive ? (entity as any).typeDescription : `${ext.toUpperCase()} file`}
                    </p>
                 </div>

@@ -88,7 +88,7 @@ export default function MetadataPlugin({
             <PluginPanelShell
                 title="Metadata Inspector"
                 icon="metadata"
-                iconColor="#38bdf8"
+                iconColor="#0078d4"
                 variant="embedded"
                 subtitle="No selection"
             >
@@ -104,7 +104,7 @@ export default function MetadataPlugin({
         <PluginPanelShell
             title="Metadata Inspector"
             icon="metadata"
-            iconColor="#38bdf8"
+            iconColor="#0078d4"
             variant="embedded"
             subtitle={path.split(/[/\\]/).pop() || path}
             status={loading ? (

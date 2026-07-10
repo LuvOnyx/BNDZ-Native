@@ -91,7 +91,7 @@ export default function SmartToolsDialog({
                         type="button"
                         onClick={() => setTab(t.id)}
                         className={`flex items-center gap-1.5 px-4 py-2 text-[12px] border-b-2 ${
-                            tab === t.id ? 'border-sky-500 text-white bg-[#222228]' : 'border-transparent text-gray-500 hover:text-gray-300'
+                            tab === t.id ? 'border-[#0078d4] text-white bg-[#094771]/35' : 'border-transparent text-gray-500 hover:text-gray-300'
                         }`}
                     >
                         <Icons8Icon id={t.iconId} size={12} /> {t.label}

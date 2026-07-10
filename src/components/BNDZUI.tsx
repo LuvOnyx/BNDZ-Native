@@ -1159,7 +1159,6 @@ export default function BNDZUI() {
   const suppressRowClickRef = useRef(false);
 
   // File Operations State
-  const [transferProgress, setTransferProgress] = useState<{ [opId: string]: { percentage: number, file: string, bytesTransferred: number, totalBytes: number, speedBytesPerSecond: number, itemsCompleted: number, totalItems: number } }>({});
   const [conflict, setConflict] = useState<{ opId: string, fileName: string, srcPath: string, destPath: string } | null>(null);
 
   // Omni-Filter State
@@ -1932,7 +1931,6 @@ export default function BNDZUI() {
         if (progressDetails.error) {
           dismissToast(`xfer-${opId}`);
           xferMetaRef.current.delete(opId);
-          setTransferProgress(prev => { const next = { ...prev }; delete next[opId]; return next; });
           const failVerb = opId.startsWith('archive-') ? 'Compression failed'
             : opId.startsWith('extract-') ? 'Extraction failed'
             : 'Operation failed';
@@ -1940,18 +1938,6 @@ export default function BNDZUI() {
           return;
         }
 
-        setTransferProgress(prev => ({
-           ...prev,
-           [opId]: {
-              percentage: pct,
-              file: progressDetails.currentFile,
-              bytesTransferred: progressDetails.bytesTransferred || 0,
-              totalBytes: progressDetails.totalBytes || 0,
-              speedBytesPerSecond: progressDetails.speedBytesPerSecond || 0,
-              itemsCompleted: progressDetails.itemsCompleted || 0,
-              totalItems: progressDetails.totalItems || 0
-           }
-        }));
         const meta = xferMetaRef.current.get(opId);
         const fileName = (progressDetails.currentFile || '').split(/[/\\]/).pop() || meta?.label || 'items';
         const isArchiveOp = opId.startsWith('archive-');
@@ -1977,13 +1963,6 @@ export default function BNDZUI() {
            xferMetaRef.current.delete(opId);
            pushToast({ kind: 'success', title: doneVerb, message: meta?.label || fileName });
            refreshPathsRef.current();
-           setTimeout(() => {
-             setTransferProgress(prev => {
-                const next = { ...prev };
-                delete next[opId];
-                return next;
-             });
-           }, 1200);
         }
       });
       unsubConf = IPC.onConflictContent((conflictDetails) => {
@@ -2142,7 +2121,7 @@ export default function BNDZUI() {
         isDynamic: true,
         useShellIcon: true,
         icon: 'cloud_ui',
-        iconColor: p.syncStatus === 'online-only' ? '#fbbf24' : '#38bdf8',
+        iconColor: p.syncStatus === 'online-only' ? '#fbbf24' : '#0078d4',
         syncStatus: p.syncStatus,
       }))
   ), [cloudProviders]);
@@ -2222,7 +2201,7 @@ export default function BNDZUI() {
         label: 'Smart views',
         path: BNDZ_VIEWS_ROOT,
         icon: 'sparkles_ui',
-        iconColor: '#38bdf8',
+        iconColor: '#0078d4',
         expanded: smartViewsExpanded,
         onClick: () => setCurrentPath(bndzVirtualPath('recent')),
         onToggle: () => setSmartViewsExpanded(!smartViewsExpanded),
@@ -2230,7 +2209,7 @@ export default function BNDZUI() {
           label: bndzVirtualLabel(view),
           path: bndzVirtualPath(view),
           icon: view === 'recent' ? 'clock_ui' : view === 'media' ? 'film_ui' : 'hard_drive_ui',
-          iconColor: '#38bdf8',
+          iconColor: '#0078d4',
         })),
       },
       {
@@ -2296,7 +2275,7 @@ export default function BNDZUI() {
           isDynamic: true,
           useShellIcon: true,
           icon: 'go_network',
-          iconColor: '#38bdf8',
+          iconColor: '#0078d4',
         })),
       },
       {
@@ -4352,7 +4331,7 @@ export default function BNDZUI() {
                  data-tab-id={tab.id}
                  data-tab-index={idx}
                  draggable={!tab.locked}
-                 className={`relative bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-all duration-200 ease-out ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${isTabFileDropHover ? 'ring-2 ring-sky-400/80 bg-sky-950/40' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${tabDropBefore ? 'bndz-tab-drop-before' : ''} ${tabDropAfter ? 'bndz-tab-drop-after' : ''}`}
+                 className={`relative bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-all duration-200 ease-out ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${isTabFileDropHover ? 'ring-2 ring-[#0078d4]/70 bg-[#094771]/30' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${tabDropBefore ? 'bndz-tab-drop-before' : ''} ${tabDropAfter ? 'bndz-tab-drop-after' : ''}`}
                  onDragStart={(e) => {
                    if (tab.locked) { e.preventDefault(); return; }
                    e.stopPropagation();
@@ -4465,7 +4444,7 @@ export default function BNDZUI() {
            })}
            {config.showNewTabButton !== false && (
              <div 
-               className={`ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400 font-bold transition-colors ${newTabDropPaneId === pane.id ? 'ring-1 ring-inset ring-sky-400/70 bg-[#333]' : ''}`}
+               className={`ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400 font-bold transition-colors ${newTabDropPaneId === pane.id ? 'ring-1 ring-inset ring-[#0078d4]/60 bg-[#333]' : ''}`}
                data-new-tab-zone={pane.id}
                title="New tab · Drop a folder here to open it in a new tab"
                onClick={(e) => { e.stopPropagation(); addTab(pane.id, currentTab.path); }}
@@ -4627,7 +4606,7 @@ export default function BNDZUI() {
                   <React.Fragment key={seg.path}>
                     {idx > 0 && <span className="text-gray-500 mx-1 shrink-0">&gt;</span>}
                     <span
-                      className={`hover:underline cursor-pointer font-semibold shrink-0 rounded-[var(--bndz-radius-sm)] transition-colors ${breadcrumbDropTarget === seg.path ? 'bg-sky-500/25 ring-1 ring-sky-400/70 px-1 -mx-1' : ''}`}
+                      className={`hover:underline cursor-pointer font-semibold shrink-0 rounded-[var(--bndz-radius-sm)] transition-colors ${breadcrumbDropTarget === seg.path ? 'bg-[#0078d4]/20 ring-1 ring-[#0078d4]/60 px-1 -mx-1' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (e.ctrlKey || e.metaKey) { addTab(pane.id, seg.path); return; }
@@ -4716,12 +4695,12 @@ export default function BNDZUI() {
                     if (computedViewMode === 'grid') updateConfig({ gridIconSize: v });
                     else updateConfig({ listIconSize: v });
                   }}
-                  className="w-full h-1 accent-sky-500"
+                  className="w-full h-1 accent-[#0078d4]"
                   title="Icon size"
                 />
               )}
             </div>
-            <div className="flex bg-[#222] border border-[#444] rounded items-center px-2 py-0.5 mx-2 text-[11px] shrink-0 w-[140px] focus-within:w-[200px] focus-within:border-sky-500 transition-all duration-200">
+            <div className="flex bg-[#222] border border-[#444] rounded items-center px-2 py-0.5 mx-2 text-[11px] shrink-0 w-[140px] focus-within:w-[200px] focus-within:border-[#0078d4] transition-all duration-200">
                <Icons8Icon id="search" size={12} className="mr-1.5 opacity-60" />
                <input
                    type="text"
@@ -4807,7 +4786,7 @@ export default function BNDZUI() {
                )}
                <div
                  draggable={false}
-                 className="bndz-col-resize-handle absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-sky-500/35 active:bg-sky-500/50 z-10 touch-none"
+                 className="bndz-col-resize-handle absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-[#0078d4]/30 active:bg-[#0078d4]/45 z-10 touch-none"
                  onMouseDown={e => { e.preventDefault(); e.stopPropagation(); startColumnResize(col.id, e.clientX, e.currentTarget.parentElement as HTMLElement); }}
                />
              </div>
@@ -5391,7 +5370,7 @@ export default function BNDZUI() {
                 if (isGroupHeaderRow(entity)) {
                   return (
                     <div
-                      className="sticky top-0 z-10 flex items-center gap-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-300/90 bg-[#1a1a1f]/95 border-y border-white/[0.06] backdrop-blur-sm"
+                      className="sticky top-0 z-10 flex items-center gap-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#99c9f0] bg-[#252526] border-y border-[#454545]"
                     >
                       <span>{entity.label}</span>
                       <span className="text-gray-500 font-normal normal-case">({entity.count})</span>
@@ -5494,7 +5473,7 @@ export default function BNDZUI() {
                     className={`fs-item-wrapper ${isGridLike ? 'fs-grid-item' : 'fs-list-item'} ${computedViewMode === 'grid' ? `flex flex-col items-center justify-center p-2 rounded w-full ${isDrive ? 'min-h-[128px] h-auto' : 'h-[100px]'}` : computedViewMode === 'list' ? `flex items-center text-[12px] py-1 px-2 ${isDrive ? 'w-[280px]' : 'w-[220px]'} rounded` : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : isNeutralDefault ? "py-[1px]" : "py-[3px]"}`} border border-transparent cursor-default
                       ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : mouseRt.highlightHovered ? 'hover:bg-[#2a2d2e]' : ''}
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
-                      ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-sky-400 bg-sky-900/40" : ""}
+                      ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30" : ""}
                       ${isCut || syncOpacity ? "opacity-50 grayscale" : ""}`}
                     style={{
                         ...(showSelectionChrome && config.listSelectionHighlightColor
@@ -5645,7 +5624,7 @@ export default function BNDZUI() {
                                  </span>
                                )}
                                {cloudBadge && (
-                                 <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-sky-400/80'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
+                                 <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
                                )}
                                {filterResult?.badgeColor && (
                                    <div className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
@@ -5667,7 +5646,7 @@ export default function BNDZUI() {
                                        scheduleQuickActionsBar(next.length > 0, true);
                                        setFocusedItemId(entity.id);
                                      }}
-                                     className="accent-sky-500 cursor-pointer"
+                                     className="accent-[#0078d4] cursor-pointer"
                                    />
                                  </div>
                                )}
@@ -5690,7 +5669,7 @@ export default function BNDZUI() {
                                  <div className="bndz-list-marquee-trail" aria-hidden />
                                </div>
                                {cloudBadge && (
-                                 <span className={`text-[10px] px-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : 'text-sky-400/70'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
+                                 <span className={`text-[10px] px-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : 'text-[#7eb8e8]/80'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
                                )}
                              </>
                            )}
@@ -5705,7 +5684,7 @@ export default function BNDZUI() {
           )}
           {marquee && marquee.activePane === pane.id && (
              <div 
-                className="absolute bg-sky-500/20 border border-sky-400 z-50 pointer-events-none"
+                className="absolute bg-[#094771]/35 border border-[#0078d4] z-50 pointer-events-none"
                 style={{
                     left: Math.min(marquee.startX, marquee.currX),
                     top: Math.min(marquee.startY, marquee.currY),
@@ -6703,7 +6682,7 @@ export default function BNDZUI() {
          <div className="w-[1px] h-4 bg-[#444] mx-2"></div>
          <div className="flex text-[10px] items-center gap-[2px] mx-1 font-mono">
             {drives.map(d => (
-                <span key={d.name} className="bg-[#333] px-1.5 py-[1px] rounded border border-[#555] cursor-pointer hover:bg-[#444] hover:border-sky-600/50 transition-colors" onClick={() => setCurrentPath(d.name)} title={d.label || formatDriveLetter(d.name)}>{formatDriveLetter(d.name)}</span>
+                <span key={d.name} className="bg-[#333] px-1.5 py-[1px] rounded border border-[#555] cursor-pointer hover:bg-[#444] hover:border-[#0078d4]/40 transition-colors" onClick={() => setCurrentPath(d.name)} title={d.label || formatDriveLetter(d.name)}>{formatDriveLetter(d.name)}</span>
             ))}
             {!drives.length && (
               <><span className="bg-[#333] px-1 py-[1px] rounded border border-[#555] cursor-pointer hover:bg-[#444]" onClick={() => setCurrentPath('/')}>Root</span><span className="bg-[#333] px-1 py-[1px] rounded border border-[#555] cursor-pointer hover:bg-[#444]" onClick={() => setCurrentPath('/workspace')}>Workspace</span></>
@@ -6909,7 +6888,7 @@ export default function BNDZUI() {
                                       autoFocus
                                       type="text"
                                       defaultValue={s.name}
-                                      className="text-[11px] font-medium bg-[#1a1a1a] border border-sky-500/50 rounded-[var(--bndz-radius-sm)] px-1 py-0 flex-1 min-w-0 text-white outline-none"
+                                      className="text-[11px] font-medium bg-[#1a1a1a] border border-[#0078d4]/45 rounded-[var(--bndz-radius-sm)] px-1 py-0 flex-1 min-w-0 text-white outline-none"
                                       onClick={e => e.stopPropagation()}
                                       onKeyDown={e => {
                                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -6944,7 +6923,7 @@ export default function BNDZUI() {
                       cloudDriveItems.map((item: { label: string; path?: string; syncStatus?: string }) => (
                         <div
                           key={item.path || item.label}
-                          className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-sky-400/70 transition-all rounded-r-sm mx-1"
+                          className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-[#0078d4]/55 transition-all rounded-r-sm mx-1"
                           onClick={() => item.path && guardedSetCurrentPath(item.path)}
                           onContextMenu={(e) => item.path && handleContextMenuRequest(e, item.path, item.path, true, item.label, undefined, 'sidebar-item')}
                         >
@@ -7200,7 +7179,7 @@ export default function BNDZUI() {
              <button
                type="button"
                onClick={() => setActiveTagFilter(null)}
-               className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-[#c4b5fd] hover:text-white"
+               className="bndz-glass-chip ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-[#cce4f7] hover:text-white"
                title="Clear tag filter"
              >
                Tag: {activeTagFilter} ×
@@ -7466,7 +7445,7 @@ export default function BNDZUI() {
                     const current = resolveListColumnVisibility(config, { isGlobalSearch: isGlobal });
                     updateConfig({ listColumnVisibility: { ...current, [col.id]: !current[col.id] } });
                   }}
-                  className="accent-sky-500"
+                  className="accent-[#0078d4]"
                 />
                 {col.label}
               </label>

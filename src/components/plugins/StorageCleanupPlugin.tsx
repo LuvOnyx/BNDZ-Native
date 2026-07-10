@@ -217,7 +217,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
               <PluginCard className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <div className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Icons8Icon id="wand_ui" size={16} className="text-sky-400" />
+                    <Icons8Icon id="wand_ui" size={16} className="text-[#7eb8e8]" />
                     Guided workflows
                   </div>
                   <p className="text-xs bndz-panel-muted mt-1 max-w-md">
@@ -282,7 +282,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                         onClick={() => navigateToPath(item.winPath)}
                         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors group text-left"
                       >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.type === 'directory' ? 'bg-amber-500/12 text-amber-400' : 'bg-sky-500/12 text-sky-400'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.type === 'directory' ? 'bg-amber-500/12 text-amber-400' : 'bg-[#0078d4]/12 text-[#7eb8e8]'}`}>
                           {item.type === 'directory' ? <Icons8Icon id="hard_drive_ui" size={15} /> : <Icons8Icon id="piechart_ui" size={15} />}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -290,7 +290,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                           <StorageUsageBar usedPct={(item.computedSize / maxItemSize) * 100} height={4} className="mt-1.5 max-w-[200px]" />
                         </div>
                         <div className="text-[12px] font-mono text-emerald-400 shrink-0">{formatStorageSize(item.computedSize)}</div>
-                        <Icons8Icon id="arrow_right_ui" size={12} className="text-gray-700 group-hover:text-sky-400 shrink-0 transition-colors" />
+                        <Icons8Icon id="arrow_right_ui" size={12} className="text-gray-700 group-hover:text-[#7eb8e8] shrink-0 transition-colors" />
                       </button>
                     ))}
                   </div>
@@ -400,7 +400,7 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                               <span className={`shrink-0 w-5 h-5 rounded text-[10px] font-semibold flex items-center justify-center ${i === keepIdx ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
                                 {i === keepIdx ? '✓' : i + 1}
                               </span>
-                              <button type="button" onClick={() => navigateToPath(p)} className="bndz-mono text-gray-400 hover:text-sky-300 truncate flex-1 text-left" title={p}>{p}</button>
+                              <button type="button" onClick={() => navigateToPath(p)} className="bndz-mono text-gray-400 hover:text-[#99c9f0] truncate flex-1 text-left" title={p}>{p}</button>
                             </div>
                             );
                           })}

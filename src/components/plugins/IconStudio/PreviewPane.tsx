@@ -116,7 +116,7 @@ export default function PreviewPane({
                                                         <Icons8Icon id="wand_ui" size={14} className="text-gray-600" />
                                                     )}
                                                 </div>
-                                                <span className="text-[10px] text-sky-400/80">After</span>
+                                                <span className="text-[10px] text-[#7eb8e8]/80">After</span>
                                             </div>
                                         </div>
                                     </div>

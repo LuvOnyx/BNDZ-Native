@@ -253,7 +253,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                                 <PluginFieldLabel>Menu icon (optional)</PluginFieldLabel>
                                 <div className="flex gap-2">
                                     <input
-                                        className={`${PLUGIN_INPUT_CLASS} flex-1 text-sky-300`}
+                                        className={`${PLUGIN_INPUT_CLASS} flex-1 text-[#99c9f0]`}
                                         value={ac.icon || ''}
                                         placeholder="C:\\App\\icon.ico"
                                         onChange={e => update(prev => { const n = [...prev]; n[i] = { ...n[i], icon: e.target.value }; return n; })}
@@ -338,8 +338,8 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
                 <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-4 min-h-0">
                     {tab === 'global' && (
-                        <PluginCard className="flex gap-2.5 items-start border-sky-500/20 bg-sky-950/10 !py-3">
-                            <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80 text-sky-300" />
+                        <PluginCard className="flex gap-2.5 items-start border-[#0078d4]/25 bg-sky-950/10 !py-3">
+                            <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80 text-[#99c9f0]" />
                             <span className="text-xs text-sky-200/90">These entries appear in native File Explorer. Click <strong>Deploy</strong> after editing — admin rights may be required.</span>
                         </PluginCard>
                     )}

@@ -2,10 +2,10 @@ import React, { ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 
 export const PLUGIN_INPUT_CLASS =
-  'w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-sky-500/50';
+  'w-full bg-black/30 border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-[#0078d4]/50';
 
 export const PLUGIN_SELECT_CLASS =
-  'bg-black/30 border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 outline-none focus:border-sky-500/50';
+  'bg-black/30 border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 outline-none focus:border-[#0078d4]/50';
 
 /** Compact toolbar control for bottom plugin panels */
 export function PluginToolbarButton({
@@ -31,7 +31,7 @@ export function PluginToolbarButton({
       title={title}
       className={`bndz-plugin-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none ${
         active
-          ? 'bg-sky-600/20 border-sky-500/35 text-sky-300'
+          ? 'bg-[#094771]/35 border-[#0078d4]/40 text-[#cce4f7]'
           : 'bg-white/[0.03] border-white/10 text-gray-300 hover:bg-white/[0.06] hover:text-white'
       }`}
     >

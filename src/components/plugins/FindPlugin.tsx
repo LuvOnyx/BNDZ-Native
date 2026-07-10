@@ -164,7 +164,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
         <PluginPanelShell
             title="Fast Search"
             icon="find"
-            iconColor="#38bdf8"
+            iconColor="#0078d4"
             variant="embedded"
             subtitle={mode === 'global' ? 'Global scope' : mode === 'advanced' ? 'Advanced / multi-root' : `Scope: ${scopePath}`}
             status={!IPC.isNative ? (
@@ -256,17 +256,17 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         <>
                             <div className="bndz-context-menu-sep opacity-30" />
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
-                                <input type="checkbox" checked={regexEnabled} onChange={e => setRegexEnabled(e.target.checked)} className="accent-sky-500" />
+                                <input type="checkbox" checked={regexEnabled} onChange={e => setRegexEnabled(e.target.checked)} className="accent-[#0078d4]" />
                                 Regular expressions
                             </label>
                             {mode !== 'advanced' && (
                                 <label className="flex items-center gap-2 text-xs cursor-pointer">
-                                    <input type="checkbox" checked={booleanMode} onChange={e => setBooleanMode(e.target.checked)} className="accent-sky-500" />
+                                    <input type="checkbox" checked={booleanMode} onChange={e => setBooleanMode(e.target.checked)} className="accent-[#0078d4]" />
                                     Boolean (AND / OR / NOT)
                                 </label>
                             )}
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
-                                <input type="checkbox" checked={searchContent} onChange={e => setSearchContent(e.target.checked)} className="accent-sky-500" />
+                                <input type="checkbox" checked={searchContent} onChange={e => setSearchContent(e.target.checked)} className="accent-[#0078d4]" />
                                 Search file content
                             </label>
                             {mode === 'advanced' && (
@@ -284,7 +284,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                         </>
                     )}
                     {dupProgress && (
-                        <div className="text-xs text-sky-400">
+                        <div className="text-xs text-[#7eb8e8]">
                             {dupProgress.percent}% {dupProgress.message ? `· ${dupProgress.message}` : ''}
                         </div>
                     )}
