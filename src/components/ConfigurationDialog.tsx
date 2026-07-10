@@ -35,6 +35,10 @@ import {
   DEFAULT_HOVER_BOX_CONTEXTS,
 } from '../lib/hoverBoxConfig';
 import {
+  TREE_LIST_ITEM_TYPES,
+  DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES,
+} from '../lib/treeListItemFilter';
+import {
   createColorFilterRow,
   moveColorFilterRow,
   updateColorFilterStyle,
@@ -81,7 +85,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const [shellBusy, setShellBusy] = useState(false);
   const [selectedColorFilterIdx, setSelectedColorFilterIdx] = useState(0);
   const [selectedPreviewFormatIdx, setSelectedPreviewFormatIdx] = useState(0);
-  const [fieldPicker, setFieldPicker] = useState<null | 'standard' | 'extra' | 'hoverTypes' | 'hoverContexts'>(null);
+  const [fieldPicker, setFieldPicker] = useState<null | 'standard' | 'extra' | 'hoverTypes' | 'hoverContexts' | 'treeListItems'>(null);
   const updateLocalConfig = (updates: any) => {
     setLocalConfig(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
@@ -580,7 +584,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </SettingsSection>
 
               <SettingsSection title="Items in tree and list">
-                 <ActionBtn label={<span>Select Item<span className="underline decoration-1 underline-offset-[3px]">s</span>...</span>} className="px-6 py-[2px] bg-[#1a1a1a]" disabled title="Bulk item selection is available from the main list (Ctrl+A, marquee select)." />
+                 <ActionBtn
+                   label={<span>Select Item<span className="underline decoration-1 underline-offset-[3px]">s</span>...</span>}
+                   className="px-6 py-[2px] bg-[#1a1a1a]"
+                   onClick={() => setFieldPicker('treeListItems')}
+                 />
+                 <p className="text-[11px] text-[#888] mt-2 ml-1">
+                   Control which item categories appear in the folder tree and file list. Hidden and system items still follow the checkbox above.
+                 </p>
               </SettingsSection>
             </TabsContent>
 
@@ -2678,6 +2689,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
         selected={localConfig.hoverBoxContexts || DEFAULT_HOVER_BOX_CONTEXTS}
         onClose={() => setFieldPicker(null)}
         onSave={ids => updateLocalConfig({ hoverBoxContexts: ids })}
+      />
+      <FieldPickerDialog
+        open={fieldPicker === 'treeListItems'}
+        title="Items in tree and list"
+        items={TREE_LIST_ITEM_TYPES.map(t => ({ id: t.id, label: t.label, group: t.hint }))}
+        selected={localConfig.treeListVisibleItemTypes || DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES}
+        onClose={() => setFieldPicker(null)}
+        onSave={ids => updateLocalConfig({ treeListVisibleItemTypes: ids })}
       />
 
       <NativeDialogShell

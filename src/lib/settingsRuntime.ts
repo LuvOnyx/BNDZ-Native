@@ -1,4 +1,5 @@
 import type { AppConfig } from '../data/configContext';
+import { filterTreeListEntities } from './treeListItemFilter';
 import { applyThemeByName } from '../data/themePresets';
 import { applyAppearanceVariants } from './appearanceVariants';
 import {
@@ -208,18 +209,9 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
   };
 }
 
-/** Filter entities for list display (hidden/system/dotfiles) */
+/** Filter entities for list display (hidden/system/dotfiles + Select Items categories) */
 export function filterListEntities(items: any[], config: AppConfig): any[] {
-  const rt = buildSettingsRuntime(config);
-  if (rt.list.showHiddenInList) return items;
-
-  return items.filter(item => {
-    const name = item.name || '';
-    const attrs: string[] = item.attributes || [];
-    if (name.startsWith('.') && name !== '..') return false;
-    if (attrs.includes('hidden') || attrs.includes('system')) return false;
-    return true;
-  });
+  return filterTreeListEntities(items, config);
 }
 
 function sortKeyName(name: string, config: AppConfig): string {

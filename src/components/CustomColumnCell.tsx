@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { parseCustomColumnListId } from '../lib/customColumns';
+import { matchesColumnPattern, parseCustomColumnListId } from '../lib/customColumns';
 import { getExtendedMetadataCached } from '../lib/extendedMetadataCache';
 import { toWindowsPath, joinPanePath } from '../lib/pathUtils';
 
@@ -8,17 +8,19 @@ export default function CustomColumnCell({
   entity,
   panePath,
   propertyKey,
+  pattern,
 }: {
   colId: string;
   entity: any;
   panePath: string;
   propertyKey: string;
+  pattern?: string;
 }) {
   const customId = parseCustomColumnListId(colId);
   const [value, setValue] = useState('');
 
   useEffect(() => {
-    if (!customId || entity.type === 'directory') {
+    if (!customId || entity.type === 'directory' || (pattern && !matchesColumnPattern(pattern, entity))) {
       setValue('');
       return;
     }
@@ -33,7 +35,7 @@ export default function CustomColumnCell({
       if (active) setValue('');
     });
     return () => { active = false; };
-  }, [colId, customId, entity.id, entity.path, panePath, propertyKey, entity.type]);
+  }, [colId, customId, entity.id, entity.path, panePath, propertyKey, entity.type, pattern, entity.extension]);
 
   return (
     <div className="bndz-list-select-cell px-2 bndz-detail-col-muted whitespace-nowrap overflow-hidden text-ellipsis text-[11px] font-mono" title={value}>

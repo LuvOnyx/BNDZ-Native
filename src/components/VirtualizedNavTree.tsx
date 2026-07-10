@@ -5,6 +5,7 @@ import { TreeShellIcon } from './TreeShellIcon';
 import TreeGlider, { type TreeGliderAnchor } from './TreeGlider';
 import { IPC } from '../lib/ipcBridge';
 import { buildSettingsRuntime, evaluateColorFilter } from '../lib/settingsRuntime';
+import { filterTreeListEntities } from '../lib/treeListItemFilter';
 import { reorderNavTreeKeys } from '../lib/navTreeOrder';
 import type { AppConfig } from '../data/configContext';
 import { buildTreeTooltipContent } from '../lib/treeTooltip';
@@ -62,12 +63,16 @@ async function loadDirectoryChildren(
   path: string,
   showHidden: boolean,
   skipInvisible: boolean,
+  config?: AppConfig,
 ): Promise<NavTreeSourceNode[]> {
   try {
     let items = await IPC.getSubDirectories(path, showHidden);
     let dirs = (items || []).filter((item: { type?: string; isDirectory?: boolean }) => item.type === 'directory' || item.isDirectory);
     if (skipInvisible) {
       dirs = dirs.filter((d: { name?: string }) => !(d.name || '').startsWith('.'));
+    }
+    if (config) {
+      dirs = filterTreeListEntities(dirs, config);
     }
     return dirs
       .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
@@ -521,7 +526,7 @@ export function VirtualizedNavTree({
         if (prev[p]?.expanded && (prev[p]?.children || prev[p]?.loading)) return prev;
         const needsLoad = !prev[p]?.children;
         if (needsLoad) {
-          loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders).then(children => {
+          loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config).then(children => {
             setDynamicState(inner => ({
               ...inner,
               [p]: { expanded: true, children, loading: false },
@@ -576,6 +581,7 @@ export function VirtualizedNavTree({
         path,
         !!config?.showHiddenSystemFoldersInTree,
         !!config?.skipInvisibleSubfolders,
+        config,
       );
       setDynamicState(prev => ({
         ...prev,

@@ -4273,6 +4273,7 @@ export default function BNDZUI() {
             entity={entity}
             panePath={panePath}
             propertyKey={colDef.propertyKey}
+            pattern={colDef.pattern}
           />
         );
       }
