@@ -3792,9 +3792,9 @@ export default function BNDZUI() {
       typeAheadAtRef.current = now;
       e.preventDefault();
 
-      const sorted = getSortedContentsForActivePane();
+      const listItems = getSortedContentsForActivePane();
       const matchMode = searchRt.typeAheadMatch || 'Match at beginning';
-      const matches = sorted.filter((item: any) =>
+      const matches = listItems.filter((item: any) =>
         matchesTypeAhead(
           getDisplayName(item, config),
           prefix,
@@ -3807,7 +3807,13 @@ export default function BNDZUI() {
         return;
       }
 
-      const match = pickTypeAheadMatch(matches, focusedItemId, prefix, repeatCycle);
+      const orderedMatches = searchRt.useSortedColumn
+        ? matches
+        : [...matches].sort((a: any, b: any) =>
+            getDisplayName(a, config).localeCompare(getDisplayName(b, config), undefined, { sensitivity: 'base' }),
+          );
+
+      const match = pickTypeAheadMatch(orderedMatches, focusedItemId, prefix, repeatCycle);
       if (!match) return;
 
       const listEl = document.querySelector(
@@ -6332,7 +6338,7 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const paths = getSelectedEntityPaths();
                       if (paths[0]) import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', toWindowsPath(paths[0])));
-                    })}><Icons8Icon id="copy_path" size={14} /> Copy Path</div>
+                    })}><Icons8Icon id="copy" size={14} /> Copy Path</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => refreshWorkspace())}><Icons8Icon id="refresh" size={14} /> Refresh</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         const sel = currentTab.selectedItems[0];
@@ -6401,7 +6407,7 @@ export default function BNDZUI() {
                            const entity = getDirContents(fileSystem, cPath || '')?.find(x => x.id === selArgs);
                            if (entity) import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('copyPath', `${cPath}/${entity.name}`));
                         }
-                    }}><Icons8Icon id="copy_path" size={14} /> Copy Path</div>
+                    }}><Icons8Icon id="copy" size={14} /> Copy Path</div>
 
                     <MenubarSubmenu label="Copy To..." iconId="copy_to">
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {

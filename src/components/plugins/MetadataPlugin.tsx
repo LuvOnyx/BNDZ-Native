@@ -158,7 +158,7 @@ export default function MetadataPlugin({
                     actions={
                         <>
                             <PluginHeroActionButton icon="sys_properties" variant="primary" onClick={openProperties}>Full properties</PluginHeroActionButton>
-                            <PluginHeroActionButton icon="copy_path" onClick={() => void navigator.clipboard.writeText(path)}>Copy path</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="copy" onClick={() => void navigator.clipboard.writeText(path)}>Copy path</PluginHeroActionButton>
                         </>
                     }
                 />

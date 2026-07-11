@@ -95,6 +95,7 @@ export function buildSearchRuntime(config: AppConfig) {
     typeAhead: readSettingBool(config, 'enableTypeAheadFind', true),
     typeAheadMatch: readSettingString(config, 'typeAheadFindMatch', 'Match at beginning'),
     allowRepeatedCharacters: readSettingBool(config, 'allowRepeatedCharacters', true),
+    useSortedColumn: readSettingBool(config, 'useSortedColumn', false),
     redirectTypingToFilter: readSettingBool(config, 'redirectTypingToLiveFilterBox', false),
     instantFilter: readSettingBool(config, 'instantFilterOnTyping'),
     ignoreDiacritics: readSettingBool(config, 'ignoreDiacritics'),
