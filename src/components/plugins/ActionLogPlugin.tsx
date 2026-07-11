@@ -135,8 +135,6 @@ export default function ActionLogPlugin() {
       variant="embedded"
       toolbar={
         <>
-          <PluginToolbarButton icon="undo" disabled={!canUndo || !loggingEnabled} onClick={() => void runUndo()}>Undo</PluginToolbarButton>
-          <PluginToolbarButton icon="redo" disabled={!canRedo || !loggingEnabled} onClick={() => void runRedo()}>Redo</PluginToolbarButton>
           <select
             value={kindFilter}
             onChange={e => setKindFilter(e.target.value)}

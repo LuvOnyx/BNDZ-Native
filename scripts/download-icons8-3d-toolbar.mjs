@@ -15,7 +15,7 @@ const size = Number(process.env.ICONS8_SIZE || 48);
 /** BNDZ ids that use Icons8 Fluency (user collection) instead of 3D Fluency. */
 const FLUENCY_IDS = new Set([
   'go_home', 'properties', 'view_grid', 'view_columns',
-  'toggle_dual_pane', 'toggle_bottom',
+  'toggle_dual_pane', 'toggle_bottom', 'toggle_preview', 'pause_ui',
 ]);
 
 function parseSlugMapFromPs1() {

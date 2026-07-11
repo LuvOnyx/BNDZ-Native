@@ -242,15 +242,12 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
       variant="embedded"
       subtitle="Auto-sync folders via robocopy"
       toolbar={
-        <>
-          {currentPath && (
-            <>
-              <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('source')} title="Use current folder as source">Pane → source</PluginToolbarButton>
-              <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('dest')} title="Use current folder as destination">Pane → dest</PluginToolbarButton>
-            </>
-          )}
-          <PluginToolbarButton icon="plus_ui" onClick={startNewJob}>New sync</PluginToolbarButton>
-        </>
+        currentPath ? (
+          <>
+            <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('source')} title="Use current folder as source">Pane → source</PluginToolbarButton>
+            <PluginToolbarButton icon="explorer" onClick={() => usePaneAs('dest')} title="Use current folder as destination">Pane → dest</PluginToolbarButton>
+          </>
+        ) : undefined
       }
     >
     <div className="flex flex-col h-full min-h-0 overflow-hidden">

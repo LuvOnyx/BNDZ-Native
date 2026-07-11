@@ -173,19 +173,9 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 <span className="text-amber-300/90 text-[11px]">Native host required for indexed search</span>
             ) : undefined}
             toolbar={
-                <div className="flex items-center gap-2">
-                    {mode === 'duplicates' && searching && (
-                        <PluginToolbarButton onClick={cancelDupScan}>Cancel</PluginToolbarButton>
-                    )}
-                    <PluginToolbarButton
-                        icon={searching ? 'loading' : 'play_ui'}
-                        onClick={() => void doSearch()}
-                        disabled={searching}
-                        active
-                    >
-                        {mode === 'duplicates' ? 'Scan' : 'Search'}
-                    </PluginToolbarButton>
-                </div>
+                mode === 'duplicates' && searching ? (
+                    <PluginToolbarButton onClick={cancelDupScan}>Cancel scan</PluginToolbarButton>
+                ) : undefined
             }
         >
             <div className="flex flex-col h-full min-h-0 overflow-hidden">

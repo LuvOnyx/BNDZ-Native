@@ -138,13 +138,6 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
       iconColor="#0078d4"
       variant="embedded"
       subtitle="Virtual collections — browse as /vf"
-      toolbar={
-        <>
-          <PluginToolbarButton icon="download" onClick={exportCatalogs}>Export</PluginToolbarButton>
-          <PluginToolbarButton icon="upload" onClick={() => importRef.current?.click()}>Import</PluginToolbarButton>
-          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importCatalogs(f); e.target.value = ''; }} />
-        </>
-      }
     >
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <PluginHeroStrip
@@ -155,7 +148,9 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
           actions={
             <>
               <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={() => void createCatalog()} disabled={!draftName.trim()}>Create</PluginHeroActionButton>
+              <PluginHeroActionButton icon="upload" onClick={() => importRef.current?.click()}>Import</PluginHeroActionButton>
               <PluginHeroActionButton icon="download" onClick={exportCatalogs}>Export</PluginHeroActionButton>
+              <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importCatalogs(f); e.target.value = ''; }} />
             </>
           }
         />

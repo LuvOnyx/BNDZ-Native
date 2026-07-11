@@ -241,12 +241,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     Guided workflows
                   </div>
                   <p className="text-xs bndz-panel-muted mt-1 max-w-md">
-                    Pick any folder, preview changes, then confirm. Same safe flow for cleanup and organize.
+                    Use the hero actions above to launch cleanup or organize wizards for any folder.
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <PluginToolbarButton icon="copy" onClick={() => openWizard('cleanup')}>Cleanup wizard</PluginToolbarButton>
-                  <PluginToolbarButton icon="folder_plus_ui" onClick={() => openWizard('organize')}>Organize wizard</PluginToolbarButton>
                 </div>
               </PluginCard>
 

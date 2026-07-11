@@ -287,18 +287,6 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
             iconColor="#f472b6"
             variant="embedded"
             subtitle={selectionHint}
-            toolbar={
-                <>
-                    <PluginToolbarButton icon="plus_ui" onClick={() => (tab === 'global' ? addGlobalAction() : addAppAction())}>
-                        Add
-                    </PluginToolbarButton>
-                    {tab === 'global' ? (
-                        <PluginToolbarButton icon="check" active onClick={saveGlobalActions}>Deploy</PluginToolbarButton>
-                    ) : (
-                        <PluginToolbarButton icon="check" onClick={saveAppActions}>Save</PluginToolbarButton>
-                    )}
-                </>
-            }
         >
         <div className="flex flex-col h-full min-h-0 overflow-hidden">
             <PluginHeroStrip
@@ -308,9 +296,15 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                 meta={<span className="bndz-panel-muted text-xs">{actions.length} action(s) · {selectionHint}</span>}
                 actions={
                     tab === 'global' ? (
-                        <PluginHeroActionButton icon="check" variant="primary" onClick={saveGlobalActions}>Deploy</PluginHeroActionButton>
+                        <>
+                            <PluginHeroActionButton icon="plus_ui" onClick={() => addGlobalAction()}>Add</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="check" variant="primary" onClick={saveGlobalActions}>Deploy</PluginHeroActionButton>
+                        </>
                     ) : (
-                        <PluginHeroActionButton icon="check" variant="primary" onClick={saveAppActions}>Save</PluginHeroActionButton>
+                        <>
+                            <PluginHeroActionButton icon="plus_ui" onClick={() => addAppAction()}>Add</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="check" variant="primary" onClick={saveAppActions}>Save</PluginHeroActionButton>
+                        </>
                     )
                 }
             />

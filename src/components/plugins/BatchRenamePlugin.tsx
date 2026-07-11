@@ -242,16 +242,6 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             iconColor="#34d399"
             variant="embedded"
             subtitle={`${targets.length} item${targets.length === 1 ? '' : 's'} selected${batchNameConflicts.size ? ` · ${batchNameConflicts.size} name collision(s)` : ''}`}
-            toolbar={
-                <PluginToolbarButton
-                    icon={committing ? 'loading' : 'check'}
-                    onClick={() => void handleCommit()}
-                    disabled={targets.length === 0 || committing || collisions.length === 0 || batchNameConflicts.size > 0}
-                    active
-                >
-                    Apply renames
-                </PluginToolbarButton>
-            }
         >
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
                 <PluginHeroStrip

@@ -1,5 +1,5 @@
 /** Bump when PNG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '12';
+export const LAUNCHER_ICON_REV = '13';
 
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
@@ -179,9 +179,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   volume_off_ui: 'volume_off_ui.png',
   skip_back_ui: 'skip_back_ui.png',
   skip_forward_ui: 'skip_forward_ui.png',
-  // No distinct Icons8 3D-fluency "pause" glyph resolves; reuse close — media
-  // controls differentiate play/pause via the play_ui asset + button state, not shape.
-  pause_ui: 'close.png',
+  pause_ui: 'pause_ui.png',
   brain_ui: 'brain_ui.png',
   wifi_off_ui: 'wifi_off_ui.png',
   folder_plus_ui: 'folder_plus_ui.png',

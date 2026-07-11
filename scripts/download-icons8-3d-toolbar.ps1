@@ -41,12 +41,12 @@ $map = @{
     share = 'link'
     burn_disc = 'cd'
     view_details = 'view'
-    view_grid = 'table'          # Fluency: Table (grid view)
+    view_grid = 'table-1'        # Fluency: Table (grid view) — slug `table` CDN serves a 225B stub
     view_list = 'menu'
     view_columns = 'view-column' # Fluency: View Column
     search = 'search'
     toggle_dual_pane = 'right-navigation-toolbar' # Fluency: Right Navigation Toolbar
-    toggle_preview = 'view'      # right preview panel
+    toggle_preview = 'preview-pane'  # Fluency: Preview Pane (right inspector)
     toggle_bottom = 'show-bottom-panel'           # Fluency: Show Bottom Panel
     smart_tools = 'sparkles'
     tag_manager = 'price-tag'
@@ -187,6 +187,7 @@ $map = @{
     volume_off_ui = 'cancel'
     skip_back_ui = 'back'
     skip_forward_ui = 'forward'
+    pause_ui = 'circled-pause'   # Fluency: premium pause transport glyph
     brain_ui = 'brain'
     wifi_off_ui = 'wifi-off'
     folder_plus_ui = 'add-folder'
@@ -202,7 +203,7 @@ $map = @{
 # Icons sourced from user's Fluency collection (style-fluency) — use fluency CDN, not 3d-fluency.
 $fluencyIds = @(
     'go_home', 'properties', 'view_grid', 'view_columns',
-    'toggle_dual_pane', 'toggle_bottom'
+    'toggle_dual_pane', 'toggle_bottom', 'toggle_preview', 'pause_ui'
 )
 
 $base3d = "https://img.icons8.com/3d-fluency/$Size"
