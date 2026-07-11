@@ -988,7 +988,8 @@ namespace BNDZ
                     if (path.EndsWith(":") && path.Length == 2) path += "\\";
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
 
-                    bool exists = Directory.Exists(path) || File.Exists(path);
+                    bool exists = ShellPathResolver.PathExistsForShell(
+                        ShellPathResolver.ResolveForShell(path.StartsWith("/") ? path : $"/{path}"));
 
                     var response = new { type = "CHECK_PATH_RESULT", id = idProp, payload = exists };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

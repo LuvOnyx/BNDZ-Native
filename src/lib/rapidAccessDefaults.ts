@@ -1,5 +1,5 @@
 import { normalizePanePath } from './pathUtils';
-import { toPanePath } from './shellPaths';
+import { KNOWN_FOLDER_SHELL, toPanePath } from './shellPaths';
 
 export const RAPID_ACCESS_ORDER = ['Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'] as const;
 
@@ -30,7 +30,8 @@ export function buildRapidAccessDefaults(
 
   for (const name of RAPID_ACCESS_ORDER) {
     const sc = shortcuts.find(s => s.name === name);
-    const raw = sc?.path || profileFolderPath(name, username);
+    const shellKey = KNOWN_FOLDER_SHELL[name];
+    const raw = sc?.path || (shellKey ? `/${shellKey}` : profileFolderPath(name, username));
     if (!raw) continue;
     const path = toPanePath(raw);
     if (hidden.has(normPath(path))) continue;

@@ -119,7 +119,7 @@ import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLe
 import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
 import { buildGlobalSearchArgs, normalizeSearchResults, type IndexedSearchScope } from '../lib/globalSearchCall';
 import { mapFindingEngine } from '../lib/indexedRoots';
-import { setPathCacheEntry, removePathCacheKeys } from '../lib/pathCacheLru';
+import { setPathCacheEntry } from '../lib/pathCacheLru';
 import type { BottomPluginLaunchContext } from './BottomPluginPanel';
 import {
   getVisibleListColumns,
@@ -141,10 +141,10 @@ import {
   getClipboardMarkForEntity,
   resolveEntityWindowsPath,
 } from '../lib/clipboardVisual';
-import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath } from '../lib/pathUtils';
+import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath, panePathsEqual } from '../lib/pathUtils';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
 import { hasBndzFileDrag, readBndzFileDragData } from '../lib/bndzDrag';
-import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory } from '../lib/shellPaths';
+import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, resolveEntityPanePath, isShellKnownFolderRoot, shellKnownFolderParent } from '../lib/shellPaths';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { pushToast, dismissToast, type ToastKind } from './ToastHost';
 import { getPaneTabLabel } from '../lib/paneLabels';
@@ -901,6 +901,7 @@ export default function BNDZUI() {
   }, []);
   // loadingPaths tracks which paths are currently being fetched so we show a spinner
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
+  const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
 
   const [panes, setPanes] = useState<PaneState[]>([
      { 
@@ -1028,44 +1029,53 @@ export default function BNDZUI() {
   const refetchPath = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
     if (!path) return;
-    const { IPC } = await import('../lib/ipcBridge');
-    const loadStarted = performance.now();
-    setLoadingPaths(prev => new Set(prev).add(path));
-    try {
-      let data: any[];
-      if (isVirtualCatalogPath(path)) {
-        data = await IPC.getCatalogContents(path);
-      } else if (isBndzVirtualPath(path)) {
-        const view = parseBndzVirtualView(path);
-        data = view ? await IPC.getVirtualViewContents(view, config.globalSearchLimit || 500) : [];
-        setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-      } else {
-        data = await IPC.getDirContents(path);
+    const inFlight = refetchInFlightRef.current[path];
+    if (inFlight) return inFlight;
+
+    const loadPromise = (async () => {
+      const { IPC } = await import('../lib/ipcBridge');
+      const loadStarted = performance.now();
+      setLoadingPaths(prev => new Set(prev).add(path));
+      try {
+        let data: any[];
+        if (isVirtualCatalogPath(path)) {
+          data = await IPC.getCatalogContents(path);
+        } else if (isBndzVirtualPath(path)) {
+          const view = parseBndzVirtualView(path);
+          data = view ? await IPC.getVirtualViewContents(view, config.globalSearchLimit || 500) : [];
+          setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
+        } else {
+          data = await IPC.getDirContents(path);
+        }
+        const normalized = normalizeDirEntries(data);
+        cachePathContents(path, normalized);
+        setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
+        setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
+      } catch (err: unknown) {
+        if (isBndzVirtualPath(path)) {
+          setVirtualViewErrors(prev => ({
+            ...prev,
+            [path]: err instanceof Error ? err.message : 'Failed to load smart view.',
+          }));
+        } else if (!isVirtualCatalogPath(path)) {
+          setPathLoadErrors(prev => ({
+            ...prev,
+            [path]: err instanceof Error ? err.message : 'Failed to load folder.',
+          }));
+        }
+        cachePathContents(path, []);
+      } finally {
+        setLoadingPaths(prev => {
+          const next = new Set(prev);
+          next.delete(path);
+          return next;
+        });
+        delete refetchInFlightRef.current[path];
       }
-      const normalized = normalizeDirEntries(data);
-      cachePathContents(path, normalized);
-      setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-      setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
-    } catch (err: unknown) {
-      if (isBndzVirtualPath(path)) {
-        setVirtualViewErrors(prev => ({
-          ...prev,
-          [path]: err instanceof Error ? err.message : 'Failed to load smart view.',
-        }));
-      } else if (!isVirtualCatalogPath(path)) {
-        setPathLoadErrors(prev => ({
-          ...prev,
-          [path]: err instanceof Error ? err.message : 'Failed to load folder.',
-        }));
-      }
-      cachePathContents(path, []);
-    } finally {
-      setLoadingPaths(prev => {
-        const next = new Set(prev);
-        next.delete(path);
-        return next;
-      });
-    }
+    })();
+
+    refetchInFlightRef.current[path] = loadPromise;
+    return loadPromise;
   }, [cachePathContents, config.globalSearchLimit]);
 
   const commitRenameForEntity = React.useCallback(async (
@@ -1242,7 +1252,7 @@ export default function BNDZUI() {
 
   const invalidatePath = React.useCallback((rawPath: string) => {
     const path = normalizePanePath(rawPath);
-    setPathContentsCache(prev => removePathCacheKeys(prev, [path]));
+    // Stale-while-revalidate: keep showing cached rows until the refetch completes.
     void refetchPath(path);
   }, [refetchPath]);
 
@@ -2346,8 +2356,13 @@ export default function BNDZUI() {
     };
 
     for (const name of order) {
-      const s = shortcuts.find(sc => sc.name === name);
-      add(name, s?.path || `C:/Users/${windowsUsername}/${name}`);
+      const shellKey = KNOWN_FOLDER_SHELL[name];
+      if (shellKey) {
+        add(name, `/${shellKey}`);
+      } else {
+        const s = shortcuts.find(sc => sc.name === name);
+        add(name, s?.path || `C:/Users/${windowsUsername}/${name}`);
+      }
     }
     if (galleryShortcut?.path) add('Gallery', galleryShortcut.path);
     return items;
@@ -3736,6 +3751,11 @@ export default function BNDZUI() {
       setSelectedItems([], paneId);
       return;
     }
+    if (isShellKnownFolderRoot(norm) || norm.toLowerCase().startsWith('/shell:')) {
+      setCurrentPath(shellKnownFolderParent(cPath), paneId);
+      setSelectedItems([], paneId);
+      return;
+    }
     if (cPath === "/" || cPath === "") {
       return;
     } else if (cPath.lastIndexOf("/") <= 0) {
@@ -4001,8 +4021,7 @@ export default function BNDZUI() {
            }
            const selectedItem = paneContents?.find((c: any) => c.id === activeTab.selectedItems[0]) as any;
            if (selectedItem?.type === 'directory') {
-               const newPath = selectedItem.path || `${activeTab.path}/${selectedItem.name}`;
-               setCurrentPath(newPath, activePaneId);
+               setCurrentPath(resolveEntityPanePath(activeTab.path, selectedItem), activePaneId);
                setFilterText(''); // Clear filter when opening directory
                omniFilterRef.current?.blur();
            } else if (selectedItem) {
@@ -4151,15 +4170,19 @@ export default function BNDZUI() {
     
     const normPanePath = normalizePanePath(panePath);
     const isThisPc = normPanePath === '/' || normPanePath === '/this-pc';
+    const cachedContents = !isThisPc ? pathContentsCache[normPanePath] : undefined;
     let contents = isThisPc ? rootDriveEntities : safeGetDirContents(fileSystem, panePath);
-    if (!isThisPc && pathContentsCache[normPanePath]?.length) {
-      contents = pathContentsCache[normPanePath];
+    if (!isThisPc && cachedContents !== undefined) {
+      contents = cachedContents;
     }
-    let isPaneLoading = !isThisPc
-      && loadingPaths.has(normPanePath)
-      && pathContentsCache[normPanePath] === undefined;
-
-    if (isPaneLoading) contents = null; // show spinner only when no cached data yet
+    const isPanePending = !isThisPc && cachedContents === undefined;
+    if (isPanePending) {
+      if (!refetchInFlightRef.current[normPanePath] && !loadingPaths.has(normPanePath)) {
+        void refetchPath(panePath);
+      }
+      contents = null;
+    }
+    const isPaneLoading = isPanePending;
 
     if (isFindingTabActive) {
         if (currentTab.findingLoading) {
@@ -4223,23 +4246,7 @@ export default function BNDZUI() {
 
     const mouseRt = settingsRt.mouse;
 
-    const buildEntityPath = (ent: any) => {
-      if (ent?.path && (isGlobal || isBndzVirtualPath(panePath) || filterText.trimStart().startsWith('> '))) {
-        return toPanePath(ent.path);
-      }
-      if (ent?.isShellItem && ent.path) {
-        return toPanePath(ent.path);
-      }
-      if (ent.type === 'directory') {
-        let newPath = isGlobal && ent.path ? ent.path :
-          panePath === '/' ? (ent.name.startsWith('/') ? ent.name : `/${ent.name}`) :
-          `${panePath}/${ent.name}`;
-        if (newPath.startsWith('///')) newPath = '/' + newPath.substring(3);
-        else if (newPath.startsWith('//') && !newPath.includes('.')) newPath = '/' + newPath.substring(2);
-        return newPath;
-      }
-      return isGlobal && ent.path ? ent.path : joinPanePath(panePath, ent);
-    };
+    const buildEntityPath = (ent: any) => resolveEntityPanePath(panePath, ent);
 
     const openEntity = (entity: any) => {
       if (entity.type === 'directory') {

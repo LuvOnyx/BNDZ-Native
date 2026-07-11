@@ -18,6 +18,7 @@ import {
 } from '../lib/bndzDrag';
 import type { ClipboardAction } from '../data/ClipboardContext';
 import { getClipboardMarkForEntity } from '../lib/clipboardVisual';
+import { panePathsEqual } from '../lib/pathUtils';
 import { toWindowsPath } from '../lib/pathUtils';
 import { isPathUnderIndexedRoot } from '../lib/indexedRoots';
 import {
@@ -142,7 +143,7 @@ function TreeRow({
   treeLastClickRef: React.MutableRefObject<SlowClickStamp>;
   treeRenameTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
 }) {
-  const isSelected = row.selected || (row.path && currentPath === row.path);
+  const isSelected = row.selected || (row.path && panePathsEqual(currentPath, row.path));
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
   const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick;
   const indentPx = row.depth * 14 + 6;
@@ -163,7 +164,7 @@ function TreeRow({
     }
 
     if (row.path && !e.ctrlKey && !e.shiftKey) {
-      const wasAlreadySelected = currentPath === row.path;
+      const wasAlreadySelected = row.path ? panePathsEqual(currentPath, row.path) : false;
       if (wasAlreadySelected) {
         treeLastClickRef.current = advanceSlowDoubleClickRename({
           key: row.path,

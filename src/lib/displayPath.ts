@@ -2,6 +2,7 @@ import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } 
 import { getPaneTabLabel } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
 import { BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel } from './bndzVirtualViews';
+import { SPECIAL_FOLDER_PANE_PATHS } from './shellPaths';
 
 /** `C:` from `/C:` or `//C:` */
 export function formatDriveLetter(pathOrName: string): string {
@@ -135,6 +136,8 @@ export function parseUserPathToPane(input: string): string | null {
   if (/^photos?\s*&?\s*videos?$/i.test(raw) || /^media$/i.test(raw)) return '/bndz/media';
   if (/^large\s*files?$/i.test(raw)) return '/bndz/large';
   if (/^smart\s*views?$/i.test(raw)) return BNDZ_VIEWS_ROOT;
+  const special = SPECIAL_FOLDER_PANE_PATHS[raw.toLowerCase()];
+  if (special) return special;
   const catalogPath = parseUserCatalogPath(raw);
   if (catalogPath) return catalogPath;
 

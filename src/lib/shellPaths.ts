@@ -1,4 +1,4 @@
-import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
+import { isRecycleBinPath, joinPanePath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
 
 /** Windows shell namespace CLSIDs for virtual locations */
 export const SHELL_CLSID = {
@@ -20,6 +20,64 @@ export const KNOWN_FOLDER_SHELL: Record<string, string> = {
   Gallery: 'shell:PicturesLibrary',
   Home: 'shell:Profile',
 };
+
+/** Friendly name → canonical shell pane path (address bar / quick navigation). */
+export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
+  desktop: '/shell:Desktop',
+  documents: '/shell:Personal',
+  downloads: '/shell:Downloads',
+  pictures: '/shell:My Pictures',
+  music: '/shell:My Music',
+  videos: '/shell:My Video',
+  home: '/shell:Profile',
+  profile: '/shell:Profile',
+  gallery: '/shell:PicturesLibrary',
+  libraries: '/shell:Libraries',
+  'this pc': '/',
+  'recycle bin': RECYCLE_BIN_PATH,
+  network: '//',
+  recent: '/bndz/recent',
+  recents: '/bndz/recent',
+  'recent files': '/bndz/recent',
+  media: '/bndz/media',
+  'large files': '/bndz/large',
+};
+
+/** True for canonical shell known-folder roots like /shell:Desktop (not compound paths). */
+export function isShellKnownFolderRoot(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const pane = normalizePanePath(path);
+  if (isRecycleBinPath(pane)) return true;
+  const lower = pane.toLowerCase();
+  if (!lower.startsWith('/shell:')) return false;
+  const rest = pane.slice('/shell:'.length);
+  return !rest.includes('/');
+}
+
+/** Parent pane path when going up from a shell known-folder root. */
+export function shellKnownFolderParent(path: string): string {
+  const lower = normalizePanePath(path).toLowerCase();
+  if (lower === '/shell:libraries') return '/';
+  if (lower === '/shell:profile' || lower === '/shell:home') return '/';
+  if (isShellKnownFolderRoot(path)) return '/shell:Profile';
+  if (lower.startsWith('/shell:')) return '/';
+  return '/';
+}
+
+/** Resolve navigation target for a list/tree entity (avoids /shell:Desktop/foo bugs). */
+export function resolveEntityPanePath(
+  panePath: string,
+  entity: { name: string; path?: string; type?: string; isShellItem?: boolean } | null | undefined,
+): string {
+  if (!entity) return panePath;
+  if (entity.path) return toPanePath(entity.path);
+  const normPane = normalizePanePath(panePath);
+  if (normPane === '/' || normPane === '/this-pc') {
+    if (entity.name.startsWith('/')) return toPanePath(entity.name);
+    return toPanePath(`/${entity.name}`);
+  }
+  return joinPanePath(panePath, entity);
+}
 
 /** Canonical pane path from backend shortcut or tree path */
 export function toPanePath(path: string | null | undefined): string {
