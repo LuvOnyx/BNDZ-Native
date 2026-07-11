@@ -24,6 +24,10 @@ import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 
 type PreviewTab = 'preview' | 'details' | 'media';
 
+/** Hero icon sizes in the right preview panel (2× the prior 88/112 defaults). */
+const PREVIEW_HERO_ICON_SIZE = { dir: 176, file: 224 } as const;
+const PREVIEW_HERO_FALLBACK_ICON = 160;
+
 interface RightPreviewPanelProps {
   entity: FSEntity | null;
   path?: string | null;
@@ -340,13 +344,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   };
 
   const getPreviewIcon = () => {
-     if (isDrive) return <Icons8Icon id="disk_mgmt" size={80} />;
-     if (isDir) return <Icons8Icon id="explorer" size={80} />;
-     if (isImage) return <Icons8Icon id="picture_ui" size={80} />;
-     if (isAudio) return <Icons8Icon id="music_ui" size={80} />;
-     if (isCode) return <Icons8Icon id="code_ui" size={80} />;
-     if (isTextRaw) return <Icons8Icon id="file_ui" size={80} />;
-     return <Icons8Icon id="file_ui" size={80} />;
+     if (isDrive) return <Icons8Icon id="disk_mgmt" size={PREVIEW_HERO_FALLBACK_ICON} />;
+     if (isDir) return <Icons8Icon id="explorer" size={PREVIEW_HERO_FALLBACK_ICON} />;
+     if (isImage) return <Icons8Icon id="picture_ui" size={PREVIEW_HERO_FALLBACK_ICON} />;
+     if (isAudio) return <Icons8Icon id="music_ui" size={PREVIEW_HERO_FALLBACK_ICON} />;
+     if (isCode) return <Icons8Icon id="code_ui" size={PREVIEW_HERO_FALLBACK_ICON} />;
+     if (isTextRaw) return <Icons8Icon id="file_ui" size={PREVIEW_HERO_FALLBACK_ICON} />;
+     return <Icons8Icon id="file_ui" size={PREVIEW_HERO_FALLBACK_ICON} />;
   };
 
   const showThumb = previewRt.asThumbnail;
@@ -629,20 +633,20 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       return (
          <div className={`w-full h-full flex flex-col items-center justify-center p-6 relative bndz-preview-stage ${showThumb ? 'pattern-checkerboard' : ''}`}>
              <div className="absolute inset-0 " />
-             <div className="bndz-glass-panel px-6 py-5 flex flex-col items-center gap-3 max-w-[min(88%,280px)] border border-white/[0.06]">
+             <div className="bndz-glass-panel px-8 py-6 flex flex-col items-center gap-4 max-w-[min(92%,560px)] border border-white/[0.06]">
                  {path ? (
                     <PreviewHeroIcon
                        path={heroPath || path}
                        isDir={isDir}
                        isDrive={isDrive}
-                       size={isDir ? 88 : 112}
+                       size={isDir ? PREVIEW_HERO_ICON_SIZE.dir : PREVIEW_HERO_ICON_SIZE.file}
                        extension={ext}
                        preferThumbnail={!isDir && isImage}
                     />
                  ) : thumbnailNative ? (
-                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[180px] max-h-[180px] object-contain  " alt="Preview" />
+                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[360px] max-h-[360px] object-contain" alt="Preview" />
                  ) : shellIcon ? (
-                    <img src={shellIcon} className="max-w-[112px] max-h-[112px] object-contain " alt="Shell Icon" />
+                    <img src={shellIcon} className="max-w-[224px] max-h-[224px] object-contain" alt="Shell Icon" />
                  ) : (
                     <div className="flex flex-col items-center ">{getPreviewIcon()}</div>
                  )}

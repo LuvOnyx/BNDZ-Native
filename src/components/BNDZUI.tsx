@@ -2722,8 +2722,9 @@ export default function BNDZUI() {
     });
     const winSources = sources.map(s => toWindowsPath(s));
     const winDest = toWindowsPath(dest).replace(/\\$/, '');
-    IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high');
-    refreshWorkspace();
+    void IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high').then(res => {
+      if (!res?.background) refreshWorkspace();
+    });
   };
 
   const executeInternalDrop = (

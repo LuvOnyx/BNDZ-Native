@@ -3216,16 +3216,51 @@ namespace BNDZ
         }
 
         private async Task RunTransferWorkAsync(
+        string operationId,
+        Func<CancellationToken, Task> work,
+        FileTransferPriority priority = FileTransferPriority.Normal)
+        {
+            var prefs = FileOperationPreferences.Current;
+            if (prefs.QueueOperations)
+                await _fileTransferQueue.EnqueueAsync(operationId, work, default, priority).ConfigureAwait(false);
+            else
+                await _fileTransferQueue.RunImmediateAsync(operationId, work).ConfigureAwait(false);
+        }
+
+        /// <summary>Runs transfer work on the queue or inline. When background processing is enabled,
+        /// acknowledges the IPC caller immediately and continues work asynchronously.</summary>
+        private async Task ScheduleTransferWorkAsync(
             string operationId,
             Func<CancellationToken, Task> work,
+            string? ipcIdProp,
             FileTransferPriority priority = FileTransferPriority.Normal)
         {
             var prefs = FileOperationPreferences.Current;
-            if (!prefs.BackgroundProcessing || !prefs.QueueOperations)
-                await _fileTransferQueue.RunImmediateAsync(operationId, work).ConfigureAwait(false);
-            else
-                await _fileTransferQueue.EnqueueAsync(operationId, work, default, priority).ConfigureAwait(false);
+
+            async Task RunWorkAsync()
+            {
+                try
+                {
+                    await RunTransferWorkAsync(operationId, work, priority).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Transfer] {operationId} failed: {ex.Message}");
+                }
+            }
+
+            if (prefs.BackgroundProcessing)
+            {
+                await PostFsOperationResultAsync(ipcIdProp, true, null, background: true).ConfigureAwait(false);
+                _ = RunWorkAsync();
+                return;
+            }
+
+            await RunWorkAsync().ConfigureAwait(false);
         }
+
+        private static bool ShouldPostFsOperationResult() =>
+            !FileOperationPreferences.Current.BackgroundProcessing;
 
         private static string BuildFileOpLabel(string action, List<string> sources, string? labelOverride)
         {
@@ -3384,7 +3419,8 @@ namespace BNDZ
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
                     _fileTransferQueue.MarkCompleted(operationId);
-                    await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult())
+                        await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
 
                     foreach (var src in sources)
                     {
@@ -3407,33 +3443,31 @@ namespace BNDZ
                 catch (OperationCanceledException)
                 {
                     _fileTransferQueue.MarkFailed(operationId, "Cancelled");
-                    await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult())
+                        await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
                     OnProgress(operationId, 100, ex.Message, 0, 0, 0, 0, 1);
-                    await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
+                    if (ShouldPostFsOperationResult())
+                        await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
                     throw;
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, priority).ConfigureAwait(false);
-            }
-            catch { /* response posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, idProp, priority).ConfigureAwait(false);
         }
 
-        private async Task PostFsOperationResultAsync(string? idProp, bool ok, string? error)
+        private async Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
         {
             if (string.IsNullOrEmpty(idProp)) return;
             var response = new
             {
                 type = "FS_OPERATION_RESULT",
                 id = idProp,
-                payload = new { ok, error },
+                payload = new { ok, error, background, queued = background },
             };
             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             await PostToUiAsync(() =>

@@ -465,6 +465,13 @@ public sealed class FileTransferQueueService
         finally
         {
             _gate.Release();
+            bool hasMore;
+            lock (_pendingLock)
+            {
+                hasMore = _pending.Count > 0;
+            }
+            if (hasMore)
+                _ = ProcessQueueAsync();
         }
     }
 

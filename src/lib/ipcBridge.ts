@@ -479,10 +479,10 @@ export const IPC = {
     label?: string,
     priority?: 'low' | 'normal' | 'high',
     recreateSourceStructure?: boolean,
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<{ ok: boolean; error?: string; background?: boolean }> {
     if (this.isNative) {
       const timeoutMs = action === 'copy' || action === 'move' ? 600_000 : 120_000;
-      return _nativeCall<{ ok: boolean; error?: string }>(
+      return _nativeCall<{ ok: boolean; error?: string; background?: boolean }>(
         'EXECUTE_FS_OPERATION',
         'FS_OPERATION_RESULT',
         operationId,

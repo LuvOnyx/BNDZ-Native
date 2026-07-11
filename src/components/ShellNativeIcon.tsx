@@ -73,7 +73,7 @@ export function ShellNativeIcon({
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumb);
   const src = (useThumb && thumbSrc) || shellSrc;
 
-  const heroScale = hero ? Math.max(1.15, size >= 96 ? 1.28 : 1.2) : 1;
+  const heroScale = hero ? Math.max(1.22, size >= 160 ? 1.32 : size >= 96 ? 1.28 : 1.2) : 1;
 
   return (
     <div
