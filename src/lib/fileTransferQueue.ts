@@ -56,6 +56,7 @@ export function formatTransferAction(action: string): string {
     case 'redo': return 'Redo';
     case 'restore': return 'Restore';
     case 'purge': return 'Delete';
+    case 'empty-recycle': return 'Empty Recycle Bin';
     default: return action;
   }
 }

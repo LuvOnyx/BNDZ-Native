@@ -3,6 +3,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import { PluginToolbarButton, PluginEmptyState, PluginHeroStrip, PluginHeroActionButton, PLUGIN_SELECT_CLASS } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
+import { isQueuedIpcResult } from '../../lib/transferIpc';
 import { pushToast } from '../ToastHost';
 import { useAppConfig } from '../../data/configContext';
 import { buildFileOpsRuntime } from '../../lib/settingsWiring';
@@ -116,12 +117,20 @@ export default function ActionLogPlugin() {
 
   const runUndo = async () => {
     const r = await IPC.executeUndo();
+    if (isQueuedIpcResult(r)) {
+      pushToast({ kind: 'info', title: 'Undo queued', message: 'Running in the transfer panel…' });
+      return;
+    }
     pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? 'Undo' : 'Undo failed', message: r.message });
     await refresh();
   };
 
   const runRedo = async () => {
     const r = await IPC.executeRedo();
+    if (isQueuedIpcResult(r)) {
+      pushToast({ kind: 'info', title: 'Redo queued', message: 'Running in the transfer panel…' });
+      return;
+    }
     pushToast({ kind: r.ok ? 'success' : 'warning', title: r.ok ? 'Redo' : 'Redo failed', message: r.message });
     await refresh();
   };

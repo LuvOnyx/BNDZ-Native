@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
+import { isQueuedIpcResult } from '../../lib/transferIpc';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -190,6 +191,11 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             const operationId = `batch-rename-${Date.now()}`;
             const label = `Batch rename (${renames.length} items)`;
             const result = await IPC.executeBatchRename(operationId, renames, label);
+
+            if (isQueuedIpcResult(result)) {
+                pushToast({ kind: 'info', title: 'Rename queued', message: 'Running in the transfer panel…' });
+                return;
+            }
 
             if (result.ok) {
                 const renamed = result.renamed ?? 0;

@@ -12,6 +12,7 @@ import {
   type ArchiveSortKey,
   type ArchiveTreeNode,
 } from '../lib/archiveTypes';
+import { isQueuedIpcResult } from '../lib/transferIpc';
 
 interface ArchivePreviewPanelProps {
   path: string;
@@ -234,6 +235,10 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         return prefix + base;
       });
       const result = await IPC.archiveAddFiles(winPath, sources, entryNames);
+      if (isQueuedIpcResult(result)) {
+        setStatus('Add to archive queued — see transfer panel.');
+        return;
+      }
       if (result.success) {
         setStatus(`Added ${sources.length} item(s).`);
         reload();

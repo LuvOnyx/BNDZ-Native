@@ -39,6 +39,7 @@ import {
 import { IPC, RenameOperation } from '../lib/ipcBridge';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { executeUndoWithTimeout, executeRedoWithTimeout } from '../lib/undoRedo';
+import { isQueuedIpcResult } from '../lib/transferIpc';
 import CommandPalette, { buildDefaultPaletteActions } from './CommandPalette';
 import { NativeDialogShell } from './native/NativeDialogShell';
 import type { TabState } from './tabTypes';
@@ -1098,7 +1099,7 @@ export default function BNDZUI() {
     const displayTarget = targetPath.split(/[/\\]/).pop() || targetName;
     const renameLabel = `Rename: ${entity.name} → ${displayTarget}`;
     const { IPC } = await import('../lib/ipcBridge');
-    await IPC.executeFsOperation(
+    const res = await IPC.executeFsOperation(
       `rename-${Date.now()}`,
       'move',
       toWindowsPath(sourcePath),
@@ -1106,7 +1107,7 @@ export default function BNDZUI() {
       false,
       renameLabel,
     );
-    if (settingsRt.rename.resortAfterRename) void refetchPath(panePath);
+    if (!isQueuedIpcResult(res) && settingsRt.rename.resortAfterRename) void refetchPath(panePath);
     return true;
   }, [config, settingsRt.rename, refetchPath]);
 
@@ -1359,6 +1360,10 @@ export default function BNDZUI() {
     try {
       const r = redo ? await executeRedoWithTimeout() : await executeUndoWithTimeout();
       dismissToast(toastId);
+      if (isQueuedIpcResult(r)) {
+        pushToast({ kind: 'info', title: redo ? 'Redo queued' : 'Undo queued', message: 'Running in the transfer panel…' });
+        return;
+      }
       if (r.ok) {
         refreshPathsForPanes();
         const pane = panes.find(p => p.id === activePaneId);
@@ -1790,6 +1795,10 @@ export default function BNDZUI() {
       void (async () => {
         const { IPC } = await import('../lib/ipcBridge');
         const result = await IPC.purgeRecycleItems(paths);
+        if (isQueuedIpcResult(result)) {
+          setToastMessage('Delete queued — see transfer panel.');
+          return;
+        }
         if (result.purged > 0) {
           setToastMessage(
             result.failed > 0
@@ -1820,6 +1829,10 @@ export default function BNDZUI() {
           action: () => {
             import('../lib/ipcBridge').then(({ IPC }) => {
               IPC.emptyRecycleBin().then(result => {
+                if (isQueuedIpcResult(result)) {
+                  setToastMessage('Empty Recycle Bin queued — see transfer panel.');
+                  return;
+                }
                 if (result?.success) {
                   setToastMessage('Recycle Bin emptied.');
                   refreshWorkspace();
@@ -1843,6 +1856,34 @@ export default function BNDZUI() {
       IPC.refreshWorkspace().catch(() => {});
     });
   };
+
+  // Refresh lists when background transfer jobs finish (copy/move/archive/sync/etc.)
+  useEffect(() => {
+    if (!IPC.isNative) return;
+    const completed = new Set<string>();
+    const refreshCategories = new Set(['fs', 'recycle', 'archive', 'folder-sync']);
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsub = IPC.onFileTransferQueueChanged(state => {
+      let shouldRefresh = false;
+      for (const job of state.jobs) {
+        if (!refreshCategories.has(job.category || 'fs')) continue;
+        if (job.status === 'completed' || job.status === 'failed') {
+          if (!completed.has(job.operationId)) {
+            completed.add(job.operationId);
+            shouldRefresh = true;
+          }
+        }
+      }
+      if (shouldRefresh) {
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => refreshWorkspace(), 400);
+      }
+    });
+    return () => {
+      unsub();
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [refreshPathsForPanes]);
 
   useEffect(() => {
     if (config.showTopMenubar === false) return;
@@ -2724,7 +2765,7 @@ export default function BNDZUI() {
     const winSources = sources.map(s => toWindowsPath(s));
     const winDest = toWindowsPath(dest).replace(/\\$/, '');
     void IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high').then(res => {
-      if (!res?.background) refreshWorkspace();
+      if (!isQueuedIpcResult(res)) refreshWorkspace();
     });
   };
 
@@ -3566,6 +3607,10 @@ export default function BNDZUI() {
       try {
           const { IPC } = await import('../lib/ipcBridge');
           const res = await IPC.syncFolders(pathA, pathB, 'dual-pane-sync', 'copy', mode === 'mirror');
+          if (isQueuedIpcResult(res)) {
+              pushToast({ kind: 'info', title: 'Sync queued', message: 'Running in the transfer panel…' });
+              return;
+          }
           if (res.ok) {
               pushToast({
                   kind: 'success',
@@ -6322,7 +6367,7 @@ export default function BNDZUI() {
                               const dest = `${toWindowsPath(currentTab.path)}\\Archive-${Date.now()}.zip`;
                               const { IPC } = await import('../lib/ipcBridge');
                               const res = await IPC.createArchive(paths.map(toWindowsPath), dest, 'zip');
-                              setToastMessage(res.ok ? 'Archive created.' : (res.error || 'Archive failed.'));
+                              setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'Archive created.' : (res.error || 'Archive failed.')));
                             })}>ZIP Archive</div>
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
@@ -6330,7 +6375,7 @@ export default function BNDZUI() {
                               const { IPC } = await import('../lib/ipcBridge');
                               const target = toWindowsPath(paths[0]);
                               const res = await IPC.createLink(`${target}.lnk`, target, 'shortcut');
-                              setToastMessage(res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.'));
+                              setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
                             })}>Shortcut</div>
                     </MenubarSubmenu>
 
@@ -7966,6 +8011,10 @@ export default function BNDZUI() {
           onRestoreRecycleItems={async paths => {
             const { IPC } = await import('../lib/ipcBridge');
             const result = await IPC.restoreRecycleItems(paths);
+            if (isQueuedIpcResult(result)) {
+              setToastMessage('Restore queued — see transfer panel.');
+              return;
+            }
             if (result.restored > 0) {
               setToastMessage(
                 result.failed > 0
@@ -7982,6 +8031,10 @@ export default function BNDZUI() {
           onPurgeRecycleItems={async paths => {
             const { IPC } = await import('../lib/ipcBridge');
             const result = await IPC.purgeRecycleItems(paths);
+            if (isQueuedIpcResult(result)) {
+              setToastMessage('Delete queued — see transfer panel.');
+              return;
+            }
             if (result.purged > 0) {
               setToastMessage(
                 result.failed > 0

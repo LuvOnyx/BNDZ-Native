@@ -20,6 +20,7 @@ import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
 import { isArchiveExt, isTorrentExt } from '../lib/archiveTypes';
 import { isAudioExt, isVideoExt, isImageExt } from '../lib/mediaTypes';
+import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 
 type PreviewTab = 'preview' | 'details' | 'media';
@@ -364,6 +365,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     const name = entity.name.replace(/\.[^.]+$/, '');
     const { IPC } = await import('../lib/ipcBridge');
     const res = await IPC.extractArchive(win, `${base}\\${name}`);
+    if (isQueuedIpcResult(res)) return;
     if (!res.ok) {
       window.dispatchEvent(new CustomEvent('bndz-native-alert', {
         detail: { title: 'Extract failed', message: res.error || 'Could not extract archive.' },

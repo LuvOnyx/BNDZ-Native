@@ -2792,17 +2792,7 @@ namespace BNDZ
                 else if (type == "EMPTY_RECYCLE_BIN")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                    _ = Task.Run(async () =>
-                    {
-                        var ok = RecycleBinService.Empty(hwnd);
-                        var response = new { type = "EMPTY_RECYCLE_BIN_RESULT", id = idProp, payload = new { success = ok } };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        await PostToUiAsync(() =>
-                        {
-                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
-                        });
-                    });
+                    _ = HandleEmptyRecycleBinAsync(idProp);
                 }
                 else if (type == "RESTORE_RECYCLE_ITEMS")
                 {
@@ -3227,13 +3217,36 @@ namespace BNDZ
                 await _fileTransferQueue.RunImmediateAsync(operationId, work).ConfigureAwait(false);
         }
 
+        private static readonly JsonSerializerOptions IpcJsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+
+        private static bool ShouldPostDeferredIpcResult() =>
+            !FileOperationPreferences.Current.BackgroundProcessing;
+
+        private static bool ShouldPostFsOperationResult() => ShouldPostDeferredIpcResult();
+
+        private static object BackgroundIpcAck() => new { ok = true, success = true, background = true, queued = true };
+
+        private async Task PostIpcResultAsync(string responseType, string? idProp, object payload)
+        {
+            if (string.IsNullOrEmpty(idProp)) return;
+            var response = new { type = responseType, id = idProp, payload };
+            await PostToUiAsync(() =>
+            {
+                MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions));
+            }).ConfigureAwait(false);
+        }
+
         /// <summary>Runs transfer work on the queue or inline. When background processing is enabled,
         /// acknowledges the IPC caller immediately and continues work asynchronously.</summary>
         private async Task ScheduleTransferWorkAsync(
             string operationId,
             Func<CancellationToken, Task> work,
-            string? ipcIdProp,
-            FileTransferPriority priority = FileTransferPriority.Normal)
+            FileTransferPriority priority = FileTransferPriority.Normal,
+            string? ipcIdProp = null,
+            string? ipcResultType = null)
         {
             var prefs = FileOperationPreferences.Current;
 
@@ -3249,18 +3262,15 @@ namespace BNDZ
                 }
             }
 
-            if (prefs.BackgroundProcessing)
+            if (prefs.BackgroundProcessing && !string.IsNullOrEmpty(ipcIdProp) && !string.IsNullOrEmpty(ipcResultType))
             {
-                await PostFsOperationResultAsync(ipcIdProp, true, null, background: true).ConfigureAwait(false);
+                await PostIpcResultAsync(ipcResultType, ipcIdProp, BackgroundIpcAck()).ConfigureAwait(false);
                 _ = RunWorkAsync();
                 return;
             }
 
             await RunWorkAsync().ConfigureAwait(false);
         }
-
-        private static bool ShouldPostFsOperationResult() =>
-            !FileOperationPreferences.Current.BackgroundProcessing;
 
         private static string BuildFileOpLabel(string action, List<string> sources, string? labelOverride)
         {
@@ -3457,23 +3467,13 @@ namespace BNDZ
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, idProp, priority).ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, priority, idProp, "FS_OPERATION_RESULT").ConfigureAwait(false);
         }
 
-        private async Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
+        private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
         {
-            if (string.IsNullOrEmpty(idProp)) return;
-            var response = new
-            {
-                type = "FS_OPERATION_RESULT",
-                id = idProp,
-                payload = new { ok, error, background, queued = background },
-            };
-            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            await PostToUiAsync(() =>
-            {
-                MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
-            }).ConfigureAwait(false);
+            if (!background && !ShouldPostDeferredIpcResult()) return Task.CompletedTask;
+            return PostIpcResultAsync("FS_OPERATION_RESULT", idProp, new { ok, error, background, queued = background });
         }
 
         private async Task HandleFolderSyncRunAsync(string? idProp, string jobId)
@@ -3491,8 +3491,11 @@ namespace BNDZ
                     _fileTransferQueue.UpdateProgress(operationId, 5, null, 0, 100);
                     var job = await _folderSyncService.RunSyncAsync(jobId, ct).ConfigureAwait(false);
                     _fileTransferQueue.MarkCompleted(operationId);
-                    var response = new { type = "FOLDER_SYNC_RUN_RESULT", id = idProp, payload = job };
-                    await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response))).ConfigureAwait(false);
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var response = new { type = "FOLDER_SYNC_RUN_RESULT", id = idProp, payload = job };
+                        await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response))).ConfigureAwait(false);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -3502,8 +3505,11 @@ namespace BNDZ
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    var response = new { type = "FOLDER_SYNC_RUN_RESULT", id = idProp, payload = new { error = ex.Message } };
-                    await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response))).ConfigureAwait(false);
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var response = new { type = "FOLDER_SYNC_RUN_RESULT", id = idProp, payload = new { error = ex.Message } };
+                        await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response))).ConfigureAwait(false);
+                    }
                     throw;
                 }
                 finally
@@ -3512,14 +3518,7 @@ namespace BNDZ
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
-            }
-            catch
-            {
-                /* response already posted */
-            }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "FOLDER_SYNC_RUN_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleArchiveAddFilesAsync(string? idProp, string archivePath, List<string> sources, List<string>? entryNames)
@@ -3536,9 +3535,11 @@ namespace BNDZ
                     _fileTransferQueue.UpdateProgress(operationId, 10, archivePath, 0, sources.Count);
                     _archiveService.AddFilesToArchive(archivePath, sources, entryNames);
                     _fileTransferQueue.MarkCompleted(operationId);
-                    var response = new { type = "ARCHIVE_ADD_FILES_RESULT", id = idProp, payload = new { success = true } };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions))).ConfigureAwait(false);
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var response = new { type = "ARCHIVE_ADD_FILES_RESULT", id = idProp, payload = new { success = true } };
+                        await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions))).ConfigureAwait(false);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -3548,21 +3549,16 @@ namespace BNDZ
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    var response = new { type = "ARCHIVE_ADD_FILES_RESULT", id = idProp, payload = new { success = false, error = ex.Message } };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions))).ConfigureAwait(false);
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var response = new { type = "ARCHIVE_ADD_FILES_RESULT", id = idProp, payload = new { success = false, error = ex.Message } };
+                        await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions))).ConfigureAwait(false);
+                    }
                     throw;
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
-            }
-            catch
-            {
-                /* response already posted */
-            }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "ARCHIVE_ADD_FILES_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleArchiveExtractEntryAsync(string? idProp, string archivePath, string entryPath, string destination)
@@ -3579,9 +3575,11 @@ namespace BNDZ
                     _fileTransferQueue.UpdateProgress(operationId, 15, entryPath, 0, 1);
                     _archiveService.ExtractEntry(archivePath, entryPath, destination);
                     _fileTransferQueue.MarkCompleted(operationId);
-                    var response = new { type = "ARCHIVE_EXTRACT_ENTRY_RESULT", id = idProp, payload = new { success = true } };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions))).ConfigureAwait(false);
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var response = new { type = "ARCHIVE_EXTRACT_ENTRY_RESULT", id = idProp, payload = new { success = true } };
+                        await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions))).ConfigureAwait(false);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -3591,21 +3589,16 @@ namespace BNDZ
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    var response = new { type = "ARCHIVE_EXTRACT_ENTRY_RESULT", id = idProp, payload = new { success = false, error = ex.Message } };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions))).ConfigureAwait(false);
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var response = new { type = "ARCHIVE_EXTRACT_ENTRY_RESULT", id = idProp, payload = new { success = false, error = ex.Message } };
+                        await PostToUiAsync(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions))).ConfigureAwait(false);
+                    }
                     throw;
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
-            }
-            catch
-            {
-                /* response already posted */
-            }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "ARCHIVE_EXTRACT_ENTRY_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleCreateArchiveAsync(string operationId, List<string> sources, string target, string format, string? idProp = null)
@@ -3647,11 +3640,7 @@ namespace BNDZ
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
-            }
-            catch { /* progress posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "CREATE_ARCHIVE_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest, string? idProp = null)
@@ -3693,27 +3682,34 @@ namespace BNDZ
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
-            }
-            catch { /* progress posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "EXTRACT_ARCHIVE_RESULT").ConfigureAwait(false);
         }
 
-        private async Task PostArchiveResultAsync(string responseType, string? idProp, bool ok, string? error)
+        private Task PostArchiveResultAsync(string responseType, string? idProp, bool ok, string? error)
         {
-            if (string.IsNullOrEmpty(idProp)) return;
-            var response = new
+            if (!ShouldPostDeferredIpcResult()) return Task.CompletedTask;
+            return PostIpcResultAsync(responseType, idProp, new { ok, error });
+        }
+
+        private async Task HandleEmptyRecycleBinAsync(string? idProp)
+        {
+            var operationId = $"recycle-empty-{DateTime.UtcNow.Ticks}";
+            _fileTransferQueue.RegisterJob(operationId, "empty-recycle", "Empty Recycle Bin", "bndz", 1, "recycle", FileTransferPriority.High);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
             {
-                type = responseType,
-                id = idProp,
-                payload = new { ok, error },
-            };
-            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            await PostToUiAsync(() =>
-            {
-                MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
-            }).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                var ok = RecycleBinService.Empty(hwnd);
+                if (ok) _fileTransferQueue.MarkCompleted(operationId);
+                else _fileTransferQueue.MarkFailed(operationId, "Could not empty Recycle Bin");
+                if (ShouldPostDeferredIpcResult())
+                {
+                    await PostIpcResultAsync("EMPTY_RECYCLE_BIN_RESULT", idProp, new { success = ok }).ConfigureAwait(false);
+                }
+            }
+
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "EMPTY_RECYCLE_BIN_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleRestoreRecycleItemsAsync(string? idProp, List<string> restorePaths)
@@ -3728,19 +3724,17 @@ namespace BNDZ
                 var (restored, failed) = RecycleBinService.Restore(restorePaths);
                 if (failed > 0 && restored == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not restore {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
-                var response = new { type = "RESTORE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { restored, failed } };
-                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                await PostToUiAsync(() =>
+                if (ShouldPostDeferredIpcResult())
                 {
-                    try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
-                });
+                    var response = new { type = "RESTORE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { restored, failed } };
+                    await PostToUiAsync(() =>
+                    {
+                        try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions)); } catch { }
+                    });
+                }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
-            }
-            catch { /* response posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "RESTORE_RECYCLE_ITEMS_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandlePurgeRecycleItemsAsync(string? idProp, List<string> purgePaths)
@@ -3755,19 +3749,17 @@ namespace BNDZ
                 var (purged, failed) = RecycleBinService.Purge(purgePaths);
                 if (failed > 0 && purged == 0) _fileTransferQueue.MarkFailed(operationId, $"Could not delete {failed} item(s).");
                 else _fileTransferQueue.MarkCompleted(operationId);
-                var response = new { type = "PURGE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { purged, failed } };
-                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                await PostToUiAsync(() =>
+                if (ShouldPostDeferredIpcResult())
                 {
-                    try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); } catch { }
-                });
+                    var response = new { type = "PURGE_RECYCLE_ITEMS_RESULT", id = idProp, payload = new { purged, failed } };
+                    await PostToUiAsync(() =>
+                    {
+                        try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions)); } catch { }
+                    });
+                }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
-            }
-            catch { /* response posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "PURGE_RECYCLE_ITEMS_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleUndoRedoAsync(bool undo, string? idProp)
@@ -3794,46 +3786,54 @@ namespace BNDZ
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
-                ct.ThrowIfCancellationRequested();
-                var result = undo
-                    ? await _actionLogService.UndoAsync(_fileOperationService).ConfigureAwait(false)
-                    : await _actionLogService.RedoAsync(_fileOperationService).ConfigureAwait(false);
-
-                if (result.Ok) _fileTransferQueue.MarkCompleted(operationId);
-                else _fileTransferQueue.MarkFailed(operationId, result.Message);
-
-                var response = new
+                try
                 {
-                    type = "UNDO_REDO_RESULT",
-                    id = idProp,
-                    payload = new { ok = result.Ok, message = result.Message },
-                };
-                var json = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                    ct.ThrowIfCancellationRequested();
+                    var result = undo
+                        ? await _actionLogService.UndoAsync(_fileOperationService).ConfigureAwait(false)
+                        : await _actionLogService.RedoAsync(_fileOperationService).ConfigureAwait(false);
 
-                await PostToUiAsync(() =>
+                    if (result.Ok) _fileTransferQueue.MarkCompleted(operationId);
+                    else _fileTransferQueue.MarkFailed(operationId, result.Message);
+
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var response = new
+                        {
+                            type = "UNDO_REDO_RESULT",
+                            id = idProp,
+                            payload = new { ok = result.Ok, message = result.Message },
+                        };
+                        var json = JsonSerializer.Serialize(response, IpcJsonOptions);
+
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
+                            PostActionLogChanged();
+                        });
+                    }
+                }
+                catch (OperationCanceledException)
                 {
-                    MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
-                    PostActionLogChanged();
-                });
+                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    if (ShouldPostDeferredIpcResult())
+                    {
+                        var cancelled = new
+                        {
+                            type = "UNDO_REDO_RESULT",
+                            id = idProp,
+                            payload = new { ok = false, message = "Cancelled" },
+                        };
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(cancelled, IpcJsonOptions));
+                        });
+                    }
+                    throw;
+                }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                var cancelled = new
-                {
-                    type = "UNDO_REDO_RESULT",
-                    id = idProp,
-                    payload = new { ok = false, message = "Cancelled" },
-                };
-                await PostToUiAsync(() =>
-                {
-                    MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(cancelled, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                });
-            }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "UNDO_REDO_RESULT").ConfigureAwait(false);
         }
 
         private void RecordExternalActionLog(string action, List<string> sources, string target, bool bypassRecycleBin)
@@ -3931,16 +3931,19 @@ namespace BNDZ
                     _fileTransferQueue.MarkCompleted(operationId);
                     await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
 
-                    var response = new
+                    if (ShouldPostDeferredIpcResult())
                     {
-                        type = "EXECUTE_BATCH_RENAME_RESULT",
-                        id = idProp,
-                        payload = new { ok = true, renamed = result.Renamed, skipped = result.Skipped, failed = result.Failed },
-                    };
-                    await PostToUiAsync(() =>
-                    {
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                    });
+                        var response = new
+                        {
+                            type = "EXECUTE_BATCH_RENAME_RESULT",
+                            id = idProp,
+                            payload = new { ok = true, renamed = result.Renamed, skipped = result.Skipped, failed = result.Failed },
+                        };
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions));
+                        });
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -3950,25 +3953,24 @@ namespace BNDZ
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    var response = new
+                    if (ShouldPostDeferredIpcResult())
                     {
-                        type = "EXECUTE_BATCH_RENAME_RESULT",
-                        id = idProp,
-                        payload = new { ok = false, error = ex.Message },
-                    };
-                    await PostToUiAsync(() =>
-                    {
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                    });
+                        var response = new
+                        {
+                            type = "EXECUTE_BATCH_RENAME_RESULT",
+                            id = idProp,
+                            payload = new { ok = false, error = ex.Message },
+                        };
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions));
+                        });
+                    }
                     throw;
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High).ConfigureAwait(false);
-            }
-            catch { /* response posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "EXECUTE_BATCH_RENAME_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp, bool mirrorMode = false)
@@ -4002,11 +4004,14 @@ namespace BNDZ
                         await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
                     }
                     _fileTransferQueue.MarkCompleted(operationId);
-                    var response = new { type = "SYNC_FOLDERS_RESULT", id = idProp, payload = new { ok = true } };
-                    await PostToUiAsync(() =>
+                    if (ShouldPostDeferredIpcResult())
                     {
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                    });
+                        var response = new { type = "SYNC_FOLDERS_RESULT", id = idProp, payload = new { ok = true } };
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions));
+                        });
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -4016,20 +4021,19 @@ namespace BNDZ
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    var response = new { type = "SYNC_FOLDERS_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
-                    await PostToUiAsync(() =>
+                    if (ShouldPostDeferredIpcResult())
                     {
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                    });
+                        var response = new { type = "SYNC_FOLDERS_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions));
+                        });
+                    }
                     throw;
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low).ConfigureAwait(false);
-            }
-            catch { /* response posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "SYNC_FOLDERS_RESULT").ConfigureAwait(false);
         }
 
         private async Task HandleCreateLinkAsync(string operationId, string linkPath, string targetPath, string linkType, string? idProp)
@@ -4056,12 +4060,14 @@ namespace BNDZ
                         await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
                     }
 
-                    var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = result };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    await PostToUiAsync(() =>
+                    if (ShouldPostDeferredIpcResult())
                     {
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
-                    });
+                        var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = result };
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions));
+                        });
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -4071,21 +4077,19 @@ namespace BNDZ
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = new LinkService.LinkResult { Success = false, Error = ex.Message } };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    await PostToUiAsync(() =>
+                    if (ShouldPostDeferredIpcResult())
                     {
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
-                    });
+                        var response = new { type = "CREATE_LINK_RESULT", id = idProp, payload = new LinkService.LinkResult { Success = false, Error = ex.Message } };
+                        await PostToUiAsync(() =>
+                        {
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, IpcJsonOptions));
+                        });
+                    }
                     throw;
                 }
             }
 
-            try
-            {
-                await RunTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Normal).ConfigureAwait(false);
-            }
-            catch { /* response posted */ }
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Normal, idProp, "CREATE_LINK_RESULT").ConfigureAwait(false);
         }
 
         private async Task<int> RunRobocopySyncAsync(string sourceDir, string targetDir, bool mirrorMode, string operationId, CancellationToken ct)

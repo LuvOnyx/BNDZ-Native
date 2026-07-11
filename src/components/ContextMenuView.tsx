@@ -13,6 +13,7 @@ import {
   contextMenuRefreshLabel,
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
+import { isQueuedIpcResult } from '../lib/transferIpc';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
 import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
@@ -561,7 +562,7 @@ function ContextMenuView({
     const folder = win.split('\\').pop()?.replace(/\.[^.]+$/, '') || 'extracted';
     const IPC = await runIpc();
     const res = await IPC.extractArchive(win, `${parent}\\${folder}`);
-    setToastMessage(res.ok ? `Extracted to ${folder}` : (res.error || 'Extract failed.'));
+    setToastMessage(isQueuedIpcResult(res) ? 'Extract queued — see transfer panel.' : (res.ok ? `Extracted to ${folder}` : (res.error || 'Extract failed.')));
     onClose();
   };
 
@@ -906,7 +907,7 @@ function ContextMenuView({
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.zip` : 'Archive.zip';
             const res = await IPC.createArchive(wins, `${parent}\\${name}`, 'zip');
-            setToastMessage(res.ok ? 'ZIP archive created.' : (res.error || 'Archive failed.'));
+            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'ZIP archive created.' : (res.error || 'Archive failed.')));
             onClose();
           }}
         />
@@ -920,7 +921,7 @@ function ContextMenuView({
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.7z` : 'Archive.7z';
             const res = await IPC.createArchive(wins, `${parent}\\${name}`, '7z');
-            setToastMessage(res.ok ? '7z archive created.' : (res.error || 'Archive failed.'));
+            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? '7z archive created.' : (res.error || 'Archive failed.')));
             onClose();
           }}
         />
@@ -934,7 +935,7 @@ function ContextMenuView({
             const parent = wins[0].replace(/\\[^\\]+$/, '');
             const name = wins.length === 1 ? `${wins[0].split('\\').pop()}.rar` : 'Archive.rar';
             const res = await IPC.createArchive(wins, `${parent}\\${name}`, 'rar' as any);
-            setToastMessage(res.ok ? 'RAR archive created.' : (res.error || 'Archive failed.'));
+            setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'RAR archive created.' : (res.error || 'Archive failed.')));
             onClose();
           }}
         />
@@ -981,8 +982,8 @@ function ContextMenuView({
               const linkPath = `${parent}\\${base} - Shortcut`;
               const IPC = await runIpc();
               const res = await IPC.createLink(linkPath, target, 'shortcut');
-              setToastMessage(res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.'));
-              runRefresh();
+              setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
+              if (!isQueuedIpcResult(res)) runRefresh();
               onClose();
             }}
           />
@@ -1005,7 +1006,7 @@ function ContextMenuView({
                 const linkPath = `${parent}\\${base}${suffix}`;
                 const IPC = await runIpc();
                 const res = await IPC.createLink(linkPath, target, lt);
-                setToastMessage(res.success ? `${label} created.` : (res.error || 'Failed to create link.'));
+                setToastMessage(isQueuedIpcResult(res) ? `${label} queued — see transfer panel.` : (res.success ? `${label} created.` : (res.error || 'Failed to create link.')));
                 onClose();
               }}
             />
