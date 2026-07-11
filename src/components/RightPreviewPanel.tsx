@@ -12,6 +12,7 @@ import TextPreviewEditor from './TextPreviewEditor';
 import ImageZoomPreview from './ImageZoomPreview';
 import PdfPreviewPanel from './PdfPreviewPanel';
 import MarkdownPreviewPanel from './MarkdownPreviewPanel';
+import HtmlPreviewPanel from './HtmlPreviewPanel';
 const DocxPreviewPanel = lazy(() => import('./DocxPreviewPanel'));
 import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
@@ -521,7 +522,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   onClick={() => setMdView('render')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${mdView === 'render' ? 'bndz-preview-tab-active' : ''}`}
                 >
-                  <Icons8Icon id="eye_ui" size={12} />
+                  <Icons8Icon id="eye_ui" size={14} className="bndz-preview-tab-icon" />
                   Preview
                 </button>
                 <button
@@ -529,7 +530,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   onClick={() => setMdView('source')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${mdView === 'source' ? 'bndz-preview-tab-active' : ''}`}
                 >
-                  <Icons8Icon id="code_ui" size={12} />
+                  <Icons8Icon id="code_ui" size={14} className="bndz-preview-tab-icon" />
                   Source
                 </button>
               </div>
@@ -562,7 +563,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   onClick={() => setHtmlView('render')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${htmlView === 'render' ? 'bndz-preview-tab-active' : ''}`}
                 >
-                  <Icons8Icon id="eye_ui" size={12} />
+                  <Icons8Icon id="eye_ui" size={14} className="bndz-preview-tab-icon" />
                   Preview
                 </button>
                 <button
@@ -570,12 +571,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   onClick={() => setHtmlView('source')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${htmlView === 'source' ? 'bndz-preview-tab-active' : ''}`}
                 >
-                  <Icons8Icon id="code_ui" size={12} />
+                  <Icons8Icon id="code_ui" size={14} className="bndz-preview-tab-icon" />
                   Source
                 </button>
               </div>
               {htmlView === 'render' ? (
-                <iframe src={virtualUrl} sandbox="allow-same-origin allow-scripts" className="w-full flex-1 border-0 bg-white" title={entity.name} />
+                path ? <HtmlPreviewPanel path={path} title={entity.name} /> : null
               ) : (
                 fileContent != null && path ? (
                   <TextPreviewEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} displayTabsAsSpaces={previewRt.displayTabsAsSpaces} />
@@ -707,9 +708,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              ))}
           </div>
           <div className="flex gap-0.5">
-             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={13} /></button>
-             <button type="button" onClick={copyPath} className="bndz-preview-action-btn" title="Copy path"><Icons8Icon id="copy" size={13} /></button>
-             <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={13} /></button>
+             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" /></button>
+             <button type="button" onClick={copyPath} className="bndz-preview-action-btn" title="Copy path"><Icons8Icon id="copy" size={18} className="bndz-preview-action-icon" /></button>
+             <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={18} className="bndz-preview-action-icon" /></button>
           </div>
        </div>
        
@@ -760,7 +761,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-[80px_1fr] gap-y-2 text-xs leading-relaxed">
                        {isDrive ? (
                            <>
-                               <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> Total Size:</div>
+                               <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={14} className="bndz-preview-inline-icon" /> Total Size:</div>
                                <div className="text-[#99c9f0]">{formatSize((entity as any).driveInfo.totalSpace)}</div>
                                <div className="text-gray-500 flex items-center gap-1">Free Space:</div>
                                <div className="text-emerald-400">{formatSize((entity as any).driveInfo.freeSpace)}</div>
@@ -769,7 +770,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                            </>
                        ) : (
                            <>
-                               <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={10} /> {isDir ? 'Size on disk:' : 'Size:'}</div>
+                               <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="disk_mgmt" size={14} className="bndz-preview-inline-icon" /> {isDir ? 'Size on disk:' : 'Size:'}</div>
                                <div className="text-[#99c9f0]">
                                   {isDir
                                     ? (folderStats ? formatSize(folderStats.size) : 'Calculating...')
@@ -787,7 +788,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                                )}
                                {path && (
                                   <>
-                                     <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="info_ui" size={10} /> Path:</div>
+                                     <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="info_ui" size={14} className="bndz-preview-inline-icon" /> Path:</div>
                                      <div className="bndz-mono text-gray-400 break-all leading-snug">{toWindowsPath(path)}</div>
                                   </>
                                )}
@@ -815,14 +816,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     {/* Security & Access Box */}
                     <div className="mt-2 border bndz-preview-detail-card rounded-[4px] p-3 shadow-inner">
                        <div className="flex items-center gap-1.5 bndz-panel-section-title mb-2">
-                          <Icons8Icon id="shield_ui" size={12} /> Access Properties
+                          <Icons8Icon id="shield_ui" size={14} className="bndz-preview-inline-icon" /> Access Properties
                        </div>
                        
                        <div className="grid grid-cols-[80px_1fr] gap-y-1.5 text-xs">
                           <div className="text-gray-500">Owner:</div>
                           <div className="text-gray-300 flex items-center break-all">{extendedDetails ? (extendedDetails["Owner"] || 'SYSTEM\\Administrator') : 'Fetching...'}</div>
                           
-                          <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="key_ui" size={10} /> ACL:</div>
+                          <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="key_ui" size={14} className="bndz-preview-inline-icon" /> ACL:</div>
                           <div className="text-gray-300">
                                {extendedDetails ? 
                                     (extendedDetails["ACL Rule"]?.includes("F") ? "Full Control" : 
@@ -846,7 +847,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     {extendedDetails && Object.keys(extendedDetails).length > 0 && (
                        <div className="border bndz-preview-detail-card rounded-[4px] p-3">
                           <div className="bndz-panel-section-title mb-2 flex items-center gap-1">
-                             <Icons8Icon id="database_ui" size={12} /> Extended Metadata
+                             <Icons8Icon id="database_ui" size={14} className="bndz-preview-inline-icon" /> Extended Metadata
                           </div>
                           <div className="grid grid-cols-[90px_1fr] gap-y-1 text-xs max-h-[160px] overflow-y-auto bndz-scrollbar">
                              {Object.entries(extendedDetails).filter(([k]) => !['Owner', 'ACL Rule', 'ReadOnly', 'Hidden'].includes(k)).map(([k, v]) => (

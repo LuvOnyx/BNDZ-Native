@@ -27,8 +27,8 @@ export function PreviewHeroIcon({
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <div
-        className="rounded-md bg-[#2b2b2b] border border-[#454545] flex items-center justify-center"
-        style={{ width: size + 24, height: size + 24 }}
+        className="bndz-preview-hero-frame rounded-md bg-[#2b2b2b] border border-[#454545] flex items-center justify-center overflow-hidden"
+        style={{ width: size, height: size }}
       >
         {path ? (
           <ShellNativeIcon
@@ -37,9 +37,10 @@ export function PreviewHeroIcon({
             size={size}
             preferThumbnail={preferThumbnail ?? isImage}
             eager
+            hero
           />
         ) : (
-          <IconPlaceholder size={size * 0.7} />
+          <IconPlaceholder size={Math.round(size * 0.85)} />
         )}
       </div>
     </div>

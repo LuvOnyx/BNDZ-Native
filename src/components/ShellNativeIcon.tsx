@@ -21,6 +21,8 @@ interface ShellNativeIconProps {
   size?: number;
   preferThumbnail?: boolean;
   eager?: boolean;
+  /** Large preview/hero contexts — scale icon to fill the slot (shell PNGs have padding). */
+  hero?: boolean;
 }
 
 export function ShellNativeIcon({
@@ -29,6 +31,7 @@ export function ShellNativeIcon({
   size = 16,
   preferThumbnail,
   eager = false,
+  hero = false,
 }: ShellNativeIconProps) {
   const { config } = useAppConfig();
   const [visible, setVisible] = useState(eager);
@@ -70,12 +73,30 @@ export function ShellNativeIcon({
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumb);
   const src = (useThumb && thumbSrc) || shellSrc;
 
+  const heroScale = hero ? Math.max(1.15, size >= 96 ? 1.28 : 1.2) : 1;
+
   return (
-    <div ref={ref} style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <div
+      ref={ref}
+      className={hero ? 'bndz-shell-icon-hero' : undefined}
+      style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+    >
       {src ? (
-        <img src={src} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} draggable={false} />
+        <img
+          src={src}
+          alt=""
+          className={hero ? 'bndz-shell-icon-hero-img' : undefined}
+          style={{
+            width: hero ? size * heroScale : '100%',
+            height: hero ? size * heroScale : '100%',
+            maxWidth: hero ? 'none' : '100%',
+            maxHeight: hero ? 'none' : '100%',
+            objectFit: 'contain',
+          }}
+          draggable={false}
+        />
       ) : (
-        <IconPlaceholder size={size} />
+        <IconPlaceholder size={hero ? Math.round(size * 0.85) : size} />
       )}
     </div>
   );
