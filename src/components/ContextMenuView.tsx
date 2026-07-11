@@ -669,7 +669,7 @@ function ContextMenuView({
       {!isBackground && !isInRecycleBin && onMoveTo && (
         <ContextMenuItem
           label="Move to..."
-          iconVerb="cut"
+          iconVerb="moveto"
           onClick={() => {
             const sources = resolveContextTargetPanePaths(menu);
             onClose();
@@ -874,7 +874,7 @@ function ContextMenuView({
         );
       })}
 
-      <ContextSubmenu label="Open in..." iconVerb="monitor" groupClass="open-in">
+      <ContextSubmenu label="Open in..." iconVerb="open" groupClass="open-in">
         <ContextMenuItem
           label="Open in Terminal"
           iconVerb="terminal"

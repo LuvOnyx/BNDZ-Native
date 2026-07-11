@@ -166,6 +166,8 @@ import {
   resolveRenameTargetName,
   applyRenameInputSelection,
   buildSettingsRuntime,
+  resolveSortColumn,
+  resolveSortDirection,
 } from '../lib/settingsRuntime';
 import { buildFileOpsRuntime } from '../lib/settingsWiring';
 import { resolvePaneTab } from '../lib/paneTabGuards';
@@ -3619,14 +3621,13 @@ export default function BNDZUI() {
       return;
     }
     setPanes(prev => prev.map(p => {
-      if (p.id === paneId) {
-         if (p.sortColumn === column) {
-            return { ...p, sortDirection: p.sortDirection === 'asc' ? 'desc' : 'asc' };
-         } else {
-            return { ...p, sortColumn: column, sortDirection: 'asc' };
-         }
+      if (p.id !== paneId) return p;
+      const effectiveCol = p.sortColumn ?? resolveSortColumn(config, p);
+      const effectiveDir = resolveSortDirection(effectiveCol, p.sortDirection, config);
+      if (effectiveCol === column) {
+        return { ...p, sortColumn: column, sortDirection: effectiveDir === 'asc' ? 'desc' : 'asc' };
       }
-      return p;
+      return { ...p, sortColumn: column, sortDirection: 'asc' };
     }));
   };
 
@@ -3864,16 +3865,24 @@ export default function BNDZUI() {
       
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && /^[a-z0-9]$/i.test(e.key)) {
         const searchRt = settingsRt.search;
-        if (!searchRt.typeAhead) return;
+        if (searchRt.typeAhead === false) return;
         const now = Date.now();
-        if (now - typeAheadAtRef.current > 1000) typeAheadPrefixRef.current = '';
-        typeAheadPrefixRef.current += e.key.toLowerCase();
+        const key = e.key.toLowerCase();
+        const withinWindow = now - typeAheadAtRef.current <= 1000;
+        const repeatCycle = withinWindow
+          && typeAheadPrefixRef.current.length === 1
+          && typeAheadPrefixRef.current === key;
+
+        if (!repeatCycle) {
+          if (!withinWindow) typeAheadPrefixRef.current = '';
+          typeAheadPrefixRef.current += key;
+        }
         typeAheadAtRef.current = now;
         e.preventDefault();
         const prefix = typeAheadPrefixRef.current;
         const sorted = getSortedContentsForActivePane();
         const matchMode = searchRt.typeAheadMatch || 'Match at beginning';
-        const match = sorted.find((item: any) =>
+        const matches = sorted.filter((item: any) =>
           matchesTypeAhead(
             getDisplayName(item, config),
             prefix,
@@ -3881,10 +3890,29 @@ export default function BNDZUI() {
             searchRt.ignoreDiacritics,
           ),
         );
+        if (!matches.length) {
+          if (!withinWindow) typeAheadPrefixRef.current = '';
+          return;
+        }
+
+        let match = matches[0];
+        if (repeatCycle && matches.length > 1) {
+          const focusIdx = matches.findIndex((item: any) => item.id === focusedItemId);
+          const nextIdx = focusIdx >= 0 ? (focusIdx + 1) % matches.length : 0;
+          match = matches[nextIdx];
+        } else if (!repeatCycle && matches.length > 1 && focusedItemId) {
+          const focusIdx = matches.findIndex((item: any) => item.id === focusedItemId);
+          if (focusIdx >= 0 && prefix.length > 1) {
+            match = matches[focusIdx] ?? matches[0];
+          }
+        }
+
         if (match) {
           setFocusedItemId(match.id);
           setSelectedItems([match.id], activePaneId);
+          selectionAnchorRef.current = { paneId: activePaneId, itemId: match.id };
           scheduleSelectionChrome([match.id], true);
+          scheduleQuickActionsBar(true, true);
           const el = document.getElementById(`fs-item-${match.id}`);
           if (el) el.scrollIntoView({ block: 'nearest' });
         }
@@ -3908,7 +3936,7 @@ export default function BNDZUI() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [panes, activePaneId, isDualPane, activePaneIndex, activeTab, fileSystem, focusedItemId, filterText, config, getSortedContentsForActivePane, setClipboardState, executePaste]);
+  }, [panes, activePaneId, isDualPane, activePaneIndex, activeTab, fileSystem, focusedItemId, filterText, config, settingsRt, getSortedContentsForActivePane, setClipboardState, executePaste]);
 
   // Bridge Handler for AI renaming modification
   const handleApplyRename = (operations: RenameOperation[]) => {
@@ -5036,9 +5064,13 @@ export default function BNDZUI() {
                  <DragHandleGlyph size={10} />
                </div>
                <span className={`flex-1 min-w-0 truncate ${col.align === 'right' ? 'text-right' : ''}`}>{col.label}</span>
-               {col.sortable && pane.sortColumn === col.id && (
-                 <span className="text-[10px] ml-0.5 shrink-0">{pane.sortDirection === 'asc' ? '▲' : '▼'}</span>
-               )}
+               {col.sortable && (() => {
+                 const effectiveCol = pane.sortColumn ?? resolveSortColumn(config, pane);
+                 const effectiveDir = resolveSortDirection(effectiveCol, pane.sortDirection, config);
+                 return effectiveCol === col.id ? (
+                   <span className="text-[10px] ml-0.5 shrink-0">{effectiveDir === 'asc' ? '▲' : '▼'}</span>
+                 ) : null;
+               })()}
                <div
                  draggable={false}
                  className="bndz-col-resize-handle absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-[#0078d4]/30 active:bg-[#0078d4]/45 z-10 touch-none"

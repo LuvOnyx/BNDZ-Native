@@ -3334,7 +3334,7 @@ namespace BNDZ
                                     return batchResolution;
 
                                 var evt = new { type = "CONFLICT_DETECTED", payload = new { operationId = opId, fileName, sourcePath = srcPath, destPath } };
-                                var tcs = new TaskCompletionSource<string>();
+                                var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                                 string conflictKey = $"{opId}:{fileName}";
                                 _conflictResolvers[conflictKey] = tcs;
 
@@ -3343,6 +3343,14 @@ namespace BNDZ
                                     MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
                                 });
 
+                                var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(90))).ConfigureAwait(false);
+                                if (completed != tcs.Task)
+                                {
+                                    _conflictResolvers.TryRemove(conflictKey, out _);
+                                    return _conflictBatchResolution.TryGetValue(opId, out var fallback)
+                                        ? fallback
+                                        : (prefs.DefaultRepeatOnCollision ? "replace" : "keepboth");
+                                }
                                 return await tcs.Task.ConfigureAwait(false);
                             },
                             recordActionLog: prefs.LogActions,
@@ -3376,6 +3384,7 @@ namespace BNDZ
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
                     _fileTransferQueue.MarkCompleted(operationId);
+                    await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
 
                     foreach (var src in sources)
                     {
@@ -3386,8 +3395,14 @@ namespace BNDZ
                     if (!string.IsNullOrEmpty(target) && (action == "copy" || action == "move"))
                         QueueFsEvent("Changed", Path.GetDirectoryName(target) ?? target, Path.GetFileName(target) ?? "");
                     FlushFsEvents();
-                    await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
-                    await PostFsOperationResultAsync(idProp, true, null).ConfigureAwait(false);
+                    try
+                    {
+                        await PostToUiAsync(PostActionLogChanged).ConfigureAwait(false);
+                    }
+                    catch (Exception logEx)
+                    {
+                        Debug.WriteLine($"[FS] PostActionLogChanged failed: {logEx.Message}");
+                    }
                 }
                 catch (OperationCanceledException)
                 {

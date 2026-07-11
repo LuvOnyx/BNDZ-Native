@@ -137,11 +137,13 @@ public class FileOperationService
         {
             onAccessDenied?.Invoke(operationId, ex.Message);
             onProgress?.Invoke(operationId, 100, ex.Message, 0, 0, 0, 1, 1);
+            throw;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"FileOperation {action} failed: {ex.Message}");
             onProgress?.Invoke(operationId, 100, ex.Message, 0, 0, 0, 1, 1);
+            throw;
         }
     }
 

@@ -37,7 +37,8 @@ function JobRow({
     : 'text-[#99c9f0]';
 
   const statusLabel =
-    job.status === 'running' || job.status === 'queued' ? `${job.progress ?? 0}%`
+    job.status === 'running' || job.status === 'queued'
+      ? ((job.progress ?? 0) >= 100 ? 'Finishing…' : `${job.progress ?? 0}%`)
     : job.status === 'completed' ? 'Done'
     : job.status;
 
@@ -126,25 +127,48 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
   useEffect(() => {
     if (!enabled) return;
     let unsub: (() => void) | undefined;
+    let unsubProgress: (() => void) | undefined;
     let alive = true;
     let tick: ReturnType<typeof setInterval> | undefined;
+    let progressPoll: ReturnType<typeof setTimeout> | undefined;
 
     (async () => {
       const { IPC } = await import('../lib/ipcBridge');
       if (!IPC.isNative || !alive) return;
+      const refresh = async () => {
+        const initial = await IPC.getFileTransferQueue();
+        if (alive) setState(initial);
+      };
       unsub = IPC.onFileTransferQueueChanged(setState);
-      const initial = await IPC.getFileTransferQueue();
-      if (alive) setState(initial);
+      unsubProgress = IPC.onProgress((payload: { percentage?: number; operationId?: string }) => {
+        if ((payload?.percentage ?? 0) >= 100) {
+          if (progressPoll) clearTimeout(progressPoll);
+          progressPoll = setTimeout(() => { void refresh(); }, 250);
+        }
+      });
+      await refresh();
     })();
 
     tick = setInterval(() => {
-      setState(prev => ({ ...prev, jobs: [...prev.jobs] }));
-    }, 5000);
+      setState(prev => {
+        const hasStuck = prev.jobs.some(j =>
+          j.status === 'running' && (j.progress ?? 0) >= 100
+        );
+        if (hasStuck) {
+          void import('../lib/ipcBridge').then(({ IPC }) => IPC.getFileTransferQueue().then(next => {
+            if (alive) setState(next);
+          }));
+        }
+        return { ...prev, jobs: [...prev.jobs] };
+      });
+    }, 2000);
 
     return () => {
       alive = false;
       unsub?.();
+      unsubProgress?.();
       if (tick) clearInterval(tick);
+      if (progressPoll) clearTimeout(progressPoll);
     };
   }, [enabled]);
 

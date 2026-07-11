@@ -283,10 +283,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   useEffect(() => {
     if (!path || isDir || !isSvg || !previewAllowed) {
-      if (svgBlobUrlRef.current) {
-        URL.revokeObjectURL(svgBlobUrlRef.current);
-        svgBlobUrlRef.current = null;
-      }
+      const stale = svgBlobUrlRef.current;
+      svgBlobUrlRef.current = null;
+      if (stale) URL.revokeObjectURL(stale);
       setSvgPreviewUrl(null);
       return;
     }
@@ -300,9 +299,10 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           if (result.content) {
             const blob = new Blob([result.content], { type: 'image/svg+xml' });
             const objectUrl = URL.createObjectURL(blob);
-            if (svgBlobUrlRef.current) URL.revokeObjectURL(svgBlobUrlRef.current);
+            const stale = svgBlobUrlRef.current;
             svgBlobUrlRef.current = objectUrl;
             setSvgPreviewUrl(objectUrl);
+            if (stale) URL.revokeObjectURL(stale);
             return;
           }
         }
@@ -313,12 +313,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     })();
     return () => {
       active = false;
-      if (svgBlobUrlRef.current) {
-        URL.revokeObjectURL(svgBlobUrlRef.current);
-        svgBlobUrlRef.current = null;
-      }
     };
   }, [path, isDir, isSvg, previewAllowed, virtualUrl]);
+
+  useEffect(() => () => {
+    const stale = svgBlobUrlRef.current;
+    svgBlobUrlRef.current = null;
+    if (stale) URL.revokeObjectURL(stale);
+  }, []);
 
   if (!entity) {
     return (
@@ -517,15 +519,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 <button
                   type="button"
                   onClick={() => setMdView('render')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${mdView === 'render' ? 'bndz-preview-tab-active' : ''}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${mdView === 'render' ? 'bndz-preview-tab-active' : ''}`}
                 >
+                  <Icons8Icon id="eye_ui" size={12} />
                   Preview
                 </button>
                 <button
                   type="button"
                   onClick={() => setMdView('source')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${mdView === 'source' ? 'bndz-preview-tab-active' : ''}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${mdView === 'source' ? 'bndz-preview-tab-active' : ''}`}
                 >
+                  <Icons8Icon id="code_ui" size={12} />
                   Source
                 </button>
               </div>
@@ -556,15 +560,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 <button
                   type="button"
                   onClick={() => setHtmlView('render')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${htmlView === 'render' ? 'bndz-preview-tab-active' : ''}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${htmlView === 'render' ? 'bndz-preview-tab-active' : ''}`}
                 >
+                  <Icons8Icon id="eye_ui" size={12} />
                   Preview
                 </button>
                 <button
                   type="button"
                   onClick={() => setHtmlView('source')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab ${htmlView === 'source' ? 'bndz-preview-tab-active' : ''}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded bndz-preview-tab flex items-center gap-1 ${htmlView === 'source' ? 'bndz-preview-tab-active' : ''}`}
                 >
+                  <Icons8Icon id="code_ui" size={12} />
                   Source
                 </button>
               </div>
@@ -701,8 +707,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              ))}
           </div>
           <div className="flex gap-0.5">
-             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open"><Icons8Icon id="folder_open_ui" size={13} /></button>
-             <button type="button" onClick={copyPath} className="bndz-preview-action-btn" title="Copy path"><Icons8Icon id="copy_path" size={13} /></button>
+             <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={13} /></button>
+             <button type="button" onClick={copyPath} className="bndz-preview-action-btn" title="Copy path"><Icons8Icon id="copy" size={13} /></button>
              <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={13} /></button>
           </div>
        </div>

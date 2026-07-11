@@ -264,6 +264,13 @@ public sealed class FileTransferQueueService
             job.Status = FileTransferJobStatus.Running;
             job.StartedUtc ??= DateTime.UtcNow;
         }
+        if (job.Progress >= 100
+            && job.Status == FileTransferJobStatus.Running
+            && itemsCompleted >= job.ItemsTotal)
+        {
+            job.EtaSeconds = 0;
+            job.SpeedBytesPerSecond = 0;
+        }
         NotifyChanged();
     }
 

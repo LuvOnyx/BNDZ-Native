@@ -352,14 +352,14 @@ export default function PropertiesPlugin({
                 actions={!isMulti ? (
                     <>
                         <PluginHeroActionButton icon="folder_open_ui" variant="primary" onClick={openItem}>Open</PluginHeroActionButton>
-                        <PluginHeroActionButton icon="copy_path" onClick={copyPath} active={copied}>
+                        <PluginHeroActionButton icon="copy" onClick={copyPath} active={copied}>
                             {copied ? 'Copied!' : 'Copy path'}
                         </PluginHeroActionButton>
                         <PluginHeroActionButton icon="folder_open_ui" onClick={showInExplorer}>Reveal</PluginHeroActionButton>
                         <PluginHeroActionButton icon="sys_properties" onClick={showNativeProperties}>Windows props</PluginHeroActionButton>
                     </>
                 ) : (
-                    <PluginHeroActionButton icon="copy_path" onClick={copyPath} active={copied}>
+                    <PluginHeroActionButton icon="copy" onClick={copyPath} active={copied}>
                         {copied ? 'Copied!' : 'Copy path'}
                     </PluginHeroActionButton>
                 )}

@@ -92,7 +92,7 @@ export function buildSearchRuntime(config: AppConfig) {
   return {
     globalPrefix: readSettingBool(config, 'enableGlobalSearchPrefix', true),
     limit: readSettingNumber(config, 'globalSearchLimit', 200),
-    typeAhead: readSettingBool(config, 'enableTypeAheadFind'),
+    typeAhead: readSettingBool(config, 'enableTypeAheadFind', true),
     typeAheadMatch: readSettingString(config, 'typeAheadFindMatch', 'Match at beginning'),
     instantFilter: readSettingBool(config, 'instantFilterOnTyping'),
     ignoreDiacritics: readSettingBool(config, 'ignoreDiacritics'),

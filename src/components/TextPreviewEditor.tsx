@@ -84,7 +84,7 @@ export default function TextPreviewEditor({
     <div className="w-full h-full flex flex-col bg-[#1e1e1e] min-h-0">
       <div className="shrink-0 flex items-center justify-between gap-2 px-2 py-1.5 border-b border-[#333] bg-[#252526]">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Icons8Icon id="file_ui" size={13} className="shrink-0" />
+          <Icons8Icon id={isCode ? 'code_ui' : 'file_ui'} size={13} className="shrink-0" />
           <span className="text-[10px] text-gray-400 truncate font-mono">{fileName}</span>
           {dirty && <span className="text-[9px] text-amber-500 font-bold">●</span>}
         </div>
