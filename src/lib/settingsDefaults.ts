@@ -19,7 +19,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   allowMultipleInstances: false,
   allowOnlySingleStepUndoRedo: 'Allow multi-step undo/redo',
   allowPanning: false,
-  allowRepeatedCharacters: false,
+  allowRepeatedCharacters: true,
   allowZombiesInTheMiniTree: false,
   allowedNumberOfItemsPerLoggedAction: false,
   alsoAutoSelectTabsInTheInactivePane: true,

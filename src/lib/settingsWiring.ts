@@ -94,6 +94,8 @@ export function buildSearchRuntime(config: AppConfig) {
     limit: readSettingNumber(config, 'globalSearchLimit', 200),
     typeAhead: readSettingBool(config, 'enableTypeAheadFind', true),
     typeAheadMatch: readSettingString(config, 'typeAheadFindMatch', 'Match at beginning'),
+    allowRepeatedCharacters: readSettingBool(config, 'allowRepeatedCharacters', true),
+    redirectTypingToFilter: readSettingBool(config, 'redirectTypingToLiveFilterBox', false),
     instantFilter: readSettingBool(config, 'instantFilterOnTyping'),
     ignoreDiacritics: readSettingBool(config, 'ignoreDiacritics'),
     searchSubfolders: readSettingBool(config, 'searchSubfolders'),

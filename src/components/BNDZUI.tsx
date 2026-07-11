@@ -172,6 +172,7 @@ import {
 import { buildFileOpsRuntime } from '../lib/settingsWiring';
 import { resolvePaneTab } from '../lib/paneTabGuards';
 import { matchesShortcut, matchesTypeAhead } from '../lib/keyboardShortcuts';
+import { advanceTypeAheadPrefix, pickTypeAheadMatch } from '../lib/typeAheadFind';
 import { useBndzPanelMotion } from '../hooks/useBndzPanelMotion';
 import { useBndzTabMotion } from '../hooks/useBndzTabMotion';
 import { useLatest } from '../hooks/useLatest';
@@ -3734,7 +3735,105 @@ export default function BNDZUI() {
     toast: setToastMessage,
   }), [panes, addTab, closeTabAt, goUp, openFolderInOppositePane, refetchPath, setToastMessage, getSortedContentsForActivePane, config, updateConfig]);
 
-  // Keyboard state
+  // Keyboard state — type-ahead find in file list (Explorer-style)
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    };
+
+    const typeAheadBlocked = () =>
+      !!contextMenu
+      || !!tabContextMenu
+      || !!openMenuId
+      || !!columnPicker
+      || !!inlineRename
+      || isCommandPaletteOpen
+      || isSmartToolsOpen
+      || isToolbarConfigOpen
+      || isTagManagerOpen
+      || quickPreviewOpen;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.length !== 1 || !/^[a-z0-9]$/i.test(e.key)) return;
+      if (typeAheadBlocked()) return;
+
+      const searchRt = settingsRt.search;
+      if (searchRt.typeAhead === false) return;
+
+      if (isEditableTarget(e.target) && document.activeElement !== omniFilterRef.current) return;
+      if (document.activeElement === omniFilterRef.current) return;
+
+      if (searchRt.redirectTypingToFilter) {
+        e.preventDefault();
+        omniFilterRef.current?.focus();
+        const input = omniFilterRef.current;
+        if (input) {
+          const next = `${input.value}${e.key}`;
+          setFilterText(next);
+          input.setSelectionRange(next.length, next.length);
+        }
+        return;
+      }
+
+      const now = Date.now();
+      const key = e.key.toLowerCase();
+      const { prefix, repeatCycle } = advanceTypeAheadPrefix(
+        typeAheadPrefixRef.current,
+        typeAheadAtRef.current,
+        key,
+        now,
+        { allowRepeatCycle: searchRt.allowRepeatedCharacters !== false },
+      );
+      typeAheadPrefixRef.current = prefix;
+      typeAheadAtRef.current = now;
+      e.preventDefault();
+
+      const sorted = getSortedContentsForActivePane();
+      const matchMode = searchRt.typeAheadMatch || 'Match at beginning';
+      const matches = sorted.filter((item: any) =>
+        matchesTypeAhead(
+          getDisplayName(item, config),
+          prefix,
+          matchMode,
+          searchRt.ignoreDiacritics,
+        ),
+      );
+      if (!matches.length) {
+        typeAheadPrefixRef.current = '';
+        return;
+      }
+
+      const match = pickTypeAheadMatch(matches, focusedItemId, prefix, repeatCycle);
+      if (!match) return;
+
+      const listEl = document.querySelector(
+        `[data-list-body][data-pane-id="${activePaneId}"]`,
+      ) as HTMLElement | null;
+      listEl?.focus({ preventScroll: true });
+
+      setFocusedItemId(match.id);
+      setSelectedItems([match.id], activePaneId);
+      selectionAnchorRef.current = { paneId: activePaneId, itemId: match.id };
+      scheduleSelectionChrome([match.id], true);
+      scheduleQuickActionsBar(true, true);
+      const el = document.getElementById(`fs-item-${match.id}`);
+      if (el) el.scrollIntoView({ block: 'nearest' });
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [
+    panes, activePaneId, activeTab, focusedItemId, filterText, config, settingsRt,
+    getSortedContentsForActivePane, contextMenu, tabContextMenu, openMenuId, columnPicker,
+    inlineRename, isCommandPaletteOpen, isSmartToolsOpen, isToolbarConfigOpen, isTagManagerOpen,
+    quickPreviewOpen, setFilterText,
+  ]);
+
+  // Keyboard state (navigation, shortcuts — separate from type-ahead capture handler)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
@@ -3864,62 +3963,6 @@ export default function BNDZUI() {
         }
       }
       
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && /^[a-z0-9]$/i.test(e.key)) {
-        const searchRt = settingsRt.search;
-        if (searchRt.typeAhead === false) return;
-        const now = Date.now();
-        const key = e.key.toLowerCase();
-        const withinWindow = now - typeAheadAtRef.current <= 1000;
-        const repeatCycle = withinWindow
-          && typeAheadPrefixRef.current.length === 1
-          && typeAheadPrefixRef.current === key;
-
-        if (!repeatCycle) {
-          if (!withinWindow) typeAheadPrefixRef.current = '';
-          typeAheadPrefixRef.current += key;
-        }
-        typeAheadAtRef.current = now;
-        e.preventDefault();
-        const prefix = typeAheadPrefixRef.current;
-        const sorted = getSortedContentsForActivePane();
-        const matchMode = searchRt.typeAheadMatch || 'Match at beginning';
-        const matches = sorted.filter((item: any) =>
-          matchesTypeAhead(
-            getDisplayName(item, config),
-            prefix,
-            matchMode,
-            searchRt.ignoreDiacritics,
-          ),
-        );
-        if (!matches.length) {
-          if (!withinWindow) typeAheadPrefixRef.current = '';
-          return;
-        }
-
-        let match = matches[0];
-        if (repeatCycle && matches.length > 1) {
-          const focusIdx = matches.findIndex((item: any) => item.id === focusedItemId);
-          const nextIdx = focusIdx >= 0 ? (focusIdx + 1) % matches.length : 0;
-          match = matches[nextIdx];
-        } else if (!repeatCycle && matches.length > 1 && focusedItemId) {
-          const focusIdx = matches.findIndex((item: any) => item.id === focusedItemId);
-          if (focusIdx >= 0 && prefix.length > 1) {
-            match = matches[focusIdx] ?? matches[0];
-          }
-        }
-
-        if (match) {
-          setFocusedItemId(match.id);
-          setSelectedItems([match.id], activePaneId);
-          selectionAnchorRef.current = { paneId: activePaneId, itemId: match.id };
-          scheduleSelectionChrome([match.id], true);
-          scheduleQuickActionsBar(true, true);
-          const el = document.getElementById(`fs-item-${match.id}`);
-          if (el) el.scrollIntoView({ block: 'nearest' });
-        }
-        return;
-      }
-
       if (matchesShortcut(e, keyboardMap.delete)) {
          const activePane = panes.find(p => p.id === activePaneId);
          if (activePane) {
@@ -5104,6 +5147,7 @@ export default function BNDZUI() {
         <div 
            data-pane-id={pane.id}
            data-list-body
+           tabIndex={-1}
            className={`flex-1 overflow-y-auto p-1 focus:outline-none relative bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer ${marquee && marquee.activePane === pane.id ? 'cursor-crosshair' : 'cursor-default'}`}
            style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
            onScroll={e => handlePaneScroll(pane.id, e)}
@@ -5131,6 +5175,7 @@ export default function BNDZUI() {
               if ((e.target as HTMLElement).closest('input, textarea, button, select, a')) return;
 
               const listEl = e.currentTarget as HTMLElement;
+              listEl.focus({ preventScroll: true });
               const ctrlKey = e.ctrlKey || e.metaKey;
               const shiftKey = e.shiftKey;
               (window as any)._marqueeDragOccurred = false;
