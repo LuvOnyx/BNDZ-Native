@@ -2382,19 +2382,19 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <div className="space-y-[8px] mb-8">
                  <div className="flex items-center gap-[42px]">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Grid st<span className="underline decoration-1 underline-offset-[3px]">y</span>le:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig5 || ""} onChange={e => updateLocalConfig({selectConfig5: e.target.value})}><option>Zebra Stripes: Alternate Rows (1)</option><option>Zebra Stripes: Alternate Rows (2)</option><option>Solid Color</option></select>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig5 || ""} onChange={e => { updateLocalConfig({selectConfig5: e.target.value}); applySettingsRuntime({ ...localConfig, selectConfig5: e.target.value }); }}><option>Zebra Stripes: Alternate Rows (1)</option><option>Zebra Stripes: Alternate Rows (2)</option><option>Solid Color</option></select>
                  </div>
                  <div className="flex items-center gap-[42px]">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">B<span className="underline decoration-1 underline-offset-[3px]">o</span>rders:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig6 || ""} onChange={e => updateLocalConfig({selectConfig6: e.target.value})}><option>No border</option><option>Solid border</option><option>Dashed border</option></select>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig6 || ""} onChange={e => { const v = e.target.value; updateLocalConfig({selectConfig6: v}); applySettingsRuntime({ ...localConfig, selectConfig6: v }); }}><option>No border</option><option>Solid border</option><option>Dashed border</option></select>
                  </div>
                  <div className="flex items-center gap-[42px]">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Se<span className="underline decoration-1 underline-offset-[3px]">l</span>ections:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig7 || ""} onChange={e => updateLocalConfig({selectConfig7: e.target.value})}><option>BNDZ Style (Rounded)</option><option>Windows Native</option><option>Flat</option></select>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig7 || ""} onChange={e => { const v = e.target.value; updateLocalConfig({selectConfig7: v}); applySettingsRuntime({ ...localConfig, selectConfig7: v }); }}><option>BNDZ Style (Rounded)</option><option>Windows Native</option><option>Flat</option></select>
                  </div>
                  <div className="flex items-center gap-[42px]">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Focu<span className="underline decoration-1 underline-offset-[3px]">s</span> rectangle:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig8 || ""} onChange={e => updateLocalConfig({selectConfig8: e.target.value})}><option>Solid</option><option>Gradient</option><option>Transparent</option></select>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none" value={localConfig.selectConfig8 || ""} onChange={e => { const v = e.target.value; updateLocalConfig({selectConfig8: v}); applySettingsRuntime({ ...localConfig, selectConfig8: v }); }}><option>Solid</option><option>Gradient</option><option>Transparent</option></select>
                  </div>
               </div>
 
@@ -2429,8 +2429,24 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <span className="text-[12px] text-[#e0e0e0] w-[140px]">Dark mode:</span>
                  <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2">
-                       <button className="bg-[#2B579A] text-white px-5 py-[5px] text-[14px]">ABC</button>
-                       <button className="bg-[#1A1A1A] text-white border border-[#444] px-5 py-[5px] text-[14px]">ABC</button>
+                       <button
+                         type="button"
+                         className="bg-[#2B579A] text-white px-5 py-[5px] text-[14px] rounded-sm hover:brightness-110"
+                         onClick={() => {
+                           const updates = { selectConfig11: '60', selectConfig12: '30', selectConfig13: '0' };
+                           updateLocalConfig(updates);
+                           applySettingsRuntime({ ...localConfig, ...updates });
+                         }}
+                       >ABC</button>
+                       <button
+                         type="button"
+                         className="bg-[#1A1A1A] text-white border border-[#444] px-5 py-[5px] text-[14px] rounded-sm hover:brightness-125"
+                         onClick={() => {
+                           const updates = { selectConfig11: '0', selectConfig12: '60', selectConfig13: '0' };
+                           updateLocalConfig(updates);
+                           applySettingsRuntime({ ...localConfig, ...updates });
+                         }}
+                       >ABC</button>
                     </div>
                     <div className="flex flex-col gap-2">
                        <div className="flex items-center gap-2">

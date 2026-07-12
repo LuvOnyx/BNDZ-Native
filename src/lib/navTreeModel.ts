@@ -41,6 +41,8 @@ export interface FlatNavRow {
   isExpanded: boolean;
   isPlaceholder?: boolean;
   selected?: boolean;
+  /** Ancestor on the path to the active folder (tree path tracing). */
+  pathTrace?: boolean;
   staticToggle?: () => void;
   staticClick?: () => void;
   treeKey?: string;
@@ -60,6 +62,22 @@ export function dirEntryToTreeNode(entry: { name: string; path?: string }, paren
 interface FlattenContext {
   dynamicState: Record<string, DynamicTreeState>;
   currentPath?: string;
+  markIntermediateNodes?: boolean;
+  pathsEqual?: (a?: string, b?: string) => boolean;
+  isPathAncestor?: (ancestor?: string, descendant?: string) => boolean;
+}
+
+function defaultPathsEqual(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  return a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function defaultIsPathAncestor(ancestor?: string, descendant?: string): boolean {
+  if (!ancestor || !descendant) return false;
+  const a = ancestor.replace(/\\/g, '/').replace(/\/+$/, '');
+  const d = descendant.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!a || !d || a === d) return false;
+  return d.startsWith(`${a}/`);
 }
 
 function nodeId(node: NavTreeSourceNode, index: number, prefix: string): string {
@@ -96,10 +114,19 @@ export function flattenNavTree(
 
     const hasChildren = !node.leaf && (isDynamicFolder || isStaticBranch);
     const id = nodeId(node, index, prefix);
+    const pathsEqual = ctx.pathsEqual ?? defaultPathsEqual;
+    const isPathAncestor = ctx.isPathAncestor ?? defaultIsPathAncestor;
     const isSelected =
       node.selected ||
-      (node.path && ctx.currentPath === node.path) ||
+      (node.path && pathsEqual(node.path, ctx.currentPath)) ||
       false;
+    const pathTrace = !!(
+      ctx.markIntermediateNodes
+      && node.path
+      && ctx.currentPath
+      && !isSelected
+      && isPathAncestor(node.path, ctx.currentPath)
+    );
 
     rows.push({
       id,
@@ -115,6 +142,7 @@ export function flattenNavTree(
       isExpanded,
       isPlaceholder: !node.path && node.label === 'Pin folders here',
       selected: isSelected,
+      pathTrace,
       staticToggle: isStaticBranch ? node.onToggle : undefined,
       staticClick: !isDynamicFolder ? node.onClick : undefined,
       treeKey: node.treeKey,

@@ -47,6 +47,10 @@ export const AESTHETIC_THEMES: ThemePreset[] = [
   { name: 'Sunset Ember', bg: '#140d0a', surface: '#241612', accent: '#fb923c', text: '#ffedd5', category: 'aesthetic' },
   { name: 'Graphite Pro', bg: '#161616', surface: '#222222', accent: '#60a5fa', text: '#f3f4f6', category: 'aesthetic' },
   { name: 'Ocean Deep', bg: '#071018', surface: '#0f1c28', accent: '#22d3ee', text: '#e0f2fe', category: 'aesthetic' },
+  { name: 'Cyber Neon', bg: '#050508', surface: '#101018', accent: '#00f5d4', text: '#e8faff', category: 'aesthetic' },
+  { name: 'Rose Quartz', bg: '#1a1218', surface: '#261a24', accent: '#fb7185', text: '#ffe4e8', category: 'aesthetic' },
+  { name: 'Midnight Cobalt', bg: '#0b1020', surface: '#141c32', accent: '#6366f1', text: '#e8eaf6', category: 'aesthetic' },
+  { name: 'Forest Canopy', bg: '#0c1410', surface: '#152820', accent: '#4ade80', text: '#ecfdf5', category: 'aesthetic' },
 ];
 
 export const ALL_THEME_PRESETS = [...IMPORTED_THEMES, ...AESTHETIC_THEMES];

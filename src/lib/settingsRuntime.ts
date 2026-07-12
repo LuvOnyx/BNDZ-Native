@@ -2,6 +2,7 @@ import type { AppConfig } from '../data/configContext';
 import { filterTreeListEntities } from './treeListItemFilter';
 import { applyThemeByName } from '../data/themePresets';
 import { applyAppearanceVariants } from './appearanceVariants';
+import { SETTINGS_DEFAULTS } from './settingsDefaults';
 import {
   syncAllSettingsToDocument,
   buildKeyboardMap,
@@ -696,6 +697,75 @@ function clearColorCssVars(root: HTMLElement): void {
 }
 
 import { buildPanelTypographyCssVars } from './panelTypography';
+
+function readSelectString(config: AppConfig, key: string, fallback: string): string {
+  const v = config[key as keyof AppConfig];
+  if (typeof v === 'string' && v.length > 0) return v;
+  const def = SETTINGS_DEFAULTS[key];
+  return typeof def === 'string' ? def : fallback;
+}
+
+function applyListStyleDataset(config: AppConfig, root: HTMLElement): void {
+  const borderRaw = readSelectString(config, 'selectConfig6', 'No border');
+  root.dataset.listSelectionBorder = borderRaw === 'Solid border'
+    ? 'solid'
+    : borderRaw === 'Dashed border'
+      ? 'dashed'
+      : 'none';
+
+  const shapeRaw = readSelectString(config, 'selectConfig7', 'BNDZ Style (Rounded)');
+  root.dataset.listSelectionShape = shapeRaw === 'Windows Native'
+    ? 'native'
+    : shapeRaw === 'Flat'
+      ? 'flat'
+      : 'rounded';
+
+  const focusRaw = readSelectString(config, 'selectConfig8', 'Solid');
+  root.dataset.listSelectionFocus = focusRaw === 'Gradient'
+    ? 'gradient'
+    : focusRaw === 'Transparent'
+      ? 'transparent'
+      : 'solid';
+
+  const traceWidth = parseInt(readSelectString(config, 'selectConfig9', '2'), 10) || 2;
+  root.style.setProperty('--tree-trace-width', `${traceWidth}px`);
+
+  const lineSpacing = parseInt(readSelectString(config, 'selectConfig14', '2'), 10) || 2;
+  const overallSpacing = parseInt(readSelectString(config, 'selectConfig15', '6'), 10) || 6;
+  root.style.setProperty('--bndz-list-line-spacing', `${lineSpacing}px`);
+  root.style.setProperty('--bndz-list-overall-spacing', `${overallSpacing}px`);
+
+  root.dataset.translucentSelection = config.translucentSelectionBox ? 'true' : 'false';
+  root.dataset.semiTransparentGrid = config.semiTransparentGridColor ? 'true' : 'false';
+  root.dataset.mirrorTreeBoxInList = config.mirrorTreeBoxColorInList ? 'true' : 'false';
+  root.dataset.matchTraceBreadcrumb = config.matchColorWithBreadcrumbBar ? 'true' : 'false';
+  root.dataset.matchPinTrace = config.matchColorWithTreePathTracing ? 'true' : 'false';
+
+  if (config.matchColorWithBreadcrumbBar) {
+    const trace = config.colorConfig23;
+    if (typeof trace === 'string' && trace.startsWith('#')) {
+      root.style.setProperty('--tree-trace', trace);
+    }
+  }
+  if (config.matchColorWithTreePathTracing) {
+    const pin = config.colorConfig34;
+    if (typeof pin === 'string' && pin.startsWith('#')) {
+      root.style.setProperty('--location-pin', pin);
+    }
+  }
+
+  const darkness = parseInt(readSelectString(config, 'selectConfig11', '20'), 10);
+  const contrast = parseInt(readSelectString(config, 'selectConfig12', '15'), 10);
+  const tint = parseInt(readSelectString(config, 'selectConfig13', '0'), 10);
+  root.dataset.darknessLevel = String(Number.isFinite(darkness) ? darkness : 20);
+  root.dataset.textContrast = String(Number.isFinite(contrast) ? contrast : 15);
+  root.dataset.colorTint = String(Number.isFinite(tint) ? tint : 0);
+  const brightness = 0.58 + ((100 - Math.min(100, Math.max(0, darkness))) / 100) * 0.42;
+  root.style.setProperty('--bndz-chrome-brightness', String(brightness));
+  root.style.setProperty('--bndz-text-contrast-mix', `${Math.min(100, Math.max(0, contrast))}%`);
+  root.style.setProperty('--bndz-color-tint-mix', `${Math.min(100, Math.max(0, tint))}%`);
+}
+
 export function applySettingsRuntime(config: AppConfig): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
@@ -744,6 +814,7 @@ export function applySettingsRuntime(config: AppConfig): void {
   document.body.style.fontFamily = rt.ui.fontFamily;
 
   applyAppearanceVariants(config, root);
+  applyListStyleDataset(config, root);
 
   import('./shellIntegrationRuntime').then(({ scheduleBackendSettings }) => {
     scheduleBackendSettings(config);

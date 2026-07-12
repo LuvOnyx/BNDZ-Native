@@ -479,6 +479,18 @@ export default function BNDZUI() {
       ops.scheduleQuickActionsBar(finalSelected.length > 0, true);
     };
 
+    let marqueeRaf = 0;
+    let pendingMarqueeState: typeof marqueeState | null = null;
+    const scheduleMarqueeSelection = (state: typeof marqueeState) => {
+      pendingMarqueeState = state;
+      if (marqueeRaf) return;
+      marqueeRaf = window.requestAnimationFrame(() => {
+        marqueeRaf = 0;
+        if (pendingMarqueeState) applyMarqueeSelection(pendingMarqueeState);
+        pendingMarqueeState = null;
+      });
+    };
+
     const onPointerMove = (ev: PointerEvent) => {
       if (Math.abs(ev.clientX - clientX) > 3 || Math.abs(ev.clientY - clientY) > 3) {
         (window as any)._marqueeDragOccurred = true;
@@ -488,7 +500,7 @@ export default function BNDZUI() {
       marqueeState.currX = p.x;
       marqueeState.currY = p.y;
       setMarquee(next);
-      applyMarqueeSelection(next);
+      scheduleMarqueeSelection(next);
       const edge = 48;
       const rect = listEl.getBoundingClientRect();
       if (ev.clientY > rect.bottom - edge) listEl.scrollTop += 12;
@@ -497,12 +509,20 @@ export default function BNDZUI() {
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      if (marqueeRaf) {
+        window.cancelAnimationFrame(marqueeRaf);
+        marqueeRaf = 0;
+      }
       if (capturePointerId != null) {
         try { listEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
       }
       const moved = Math.abs(marqueeState.currX - marqueeState.startX) > 3
         || Math.abs(marqueeState.currY - marqueeState.startY) > 3;
-      if (moved) applyMarqueeSelection(marqueeState);
+      if (moved) {
+        if (pendingMarqueeState) applyMarqueeSelection(pendingMarqueeState);
+        else applyMarqueeSelection(marqueeState);
+      }
+      pendingMarqueeState = null;
       setMarquee(null);
       setMarqueeActive(false);
     };
@@ -634,6 +654,12 @@ export default function BNDZUI() {
     config.bottomFontSize, config.statusFontSize, config.chromeFontSize,
     config.rowHeight,
   ]);
+
+  useEffect(() => {
+    const onApplyListStyles = () => applySettingsRuntime(config);
+    window.addEventListener('bndz-apply-list-styles', onApplyListStyles);
+    return () => window.removeEventListener('bndz-apply-list-styles', onApplyListStyles);
+  }, [config]);
 
   /** One-time upgrade for panel defaults + sidebar cloud section */
   useEffect(() => {
@@ -2416,14 +2442,20 @@ export default function BNDZUI() {
       config.hiddenRapidAccess || [],
       KNOWN_FOLDER_SHELL,
     );
-    const pins = dedupePinnedFavorites(config.pinnedFavorites || []).map((p: any) => ({
+    const maxPinsRaw = config.selectConfig10;
+    const maxPins = !maxPinsRaw || maxPinsRaw === 'Unlimited'
+      ? Infinity
+      : (parseInt(String(maxPinsRaw), 10) || 12);
+    const pins = dedupePinnedFavorites(config.pinnedFavorites || [])
+      .slice(0, maxPins === Infinity ? undefined : maxPins)
+      .map((p: any) => ({
       name: p.label || p.name,
       path: normalizePanePath(p.path),
       iconPath: p.iconPath,
       isDefault: false,
     }));
     return mergeRapidAccessItems(pins, defaults);
-  }, [config.pinnedFavorites, config.hiddenRapidAccess, shortcuts, windowsUsername, galleryShortcut]);
+  }, [config.pinnedFavorites, config.hiddenRapidAccess, config.selectConfig10, shortcuts, windowsUsername, galleryShortcut]);
 
   useEffect(() => {
     if (wslDistroNodes.length > 0) setLinuxExpanded(true);
@@ -4446,15 +4478,18 @@ export default function BNDZUI() {
       switch (colId) {
         case 'name':
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none flex items-center gap-1.5" style={textStyle}>
-              {settingsRt.list.showTags && entityTags.length > 0 && (
-                <span className="flex items-center gap-0.5 shrink-0">
-                  {entityTags.slice(0, 3).map(t => (
-                    <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
-                  ))}
-                </span>
-              )}
-              {renameInput || displayName}
+            <div key={colId} className="flex items-center min-w-0 h-full w-full">
+              <div className="bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none flex items-center gap-1.5 min-w-0 shrink max-w-full" style={textStyle}>
+                {settingsRt.list.showTags && entityTags.length > 0 && (
+                  <span className="flex items-center gap-0.5 shrink-0">
+                    {entityTags.slice(0, 3).map(t => (
+                      <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
+                    ))}
+                  </span>
+                )}
+                {renameInput || displayName}
+              </div>
+              <div className="bndz-list-marquee-pad" aria-hidden />
             </div>
           );
         case 'type':
@@ -5238,15 +5273,17 @@ export default function BNDZUI() {
               const shiftKey = e.shiftKey;
               (window as any)._marqueeDragOccurred = false;
 
-              const buildSelectMeta = (): MarqueeSelectMeta | undefined =>
-                computedViewMode === 'details' && (listRows?.length ?? 0) >= 80
-                  ? {
-                      rowHeight: detailsRowHeight,
-                      items: (listRows || []).flatMap((item: any, rowIndex: number) =>
-                        isGroupHeaderRow(item) ? [] : [{ id: item.id, rowIndex }],
-                      ),
-                    }
-                  : undefined;
+              const buildSelectMeta = (): MarqueeSelectMeta | undefined => {
+                const rows = listRows?.length ?? 0;
+                if (rows < 80 || computedViewMode === 'grid') return undefined;
+                const rowHeight = computedViewMode === 'list' ? listMetrics.rowHeight : detailsRowHeight;
+                return {
+                  rowHeight,
+                  items: (listRows || []).flatMap((item: any, rowIndex: number) =>
+                    isGroupHeaderRow(item) ? [] : [{ id: item.id, rowIndex }],
+                  ),
+                };
+              };
 
               const rowEl = (e.target as HTMLElement).closest('.fs-item-wrapper') as HTMLElement | null;
               const onSelectCell = isListSelectCellTarget(e.target);
@@ -5400,26 +5437,31 @@ export default function BNDZUI() {
                 const copyHeld = isCopyDragModifier(ev);
 
                 if (listGestureRef.current.mode === 'pending') {
-                  if (!hasMetDragThreshold() || !isDragSessionReady()) return;
-
-                  suppressRowClickRef.current = true;
-                  (window as any)._marqueeDragOccurred = true;
-
-                  const hitEl = document.elementFromPoint(ev.clientX, ev.clientY);
-                  if (isListMarqueeSurface(hitEl) || shiftKey) {
+                  const dx = Math.abs(ev.clientX - startX);
+                  const dy = Math.abs(ev.clientY - startY);
+                  const g = listGestureRef.current;
+                  const marqueeIntent = g.shiftKey || (dx > 8 && dx > dy * 1.35);
+                  if (marqueeIntent && (dx > 4 || dy > 4)) {
+                    suppressRowClickRef.current = true;
+                    (window as any)._marqueeDragOccurred = true;
                     listGestureRef.current = null;
                     window.removeEventListener('pointermove', onMove);
                     window.removeEventListener('pointerup', onUp);
                     clearDragSession();
                     beginMarqueeGesture(
                       pane.id, listEl, startX, startY,
-                      ctrlKey || shiftKey,
-                      (ctrlKey || shiftKey) ? [...currentTab.selectedItems] : [],
+                      g.ctrlKey || g.shiftKey,
+                      (g.ctrlKey || g.shiftKey) ? [...currentTab.selectedItems] : [],
                       buildSelectMeta(),
                       capturePointerId,
                     );
                     return;
                   }
+
+                  if (!hasMetDragThreshold() || !isDragSessionReady()) return;
+
+                  suppressRowClickRef.current = true;
+                  (window as any)._marqueeDragOccurred = true;
 
                   if (mouseRt.disallowDragFromList) {
                     clearDragSession();
@@ -6006,7 +6048,8 @@ export default function BNDZUI() {
                         <>
                            {computedViewMode === 'grid' ? (
                              <>
-                               <div className="bndz-list-select-cell flex-1 flex flex-col items-center justify-center min-h-[48px] relative w-full">
+                               <div className="flex flex-col items-center w-full min-h-[48px] relative">
+                                 <div className="bndz-list-select-cell flex flex-col items-center justify-center min-h-[48px] relative w-full max-w-full">
                                   <div className={`bndz-clipboard-icon-slot flex-1 flex items-center justify-center min-h-[48px] relative w-full ${iconDimClass}`}>
                                   <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={gridMetrics.icon} />
                                   {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
@@ -6024,18 +6067,23 @@ export default function BNDZUI() {
                                   <div className="text-center line-clamp-2 w-full break-words text-[11px] leading-tight" title={suppressNativeTitle ? undefined : entity.name} style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
                                     {displayLabel}
                                   </div>
+                                 </div>
+                                 <div className="bndz-list-marquee-pad w-full min-h-[6px] flex-1" aria-hidden />
                                </div>
                              </>
                            ) : computedViewMode === 'list' ? (
                              <>
-                             <div className="bndz-list-select-cell flex items-center min-w-0 flex-1">
-                               <div className={`bndz-clipboard-icon-slot flex justify-center shrink-0 ${iconDimClass}`} style={{ width: listMetrics.iconSlot }}>
-                                  <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={listMetrics.icon} />
-                                  {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
+                             <div className="flex items-center min-w-0 flex-1">
+                               <div className="bndz-list-select-cell flex items-center min-w-0 shrink max-w-full">
+                                 <div className={`bndz-clipboard-icon-slot flex justify-center shrink-0 ${iconDimClass}`} style={{ width: listMetrics.iconSlot }}>
+                                    <ThumbnailIcon entity={entity} isDir={isDir} path={joinPanePath(panePath, entity)} size={listMetrics.icon} />
+                                    {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
+                                 </div>
+                                 <div className="px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
+                                    {displayLabel}
+                                 </div>
                                </div>
-                               <div className="flex-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
-                                  {displayLabel}
-                               </div>
+                               <div className="bndz-list-marquee-pad" aria-hidden />
                              </div>
                                {listRt.showTags && entityTags.length > 0 && (
                                  <span className="flex items-center gap-0.5 shrink-0 mr-1">

@@ -185,6 +185,23 @@
     box-shadow: inset 2px 0 0 #6db4e6;
   }
 
+  .nav-tree-row-trace {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--tree-trace, #6db4e6) 18%, transparent) 0%, transparent 100%);
+    box-shadow: inset var(--tree-trace-width, 2px) 0 0 var(--tree-trace, #6db4e6);
+  }
+
+  html[data-match-trace-breadcrumb="true"] .nav-tree-row-trace {
+    box-shadow: inset var(--tree-trace-width, 2px) 0 0 var(--breadcrumb-bg, var(--tree-trace, #6db4e6));
+  }
+
+  .sidebar-pin-row {
+    border-left-color: var(--location-pin, rgba(251, 191, 36, 0.55));
+  }
+
+  html[data-match-pin-trace="true"] .sidebar-pin-row:hover {
+    border-left-color: var(--tree-trace, var(--location-pin, rgba(251, 191, 36, 0.7)));
+  }
+
   .nav-tree-scroll {
     mask-image: linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 6px), transparent 100%);
   }
@@ -1215,6 +1232,75 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: inset 0 0 0 2px rgba(0, 120, 212, 0.65);
 }
 
+/* Highlights & Styles tab — list selection chrome overrides */
+html[data-list-selection-border="solid"] .fs-item-wrapper.fs-item-selected {
+  outline: 1px solid var(--list-selected-border, #007acc);
+  outline-offset: -1px;
+}
+
+html[data-list-selection-border="dashed"] .fs-item-wrapper.fs-item-selected {
+  outline: 1px dashed var(--list-selected-border, #007acc);
+  outline-offset: -1px;
+}
+
+html[data-list-selection-shape="rounded"] .fs-list-item.fs-item-selected,
+html[data-list-selection-shape="rounded"] .fs-grid-item.fs-item-selected {
+  border-radius: var(--bndz-radius-sm, 5px);
+}
+
+html[data-list-selection-shape="native"] .fs-list-item.fs-item-selected,
+html[data-list-selection-shape="native"] .fs-grid-item.fs-item-selected {
+  border-radius: 0;
+}
+
+html[data-list-selection-shape="flat"] .fs-list-item.fs-item-selected,
+html[data-list-selection-shape="flat"] .fs-grid-item.fs-item-selected {
+  border-radius: 0;
+  box-shadow: none !important;
+}
+
+html[data-list-selection-focus="gradient"] .fs-item-wrapper.fs-item-selected:not([style*="background"]) {
+  background: linear-gradient(90deg, var(--highlight-bg, rgba(38, 79, 120, 0.92)) 0%, color-mix(in srgb, var(--highlight-bg, #264f78) 35%, transparent) 100%) !important;
+}
+
+html[data-list-selection-focus="transparent"] .fs-item-wrapper.fs-item-selected:not([style*="background"]) {
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1px var(--highlight-bg, rgba(0, 122, 204, 0.75));
+}
+
+html[data-translucent-selection="true"] .fs-item-wrapper.fs-item-selected {
+  opacity: 0.82;
+}
+
+html[data-semi-transparent-grid="true"] .fs-grid-item.fs-item-selected:not([style*="background"]) {
+  background-color: color-mix(in srgb, var(--list-selected, rgba(38, 79, 120, 0.45)) 55%, transparent) !important;
+}
+
+html[data-mirror-tree-box-in-list="true"] .fs-list-item.fs-item-selected:not([style*="background"]) {
+  background: linear-gradient(90deg, var(--tree-trace, #264f78) 0%, color-mix(in srgb, var(--tree-trace, #264f78) 45%, transparent) 100%);
+  box-shadow: inset var(--tree-trace-width, 2px) 0 0 var(--tree-trace, #6db4e6);
+}
+
+.bndz-filter-highlight {
+  background: var(--highlight-bg, rgba(80, 150, 226, 0.35));
+  color: var(--highlight-text, #ffffff);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.fs-item-wrapper:focus-visible,
+.fs-item-wrapper.ring-1 {
+  box-shadow: inset 0 0 0 1px var(--unfocused-highlight-bg, rgba(255, 255, 255, 0.3));
+}
+
+.bndz-type-ahead-match {
+  background: var(--filter-match, rgba(251, 191, 36, 0.25));
+}
+
+html[data-darkness-level] #root {
+  filter: brightness(var(--bndz-chrome-brightness, 1));
+}
+
 /* Column header drag-to-reorder insertion indicator */
 .bndz-col-drop-before {
   box-shadow: inset 2px 0 0 0 rgb(56 189 248);
@@ -1260,11 +1346,16 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   align-self: stretch;
 }
 
-.bndz-list-marquee-trail {
+.bndz-list-marquee-trail,
+.bndz-list-marquee-pad {
   flex: 1 1 24px;
-  min-width: 24px;
+  min-width: 8px;
   align-self: stretch;
   cursor: crosshair;
+}
+
+.bndz-list-marquee-pad {
+  min-height: 6px;
 }
 
 .bndz-list-columns {
@@ -1273,6 +1364,16 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
 
 .fs-list-item .bndz-list-select-cell {
   min-height: 100%;
+}
+
+.fs-list-item,
+.fs-grid-item {
+  padding-top: var(--bndz-list-line-spacing, 0px);
+  padding-bottom: var(--bndz-list-line-spacing, 0px);
+}
+
+.bndz-file-list-scroll {
+  padding: var(--bndz-list-overall-spacing, 0px);
 }
 
 /* Clipboard visual marks (copy / cut) */

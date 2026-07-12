@@ -13,7 +13,7 @@ export function highlightNameMatch(name: string, filter: string): React.ReactNod
       return (
         <>
           {name.slice(0, m.index)}
-          <mark className="bg-amber-500/35 text-inherit rounded-sm px-0.5">{m[0]}</mark>
+          <mark className="bndz-filter-highlight text-inherit">{m[0]}</mark>
           {name.slice(m.index + m[0].length)}
         </>
       );
@@ -27,7 +27,7 @@ export function highlightNameMatch(name: string, filter: string): React.ReactNod
   return (
     <>
       {name.slice(0, idx)}
-      <mark className="bg-[#0078d4]/30 text-inherit rounded-sm px-0.5">{name.slice(idx, idx + f.length)}</mark>
+      <mark className="bndz-filter-highlight text-inherit">{name.slice(idx, idx + f.length)}</mark>
       {name.slice(idx + f.length)}
     </>
   );
