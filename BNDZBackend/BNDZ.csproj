@@ -46,13 +46,12 @@
       Text="Release builds require Services\LicenseTokenSecretEmbedded.Release.cs. Run scripts/build-release.ps1 with BNDZ_TOKEN_HMAC_SECRET set." />
   </Target>
 
+  <!-- Release.*.cs are already in the default Compile glob; only remove Debug stubs to avoid duplicate types. -->
   <ItemGroup Condition="'$(Configuration)' == 'Release' AND Exists('$(MSBuildProjectDirectory)\Services\LicenseSecretEmbedded.Release.cs')">
     <Compile Remove="Services\LicenseSecretEmbedded.cs" />
-    <Compile Include="Services\LicenseSecretEmbedded.Release.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'Release' AND Exists('$(MSBuildProjectDirectory)\Services\LicenseTokenSecretEmbedded.Release.cs')">
     <Compile Remove="Services\LicenseTokenSecretEmbedded.cs" />
-    <Compile Include="Services\LicenseTokenSecretEmbedded.Release.cs" />
   </ItemGroup>
 
   <ItemGroup>
