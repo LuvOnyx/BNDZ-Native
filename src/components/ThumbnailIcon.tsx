@@ -13,14 +13,27 @@ import { entityShellIsDirectory } from '../lib/shellPaths';
 import { useNativeIcon, useNativeIconFetch } from '../lib/useNativeIcon';
 import { IconPlaceholder } from './IconPlaceholder';
 
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif']);
-const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v']);
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif']);
+const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg']);
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus']);
+const ARCHIVE_EXTS = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso']);
+
+function entityExt(entity: FSEntity): string {
+  const direct = ((entity as any).extension || '').toLowerCase().replace(/^\./, '');
+  if (direct) return direct;
+  const name = String(entity.name || '');
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return '';
+  return name.slice(dot + 1).toLowerCase();
+}
 
 export function ThumbnailIcon({ entity, isDir, path, size = 16 }: { entity: FSEntity, isDir: boolean, path: string, size?: number }) {
   const { config } = useAppConfig();
-  const ext = (entity as any).extension ? (entity as any).extension.toLowerCase() : '';
+  const ext = entityExt(entity);
   const isExe = ext === 'exe' || ext === 'lnk' || ext === 'msi';
-  const useThumbnail = !isDir && (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext));
+  const useThumbnail = !isDir && (
+    IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || AUDIO_EXTS.has(ext) || ARCHIVE_EXTS.has(ext)
+  );
   const dirFlag = entityShellIsDirectory(entity, path);
   const [iconifyUrl, setIconifyUrl] = useState<string | null>(null);
   const [nativeFailed, setNativeFailed] = useState(false);
@@ -104,9 +117,14 @@ export function ThumbnailIcon({ entity, isDir, path, size = 16 }: { entity: FSEn
   const displaySrc = nativeSrc || iconifyUrl;
 
   return (
-    <div ref={containerRef} style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div ref={containerRef} style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       {displaySrc ? (
-        <img src={displaySrc} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} draggable={false} />
+        <img
+          src={displaySrc}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          draggable={false}
+        />
       ) : (
         <IconPlaceholder size={size} />
       )}

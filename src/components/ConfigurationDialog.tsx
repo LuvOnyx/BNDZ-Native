@@ -1609,11 +1609,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      <Checkbox label={<span>Default to <span className="underline decoration-1 underline-offset-[3px]">t</span>ree-like sort order</span>} checked={localConfig.defaultToTreeLikeSortOrder ?? false} onChange={e => updateLocalConfig({ defaultToTreeLikeSortOrder: e.target.checked })} disabled={!localConfig.levelIndent} />
                   </div>
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">L</span>et folders pass all filters</span>} checked={localConfig.letFoldersPassAllFilters ?? false} onChange={e => updateLocalConfig({ letFoldersPassAllFilters: e.target.checked })} />
+                  <Checkbox label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">b</span>ranch bar</span>} checked={localConfig.branchViewStrip !== false} onChange={e => updateLocalConfig({ branchViewStrip: e.target.checked })} />
                   <Checkbox label={<span>M<span className="underline decoration-1 underline-offset-[3px]">u</span>lti branch view lists top folders</span>} checked={localConfig.multiBranchViewListsTopFolders ?? false} onChange={e => updateLocalConfig({ multiBranchViewListsTopFolders: e.target.checked })} />
                   
                   <div className="flex gap-[42px] items-center mt-4">
                      <span className="text-[12px] text-[#e0e0e0]">Default branch <span className="underline decoration-1 underline-offset-[3px]">v</span>iew type:</span>
-                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[250px] outline-none" value={localConfig.defaultBranchViewType || "Files and folders"} onChange={e => updateLocalConfig({defaultBranchViewType: e.target.value})}><option>Files and folders</option><option>Files only</option><option>Folders only</option></select>
+                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[250px] outline-none" value={localConfig.defaultBranchViewType || "Files and folders"} onChange={e => updateLocalConfig({defaultBranchViewType: e.target.value})} disabled={localConfig.branchViewStrip === false}><option>Files and folders</option><option>Files only</option><option>Folders only</option></select>
                   </div>
               </div>
             </TabsContent>

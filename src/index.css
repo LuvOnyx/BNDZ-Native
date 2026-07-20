@@ -2241,16 +2241,16 @@ html[data-darkness-level] #root {
   --col-accent: var(--accent, #0078d4);
 }
 
-.bndz-list-col-header[data-col-id="name"] { --col-accent: #38bdf8; }
-.bndz-list-col-header[data-col-id="type"] { --col-accent: #a78bfa; }
-.bndz-list-col-header[data-col-id="size"] { --col-accent: #fbbf24; }
-.bndz-list-col-header[data-col-id="modified"] { --col-accent: #2dd4bf; }
-.bndz-list-col-header[data-col-id="created"] { --col-accent: #67e8f9; }
-.bndz-list-col-header[data-col-id="attributes"] { --col-accent: #94a3b8; }
-.bndz-list-col-header[data-col-id="tags"] { --col-accent: #facc15; }
-.bndz-list-col-header[data-col-id="label"] { --col-accent: #c084fc; }
-.bndz-list-col-header[data-col-id="comment"] { --col-accent: #fb923c; }
-.bndz-list-col-header[data-col-id="path"] { --col-accent: #60a5fa; }
+.bndz-list-col-header[data-col-id="name"] { --col-accent: var(--col-accent-name, #38bdf8); }
+.bndz-list-col-header[data-col-id="type"] { --col-accent: var(--col-accent-type, #a78bfa); }
+.bndz-list-col-header[data-col-id="size"] { --col-accent: var(--col-accent-size, #fbbf24); }
+.bndz-list-col-header[data-col-id="modified"] { --col-accent: var(--col-accent-modified, #2dd4bf); }
+.bndz-list-col-header[data-col-id="created"] { --col-accent: var(--col-accent-created, #67e8f9); }
+.bndz-list-col-header[data-col-id="attributes"] { --col-accent: var(--col-accent-attributes, #94a3b8); }
+.bndz-list-col-header[data-col-id="tags"] { --col-accent: var(--col-accent-tags, #ef4444); }
+.bndz-list-col-header[data-col-id="label"] { --col-accent: var(--col-accent-label, #c084fc); }
+.bndz-list-col-header[data-col-id="comment"] { --col-accent: var(--col-accent-comment, #fb923c); }
+.bndz-list-col-header[data-col-id="path"] { --col-accent: var(--col-accent-path, #60a5fa); }
 
 /* Quiet left rail — readable color coding without loud fills */
 .bndz-list-col-header:not(.bndz-list-col-header--gutter)::before {

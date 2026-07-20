@@ -3,7 +3,7 @@ import { customColumnListId, resolveCustomColumns } from './customColumns';
 
 export type BuiltinListColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'label' | 'comment' | 'path';
 export type ListColumnId = BuiltinListColumnId | `custom:${string}`;
-export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created';
+export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags';
 
 export interface ListColumnDef {
   id: ListColumnId;
@@ -21,7 +21,7 @@ export const LIST_COLUMN_DEFS: ListColumnDef[] = [
   { id: 'modified', label: 'Modified', widthClass: 'w-[18%] min-w-[120px] max-w-[180px]', sortable: true },
   { id: 'created', label: 'Created', widthClass: 'w-[18%] min-w-[120px] max-w-[180px]', sortable: true },
   { id: 'attributes', label: 'Attributes', widthClass: 'w-[12%] min-w-[90px] max-w-[140px]' },
-  { id: 'tags', label: 'Tags', widthClass: 'min-w-[80px] max-w-[160px]' },
+  { id: 'tags', label: 'Tags', widthClass: 'min-w-[80px] max-w-[160px]', sortable: true },
   { id: 'label', label: 'Label', widthClass: 'w-[14%] min-w-[90px] max-w-[180px]' },
   { id: 'comment', label: 'Comment', widthClass: 'flex-1 min-w-[100px]' },
   { id: 'path', label: 'Path', widthClass: 'w-[30%] min-w-[160px] max-w-[400px]' },

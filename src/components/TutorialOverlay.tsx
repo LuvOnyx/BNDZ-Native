@@ -46,7 +46,7 @@ const TUTORIAL_STEPS = [
   },
   {
     id: 'rapid',
-    iconId: 'star_ui',
+    iconId: 'zap_ui',
     color: '#6dc2b8',
     title: 'Rapid access',
     body: 'Right-click any folder and choose Pin to Rapid access. Your pins appear in the sidebar and under Rapid access in the tree.',

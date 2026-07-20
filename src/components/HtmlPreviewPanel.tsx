@@ -9,7 +9,11 @@ type Props = {
 
 /**
  * Renders local HTML in an iframe with a base href so relative assets resolve
- * through bndz.local/local-stream. Uses a blob URL to avoid WebView2 iframe quirks.
+ * through bndz-stream. Uses a blob URL to avoid WebView2 iframe quirks.
+ *
+ * Scripts are intentionally not enabled — many local HTML files ship incomplete
+ * jQuery/helpers (e.g. updateSelectors) that throw into the WebView console.
+ * Layout/CSS/images still load; use Open for full interactive pages.
  */
 export default function HtmlPreviewPanel({ path, title }: Props) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -90,7 +94,7 @@ export default function HtmlPreviewPanel({ path, title }: Props) {
   return (
     <iframe
       src={blobUrl ?? undefined}
-      sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+      sandbox="allow-same-origin allow-forms allow-popups"
       className="bndz-html-preview-frame w-full flex-1 min-h-0 border-0 bg-white"
       title={title || 'HTML preview'}
     />

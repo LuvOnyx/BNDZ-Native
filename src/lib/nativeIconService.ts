@@ -71,7 +71,8 @@ async function fetchOne(path: string, isDirectory: boolean, kind: IconRequestKin
   if (!winPath) return null;
 
   if (kind === 'thumbnail') {
-    const res = await IPC.getNativeThumbnailBase64(winPath);
+    // List/grid icons: 128px is sharp enough and much faster than preview-sized 512.
+    const res = await IPC.getNativeThumbnailBase64(winPath, 128);
     return toDataUrl(res);
   }
 
@@ -169,6 +170,43 @@ export async function prefetchIconsForEntities(
     }
     await Promise.all(chunk.map(r => requestNativeIcon(r.path, r.isDirectory, kind)));
   }
+}
+
+const MEDIA_THUMB_EXTS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif',
+  'mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg',
+  'mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus',
+  'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso',
+]);
+
+function entityMediaExt(ent: { extension?: string; name?: string }): string {
+  const direct = (ent.extension || '').toLowerCase().replace(/^\./, '');
+  if (direct) return direct;
+  const name = String(ent.name || '');
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return '';
+  return name.slice(dot + 1).toLowerCase();
+}
+
+/** Warm per-file image/video thumbnails after shell icons (visible rows still fetch on intersect). */
+export async function prefetchMediaThumbnailsForEntities(
+  entities: Array<{ path?: string; name: string; type?: string; isDirectory?: boolean; extension?: string }>,
+  panePath: string,
+  limit = 48,
+): Promise<void> {
+  const { joinPanePath } = await import('./pathUtils');
+  const media: Array<{ path: string }> = [];
+  for (const ent of entities) {
+    if (ent.type === 'directory' || ent.isDirectory) continue;
+    if (!MEDIA_THUMB_EXTS.has(entityMediaExt(ent))) continue;
+    const fullPath = joinPanePath(panePath, ent);
+    const key = iconKey(fullPath, false, 'thumbnail');
+    if (cache.get(key)?.data || inflight.has(key)) continue;
+    media.push({ path: fullPath });
+    if (media.length >= limit) break;
+  }
+  if (!media.length) return;
+  await Promise.all(media.map(r => requestNativeIcon(r.path, false, 'thumbnail')));
 }
 
 /** Prefetch shell icons for navigation tree nodes (iconPath takes precedence over pane path). */

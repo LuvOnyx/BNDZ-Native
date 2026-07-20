@@ -5006,6 +5006,23 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Find Files & Branch View",
+    "label": "Show branch bar",
+    "key": "branchViewStrip",
+    "keywords": [
+      "branch",
+      "bar",
+      "strip",
+      "show",
+      "hide",
+      "sibling",
+      "folders",
+      "find",
+      "files"
+    ],
+    "description": "Show or hide the Branch bar above the file list"
+  },
+  {
+    "tab": "Find Files & Branch View",
     "label": "Multi branch view lists top folders",
     "key": "multiBranchViewListsTopFolders",
     "keywords": [

@@ -38,7 +38,7 @@ public static class ShellFolderEnumerator
             {
                 using (item)
                 {
-                    var name = item.Name ?? "Unknown";
+                    var name = ResolveDisplayName(item);
                     var parsingName = (item.ParsingName ?? name).Replace('\\', '/');
                     var isFolder = item.IsFolder;
                     long size = 0;
@@ -75,5 +75,76 @@ public static class ShellFolderEnumerator
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Library/.library-ms children often return null for <see cref="ShellItem.Name"/>.
+    /// Fall back through shell properties, then parsing-name stem.
+    /// </summary>
+    private static string ResolveDisplayName(ShellItem item)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(item.Name) && !IsPlaceholderName(item.Name))
+                return item.Name.Trim();
+        }
+        catch { }
+
+        try
+        {
+            if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.ItemNameDisplay, out var disp)
+                && disp is string s
+                && !string.IsNullOrWhiteSpace(s)
+                && !IsPlaceholderName(s))
+            {
+                return s.Trim();
+            }
+        }
+        catch { }
+
+        try
+        {
+            if (item.Properties.TryGetValue(Ole32.PROPERTYKEY.System.FileName, out var fn)
+                && fn is string fileName
+                && !string.IsNullOrWhiteSpace(fileName))
+            {
+                var stem = Path.GetFileNameWithoutExtension(fileName.Replace('/', '\\'));
+                if (!string.IsNullOrWhiteSpace(stem))
+                {
+                    if (stem.EndsWith(".library-ms", StringComparison.OrdinalIgnoreCase))
+                        stem = stem[..^".library-ms".Length];
+                    if (!string.IsNullOrWhiteSpace(stem) && !IsPlaceholderName(stem))
+                        return stem;
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var parsing = item.ParsingName;
+            if (!string.IsNullOrWhiteSpace(parsing))
+            {
+                var leaf = Path.GetFileName(parsing.Replace('/', '\\').TrimEnd('\\'));
+                if (!string.IsNullOrWhiteSpace(leaf))
+                {
+                    if (leaf.EndsWith(".library-ms", StringComparison.OrdinalIgnoreCase))
+                        leaf = leaf[..^".library-ms".Length];
+                    if (!string.IsNullOrWhiteSpace(leaf) && !IsPlaceholderName(leaf))
+                        return leaf;
+                }
+            }
+        }
+        catch { }
+
+        return "Unknown";
+    }
+
+    private static bool IsPlaceholderName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return true;
+        var n = name.Trim();
+        return n.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
+            || n.Equals("(null)", StringComparison.OrdinalIgnoreCase);
     }
 }

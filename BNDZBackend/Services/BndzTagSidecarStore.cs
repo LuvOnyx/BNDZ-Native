@@ -100,15 +100,23 @@ public sealed class BndzTagSidecarStore
 
     public static List<Dictionary<string, object?>> EnrichDirResults(List<object> results, BndzTagSidecarStore store)
     {
+        // Must camelCase — ShellChildItem records serialize as PascalCase by default, and
+        // dictionary keys are not renamed by the outer DIR_CONTENTS CamelCase options.
+        // Without this, the UI sees { Name, Path } and falls back to "Item 1", "Item 2", …
+        var camel = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         var list = new List<Dictionary<string, object?>>();
         foreach (var item in results)
         {
-            var json = JsonSerializer.Serialize(item);
-            var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(json) ?? new Dictionary<string, object?>();
+            var json = JsonSerializer.Serialize(item, camel);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(json, camel) ?? new Dictionary<string, object?>();
             string? lookupPath = null;
-            if (dict.TryGetValue("path", out var pathObj) && pathObj is string path)
+            if (dict.TryGetValue("path", out var pathObj) && pathObj is JsonElement pe && pe.ValueKind == JsonValueKind.String)
+                lookupPath = pe.GetString();
+            else if (dict.TryGetValue("path", out pathObj) && pathObj is string path)
                 lookupPath = path;
-            else if (dict.TryGetValue("id", out var idObj) && idObj is string id)
+            else if (dict.TryGetValue("id", out var idObj) && idObj is JsonElement ie && ie.ValueKind == JsonValueKind.String)
+                lookupPath = ie.GetString();
+            else if (dict.TryGetValue("id", out idObj) && idObj is string id)
                 lookupPath = id;
 
             if (!string.IsNullOrEmpty(lookupPath))

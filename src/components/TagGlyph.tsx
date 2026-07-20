@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 
 type Props = {
   color?: string;
@@ -7,27 +8,95 @@ type Props = {
   title?: string;
 };
 
-/** Tintable tag glyph — uses the custom Tags.svg path with per-tag stroke color. */
+/** Module cache — build a white-on-transparent mask once from the tag PNG. */
+let maskUrlPromise: Promise<string> | null = null;
+
+function getTagMaskUrl(): Promise<string> {
+  if (!maskUrlPromise) {
+    const src = launcherIconUrl('tag_manager') || '/launcher-icons/tag_manager.png';
+    maskUrlPromise = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('canvas'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = imageData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const r = d[i];
+            const g = d[i + 1];
+            const b = d[i + 2];
+            const a = d[i + 3];
+            // Treat near-black as transparent background; keep shape via luminance × alpha.
+            const lum = (r + g + b) / 3;
+            const isBg = a < 12 || lum < 18;
+            const alpha = isBg ? 0 : Math.min(255, Math.round(Math.max(a, lum * 1.15)));
+            d[i] = 255;
+            d[i + 1] = 255;
+            d[i + 2] = 255;
+            d[i + 3] = alpha;
+          }
+          ctx.putImageData(imageData, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = () => reject(new Error('tag mask load failed'));
+      img.src = src;
+    });
+  }
+  return maskUrlPromise;
+}
+
+/**
+ * Tintable tag glyph — recolors tag_manager.png per tag color via a cached alpha mask.
+ */
 export function TagGlyph({ color = '#FACC15', size = 14, className = '', title }: Props) {
+  const [maskUrl, setMaskUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getTagMaskUrl()
+      .then((url) => {
+        if (active) setMaskUrl(url);
+      })
+      .catch(() => {
+        if (active) setMaskUrl(launcherIconUrl('tag_manager') || '/launcher-icons/tag_manager.png');
+      });
+    return () => { active = false; };
+  }, []);
+
+  const src = maskUrl || launcherIconUrl('tag_manager') || '/launcher-icons/tag_manager.png';
+
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      className={`shrink-0 ${className}`}
-      aria-hidden={!title}
+    <span
+      className={`inline-block shrink-0 ${className}`}
+      title={title}
       role={title ? 'img' : undefined}
-    >
-      {title ? <title>{title}</title> : null}
-      <path
-        stroke={color}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        d="M5 9c0-1.861 0-2.792.245-3.545a5 5 0 0 1 3.21-3.21C9.208 2 10.139 2 12 2s2.792 0 3.545.245a5 5 0 0 1 3.21 3.21C19 6.208 19 7.139 19 9v13l-1.794-1.537c-1.848-1.584-2.771-2.376-3.808-2.678a5 5 0 0 0-2.796 0c-1.037.302-1.96 1.094-3.808 2.678L5 22z"
-      />
-    </svg>
+      aria-hidden={!title}
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: color,
+        WebkitMaskImage: `url(${src})`,
+        WebkitMaskSize: 'contain',
+        WebkitMaskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskImage: `url(${src})`,
+        maskSize: 'contain',
+        maskRepeat: 'no-repeat',
+        maskPosition: 'center',
+      }}
+    />
   );
 }
 

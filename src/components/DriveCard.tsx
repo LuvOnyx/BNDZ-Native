@@ -17,6 +17,8 @@ type Props = {
   drive: DriveCardData;
   layout?: 'compact' | 'grid' | 'details' | 'list';
   selected?: boolean;
+  /** Icon pixel size — follows the Grid/List density slider. */
+  iconSize?: number;
 };
 
 function formatBytes(bytes: number) {
@@ -28,7 +30,7 @@ function formatBytes(bytes: number) {
 }
 
 /** Compact drive rows — rectangle-rounded, no pill cards */
-export default function DriveCard({ drive, layout = 'compact', selected }: Props) {
+export default function DriveCard({ drive, layout = 'compact', selected, iconSize }: Props) {
   const usedPct = drive.totalSpace > 0
     ? ((drive.totalSpace - drive.freeSpace) / drive.totalSpace) * 100
     : 0;
@@ -39,13 +41,15 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
     : rawLabel;
   const showLetterSuffix = displayLabel.replace(/\\/g, '').toLowerCase() !== letter.replace(/\\/g, '').toLowerCase();
   const freeOfTotal = `${formatBytes(drive.freeSpace)} free of ${formatBytes(drive.totalSpace)}`;
+  const gridIcon = Math.max(28, Math.min(120, iconSize ?? 40));
+  const listIcon = Math.max(16, Math.min(64, iconSize ?? 28));
 
   if (layout === 'grid') {
     return (
       <div
         className={`bndz-list-select-cell flex flex-col items-center w-full gap-1.5 p-2.5 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-[#0078d4]/50 bg-[#094771]/25' : 'border-white/[0.06]'}`}
       >
-        <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={40} eager />
+        <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={gridIcon} eager />
         <div className="text-[11px] font-medium text-center truncate w-full text-white/90" title={showLetterSuffix ? `${displayLabel} (${letter})` : letter}>
           {displayLabel}{showLetterSuffix ? <span className="text-white/40"> ({letter})</span> : null}
         </div>
@@ -62,7 +66,7 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
       >
         <div className="bndz-list-select-cell flex items-center gap-2.5 flex-1 min-w-0">
           <div className="shrink-0">
-            <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={28} eager />
+            <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={listIcon} eager />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[11px] font-medium truncate text-white/90" title={showLetterSuffix ? `${displayLabel} (${letter})` : letter}>

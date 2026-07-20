@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 24 24">
+  <path fill="none" d="M0 0h24v24H0z" class="st3"/>
+  <path fill="#37474f" d="m22.71 21.29-1.42 1.42-4.68-4.68A8.96 8.96 0 0 1 11 20a9 9 0 1 1 9-9c0 2.12-.74 4.07-1.97 5.61z" class="stshockcolor" data-st="fill:#37474F;;"/>
+  <path fill="#fff" d="M11 2a9 9 0 1 0 .001 18.001A9 9 0 0 0 11 2m0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7" class="st0" opacity=".25"/>
+  <circle cx="11" cy="11" r="7" fill="#c5cae9" class="st2"/>
+  <path fill="#5c6bc0" d="M12 10h3v2h-3v3h-2v-3H7v-2h3V7h2z" class="st1"/>
+</svg>

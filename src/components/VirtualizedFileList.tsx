@@ -58,11 +58,13 @@ export function VirtualizedFileList<T>({
 
   useEffect(() => {
     if (mode !== 'grid' || !useVirtual || !scrollEl) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width || 800;
-      const next = Math.max(1, Math.floor(w / gridMinItemWidth));
+    const syncCols = () => {
+      const w = scrollEl.clientWidth || 800;
+      const next = Math.max(1, Math.floor(w / Math.max(1, gridMinItemWidth)));
       setGridCols(prev => (prev === next ? prev : next));
-    });
+    };
+    syncCols();
+    const ro = new ResizeObserver(syncCols);
     ro.observe(scrollEl);
     return () => ro.disconnect();
   }, [mode, useVirtual, scrollEl, gridMinItemWidth]);
@@ -87,7 +89,7 @@ export function VirtualizedFileList<T>({
     if (scrollEl && useVirtual) {
       virtualizer.measure();
     }
-  }, [scrollEl, useVirtual, items.length, virtualCount]);
+  }, [scrollEl, useVirtual, items.length, virtualCount, gridMinItemWidth, gridRowHeight, rowHeight, gap, gridCols]);
 
   if (!items.length) {
     return (

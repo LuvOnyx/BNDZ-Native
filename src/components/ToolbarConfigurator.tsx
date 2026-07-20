@@ -273,7 +273,7 @@ function SortableItem(props: any) {
       ) : png ? (
         <img src={png} alt="" className="w-[18px] h-[18px] object-contain" draggable={false} />
       ) : (
-        <Icons8Icon id="tag_manager" size={18} />
+        <Icons8Icon id="tag_manager" size={18} color={itemDef.color || '#FACC15'} />
       )}
     </div>
   );

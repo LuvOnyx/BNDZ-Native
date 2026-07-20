@@ -289,6 +289,10 @@ function TreeRow({
         <span className="mr-1.5 shrink-0">
           <TreeShellIcon path={row.path} iconPath={row.iconPath} size={15} />
         </span>
+      ) : row.icon ? (
+        <span className="mr-1.5 shrink-0">
+          <Icons8Icon id={row.icon} size={15} />
+        </span>
       ) : null}
 
       {isRenaming ? (

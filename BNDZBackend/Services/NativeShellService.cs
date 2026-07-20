@@ -18,16 +18,16 @@ namespace BNDZ.Services
         {
         }
 
-        public string GetNativeThumbnailBase64(string filePath)
+        public string GetNativeThumbnailBase64(string filePath, int pixelSize = 512)
         {
             try
             {
                 if (string.IsNullOrEmpty(filePath))
                     return "";
 
+                var size = pixelSize <= 0 ? 512 : Math.Clamp(pixelSize, 16, 512);
                 using var item = new ShellItem(filePath);
-                // 512px source for preview/properties heroes — avoids upscaling grain from 256.
-                var imageBase64 = TryGetShellImageBase64(item, ShellItemGetImageOptions.ResizeToFit, 512);
+                var imageBase64 = TryGetShellImageBase64(item, ShellItemGetImageOptions.ResizeToFit, size);
                 if (!string.IsNullOrEmpty(imageBase64))
                     return imageBase64;
             }

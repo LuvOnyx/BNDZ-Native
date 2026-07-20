@@ -66,7 +66,7 @@ export default function TagAssignmentMode({
         className="sd-tag-assignment-mode absolute bottom-2 left-2 right-2 z-50 border border-[#454545] bg-[#2a2a2a]/95  rounded-md shadow-lg p-3"
       >
         <div className="flex items-center gap-2 mb-2">
-          <Icons8Icon id="tag_manager" size={14} className="text-[#7eb8e8]" />
+          <Icons8Icon id="tag_manager" size={14} color="#7eb8e8" />
           <span className="text-[11px] font-bold uppercase tracking-wide text-gray-200">Tag mode</span>
           {selectedCount > 0 && (
             <span className="text-[10px] text-gray-500">

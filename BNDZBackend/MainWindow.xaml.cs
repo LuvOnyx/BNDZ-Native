@@ -564,14 +564,17 @@ namespace BNDZ
             streamScheme.AllowedOrigins.Add("http://bndz.local");
             streamScheme.AllowedOrigins.Add("https://bndz.local");
 
-            var webEnvOptions = new CoreWebView2EnvironmentOptions
-            {
-                AdditionalBrowserArguments = "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion"
-            };
-            webEnvOptions.CustomSchemeRegistrations.Add(streamScheme);
+            // CustomSchemeRegistrations is ctor-only (read-only property). Passing null leaves
+            // the getter returning null, so .Add would NullReferenceException at startup.
+            var webEnvOptions = new CoreWebView2EnvironmentOptions(
+                additionalBrowserArguments: "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion",
+                customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme });
 
             var webEnv = await CoreWebView2Environment.CreateAsync(null, null, webEnvOptions);
             await MainWebView.EnsureCoreWebView2Async(webEnv);
+
+            if (MainWebView.CoreWebView2 == null)
+                throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
 
             // Suppress Edge/WebView2 default context menus — BNDZ uses custom React menus only
             MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
@@ -660,11 +663,16 @@ namespace BNDZ
             {
                 Dispatcher.Invoke(() =>
                 {
+                    var detail = ex is Microsoft.Web.WebView2.Core.WebView2RuntimeNotFoundException
+                        ? "Microsoft Edge WebView2 Runtime is not installed or could not be found."
+                        : $"{ex.GetType().Name}: {ex.Message}";
                     System.Windows.MessageBox.Show(
-                        "BNDZ could not start the WebView2 runtime.\n\n" +
-                        "Install Microsoft Edge WebView2 Runtime, then restart BNDZ.\n\n" +
-                        $"Details: {ex.Message}",
-                        "WebView2 Required",
+                        "BNDZ could not start the WebView2 UI host.\n\n" +
+                        (ex is Microsoft.Web.WebView2.Core.WebView2RuntimeNotFoundException
+                            ? "Install Microsoft Edge WebView2 Runtime, then restart BNDZ.\n\n"
+                            : "WebView2 appears installed, but initialization failed. See details below.\n\n") +
+                        $"Details: {detail}",
+                        "WebView2 Startup Failed",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                 });
@@ -1481,15 +1489,23 @@ namespace BNDZ
                 {
                     var payload = root.GetProperty("payload");
                     string path = payload.GetProperty("path").GetString() ?? "";
-                    if (path.StartsWith("/")) path = path.Substring(1);
-                    path = path.Replace("/", "\\");
-                    if (path.EndsWith(":") && path.Length == 2) path += "\\";
+                    path = ShellPathResolver.ResolveForShell(path);
+                    if (string.IsNullOrEmpty(path))
+                    {
+                        path = payload.GetProperty("path").GetString() ?? "";
+                        if (path.StartsWith("/")) path = path.Substring(1);
+                        path = path.Replace("/", "\\");
+                        if (path.EndsWith(":") && path.Length == 2) path += "\\";
+                    }
+                    int thumbSize = 256;
+                    if (payload.TryGetProperty("size", out var sizeEl) && sizeEl.ValueKind == JsonValueKind.Number)
+                        thumbSize = sizeEl.GetInt32();
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
 
                     _ = Task.Run(() => 
                     {
                         var nativeSvc = new NativeShellService();
-                        string base64 = nativeSvc.GetNativeThumbnailBase64(path);
+                        string base64 = nativeSvc.GetNativeThumbnailBase64(path, thumbSize);
 
                         var response = new { type = "THUMBNAIL_RESULT", id = idProp, payload = string.IsNullOrEmpty(base64) ? null : base64 };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

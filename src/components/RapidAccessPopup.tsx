@@ -40,7 +40,7 @@ export default function RapidAccessPopup({ open, items, onClose, onNavigate }: P
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#2e2e2e] bg-[#1a1a1f]">
           <div className="flex items-center gap-2">
-            <Icons8Icon id="star_ui" size={16} className="text-[#f5c842]" />
+            <Icons8Icon id="zap_ui" size={16} />
             <span className="text-[13px] font-semibold text-white tracking-wide">Rapid access</span>
           </div>
           <button

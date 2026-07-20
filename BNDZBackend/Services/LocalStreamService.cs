@@ -14,7 +14,10 @@ namespace BNDZ.Services
         public const string CustomScheme = "bndz-stream";
         public const string CustomSchemeAuthority = "local";
 
-        private static readonly Regex RangeRegex = new(@"bytes=(\d+)-(\d*)", RegexOptions.Compiled);
+        // bytes=START-END | bytes=START- | bytes=-SUFFIX
+        private static readonly Regex RangeRegex = new(
+            @"bytes=(?:(\d+)-(\d*)|-(\d+))",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public static string ParseLocalStreamPath(string requestUri)
         {
@@ -140,7 +143,8 @@ namespace BNDZ.Services
 
             if (string.IsNullOrEmpty(rangeHeader))
             {
-                var stream = File.OpenRead(localPath);
+                // Full file — FileStream is seekable (WebView2 rewinds before read).
+                var stream = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 string responseHeaders =
                     $"Content-Type: {contentType}\r\n" +
                     $"Content-Length: {fileLength}\r\n" +
@@ -150,31 +154,57 @@ namespace BNDZ.Services
                 return;
             }
 
-            var match = RangeRegex.Match(rangeHeader);
-            if (!match.Success)
+            var match = RangeRegex.Match(rangeHeader.Trim());
+            if (!match.Success || fileLength <= 0)
             {
-                var stream = File.OpenRead(localPath);
+                if (fileLength <= 0)
+                {
+                    var empty = new MemoryStream();
+                    e.Response = env.CreateWebResourceResponse(empty, 416, "Range Not Satisfiable",
+                        $"Content-Range: bytes */0\r\nAccept-Ranges: bytes\r\nAccess-Control-Allow-Origin: *");
+                    return;
+                }
+
+                var stream = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 e.Response = env.CreateWebResourceResponse(stream, 200, "OK",
                     $"Content-Type: {contentType}\r\nContent-Length: {fileLength}\r\nAccept-Ranges: bytes\r\nAccess-Control-Allow-Origin: *");
                 return;
             }
 
-            long start = long.Parse(match.Groups[1].Value);
-            long end = match.Groups[2].Success && !string.IsNullOrEmpty(match.Groups[2].Value)
-                ? long.Parse(match.Groups[2].Value)
-                : fileLength - 1;
+            long start;
+            long end;
+            if (match.Groups[3].Success && !string.IsNullOrEmpty(match.Groups[3].Value))
+            {
+                // Suffix: bytes=-N  → last N bytes
+                long suffix = long.Parse(match.Groups[3].Value);
+                if (suffix <= 0)
+                {
+                    Respond416(env, e, fileLength);
+                    return;
+                }
+                start = Math.Max(0, fileLength - suffix);
+                end = fileLength - 1;
+            }
+            else
+            {
+                start = long.Parse(match.Groups[1].Value);
+                end = match.Groups[2].Success && !string.IsNullOrEmpty(match.Groups[2].Value)
+                    ? long.Parse(match.Groups[2].Value)
+                    : fileLength - 1;
+            }
 
             if (start < 0) start = 0;
             if (end >= fileLength) end = fileLength - 1;
-            if (start > end)
+
+            // Seek past EOF / empty range after clamp — satisfy with 416 (HTTP semantics).
+            if (start >= fileLength || start > end)
             {
-                var empty = new MemoryStream();
-                e.Response = env.CreateWebResourceResponse(empty, 416, "Range Not Satisfiable",
-                    $"Content-Range: bytes */{fileLength}\r\nAccess-Control-Allow-Origin: *");
+                Respond416(env, e, fileLength);
                 return;
             }
 
             long length = end - start + 1;
+            // Seekable partial stream — WebView2 rewinds CreateWebResourceResponse streams before read.
             var partialStream = new PartialFileStream(localPath, start, length);
 
             string partialHeaders =
@@ -186,44 +216,81 @@ namespace BNDZ.Services
 
             e.Response = env.CreateWebResourceResponse(partialStream, 206, "Partial Content", partialHeaders);
         }
+
+        private static void Respond416(
+            CoreWebView2Environment env,
+            CoreWebView2WebResourceRequestedEventArgs e,
+            long fileLength)
+        {
+            var empty = new MemoryStream();
+            e.Response = env.CreateWebResourceResponse(empty, 416, "Range Not Satisfiable",
+                $"Content-Range: bytes */{fileLength}\r\nAccept-Ranges: bytes\r\nAccess-Control-Allow-Origin: *");
+        }
     }
 
-    /// <summary>Read-only stream over a byte range of a file on disk.</summary>
+    /// <summary>
+    /// Seekable read-only window over a file byte range.
+    /// Must be seekable: WebView2 rewinds response streams before consuming them.
+    /// </summary>
     internal sealed class PartialFileStream : Stream
     {
         private readonly FileStream _inner;
+        private readonly long _fileOffset;
         private readonly long _length;
         private long _position;
 
-        public PartialFileStream(string path, long offset, long length)
+        public PartialFileStream(string path, long fileOffset, long length)
         {
-            _inner = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            _inner.Seek(offset, SeekOrigin.Begin);
+            _inner = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            _fileOffset = fileOffset;
             _length = length;
+            _position = 0;
+            _inner.Seek(_fileOffset, SeekOrigin.Begin);
         }
 
         public override bool CanRead => true;
-        public override bool CanSeek => false;
+        public override bool CanSeek => true;
         public override bool CanWrite => false;
         public override long Length => _length;
+
         public override long Position
         {
             get => _position;
-            set => throw new NotSupportedException();
+            set => Seek(value, SeekOrigin.Begin);
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
+            if (count <= 0) return 0;
             long remaining = _length - _position;
             if (remaining <= 0) return 0;
             int toRead = (int)Math.Min(count, remaining);
+            // Keep inner cursor aligned with logical position (WebView2 may Seek between Reads).
+            long expectedInner = _fileOffset + _position;
+            if (_inner.Position != expectedInner)
+                _inner.Seek(expectedInner, SeekOrigin.Begin);
             int read = _inner.Read(buffer, offset, toRead);
             _position += read;
             return read;
         }
 
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            long next = origin switch
+            {
+                SeekOrigin.Begin => offset,
+                SeekOrigin.Current => _position + offset,
+                SeekOrigin.End => _length + offset,
+                _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+            };
+            if (next < 0) next = 0;
+            if (next > _length) next = _length;
+            _position = next;
+            _inner.Seek(_fileOffset + _position, SeekOrigin.Begin);
+            return _position;
+        }
+
         public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 

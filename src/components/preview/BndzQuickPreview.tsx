@@ -124,9 +124,14 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     });
   };
 
+  const windowsPath = current?.path ? toWindowsPath(current.path) : '';
+
   const copyPath = () => {
-    if (!current?.path) return;
-    void navigator.clipboard.writeText(toWindowsPath(current.path));
+    if (!windowsPath) return;
+    // Native clipboard via shell IPC — navigator.clipboard often fails in WebView2.
+    import('../../lib/ipcBridge').then(({ IPC }) => {
+      IPC.shellExecute('copyPath', windowsPath);
+    });
   };
 
   const kindLabel = indexedKind
@@ -252,7 +257,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
 
             <PreviewMetadataStrip
               name={current.entity.name}
-              path={current.path}
+              path={windowsPath}
               size={displaySize}
               modified={displayModified}
               kindLabel={kindLabel}

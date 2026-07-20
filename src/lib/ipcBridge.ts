@@ -1296,12 +1296,16 @@ export const IPC = {
     return Promise.resolve({});
   },
 
-  getNativeThumbnailBase64(path: string): Promise<string | null> {
+  getNativeThumbnailBase64(path: string, size = 256): Promise<string | null> {
     if (this.isNative) {
-      return import('./iconRequestQueue').then(({ enqueueIconRequest }) =>
-        enqueueIconRequest(() =>
-          _nativeCall<string | null>('GET_THUMBNAIL', 'THUMBNAIL_RESULT', `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_thumb`, { path }, 45000),
-        ),
+      // Do NOT wrap in iconRequestQueue here — nativeIconService already queues.
+      // Nested enqueue caused a deadlock (outers held all slots waiting for inners).
+      return _nativeCall<string | null>(
+        'GET_THUMBNAIL',
+        'THUMBNAIL_RESULT',
+        `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_thumb`,
+        { path, size },
+        45000,
       );
     }
     return new Promise(resolve => setTimeout(() => resolve(null), 50));

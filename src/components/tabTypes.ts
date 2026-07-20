@@ -1,5 +1,7 @@
 /** Shared tab types for BNDZ file manager */
 
+import type { SortColumnId } from '../lib/listColumns';
+
 export interface TabState {
   id: string;
   path: string;
@@ -24,7 +26,7 @@ export interface TabState {
   /** Locks sort, filter, and view mode for this tab (XYplorer view lock) */
   viewLocked?: boolean;
   lockedView?: {
-    sortColumn?: 'name' | 'type' | 'size' | 'modified' | 'created';
+    sortColumn?: SortColumnId;
     sortDirection?: 'asc' | 'desc';
     filterRegex?: string;
     liveFilter?: string;

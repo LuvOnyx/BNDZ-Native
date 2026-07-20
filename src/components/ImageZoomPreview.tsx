@@ -98,7 +98,8 @@ export default function ImageZoomPreview({
   const fit = () => setScaleImmediate(1);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
-    if (scaleRef.current <= 1) return;
+    // Pan at any zoom level (including fit/1×) — grab-to-reposition should always work.
+    if (e.button !== 0) return;
     draggingRef.current = true;
     setIsDragging(true);
     lastPosRef.current = { x: e.clientX, y: e.clientY };
@@ -150,7 +151,10 @@ export default function ImageZoomPreview({
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
     >
-      <div className={`bndz-image-preview-stage ${isDragging ? 'is-dragging' : ''}`}>
+      <div
+        className={`bndz-image-preview-stage ${isDragging ? 'is-dragging' : ''}`}
+        onMouseDown={onMouseDown}
+      >
         <div
           ref={transformRef}
           className="bndz-image-preview-transform"
@@ -161,7 +165,6 @@ export default function ImageZoomPreview({
             alt={alt}
             draggable={false}
             className="bndz-image-preview-img"
-            onMouseDown={onMouseDown}
             onError={(e) => {
               if (fallbackSrc && imgSrc !== fallbackSrc) {
                 setImgSrc(fallbackSrc);
@@ -176,7 +179,7 @@ export default function ImageZoomPreview({
       </div>
 
       <div className="bndz-image-preview-chrome">
-        <span className="bndz-image-preview-hint">Scroll to zoom · Drag when zoomed</span>
+        <span className="bndz-image-preview-hint">Scroll to zoom · Drag to pan</span>
         <div className="bndz-image-preview-tools">
           <button type="button" onClick={zoomOut} className="bndz-media-transport-btn" title="Zoom out">
             <Icons8Icon id="zoom_out_ui" size={14} />

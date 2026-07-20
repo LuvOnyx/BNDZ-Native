@@ -26,7 +26,7 @@ export default function AddressAutocompleteDropdown({ suggestions, selectedIndex
           onMouseDown={e => { e.preventDefault(); onSelect(s.path); }}
         >
           <Icons8Icon
-            id={s.source === 'favorite' ? 'star_ui' : s.source === 'path' ? 'folder_open_ui' : 'clock_ui'}
+            id={s.source === 'favorite' ? 'zap_ui' : s.source === 'path' ? 'folder_open_ui' : 'clock_ui'}
             size={11}
             className="shrink-0"
           />

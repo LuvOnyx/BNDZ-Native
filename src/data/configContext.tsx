@@ -104,6 +104,7 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     showMiniTree: false,
     listIconSize: 16,
     gridIconSize: 48,
+    detailsIconSize: 20,
     pinnedContextActions: [] as Array<{ id: string; label: string; verb?: string }>,
     customUserCommands: [] as Array<{ id: string; label: string; hint?: string; keywords?: string[]; action: string; shell?: 'powershell' | 'cmd' }>,
     customEventActions: [] as CustomEventAction[],

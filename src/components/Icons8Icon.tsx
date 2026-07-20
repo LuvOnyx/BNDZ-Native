@@ -1,6 +1,7 @@
 import React from 'react';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 import { TagGlyph } from './TagGlyph';
+import { FavoritesGlyph } from './FavoritesGlyph';
 
 interface Icons8IconProps {
   /** Icon id from TOOLBAR_LAUNCHER_ICONS (e.g. 'copy', 'chevron_right', 'close'). */
@@ -12,7 +13,7 @@ interface Icons8IconProps {
   /** Spin animation — used for 'loading' in place of Lucide's Loader2. */
   spin?: boolean;
   title?: string;
-  /** Stroke color for tintable glyphs (tag_manager / tag__). */
+  /** Stroke/tint color for tintable glyphs (tag_manager / tag__ / favorites). */
   color?: string;
 }
 
@@ -23,12 +24,23 @@ interface Icons8IconProps {
  * consumes launcherIconUrl(). Falls back to a small neutral dot if the id has no
  * mapped asset, so a missing icon never breaks layout.
  *
- * Exception: tag_manager / tag__ ids use the custom tintable Tags glyph.
+ * Exceptions: tag_manager / tag__ use a tintable tag mask; favorites uses the bookmark glyph.
  */
 export function Icons8Icon({ id, size = 16, className = '', disabled, spin, title, color }: Icons8IconProps) {
   if (id === 'tag_manager' || id.startsWith('tag__')) {
     return (
       <TagGlyph
+        color={color || '#FACC15'}
+        size={size}
+        className={`${disabled ? 'opacity-35' : ''} ${spin ? 'bndz-icon8-spin' : ''} ${className}`}
+        title={title}
+      />
+    );
+  }
+
+  if (id === 'favorites') {
+    return (
+      <FavoritesGlyph
         color={color || '#FACC15'}
         size={size}
         className={`${disabled ? 'opacity-35' : ''} ${spin ? 'bndz-icon8-spin' : ''} ${className}`}

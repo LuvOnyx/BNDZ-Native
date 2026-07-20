@@ -26,33 +26,73 @@ export function gridTileMetrics(gridIconSize: number) {
   };
 }
 
-/** This PC drive cards — independent of the file-icon slider. */
-export function driveGridMetrics() {
-  return {
-    minWidth: 156,
-    tileWidth: 156,
-    rowHeight: 118,
-    stride: 126,
-    gap: 8,
-  };
-}
-
-export function driveListMetrics() {
-  return {
-    tileWidth: 300,
-    rowHeight: 52,
-    gap: 6,
-  };
-}
-
-export function listTileMetrics(listIconSize: number) {
-  const icon = Math.max(12, Math.min(96, listIconSize));
-  const gap = Math.max(4, Math.min(8, Math.round(icon / 12)));
+/** This PC drive cards — scale with the same icon size slider as folders. */
+export function driveGridMetrics(gridIconSize: number) {
+  const icon = Math.max(28, Math.min(120, gridIconSize));
+  const minWidth = Math.max(140, icon + 48);
+  const gap = Math.max(6, Math.min(12, Math.round(icon / 12)));
+  const rowHeight = icon + 62;
   return {
     icon,
-    tileWidth: Math.max(140, Math.min(220, icon * 4 + 64)),
-    rowHeight: Math.max(22, icon + Math.max(4, Math.round(icon * 0.22))),
-    iconSlot: Math.max(18, icon + 4),
+    minWidth,
+    tileWidth: minWidth,
+    rowHeight,
+    stride: rowHeight + gap,
     gap,
+  };
+}
+
+export function driveListMetrics(listIconSize: number) {
+  const icon = Math.max(16, Math.min(64, listIconSize));
+  const t = (icon - 16) / (64 - 16);
+  const tileWidth = Math.round(220 + t * 160);
+  const gap = Math.max(4, Math.round(4 + t * 6));
+  const padX = Math.max(6, Math.round(6 + t * 6));
+  const padY = Math.max(4, Math.round(4 + t * 6));
+  const rowHeight = Math.max(40, icon + padY * 2 + 8);
+  return {
+    icon,
+    tileWidth,
+    rowHeight,
+    stride: rowHeight + gap,
+    gap,
+    padX,
+    padY,
+  };
+}
+
+/** Details / default list-row metrics from icon size slider. */
+export function detailsTileMetrics(detailsIconSize: number) {
+  const icon = Math.max(12, Math.min(48, detailsIconSize));
+  const padY = Math.max(3, Math.round(2 + icon * 0.12));
+  const rowHeight = Math.max(24, icon + padY * 2);
+  const iconColClass = icon <= 16 ? 'w-5' : icon <= 24 ? 'w-7' : icon <= 32 ? 'w-9' : 'w-11';
+  return { icon, rowHeight, padY, iconColClass };
+}
+
+/**
+ * Explorer-style List view metrics.
+ * Low slider = dense multi-column name list (small icons, many columns).
+ * High slider = large icon+name tiles (few columns) — formatting shifts like Grid.
+ */
+export function listTileMetrics(listIconSize: number) {
+  const icon = Math.max(12, Math.min(96, listIconSize));
+  const t = (icon - 12) / (96 - 12); // 0 = densest, 1 = largest
+  // Wide range so 0% vs 100% clearly changes column count (not just icon size).
+  const tileWidth = Math.round(88 + t * 252); // 88 → 340
+  const gap = Math.max(2, Math.min(14, Math.round(2 + t * 12)));
+  const padY = Math.max(1, Math.round(1 + t * 10));
+  const padX = Math.max(4, Math.round(4 + t * 10));
+  const rowHeight = Math.max(18, icon + padY * 2);
+  const iconSlot = Math.max(14, icon + 2);
+  return {
+    icon,
+    tileWidth,
+    rowHeight,
+    stride: rowHeight + gap,
+    iconSlot,
+    gap,
+    padY,
+    padX,
   };
 }

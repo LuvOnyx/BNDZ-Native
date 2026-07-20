@@ -34,6 +34,7 @@ const SORT_BY_OPTIONS: Array<{ value: SortColumnId; label: string }> = [
   { value: 'size', label: 'Size' },
   { value: 'modified', label: 'Date modified' },
   { value: 'created', label: 'Date created' },
+  { value: 'tags', label: 'Tags' },
 ];
 
 interface ContextMenuViewProps {

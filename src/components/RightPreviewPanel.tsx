@@ -245,7 +245,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     title: entity?.name,
     poster: thumbnailNative ? `data:image/png;base64,${thumbnailNative}` : undefined,
     autoplay: previewRt.autoplay,
-    preferBlob: previewRt.preferBlob || isAudio,
+    // Video/audio seeking needs byte-range on bndz-stream — prefer stream for video.
+    // Audio stays blob-first (typically smaller; avoids codec edge cases).
+    preferBlob: isAudio || (previewRt.preferBlob && !isVideo),
     onOpenFloating: onOpenFloatingPreview,
   };
 
@@ -502,31 +504,37 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       if (isSvg && previewAllowed) {
           const src = svgPreviewUrl || virtualUrl;
-          return (
-            <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4 overflow-auto bndz-scrollbar">
-              {src ? (
-                <img src={src} alt={entity.name} className="max-w-full max-h-full object-contain drop-shadow-lg" />
-              ) : (
+          if (!src) {
+            return (
+              <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
                 <div className="text-xs text-gray-500 animate-pulse">Loading SVG…</div>
-              )}
-            </div>
+              </div>
+            );
+          }
+          return (
+            <ImageZoomPreview
+              src={src}
+              alt={entity.name}
+              fallbackSrc={virtualUrl && virtualUrl !== src ? virtualUrl : undefined}
+              filePath={path}
+              onOpenFloating={onOpenFloatingPreview}
+            />
           );
       }
 
       if (isImage && previewAllowed) {
-          const primarySrc = thumbnailNative
+          // Prefer the real file stream — shellIcon is the generic type glyph and must
+          // never be primary (it "loads" successfully so stream/blob fallbacks never run).
+          const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
-              : shellIcon || virtualUrl;
-          const fallbackChain = [
-              thumbnailNative ? virtualUrl : null,
-              shellIcon && !thumbnailNative ? shellIcon : null,
-              thumbnailNative ? `data:image/png;base64,${thumbnailNative}` : null,
-          ].filter(Boolean) as string[];
+              : null;
+          const primarySrc = virtualUrl || thumbData || shellIcon || '';
+          const fallbackSrc = thumbData || shellIcon || undefined;
           return (
               <ImageZoomPreview
                   src={primarySrc}
                   alt={entity.name}
-                  fallbackSrc={fallbackChain[0]}
+                  fallbackSrc={fallbackSrc}
                   filePath={path}
                   onOpenFloating={onOpenFloatingPreview}
               />

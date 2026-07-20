@@ -17,7 +17,7 @@ const VERB_MAP: Record<string, string> = {
   settings: 'config',
   openas: 'explorer',
   openwith: 'explorer',
-  star: 'star_ui',
+  star: 'zap_ui',
   sparkles: 'sparkles_ui',
   archive: 'compress',
   monitor: 'dashboard_ui',

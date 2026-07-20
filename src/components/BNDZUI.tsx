@@ -62,7 +62,7 @@ import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
 import { filterSupplementalNativeItems, type ContextMenuSurface } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
-import { prefetchIconsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
+import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
 import BottomPluginPanel from './BottomPluginPanel';
 import { LeftSidebar } from './LeftSidebar';
@@ -116,7 +116,7 @@ import BndzQuickPreview from './preview/BndzQuickPreview';
 import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
 import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
-import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics } from '../lib/viewModeMetrics';
+import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
 import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
 import {
@@ -1171,7 +1171,9 @@ export default function BNDZUI() {
           const normalized = normalizeDirEntries(data);
           setPathContentsCache(prev => setPathCacheEntry(prev, path, normalized));
           setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-          void prefetchIconsForEntities(normalized, path);
+          void prefetchIconsForEntities(normalized, path).then(() =>
+            prefetchMediaThumbnailsForEntities(normalized, path),
+          );
         }).catch((err: unknown) => {
           const message = err instanceof Error ? err.message : 'Could not load folder contents.';
           setPathLoadErrors(prev => ({ ...prev, [path]: message }));
@@ -2263,12 +2265,14 @@ export default function BNDZUI() {
 
   const statusBarClipboardLabel = useMemo(() => describeClipboardState(clipboard) || '', [clipboard]);
 
-  const listIconSz = config.listIconSize ?? 16;
-  const gridIconSz = config.gridIconSize ?? 48;
+  const listIconSz = Math.max(12, Math.min(96, config.listIconSize ?? 16));
+  const gridIconSz = Math.max(12, Math.min(192, config.gridIconSize ?? 48));
+  const detailsIconSz = Math.max(12, Math.min(48, config.detailsIconSize ?? 20));
   const gridMetrics = useMemo(() => gridTileMetrics(gridIconSz), [gridIconSz]);
   const listMetrics = useMemo(() => listTileMetrics(listIconSz), [listIconSz]);
-  const thisPcGridMetrics = useMemo(() => driveGridMetrics(), []);
-  const thisPcListMetrics = useMemo(() => driveListMetrics(), []);
+  const detailsMetrics = useMemo(() => detailsTileMetrics(detailsIconSz), [detailsIconSz]);
+  const thisPcGridMetrics = useMemo(() => driveGridMetrics(gridIconSz), [gridIconSz]);
+  const thisPcListMetrics = useMemo(() => driveListMetrics(listIconSz), [listIconSz]);
 
   // Auto-select first item when entering a folder (settings: autoSelectFirstItem)
   const lastAutoSelectPathRef = useRef<string | null>(null);
@@ -2704,6 +2708,19 @@ export default function BNDZUI() {
     return items;
   }, [shortcuts, windowsUsername, galleryShortcut]);
 
+  /** List-pane entities for Libraries — same known folders as the tree (shell enum often returns blank names). */
+  const libraryListEntities = useMemo(() => (
+    libraryFolderItems.map(item => ({
+      id: item.path,
+      name: item.label,
+      type: 'directory' as const,
+      path: item.path,
+      size: 0,
+      isVirtual: true,
+      isShellItem: true,
+    }))
+  ), [libraryFolderItems]);
+
   const cloudNav = useMemo(() => groupCloudProvidersForNav(cloudProviders, drives), [cloudProviders, drives]);
   const cloudDriveItems = useMemo(() => (
     cloudNav.navItems.map(item => ({
@@ -2816,10 +2833,10 @@ export default function BNDZUI() {
         label: 'Home',
         path: homeTreePath,
         iconPath: KNOWN_FOLDER_SHELL.Home,
-        icon: 'go_home',
+        icon: 'home',
         iconColor: '#6db4e6',
         isDynamic: true,
-        useShellIcon: true,
+        useShellIcon: false,
         onClick: () => guardedSetCurrentPath(homeTreePath),
       },
       {
@@ -2859,9 +2876,9 @@ export default function BNDZUI() {
         label: 'This PC',
         path: '/',
         iconPath: SHELL_CLSID.thisPc,
-        icon: 'monitor_ui',
+        icon: 'this_pc',
         iconColor: '#6db4e6',
-        useShellIcon: true,
+        useShellIcon: false,
         expanded: thisPcExpanded,
         selected: currentPath === '/',
         onClick: () => setCurrentPath('/'),
@@ -4441,6 +4458,7 @@ export default function BNDZUI() {
     const panePath = tab.path;
     const normPanePath = normalizePanePath(panePath);
     const isThisPc = normPanePath === '/' || normPanePath === '/this-pc';
+    const isLibraries = normPanePath.toLowerCase() === '/shell:libraries';
     let contents: any[] = isThisPc
       ? drives.map(d => ({
           id: `drive-${d.name.replace(/^\/+/, '/')}`,
@@ -4450,7 +4468,9 @@ export default function BNDZUI() {
           path: d.name,
           driveInfo: d,
         }))
-      : (pathContentsCache[panePath] || []);
+      : isLibraries
+        ? libraryListEntities
+      : (pathContentsCache[panePath] || pathContentsCache[normPanePath] || []);
 
     const isGlobal = config.enableGlobalSearchPrefix && filterText.trimStart().startsWith('> ');
     if (isGlobal) {
@@ -4474,7 +4494,7 @@ export default function BNDZUI() {
       sortDirection: pane.sortDirection,
       getByteSize: (entity) => resolveEntityByteSize(entity, panePath),
     });
-  }, [panes, activePaneId, pathContentsCache, drives, config, filterText, globalSearchResults, resolveEntityByteSize]);
+  }, [panes, activePaneId, pathContentsCache, drives, config, filterText, globalSearchResults, resolveEntityByteSize, libraryListEntities]);
 
   const goUp = (paneId: string = activePaneId) => {
     const p = panes.find(x => x.id === paneId);
@@ -4839,7 +4859,11 @@ export default function BNDZUI() {
         };
     });
 
-    let activeContents = currentPath === '/' || currentPath === '/this-pc' ? rootDriveEntities : safeGetDirContents(fileSystem, currentPath);
+    let activeContents = currentPath === '/' || currentPath === '/this-pc'
+      ? rootDriveEntities
+      : normalizePanePath(currentPath).toLowerCase() === '/shell:libraries'
+        ? libraryListEntities
+        : safeGetDirContents(fileSystem, currentPath);
     if (isGlobal) activeContents = globalSearchResults || [];
     
     const activeFilesMap = activeContents?.filter(c => activeTab.selectedItems.includes(c.id)) || [];
@@ -4909,9 +4933,11 @@ export default function BNDZUI() {
     const isNeutralDefault = currentTab.viewMode === undefined;
     const computedViewMode = currentTab.viewMode || 'details';
     const compactRowHeight = settingsRt.ui.rowHeight;
-    const detailsRowHeight = isNeutralDefault ? compactRowHeight : 28;
-    const detailsIconSize = isNeutralDefault ? 14 : listIconSz;
-    const detailsIconColClass = isNeutralDefault ? 'w-5' : 'w-6';
+    // Neutral default is a fixed compact layout (no slider). Explicit Details uses detailsIconSize.
+    const detailsRowHeight = isNeutralDefault ? compactRowHeight : detailsMetrics.rowHeight;
+    const detailsIconSize = isNeutralDefault ? 14 : detailsMetrics.icon;
+    const detailsIconColClass = isNeutralDefault ? 'w-5' : detailsMetrics.iconColClass;
+    const detailsPadY = isNeutralDefault ? 1 : detailsMetrics.padY;
     const listRt = settingsRt.list;
     const panePath = currentTab.path;
     const isFindingTabActive = isFindingTab(currentTab);
@@ -4919,19 +4945,22 @@ export default function BNDZUI() {
     
     const normPanePath = normalizePanePath(panePath);
     const isThisPc = normPanePath === '/' || normPanePath === '/this-pc';
+    const isLibraries = normPanePath.toLowerCase() === '/shell:libraries';
     const isGoogleHub = isGoogleDriveHubPath(normPanePath);
     const paneGridMetrics = isThisPc ? thisPcGridMetrics : gridMetrics;
     const paneListMetrics = isThisPc ? thisPcListMetrics : listMetrics;
-    const cachedContents = !isThisPc && !isGoogleHub ? pathContentsCache[normPanePath] : undefined;
+    const cachedContents = !isThisPc && !isGoogleHub && !isLibraries ? pathContentsCache[normPanePath] : undefined;
     let contents = isThisPc
       ? rootDriveEntities
+      : isLibraries
+        ? libraryListEntities
       : isGoogleHub
         ? googleDriveHubEntities(cloudNav.googleAccounts)
         : safeGetDirContents(fileSystem, panePath);
-    if (!isThisPc && !isGoogleHub && cachedContents !== undefined) {
+    if (!isThisPc && !isGoogleHub && !isLibraries && cachedContents !== undefined) {
       contents = cachedContents;
     }
-    const isPanePending = !isThisPc && !isGoogleHub && cachedContents === undefined;
+    const isPanePending = !isThisPc && !isGoogleHub && !isLibraries && cachedContents === undefined;
     if (isPanePending) {
       if (!refetchInFlightRef.current[normPanePath] && !loadingPaths.has(normPanePath)) {
         void refetchPath(panePath);
@@ -5814,12 +5843,37 @@ export default function BNDZUI() {
                  </button>
             </div>
             {/* Fixed-width slot keeps the filter box from shifting when the view changes */}
-            <div className="w-[124px] shrink-0 mx-1 flex items-center">
-              {computedViewMode === 'details' && (
+            <div className="shrink-0 mx-1 flex items-center gap-1.5 min-w-[124px]">
+              {/* Explicit Details only — neutral default has no density slider. */}
+              {currentTab.viewMode === 'details' && (
+                <>
+                  <select
+                    value={listGroupBy}
+                    onChange={e => updateConfig({ listGroupBy: e.target.value as ListGroupBy })}
+                    className="bg-[#222] border border-[#444] rounded-[var(--bndz-radius-sm)] text-[10px] px-1.5 py-0.5 w-[100px] text-gray-300"
+                    title="Group by"
+                  >
+                    {LIST_GROUP_BY_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>Group: {o.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="range"
+                    min={12}
+                    max={48}
+                    value={detailsIconSz}
+                    onChange={e => updateConfig({ detailsIconSize: Number(e.target.value) })}
+                    className="w-[72px] h-1 accent-[#0078d4]"
+                    title="Details icon size"
+                  />
+                </>
+              )}
+              {/* Neutral default: Group by only (no size slider). */}
+              {isNeutralDefault && computedViewMode === 'details' && (
                 <select
                   value={listGroupBy}
                   onChange={e => updateConfig({ listGroupBy: e.target.value as ListGroupBy })}
-                  className="bg-[#222] border border-[#444] rounded-[var(--bndz-radius-sm)] text-[10px] px-1.5 py-0.5 w-full text-gray-300"
+                  className="bg-[#222] border border-[#444] rounded-[var(--bndz-radius-sm)] text-[10px] px-1.5 py-0.5 w-[124px] text-gray-300"
                   title="Group by"
                 >
                   {LIST_GROUP_BY_OPTIONS.map(o => (
@@ -5838,8 +5892,8 @@ export default function BNDZUI() {
                     if (computedViewMode === 'grid') updateConfig({ gridIconSize: v });
                     else updateConfig({ listIconSize: v });
                   }}
-                  className="w-full h-1 accent-[#0078d4]"
-                  title={computedViewMode === 'grid' ? 'Grid slot size' : 'List slot size'}
+                  className="w-[124px] h-1 accent-[#0078d4]"
+                  title={computedViewMode === 'grid' ? 'Grid icon size' : 'List density (narrow → wide columns)'}
                 />
               )}
             </div>
@@ -5954,9 +6008,13 @@ export default function BNDZUI() {
               const buildSelectMeta = (): MarqueeSelectMeta | undefined => {
                 const rows = listRows?.length ?? 0;
                 if (rows < 80) return undefined;
-                if (computedViewMode === 'grid') {
-                  const minW = 'minWidth' in paneGridMetrics ? paneGridMetrics.minWidth : gridMetrics.minWidth;
-                  const stride = 'stride' in paneGridMetrics ? paneGridMetrics.stride : gridMetrics.stride;
+                if (computedViewMode === 'grid' || computedViewMode === 'list') {
+                  const minW = computedViewMode === 'list'
+                    ? paneListMetrics.tileWidth
+                    : ('minWidth' in paneGridMetrics ? paneGridMetrics.minWidth : gridMetrics.minWidth);
+                  const stride = computedViewMode === 'list'
+                    ? paneListMetrics.stride
+                    : ('stride' in paneGridMetrics ? paneGridMetrics.stride : gridMetrics.stride);
                   const listWidth = Math.max(1, listEl.clientWidth || 800);
                   const cols = Math.max(1, Math.floor(listWidth / minW));
                   return {
@@ -5970,9 +6028,8 @@ export default function BNDZUI() {
                     ),
                   };
                 }
-                const rowHeight = computedViewMode === 'list' ? listMetrics.rowHeight : detailsRowHeight;
                 return {
-                  rowHeight,
+                  rowHeight: detailsRowHeight,
                   items: (listRows || []).flatMap((item: any, rowIndex: number) =>
                     isGroupHeaderRow(item) ? [] : [{ id: item.id, rowIndex }],
                   ),
@@ -5983,7 +6040,7 @@ export default function BNDZUI() {
               // Grid tiles: whole tile is selectable (padding / DriveCard chrome often miss .bndz-list-select-cell).
               const onSelectCell =
                 isListSelectCellTarget(e.target)
-                || (computedViewMode === 'grid' && !!rowEl && !isListMarqueeSurface(e.target));
+                || ((computedViewMode === 'grid' || computedViewMode === 'list') && !!rowEl && !isListMarqueeSurface(e.target));
 
               if (!rowEl) {
                 beginMarqueeGesture(
@@ -6489,20 +6546,28 @@ export default function BNDZUI() {
             <VirtualizedFileList
               items={listRows || []}
               enabled={computedViewMode === 'details' || computedViewMode === 'grid' || computedViewMode === 'list'}
-              mode={computedViewMode === 'grid' ? 'grid' : 'list'}
+              mode={computedViewMode === 'grid' || computedViewMode === 'list' ? 'grid' : 'list'}
               rowHeight={
                 computedViewMode === 'grid' ? paneGridMetrics.rowHeight :
                 computedViewMode === 'list' ? paneListMetrics.rowHeight :
                 detailsRowHeight
               }
-              gridMinItemWidth={'minWidth' in paneGridMetrics ? paneGridMetrics.minWidth : gridMetrics.minWidth}
-              gridRowHeight={'stride' in paneGridMetrics ? paneGridMetrics.stride : gridMetrics.stride}
-              gap={computedViewMode === 'grid' ? paneGridMetrics.gap : paneListMetrics.gap}
-              className={
-                computedViewMode === 'grid' ? "w-full" :
-                computedViewMode === 'list' ? "flex flex-wrap" :
-                "flex flex-col w-full"
+              gridMinItemWidth={
+                computedViewMode === 'list'
+                  ? paneListMetrics.tileWidth
+                  : ('minWidth' in paneGridMetrics ? paneGridMetrics.minWidth : gridMetrics.minWidth)
               }
+              gridRowHeight={
+                computedViewMode === 'list'
+                  ? paneListMetrics.stride
+                  : ('stride' in paneGridMetrics ? paneGridMetrics.stride : gridMetrics.stride)
+              }
+              gap={
+                computedViewMode === 'grid' ? paneGridMetrics.gap :
+                computedViewMode === 'list' ? paneListMetrics.gap :
+                0
+              }
+              className="w-full"
               emptyState={
                 <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-gray-500 gap-2 px-4 text-center">
                   <Icons8Icon id="folder_open_ui" size={28} className="opacity-40" />
@@ -6621,13 +6686,14 @@ export default function BNDZUI() {
                 const suppressNativeTitle = shouldSuppressNativeEntityTitle(config);
 
                 const zebraAlt = listRt.zebraRows && !showSelectionChrome && rowIndex % 2 === 1;
-                const isGridLike = computedViewMode === 'grid' || computedViewMode === 'list';
+                const isGridMode = computedViewMode === 'grid';
+                const isListMode = computedViewMode === 'list';
 
                 const rowNode = (
                   <div 
                     id={`fs-item-${entity.id}`}
                     data-id={entity.id}
-                    className={`fs-item-wrapper ${isGridLike ? 'fs-grid-item' : 'fs-list-item'} ${computedViewMode === 'grid' ? 'flex flex-col items-center justify-center rounded w-full' : computedViewMode === 'list' ? 'flex items-center text-[12px] rounded' : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : isNeutralDefault ? "py-[1px]" : "py-[3px]"}`} border border-transparent cursor-default
+                    className={`fs-item-wrapper ${isGridMode ? 'fs-grid-item' : 'fs-list-item'} ${isGridMode ? 'flex flex-col items-center justify-center rounded w-full' : isListMode ? 'flex items-center text-[12px] rounded w-full min-w-0' : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : ""}`} border border-transparent cursor-default
                       ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : mouseRt.highlightHovered ? 'hover:bg-[#2a2d2e]' : ''}
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
                       ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30" : ""}
@@ -6637,7 +6703,7 @@ export default function BNDZUI() {
                       ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[#0078d4]/50' : ''}
                       ${syncOpacity ? "opacity-50" : ""}`}
                     style={{
-                        ...(computedViewMode === 'grid' ? {
+                        ...(isGridMode ? {
                           height: isDrive ? paneGridMetrics.rowHeight : gridMetrics.rowHeight,
                           minHeight: isDrive ? paneGridMetrics.rowHeight : gridMetrics.rowHeight,
                           maxHeight: isDrive ? paneGridMetrics.rowHeight : gridMetrics.rowHeight,
@@ -6645,14 +6711,24 @@ export default function BNDZUI() {
                           boxSizing: 'border-box' as const,
                           overflow: 'hidden',
                         } : {}),
-                        ...(computedViewMode === 'list' ? {
-                          width: isDrive
-                            ? Math.max(('tileWidth' in paneListMetrics ? paneListMetrics.tileWidth : 340), 260)
-                            : listMetrics.tileWidth,
+                        ...(isListMode ? {
+                          // Fill the CSS-grid track; column density comes from gridMinItemWidth / tileWidth.
+                          width: '100%',
+                          maxWidth: '100%',
                           height: isDrive ? paneListMetrics.rowHeight : listMetrics.rowHeight,
                           minHeight: isDrive ? paneListMetrics.rowHeight : listMetrics.rowHeight,
-                          paddingLeft: Math.max(6, isDrive ? paneListMetrics.gap : listMetrics.gap),
-                          paddingRight: Math.max(6, isDrive ? paneListMetrics.gap : listMetrics.gap),
+                          maxHeight: isDrive ? paneListMetrics.rowHeight : listMetrics.rowHeight,
+                          paddingLeft: isDrive ? paneListMetrics.padX ?? paneListMetrics.gap : (listMetrics.padX ?? Math.max(4, listMetrics.gap)),
+                          paddingRight: isDrive ? paneListMetrics.padX ?? paneListMetrics.gap : (listMetrics.padX ?? Math.max(4, listMetrics.gap)),
+                          boxSizing: 'border-box' as const,
+                          overflow: 'hidden',
+                        } : {}),
+                        ...(!isGridMode && !isListMode ? {
+                          height: detailsRowHeight,
+                          minHeight: detailsRowHeight,
+                          maxHeight: detailsRowHeight,
+                          paddingTop: detailsPadY,
+                          paddingBottom: detailsPadY,
                           boxSizing: 'border-box' as const,
                         } : {}),
                         ...(showSelectionChrome && config.listSelectionHighlightColor
@@ -6751,9 +6827,9 @@ export default function BNDZUI() {
                   >
                      {isDrive && drive ? (
                         computedViewMode === 'grid' ? (
-                          <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="grid" selected={showSelectionChrome} />
+                          <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="grid" selected={showSelectionChrome} iconSize={isThisPc ? thisPcGridMetrics.icon : gridMetrics.icon} />
                         ) : computedViewMode === 'list' ? (
-                          <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="list" selected={showSelectionChrome} />
+                          <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="list" selected={showSelectionChrome} iconSize={isThisPc ? thisPcListMetrics.icon : listMetrics.icon} />
                         ) : (
                         <>
                            <div className={`${detailsIconColClass} bndz-list-select-cell flex justify-center shrink-0`}>
@@ -6811,7 +6887,7 @@ export default function BNDZUI() {
                                     )}
                                     {clipboardMark && <ClipboardMarkBadge mode={clipboardMark} compact />}
                                  </div>
-                                 <div className="px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
+                                 <div className="px-2 min-w-0 flex-1 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none" style={filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {}}>
                                     {displayLabel}
                                  </div>
                                </div>
@@ -7636,10 +7712,10 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => focusAddressBar())}>Breadcrumb / Address Bar</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
-                       <Icons8Icon id="go_home" size={14} /> Home
+                       <Icons8Icon id="home" size={14} /> Home
                     </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/'))}>
-                       <Icons8Icon id="monitor_ui" size={14} /> This PC
+                       <Icons8Icon id="this_pc" size={14} /> This PC
                     </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Desktop'))}><Icons8Icon id="monitor_ui" size={14} /> Desktop</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Personal'))}><Icons8Icon id="file_ui" size={14} /> Documents</div>
@@ -7750,8 +7826,9 @@ export default function BNDZUI() {
                             updateConfig({ iconCacheBuster: Date.now() });
                             const contents = pathContentsCache[currentTab.path] || [];
                             if (contents.length) {
-                              const { prefetchIconsForEntities } = await import('../lib/nativeIconService');
+                              const { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities } = await import('../lib/nativeIconService');
                               await prefetchIconsForEntities(contents, currentTab.path);
+                              await prefetchMediaThumbnailsForEntities(contents, currentTab.path);
                             }
                             setToastMessage("Icon cache rebuilt for current folder.");
                             refreshWorkspace();
@@ -7802,7 +7879,7 @@ export default function BNDZUI() {
              >Rapid access</div>
              {config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Favorites'} anchorEl={menubarAnchors.current['Favorites']} minWidth={260}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { toggleFavoriteFolder(); closeMenu(); }}><Icons8Icon id="star_ui" size={14} /> Toggle Rapid access pin</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onClick={() => { toggleFavoriteFolder(); closeMenu(); }}><Icons8Icon id="zap_ui" size={14} /> Toggle Rapid access pin</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                       const path = collapseKnownFolderShadowPath(
                         resolveShellKnownFolderToFs(normalizePanePath(currentTab.path), shortcuts),
@@ -7837,7 +7914,7 @@ export default function BNDZUI() {
                           title={s.path}
                           onMouseDown={menuAct(() => setCurrentPath(s.path))}
                         >
-                          <Icons8Icon id="star_ui" size={12} />
+                          <Icons8Icon id="zap_ui" size={12} />
                           <span className="truncate">{s.name || s.path}</span>
                         </div>
                       ))
@@ -8635,7 +8712,7 @@ export default function BNDZUI() {
                         })
                      ) : (
                         <div className="mx-3 my-2 px-3 py-4 text-center rounded-md border border-dashed border-[#333] bg-[#151515]/80">
-                           <Icons8Icon id="star_ui" size={16} className="mx-auto mb-2 opacity-50" />
+                           <Icons8Icon id="zap_ui" size={16} className="mx-auto mb-2 opacity-50" />
                            <p className="text-[10px] text-gray-500 leading-relaxed">Pin folders from the<br />context menu</p>
                         </div>
                      )
@@ -8675,7 +8752,7 @@ export default function BNDZUI() {
                       ))
                     ) : (
                       <div className="mx-3 my-2 px-3 py-4 text-center rounded-md border border-dashed border-[#333] bg-[#151515]/80">
-                        <Icons8Icon id="cloud_ui" size={16} className="mx-auto mb-2 opacity-40" />
+                        <Icons8Icon id="cloud_drive" size={16} className="mx-auto mb-2 opacity-40" />
                         <p className="text-[10px] text-gray-500 leading-relaxed">No cloud drives detected</p>
                       </div>
                     )

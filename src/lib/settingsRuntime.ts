@@ -12,9 +12,10 @@ import {
   buildUiRuntime,
   WIRED_KEY_COUNT,
 } from './settingsWiring';
+import type { SortColumnId } from './listColumns';
 
 export interface PaneSortState {
-  sortColumn?: 'name' | 'type' | 'size' | 'modified' | 'created';
+  sortColumn?: SortColumnId;
   sortDirection?: 'asc' | 'desc';
   /** Resolved byte size for size-column sort (folders use scanned/cache sizes). */
   getByteSize?: (entity: any) => number;
@@ -238,8 +239,8 @@ export function entitySortName(entity: any): string {
 }
 
 /** Resolve default sort column from global sortMethod setting */
-export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): 'name' | 'type' | 'size' | 'modified' | 'created' {
-  if (pane?.sortColumn) return pane.sortColumn;
+export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): SortColumnId {
+  if (pane?.sortColumn) return pane.sortColumn as SortColumnId;
   const method = config.sortMethod || 'Natural';
   switch (method) {
     case 'Date Modified': return 'modified';
@@ -250,7 +251,7 @@ export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): 'nam
 }
 
 export function resolveSortDirection(
-  column: 'name' | 'type' | 'size' | 'modified' | 'created',
+  column: SortColumnId,
   paneDirection: 'asc' | 'desc' | undefined,
   config: AppConfig
 ): 'asc' | 'desc' {
@@ -294,8 +295,8 @@ export function compareEntities(
     return mul * naturalCompare(nameA, nameB, config);
   }
   if (col === 'type') {
-    const typeA = a.extension || (a.type === 'directory' ? 'folder' : '');
-    const typeB = b.extension || (b.type === 'directory' ? 'folder' : '');
+    const typeA = a.driveInfo?.type || a.driveInfo?.format || a.extension || (a.type === 'directory' ? 'folder' : '');
+    const typeB = b.driveInfo?.type || b.driveInfo?.format || b.extension || (b.type === 'directory' ? 'folder' : '');
     return mul * String(typeA).localeCompare(String(typeB));
   }
   if (col === 'size') {
@@ -315,12 +316,23 @@ export function compareEntities(
     if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
     return mul * ((new Date(a.created).getTime() || 0) - (new Date(b.created).getTime() || 0));
   }
-  if (col === 'tags' && config.mixedSortOnTagColumns) {
-    const tagA = (a.tags || []).join(',');
-    const tagB = (b.tags || []).join(',');
-    if (a.type === 'directory' && b.type !== 'directory') return -1;
-    if (b.type === 'directory' && a.type !== 'directory') return 1;
-    return mul * tagA.localeCompare(tagB);
+  if (col === 'tags') {
+    const tagA = (Array.isArray(a.tags) ? a.tags : []).filter(Boolean).join('\0');
+    const tagB = (Array.isArray(b.tags) ? b.tags : []).filter(Boolean).join('\0');
+    if (config.mixedSortOnTagColumns) {
+      if (a.type === 'directory' && b.type !== 'directory') return -1;
+      if (b.type === 'directory' && a.type !== 'directory') return 1;
+    }
+    // Both untagged: keep current relative order (do not reshuffle by name asc/desc).
+    if (!tagA && !tagB) return 0;
+    // Untagged after tagged when ascending; reverse when descending.
+    if (!tagA || !tagB) {
+      if (!tagA) return mul;
+      return -mul;
+    }
+    const cmp = tagA.localeCompare(tagB);
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
   }
   if (col === 'path' && config.mixedSortOnPathColumns) {
     const pathA = String(a.path || a.id || '');
@@ -452,11 +464,25 @@ export function shouldFetchNativeThumbnail(entity: any, config: AppConfig): bool
   const rt = buildSettingsRuntime(config);
   if (!rt.thumbnail.enabled || rt.thumbnail.genericFast) return false;
   if (entity.type === 'directory') return rt.thumbnail.showFolders;
-  const ext = (entity.extension || '').toLowerCase();
-  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'];
-  if (imageExts.includes(ext)) return true;
-  if (['raw', 'cr2', 'nef', 'arw'].includes(ext)) return rt.thumbnail.showRaw;
+  const ext = entityExtension(entity);
+  // Images, icons, video frames, audio artwork, and archive shell thumbs.
+  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif'];
+  const videoExts = ['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg'];
+  const audioExts = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus'];
+  const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso'];
+  if (imageExts.includes(ext) || videoExts.includes(ext)) return true;
+  if (audioExts.includes(ext) || archiveExts.includes(ext)) return true;
+  if (['raw', 'cr2', 'nef', 'arw', 'dng', 'orf', 'rw2'].includes(ext)) return rt.thumbnail.showRaw;
   return rt.thumbnail.showNonImages;
+}
+
+function entityExtension(entity: any): string {
+  const direct = (entity?.extension || '').toLowerCase().replace(/^\./, '');
+  if (direct) return direct;
+  const name = String(entity?.name || '');
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return '';
+  return name.slice(dot + 1).toLowerCase();
 }
 
 /** XYplorer-style color filter evaluation for list rows */
@@ -633,6 +659,16 @@ const COLOR_CSS_MAP: [string, string][] = [
   ['--unfocused-highlight-bg', 'colorConfig33'],
   ['--tree-trace', 'colorConfig34'],
   ['--location-pin', 'colorConfig35'],
+  ['--col-accent-name', 'colorConfig36'],
+  ['--col-accent-type', 'colorConfig37'],
+  ['--col-accent-size', 'colorConfig38'],
+  ['--col-accent-modified', 'colorConfig39'],
+  ['--col-accent-created', 'colorConfig40'],
+  ['--col-accent-attributes', 'colorConfig41'],
+  ['--col-accent-tags', 'colorConfig42'],
+  ['--col-accent-label', 'colorConfig43'],
+  ['--col-accent-comment', 'colorConfig44'],
+  ['--col-accent-path', 'colorConfig45'],
 ];
 
 /** Map custom colorConfig onto theme chrome variables (sidebar, list, tabs, etc.) */
@@ -695,6 +731,30 @@ function applyColorCssVars(config: AppConfig, root: HTMLElement): void {
   const radius = config.tooltipCornerRadius;
   if (typeof radius === 'number' && radius >= 0) {
     root.style.setProperty('--tooltip-radius', `${radius}px`);
+  }
+}
+
+const COLUMN_ACCENT_CSS_MAP: [string, string][] = [
+  ['--col-accent-name', 'colorConfig36'],
+  ['--col-accent-type', 'colorConfig37'],
+  ['--col-accent-size', 'colorConfig38'],
+  ['--col-accent-modified', 'colorConfig39'],
+  ['--col-accent-created', 'colorConfig40'],
+  ['--col-accent-attributes', 'colorConfig41'],
+  ['--col-accent-tags', 'colorConfig42'],
+  ['--col-accent-label', 'colorConfig43'],
+  ['--col-accent-comment', 'colorConfig44'],
+  ['--col-accent-path', 'colorConfig45'],
+];
+
+function applyColumnAccentCssVars(config: AppConfig, root: HTMLElement): void {
+  for (const [cssVar, configKey] of COLUMN_ACCENT_CSS_MAP) {
+    const raw = config[configKey];
+    const fallback = SETTINGS_DEFAULTS[configKey];
+    const val = (typeof raw === 'string' && raw.startsWith('#'))
+      ? raw
+      : (typeof fallback === 'string' ? fallback : undefined);
+    if (val) root.style.setProperty(cssVar, val);
   }
 }
 
@@ -819,6 +879,9 @@ export function applySettingsRuntime(config: AppConfig): void {
     clearColorCssVars(root);
     applyThemeByName(config.theme);
   }
+
+  // Column header accents stay personalizable even when the global color pack is off.
+  applyColumnAccentCssVars(config, root);
 
   document.body.style.fontSize = `${rt.ui.fontSize}px`;
   document.body.style.fontFamily = rt.ui.fontFamily;
