@@ -720,7 +720,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           </div>
        </div>
        
-       <div className="bndz-preview-content flex-1 overflow-y-auto relative flex flex-col bndz-scrollbar">
+       <div className={`bndz-preview-content flex-1 relative flex flex-col ${
+         isArchive || isTorrent ? 'overflow-hidden' : 'overflow-y-auto bndz-scrollbar'
+       }`}>
           <AnimatePresence mode="wait">
              <motion.div 
                 key={`${entity.id}-${activeTab}`}
@@ -728,11 +730,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}
                 transition={{ duration: animDuration, ease: "easeOut" }}
-                className="flex flex-col flex-1"
+                className={`flex flex-col flex-1 ${isArchive || isTorrent ? 'min-h-0 h-full' : ''}`}
              >
                 {(activeTab === 'preview' || activeTab === 'media') && (
-                <div className={`bndz-preview-stage w-full shrink-0 border-b border-white/[0.06] relative group flex flex-col min-h-0 ${
-                  isArchive || isTorrent ? 'min-h-[240px]' : 'flex-1'
+                <div className={`bndz-preview-stage w-full relative group flex flex-col min-h-0 ${
+                  isArchive || isTorrent
+                    ? 'flex-1 border-0'
+                    : 'shrink-0 border-b border-white/[0.06] flex-1'
                 }`}>
                     {activeTab === 'preview' && (isArchive || isTorrent) ? (
                       isTorrent && path ? <TorrentPreviewPanel path={path} /> : path ? <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} /> : null

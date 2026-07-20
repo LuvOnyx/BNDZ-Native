@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 import { toWindowsPath, toVirtualStreamUrl } from '../lib/pathUtils';
 import {
   formatArchiveSize,
@@ -22,19 +23,34 @@ interface ArchivePreviewPanelProps {
 
 const DRAG_THRESHOLD_PX = 6;
 
+function FormatGlyph({ format, size = 22 }: { format: string; size?: number }) {
+  const fmt = format.toLowerCase();
+  const iconId = fmt === 'rar' || fmt === '7z' || fmt === 'zip' ? 'compress' : 'compress';
+  const src = launcherIconUrl(iconId) || launcherIconUrl('zip');
+  return (
+    <div className="bndz-archive-hero-icon" aria-hidden>
+      {src ? (
+        <img src={src} alt="" draggable={false} style={{ width: size, height: size }} />
+      ) : (
+        <Icons8Icon id="compress" size={size} />
+      )}
+    </div>
+  );
+}
+
 function entryIcon(entry: ArchiveEntry) {
-  if (entry.isDirectory) return <Icons8Icon id="explorer" size={14} className="shrink-0" />;
+  if (entry.isDirectory) return <Icons8Icon id="folder_open_ui" size={15} className="shrink-0" />;
   const ext = entry.name.split('.').pop()?.toLowerCase() || '';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
-    return <Icons8Icon id="picture_ui" size={14} className="shrink-0" />;
+    return <Icons8Icon id="picture_ui" size={15} className="shrink-0" />;
   }
   if (['mp3', 'wav', 'flac', 'm4a', 'ogg'].includes(ext)) {
-    return <Icons8Icon id="music_ui" size={14} className="shrink-0" />;
+    return <Icons8Icon id="music_ui" size={15} className="shrink-0" />;
   }
-  if (['txt', 'md', 'html', 'htm', 'json', 'xml', 'css', 'js', 'ts'].includes(ext)) {
-    return <Icons8Icon id="file_ui" size={14} className="shrink-0" />;
+  if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext)) {
+    return <Icons8Icon id="film_ui" size={15} className="shrink-0" />;
   }
-  return <Icons8Icon id="file_ui" size={14} className="shrink-0" />;
+  return <Icons8Icon id="file_ui" size={15} className="shrink-0" />;
 }
 
 function formatModified(value?: string): string {
@@ -55,7 +71,7 @@ function ArchiveTreeItem({
   currentFolder: string;
   onSelect: (path: string) => void;
 }) {
-  const [open, setOpen] = useState(depth < 2);
+  const [open, setOpen] = useState(depth < 1);
   const isActive = currentFolder === node.path;
   const hasKids = node.children.length > 0;
 
@@ -63,9 +79,7 @@ function ArchiveTreeItem({
     <div>
       <button
         type="button"
-        className={`w-full flex items-center gap-1 py-1 pr-2 text-left text-[11px] rounded-md transition-colors ${
-          isActive ? 'bg-[#094771]/50 text-[#cce4f7]' : 'text-slate-300 hover:bg-white/[0.06]'
-        }`}
+        className={`bndz-archive-tree-row ${isActive ? 'bndz-archive-tree-row--active' : ''}`}
         style={{ paddingLeft: 8 + depth * 12 }}
         onClick={() => {
           onSelect(node.path);
@@ -73,11 +87,11 @@ function ArchiveTreeItem({
         }}
       >
         {hasKids ? (
-          <Icons8Icon id={open ? 'chevron_down' : 'chevron_right'} size={10} className="shrink-0 opacity-60" />
+          <Icons8Icon id={open ? 'chevron_down' : 'chevron_right'} size={10} className="shrink-0 opacity-55" />
         ) : (
           <span className="w-[10px] shrink-0" />
         )}
-        <Icons8Icon id="folder_open_ui" size={11} className="shrink-0 opacity-80" />
+        <Icons8Icon id="folder_open_ui" size={12} className="shrink-0 opacity-80" />
         <span className="truncate">{node.name}</span>
       </button>
       {open && hasKids && node.children.map(child => (
@@ -108,6 +122,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<ArchiveSortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
+  const [showTree, setShowTree] = useState(false);
 
   const dragRef = useRef<{ entry: ArchiveEntry; x: number; y: number; active: boolean } | null>(null);
 
@@ -115,6 +130,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const fmt = format.toLowerCase();
   const canAddFiles = ['zip', 'rar', '7z'].includes(fmt);
   const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
+  const fileName = path.split(/[/\\]/).pop() || 'Archive';
 
   const selectedList = useMemo(
     () => entries.filter(e => selectedPaths.has(e.path)),
@@ -334,97 +350,115 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     }
   };
 
-  const SortHeader = ({ label, col }: { label: string; col: ArchiveSortKey }) => (
+  const SortHeader = ({ label, col, className = '' }: { label: string; col: ArchiveSortKey; className?: string }) => (
     <button
       type="button"
-      className="text-left text-[10px] uppercase tracking-wide text-slate-500 hover:text-slate-300 font-semibold"
+      className={`bndz-archive-sort-btn ${className}`}
       onClick={() => toggleSort(col)}
     >
-      {label}{sortKey === col ? (sortAsc ? ' ▲' : ' ▼') : ''}
+      {label}
+      {sortKey === col ? (
+        <span className="bndz-archive-sort-caret" aria-hidden>{sortAsc ? '▲' : '▼'}</span>
+      ) : null}
     </button>
   );
 
+  const inspectorOpen = !!(primarySelected && !primarySelected.isDirectory);
+
   return (
     <div
-      className={`w-full h-full flex flex-col bg-gradient-to-b from-[#1a1f2e] to-[#0d1117] text-slate-200 ${dragOver ? 'ring-2 ring-amber-400/50 ring-inset' : ''}`}
+      className={`bndz-archive-root ${dragOver ? 'bndz-archive-root--drop' : ''} ${inspectorOpen ? 'bndz-archive-root--inspector' : ''}`}
       onDragOver={e => { if (canAddFiles) { e.preventDefault(); setDragOver(true); } }}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDropIn}
       onMouseMove={handleEntryMouseMove}
       onMouseUp={handleEntryMouseUp}
     >
-      <div className="shrink-0 border-b border-white/10 bg-[#232b3b]/90 backdrop-blur-sm">
-        <div className="flex items-center gap-2 px-3 py-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500/30 to-orange-600/20 flex items-center justify-center border border-amber-500/30">
-              <Icons8Icon id="zip" size={16} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[12px] font-semibold text-white truncate">{path.split(/[/\\]/).pop()}</div>
-              <div className="text-[10px] text-slate-400 font-mono">
-                {format.toUpperCase()} · {stats.count} items · {formatArchiveSize(stats.totalSize)}
-                {stats.compressed > 0 && ` · ${ratio}% compression`}
-              </div>
+      {/* Header */}
+      <header className="bndz-archive-header">
+        <div className="bndz-archive-header-top">
+          <FormatGlyph format={fmt} size={20} />
+          <div className="bndz-archive-title-block min-w-0 flex-1">
+            <div className="bndz-archive-title truncate" title={fileName}>{fileName}</div>
+            <div className="bndz-archive-meta">
+              <span className="bndz-archive-chip">{format.toUpperCase()}</span>
+              <span>{stats.count.toLocaleString()} items</span>
+              <span>{formatArchiveSize(stats.totalSize)}</span>
+              {stats.compressed > 0 && <span>{ratio}% packed</span>}
             </div>
           </div>
           {onExtract && (
-            <button type="button" onClick={onExtract} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-[#0067c0] hover:bg-[#0078d4] text-white rounded-lg">
-              <Icons8Icon id="download" size={13} /> Extract All
+            <button type="button" onClick={onExtract} className="bndz-archive-btn-primary shrink-0">
+              <Icons8Icon id="extract" size={13} />
+              Extract
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-1 px-3 pb-2 flex-wrap text-[11px]">
+        <nav className="bndz-archive-crumbs" aria-label="Archive path">
           {crumbs.map((c, i) => (
             <React.Fragment key={c.path || 'root'}>
-              {i > 0 && <Icons8Icon id="chevron_right" size={10} className="opacity-50" />}
+              {i > 0 && <Icons8Icon id="chevron_right" size={9} className="bndz-archive-crumb-sep" />}
               <button
                 type="button"
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-white/10 ${i === crumbs.length - 1 ? 'text-amber-200 font-medium' : 'text-slate-400'}`}
+                className={`bndz-archive-crumb ${i === crumbs.length - 1 ? 'bndz-archive-crumb--current' : ''}`}
                 onClick={() => navigateFolder(c.path)}
               >
-                {i === 0 ? <Icons8Icon id="go_home" size={11} /> : <Icons8Icon id="folder_open_ui" size={11} />}
-                {c.label}
+                {i === 0 ? <Icons8Icon id="go_home" size={11} /> : null}
+                <span className="truncate">{c.label}</span>
               </button>
             </React.Fragment>
           ))}
-        </div>
+        </nav>
 
-        <div className="px-3 pb-2 flex gap-2">
-          <div className="relative flex-1">
-            <Icons8Icon id="search" size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50" />
+        <div className="bndz-archive-toolbar">
+          <div className="bndz-archive-search">
+            <Icons8Icon id="search" size={12} className="bndz-archive-search-icon" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search in archive…"
-              className="w-full pl-8 pr-2 py-1.5 text-[11px] bg-black/30 border border-white/10 rounded-lg outline-none focus:border-[#0078d4]/50 text-slate-200 placeholder:text-slate-500"
+              placeholder="Filter entries…"
+              className="bndz-archive-search-input"
             />
           </div>
+          {folderTree.length > 0 && (
+            <button
+              type="button"
+              className={`bndz-archive-btn-ghost ${showTree ? 'is-active' : ''}`}
+              onClick={() => setShowTree(v => !v)}
+              title="Toggle folder tree"
+            >
+              <Icons8Icon id="columns_ui" size={13} />
+              Folders
+            </button>
+          )}
         </div>
 
         {canAddFiles && (
-          <div className="mx-3 mb-2 flex items-center gap-2 text-[10px] text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-lg px-2 py-1.5">
-            <Icons8Icon id="upload" size={11} className="shrink-0" />
-            Drop files or folders to add · Drag rows out after {DRAG_THRESHOLD_PX}px movement
+          <div className="bndz-archive-hint">
+            <Icons8Icon id="upload" size={11} className="shrink-0 opacity-70" />
+            Drop files to add · Drag rows out to extract
           </div>
         )}
         {(status || busy) && (
-          <div className="px-3 pb-2 text-[10px] text-slate-400 flex items-center gap-1.5">
+          <div className="bndz-archive-status">
             {busy && <Icons8Icon id="loading" size={11} spin />}
-            {busy || status}
+            <span className="truncate">{busy || status}</span>
           </div>
         )}
-      </div>
+      </header>
 
-      <div className="flex-1 flex min-h-0">
-        <div className="w-[168px] shrink-0 border-r border-white/5 overflow-y-auto bndz-scrollbar p-2 bg-black/15">
+      {/* Optional folder tree (collapsible, not a side column) */}
+      {showTree && (
+        <div className="bndz-archive-tree">
           <button
             type="button"
-            className={`w-full flex items-center gap-1.5 px-2 py-1.5 mb-1 text-[11px] rounded-lg ${!currentFolder ? 'bg-[#094771]/40 text-[#cce4f7]' : 'text-slate-400 hover:bg-white/[0.06]'}`}
+            className={`bndz-archive-tree-row ${!currentFolder ? 'bndz-archive-tree-row--active' : ''}`}
             onClick={() => navigateFolder('')}
           >
-            <Icons8Icon id="zip" size={11} /> Root
+            <Icons8Icon id="compress" size={12} />
+            Archive root
           </button>
           {folderTree.map(node => (
             <ArchiveTreeItem
@@ -436,113 +470,127 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             />
           ))}
         </div>
+      )}
 
-        <div className="flex-1 min-w-0 flex flex-col border-r border-white/5">
-          <div className="grid grid-cols-[minmax(0,1fr)_72px_72px_108px] gap-2 px-3 py-1.5 border-b border-white/5 bg-black/20 text-[10px]">
-            <SortHeader label="Name" col="name" />
-            <SortHeader label="Size" col="size" />
-            <SortHeader label="Packed" col="compressed" />
-            <SortHeader label="Modified" col="modified" />
-          </div>
-          <div className="flex-1 overflow-y-auto bndz-scrollbar">
-            {loading && (
-              <div className="flex items-center justify-center gap-2 p-10 text-slate-500 text-sm">
-                <Icons8Icon id="loading" size={18} spin /> Opening archive…
-              </div>
-            )}
-            {error && (
-              <div className="flex items-center gap-2 p-4 m-3 text-red-300 text-xs bg-red-950/30 rounded-xl border border-red-800/40">
-                <Icons8Icon id="warning" size={14} /> {error}
-              </div>
-            )}
-            {!loading && !error && folderItems.length === 0 && (
-              <div className="p-8 text-center text-slate-500 text-xs">This folder is empty</div>
-            )}
-            {!loading && !error && folderItems.map((entry, i) => {
-              const isSel = selectedPaths.has(entry.path);
-              return (
-                <div
-                  key={`${entry.path}-${i}`}
-                  className={`grid grid-cols-[minmax(0,1fr)_72px_72px_108px] gap-2 items-center px-3 py-1.5 cursor-pointer border-b border-white/[0.03] group transition-colors ${
-                    isSel ? 'bg-[#094771]/40 border-l-2 border-l-[#0078d4]' : 'hover:bg-white/[0.04] border-l-2 border-l-transparent'
-                  }`}
-                  onClick={e => { selectEntry(entry, e); if (!entry.isDirectory) loadPreview(entry); }}
-                  onDoubleClick={() => openEntry(entry)}
-                  onMouseDown={e => handleEntryMouseDown(entry, e)}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {entryIcon(entry)}
-                    <span className="text-[12px] text-slate-200 truncate font-medium">{entry.name}</span>
-                    {!entry.isDirectory && isNative && (
-                      <button
-                        type="button"
-                        title="Drag out"
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-amber-300 transition-opacity ml-auto"
-                        onClick={e => { e.stopPropagation(); void dragEntriesOut([entry]); }}
-                      >
-                        <DragHandleGlyph size={14} className="opacity-60" />
-                      </button>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-mono text-right">{entry.isDirectory ? '—' : formatArchiveSize(entry.size)}</span>
-                  <span className="text-[10px] text-slate-500 font-mono text-right">{entry.isDirectory ? '—' : formatArchiveSize(entry.compressedSize)}</span>
-                  <span className="text-[10px] text-slate-500 truncate">{formatModified(entry.modified)}</span>
-                </div>
-              );
-            })}
-          </div>
+      {/* File list */}
+      <div className="bndz-archive-list">
+        <div className="bndz-archive-list-head">
+          <SortHeader label="Name" col="name" className="bndz-archive-col-name" />
+          <SortHeader label="Size" col="size" className="bndz-archive-col-size" />
+          <SortHeader label="Packed" col="compressed" className="bndz-archive-col-packed" />
         </div>
-
-        <div className="w-[38%] min-w-[140px] max-w-[300px] flex flex-col bg-black/20">
-          {primarySelected && !primarySelected.isDirectory ? (
-            <>
-              <div className="px-3 py-2 border-b border-white/5 text-[11px] font-semibold text-slate-300 truncate">
-                {primarySelected.name}
-                {selectedPaths.size > 1 && <span className="text-slate-500 font-normal"> · {selectedPaths.size} selected</span>}
-              </div>
-              <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center p-2">
-                {previewUrl ? (
-                  primarySelected.name.match(/\.(png|jpe?g|gif|webp|bmp|svg)$/i) ? (
-                    <img src={previewUrl} alt={primarySelected.name} className="max-w-full max-h-full object-contain rounded-xl shadow-lg" />
-                  ) : primarySelected.name.match(/\.(mp3|wav|flac|m4a|ogg)$/i) ? (
-                    <audio src={previewUrl} controls className="w-full max-w-[240px]" />
-                  ) : primarySelected.name.match(/\.pdf$/i) ? (
-                    <iframe src={previewUrl} className="w-full h-full border-0 rounded-xl" title={primarySelected.name} />
-                  ) : primarySelected.name.match(/\.html?$/i) ? (
-                    <iframe src={previewUrl} sandbox="allow-same-origin" className="w-full h-full border-0 rounded-xl bg-white" title={primarySelected.name} />
-                  ) : (
-                    <iframe src={previewUrl} className="w-full h-full border-0 rounded-xl bg-[#0a0a0a]" title={primarySelected.name} />
-                  )
-                ) : (
-                  <div className="text-center p-4 text-slate-500 text-[11px]">
-                    <Icons8Icon id="file_ui" size={32} className="mx-auto mb-2 opacity-40" />
-                    {formatArchiveSize(primarySelected.size)}
-                    <div className="mt-3 flex flex-col gap-1.5">
-                      <button type="button" onClick={() => void extractSelected()} className="px-3 py-1.5 rounded-lg bg-[#0067c0] hover:bg-[#0078d4] text-white text-[10px] font-semibold">
-                        Extract Here
-                      </button>
-                      {isNative && (
-                        <button
-                          type="button"
-                          onClick={() => void dragEntriesOut(selectedList.length ? selectedList : [primarySelected])}
-                          className="px-3 py-1.5 rounded-lg bg-amber-800/60 hover:bg-amber-700/80 text-amber-100 text-[10px] font-semibold"
-                        >
-                          Drag Out…
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-[11px] p-4 text-center">
-              <Icons8Icon id="zip" size={36} className="mb-3 opacity-30" />
-              <p>Select files to preview, extract, or drag out. Use the folder tree or breadcrumbs to navigate like WinRAR.</p>
+        <div className="bndz-archive-list-body bndz-scrollbar">
+          {loading && (
+            <div className="bndz-archive-empty">
+              <Icons8Icon id="loading" size={18} spin />
+              Opening archive…
             </div>
           )}
+          {error && (
+            <div className="bndz-archive-error">
+              <Icons8Icon id="warning" size={14} />
+              <span>{error}</span>
+            </div>
+          )}
+          {!loading && !error && folderItems.length === 0 && (
+            <div className="bndz-archive-empty">This folder is empty</div>
+          )}
+          {!loading && !error && folderItems.map((entry, i) => {
+            const isSel = selectedPaths.has(entry.path);
+            return (
+              <div
+                key={`${entry.path}-${i}`}
+                className={`bndz-archive-row ${isSel ? 'bndz-archive-row--selected' : ''}`}
+                onClick={e => { selectEntry(entry, e); if (!entry.isDirectory) loadPreview(entry); }}
+                onDoubleClick={() => openEntry(entry)}
+                onMouseDown={e => handleEntryMouseDown(entry, e)}
+              >
+                <div className="bndz-archive-col-name flex items-center gap-2 min-w-0">
+                  {entryIcon(entry)}
+                  <span className="truncate text-[12px] font-medium text-white/90">{entry.name}</span>
+                  {!entry.isDirectory && isNative && (
+                    <button
+                      type="button"
+                      title="Drag out"
+                      className="bndz-archive-drag-handle"
+                      onClick={e => { e.stopPropagation(); void dragEntriesOut([entry]); }}
+                    >
+                      <DragHandleGlyph size={12} />
+                    </button>
+                  )}
+                </div>
+                <span className="bndz-archive-col-size">
+                  {entry.isDirectory ? '—' : formatArchiveSize(entry.size)}
+                </span>
+                <span className="bndz-archive-col-packed">
+                  {entry.isDirectory ? '—' : formatArchiveSize(entry.compressedSize)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      {/* Bottom inspector — replaces cramped side panel */}
+      {inspectorOpen && primarySelected && (
+        <aside className="bndz-archive-inspector">
+          <div className="bndz-archive-inspector-head">
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-semibold text-white/95 truncate">{primarySelected.name}</div>
+              <div className="text-[10px] text-white/40 mt-0.5">
+                {formatArchiveSize(primarySelected.size)}
+                {primarySelected.compressedSize > 0 && ` · packed ${formatArchiveSize(primarySelected.compressedSize)}`}
+                {primarySelected.modified && ` · ${formatModified(primarySelected.modified)}`}
+                {selectedPaths.size > 1 && ` · ${selectedPaths.size} selected`}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="bndz-archive-btn-ghost"
+              onClick={() => { setSelectedPaths(new Set()); setPreviewUrl(null); }}
+              title="Close inspector"
+            >
+              <Icons8Icon id="close" size={12} />
+            </button>
+          </div>
+          <div className="bndz-archive-inspector-body">
+            {previewUrl ? (
+              primarySelected.name.match(/\.(png|jpe?g|gif|webp|bmp|svg)$/i) ? (
+                <img src={previewUrl} alt={primarySelected.name} className="bndz-archive-preview-media" />
+              ) : primarySelected.name.match(/\.(mp3|wav|flac|m4a|ogg)$/i) ? (
+                <audio src={previewUrl} controls className="w-full max-w-[280px]" />
+              ) : primarySelected.name.match(/\.pdf$/i) ? (
+                <iframe src={previewUrl} className="bndz-archive-preview-frame" title={primarySelected.name} />
+              ) : primarySelected.name.match(/\.html?$/i) ? (
+                <iframe src={previewUrl} sandbox="allow-same-origin" className="bndz-archive-preview-frame bndz-archive-preview-frame--light" title={primarySelected.name} />
+              ) : (
+                <iframe src={previewUrl} className="bndz-archive-preview-frame" title={primarySelected.name} />
+              )
+            ) : (
+              <div className="bndz-archive-inspector-placeholder">
+                <Icons8Icon id="file_ui" size={28} className="opacity-40 mb-2" />
+                <p>No inline preview for this type</p>
+              </div>
+            )}
+          </div>
+          <div className="bndz-archive-inspector-actions">
+            <button type="button" onClick={() => void extractSelected()} className="bndz-archive-btn-primary">
+              <Icons8Icon id="extract" size={12} />
+              Extract here
+            </button>
+            {isNative && (
+              <button
+                type="button"
+                onClick={() => void dragEntriesOut(selectedList.length ? selectedList : [primarySelected])}
+                className="bndz-archive-btn-secondary"
+              >
+                <Icons8Icon id="external_link" size={12} />
+                Drag out…
+              </button>
+            )}
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
