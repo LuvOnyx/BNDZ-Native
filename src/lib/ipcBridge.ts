@@ -5,7 +5,7 @@
 
 import { nativeCall, dedupeInFlight } from './ipcCore';
 import { normalizePanePath } from './pathUtils';
-import { EMPTY_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
+import { EMPTY_LICENSE_STATUS, PENDING_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
 import { entityHasTag } from './tagUtils';
 
 export type TagMetaBatchItem = {
@@ -1728,8 +1728,8 @@ export const IPC = {
       const id = `${Date.now()}_licenseStatus`;
       return _nativeCall<LicenseStatus>(
         'GET_LICENSE_STATUS', 'LICENSE_STATUS_RESULT', id, undefined, 10000,
-      ).then(s => ({ ...EMPTY_LICENSE_STATUS, ...s }))
-        .catch(() => ({ ...EMPTY_LICENSE_STATUS }));
+      ).then(s => ({ ...PENDING_LICENSE_STATUS, ...s, statusPending: false }));
+      // Let callers retry / fail-closed — do not swallow errors into a grant.
     }
     try {
       const licRaw = localStorage.getItem('bndz_license');
@@ -1741,6 +1741,7 @@ export const IPC = {
             activated: true,
             canUseApp: true,
             trialExpired: false,
+            statusPending: false,
             email: rec.email,
             name: rec.name,
             serialMasked: `${String(rec.serial).slice(0, 9)}****`,
@@ -1760,9 +1761,10 @@ export const IPC = {
         trialExpired: expired,
         trialDaysRemaining: remaining,
         trialEndsAt: endsAt.toISOString(),
+        statusPending: false,
       });
     } catch {
-      return Promise.resolve({ ...EMPTY_LICENSE_STATUS });
+      return Promise.resolve({ ...EMPTY_LICENSE_STATUS, statusPending: false, canUseApp: true });
     }
   },
 

@@ -35,6 +35,11 @@ Thumbs.db
 .env.local
 .env.*.local
 !.env.example
+BNDZBackend/Services/LicenseSecretEmbedded.Release.cs
+BNDZBackend/Services/LicenseTokenSecretEmbedded.Release.cs
+services/bndz-license-api/.deploy-secrets.local.json
+services/bndz-license-api/.dev.vars
+services/bndz-license-api/.wrangler/
 
 # Launcher portable runtime data (recreated on first run)
 BNDZBackend/Assets/BNDZLauncher/UserData/

@@ -1,0 +1,21 @@
+{
+  "name": "bndz-license-api",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create bndz-licenses",
+    "db:migrate:local": "wrangler d1 migrations apply bndz-licenses --local",
+    "db:migrate:remote": "wrangler d1 migrations apply bndz-licenses --remote",
+    "types": "wrangler types",
+    "issue": "node scripts/admin.mjs issue",
+    "revoke": "node scripts/admin.mjs revoke"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250719.0",
+    "wrangler": "4.26.0",
+    "typescript": "^5.8.3"
+  }
+}

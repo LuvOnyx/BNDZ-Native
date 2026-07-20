@@ -92,6 +92,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         let active = true;
         const isDriveEntity = !!(entity as any)?.driveInfo;
         const shellIsDir = entityShellIsDirectory(entity, path);
+        const cachedFolder = pathContentsCache?.[folderBrowsePath || ''];
 
         import('../lib/nativeIconService').then(({ requestNativeIcon }) => {
            const useThumb = !shellIsDir && !isDriveEntity && config.enableNativeThumbnails !== false;
@@ -114,15 +115,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                }).catch(() => {
                    if (active) setExtendedDetails({});
                });
-               if (!shellIsDir) {
-                  IPC.getAsyncHashes(winPath).then(hashes => {
-                     if (active) setFileHashes(hashes);
-                  }).catch(() => {});
-               }
            }
         });
         if (shellIsDir && folderBrowsePath && config.folderContentsPreview !== false) {
-           const cached = pathContentsCache?.[folderBrowsePath];
            const sortBy = String(config.folderContentsPreviewSortedBy || 'Name');
            const sortItems = (items: any[]) => {
              const dirsFirst = [...items].sort((a, b) => {
@@ -149,8 +144,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   .map((i: any) => ({ name: i.name, type: i.type, size: i.size }))
               );
            };
-           if (cached?.length) {
-              applyItems(cached);
+           if (cachedFolder?.length) {
+              applyItems(cachedFolder);
            } else {
               import('../lib/ipcBridge').then(({ IPC }) => {
                  IPC.getDirContents(folderBrowsePath).then(items => {
@@ -171,7 +166,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         setFolderStats(null);
         setFolderChildren([]);
      }
-  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, config.folderContentsPreview, config.folderContentsPreviewSortedBy, path, folderBrowsePath, pathContentsCache]);
+  // Depend on the selected folder's cache entry only — not the whole pathContentsCache object.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity?.id, entity?.type, config.enableNativeThumbnails, config.highResNativeWindowsThumbnails, config.folderContentsPreview, config.folderContentsPreviewSortedBy, path, folderBrowsePath, pathContentsCache?.[folderBrowsePath || '']]);
 
   const openChild = (child: { name: string; type: string }, opts?: { navigateMain?: boolean }) => {
     if (!folderBrowsePath) return;
@@ -221,6 +218,25 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   }, [entity?.id, isAudio, isVideo, isHtml]);
 
   const previewRt = buildSettingsRuntime(config).preview;
+
+  // Hashing is expensive — only compute when Details is visible.
+  useEffect(() => {
+    if (activeTab !== 'details' || !path || !entity) return;
+    const shellIsDir = entityShellIsDirectory(entity, path);
+    if (shellIsDir) {
+      setFileHashes(null);
+      return;
+    }
+    let active = true;
+    setFileHashes(null);
+    import('../lib/ipcBridge').then(({ IPC }) => {
+      if (!IPC.isNative || !active) return;
+      IPC.getAsyncHashes(toWindowsPath(path)).then(hashes => {
+        if (active) setFileHashes(hashes);
+      }).catch(() => {});
+    });
+    return () => { active = false; };
+  }, [activeTab, path, entity?.id, entity?.type]);
 
   const mediaPlayerProps = {
     src: virtualUrl,

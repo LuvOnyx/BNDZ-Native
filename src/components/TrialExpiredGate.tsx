@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { NativeDialogShell } from './native/NativeDialogShell';
 import { IPC, type LicenseStatus } from '../lib/ipcBridge';
-import { EMPTY_LICENSE_STATUS } from '../lib/licenseTypes';
+import { DENIED_LICENSE_STATUS, PENDING_LICENSE_STATUS } from '../lib/licenseTypes';
 
 const RegisterDialog = lazy(() => import('./RegisterDialog'));
 
@@ -10,6 +10,9 @@ const RegisterDialog = lazy(() => import('./RegisterDialog'));
  * - gate phase shows only the trial alert
  * - register phase shows only RegisterDialog
  * - externalRegisterOpen (Help → Register) also suppresses the gate
+ *
+ * Fail-closed: native status errors deny use after retries. Pending status
+ * does not show the gate (avoids flash on startup).
  */
 export default function TrialExpiredGate({
   children,
@@ -25,14 +28,40 @@ export default function TrialExpiredGate({
   const [phase, setPhase] = useState<'gate' | 'register'>('gate');
 
   useEffect(() => {
-    IPC.getLicenseStatus().then(setStatus).catch(() => setStatus(EMPTY_LICENSE_STATUS));
+    let cancelled = false;
+    const load = async () => {
+      const isNative = IPC.isNative;
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const next = await IPC.getLicenseStatus();
+          if (!cancelled) setStatus({ ...next, statusPending: false });
+          return;
+        } catch (err) {
+          lastError = err;
+          await new Promise(r => setTimeout(r, 150 * (attempt + 1)));
+        }
+      }
+      if (cancelled) return;
+      // Native: fail closed. Browser preview: stay permissive for Vite-only work.
+      setStatus(isNative ? DENIED_LICENSE_STATUS : { ...PENDING_LICENSE_STATUS, statusPending: false });
+      if (lastError) console.warn('[license] status failed', lastError);
+    };
+    setStatus(PENDING_LICENSE_STATUS);
+    void load();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (externalRegisterOpen) setPhase('gate');
   }, [externalRegisterOpen]);
 
-  if (!status || status.canUseApp !== false) {
+  // Still loading — render app without gate flash.
+  if (!status || status.statusPending) {
+    return <>{children}</>;
+  }
+
+  if (status.canUseApp !== false) {
     return <>{children}</>;
   }
 

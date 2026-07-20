@@ -53,7 +53,7 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
     <NativeDialogShell
       open
       title="Register BNDZ"
-      subtitle="Activate your license on this PC"
+      subtitle="Online activation — one PC per serial"
       tone="info"
       variant="sheet"
       onClose={onClose}
@@ -64,13 +64,13 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       footerButtons={
         status?.activated
           ? [
-              { label: 'Deactivate', style: 'secondary', onClick: deactivate },
+              { label: busy ? 'Releasing…' : 'Deactivate this PC', style: 'secondary', onClick: deactivate },
               { label: 'Done', style: 'primary', onClick: onClose },
             ]
           : [
               { label: 'Cancel', style: 'secondary', onClick: onClose },
               {
-                label: busy ? 'Activating…' : 'Activate',
+                label: busy ? 'Activating…' : 'Activate online',
                 style: 'primary',
                 onClick: () => { if (!busy && serial.trim() && email.trim()) void activate(); },
               },
@@ -94,6 +94,9 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
               <div className="bndz-native-dialog-muted mt-1">{status.name || 'Registered user'}</div>
               <div className="bndz-native-dialog-muted">{status.email}</div>
               <div className="bndz-native-dialog-muted font-mono text-[10px] mt-1">{status.serialMasked}</div>
+              {status.onlineBound && (
+                <div className="bndz-native-dialog-muted text-[10px] mt-1">Online seat bound to this PC</div>
+              )}
             </div>
           </div>
         ) : (
@@ -101,14 +104,17 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
             {!status?.trialExpired && status && (
               <div className="bndz-native-status-warn">
                 {status.trialDaysRemaining} day{status.trialDaysRemaining === 1 ? '' : 's'} left in your trial.
-                Enter your license key to activate permanently.
+                Enter your license key to activate permanently (requires internet).
               </div>
             )}
             {status?.trialExpired && (
               <div className="bndz-native-status-error">
-                Your 14-day trial has ended. Activate to continue using BNDZ.
+                Your 14-day trial has ended. Activate online to continue using BNDZ.
               </div>
             )}
+            <p className="text-[11px] bndz-native-dialog-muted leading-relaxed">
+              Each serial activates on one Windows PC. Use Deactivate to free the seat before moving to another machine.
+            </p>
             <div className="bndz-register-fields">
               <div>
                 <label className="bndz-native-field-label">Serial number</label>

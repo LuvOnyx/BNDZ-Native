@@ -425,7 +425,13 @@ export default function BNDZUI() {
     };
   };
 
-  type MarqueeSelectMeta = { rowHeight: number; items: Array<{ id: string; rowIndex: number }> };
+  type MarqueeSelectMeta = {
+    rowHeight: number;
+    items: Array<{ id: string; rowIndex: number; colIndex?: number }>;
+    /** When set, marquee uses 2D tile hit-testing (grid view). */
+    gridCols?: number;
+    colWidth?: number;
+  };
 
   const marqueeOpsRef = useRef({
     setSelectedItems: (_ids: string[] | ((prev: string[]) => string[]), _paneId: string) => {},
@@ -468,10 +474,18 @@ export default function BNDZUI() {
       const selected: string[] = [];
       if (selectMeta?.items?.length) {
         const rh = selectMeta.rowHeight;
-        for (const { id, rowIndex } of selectMeta.items) {
-          const rowTop = rowIndex * rh;
+        const cols = selectMeta.gridCols;
+        const cw = selectMeta.colWidth;
+        for (const item of selectMeta.items) {
+          const rowTop = item.rowIndex * rh;
           const rowBottom = rowTop + rh;
-          if (rowBottom >= mTop && rowTop <= mBottom) selected.push(id);
+          if (rowBottom < mTop || rowTop > mBottom) continue;
+          if (cols && cw != null && item.colIndex != null) {
+            const colLeft = item.colIndex * cw;
+            const colRight = colLeft + cw;
+            if (colRight < mLeft || colLeft > mRight) continue;
+          }
+          selected.push(item.id);
         }
       } else {
         const listRect = listEl.getBoundingClientRect();
@@ -497,7 +511,9 @@ export default function BNDZUI() {
     };
 
     let marqueeRaf = 0;
+    let rectRaf = 0;
     let pendingMarqueeState: typeof marqueeState | null = null;
+    let pendingRectState: typeof marqueeState | null = null;
     const scheduleMarqueeSelection = (state: typeof marqueeState) => {
       pendingMarqueeState = state;
       if (marqueeRaf) return;
@@ -505,6 +521,15 @@ export default function BNDZUI() {
         marqueeRaf = 0;
         if (pendingMarqueeState) applyMarqueeSelection(pendingMarqueeState);
         pendingMarqueeState = null;
+      });
+    };
+    const scheduleMarqueeRect = (state: typeof marqueeState) => {
+      pendingRectState = state;
+      if (rectRaf) return;
+      rectRaf = window.requestAnimationFrame(() => {
+        rectRaf = 0;
+        if (pendingRectState) setMarquee({ ...pendingRectState });
+        pendingRectState = null;
       });
     };
 
@@ -516,7 +541,7 @@ export default function BNDZUI() {
       const next = { ...marqueeState, currX: p.x, currY: p.y };
       marqueeState.currX = p.x;
       marqueeState.currY = p.y;
-      setMarquee(next);
+      scheduleMarqueeRect(next);
       scheduleMarqueeSelection(next);
       const edge = 48;
       const rect = listEl.getBoundingClientRect();
@@ -530,6 +555,10 @@ export default function BNDZUI() {
         window.cancelAnimationFrame(marqueeRaf);
         marqueeRaf = 0;
       }
+      if (rectRaf) {
+        window.cancelAnimationFrame(rectRaf);
+        rectRaf = 0;
+      }
       if (capturePointerId != null) {
         try { listEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
       }
@@ -540,6 +569,7 @@ export default function BNDZUI() {
         else applyMarqueeSelection(marqueeState);
       }
       pendingMarqueeState = null;
+      pendingRectState = null;
       setMarquee(null);
       setMarqueeActive(false);
     };
@@ -5923,7 +5953,23 @@ export default function BNDZUI() {
 
               const buildSelectMeta = (): MarqueeSelectMeta | undefined => {
                 const rows = listRows?.length ?? 0;
-                if (rows < 80 || computedViewMode === 'grid') return undefined;
+                if (rows < 80) return undefined;
+                if (computedViewMode === 'grid') {
+                  const minW = 'minWidth' in paneGridMetrics ? paneGridMetrics.minWidth : gridMetrics.minWidth;
+                  const stride = 'stride' in paneGridMetrics ? paneGridMetrics.stride : gridMetrics.stride;
+                  const listWidth = Math.max(1, listEl.clientWidth || 800);
+                  const cols = Math.max(1, Math.floor(listWidth / minW));
+                  return {
+                    rowHeight: stride,
+                    gridCols: cols,
+                    colWidth: minW,
+                    items: (listRows || []).flatMap((item: any, index: number) =>
+                      isGroupHeaderRow(item)
+                        ? []
+                        : [{ id: item.id, rowIndex: Math.floor(index / cols), colIndex: index % cols }],
+                    ),
+                  };
+                }
                 const rowHeight = computedViewMode === 'list' ? listMetrics.rowHeight : detailsRowHeight;
                 return {
                   rowHeight,
@@ -6442,7 +6488,7 @@ export default function BNDZUI() {
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode !== 'columns' && computedViewMode !== 'size' && computedViewMode !== 'media' && computedViewMode !== 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && (
             <VirtualizedFileList
               items={listRows || []}
-              enabled={computedViewMode === 'details' || computedViewMode === 'grid'}
+              enabled={computedViewMode === 'details' || computedViewMode === 'grid' || computedViewMode === 'list'}
               mode={computedViewMode === 'grid' ? 'grid' : 'list'}
               rowHeight={
                 computedViewMode === 'grid' ? paneGridMetrics.rowHeight :

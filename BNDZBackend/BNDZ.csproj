@@ -24,6 +24,37 @@
     <DebugType>embedded</DebugType>
   </PropertyGroup>
 
+  <!--
+    Retail secrets for Release:
+    - scripts/build-release.ps1 writes LicenseSecretEmbedded.Release.cs from BNDZ_LICENSE_SECRET
+    - scripts/build-release.ps1 writes LicenseTokenSecretEmbedded.Release.cs from BNDZ_TOKEN_HMAC_SECRET
+    - Debug keeps empty embeds (dev defaults)
+  -->
+  <Target Name="RequireReleaseLicenseSecret" BeforeTargets="BeforeCompile" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <_ReleaseLicFile>$(MSBuildProjectDirectory)\Services\LicenseSecretEmbedded.Release.cs</_ReleaseLicFile>
+      <_ReleaseTokFile>$(MSBuildProjectDirectory)\Services\LicenseTokenSecretEmbedded.Release.cs</_ReleaseTokFile>
+    </PropertyGroup>
+    <Error
+      Condition="!Exists('$(_ReleaseLicFile)')"
+      Text="Release builds require Services\LicenseSecretEmbedded.Release.cs. Run scripts/build-release.ps1 with BNDZ_LICENSE_SECRET set (non-placeholder)." />
+    <Error
+      Condition="$([System.IO.File]::ReadAllText('$(_ReleaseLicFile)').Contains('CHANGE-ME'))"
+      Text="Release license secret file still contains the development placeholder. Rotate BNDZ_LICENSE_SECRET before shipping." />
+    <Error
+      Condition="!Exists('$(_ReleaseTokFile)')"
+      Text="Release builds require Services\LicenseTokenSecretEmbedded.Release.cs. Run scripts/build-release.ps1 with BNDZ_TOKEN_HMAC_SECRET set." />
+  </Target>
+
+  <ItemGroup Condition="'$(Configuration)' == 'Release' AND Exists('$(MSBuildProjectDirectory)\Services\LicenseSecretEmbedded.Release.cs')">
+    <Compile Remove="Services\LicenseSecretEmbedded.cs" />
+    <Compile Include="Services\LicenseSecretEmbedded.Release.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release' AND Exists('$(MSBuildProjectDirectory)\Services\LicenseTokenSecretEmbedded.Release.cs')">
+    <Compile Remove="Services\LicenseTokenSecretEmbedded.cs" />
+    <Compile Include="Services\LicenseTokenSecretEmbedded.Release.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="LLamaSharp" Version="0.24.0" />
     <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.24.0"
@@ -34,6 +65,7 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="Ookii.Dialogs.Wpf" Version="5.0.1" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="SharpCompress" Version="0.48.0" />
     <PackageReference Include="Vanara.Windows.Shell" Version="4.0.4" />
   </ItemGroup>

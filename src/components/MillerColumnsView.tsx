@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { LauncherIcon } from './LauncherIcon';
 import { ThumbnailIcon } from './ThumbnailIcon';
+import { VirtualizedFileList } from './VirtualizedFileList';
 import { joinPanePath, normalizePanePath } from '../lib/pathUtils';
 import { getDisplayName } from '../lib/settingsRuntime';
 
@@ -108,35 +109,42 @@ export default function MillerColumnsView({
               <div className="flex-1 overflow-y-auto bndz-scrollbar">
                 {loading ? (
                   <div className="px-2 py-4 text-[11px] text-gray-500 text-center">Loading…</div>
-                ) : items.map(entity => {
-                  const isDir = entity.type === 'directory';
-                  const childPath = joinPanePath(colPath, entity as { name: string; path?: string });
-                  const isSelected = selectedPath === childPath || selectedPath.startsWith(`${childPath}/`);
-                  const displayName = getDisplayName(entity, config as any, colPath);
-                  return (
-                    <button
-                      key={String(entity.id)}
-                      type="button"
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 text-left text-[12px] hover:bg-white/[0.06] ${
-                        isSelected ? 'bg-[#094771]/40 text-[#cce4f7]' : 'text-gray-300'
-                      }`}
-                      onClick={() => {
-                        if (isDir) onNavigate(childPath);
-                        else onOpen(entity, colPath);
-                      }}
-                      onDoubleClick={() => {
-                        if (isDir) onNavigate(childPath);
-                        else onOpen(entity, colPath);
-                      }}
-                    >
-                      <ThumbnailIcon entity={entity} isDir={isDir} path={childPath} size={16} />
-                      <span className="flex-1 truncate">{displayName}</span>
-                      {isDir && <LauncherIcon id="chevron_right" size={12} className="shrink-0 opacity-50" />}
-                    </button>
-                  );
-                })}
-                {!loading && !items.length && (
-                  <div className="px-2 py-4 text-[11px] text-gray-600 text-center">Empty</div>
+                ) : (
+                  <VirtualizedFileList
+                    items={items}
+                    threshold={80}
+                    rowHeight={28}
+                    mode="list"
+                    gap={0}
+                    emptyState={<div className="px-2 py-4 text-[11px] text-gray-600 text-center">Empty</div>}
+                    renderItem={(entity) => {
+                      const isDir = entity.type === 'directory';
+                      const childPath = joinPanePath(colPath, entity as { name: string; path?: string });
+                      const isSelected = selectedPath === childPath || selectedPath.startsWith(`${childPath}/`);
+                      const displayName = getDisplayName(entity, config as any, colPath);
+                      return (
+                        <button
+                          key={String(entity.id)}
+                          type="button"
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-left text-[12px] hover:bg-white/[0.06] ${
+                            isSelected ? 'bg-[#094771]/40 text-[#cce4f7]' : 'text-gray-300'
+                          }`}
+                          onClick={() => {
+                            if (isDir) onNavigate(childPath);
+                            else onOpen(entity, colPath);
+                          }}
+                          onDoubleClick={() => {
+                            if (isDir) onNavigate(childPath);
+                            else onOpen(entity, colPath);
+                          }}
+                        >
+                          <ThumbnailIcon entity={entity} isDir={isDir} path={childPath} size={16} />
+                          <span className="flex-1 truncate">{displayName}</span>
+                          {isDir && <LauncherIcon id="chevron_right" size={12} className="shrink-0 opacity-50" />}
+                        </button>
+                      );
+                    }}
+                  />
                 )}
               </div>
             </div>

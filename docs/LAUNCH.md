@@ -112,12 +112,25 @@ Upload to your release channel:
 - `BNDZ-Setup-1.0.0.exe` (primary)
 - `BNDZ-win-x64-portable.zip` (optional, unsigned portable)
 
-Generate customer license serials (must use the same `BNDZ_LICENSE_SECRET` as the retail build):
+Generate customer license serials (must use the same `BNDZ_LICENSE_SECRET` as the retail build and Cloudflare Worker `LICENSE_HMAC_SECRET`).
+`scripts/build-release.ps1` **fails** Release packaging if secrets are missing — it embeds:
+
+- `BNDZ_LICENSE_SECRET` → `LicenseSecretEmbedded.Release.cs` (gitignored)
+- `BNDZ_TOKEN_HMAC_SECRET` → `LicenseTokenSecretEmbedded.Release.cs` (gitignored; must match Worker `TOKEN_HMAC_SECRET`)
+
+Activation is **online** (Cloudflare Worker + D1): one Windows PC per serial. Deactivate frees the seat. See `services/bndz-license-api/README.md`.
 
 ```powershell
 $env:BNDZ_LICENSE_SECRET = "your-retail-secret-here"
+$env:BNDZ_TOKEN_HMAC_SECRET = "your-token-hmac-secret-here"
 npm run license:generate
 # or: .\scripts\generate-license.ps1 -Count 25
+```
+
+Optional migration of older keys minted under a previous secret:
+
+```powershell
+$env:BNDZ_LICENSE_SECRET_LEGACY = "previous-secret"
 ```
 
 Include in release notes:
@@ -125,7 +138,7 @@ Include in release notes:
 - .NET 8 runtime bundled in the installer (self-contained publish)
 - WebView2 installed automatically by the setup package
 - Windows 10/11 x64
-- 14-day trial; serial activation required after trial
+- 14-day trial; online serial activation required after trial (1 PC per serial)
 - EULA shown during setup; Privacy + third-party licenses in Help → About
 
 ### Auto-update manifest (optional)

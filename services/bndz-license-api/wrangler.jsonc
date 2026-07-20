@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bndz-license-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  // Secrets via `wrangler secret put`: LICENSE_HMAC_SECRET, TOKEN_HMAC_SECRET, ADMIN_API_KEY
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bndz-licenses",
+      "database_id": "946a1d71-bf63-4909-b0c6-1df9e8e6365b",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

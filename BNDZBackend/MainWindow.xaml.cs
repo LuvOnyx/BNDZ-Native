@@ -704,6 +704,23 @@ namespace BNDZ
 
                 string? type = typeProp.GetString();
                 if (string.IsNullOrEmpty(type)) return;
+
+                // Native license gate: when trial is expired / unlicensed, only allow license + bootstrap IPC.
+                if (!LicenseService.GetStatusCached().CanUseApp && !LicenseService.IsIpcAllowedWhenUnlicensed(type))
+                {
+                    var blockedId = root.TryGetProperty("id", out var blockedIdEl) ? blockedIdEl.GetString() : null;
+                    var blockedPayload = new
+                    {
+                        error = "License required. Activate BNDZ to continue.",
+                        licenseRequired = true,
+                    };
+                    var blockedResponse = new { type = $"{type}_RESULT", id = blockedId, payload = blockedPayload };
+                    var blockedJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() =>
+                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(blockedResponse, blockedJson)));
+                    return;
+                }
+
                 else if (type == "EXECUTE_BATCH_RENAME")
                 {
                     var payload = root.GetProperty("payload");
@@ -3037,6 +3054,8 @@ namespace BNDZ
                         email = status.Email,
                         name = status.Name,
                         serialMasked = status.SerialMasked,
+                        onlineBound = status.OnlineBound,
+                        licenseMode = status.LicenseMode,
                     };
                     var response = new { type = "LICENSE_STATUS_RESULT", id = idProp, payload };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -3050,20 +3069,26 @@ namespace BNDZ
                     string serial = payload.TryGetProperty("serial", out var sEl) ? sEl.GetString() ?? "" : "";
                     string email = payload.TryGetProperty("email", out var eEl) ? eEl.GetString() ?? "" : "";
                     string name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
-                    var (success, message) = LicenseService.Activate(serial, email, name);
-                    var response = new { type = "ACTIVATE_LICENSE_RESULT", id = idProp, payload = new { success, message } };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    PostToUi(() =>
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    _ = Task.Run(async () =>
+                    {
+                        var (success, message) = await LicenseService.ActivateAsync(serial, email, name).ConfigureAwait(false);
+                        var response = new { type = "ACTIVATE_LICENSE_RESULT", id = idProp, payload = new { success, message } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
                 }
                 else if (type == "DEACTIVATE_LICENSE")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    LicenseService.Deactivate();
-                    var response = new { type = "DEACTIVATE_LICENSE_RESULT", id = idProp, payload = new { success = true } };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    PostToUi(() =>
-                        MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    _ = Task.Run(async () =>
+                    {
+                        await LicenseService.DeactivateAsync().ConfigureAwait(false);
+                        var response = new { type = "DEACTIVATE_LICENSE_RESULT", id = idProp, payload = new { success = true } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
                 }
                 else if (type == "GET_TAGS_CONFIG")
                 {
