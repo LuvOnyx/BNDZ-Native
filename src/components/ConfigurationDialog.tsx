@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import { useAppConfig } from '../data/configContext';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
@@ -17,7 +17,7 @@ import UdcEditorTab from './settings/UdcEditorTab';
 import CeaEditorTab from './settings/CeaEditorTab';
 import { SettingsTabHeader, SettingsSection } from './settings/SettingsPrimitives';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
-import { searchJumpSettings } from '../lib/jumpToSettingIndex';
+import { searchJumpSettings, flashJumpSettingTarget, type JumpSettingEntry } from '../lib/jumpToSettingIndex';
 import { mergeUserCommands } from '../lib/userCommands';
 import BndzIndexManagerPanel from './settings/BndzIndexManagerPanel';
 import CustomColumnsTabContent from './settings/CustomColumnsTabContent';
@@ -28,6 +28,7 @@ import {
   DEFAULT_STANDARD_FIELD_IDS,
   DEFAULT_EXTRA_FIELD_IDS,
 } from '../lib/fileInfoTipFields';
+import { FOLDER_COLOR_ICONS } from '../lib/folderColorIcons';
 import {
   HOVER_BOX_ITEM_TYPES,
   HOVER_BOX_CONTEXTS,
@@ -317,6 +318,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const [showConditionalFormattingDialog, setShowConditionalFormattingDialog] = useState(false);
   const [showJumpDialog, setShowJumpDialog] = useState(false);
   const [jumpQuery, setJumpQuery] = useState('');
+  const [jumpSelectedIndex, setJumpSelectedIndex] = useState(0);
+  const [pendingJump, setPendingJump] = useState<JumpSettingEntry | null>(null);
+  const settingsContentRef = useRef<HTMLDivElement>(null);
   const [runtimeInfo, setRuntimeInfo] = useState<{
     version: string;
     iniPath: string;
@@ -377,13 +381,57 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   ];
 
   const jumpResults = searchJumpSettings(jumpQuery, categories.flatMap(c => c.items));
+  const allCategoryTabs = categories.flatMap(c => c.items);
+  const navJumpTabHits = (() => {
+    const q = navFilter.trim();
+    if (!q) return null;
+    return new Set(searchJumpSettings(q, allCategoryTabs).map(h => h.tab));
+  })();
+
+  useEffect(() => {
+    setJumpSelectedIndex(0);
+  }, [jumpQuery]);
+
+  const applyJumpHit = useCallback((hit: JumpSettingEntry) => {
+    setActiveTab(hit.tab);
+    setPendingJump(hit);
+    setShowJumpDialog(false);
+    setJumpQuery('');
+    setJumpSelectedIndex(0);
+  }, []);
+
+  // Ctrl+F / Cmd+F opens Jump to Setting while Configuration is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'f') return;
+      if (showJumpDialog) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setShowJumpDialog(true);
+      setJumpQuery('');
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [showJumpDialog]);
+
+  // After switching tabs from a jump hit, scroll/flash the matching control.
+  useEffect(() => {
+    if (!pendingJump || activeTab !== pendingJump.tab) return;
+    const hit = pendingJump;
+    const t = window.setTimeout(() => {
+      flashJumpSettingTarget(settingsContentRef.current, hit);
+      setPendingJump(null);
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [pendingJump, activeTab]);
 
   const filteredCategories = categories.map(cat => ({
     ...cat,
     items: cat.items.filter(item => {
       const q = navFilter.trim().toLowerCase();
       if (!q) return true;
-      return item.toLowerCase().includes(q) || cat.name.toLowerCase().includes(q);
+      if (item.toLowerCase().includes(q) || cat.name.toLowerCase().includes(q)) return true;
+      return !!navJumpTabHits?.has(item);
     }),
   })).filter(cat => cat.items.length > 0);
 
@@ -472,7 +520,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
          </div>
 
          {/* Content Area */}
-         <div className="flex-1 min-w-0 min-h-0 bndz-settings-content bg-[#1a1a1e] p-[16px] pl-[20px] overflow-y-auto styled-scrollbar">
+         <div ref={settingsContentRef} className="flex-1 min-w-0 min-h-0 bndz-settings-content bg-[#1a1a1e] p-[16px] pl-[20px] overflow-y-auto styled-scrollbar">
             
             <TabsContent value="Tree and List" className="m-0 border-0 p-0 outline-none">
               <SettingsTabHeader
@@ -487,6 +535,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <Checkbox label={<span>Expand tree nodes on <span className="underline decoration-1 underline-offset-[3px]">b</span>rowse</span>} checked={localConfig.expandTreeNodesOnBrowse ?? false} onChange={e => updateLocalConfig({ expandTreeNodesOnBrowse: e.target.checked })} />
                  <Checkbox label={<span>Expand tree nodes on <span className="underline decoration-1 underline-offset-[3px]">d</span>rag-over</span>} checked={localConfig.expandTreeNodesOnDragOver ?? false} onChange={e => updateLocalConfig({ expandTreeNodesOnDragOver: e.target.checked })} />
                  <Checkbox label={<span>Expand tree nodes on <span className="underline decoration-1 underline-offset-[3px]">s</span>ingle-click</span>} checked={localConfig.expandTreeNodesOnSingleClick ?? false} onChange={e => updateLocalConfig({ expandTreeNodesOnSingleClick: e.target.checked })} />
+                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">L</span>ock tree expansion</span>} checked={localConfig.lockTreeState ?? false} onChange={e => updateLocalConfig({ lockTreeState: e.target.checked })} />
+                 <p className="text-[10px] text-[#888] -mt-1 mb-1 ml-[22px]">When locked, selecting a folder does not auto-expand its children. Use the chevron to expand manually.</p>
                  <Checkbox label={<span>Chec<span className="underline decoration-1 underline-offset-[3px]">k</span> existence of subfolders in tree</span>} checked={localConfig.checkExistenceOfSubfoldersInTree ?? false} onChange={e => updateLocalConfig({ checkExistenceOfSubfoldersInTree: e.target.checked })} />
                  <div className="ml-[20px]">
                     <Checkbox label={<span>In network locations as <span className="underline decoration-1 underline-offset-[3px]">w</span>ell</span>} checked={localConfig.inNetworkLocationsAsWell ?? false} onChange={e => updateLocalConfig({ inNetworkLocationsAsWell: e.target.checked })} disabled={!localConfig.checkExistenceOfSubfoldersInTree} />
@@ -503,7 +553,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        if (!order.includes('miniTree')) {
                          const treeIdx = order.indexOf('tree');
                          patch.sidebarOrder = treeIdx >= 0
-                           ? [...order.slice(0, treeIdx), 'miniTree', ...order.slice(treeIdx)]
+                           ? [...order.slice(0, treeIdx + 1), 'miniTree', ...order.slice(treeIdx + 1)]
                            : [...order, 'miniTree'];
                        }
                      }
@@ -918,7 +968,29 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   </div>
                   
                   <Checkbox label={<span>Minimize to tray</span>} checked={localConfig.minimizeToTray ?? false} onChange={e => updateLocalConfig({ minimizeToTray: e.target.checked })} />
-                  <Checkbox label={<span>Minimize to tray on <span className="underline decoration-1 underline-offset-[3px]">X</span> close</span>} checked={localConfig.minimizeToTrayOnXClose ?? false} onChange={e => updateLocalConfig({ minimizeToTrayOnXClose: e.target.checked })} />
+                  <div className="flex items-center gap-2 text-[12px] text-[#ccc]">
+                    <span className="shrink-0">When clicking <span className="underline decoration-1 underline-offset-[3px]">X</span> close</span>
+                    <select
+                      className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm outline-none min-w-[160px]"
+                      value={
+                        localConfig.xCloseAction === 'tray' || localConfig.xCloseAction === 'quit' || localConfig.xCloseAction === 'ask'
+                          ? localConfig.xCloseAction
+                          : (localConfig.minimizeToTrayOnXClose ? 'tray' : 'ask')
+                      }
+                      onChange={e => {
+                        const v = e.target.value as 'ask' | 'tray' | 'quit';
+                        updateLocalConfig({
+                          xCloseAction: v,
+                          minimizeToTrayOnXClose: v === 'tray',
+                          ...(v === 'tray' ? { minimizeToTray: true } : {}),
+                        });
+                      }}
+                    >
+                      <option value="ask">Ask me</option>
+                      <option value="tray">Minimize to tray</option>
+                      <option value="quit">Quit completely</option>
+                    </select>
+                  </div>
 
                   <div className="h-2"></div>
                   <Checkbox label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">s</span>plash screen while loading</span>} checked={localConfig.showSplashScreenWhileLoading ?? false} onChange={e => updateLocalConfig({ showSplashScreenWhileLoading: e.target.checked })} />
@@ -1395,7 +1467,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Undo & Action Log</h1>
               
               <div className="ml-2 mb-4 space-y-[6px]">
-                  <Checkbox label={<span>Log <span className="underline decoration-1 underline-offset-[3px]">a</span>ctions and enable undo/redo</span>} checked={localConfig.logActionsAndEnableUndoRedo ?? true} onChange={e => updateLocalConfig({ logActionsAndEnableUndoRedo: e.target.checked })} />
+                  <Checkbox label={<span>Show action <span className="underline decoration-1 underline-offset-[3px]">h</span>istory (Edit → History &amp; Action Log panel)</span>} checked={localConfig.logActionsAndEnableUndoRedo ?? true} onChange={e => updateLocalConfig({ logActionsAndEnableUndoRedo: e.target.checked })} />
+                  <p className="text-[11px] text-gray-500 leading-relaxed pl-0.5 -mt-1 mb-1">
+                    Ctrl+Z / Ctrl+Y always undo and redo. When enabled, Edit → History opens a modal of past actions, and the Action Log panel lists them too.
+                  </p>
                   <Checkbox label={<span>Remembe<span className="underline decoration-1 underline-offset-[3px]">r</span> the logged actions between sessions</span>} checked={localConfig.rememberTheLoggedActionsBetweenSessions ?? false} onChange={e => updateLocalConfig({ rememberTheLoggedActionsBetweenSessions: e.target.checked })} />
                   <div className="ml-[20px] space-y-[6px]">
                      <Checkbox label={<span>Even on exit wit<span className="underline decoration-1 underline-offset-[3px]">h</span>out saving</span>} checked={localConfig.evenOnExitWithoutSaving ?? false} onChange={e => updateLocalConfig({ evenOnExitWithoutSaving: e.target.checked })} disabled={!localConfig.rememberTheLoggedActionsBetweenSessions} />
@@ -1404,12 +1479,17 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               
               <div className="ml-2 mb-4 space-y-[6px]">
                  <div className="flex items-center gap-2">
-                    <input type="number" 
-                       value={localConfig.allowedNumberOfEntriesInTheActionLog ?? 256} 
-                       onChange={(e) => updateLocalConfig({allowedNumberOfEntriesInTheActionLog: parseInt(e.target.value) || 256})} 
+                    <input type="number"
+                       min={10}
+                       max={4096}
+                       value={localConfig.allowedNumberOfEntriesInTheActionLog ?? 100}
+                       onChange={(e) => {
+                         const n = parseInt(e.target.value, 10);
+                         updateLocalConfig({ allowedNumberOfEntriesInTheActionLog: Number.isFinite(n) ? Math.min(4096, Math.max(10, n)) : 100 });
+                       }}
                        className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none"
                     />
-                    <span className="text-[12px] text-[#e0e0e0]">Allowed n<span className="underline decoration-1 underline-offset-[3px]">u</span>mber of entries in the action log (maximum is 256)</span>
+                    <span className="text-[12px] text-[#e0e0e0]">Entries shown in History / Action Log (default 100, max 4096)</span>
                  </div>
                  <div className="flex items-center gap-2">
                     <input type="number" 
@@ -1626,6 +1706,48 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  {shellStatus && (
                    <p className="text-[11px] ml-[22px] mt-2 text-[#99c9f0]">{shellStatus}</p>
                  )}
+              </div>
+
+              <SectionHeader title="Administrator privileges" />
+              <div className="ml-[8px] mb-8 space-y-[10px] mt-2">
+                 <div>
+                    <Checkbox
+                      label={<span>Always run BNDZ as <span className="underline decoration-1 underline-offset-[3px]">a</span>dministrator</span>}
+                      checked={localConfig.alwaysRunElevated ?? false}
+                      onChange={async e => {
+                        const enabled = e.target.checked;
+                        if (!enabled) {
+                          updateLocalConfig({ alwaysRunElevated: false, alwaysRunElevatedConfirmed: false });
+                          return;
+                        }
+                        try {
+                          const { IPC } = await import('../lib/ipcBridge');
+                          const elevated = await IPC.isElevated();
+                          if (elevated) {
+                            updateLocalConfig({ alwaysRunElevated: true, alwaysRunElevatedConfirmed: true });
+                            setShellStatus('Always-run-as-administrator is enabled for future launches (UAC each time).');
+                            return;
+                          }
+                          const { requestNativeConfirm } = await import('../lib/nativeDialog');
+                          const ok = await requestNativeConfirm({
+                            title: 'Run BNDZ as administrator?',
+                            message: 'To enable Always run as administrator, BNDZ must restart with Windows administrator approval.\n\nWindows will show Allow / Cancel. After you Allow, this setting is saved and future launches will also request elevation.',
+                            type: 'warning',
+                            confirmLabel: 'Restart as administrator',
+                            cancelLabel: 'Cancel',
+                          });
+                          if (!ok) return;
+                          // Persist intent only after elevated confirm via --enable-always-elevated
+                          await IPC.relaunchAsAdmin('--enable-always-elevated --elevated');
+                        } catch (err: any) {
+                          setShellStatus(err?.message || 'Could not request administrator elevation.');
+                        }
+                      }}
+                    />
+                    <p className="text-[12px] text-[#888] mt-[2px] ml-[22px]">
+                      When enabled, Windows asks Allow / Cancel on every launch. Drag-and-drop from unelevated Explorer may be restricted while elevated.
+                    </p>
+                 </div>
               </div>
 
               <SectionHeader title="Drag and Drop" />
@@ -2573,7 +2695,16 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                              newArr[i].c = e.target.checked;
                              updateLocalConfig({ colorFilters: newArr });
                            }} className="accent-[#555] w-[13px] h-[13px]" />
-                          <span className={`${row.style}`}>{row.t}</span>
+                          <span className={`${row.style} flex-1 min-w-0 truncate`}>{row.t}</span>
+                          {row.folderIcon && (
+                            <img
+                              src={FOLDER_COLOR_ICONS.find(f => f.id === row.folderIcon)?.webUrl}
+                              alt=""
+                              className="w-4 h-4 object-contain shrink-0"
+                              title={FOLDER_COLOR_ICONS.find(f => f.id === row.folderIcon)?.label}
+                              draggable={false}
+                            />
+                          )}
                        </div>
                     ))}
                  </div>
@@ -2596,6 +2727,29 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        <div className="flex gap-1 w-full">
                           <ActionBtn label="Back..." className="flex-1 py-[4px]" onClick={() => void setColorFilterPart('bg')} disabled={!colorFilters.length} />
                           <ActionBtn label="Clear" className="px-2 py-[4px]" onClick={() => void setColorFilterPart('bg', true)} disabled={!colorFilters.length} />
+                       </div>
+                       <div className="pt-1">
+                         <span className="text-[11px] text-[#aaa]">Folder icon</span>
+                         <select
+                           className="mt-1 w-full bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[11px] px-1 py-[2px] rounded-sm outline-none"
+                           disabled={!colorFilters.length}
+                           value={colorFilters[selectedColorFilterIdx]?.folderIcon || ''}
+                           onChange={e => {
+                             const next = [...localConfig.colorFilters];
+                             const row = next[selectedColorFilterIdx];
+                             if (!row) return;
+                             next[selectedColorFilterIdx] = {
+                               ...row,
+                               folderIcon: e.target.value || undefined,
+                             };
+                             updateLocalConfig({ colorFilters: next });
+                           }}
+                         >
+                           <option value="">None</option>
+                           {FOLDER_COLOR_ICONS.map(f => (
+                             <option key={f.id} value={f.id}>{f.label}</option>
+                           ))}
+                         </select>
                        </div>
                     </div>
                  </div>
@@ -2751,13 +2905,13 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
       <NativeDialogShell
         open={showJumpDialog}
         title="Jump to Setting"
-        subtitle="Search tabs and common options"
+        subtitle="Type what the setting does — fuzzy match across names, tabs, and descriptions"
         variant="sheet"
         size="sm"
         zIndexClass="z-[100]"
-        onClose={() => { setShowJumpDialog(false); setJumpQuery(''); }}
+        onClose={() => { setShowJumpDialog(false); setJumpQuery(''); setJumpSelectedIndex(0); }}
         showCloseButton
-        footerButtons={[{ label: 'Cancel', onClick: () => { setShowJumpDialog(false); setJumpQuery(''); } }]}
+        footerButtons={[{ label: 'Cancel', onClick: () => { setShowJumpDialog(false); setJumpQuery(''); setJumpSelectedIndex(0); } }]}
         bodyClassName="!py-3"
       >
         <input
@@ -2765,33 +2919,52 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
           value={jumpQuery}
           onChange={e => setJumpQuery(e.target.value)}
           className="bndz-native-input w-full mb-3"
-          placeholder="e.g. tooltip, theme, dual pane..."
+          placeholder="e.g. ask before delete, dark theme, dual pane, tooltips…"
           onKeyDown={(e) => {
-            if (e.key === 'Escape') { setShowJumpDialog(false); setJumpQuery(''); }
-            if (e.key === 'Enter' && jumpResults[0]) {
-              setActiveTab(jumpResults[0].tab);
+            if (e.key === 'Escape') {
               setShowJumpDialog(false);
               setJumpQuery('');
+              setJumpSelectedIndex(0);
+              return;
+            }
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setJumpSelectedIndex(i => Math.min(i + 1, Math.max(0, jumpResults.length - 1)));
+              return;
+            }
+            if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setJumpSelectedIndex(i => Math.max(i - 1, 0));
+              return;
+            }
+            if (e.key === 'Enter' && jumpResults[jumpSelectedIndex]) {
+              e.preventDefault();
+              applyJumpHit(jumpResults[jumpSelectedIndex]);
             }
           }}
         />
-        <div className="max-h-[220px] overflow-y-auto bndz-scrollbar space-y-1">
+        <div className="max-h-[280px] overflow-y-auto bndz-scrollbar space-y-1">
+          {!jumpQuery.trim() && (
+            <div className="text-[11px] bndz-native-dialog-muted px-2 py-3 text-center">
+              Start typing — matches labels, synonyms, and what the option controls
+            </div>
+          )}
           {jumpQuery.trim() && jumpResults.length === 0 && (
             <div className="text-[11px] bndz-native-dialog-muted px-2 py-3 text-center">No matching settings</div>
           )}
-          {jumpResults.map(hit => (
+          {jumpResults.map((hit, idx) => (
             <button
               key={`${hit.tab}::${hit.label}`}
               type="button"
-              className="bndz-command-palette-item w-full text-left px-3 py-2"
-              onClick={() => {
-                setActiveTab(hit.tab);
-                setShowJumpDialog(false);
-                setJumpQuery('');
-              }}
+              className={`bndz-command-palette-item w-full text-left px-3 py-2 ${idx === jumpSelectedIndex ? 'bndz-command-palette-item--active' : ''}`}
+              onMouseEnter={() => setJumpSelectedIndex(idx)}
+              onClick={() => applyJumpHit(hit)}
             >
               <div className="text-[12px]">{hit.label}</div>
-              <div className="text-[10px] bndz-native-dialog-muted">{hit.tab}</div>
+              {hit.description && (
+                <div className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">{hit.description}</div>
+              )}
+              <div className="text-[10px] bndz-native-dialog-muted mt-0.5">{hit.tab}</div>
             </button>
           ))}
         </div>

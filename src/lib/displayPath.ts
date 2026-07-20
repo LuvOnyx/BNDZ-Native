@@ -2,7 +2,7 @@ import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } 
 import { getPaneTabLabel } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
 import { BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel } from './bndzVirtualViews';
-import { SPECIAL_FOLDER_PANE_PATHS } from './shellPaths';
+import { ENV_PATH_ALIASES, SPECIAL_FOLDER_PANE_PATHS } from './shellPaths';
 
 /** `C:` from `/C:` or `//C:` */
 export function formatDriveLetter(pathOrName: string): string {
@@ -13,6 +13,13 @@ export function formatDriveLetter(pathOrName: string): string {
   if (/^[A-Za-z]:$/.test(p)) return p;
   if (/^[A-Za-z]:\/$/.test(p)) return p.slice(0, 2);
   return p;
+}
+
+/** Drive root label for lists / size map — always `C:\`, never `/C:`. */
+export function formatDriveRootLabel(pathOrName: string): string {
+  const letter = formatDriveLetter(pathOrName);
+  if (/^[A-Za-z]:$/.test(letter)) return `${letter}\\`;
+  return formatPropertiesPath(pathOrName) || letter;
 }
 
 /** Windows-style path for properties / copy — never `\\C:` for drive roots */
@@ -35,6 +42,11 @@ export function formatAddressBarPath(panePath: string): string {
   if (isRecycleBinPath(p)) return 'Recycle Bin';
   if (p === '//' || p === '\\\\') return 'Network';
   if (p === '/shell:PortableDevices' || p.toLowerCase() === '/shell:portabledevices') return 'Portable Devices';
+  // Prefer friendly labels if a known-folder shell path is still open.
+  if (/^\/shell:/i.test(p)) {
+    const label = getPaneTabLabel(p);
+    if (label && label !== p && !/^shell:/i.test(label)) return label;
+  }
   const win = toWindowsPath(p);
   return win.replace(/^\\+([A-Za-z]:)/, '$1');
 }
@@ -67,7 +79,7 @@ export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<st
 
   if (/^\/[A-Za-z]:/.test(p)) {
     const drive = p.slice(1, 3);
-    segments.push({ label: drive, path: `/${drive}` });
+    segments.push({ label: `${drive}\\`, path: `/${drive}` });
     const rest = p.slice(3).replace(/^\//, '');
     if (rest) {
       const parts = rest.split('/').filter(Boolean);
@@ -125,9 +137,35 @@ export function getEntityDisplayName(
   return name;
 }
 
+/** Rewrite bare aliases (`appdata`, `temp\foo`) to `%VAR%` forms before host expansion. */
+export function rewriteEnvPathAliases(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return trimmed;
+  const lower = trimmed.toLowerCase();
+  const exact = ENV_PATH_ALIASES[lower];
+  if (exact) return exact;
+
+  for (const [alias, env] of Object.entries(ENV_PATH_ALIASES)) {
+    const slash = alias + '/';
+    const back = alias + '\\';
+    if (lower.startsWith(slash) || lower.startsWith(back)) {
+      return env + trimmed.slice(alias.length);
+    }
+  }
+  return trimmed;
+}
+
+export function pathNeedsEnvironmentExpand(input: string): boolean {
+  const raw = rewriteEnvPathAliases(input).trim();
+  if (!raw) return false;
+  if (/%[A-Za-z][A-Za-z0-9_()]*%/i.test(raw)) return true;
+  if (/^shell:/i.test(raw) || /^\/shell:/i.test(raw)) return true;
+  return false;
+}
+
 /** Parse user-typed or pasted Windows path into a pane path for navigation. */
 export function parseUserPathToPane(input: string): string | null {
-  const raw = input.trim();
+  const raw = rewriteEnvPathAliases(input).trim();
   if (!raw) return '/';
   if (/^this\s*pc$/i.test(raw)) return '/';
   if (/^recycle\s*bin$/i.test(raw)) return RECYCLE_BIN_PATH;
@@ -142,6 +180,10 @@ export function parseUserPathToPane(input: string): string | null {
   if (catalogPath) return catalogPath;
 
   let normalized = raw.replace(/\//g, '\\');
+  // Leave %VAR% for async expand — caller should expand first when needed.
+  if (/%[A-Za-z][A-Za-z0-9_()]*%/i.test(normalized)) {
+    return null;
+  }
   if (/^[A-Za-z]:\\?/.test(normalized)) {
     const drive = normalized.slice(0, 2).toUpperCase();
     const rest = normalized.slice(2).replace(/^\\+/, '').replace(/\\/g, '/');
@@ -159,6 +201,37 @@ export function parseUserPathToPane(input: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve a typed address-bar path: expand %AppData% / shell: / aliases, then parse to pane path.
+ * `expand` should call the native host (`IPC.expandEnvironmentPath`).
+ */
+export async function resolveUserPathToPane(
+  input: string,
+  expand: (path: string) => Promise<string>,
+): Promise<string | null> {
+  let raw = rewriteEnvPathAliases(input).trim();
+  if (!raw) return '/';
+  if (pathNeedsEnvironmentExpand(raw)) {
+    try {
+      raw = await expand(raw);
+    } catch {
+      /* fall through and try sync parse */
+    }
+  }
+  let parsed = parseUserPathToPane(raw);
+  // Friendly names like "Desktop" parse to /shell:Desktop — resolve to the real FS path.
+  if (parsed && /^\/shell:/i.test(parsed)) {
+    try {
+      const expanded = await expand(parsed);
+      const reparsed = parseUserPathToPane(expanded);
+      if (reparsed && !/^\/shell:/i.test(reparsed)) return reparsed;
+    } catch {
+      /* keep shell pane path */
+    }
+  }
+  return parsed;
 }
 
 /** Friendly path for destination picker UI (`C:\Users\...` or `This PC`). */

@@ -205,7 +205,7 @@ export default function BottomPluginPanel(props: any & {
         <div className="bndz-bottom-content flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
           <span>No plugins installed.</span>
           {onOpenPluginStore && (
-            <button onClick={onOpenPluginStore} className="flex items-center gap-2 px-4 py-2 bg-[#0067c0] hover:bg-[#0078d4] text-white text-sm font-semibold transition-colors">
+            <button type="button" onClick={onOpenPluginStore} className="bndz-hub-btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold">
               <Icons8Icon id="extension_hub" size={12} /> Open Extension Hub
             </button>
           )}
@@ -218,7 +218,7 @@ export default function BottomPluginPanel(props: any & {
     <div ref={panelRef} className="bndz-bottom-panel flex flex-col h-full min-h-0" tabIndex={-1}>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="bndz-bottom-tabstrip flex border-b border-[#333] shrink-0 overflow-x-auto scrollbar-hidden items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
+          <div className="bndz-bottom-tabstrip flex border-b border-white/[0.06] shrink-0 overflow-x-auto scrollbar-hidden items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
             {primaryTabs.map((plugin: any) => (
               <SortableTab
                 key={plugin.id}
@@ -240,14 +240,14 @@ export default function BottomPluginPanel(props: any & {
                   More <Icons8Icon id="chevron_down" size={12} className={overflowOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
                 </button>
                 {overflowOpen && (
-                  <div className="absolute right-0 top-full z-50 min-w-[200px] py-1 bg-[#1a1a1f] border border-[#333] shadow-xl max-h-[240px] overflow-y-auto bndz-scrollbar rounded-b-md">
+                  <div className="absolute right-0 top-full z-50 min-w-[200px] py-1 bg-[#16161c] border border-white/[0.08] shadow-xl max-h-[240px] overflow-y-auto bndz-scrollbar rounded-b-md">
                     {overflowTabs.map((plugin: any) => (
                       <button
                         key={plugin.id}
                         type="button"
                         onClick={() => handleTabClick(plugin.id)}
-                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-[#094771]/40 ${
-                          activeTab === plugin.id ? 'text-[#99c9f0] font-medium' : 'text-gray-300'
+                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-white/[0.05] ${
+                          activeTab === plugin.id ? 'text-[#99c9f0] font-medium bg-[#094771]/25' : 'text-gray-300'
                         }`}
                       >
                         <Icons8Icon id={plugin.icon || 'dropstack'} size={12} /> {plugin.name}

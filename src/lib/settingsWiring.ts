@@ -143,7 +143,7 @@ export function buildFileOpsRuntime(config: AppConfig) {
     logActions: readSettingBool(config, 'logActionsAndEnableUndoRedo', true),
     singleStepUndo,
     promptUndoRedo,
-    maxActionLogEntries: readSettingNumber(config, 'allowedNumberOfEntriesInTheActionLog', 256),
+    maxActionLogEntries: readSettingNumber(config, 'allowedNumberOfEntriesInTheActionLog', 100),
     rememberActionLog: readSettingBool(config, 'rememberTheLoggedActionsBetweenSessions', false),
     persistActionLogOnExit: readSettingBool(config, 'evenOnExitWithoutSaving', false),
     showTransferPanel: readSettingBool(config, 'showTransferQueuePanel', true),

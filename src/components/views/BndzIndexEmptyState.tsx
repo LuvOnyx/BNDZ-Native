@@ -49,15 +49,19 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-gray-500 gap-3 px-6 text-center">
-      <Icons8Icon id="database_ui" size={32} className="opacity-40 text-[#7eb8e8]" />
-      <span className="text-[13px] text-gray-300 font-medium">{title}</span>
-      {hint && <span className="text-[11px] text-gray-500 max-w-md">{hint}</span>}
+    <div className="bndz-smart-empty flex flex-col items-center justify-center h-full min-h-[240px] gap-3 px-8 text-center">
+      <div className="bndz-smart-empty-mark" aria-hidden>
+        <Icons8Icon id="database_ui" size={22} />
+      </div>
+      <div className="space-y-1.5 max-w-md">
+        <h3 className="text-[13px] font-semibold text-[#e4e6ea]">{title}</h3>
+        {hint && <p className="text-[11px] text-[#8b919a] leading-relaxed">{hint}</p>}
+      </div>
       <button
         type="button"
         onClick={() => void runIndex()}
         disabled={indexing}
-        className="mt-1 flex items-center gap-2 px-4 py-2 text-[12px] bg-[#094771] hover:bg-[#0a5a8c] text-white disabled:opacity-50"
+        className="bndz-smart-empty-cta mt-1 flex items-center gap-2 px-4 py-2 text-[12px] font-medium text-white disabled:opacity-50"
       >
         {indexing ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="database_ui" size={14} />}
         Build search index
@@ -66,14 +70,14 @@ export default function BndzIndexEmptyState({ title, hint, onIndexed }: Props) {
         <div className="text-[10px] text-[#99c9f0]/90 max-w-sm">
           {filesIndexed > 0 && <span>{filesIndexed.toLocaleString()} indexed</span>}
           {currentFile && (
-            <span className="block text-gray-500 truncate max-w-xs">
+            <span className="block text-[#6b7280] truncate max-w-xs mt-0.5">
               {toWindowsPath(currentFile).split(/[/\\]/).pop()}
             </span>
           )}
         </div>
       )}
       {message && !indexing && <span className="text-[10px] text-[#99c9f0]/90 max-w-sm">{message}</span>}
-      <span className="text-[10px] text-gray-600">Or right-click any folder → Index folder for search</span>
+      <span className="text-[10px] text-[#555a62]">Or right-click any folder → Index folder for search</span>
     </div>
   );
 }

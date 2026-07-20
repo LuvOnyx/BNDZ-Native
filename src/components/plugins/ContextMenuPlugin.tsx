@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAppConfig } from '../../data/configContext';
-import { Icons8Icon } from '../Icons8Icon';
+import { Icons8Icon, DragHandleGlyph } from '../Icons8Icon';
 import { pushToast } from '../ToastHost';
 import { IPC } from '../../lib/ipcBridge';
+import { toWindowsPath } from '../../lib/pathUtils';
+import { buildShellExecuteOptions } from '../../lib/shellExecuteRuntime';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -71,19 +73,41 @@ const APP_TEMPLATES: Array<{ label: string; desc: string; action: Omit<MenuActio
     { label: 'Copy Path', desc: 'Copies path to clipboard', action: { name: 'Copy Path', command: 'copyPath' } },
 ];
 
+const KNOWN_APP_VERBS = new Set(['copyPath', 'openTerminal', 'openExplorer']);
+
 function targetLabel(mode: TargetMode = 'all'): string {
     if (mode === 'directory') return 'Folders only';
     if (mode === 'background') return 'Folder background';
     return 'Files & folders';
 }
 
-export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: string[]; focusedPath?: string }) {
+function parentDir(winPath: string): string {
+    if (!winPath) return '';
+    const trimmed = winPath.replace(/\\+$/, '');
+    const idx = trimmed.lastIndexOf('\\');
+    if (idx <= 0) return trimmed;
+    return trimmed.slice(0, idx);
+}
+
+function expandShellTokens(cmd: string, paths: string[]): string {
+    const first = paths[0] || '';
+    const parent = parentDir(first);
+    const multi = paths.map(p => (/\s/.test(p) ? `"${p}"` : p)).join(' ');
+    return cmd
+        .replace(/%1/g, first)
+        .replace(/%V/g, multi)
+        .replace(/%L/g, parent)
+        .replace(/%W/g, parent);
+}
+
+export default function ContextMenuPlugin({ selectedItems, focusedPath }: { selectedItems?: string[]; focusedPath?: string }) {
     const { config, updateConfig } = useAppConfig();
     const [tab, setTab] = useState<ShellTab>('global');
     const [appActions, setAppActions] = useState<MenuAction[]>(config.customContextMenuActions || []);
     const [globalActions, setGlobalActions] = useState<MenuAction[]>([]);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [showHelp, setShowHelp] = useState(false);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
 
     useEffect(() => {
         setGlobalActions((config.globalContextMenuActions as MenuAction[]) ?? []);
@@ -92,6 +116,91 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
     useEffect(() => {
         setAppActions((config.customContextMenuActions as MenuAction[]) ?? []);
     }, [config.customContextMenuActions]);
+
+    const resolveTestPaths = (): string[] => {
+        if (selectedItems?.length) return selectedItems.map(p => toWindowsPath(p)).filter(Boolean);
+        if (focusedPath) {
+            const p = toWindowsPath(focusedPath);
+            return p ? [p] : [];
+        }
+        return [];
+    };
+
+    const persistActions = (mode: ShellTab, next: MenuAction[]) => {
+        if (mode === 'global') {
+            setGlobalActions(next);
+            updateConfig({ globalContextMenuActions: next, injectGlobalContextMenu: true } as Partial<typeof config>);
+        } else {
+            setAppActions(next);
+            updateConfig({ customContextMenuActions: next });
+        }
+    };
+
+    const moveAction = (mode: ShellTab, from: number, to: number) => {
+        const list = mode === 'global' ? globalActions : appActions;
+        if (from === to || from < 0 || to < 0 || to >= list.length) return;
+        const next = [...list];
+        const [item] = next.splice(from, 1);
+        next.splice(to, 0, item);
+        persistActions(mode, next);
+    };
+
+    const previewToast = (command: string, paths: string[]) => {
+        const pathBlock = paths.length ? paths.join('\n') : '(no paths)';
+        pushToast({
+            kind: 'info',
+            title: 'Would run (preview)',
+            message: `${command}\n\nPaths:\n${pathBlock}`,
+        });
+    };
+
+    const testOnSelection = (ac: MenuAction, mode: ShellTab) => {
+        const cmd = (ac.command || '').trim();
+        const paths = resolveTestPaths();
+        if (!cmd) {
+            pushToast({ kind: 'warning', title: 'No command', message: 'Enter a command before testing.' });
+            return;
+        }
+        if (!paths.length) {
+            pushToast({ kind: 'warning', title: 'Nothing selected', message: 'Select files or folders in the list, then try again.' });
+            return;
+        }
+
+        // Special in-app / registry verbs that have no shellExecute equivalent from this panel
+        if (cmd === 'refresh' || cmd === 'bndz-open-path') {
+            previewToast(cmd, paths);
+            return;
+        }
+
+        const shellOpts = buildShellExecuteOptions(config);
+        const workingDir = parentDir(paths[0]) || undefined;
+
+        if (mode === 'app' && KNOWN_APP_VERBS.has(cmd)) {
+            if (!IPC.isNative && cmd !== 'copyPath') {
+                previewToast(cmd, paths);
+                return;
+            }
+            IPC.shellExecute(cmd, paths, undefined, shellOpts);
+            pushToast({
+                kind: 'success',
+                title: 'Ran on selection',
+                message: `${ac.name || cmd} → ${paths.length} path(s)`,
+            });
+            return;
+        }
+
+        const expanded = expandShellTokens(cmd, paths);
+        if (!IPC.isNative) {
+            previewToast(expanded, paths);
+            return;
+        }
+        IPC.shellExecute('runCommand', expanded, workingDir, shellOpts);
+        pushToast({
+            kind: 'success',
+            title: 'Ran on selection',
+            message: `${ac.name || 'Command'} → ${paths.length} path(s)`,
+        });
+    };
 
     const addAppAction = (seed?: Partial<MenuAction>) => {
         const newAction: MenuAction = {
@@ -176,26 +285,62 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
         mode: ShellTab,
         update: React.Dispatch<React.SetStateAction<MenuAction[]>>,
         remove: () => void,
+        total: number,
     ) => {
         const open = expandedId === ac.id;
+        const isDragging = dragIndex === i;
         return (
-            <PluginCard key={ac.id} className="!p-0 overflow-hidden">
-                <button
-                    type="button"
-                    onClick={() => setExpandedId(open ? null : ac.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+            <PluginCard
+                key={ac.id}
+                className={`!p-0 overflow-hidden transition-opacity ${isDragging ? 'opacity-60 ring-1 ring-pink-500/30' : ''}`}
+            >
+                <div
+                    draggable
+                    onDragStart={() => setDragIndex(i)}
+                    onDragOver={e => { e.preventDefault(); }}
+                    onDrop={e => {
+                        e.preventDefault();
+                        if (dragIndex != null) moveAction(mode, dragIndex, i);
+                        setDragIndex(null);
+                    }}
+                    onDragEnd={() => setDragIndex(null)}
+                    className="flex items-stretch"
                 >
-                    <div className="w-8 h-8 rounded-lg bg-pink-600/15 border border-pink-500/25 flex items-center justify-center shrink-0">
-                        <Icons8Icon id={mode === 'global' ? 'go_network' : 'shell_menus'} size={14} />
+                    <div className="flex flex-col items-center justify-center gap-0.5 px-1.5 border-r border-white/[0.06] shrink-0 cursor-grab active:cursor-grabbing opacity-50 hover:opacity-90">
+                        <DragHandleGlyph size={11} className="text-pink-300/80" />
+                        <span className="text-[9px] tabular-nums bndz-panel-muted leading-none">{i + 1}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-white truncate">{ac.name || 'Untitled'}</div>
-                        <div className="text-xs bndz-panel-muted truncate">
-                            {mode === 'global' ? targetLabel(ac.targetMode) : ac.command || 'No command'}
+                    <button
+                        type="button"
+                        onClick={() => setExpandedId(open ? null : ac.id)}
+                        className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-left hover:bg-white/[0.03] transition-colors"
+                    >
+                        <div className="w-8 h-8 rounded-lg bg-pink-600/15 border border-pink-500/25 flex items-center justify-center shrink-0">
+                            <Icons8Icon id={mode === 'global' ? 'go_network' : 'shell_menus'} size={14} />
                         </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-white truncate">{ac.name || 'Untitled'}</div>
+                            <div className="text-xs bndz-panel-muted truncate">
+                                {mode === 'global' ? targetLabel(ac.targetMode) : ac.command || 'No command'}
+                            </div>
+                        </div>
+                        <Icons8Icon id="chevron_right" size={12} className={`transition-transform text-gray-500 ${open ? 'rotate-90' : ''}`} />
+                    </button>
+                    <div className="flex flex-col justify-center gap-0.5 px-1.5 border-l border-white/[0.06] shrink-0">
+                        <PluginToolbarButton
+                            icon="chevron_up"
+                            title="Move up"
+                            disabled={i === 0}
+                            onClick={() => moveAction(mode, i, i - 1)}
+                        />
+                        <PluginToolbarButton
+                            icon="chevron_down"
+                            title="Move down"
+                            disabled={i >= total - 1}
+                            onClick={() => moveAction(mode, i, i + 1)}
+                        />
                     </div>
-                    <Icons8Icon id="chevron_right" size={12} className={`transition-transform text-gray-500 ${open ? 'rotate-90' : ''}`} />
-                </button>
+                </div>
 
                 {open && (
                     <div className="px-4 pb-4 pt-1 border-t border-white/[0.06] space-y-3">
@@ -265,7 +410,10 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                             </div>
                         )}
 
-                        <div className="flex justify-end pt-1">
+                        <div className="flex flex-wrap justify-end gap-2 pt-1">
+                            <PluginToolbarButton icon="play_ui" onClick={() => testOnSelection(ac, mode)}>
+                                Test on selection
+                            </PluginToolbarButton>
                             <PluginToolbarButton icon="delete" onClick={remove}>Remove</PluginToolbarButton>
                         </div>
                     </div>
@@ -278,7 +426,9 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
     const actions = tab === 'global' ? globalActions : appActions;
     const selectionHint = selectedItems?.length
         ? `${selectedItems.length} item(s) selected in file list — use these when testing commands.`
-        : 'Select files or folders in the file list to test your menu actions.';
+        : focusedPath
+            ? 'No multi-select — Test on selection will use the focused path.'
+            : 'Select files or folders in the file list to test your menu actions.';
 
     return (
         <PluginPanelShell
@@ -339,7 +489,7 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                     </button>
                     {showHelp && (
                         <p className="text-xs bndz-panel-muted leading-relaxed mt-2 p-2 rounded-md border border-white/[0.06] bg-black/20">
-                            Pick a template, customize the label, then save. Windows menus require <strong className="text-pink-300">Deploy</strong> once.
+                            Pick a template, customize the label, then save. Windows menus require <strong className="text-pink-300">Deploy</strong> once. Drag items or use arrows to reorder. Expand an item and use <strong className="text-pink-300">Test on selection</strong> against the current file list selection.
                         </p>
                     )}
                 </div>
@@ -378,8 +528,16 @@ export default function ContextMenuPlugin({ selectedItems }: { selectedItems?: s
                         ) : (
                             <div className="space-y-2">
                                 {tab === 'global'
-                                    ? globalActions.map((ac, i) => renderActionCard(ac, i, 'global', setGlobalActions, () => setGlobalActions(globalActions.filter((_, idx) => idx !== i))))
-                                    : appActions.map((ac, i) => renderActionCard(ac, i, 'app', setAppActions, () => setAppActions(appActions.filter((_, idx) => idx !== i))))}
+                                    ? globalActions.map((ac, i) => renderActionCard(
+                                        ac, i, 'global', setGlobalActions,
+                                        () => setGlobalActions(globalActions.filter((_, idx) => idx !== i)),
+                                        globalActions.length,
+                                    ))
+                                    : appActions.map((ac, i) => renderActionCard(
+                                        ac, i, 'app', setAppActions,
+                                        () => setAppActions(appActions.filter((_, idx) => idx !== i)),
+                                        appActions.length,
+                                    ))}
                             </div>
                         )}
                     </section>

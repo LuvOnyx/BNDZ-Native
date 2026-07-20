@@ -144,7 +144,7 @@ export default function BndzMediaView({
     <div className="flex flex-col gap-4 p-2">
       {groups.map(group => (
         <section key={group.label}>
-          <div className="sticky top-0 z-10 px-1 py-2 text-[13px] font-semibold text-gray-200 bg-[#1e1e1e]/95  border-b border-white/[0.06]">
+          <div className="sticky top-0 z-10 px-2 py-1.5 text-[11px] font-semibold tracking-wide text-[#c5cdd6] bndz-smart-section-header">
             {group.label}
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(108px,1fr))] gap-0.5 mt-1">

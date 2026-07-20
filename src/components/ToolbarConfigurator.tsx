@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
+import { TagGlyph } from './TagGlyph';
 import { Icons8Icon } from './Icons8Icon';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
 
@@ -153,6 +154,9 @@ const ListItemIcon = ({ item }: { item: ToolbarItemDef }) => {
   if (item.isStructure) {
     return <div className="w-5 text-center text-[#888] font-mono font-bold text-xs">{(item.id === 'separator' ? '|' : item.id === 'spacer' ? '< >' : '---')}</div>;
   }
+  if (item.id.startsWith('tag__') || item.category === 'tags') {
+    return <TagGlyph color={item.color || '#FACC15'} size={16} />;
+  }
   const png = launcherIconUrl(item.id);
   if (png) {
     return <img src={png} alt="" className="w-4 h-4 object-contain" draggable={false} />;
@@ -224,7 +228,9 @@ function SortableItem(props: any) {
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const itemDef = AVAILABLE_ITEMS.find(i => i.id === props.itemId) || { label: 'Unknown', isStructure: false, color: '#888' } as any;
+  const itemDef = resolveToolbarItem(props.itemId, props.tags)
+    || AVAILABLE_ITEMS.find(i => i.id === props.itemId)
+    || { label: 'Unknown', isStructure: false, color: '#888', id: props.itemId } as any;
 
   if (itemDef.isStructure) {
       return (
@@ -234,11 +240,14 @@ function SortableItem(props: any) {
       );
   }
 
-  const png = launcherIconUrl(itemDef.id);
+  const isTag = String(props.itemId || '').startsWith('tag__') || itemDef.category === 'tags';
+  const png = isTag ? undefined : launcherIconUrl(itemDef.id);
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="p-1.5 hover:bg-[#444] rounded cursor-move group relative flex items-center justify-center h-8 w-8 mx-0.5">
-       {png ? (
+       {isTag ? (
+         <TagGlyph color={itemDef.color || '#FACC15'} size={18} />
+       ) : png ? (
          <img src={png} alt="" className="w-[18px] h-[18px] object-contain" draggable={false} />
        ) : (
          <Icons8Icon id="tag_manager" size={18} />
@@ -393,7 +402,7 @@ export default function ToolbarConfigurator({
                                     if (item.id === 'new_row') {
                                       return <div key={item.uid} className="w-full h-0 mb-2 basis-full" />;
                                     }
-                                    return <SortableItem key={item.uid} id={item.uid} itemId={item.id} />;
+                                    return <SortableItem key={item.uid} id={item.uid} itemId={item.id} tags={availableTags} />;
                                   })}
                                 </SortableContext>
                                 {currentLayout.length === 0 && (

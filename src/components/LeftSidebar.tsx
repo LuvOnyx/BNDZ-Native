@@ -18,7 +18,7 @@ const REVERSE_SECTION_MAP: Record<string, string> = {
     tree: 'tree',
 };
 
-const DEFAULT_SECTION_ORDER = ['drives', 'quickAccess', 'cloud', 'miniTree', 'tree'];
+const DEFAULT_SECTION_ORDER = ['drives', 'quickAccess', 'cloud', 'tree', 'miniTree'];
 
 function mapSidebarOrder(sidebarOrder?: string[], includeMiniTree?: boolean) {
     const mapped = (sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])
@@ -27,8 +27,9 @@ function mapSidebarOrder(sidebarOrder?: string[], includeMiniTree?: boolean) {
     let order = mapped.length ? mapped : DEFAULT_SECTION_ORDER.filter(k => k !== 'miniTree');
     if (includeMiniTree && !order.includes('miniTree')) {
         const treeIdx = order.indexOf('tree');
+        // Mini Tree sits below Navigation Tree with breathing room for scrollbars.
         order = treeIdx >= 0
-            ? [...order.slice(0, treeIdx), 'miniTree', ...order.slice(treeIdx)]
+            ? [...order.slice(0, treeIdx + 1), 'miniTree', ...order.slice(treeIdx + 1)]
             : [...order, 'miniTree'];
     }
     return order;
@@ -127,7 +128,7 @@ export function LeftSidebar({
 
     const sections = {
         quickAccess: { content: quickAccessContent, label: "Rapid access", icon: 'star_ui', iconColor: "text-emerald-400" },
-        cloud: { content: cloudProvidersContent, label: "Cloud Drives", icon: 'go_network', iconColor: "text-[#7eb8e8]" },
+        cloud: { content: cloudProvidersContent, label: "Cloud Drives", icon: 'cloud_ui', iconColor: "text-[#7eb8e8]" },
         drives: { content: drivesContent, label: "Drives", icon: 'disk_mgmt', iconColor: "text-gray-400" },
         miniTree: { content: miniTreeContent, label: "Mini Tree", icon: 'mini_tree', iconColor: "text-violet-400" },
         tree: { content: treeContent, label: "Navigation Tree", icon: 'shell_menus', iconColor: "text-emerald-500" },
@@ -139,21 +140,35 @@ export function LeftSidebar({
             onClick={onBackgroundClick}
             onContextMenu={e => e.preventDefault()}
         >
-            {order.map(key => {
+            {order.map((key, idx) => {
                 const sec = (sections as any)[key];
                 if (!sec.content) return null;
+                const prevKey = order.slice(0, idx).reverse().find(k => !!(sections as any)[k]?.content);
+                const nextKey = order.slice(idx + 1).find(k => !!(sections as any)[k]?.content);
+                const gapBeforeTreePair =
+                    (key === 'miniTree' && prevKey === 'tree')
+                    || (key === 'tree' && prevKey === 'miniTree');
+                const gapAfterTreePair =
+                    (key === 'miniTree' && nextKey === 'tree')
+                    || (key === 'tree' && nextKey === 'miniTree');
+
+                const sectionSpacing = key === 'tree'
+                    ? `flex-[3] flex flex-col min-h-[min(560px,52vh)] ${gapAfterTreePair ? 'mb-4' : 'mb-1'} ${gapBeforeTreePair ? 'mt-3' : ''}`
+                    : key === 'miniTree'
+                    ? `shrink-0 max-h-[160px] overflow-hidden flex flex-col ${gapAfterTreePair ? 'mb-4' : 'mb-3'} ${gapBeforeTreePair ? 'mt-3' : ''}`
+                    : 'mb-3 shrink-0';
 
                 return (
                     <div 
                         key={key} 
                         id={`section-${key}`}
-                        className={`transition-opacity duration-150 ease-out ${draggedItem === key ? 'opacity-40' : ''} ${dragOverId === key && draggedItem !== key ? (dropSide === 'before' ? 'bndz-sidebar-drop-before' : 'bndz-sidebar-drop-after') : ''} ${key === 'tree' ? 'flex-[3] flex flex-col min-h-[min(560px,52vh)] mb-1' : key === 'miniTree' ? 'mb-2 shrink-0 max-h-[160px] overflow-hidden flex flex-col' : 'mb-3 shrink-0'}`}
+                        className={`transition-opacity duration-150 ease-out ${draggedItem === key ? 'opacity-40' : ''} ${dragOverId === key && draggedItem !== key ? (dropSide === 'before' ? 'bndz-sidebar-drop-before' : 'bndz-sidebar-drop-after') : ''} ${sectionSpacing}`}
                         onDragOver={e => handleDragOver(e, key)}
                         onDrop={e => handleDrop(e, key)}
                     >
                         <div 
                             data-section={key}
-                            className={`sidebar-section-header bndz-sidebar-section-header bndz-sidebar-section-${key} flex items-center justify-between px-4 py-1.5 cursor-pointer text-gray-400 group mx-1 rounded-md shrink-0`}
+                            className={`sidebar-section-header bndz-sidebar-section-header bndz-sidebar-section-${key} flex items-center justify-between pl-4 pr-3 py-1.5 cursor-pointer text-gray-400 group mx-1 shrink-0`}
                             onClick={(e) => { e.stopPropagation(); toggleSection(key); }}
                         >
                             <div className="flex items-center gap-1.5">

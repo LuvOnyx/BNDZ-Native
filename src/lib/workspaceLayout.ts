@@ -10,7 +10,7 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 28;
+export const WORKSPACE_LAYOUT_VERSION = 29;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
@@ -22,9 +22,23 @@ export const DEFAULT_OUTER_LAYOUT: Layout = {
     preview: 12,
 };
 
+/** Bottom panel sized so the General tab bar sits gently on the status bar. */
 export const DEFAULT_INNER_LAYOUT: Layout = {
-    main: 82,
-    bottom: 18,
+    main: 78,
+    bottom: 22,
+};
+
+export const DUAL_PANE_IDS = ['pane1', 'pane2'] as const;
+export type DualPaneId = (typeof DUAL_PANE_IDS)[number];
+
+export const DEFAULT_DUAL_PANE_LAYOUT: Layout = {
+    pane1: 50,
+    pane2: 50,
+};
+
+export const MIN_DUAL_PANE_LAYOUT: Layout = {
+    pane1: 20,
+    pane2: 20,
 };
 
 export const MIN_OUTER_LAYOUT: Layout = {
@@ -243,6 +257,21 @@ export function getInnerDefaultLayout(raw: unknown): Layout {
     return { ...DEFAULT_INNER_LAYOUT };
 }
 
-export function layoutToArray(ids: readonly string[], layout: Layout): number[] {
-    return ids.map((id) => layout[id] ?? 0);
+export function getDualPaneDefaultLayout(raw: unknown): Layout {
+    if (isLayoutObject(raw)) {
+        const p1 = typeof raw.pane1 === 'number' ? raw.pane1 : DEFAULT_DUAL_PANE_LAYOUT.pane1!;
+        const p2 = typeof raw.pane2 === 'number' ? raw.pane2 : DEFAULT_DUAL_PANE_LAYOUT.pane2!;
+        const sum = p1 + p2;
+        if (sum <= 0) return { ...DEFAULT_DUAL_PANE_LAYOUT };
+        let a = (p1 / sum) * 100;
+        let b = (p2 / sum) * 100;
+        a = clamp(a, MIN_DUAL_PANE_LAYOUT.pane1!, 80);
+        b = 100 - a;
+        if (b < MIN_DUAL_PANE_LAYOUT.pane2!) {
+            b = MIN_DUAL_PANE_LAYOUT.pane2!;
+            a = 100 - b;
+        }
+        return { pane1: Math.round(a * 10) / 10, pane2: Math.round(b * 10) / 10 };
+    }
+    return { ...DEFAULT_DUAL_PANE_LAYOUT };
 }

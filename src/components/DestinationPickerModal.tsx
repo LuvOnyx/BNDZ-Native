@@ -9,6 +9,7 @@ import {
   formatPickerPath,
   getBreadcrumbSegments,
   parseUserPathToPane,
+  resolveUserPathToPane,
 } from '../lib/displayPath';
 
 type DriveInfo = { name: string; label?: string };
@@ -99,7 +100,8 @@ export default function DestinationPickerModal({
   }, [currentPath, folders, drives]);
 
   const commitPathDraft = async () => {
-    const parsed = parseUserPathToPane(pathDraft);
+    const parsed = (await resolveUserPathToPane(pathDraft, p => IPC.expandEnvironmentPath(p)))
+      || parseUserPathToPane(pathDraft);
     if (!parsed) {
       setPathError('Could not parse that path');
       return;

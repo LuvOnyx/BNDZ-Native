@@ -1,5 +1,6 @@
 import React from 'react';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
+import { TagGlyph } from './TagGlyph';
 
 interface Icons8IconProps {
   /** Icon id from TOOLBAR_LAUNCHER_ICONS (e.g. 'copy', 'chevron_right', 'close'). */
@@ -11,6 +12,8 @@ interface Icons8IconProps {
   /** Spin animation — used for 'loading' in place of Lucide's Loader2. */
   spin?: boolean;
   title?: string;
+  /** Stroke color for tintable glyphs (tag_manager / tag__). */
+  color?: string;
 }
 
 /**
@@ -19,8 +22,21 @@ interface Icons8IconProps {
  * opacity are the only visual knobs, matching how the existing toolbar already
  * consumes launcherIconUrl(). Falls back to a small neutral dot if the id has no
  * mapped asset, so a missing icon never breaks layout.
+ *
+ * Exception: tag_manager / tag__ ids use the custom tintable Tags glyph.
  */
-export function Icons8Icon({ id, size = 16, className = '', disabled, spin, title }: Icons8IconProps) {
+export function Icons8Icon({ id, size = 16, className = '', disabled, spin, title, color }: Icons8IconProps) {
+  if (id === 'tag_manager' || id.startsWith('tag__')) {
+    return (
+      <TagGlyph
+        color={color || '#FACC15'}
+        size={size}
+        className={`${disabled ? 'opacity-35' : ''} ${spin ? 'bndz-icon8-spin' : ''} ${className}`}
+        title={title}
+      />
+    );
+  }
+
   const src = launcherIconUrl(id);
 
   if (!src) {

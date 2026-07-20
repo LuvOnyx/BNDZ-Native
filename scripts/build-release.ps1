@@ -73,7 +73,7 @@ function Invoke-CodeSign {
 Push-Location $Root
 try {
     if ($BuildInstaller -and -not $env:BNDZ_LICENSE_SECRET) {
-        Write-Warning "BNDZ_LICENSE_SECRET is not set — retail builds should use a unique secret before generating customer serials."
+        Write-Warning "BNDZ_LICENSE_SECRET is not set - retail builds should use a unique secret before generating customer serials."
     }
     if ($BuildInstaller -and $env:BNDZ_LICENSE_SECRET -eq "BNDZ-36-Commercial-Key-Seed-CHANGE-ME") {
         Write-Warning "BNDZ_LICENSE_SECRET is still the development placeholder. Rotate before shipping installers."

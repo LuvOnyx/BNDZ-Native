@@ -16,6 +16,8 @@ import {
 export interface PaneSortState {
   sortColumn?: 'name' | 'type' | 'size' | 'modified' | 'created';
   sortDirection?: 'asc' | 'desc';
+  /** Resolved byte size for size-column sort (folders use scanned/cache sizes). */
+  getByteSize?: (entity: any) => number;
 }
 
 export interface SettingsRuntimeContext {
@@ -297,9 +299,11 @@ export function compareEntities(
     return mul * String(typeA).localeCompare(String(typeB));
   }
   if (col === 'size') {
-    if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
-    if (config.mixedSortOnDateColumns && b.type === 'directory' && a.type !== 'directory') return 1;
-    return mul * ((a.size || 0) - (b.size || 0));
+    const sizeA = pane?.getByteSize ? pane.getByteSize(a) : (a.size || 0);
+    const sizeB = pane?.getByteSize ? pane.getByteSize(b) : (b.size || 0);
+    if (sizeA !== sizeB) return mul * (sizeA - sizeB);
+    // Stable tie-break by name so equal/unknown folder sizes still reorder predictably.
+    return mul * naturalCompare(entitySortName(a), entitySortName(b), config);
   }
   if (col === 'modified') {
     if (config.mixedSortOnDateColumns && a.type === 'directory' && b.type !== 'directory') return -1;
@@ -357,6 +361,10 @@ export function getDisplayName(entity: any, config: AppConfig, panePath?: string
     const head = Math.ceil((28 - 1) / 2);
     const tail = Math.floor((28 - 1) / 2);
     name = `${name.slice(0, head)}…${name.slice(name.length - tail)}`;
+  }
+  if (config.showLocalizedFolderNames && isDir) {
+    const localized = entity.localizedName || entity.displayName || entity.friendlyName;
+    if (typeof localized === 'string' && localized.trim()) return localized.trim();
   }
   return name;
 }
@@ -465,7 +473,7 @@ export function evaluateColorFilter(
   entity: any,
   filters?: AppConfig['colorFilters'],
   config?: AppConfig
-): { className?: string; inlineStyle?: Record<string, string> } | null {
+): { className?: string; inlineStyle?: Record<string, string>; folderIcon?: string } | null {
   if (config && buildSettingsRuntime(config).list.applyColorFilters === false) return null;
   if (!filters?.length || !entity || isSyntheticFsEntity(entity)) return null;
 
@@ -485,11 +493,13 @@ export function evaluateColorFilter(
         config.drawBackgroundColorsAsWideAsTheColumn ? 'bndz-filter-bg-wide' : '',
       ].filter(Boolean).join(' ') : '';
       const nameOnly = config?.applyTextColorsToTheNameColumnOnly;
+      const folderIcon = (row as { folderIcon?: string }).folderIcon;
       return {
         className: [parsed.className, drawClasses].filter(Boolean).join(' ') || undefined,
         inlineStyle: nameOnly
           ? (parsed.inlineStyle?.color ? { color: parsed.inlineStyle.color } : undefined)
           : parsed.inlineStyle,
+        folderIcon: folderIcon || undefined,
       };
     }
   }

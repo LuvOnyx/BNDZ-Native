@@ -40,7 +40,7 @@ public static class ShellPathResolver
     public static string ResolveForShell(string? rawPath)
     {
         if (string.IsNullOrWhiteSpace(rawPath)) return "";
-        var trimmed = rawPath.Trim();
+        var trimmed = Environment.ExpandEnvironmentVariables(rawPath.Trim());
         if (trimmed is "/" or "\\") return ThisPcClsid;
         if (trimmed is "//" or "\\\\" or "/\\\\") return NetworkClsid;
         if (trimmed.StartsWith("/shell:", StringComparison.OrdinalIgnoreCase))
@@ -57,7 +57,7 @@ public static class ShellPathResolver
             return MapShellKnownFolder(trimmed) ?? trimmed;
         }
 
-        var path = NormalizeIncoming(rawPath);
+        var path = NormalizeIncoming(trimmed);
         if (string.IsNullOrEmpty(path)) return "";
 
         if (path is "/" or "\\") return ThisPcClsid;

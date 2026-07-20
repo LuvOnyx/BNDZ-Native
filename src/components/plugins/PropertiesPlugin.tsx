@@ -52,7 +52,6 @@ export default function PropertiesPlugin({
     const [sidecarDirty, setSidecarDirty] = useState(false);
     const [sidecarSaving, setSidecarSaving] = useState(false);
     const [hashCopied, setHashCopied] = useState<'md5' | 'sha256' | null>(null);
-    const [aclNotice, setAclNotice] = useState<string | null>(null);
 
     const selectionCount = selectedItems.length;
     const isMulti = selectionCount > 1;
@@ -244,13 +243,6 @@ export default function PropertiesPlugin({
         runIpc(IPC => { if (IPC.isNative) IPC.setFileAttributes(targetPath, newAttributes); });
     };
 
-    const toggleAcl = (type: 'read' | 'write' | 'execute') => {
-        if (!fileDetails || !targetPath) return;
-        const newAcl = { ...fileDetails.acl, [type]: !fileDetails.acl?.[type] };
-        setFileDetails({ ...fileDetails, acl: newAcl });
-        setAclNotice('Permission preview only — use Windows Security for full ACL editing.');
-    };
-
     const addTagChip = () => {
         const t = tagDraft.trim().toLowerCase();
         if (!t || sidecarTags.some(x => x.toLowerCase() === t)) { setTagDraft(''); return; }
@@ -340,7 +332,7 @@ export default function PropertiesPlugin({
                         path={heroIconPath}
                         isDir={isDir}
                         isDrive={!!driveInfo}
-                        size={96}
+                        size={80}
                         extension={ext}
                         preferThumbnail={!isDir && !isMulti}
                     />
@@ -516,37 +508,46 @@ export default function PropertiesPlugin({
                                 Access control
                             </PluginSectionTitle>
                             <p className="text-xs bndz-panel-muted leading-relaxed mb-3">
-                                Effective permissions preview. Full ACL editing uses Windows Security.
+                                Viewing effective permissions (read-only). To change ACLs, open Windows Security.
                             </p>
-                            {aclNotice && (
-                                <p className="text-xs text-amber-400/90 mb-3">{aclNotice}</p>
-                            )}
-                            <div className="grid grid-cols-3 gap-2 mb-4">
-                                {(['read', 'write', 'execute'] as const).map(type => (
-                                    <button
-                                        key={type}
-                                        type="button"
-                                        onClick={() => toggleAcl(type)}
-                                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-colors ${
-                                            fileDetails?.acl?.[type]
-                                                ? 'bg-pink-500/10 border-pink-500/40 text-pink-300'
-                                                : 'bg-black/20 border-white/[0.08] text-slate-400 hover:border-pink-500/30'
-                                        }`}
-                                    >
-                                        <Icons8Icon id="check" size={16} className={fileDetails?.acl?.[type] ? 'opacity-100' : 'opacity-0'} />
-                                        <span className="text-[11px] font-bold uppercase tracking-wide">{type}</span>
-                                    </button>
-                                ))}
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {([
+                                    { key: 'read' as const, label: 'Read' },
+                                    { key: 'write' as const, label: 'Write' },
+                                    { key: 'execute' as const, label: 'Execute' },
+                                ]).map(({ key, label }) => {
+                                    const granted = !!fileDetails?.acl?.[key];
+                                    return (
+                                        <span
+                                            key={key}
+                                            className={`bndz-plugin-kind-pill inline-flex items-center gap-1.5 ${
+                                                granted
+                                                    ? 'bg-emerald-500/15 border-emerald-400/35 text-emerald-300'
+                                                    : 'bg-black/25 border-white/[0.08] text-slate-500'
+                                            }`}
+                                            title={granted ? `${label} granted` : `${label} not indicated`}
+                                        >
+                                            <Icons8Icon id={granted ? 'check' : 'close'} size={11} />
+                                            {label}
+                                        </span>
+                                    );
+                                })}
                             </div>
-                            {Array.isArray(fileDetails?.aclRules) && fileDetails.aclRules.length > 0 && (
+                            {Array.isArray(fileDetails?.aclRules) && fileDetails.aclRules.length > 0 ? (
                                 <div className="rounded-lg border border-white/[0.08] bg-black/25 p-3 max-h-44 overflow-y-auto bndz-scrollbar">
-                                    <div className="bndz-plugin-section-title mb-2">NTFS rules</div>
+                                    <div className="bndz-plugin-section-title mb-2">Effective NTFS ACL rules</div>
                                     <ul className="space-y-1">
                                         {fileDetails.aclRules.map((rule: string, i: number) => (
                                             <li key={i} className="text-[10px] bndz-mono text-slate-400 break-all leading-relaxed">{rule}</li>
                                         ))}
                                     </ul>
                                 </div>
+                            ) : (
+                                <PluginEmptyState
+                                    icon="shield_ui"
+                                    title="No ACL rules listed"
+                                    description="Effective rule details were not returned for this item. Use Windows Security to inspect or edit permissions."
+                                />
                             )}
                         </PluginCard>
                         <PluginCard>

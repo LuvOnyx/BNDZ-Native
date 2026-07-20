@@ -43,6 +43,57 @@ export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
   'large files': '/bndz/large',
 };
 
+/** Bare aliases → Windows env vars (expanded via host before navigation). */
+export const ENV_PATH_ALIASES: Record<string, string> = {
+  appdata: '%AppData%',
+  localappdata: '%LocalAppData%',
+  temp: '%TEMP%',
+  tmp: '%TEMP%',
+  windir: '%WINDIR%',
+  systemroot: '%SystemRoot%',
+  system32: '%WINDIR%\\System32',
+  programfiles: '%ProgramFiles%',
+  'program files': '%ProgramFiles%',
+  'programfiles(x86)': '%ProgramFiles(x86)%',
+  'program files (x86)': '%ProgramFiles(x86)%',
+  commonprogramfiles: '%CommonProgramFiles%',
+  userprofile: '%USERPROFILE%',
+  public: '%PUBLIC%',
+  homedrive: '%HOMEDRIVE%',
+  homepath: '%HOMEPATH%',
+};
+
+/** shell: known-folder pane → GET_SYSTEM_SHORTCUTS name */
+export const SHELL_PANE_TO_SHORTCUT_NAME: Record<string, string> = {
+  '/shell:desktop': 'Desktop',
+  '/shell:personal': 'Documents',
+  '/shell:downloads': 'Downloads',
+  '/shell:my pictures': 'Pictures',
+  '/shell:my music': 'Music',
+  '/shell:my video': 'Videos',
+  '/shell:pictureslibrary': 'Gallery',
+  '/shell:profile': 'Home',
+  '/shell:home': 'Home',
+};
+
+/**
+ * Map `/shell:Desktop` (etc.) to the real filesystem pane path from system shortcuts
+ * so tabs/address bar show `C:\Users\…\Desktop` instead of `shell:Desktop`.
+ */
+export function resolveShellKnownFolderToFs(
+  panePath: string,
+  shortcuts: Array<{ name?: string; path?: string }> = [],
+): string {
+  const pane = normalizePanePath(panePath);
+  const name = SHELL_PANE_TO_SHORTCUT_NAME[pane.toLowerCase()];
+  if (!name) return pane;
+  const sc = shortcuts.find(s => s.name === name && s.path);
+  if (!sc?.path) return pane;
+  const raw = String(sc.path);
+  if (/^shell:/i.test(raw)) return pane;
+  return toPanePath(raw);
+}
+
 /** True for canonical shell known-folder roots like /shell:Desktop (not compound paths). */
 export function isShellKnownFolderRoot(path: string | null | undefined): boolean {
   if (!path) return false;

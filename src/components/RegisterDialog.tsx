@@ -58,8 +58,9 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
       variant="sheet"
       onClose={onClose}
       showCloseButton
-      zIndexClass="z-[520]"
+      zIndexClass="z-[10050]"
       size="md"
+      panelClassName="bndz-register-dialog"
       footerButtons={
         status?.activated
           ? [
@@ -76,7 +77,15 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
             ]
       }
     >
-      <div className="space-y-3 -mt-1">
+      <div className="bndz-register-body">
+        <div className="bndz-register-brand" aria-hidden>
+          <img src="/bndz-light.png" alt="" className="bndz-register-brand-mark" draggable={false} />
+          <div className="bndz-register-brand-copy">
+            <div className="bndz-register-brand-name">BNDZ</div>
+            <div className="bndz-register-brand-tag">Native file manager for Windows</div>
+          </div>
+        </div>
+
         {status?.activated ? (
           <div className="bndz-native-status-ok flex items-start gap-3">
             <Icons8Icon id="checksquare_ui" size={18} className="shrink-0 mt-0.5" />
@@ -100,39 +109,42 @@ export default function RegisterDialog({ onClose, onActivated }: { onClose: () =
                 Your 14-day trial has ended. Activate to continue using BNDZ.
               </div>
             )}
-            <div>
-              <label className="bndz-native-field-label">Serial number</label>
-              <input
-                value={serial}
-                onChange={e => setSerial(e.target.value.toUpperCase())}
-                placeholder="BNDZ-XXXX-XXXX-XXXX"
-                className="bndz-native-input font-mono"
-              />
-            </div>
-            <div>
-              <label className="bndz-native-field-label">Email</label>
-              <input
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                type="email"
-                className="bndz-native-input"
-              />
-            </div>
-            <div>
-              <label className="bndz-native-field-label">Name / Organization</label>
-              <input
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Your name or company"
-                className="bndz-native-input"
-              />
+            <div className="bndz-register-fields">
+              <div>
+                <label className="bndz-native-field-label">Serial number</label>
+                <input
+                  value={serial}
+                  onChange={e => setSerial(e.target.value.toUpperCase())}
+                  placeholder="BNDZ-XXXX-XXXX-XXXX"
+                  className="bndz-native-input font-mono"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="bndz-native-field-label">Email</label>
+                <input
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  type="email"
+                  className="bndz-native-input"
+                />
+              </div>
+              <div>
+                <label className="bndz-native-field-label">Name / Organization</label>
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Your name or company"
+                  className="bndz-native-input"
+                />
+              </div>
             </div>
           </>
         )}
 
         {message && (
-          <div className={`text-[11px] flex items-center gap-2 ${message.kind === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <div className={`bndz-register-message ${message.kind === 'ok' ? 'bndz-register-message--ok' : 'bndz-register-message--err'}`}>
             {message.kind === 'ok' ? <Icons8Icon id="check" size={14} /> : <Icons8Icon id="error_ui" size={14} />}
             {message.text}
           </div>

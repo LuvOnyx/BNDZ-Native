@@ -1,7 +1,13 @@
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Security.Principal;
+using System.Text.Json;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using BNDZ.Services;
-using System.IO;
 
 namespace BNDZ
 {
@@ -45,6 +51,48 @@ namespace BNDZ
             AppIconService.EnsureApplicationIco();
             WindowsToastService.EnsureRegistered();
 
+            // Persist "always elevate" only after an elevated confirmation launch.
+            if (HasArg(e.Args, "--enable-always-elevated") && IsProcessElevated())
+                PersistAlwaysRunElevated(true);
+
+            // Opt-in: Windows UAC Allow/Cancel on every launch when setting is confirmed.
+            if (ReadAlwaysRunElevatedSetting() && !IsProcessElevated() && !HasArg(e.Args, "--elevated"))
+            {
+                try
+                {
+                    var exe = Process.GetCurrentProcess().MainModule?.FileName;
+                    if (!string.IsNullOrEmpty(exe))
+                    {
+                        var passthrough = string.Join(" ",
+                            e.Args
+                                .Where(a => !string.Equals(a, "--elevated", StringComparison.OrdinalIgnoreCase)
+                                    && !string.Equals(a, "--enable-always-elevated", StringComparison.OrdinalIgnoreCase)
+                                    && !string.Equals(a, "--skip-elevation", StringComparison.OrdinalIgnoreCase))
+                                .Select(QuoteArg));
+                        var args = string.IsNullOrWhiteSpace(passthrough)
+                            ? "--elevated"
+                            : $"{passthrough} --elevated";
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = exe,
+                            Arguments = args,
+                            Verb = "runas",
+                            UseShellExecute = true,
+                        });
+                        Current.Shutdown();
+                        return;
+                    }
+                }
+                catch (Win32Exception)
+                {
+                    // User cancelled UAC — continue unelevated for this session.
+                }
+                catch
+                {
+                    // Fall through unelevated.
+                }
+            }
+
             if (e.Args.Length >= 3 && e.Args[0] == "--apply-icon")
             {
                 string iconPath = e.Args[1];
@@ -80,6 +128,74 @@ namespace BNDZ
 
             BndzFileManagerIpcService.Instance.RegisterMain(mainWindow);
             BndzFileManagerIpcService.Instance.Start();
+        }
+
+        private static bool HasArg(string[] args, string flag) =>
+            args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+        private static string QuoteArg(string arg)
+        {
+            if (string.IsNullOrEmpty(arg)) return "\"\"";
+            if (arg.Contains(' ') || arg.Contains('"'))
+                return "\"" + arg.Replace("\"", "\\\"") + "\"";
+            return arg;
+        }
+
+        private static bool IsProcessElevated()
+        {
+            try
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                var principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool ReadAlwaysRunElevatedSetting()
+        {
+            try
+            {
+                var json = new SettingsManager().LoadSettings();
+                if (string.IsNullOrWhiteSpace(json)) return false;
+                using var doc = JsonDocument.Parse(json);
+                // Require both flags so the setting is only active after confirmed elevation.
+                return doc.RootElement.TryGetProperty("alwaysRunElevated", out var enabled)
+                    && enabled.ValueKind == JsonValueKind.True
+                    && doc.RootElement.TryGetProperty("alwaysRunElevatedConfirmed", out var conf)
+                    && conf.ValueKind == JsonValueKind.True;
+            }
+            catch { }
+            return false;
+        }
+
+        private static void PersistAlwaysRunElevated(bool enabled)
+        {
+            try
+            {
+                var mgr = new SettingsManager();
+                var json = mgr.LoadSettings() ?? "{}";
+                using var doc = JsonDocument.Parse(json);
+                using var stream = new MemoryStream();
+                using (var writer = new Utf8JsonWriter(stream))
+                {
+                    writer.WriteStartObject();
+                    foreach (var p in doc.RootElement.EnumerateObject())
+                    {
+                        if (p.NameEquals("alwaysRunElevated") || p.NameEquals("alwaysRunElevatedConfirmed"))
+                            continue;
+                        p.WriteTo(writer);
+                    }
+                    writer.WriteBoolean("alwaysRunElevated", enabled);
+                    writer.WriteBoolean("alwaysRunElevatedConfirmed", enabled);
+                    writer.WriteEndObject();
+                }
+                mgr.SaveSettings(System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+            }
+            catch { }
         }
 
         /// <summary>Accepts --open-path or a bare path from Explorer context menus ("BNDZ.exe" "%1").</summary>

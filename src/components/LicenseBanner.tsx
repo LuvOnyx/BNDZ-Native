@@ -4,13 +4,25 @@ import { CloseGlyph } from './ChromeGlyphs';
 import { IPC } from '../lib/ipcBridge';
 import type { LicenseStatus } from '../lib/licenseTypes';
 
-export default function LicenseBanner({ onRegister }: { onRegister: () => void }) {
+export default function LicenseBanner({
+  onRegister,
+  refreshKey = 0,
+}: {
+  onRegister: () => void;
+  /** Bump after activate/deactivate so the banner re-reads license state. */
+  refreshKey?: number;
+}) {
   const [dismissed, setDismissed] = useState(false);
   const [status, setStatus] = useState<LicenseStatus | null>(null);
 
   useEffect(() => {
-    IPC.getLicenseStatus().then(setStatus).catch(() => setStatus(null));
-  }, []);
+    let cancelled = false;
+    setDismissed(false);
+    IPC.getLicenseStatus()
+      .then(next => { if (!cancelled) setStatus(next); })
+      .catch(() => { if (!cancelled) setStatus(null); });
+    return () => { cancelled = true; };
+  }, [refreshKey]);
 
   if (dismissed || !status || status.activated) return null;
 

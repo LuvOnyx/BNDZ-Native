@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace BNDZ.Services;
@@ -11,86 +13,253 @@ public class CloudStorageService
     {
         ("onedrive", "OneDrive", "onedrive"),
         ("googledrive", "Google Drive", "gdrive"),
+        ("google", "Google Drive", "gdrive"),
         ("dropbox", "Dropbox", "dropbox"),
         ("icloud", "iCloud Drive", "icloud"),
         ("box", "Box", "box"),
     };
+
+    private static readonly Regex EmailLabel = new(
+        @"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public List<object> GetProviders()
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var providers = new List<object>();
 
-        void Add(string name, string path, string icon)
+        void Add(string name, string path, string icon) => AddLabeled(name, path, icon, null);
+
+        void AddLabeled(string name, string path, string icon, string? accountLabel)
         {
-            if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) return;
+            if (string.IsNullOrWhiteSpace(path)) return;
+            path = path.Trim();
+            // Drive-letter roots: trust DriveInfo readiness instead of Directory.Exists
+            // (Google Drive File Stream can fail Exists intermittently while still mounted).
+            if (IsDriveRootPath(path))
+            {
+                try
+                {
+                    var di = new DriveInfo(path.Substring(0, 1) + ":\\");
+                    if (!di.IsReady) return;
+                }
+                catch { return; }
+            }
+            else if (!Directory.Exists(path))
+            {
+                return;
+            }
+
             var key = path.TrimEnd('\\', '/').ToLowerInvariant();
             if (!seen.Add(key)) return;
-            providers.Add(new { name, path = "/" + path.Replace("\\", "/"), icon, syncStatus = ResolveSyncStatus(path) });
+            providers.Add(new
+            {
+                name,
+                path = "/" + path.Replace("\\", "/").TrimEnd('/'),
+                icon,
+                syncStatus = ResolveSyncStatus(path),
+                accountLabel,
+            });
         }
 
-        // Environment variables (most reliable for OneDrive)
         TryEnv("OneDrive", "OneDrive", "onedrive", Add);
         TryEnv("OneDriveCommercial", "OneDrive", "onedrive", Add);
         TryEnv("OneDriveConsumer", "OneDrive", "onedrive", Add);
 
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-        // Well-known folder locations
         Add("OneDrive", Path.Combine(userProfile, "OneDrive"), "onedrive");
         Add("Google Drive", Path.Combine(userProfile, "Google Drive"), "gdrive");
-        Add("Google Drive", @"G:\My Drive", "gdrive");
-        Add("Google Drive", @"G:\", "gdrive");
         Add("Dropbox", Path.Combine(userProfile, "Dropbox"), "dropbox");
         Add("iCloud Drive", Path.Combine(userProfile, "iCloudDrive"), "icloud");
         Add("iCloud Photos", Path.Combine(userProfile, "iCloudPhotos"), "icloud");
         Add("Box", Path.Combine(userProfile, "Box"), "box");
 
-        // Windows Sync Engine registry
+        foreach (var mount in EnumerateSyncEngineMounts())
+            AddLabeled(mount.DisplayName, mount.MountPoint, mount.Icon, mount.AccountLabel);
+
+        // Volume roots that look like Google Drive File Stream (email volume label).
+        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
+        {
+            string label;
+            try { label = drive.VolumeLabel ?? ""; }
+            catch { continue; }
+            if (!LooksLikeGoogleDriveLabel(label)) continue;
+            AddLabeled("Google Drive", drive.Name, "gdrive", label.Trim());
+        }
+
+        try
+        {
+            foreach (var dir in Directory.GetDirectories(userProfile))
+            {
+                var name = Path.GetFileName(dir);
+                if (name.Contains("OneDrive", StringComparison.OrdinalIgnoreCase))
+                    Add("OneDrive", dir, "onedrive");
+                else if (name.Contains("Google Drive", StringComparison.OrdinalIgnoreCase))
+                    Add("Google Drive", dir, "gdrive");
+                else if (name.Equals("Dropbox", StringComparison.OrdinalIgnoreCase))
+                    Add("Dropbox", dir, "dropbox");
+                else if (name.Contains("iCloud", StringComparison.OrdinalIgnoreCase))
+                    Add("iCloud Drive", dir, "icloud");
+            }
+        }
+        catch { }
+
+        return providers;
+    }
+
+    /// <summary>
+    /// Drive list with cloud ownership flags so the UI can keep local Drives vs Cloud Drives correct.
+    /// </summary>
+    public List<object> GetAnnotatedDrives()
+    {
+        var dedicated = BuildDedicatedCloudVolumeMap();
+        var list = new List<object>();
+
+        foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
+        {
+            string label;
+            long total;
+            long free;
+            string format;
+            try
+            {
+                label = d.VolumeLabel ?? "";
+                total = d.TotalSize;
+                free = d.TotalFreeSpace;
+                format = d.DriveFormat;
+            }
+            catch
+            {
+                continue;
+            }
+
+            var letter = (d.Name.Length >= 2 ? d.Name.Substring(0, 2) : d.Name).ToUpperInvariant(); // "G:"
+            dedicated.TryGetValue(letter, out var cloud);
+
+            var googleByLabel = LooksLikeGoogleDriveLabel(label);
+            var isGoogle = googleByLabel
+                || string.Equals(cloud?.Icon, "gdrive", StringComparison.OrdinalIgnoreCase);
+            var isCloudVolume = isGoogle || cloud != null;
+
+            list.Add(new
+            {
+                name = "/" + d.Name.Replace("\\", ""),
+                label,
+                totalSpace = total,
+                freeSpace = free,
+                fileSystem = format,
+                isCloudVolume,
+                cloudProvider = isGoogle ? "gdrive" : cloud?.Icon,
+                cloudAccountLabel = isGoogle
+                    ? (ExtractEmail(label) ?? cloud?.AccountLabel ?? label)
+                    : cloud?.AccountLabel,
+            });
+        }
+
+        return list;
+    }
+
+    private Dictionary<string, CloudVolumeInfo> BuildDedicatedCloudVolumeMap()
+    {
+        var map = new Dictionary<string, CloudVolumeInfo>(StringComparer.OrdinalIgnoreCase);
+
+        void Consider(string displayName, string mount, string icon, string? accountLabel)
+        {
+            if (string.IsNullOrWhiteSpace(mount)) return;
+            if (!IsDedicatedCloudVolumeMount(mount)) return;
+            var letter = mount.Trim()[0].ToString().ToUpperInvariant() + ":";
+            // Prefer Google / labeled entries over generic
+            if (map.TryGetValue(letter, out var existing)
+                && existing.Icon == "gdrive"
+                && icon != "gdrive")
+                return;
+            map[letter] = new CloudVolumeInfo(displayName, mount, icon, accountLabel);
+        }
+
+        foreach (var mount in EnumerateSyncEngineMounts())
+            Consider(mount.DisplayName, mount.MountPoint, mount.Icon, mount.AccountLabel);
+
+        foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
+        {
+            string label;
+            try { label = d.VolumeLabel ?? ""; }
+            catch { continue; }
+            if (!LooksLikeGoogleDriveLabel(label)) continue;
+            Consider("Google Drive", d.Name, "gdrive", label.Trim());
+        }
+
+        return map;
+    }
+
+    private IEnumerable<SyncMount> EnumerateSyncEngineMounts()
+    {
+        var results = new List<SyncMount>();
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(@"Software\SyncEngines\Providers");
-            if (key != null)
+            if (key == null) return results;
+
+            foreach (var providerId in key.GetSubKeyNames())
             {
-                foreach (var providerId in key.GetSubKeyNames())
+                using var providerKey = key.OpenSubKey(providerId);
+                if (providerKey == null) continue;
+
+                var displayName = ResolveDisplayName(providerId, providerKey);
+                var icon = ResolveIcon(providerId);
+
+                var rootMount = providerKey.GetValue("MountPoint") as string;
+                if (!string.IsNullOrEmpty(rootMount))
+                    results.Add(new SyncMount(displayName, rootMount, icon, null));
+
+                foreach (var instance in providerKey.GetSubKeyNames())
                 {
-                    using var providerKey = key.OpenSubKey(providerId);
-                    if (providerKey == null) continue;
-
-                    var displayName = ResolveDisplayName(providerId, providerKey);
-                    var icon = ResolveIcon(providerId);
-
-                    string? mount = providerKey.GetValue("MountPoint") as string;
-                    if (!string.IsNullOrEmpty(mount))
-                        Add(displayName, mount, icon);
-
-                    foreach (var instance in providerKey.GetSubKeyNames())
-                    {
-                        using var instanceKey = providerKey.OpenSubKey(instance);
-                        mount = instanceKey?.GetValue("MountPoint") as string;
-                        if (!string.IsNullOrEmpty(mount))
-                            Add(displayName, mount, icon);
-                    }
+                    using var instanceKey = providerKey.OpenSubKey(instance);
+                    var mount = instanceKey?.GetValue("MountPoint") as string;
+                    if (string.IsNullOrEmpty(mount)) continue;
+                    var accountLabel = instanceKey?.GetValue("DisplayName") as string
+                        ?? instanceKey?.GetValue("UserName") as string
+                        ?? instance;
+                    results.Add(new SyncMount(displayName, mount, icon, accountLabel));
                 }
             }
         }
         catch { }
 
-        // Shell namespace fallbacks under UserProfile
-        foreach (var dir in Directory.GetDirectories(userProfile))
-        {
-            var name = Path.GetFileName(dir);
-            if (name.Contains("OneDrive", StringComparison.OrdinalIgnoreCase))
-                Add("OneDrive", dir, "onedrive");
-            else if (name.Contains("Google Drive", StringComparison.OrdinalIgnoreCase))
-                Add("Google Drive", dir, "gdrive");
-            else if (name.Equals("Dropbox", StringComparison.OrdinalIgnoreCase))
-                Add("Dropbox", dir, "dropbox");
-            else if (name.Contains("iCloud", StringComparison.OrdinalIgnoreCase))
-                Add("iCloud Drive", dir, "icloud");
-        }
+        return results;
+    }
 
-        return providers;
+    public static bool IsDedicatedCloudVolumeMount(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var win = path.Replace('/', '\\').TrimEnd('\\');
+        if (Regex.IsMatch(win, @"^[A-Za-z]:$")) return true;
+        var m = Regex.Match(win, @"^([A-Za-z]:)\\(.*)$");
+        if (!m.Success) return false;
+        var rest = m.Groups[2].Value.TrimEnd('\\');
+        if (string.IsNullOrEmpty(rest)) return true;
+        return rest.Equals("My Drive", StringComparison.OrdinalIgnoreCase)
+            || rest.Equals("Google Drive", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDriveRootPath(string path)
+    {
+        var win = path.Replace('/', '\\').TrimEnd('\\');
+        return Regex.IsMatch(win, @"^[A-Za-z]:$");
+    }
+
+    private static bool LooksLikeGoogleDriveLabel(string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label)) return false;
+        if (EmailLabel.IsMatch(label)) return true;
+        var lower = label.Trim().ToLowerInvariant();
+        return lower.Contains("google drive") || lower == "google";
+    }
+
+    private static string? ExtractEmail(string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label)) return null;
+        var m = EmailLabel.Match(label);
+        return m.Success ? m.Value : null;
     }
 
     private static void TryEnv(string envVar, string name, string icon, Action<string, string, string> add)
@@ -119,6 +288,9 @@ public class CloudStorageService
             if (providerId.Contains(known.Id, StringComparison.OrdinalIgnoreCase))
                 return known.Icon;
         }
+        // Google Drive File Stream provider ids vary (GoogleDriveFS, etc.)
+        if (providerId.Contains("google", StringComparison.OrdinalIgnoreCase))
+            return "gdrive";
         return "cloud";
     }
 
@@ -126,7 +298,20 @@ public class CloudStorageService
     {
         try
         {
-            if (!Directory.Exists(path)) return "missing";
+            if (IsDriveRootPath(path))
+            {
+                try
+                {
+                    var di = new DriveInfo(path.Substring(0, 1) + ":\\");
+                    if (!di.IsReady) return "missing";
+                }
+                catch { return "unknown"; }
+            }
+            else if (!Directory.Exists(path))
+            {
+                return "missing";
+            }
+
             var attrs = File.GetAttributes(path);
             const int recallOnAccess = 0x00400000;
             const int pinned = 0x00080000;
@@ -142,4 +327,7 @@ public class CloudStorageService
             return "unknown";
         }
     }
+
+    private sealed record SyncMount(string DisplayName, string MountPoint, string Icon, string? AccountLabel);
+    private sealed record CloudVolumeInfo(string DisplayName, string MountPoint, string Icon, string? AccountLabel);
 }

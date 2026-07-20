@@ -21,7 +21,7 @@ public sealed class FileOperationPreferences
     public bool PersistTransferQueue { get; set; } = true;
     public bool RememberActionLogBetweenSessions { get; set; } = false;
     public bool PersistActionLogOnExit { get; set; } = false;
-    public int MaxActionLogEntries { get; set; } = 256;
+    public int MaxActionLogEntries { get; set; } = 100;
     public int MaxItemsPerLoggedAction { get; set; }
     public string DateFormatInActionLabels { get; set; } = "age";
     public UndoPromptMode UndoPrompt { get; set; } = UndoPromptMode.IfOlderThan10Minutes;
@@ -109,7 +109,7 @@ public sealed class FileOperationPreferences
                 PersistTransferQueue = ReadBool(root, "persistTransferQueue", true),
                 RememberActionLogBetweenSessions = ReadBool(root, "rememberTheLoggedActionsBetweenSessions", false),
                 PersistActionLogOnExit = ReadBool(root, "evenOnExitWithoutSaving", false),
-                MaxActionLogEntries = ReadInt(root, "allowedNumberOfEntriesInTheActionLog", 256, 16, 4096),
+                MaxActionLogEntries = ReadInt(root, "allowedNumberOfEntriesInTheActionLog", 100, 10, 4096),
                 MaxItemsPerLoggedAction = ReadInt(root, "allowedNumberOfItemsPerLoggedAction", 0, 0, 100_000),
                 DateFormatInActionLabels = ReadDateFormat(root),
                 UndoPrompt = ReadUndoPrompt(root),

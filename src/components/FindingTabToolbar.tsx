@@ -32,16 +32,14 @@ export default function FindingTabToolbar({ tab, config, loading, indexedRoots, 
   };
 
   const toggleClass = (on: boolean) =>
-    `flex items-center gap-1 px-2 py-0.5 text-[10px] border rounded transition-colors ${
-      on
-        ? 'bg-[#094771] border-[#0a5a8c] text-white'
-        : 'bg-[#2a2a2a] border-[#454545] text-gray-400 hover:text-gray-200'
+    `bndz-hub-chip inline-flex items-center gap-1 px-2 py-0.5 text-[10px] ${
+      on ? 'bndz-hub-chip--active' : ''
     }`;
 
   const rootIndexed = isPathUnderIndexedRoot(tab.findingRoot || tab.path, indexedRoots || []);
 
   return (
-    <div className="flex flex-col gap-1 px-2 py-1.5 border-b border-[#333] bg-[#252526] shrink-0">
+    <div className="flex flex-col gap-1.5 px-2.5 py-2 border-b border-white/[0.06] bg-black/20 shrink-0">
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="text"
@@ -57,19 +55,19 @@ export default function FindingTabToolbar({ tab, config, loading, indexedRoots, 
               e.currentTarget.blur();
             }
           }}
-          className="min-w-[140px] flex-1 max-w-xs text-[11px] bg-[#1e1e1e] border border-[#454545] text-amber-100 px-2 py-0.5 rounded outline-none focus:border-amber-500/50 font-medium"
+          className="bndz-plugin-input min-w-[140px] flex-1 max-w-xs text-[11px] text-amber-100/95 font-medium"
           placeholder="Search query…"
           spellCheck={false}
         />
 
         {rootIndexed && (
-          <span className="px-1.5 py-px text-[9px] bg-[#094771]/55 text-[#99c9f0] rounded" title="Scope is indexed">IDX</span>
+          <span className="bndz-plugin-kind-pill text-[9px]" title="Scope is indexed">IDX</span>
         )}
 
         <select
           value={scope}
           onChange={e => onChange({ findingScope: e.target.value as IndexedSearchScope })}
-          className="text-[10px] bg-[#1e1e1e] border border-[#454545] text-gray-300 px-1.5 py-0.5 rounded outline-none focus:border-[#0078d4]/50"
+          className="bndz-plugin-input bndz-plugin-select text-[10px] w-auto min-w-[8rem]"
           title="Search scope"
         >
           <option value="library">Whole library</option>
@@ -91,7 +89,7 @@ export default function FindingTabToolbar({ tab, config, loading, indexedRoots, 
           type="button"
           onClick={onRefresh}
           disabled={loading || !tab.findingQuery?.trim()}
-          className="ml-auto flex items-center gap-1 px-2 py-0.5 text-[10px] bg-[#333] hover:bg-[#3d3d3d] border border-[#454545] text-gray-200 disabled:opacity-50"
+          className="ml-auto bndz-plugin-btn inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium disabled:opacity-50"
         >
           {loading ? <Icons8Icon id="loading" size={11} spin /> : <Icons8Icon id="refresh" size={11} />}
           Refresh

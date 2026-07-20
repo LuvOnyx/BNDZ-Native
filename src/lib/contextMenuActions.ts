@@ -29,6 +29,21 @@ export function isContextMenuBackground(menu: ContextMenuState): boolean {
   return menu.entityId === null && !menu.entityName;
 }
 
+/** Recycle Bin location (tree root / list background) — not a selected recycled item. */
+export function isRecycleBinLocationMenu(menu: ContextMenuState): boolean {
+  if (!isRecycleBinPath(menu.path)) return false;
+  if (isContextMenuBackground(menu)) return true;
+  // Tree/sidebar root click wrongly passes entityId = path; treat as location.
+  if (menu.surface === 'tree-item' || menu.surface === 'sidebar-item') {
+    const id = normalizePanePath(menu.entityId || '');
+    const path = normalizePanePath(menu.path);
+    if (!menu.entityName || menu.entityName === 'Recycle Bin' || id === path || isRecycleBinPath(id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function contextMenuRefreshLabel(surface?: ContextMenuSurface): string {
   if (surface === 'tree-background' || surface === 'tree-item') return 'Refresh Tree';
   if (surface === 'list-background' || surface === 'list-item') return 'Refresh List';
@@ -88,9 +103,21 @@ export const BUILT_IN_CONTEXT_VERBS = new Set([
 
 export function filterSupplementalNativeItems(items: any[] | undefined): any[] {
   if (!items?.length) return [];
-  return items.filter(item => {
+  const filtered = items.filter(item => {
     if (item.separator) return true;
     const v = (item.verb || item.id || '').toLowerCase();
     return v && !BUILT_IN_CONTEXT_VERBS.has(v);
   });
+  // Drop orphan / leading / trailing / adjacent separators left after verb filtering.
+  const out: any[] = [];
+  for (const item of filtered) {
+    if (item.separator) {
+      if (!out.length || out[out.length - 1].separator) continue;
+      out.push(item);
+      continue;
+    }
+    out.push(item);
+  }
+  while (out.length && out[out.length - 1].separator) out.pop();
+  return out;
 }

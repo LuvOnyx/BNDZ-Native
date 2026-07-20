@@ -98,7 +98,7 @@ export default function BndzRecentsView({
       renderItem={(row) => {
         if (row.kind === 'header') {
           return (
-            <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#99c9f0]/90 bg-[#1a1a1f]/95 border-y border-white/[0.06]">
+            <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#99c9f0]/90 bndz-smart-section-header">
               {row.label}
             </div>
           );
@@ -110,8 +110,8 @@ export default function BndzRecentsView({
         return (
           <div
             data-id={entity.id}
-            className={`fs-item-wrapper fs-list-item flex items-center gap-2 text-[12px] py-1 px-2 cursor-default border border-transparent ${
-              isSelected ? 'bg-[#094771]/40 border-[#094771]/50' : 'hover:bg-[#333]/60'
+            className={`fs-item-wrapper fs-list-item flex items-center gap-2 text-[12px] py-1 px-2 cursor-default ${
+              isSelected ? 'fs-item-selected' : ''
             }`}
             onClick={e => onItemClick(e, entity)}
             onDoubleClick={() => onItemDoubleClick(entity)}

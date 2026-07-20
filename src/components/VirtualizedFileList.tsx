@@ -71,6 +71,8 @@ export function VirtualizedFileList<T>({
     ? Math.ceil(items.length / gridCols)
     : items.length;
 
+  // Non-virtual CSS grids already apply `gap` between rows.
+  // Virtual rows need stride (tile + gap) because each virtual item is one row.
   const estimateSize = () => (mode === 'grid' && useVirtual ? gridRowHeight : rowHeight);
 
   const virtualizer = useVirtualizer({
@@ -100,10 +102,11 @@ export function VirtualizedFileList<T>({
       if (mode === 'grid') {
         return (
           <div
-            className="grid w-full"
+            className="grid w-full justify-start content-start"
             style={{
               gap,
-              gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinItemWidth}px, 1fr))`,
+              // Fixed track size — never stretch with 1fr (that caused huge empty gaps).
+              gridTemplateColumns: `repeat(auto-fill, ${gridMinItemWidth}px)`,
               minHeight: scrollMinHeight,
             }}
           >
@@ -142,8 +145,12 @@ export function VirtualizedFileList<T>({
                 }}
               >
                 <div
-                  className="grid w-full"
-                  style={{ gap, gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, pointerEvents: 'none' }}
+                  className="grid w-full justify-start"
+                  style={{
+                    gap,
+                    gridTemplateColumns: `repeat(${gridCols}, ${gridMinItemWidth}px)`,
+                    pointerEvents: 'none',
+                  }}
                 >
                   {rowItems.map((item, i) => (
                     <div key={startIdx + i} style={{ pointerEvents: 'auto' }}>{renderItem(item, startIdx + i)}</div>

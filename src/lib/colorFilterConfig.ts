@@ -1,4 +1,11 @@
-export type ColorFilterRow = { i: number; c: boolean; t: string; style: string };
+export type ColorFilterRow = {
+  i: number;
+  c: boolean;
+  t: string;
+  style: string;
+  /** Optional colored folder icon for matching directories (see folderColorIcons). */
+  folderIcon?: string;
+};
 
 export function nextColorFilterId(rows: ColorFilterRow[]): number {
   const max = rows.reduce((m, r) => Math.max(m, r.i || 0), 0);

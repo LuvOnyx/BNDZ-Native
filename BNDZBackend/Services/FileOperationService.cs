@@ -135,12 +135,17 @@ public class FileOperationService
         }
         catch (UnauthorizedAccessException ex)
         {
-            onAccessDenied?.Invoke(operationId, ex.Message);
+            onAccessDenied?.Invoke(operationId, PrivilegePolicyService.Classify(ex, "This file operation").Message);
             onProgress?.Invoke(operationId, 100, ex.Message, 0, 0, 0, 1, 1);
             throw;
         }
         catch (Exception ex)
         {
+            var classified = PrivilegePolicyService.Classify(ex, "This file operation");
+            if (classified.NeedsElevation)
+            {
+                onAccessDenied?.Invoke(operationId, classified.Message);
+            }
             Debug.WriteLine($"FileOperation {action} failed: {ex.Message}");
             onProgress?.Invoke(operationId, 100, ex.Message, 0, 0, 0, 1, 1);
             throw;

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { ShellNativeIcon } from '../ShellNativeIcon';
 import { SizeBar, type SizeBarStyle } from '../SizeBar';
 import { useAppConfig } from '../../data/configContext';
@@ -28,11 +28,23 @@ function formatBytes(n: number) {
 export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFolderSizes }: Props) {
   const { config } = useAppConfig();
   const barStyle = (config.folderSizeBarStyle || 'bar') as SizeBarStyle;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTopRef = useRef(0);
+
   const sorted = useMemo(
     () => [...items].sort((a, b) => (b.size || 0) - (a.size || 0)),
     [items],
   );
   const maxSize = Math.max(...sorted.map(i => i.size || 0), 1);
+
+  // Keep viewport position when folder sizes stream in and rows re-order.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (Math.abs(el.scrollTop - scrollTopRef.current) > 1) {
+      el.scrollTop = scrollTopRef.current;
+    }
+  }, [sorted]);
 
   if (!sorted.length) {
     return (
@@ -58,7 +70,11 @@ export default function FolderSizeListView({ items, onNavigate, onOpen, onScanFo
           </button>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto bndz-scrollbar p-1">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto bndz-scrollbar p-1"
+        onScroll={e => { scrollTopRef.current = e.currentTarget.scrollTop; }}
+      >
         <div className="grid grid-cols-[minmax(140px,1.2fr)_minmax(120px,2fr)_88px] gap-x-3 px-2 py-1 text-[10px] uppercase tracking-wide text-gray-500 border-b border-white/[0.06] mb-1">
           <span>Name</span>
           <span>Relative size</span>

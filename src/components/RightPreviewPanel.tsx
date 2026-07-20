@@ -26,8 +26,8 @@ import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 type PreviewTab = 'preview' | 'details' | 'media';
 
 /** Hero icon sizes in the right preview panel (2× the prior 88/112 defaults). */
-const PREVIEW_HERO_ICON_SIZE = { dir: 176, file: 224 } as const;
-const PREVIEW_HERO_FALLBACK_ICON = 160;
+const PREVIEW_HERO_ICON_SIZE = { dir: 144, file: 176 } as const;
+const PREVIEW_HERO_FALLBACK_ICON = 128;
 
 interface RightPreviewPanelProps {
   entity: FSEntity | null;
@@ -646,9 +646,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                        preferThumbnail={!isDir && isImage}
                     />
                  ) : thumbnailNative ? (
-                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[360px] max-h-[360px] object-contain" alt="Preview" />
+                    <img src={`data:image/png;base64,${thumbnailNative}`} className="max-w-[280px] max-h-[280px] object-contain" alt="Preview" style={{ imageRendering: 'auto' }} />
                  ) : shellIcon ? (
-                    <img src={shellIcon} className="max-w-[224px] max-h-[224px] object-contain" alt="Shell Icon" />
+                    <img src={shellIcon} className="max-w-[176px] max-h-[176px] object-contain" alt="Shell Icon" />
                  ) : (
                     <div className="flex flex-col items-center ">{getPreviewIcon()}</div>
                  )}

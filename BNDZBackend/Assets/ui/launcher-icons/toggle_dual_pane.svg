@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 24 24">
+  <path fill="none" d="M0 0h24v24H0z" class="st2"/>
+  <path fill="#9575cd" d="M21 2H3C2 2 2 3 2 3v18c0 1 1 1 1 1h18c1 0 1-1 1-1V3c0-1-1-1-1-1" class="stshockcolor" data-st="fill:#9575CD;;"/>
+  <path fill="#fff" d="M19 4a1 1 0 1 1 2 0 1 1 0 0 1-2 0m1 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2" class="st3" opacity=".4"/>
+  <path fill="#fff" d="M16 4a1 1 0 1 1 2 0 1 1 0 0 1-2 0m-2 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2m2 5a1 1 0 1 1 2 0 1 1 0 0 1-2 0m-2 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2" class="st0" opacity=".6"/>
+  <path fill="#fff" d="M2 12v9c0 1 1 1 1 1h18c1 0 1-1 1-1v-9zm20-6v3c0-1-1-1-1-1H3C2 8 2 9 2 9V6z" class="st0" opacity=".6"/>
+</svg>

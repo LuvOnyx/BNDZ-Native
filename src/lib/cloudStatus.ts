@@ -5,6 +5,9 @@ export type CloudProvider = {
   path: string;
   icon?: string;
   syncStatus?: 'available' | 'online-only' | 'pinned' | 'missing' | 'unknown';
+  accountId?: string;
+  accountLabel?: string;
+  cloudProvider?: string;
 };
 
 export type CloudBadge = {

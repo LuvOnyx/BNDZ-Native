@@ -130,68 +130,86 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 [Code]
 
-function IsWebView2Installed: Boolean;
+{ Official Evergreen WebView2 Runtime client id (NOT the mistyped ...CC4C variant). }
+const
+  WebView2RuntimeId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
 
-var
-
-  Version: String;
-
+function IsValidWebView2Version(const Version: String): Boolean;
 begin
-
-  Result :=
-
-    RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7CC4C}', 'pv', Version) or
-
-    RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7CC4C}', 'pv', Version) or
-
-    RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7CC4C}', 'pv', Version);
-
+  Result := (Trim(Version) <> '') and (Version <> '0.0.0.0');
 end;
 
+function HasWebView2Registry(const RootKey: Integer; const SubKey: String): Boolean;
+var
+  Version: String;
+begin
+  Result := RegQueryStringValue(RootKey, SubKey, 'pv', Version) and IsValidWebView2Version(Version);
+end;
 
+function HasWebView2Files: Boolean;
+var
+  Base: String;
+  FindRec: TFindRec;
+begin
+  Result := False;
+  Base := ExpandConstant('{pf32}\Microsoft\EdgeWebView\Application');
+  if DirExists(Base) and FindFirst(Base + '\*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0) and
+           (FindRec.Name <> '.') and (FindRec.Name <> '..') and
+           (FindRec.Name <> 'SetupMetrics') and
+           FileExists(Base + '\' + FindRec.Name + '\msedgewebview2.exe') then
+        begin
+          Result := True;
+          Break;
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+  if Result then
+    Exit;
+  { Also accept a direct evergreen layout if present under Program Files. }
+  Result := FileExists(ExpandConstant('{pf}\Microsoft\EdgeWebView\Application\msedgewebview2.exe')) or
+            FileExists(ExpandConstant('{localappdata}\Microsoft\EdgeWebView\Application\msedgewebview2.exe'));
+end;
+
+function IsWebView2Installed: Boolean;
+begin
+  { Prefer the Evergreen Runtime registry entries Microsoft documents. }
+  Result :=
+    HasWebView2Registry(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\' + WebView2RuntimeId) or
+    HasWebView2Registry(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\' + WebView2RuntimeId) or
+    HasWebView2Registry(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\' + WebView2RuntimeId) or
+    HasWebView2Registry(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\ClientState\' + WebView2RuntimeId) or
+    HasWebView2Files;
+end;
 
 function NeedsWebView2: Boolean;
-
 begin
-
   Result := not IsWebView2Installed;
-
 end;
-
-
 
 function InitializeSetup: Boolean;
-
 begin
-
   Result := True;
-
 end;
-
-
 
 function InitializeUninstall: Boolean;
-
 begin
-
   Result := True;
-
 end;
 
-
-
 procedure DeinitializeSetup();
-
 begin
-
+  { Only warn when runtime is genuinely missing — UI already works if WebView2 is present. }
   if not IsWebView2Installed then
-
     MsgBox('Microsoft Edge WebView2 Runtime could not be verified after setup.' + #13#10 + #13#10 +
-
       'BNDZ requires WebView2 to display its interface. Please install WebView2 from Microsoft and restart BNDZ.',
-
       mbError, MB_OK);
-
 end;
 
 

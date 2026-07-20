@@ -7,7 +7,7 @@ import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/file
 import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib/hoverBoxConfig';
 import { DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES, type TreeListItemType } from '../lib/treeListItemFilter';
 import type { CustomEventAction } from '../lib/customEventActions';
-import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
+import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, DEFAULT_DUAL_PANE_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
 
 export interface VisualFilter {
     id: string;
@@ -61,6 +61,8 @@ export interface AppConfig {
     enableNativeThumbnails: boolean;
     clearThumbnailCacheOnExit: boolean;
     bypassRecycleBin: boolean;
+    alwaysRunElevated?: boolean;
+    alwaysRunElevatedConfirmed?: boolean;
     enableGlobalSearchPrefix: boolean;
     globalSearchLimit: number;
     syncUseHashing?: boolean;
@@ -85,7 +87,7 @@ export interface AppConfig {
     useCustomContextMenu: boolean;
     previewCategories: Array<{n: string, d: string, c: boolean}>;
     previewFormats: Array<{i: string, n: string, c: boolean}>;
-    colorFilters: Array<{i: number, c: boolean, t: string, style: string}>;
+    colorFilters: Array<{i: number, c: boolean, t: string, style: string, folderIcon?: string}>;
     customColumns?: CustomColumnDef[];
     shellInfoTipStandardFields?: string[];
     shellInfoTipExtraFields?: string[];
@@ -185,6 +187,24 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if (merged.fileTaggingFeature === undefined) {
         merged.fileTaggingFeature = merged.fileTagging !== false;
     }
+    if ((merged.xCloseActionVersion ?? 0) < 1) {
+        // Reset silent tray-on-X so the close dialog asks again; choice is remembered after.
+        merged.xCloseAction = 'ask';
+        merged.minimizeToTrayOnXClose = false;
+        merged.xCloseActionVersion = 1;
+    } else if (merged.xCloseAction !== 'ask' && merged.xCloseAction !== 'tray' && merged.xCloseAction !== 'quit') {
+        merged.xCloseAction = merged.minimizeToTrayOnXClose ? 'tray' : 'ask';
+    }
+    if ((merged.folderColorFilterVersion ?? 0) < 1) {
+        const rows = Array.isArray(merged.colorFilters) ? merged.colorFilters : [];
+        merged.colorFilters = rows.map((row: any) => {
+            if (row?.folderIcon) return row;
+            const t = String(row?.t || '').toLowerCase();
+            if (t.includes('agem:')) return { ...row, folderIcon: 'green' };
+            return row;
+        });
+        merged.folderColorFilterVersion = 1;
+    }
     return merged;
 }
 
@@ -224,6 +244,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
     activeToolbarProfileIndex: 0,
     workspaceLayoutOuter: { ...DEFAULT_OUTER_LAYOUT },
     workspaceLayoutInner: { ...DEFAULT_INNER_LAYOUT },
+    workspaceLayoutPanes: { ...DEFAULT_DUAL_PANE_LAYOUT },
     workspaceLayoutVersion: WORKSPACE_LAYOUT_VERSION,
     previewPanelOpen: true,
     bottomPanelOpen: true,
@@ -285,8 +306,8 @@ export const defaultConfig: AppConfig = normalizeConfig({
         {i: 3, c: true, t: "attr:system", style: "bg-[#F4D03F] text-black px-1"},
         {i: 4, c: true, t: "attr:encrypted", style: "text-[#2ECC71] px-1"},
         {i: 5, c: true, t: "attr:compressed", style: "text-[#3498DB] px-1"},
-        {i: 6, c: true, t: "ageM: <= 30 n //modified in the last 30 mins", style: "bg-[#82E05B] text-black px-1"},
-        {i: 7, c: true, t: "ageM: d //modified today", style: "bg-[#82E05B] text-white px-1"},
+        {i: 6, c: true, t: "ageM: <= 30 n //modified in the last 30 mins", style: "bg-[#82E05B] text-black px-1", folderIcon: "green"},
+        {i: 7, c: true, t: "ageM: d //modified today", style: "bg-[#82E05B] text-white px-1", folderIcon: "green"},
         {i: 8, c: true, t: "attr:d", style: "text-[#B6B6B6] px-1"},
         {i: 9, c: true, t: "size:0 //empty files", style: "bg-[#FDFDFD] text-[#3498DB] px-1"},
         {i: 10, c: true, t: "B:prop:#empty:2|f-s //empty folders", style: "bg-transparent text-white px-1 border border-white"},

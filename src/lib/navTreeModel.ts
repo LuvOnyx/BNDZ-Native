@@ -63,6 +63,8 @@ interface FlattenContext {
   dynamicState: Record<string, DynamicTreeState>;
   currentPath?: string;
   markIntermediateNodes?: boolean;
+  /** When true, hide expand chevron once we know a folder has no children. */
+  checkExistence?: boolean;
   pathsEqual?: (a?: string, b?: string) => boolean;
   isPathAncestor?: (ancestor?: string, descendant?: string) => boolean;
 }
@@ -112,7 +114,14 @@ export function flattenNavTree(
       childNodes = node.childrenItems!;
     }
 
-    const hasChildren = !node.leaf && (isDynamicFolder || isStaticBranch);
+    const knownEmpty =
+      !!ctx.checkExistence
+      && isDynamicFolder
+      && !!node.path
+      && Array.isArray(ctx.dynamicState[node.path!]?.children)
+      && (ctx.dynamicState[node.path!]?.children?.length ?? 0) === 0
+      && !ctx.dynamicState[node.path!]?.loading;
+    const hasChildren = !node.leaf && !knownEmpty && (isDynamicFolder || isStaticBranch);
     const id = nodeId(node, index, prefix);
     const pathsEqual = ctx.pathsEqual ?? defaultPathsEqual;
     const isPathAncestor = ctx.isPathAncestor ?? defaultIsPathAncestor;

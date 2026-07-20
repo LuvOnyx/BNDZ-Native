@@ -7,7 +7,18 @@ export function getPaneTabLabel(path: string): string {
   if (p === '//' || p === '\\\\') return 'Network';
   if (isRecycleBinPath(p)) return 'Recycle Bin';
   if (/^\/[A-Za-z]:$/.test(p)) return p.slice(1);
+  const lower = p.toLowerCase();
+  if (lower === '/shell:desktop') return 'Desktop';
+  if (lower === '/shell:personal') return 'Documents';
+  if (lower === '/shell:downloads') return 'Downloads';
+  if (lower === '/shell:my pictures') return 'Pictures';
+  if (lower === '/shell:my music') return 'Music';
+  if (lower === '/shell:my video') return 'Videos';
+  if (lower === '/shell:profile' || lower === '/shell:home') return 'Home';
+  if (lower === '/shell:pictureslibrary') return 'Gallery';
+  if (lower === '/shell:libraries') return 'Libraries';
   const leaf = p.split('/').filter(Boolean).pop() || p;
   if (leaf.toLowerCase() === 'workspace') return 'Workspace';
+  if (/^shell:/i.test(leaf)) return leaf.slice('shell:'.length);
   return leaf;
 }

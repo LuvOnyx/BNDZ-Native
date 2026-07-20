@@ -544,25 +544,46 @@ export const IPC = {
     return Promise.resolve({ success: false, error: 'Native only' });
   },
 
-  executeUndo(timeoutMs = 120_000): Promise<{ ok: boolean; message: string }> {
+  executeUndo(opts?: number | { entryId?: string; timeoutMs?: number }): Promise<{ ok: boolean; message: string }> {
+    const timeoutMs = typeof opts === 'number' ? opts : (opts?.timeoutMs ?? 120_000);
+    const entryId = typeof opts === 'object' && opts ? opts.entryId : undefined;
     if (this.isNative) {
-      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_UNDO', 'UNDO_REDO_RESULT', undefined, undefined, timeoutMs);
+      return _nativeCall<{ ok: boolean; message: string }>(
+        'EXECUTE_UNDO',
+        'UNDO_REDO_RESULT',
+        undefined,
+        entryId ? { entryId } : undefined,
+        timeoutMs,
+      );
     }
     return Promise.resolve({ ok: false, message: 'Undo requires native host' });
   },
 
-  executeRedo(timeoutMs = 120_000): Promise<{ ok: boolean; message: string }> {
+  executeRedo(opts?: number | { entryId?: string; timeoutMs?: number }): Promise<{ ok: boolean; message: string }> {
+    const timeoutMs = typeof opts === 'number' ? opts : (opts?.timeoutMs ?? 120_000);
+    const entryId = typeof opts === 'object' && opts ? opts.entryId : undefined;
     if (this.isNative) {
-      return _nativeCall<{ ok: boolean; message: string }>('EXECUTE_REDO', 'UNDO_REDO_RESULT', undefined, undefined, timeoutMs);
+      return _nativeCall<{ ok: boolean; message: string }>(
+        'EXECUTE_REDO',
+        'UNDO_REDO_RESULT',
+        undefined,
+        entryId ? { entryId } : undefined,
+        timeoutMs,
+      );
     }
     return Promise.resolve({ ok: false, message: 'Redo requires native host' });
   },
 
-  getActionLog(): Promise<{ items: Array<{ id: string; kind: string; label: string; utc: string; canUndo: boolean }>; canUndo: boolean; canRedo: boolean }> {
+  getActionLog(max?: number): Promise<{
+    items: Array<{ id: string; kind: string; label: string; utc: string; canUndo: boolean }>;
+    redoItems?: Array<{ id: string; kind: string; label: string; utc: string; canUndo: boolean }>;
+    canUndo: boolean;
+    canRedo: boolean;
+  }> {
     if (this.isNative) {
-      return _nativeCall('GET_ACTION_LOG', 'ACTION_LOG_RESULT', undefined);
+      return _nativeCall('GET_ACTION_LOG', 'ACTION_LOG_RESULT', undefined, max != null ? { max } : undefined);
     }
-    return Promise.resolve({ items: [], canUndo: false, canRedo: false });
+    return Promise.resolve({ items: [], redoItems: [], canUndo: false, canRedo: false });
   },
 
   onActionLogChanged(callback: (state: { canUndo: boolean; canRedo: boolean; lastActionUtc?: string }) => void) {
@@ -1068,11 +1089,16 @@ export const IPC = {
     return Promise.resolve({ active: false, directoryOpen: false, folderOpen: false, driveOpen: false });
   },
 
-  relaunchAsAdmin(): Promise<ShellIntegrationResult> {
+  relaunchAsAdmin(extraArgs?: string): Promise<ShellIntegrationResult> {
     if (this.isNative) {
       const id = `${Date.now()}_relaunchAdmin`;
-      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'relaunchAdmin' }, 60000)
-        .then(r => r ?? { success: false, message: 'No response from shell integration.' });
+      return _nativeCall<ShellIntegrationResult>(
+        'SHELL_INTEGRATION',
+        'SHELL_INTEGRATION_RESULT',
+        id,
+        { action: 'relaunchAdmin', extraArgs: extraArgs || '' },
+        60000,
+      ).then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
   },
@@ -1124,6 +1150,16 @@ export const IPC = {
       return _nativeCall<boolean>('CHECK_PATH_EXISTS', 'CHECK_PATH_RESULT', id, { path });
     }
     return Promise.resolve(path.length > 2);
+  },
+
+  /** Expand `%AppData%` / `shell:Desktop` / etc. to a real Windows path via the host. */
+  expandEnvironmentPath(path: string): Promise<string> {
+    if (this.isNative) {
+      const id = `${Date.now()}_expandPath`;
+      return _nativeCall<string>('EXPAND_ENVIRONMENT_PATH', 'EXPAND_ENVIRONMENT_PATH_RESULT', id, { path })
+        .then(r => (typeof r === 'string' && r.length ? r : path));
+    }
+    return Promise.resolve(path);
   },
 
   emptyRecycleBin(): Promise<{ success: boolean }> {

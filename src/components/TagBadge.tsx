@@ -1,5 +1,6 @@
 import React from 'react';
 import { findTagMeta, type TagDef } from '../lib/tagUtils';
+import { TagGlyph } from './TagGlyph';
 
 type Props = {
   tagKey: string;
@@ -24,11 +25,7 @@ export default function TagBadge({ tagKey, catalog = [], compact }: Props) {
       }}
       title={label}
     >
-      <span
-        className={`rounded-[2px] shrink-0 border border-black/20 ${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'}`}
-        style={{ backgroundColor: color }}
-        aria-hidden
-      />
+      <TagGlyph color={color} size={compact ? 9 : 11} />
       {label}
     </span>
   );

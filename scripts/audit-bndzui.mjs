@@ -40,7 +40,7 @@ const skip = new Set([
   'React', 'Suspense', 'Fragment', 'AnimatePresence', 'motion',
   'ToolbarButton', 'Spinner', 'InlineRenameInput', 'Icon',
   'HTMLDivElement', 'HTMLInputElement', 'HTMLUListElement',
-  'Record', 'Set', 'ReturnType', 'PaneState', 'KeyboardEvent', 'MouseEvent',
+  'Record', 'Set', 'Map', 'ReturnType', 'PaneState', 'KeyboardEvent', 'MouseEvent',
   'RenameOperation', 'VisualFilter', 'TabState', 'DriveInfo', 'ShortcutInfo',
   'VirtualDirectory', 'FSEntity', 'ToastKind', 'PaletteAction', 'ListColumnId',
   'SortColumnId', 'NavTreeBuildNode',

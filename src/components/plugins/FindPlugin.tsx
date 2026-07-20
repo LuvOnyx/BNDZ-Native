@@ -11,6 +11,7 @@ import {
   PluginCard,
   PluginHeroStrip,
   PluginHeroActionButton,
+  PluginEmptyState,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
@@ -321,20 +322,22 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     <div className="flex-1 overflow-y-auto bndz-scrollbar">
                         {mode === 'duplicates' ? (
                             duplicateGroups.length === 0 ? (
-                                <div className="flex h-full items-center justify-center text-gray-600 text-xs p-4 text-center">
-                                    {searching ? 'Scanning…' : 'Scan the current folder for duplicate files by content hash.'}
-                                </div>
+                                <PluginEmptyState
+                                  icon="copy"
+                                  title={searching ? 'Scanning…' : 'No duplicates yet'}
+                                  description={searching ? 'Hashing files in the current folder.' : 'Scan the current folder for duplicate files by content hash.'}
+                                />
                             ) : (
                                 <div className="p-2 space-y-3">
                                     {duplicateGroups.map(g => (
-                                        <div key={g.hash} className="bndz-plugin-card overflow-hidden p-0">
+                                        <div key={g.hash} className="bndz-plugin-card overflow-hidden !p-0">
                                             <div className="px-3 py-2 border-b border-white/[0.06] text-xs bndz-panel-muted bndz-mono">
                                                 {g.paths.length} copies · {g.size} bytes
                                             </div>
                                             {g.paths.map(p => (
                                                 <div
                                                     key={p}
-                                                    className="px-3 py-2 text-[11px] text-gray-300 hover:bg-[#151515] cursor-pointer truncate font-mono"
+                                                    className="px-3 py-2 text-[11px] text-gray-300 hover:bg-white/[0.04] cursor-pointer truncate font-mono"
                                                     onDoubleClick={() => navigateTo(p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:'))}
                                                     title={p}
                                                 >
@@ -346,26 +349,33 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                 </div>
                             )
                         ) : results.length === 0 ? (
-                            <div className="flex h-full items-center justify-center text-gray-600 text-xs">No results — enter a query and search.</div>
+                            <PluginEmptyState
+                              icon="find"
+                              title="No results"
+                              description="Enter a query and search — results open as finding tabs from the list."
+                            />
                         ) : (
-                            <table className="w-full text-left text-xs">
-                                <thead className="sticky top-0 border-b border-white/[0.06] z-10" style={{ background: 'var(--bndz-surface-chrome)' }}>
-                                    <tr>
-                                        <th className="px-4 py-2 font-medium bndz-panel-muted">Name</th>
-                                        <th className="px-4 py-2 font-medium bndz-panel-muted">Path</th>
-                                        <th className="px-4 py-2 font-medium bndz-panel-muted w-16">Type</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {results.map((r, i) => (
-                                        <tr key={i} className="border-b border-[#1a1a1a] hover:bg-[#151515] cursor-pointer" onDoubleClick={() => navigateTo(r.path)}>
-                                            <td className="px-4 py-2 text-gray-200 max-w-[200px] truncate">{r.name}</td>
-                                            <td className="px-4 py-2 text-gray-500 font-mono text-[11px] truncate">{r.path}</td>
-                                            <td className="px-4 py-2 text-gray-600 text-[10px]">{r.matchType === 'content' ? 'grep' : r.isDirectory ? 'dir' : 'file'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <div className="flex flex-col min-h-0">
+                              <div className="sticky top-0 z-10 grid grid-cols-[minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-[10px] uppercase tracking-[0.08em] text-white/35 border-b border-white/[0.06]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+                                <span>Name</span>
+                                <span>Path</span>
+                                <span>Type</span>
+                              </div>
+                              <div className="flex-1">
+                                {results.map((r, i) => (
+                                  <div
+                                    key={`${r.path}-${i}`}
+                                    className="grid grid-cols-[minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors"
+                                    onDoubleClick={() => navigateTo(r.path)}
+                                    title={r.path}
+                                  >
+                                    <span className="text-gray-100 truncate font-medium">{r.name}</span>
+                                    <span className="text-white/40 font-mono text-[11px] truncate">{r.path}</span>
+                                    <span className="bndz-plugin-kind-pill w-fit self-center">{r.matchType === 'content' ? 'grep' : r.isDirectory ? 'dir' : 'file'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                         )}
                     </div>
                 </div>

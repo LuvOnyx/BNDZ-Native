@@ -26,7 +26,9 @@
 
   <ItemGroup>
     <PackageReference Include="LLamaSharp" Version="0.24.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.24.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.24.0"
+                      ExcludeAssets="runtime"
+                      GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
@@ -34,6 +36,20 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
     <PackageReference Include="SharpCompress" Version="0.48.0" />
     <PackageReference Include="Vanara.Windows.Shell" Version="4.0.4" />
+  </ItemGroup>
+
+  <!--
+    LLamaSharp 0.24 ships AVX variants with identical filenames. The .NET
+    publisher otherwise flattens them and fails with NETSDK1152. Preserve the
+    package's native directory hierarchy so LLamaSharp can select the correct
+    CPU backend at runtime.
+  -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <Content Include="$(PkgLLamaSharp_Backend_Cpu)\runtimes\win-x64\native\**\*.dll">
+      <Link>runtimes\win-x64\native\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

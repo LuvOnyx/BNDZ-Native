@@ -39,6 +39,16 @@ let ok = 0;
 let fail = 0;
 
 for (const [id, slug] of entries) {
+  const customSvg = path.join(dest, `${id}.svg`);
+  if (['toggle_dual_pane', 'toggle_bottom', 'tag_manager'].includes(id)) {
+    try {
+      const { access } = await import('node:fs/promises');
+      await access(customSvg);
+      console.log(`skip custom ${id}.svg`);
+      ok++;
+      continue;
+    } catch { /* fall through to download png */ }
+  }
   const style = FLUENCY_IDS.has(id) ? 'fluency' : '3d-fluency';
   const url = `https://img.icons8.com/${style}/${size}/${slug}.png`;
   const out = path.join(dest, `${id}.png`);

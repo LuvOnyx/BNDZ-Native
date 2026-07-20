@@ -269,7 +269,10 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                       return (
                         <div key={bucket}>
                           <div className="flex justify-between text-[11px] mb-1">
-                            <span className="text-gray-300">{cfg?.icon || '📁'} {bucket}</span>
+                            <span className="text-gray-300 inline-flex items-center gap-1.5">
+                              <Icons8Icon id={cfg?.icon || 'folder_open_ui'} size={12} />
+                              {bucket}
+                            </span>
                             <span className="font-mono text-gray-500">{formatStorageSize(size)}</span>
                           </div>
                           <div className="h-1.5 rounded-full bg-[#1a1a22] overflow-hidden">
@@ -442,9 +445,10 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                     Nothing moves until you approve the plan.
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-3 mb-4">
-                    {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: '📁' }]]).map(([bucket, cfg]) => (
-                      <span key={bucket} className="bndz-plugin-kind-pill border border-white/[0.06]" style={{ color: cfg.color, background: `${cfg.color}12` }}>
-                        {cfg.icon} {bucket}
+                    {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: 'folder_open_ui' }]]).map(([bucket, cfg]) => (
+                      <span key={bucket} className="bndz-plugin-kind-pill border border-white/[0.06] inline-flex items-center gap-1.5" style={{ color: cfg.color, background: `${cfg.color}12` }}>
+                        <Icons8Icon id={cfg.icon} size={12} />
+                        {bucket}
                       </span>
                     ))}
                   </div>

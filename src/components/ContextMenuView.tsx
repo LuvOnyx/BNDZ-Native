@@ -10,13 +10,14 @@ import {
   resolveContextTargetPanePaths,
   filterSupplementalNativeItems,
   isContextMenuBackground,
+  isRecycleBinLocationMenu,
   contextMenuRefreshLabel,
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
 import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
-import { dedupePinnedFavorites } from '../lib/rapidAccessDefaults';
+import { dedupePinnedFavorites, collapseKnownFolderShadowPath } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
@@ -88,6 +89,7 @@ function ContextMenuView({
   const rt = buildSettingsRuntime(config);
   const targetPaths = resolveContextTargetPaths(menu);
   const isBackground = isContextMenuBackground(menu);
+  const isRecycleLocation = isRecycleBinLocationMenu(menu);
   const refreshLabel = contextMenuRefreshLabel(menu.surface);
   const runRefresh = () => {
     const surface = menu.surface;
@@ -304,8 +306,8 @@ function ContextMenuView({
   // menu via `filterSupplementalNativeItems` (rendered as `supplementalNative` below).
   // This guarantees the tree and listview show identical structure with no swap/flicker.
 
-  if (isBackground) {
-    if (isRecycleBinPath(menu.path)) {
+  if (isBackground || isRecycleLocation) {
+    if (isRecycleBinPath(menu.path) || isRecycleLocation) {
       return (
         <ClampedFixedMenu
           x={menu.x}
@@ -323,6 +325,15 @@ function ContextMenuView({
           />
           <div className="bndz-context-menu-sep" />
           <ContextMenuItem label={refreshLabel} iconVerb="refresh" onClick={() => { runRefresh(); onClose(); }} />
+          <ContextMenuItem
+            label="Properties"
+            iconVerb="properties"
+            onClick={async () => {
+              const IPC = await runIpc();
+              IPC.shellExecute('properties', RECYCLE_BIN_PATH, undefined, buildShellExecuteOptions(config));
+              onClose();
+            }}
+          />
         </ClampedFixedMenu>
       );
     }
@@ -787,7 +798,8 @@ function ContextMenuView({
               updateConfig({ pinnedFavorites: dedupePinnedFavorites(pinned.filter((p: any) => normalizePanePath(p.path) !== normEntityPath)) });
               setToastMessage(`Unpinned "${menu.entityName || 'folder'}" from Rapid access.`);
             } else if (menu.entityName) {
-              updateConfig({ pinnedFavorites: dedupePinnedFavorites([...pinned, { name: menu.entityName, path: normEntityPath, icon: 'folder' }]) });
+              const pinPath = collapseKnownFolderShadowPath(normEntityPath);
+              updateConfig({ pinnedFavorites: dedupePinnedFavorites([...pinned, { name: menu.entityName, path: pinPath, icon: 'folder' }]) });
               setToastMessage(`Pinned "${menu.entityName}" to Rapid access.`);
             }
             onClose();

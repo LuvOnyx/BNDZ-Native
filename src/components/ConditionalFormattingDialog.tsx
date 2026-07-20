@@ -1,138 +1,198 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppConfig, VisualFilter } from '../data/configContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { Button } from './ui/button';
 import { Icons8Icon } from './Icons8Icon';
+import { BndzWindowFrame } from './native/BndzWindowFrame';
 
-export default function ConditionalFormattingDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
-    const { config, updateConfig } = useAppConfig();
-    
-    // We will save VisualFilter[] into visualFilters.
-    const [rules, setRules] = useState<VisualFilter[]>(config.visualFilters || []);
+export default function ConditionalFormattingDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { config, updateConfig } = useAppConfig();
+  const [rules, setRules] = useState<VisualFilter[]>(config.visualFilters || []);
 
-    const handleSave = () => {
-        updateConfig({ visualFilters: rules });
-        onOpenChange(false);
-    };
+  useEffect(() => {
+    if (open) setRules(config.visualFilters || []);
+  }, [open, config.visualFilters]);
 
-    const addRule = () => {
-        setRules([...rules, {
-            id: Date.now().toString(),
-            isActive: true,
-            name: 'New Rule',
-            matchType: 'event',
-            matchValue: 'modifiedToday',
-            rowTint: '',
-            textColor: '',
-            badgeColor: '',
-            targetScope: ''
-        }]);
-    };
+  if (!open) return null;
 
-    const updateRule = (id: string, updates: Partial<VisualFilter>) => {
-        setRules(rules.map(r => r.id === id ? { ...r, ...updates } : r));
-    };
+  const handleSave = () => {
+    updateConfig({ visualFilters: rules });
+    onOpenChange(false);
+  };
 
-    const removeRule = (id: string) => {
-        setRules(rules.filter(r => r.id !== id));
-    };
+  const addRule = () => {
+    setRules([
+      ...rules,
+      {
+        id: Date.now().toString(),
+        isActive: true,
+        name: 'New Rule',
+        matchType: 'event',
+        matchValue: 'modifiedToday',
+        rowTint: '',
+        textColor: '',
+        badgeColor: '',
+        targetScope: '',
+      },
+    ]);
+  };
 
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl bg-[#1e1e1e] border-[#333] text-gray-200 shadow-2xl overflow-y-auto max-h-[85vh]">
-                <DialogHeader>
-                    <DialogTitle className="text-white">Conditional Formatting Rules</DialogTitle>
-                </DialogHeader>
+  const updateRule = (id: string, updates: Partial<VisualFilter>) => {
+    setRules(rules.map(r => (r.id === id ? { ...r, ...updates } : r)));
+  };
 
-                <div className="space-y-4 py-4">
-                    {rules.map((rule, idx) => (
-                        <div key={rule.id} className="p-3 border border-[#333] bg-[#111] rounded space-y-3">
-                            <div className="flex gap-3 items-center">
-                                <div className="font-mono text-[10px] text-gray-500 w-4">#{idx+1}</div>
-                                <input 
-                                    className="h-8 bg-[#222] border border-[#444] rounded w-48 px-2 text-white text-xs outline-none focus:border-[#0078d4]" 
-                                    placeholder="Rule Name" 
-                                    value={rule.name} 
-                                    onChange={(e) => updateRule(rule.id, { name: e.target.value })} 
-                                />
-                                
-                                <select 
-                                    className="h-8 w-36 bg-[#222] border border-[#444] rounded text-white text-xs px-2 outline-none"
-                                    value={rule.matchType} 
-                                    onChange={(e: any) => updateRule(rule.id, { matchType: e.target.value, matchValue: '' })}
-                                >
-                                    <option value="event">Event / Timeframe</option>
-                                    <option value="extension">Extension</option>
-                                    <option value="regex">Regex Name</option>
-                                    <option value="size">Size</option>
-                                </select>
+  const removeRule = (id: string) => {
+    setRules(rules.filter(r => r.id !== id));
+  };
 
-                                {rule.matchType === 'event' ? (
-                                    <select 
-                                        className="h-8 w-48 bg-[#222] border border-[#444] rounded text-white text-xs px-2 outline-none"
-                                        value={rule.matchValue} 
-                                        onChange={(e) => updateRule(rule.id, { matchValue: e.target.value })}
-                                    >
-                                        <option value="" disabled hidden>Select Event</option>
-                                        <option value="modifiedToday">Modified Today</option>
-                                        <option value="createdWithin24Hours">Created Within 24h</option>
-                                        <option value="isReadOnly">Is Read-Only</option>
-                                    </select>
-                                ) : (
-                                    <input 
-                                        className="h-8 bg-[#222] border border-[#444] rounded w-48 px-2 text-white text-xs outline-none focus:border-[#0078d4]" 
-                                        placeholder={`Value for ${rule.matchType}`} 
-                                        value={rule.matchValue} 
-                                        onChange={(e) => updateRule(rule.id, { matchValue: e.target.value })} 
-                                    />
-                                )}
-                                
-                                <input 
-                                    className="h-8 bg-[#222] border border-[#444] rounded flex-1 px-2 text-white text-xs outline-none focus:border-[#0078d4]" 
-                                    placeholder="Folder Scope (e.g. /C:/Windows)" 
-                                    value={rule.targetScope || ''} 
-                                    onChange={(e) => updateRule(rule.id, { targetScope: e.target.value })} 
-                                />
+  return (
+    <BndzWindowFrame
+      title="Conditional Formatting"
+      subtitle={`${rules.length} rule${rules.length === 1 ? '' : 's'} · tint rows by pattern`}
+      iconId="filters"
+      onClose={() => onOpenChange(false)}
+      widthClass="w-[min(820px,calc(100vw-2rem))]"
+      heightClass="h-[min(560px,calc(100vh-2rem))]"
+      zIndexClass="z-[250]"
+    >
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar p-4 space-y-3">
+          {rules.length === 0 && (
+            <div className="bndz-plugin-card flex flex-col items-center justify-center gap-2 py-12 text-center">
+              <Icons8Icon id="filters" size={22} className="opacity-40" />
+              <div className="text-sm text-gray-300 font-medium">No formatting rules yet</div>
+              <div className="text-[11px] text-gray-500 max-w-sm">
+                Color-code list rows by time, extension, regex, or size — same engine as Visual Filters.
+              </div>
+            </div>
+          )}
 
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => removeRule(rule.id)}>
-                                    <Icons8Icon id="trash_ui" size={14} />
-                                </Button>
-                            </div>
-                            
-                            <div className="flex gap-3 items-center pl-7 text-xs mt-2">
-                                <span className="text-gray-400 w-16">Styles:</span>
-                                <input 
-                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-32 text-xs text-white outline-none focus:border-[#0078d4]" 
-                                    placeholder="Text Color (HEX)" 
-                                    value={rule.textColor || rule.hexColor || ''} 
-                                    onChange={(e) => updateRule(rule.id, { textColor: e.target.value, hexColor: e.target.value })} 
-                                />
-                                <input 
-                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-36 text-xs text-white outline-none focus:border-[#0078d4]" 
-                                    placeholder="Row Tint (e.g. #ff00001a)" 
-                                    value={rule.rowTint || ''} 
-                                    onChange={(e) => updateRule(rule.id, { rowTint: e.target.value })} 
-                                />
-                                <input 
-                                    className="h-7 bg-[#222] border border-[#444] rounded px-2 w-32 text-xs text-white outline-none focus:border-[#0078d4]" 
-                                    placeholder="Badge Dot Color" 
-                                    value={rule.badgeColor || ''} 
-                                    onChange={(e) => updateRule(rule.id, { badgeColor: e.target.value })} 
-                                />
-                            </div>
-                        </div>
-                    ))}
-                    
-                    <Button variant="outline" className="w-full border-dashed border-[#555] bg-transparent hover:bg-[#222] text-xs h-8" onClick={addRule}>
-                        <Icons8Icon id="plus_ui" size={14} className="mr-2" /> Add Rule
-                    </Button>
-                </div>
+          {rules.map((rule, idx) => (
+            <div key={rule.id} className="bndz-plugin-card space-y-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="font-mono text-[10px] text-gray-500 w-5 shrink-0">#{idx + 1}</div>
+                <input
+                  className="bndz-native-input h-8 w-44 text-xs"
+                  placeholder="Rule name"
+                  value={rule.name}
+                  onChange={e => updateRule(rule.id, { name: e.target.value })}
+                />
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-[#333]">
-                    <Button variant="ghost" className="h-8 text-xs hover:bg-[#333]" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button className="h-8 text-xs bg-[#0067c0] hover:bg-[#0078d4] text-white" onClick={handleSave}>Save Ruleset</Button>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
+                <select
+                  className="bndz-native-input h-8 w-40 text-xs"
+                  value={rule.matchType}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    updateRule(rule.id, { matchType: e.target.value as VisualFilter['matchType'], matchValue: '' })
+                  }
+                >
+                  <option value="event">Event / Timeframe</option>
+                  <option value="extension">Extension</option>
+                  <option value="regex">Regex Name</option>
+                  <option value="size">Size</option>
+                </select>
+
+                {rule.matchType === 'event' ? (
+                  <select
+                    className="bndz-native-input h-8 w-48 text-xs"
+                    value={rule.matchValue}
+                    onChange={e => updateRule(rule.id, { matchValue: e.target.value })}
+                  >
+                    <option value="" disabled hidden>
+                      Select event
+                    </option>
+                    <option value="modifiedToday">Modified Today</option>
+                    <option value="createdWithin24Hours">Created Within 24h</option>
+                    <option value="isReadOnly">Is Read-Only</option>
+                  </select>
+                ) : (
+                  <input
+                    className="bndz-native-input h-8 w-48 text-xs"
+                    placeholder={`Value for ${rule.matchType}`}
+                    value={rule.matchValue}
+                    onChange={e => updateRule(rule.id, { matchValue: e.target.value })}
+                  />
+                )}
+
+                <input
+                  className="bndz-native-input h-8 flex-1 min-w-[140px] text-xs"
+                  placeholder="Folder scope (e.g. C:\\Windows)"
+                  value={rule.targetScope || ''}
+                  onChange={e => updateRule(rule.id, { targetScope: e.target.value })}
+                />
+
+                <button
+                  type="button"
+                  className="bndz-hub-btn-ghost p-2 text-rose-400 hover:text-rose-300"
+                  onClick={() => removeRule(rule.id)}
+                  title="Remove rule"
+                >
+                  <Icons8Icon id="trash_ui" size={14} />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 items-center pl-5 text-xs">
+                <span className="text-gray-500 w-14 shrink-0">Styles</span>
+                <input
+                  className="bndz-native-input h-7 w-32 text-xs"
+                  placeholder="Text color"
+                  value={rule.textColor || rule.hexColor || ''}
+                  onChange={e => updateRule(rule.id, { textColor: e.target.value, hexColor: e.target.value })}
+                />
+                <input
+                  className="bndz-native-input h-7 w-36 text-xs"
+                  placeholder="Row tint (#rrggbbaa)"
+                  value={rule.rowTint || ''}
+                  onChange={e => updateRule(rule.id, { rowTint: e.target.value })}
+                />
+                <input
+                  className="bndz-native-input h-7 w-32 text-xs"
+                  placeholder="Badge color"
+                  value={rule.badgeColor || ''}
+                  onChange={e => updateRule(rule.id, { badgeColor: e.target.value })}
+                />
+                {(rule.textColor || rule.hexColor || rule.rowTint || rule.badgeColor) && (
+                  <span
+                    className="h-7 px-3 rounded-md text-[11px] font-medium flex items-center border border-white/[0.08]"
+                    style={{
+                      color: rule.textColor || rule.hexColor || undefined,
+                      background: rule.rowTint || 'transparent',
+                    }}
+                  >
+                    Preview
+                    {rule.badgeColor && (
+                      <span
+                        className="ml-2 w-2 h-2 rounded-full"
+                        style={{ backgroundColor: rule.badgeColor }}
+                      />
+                    )}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addRule}
+            className="w-full bndz-hub-btn-ghost border border-dashed border-white/[0.12] py-2.5 text-xs font-medium flex items-center justify-center gap-2"
+          >
+            <Icons8Icon id="plus_ui" size={14} /> Add Rule
+          </button>
+        </div>
+
+        <div className="shrink-0 flex justify-end gap-2 px-4 py-3 border-t border-white/[0.06]">
+          <button type="button" className="bndz-hub-btn-ghost px-4 py-2 text-xs font-semibold" onClick={() => onOpenChange(false)}>
+            Cancel
+          </button>
+          <button type="button" className="bndz-hub-btn-primary px-4 py-2 text-xs font-semibold" onClick={handleSave}>
+            Save Ruleset
+          </button>
+        </div>
+      </div>
+    </BndzWindowFrame>
+  );
 }

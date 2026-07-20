@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.Json;
@@ -627,7 +628,7 @@ public class ShellIntegrationService
         }
     }
 
-    public ShellIntegrationResult RelaunchAsAdministrator()
+    public ShellIntegrationResult RelaunchAsAdministrator(string? extraArgs = null)
     {
         try
         {
@@ -635,9 +636,16 @@ public class ShellIntegrationService
             if (string.IsNullOrEmpty(exe))
                 return Fail("Could not resolve BNDZ executable path.");
 
+            var args = string.IsNullOrWhiteSpace(extraArgs)
+                ? Environment.CommandLine.Contains(" --")
+                    ? string.Join(" ", Environment.GetCommandLineArgs().Skip(1).Select(QuoteArg))
+                    : ""
+                : extraArgs.Trim();
+
             Process.Start(new ProcessStartInfo
             {
                 FileName = exe,
+                Arguments = args,
                 Verb = "runas",
                 UseShellExecute = true
             });
@@ -657,6 +665,14 @@ public class ShellIntegrationService
         {
             return Fail(ex.Message);
         }
+    }
+
+    private static string QuoteArg(string arg)
+    {
+        if (string.IsNullOrEmpty(arg)) return "\"\"";
+        if (arg.Contains(' ') || arg.Contains('"'))
+            return "\"" + arg.Replace("\"", "\\\"") + "\"";
+        return arg;
     }
 
     private static ShellIntegrationResult Fail(string message) =>

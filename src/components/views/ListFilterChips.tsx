@@ -21,20 +21,17 @@ type Props = {
   onChange: (v: ListKindFilter) => void;
 };
 
+/** Secondary kind filters — macOS-style slight radius, not pills. */
 export default function ListFilterChips({ value, onChange }: Props) {
   return (
-    <div className="bndz-list-filter-bar flex items-center gap-1.5 px-2 py-1 border-b border-[#333] bg-[#252525] shrink-0 flex-wrap">
-      <div className="flex items-center gap-0.5 mr-1">
+    <div className="bndz-list-filter-bar flex items-center gap-1.5 px-2 py-1.5 border-b border-white/[0.06] bg-black/20 shrink-0 flex-wrap">
+      <div className="flex items-center gap-1 mr-1">
         {CHIPS.map(c => (
           <button
             key={c.id}
             type="button"
             onClick={() => onChange(c.id)}
-            className={`px-2 py-0.5 text-[11px] rounded-sm ${
-              value === c.id
-                ? 'bg-[#094771] text-white'
-                : 'text-gray-500 hover:text-gray-200 hover:bg-[#333]'
-            }`}
+            className={`bndz-list-filter-chip ${value === c.id ? 'bndz-list-filter-chip--active' : ''}`}
           >
             {c.label}
           </button>

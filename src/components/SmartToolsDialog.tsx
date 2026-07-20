@@ -80,7 +80,7 @@ export default function SmartToolsDialog({
             heightClass="h-[min(560px,calc(100vh-2rem))]"
             zIndexClass="z-[100]"
         >
-            <div className="flex border-b border-[#333] bg-[#1a1a1e] shrink-0">
+            <div className="bndz-plugin-tabstrip flex border-b border-white/[0.06] shrink-0">
                 {([
                     { id: 'organize' as const, label: 'Organize', iconId: 'category_ui' },
                     { id: 'assistant' as const, label: 'Assistant', iconId: 'sparkles_ui' },
@@ -90,29 +90,27 @@ export default function SmartToolsDialog({
                         key={t.id}
                         type="button"
                         onClick={() => setTab(t.id)}
-                        className={`flex items-center gap-1.5 px-4 py-2 text-[12px] border-b-2 ${
-                            tab === t.id ? 'border-[#0078d4] text-white bg-[#094771]/35' : 'border-transparent text-gray-500 hover:text-gray-300'
-                        }`}
+                        className={`bndz-plugin-tab flex items-center gap-1.5 ${tab === t.id ? 'bndz-plugin-tab-active' : ''}`}
                     >
                         <Icons8Icon id={t.iconId} size={12} /> {t.label}
                     </button>
                 ))}
             </div>
 
-            <div className="p-4 flex flex-col gap-3 overflow-y-auto flex-1 min-h-0 bg-[#1a1a1e]">
+            <div className="p-4 flex flex-col gap-3 overflow-y-auto flex-1 min-h-0 bg-black/15">
                         {tab === 'organize' && (
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2.5">
                                 <button
                                     type="button"
                                     onClick={handleOrganize}
-                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                    className="bndz-plugin-card !py-3 flex items-center gap-3 text-left hover:border-[rgba(56,189,248,0.28)] transition-colors"
                                 >
-                                    <div className="w-9 h-9 bg-[#094771]/30 flex items-center justify-center shrink-0">
+                                    <div className="w-9 h-9 rounded-lg bg-[#094771]/35 border border-[#0078d4]/25 flex items-center justify-center shrink-0">
                                         <Icons8Icon id="category_ui" size={18} />
                                     </div>
                                     <div>
                                         <h3 className="text-[13px] font-semibold text-gray-100">Auto-Organize Folder</h3>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">Sort into Images, Documents, Audio, Video, and more.</p>
+                                        <p className="text-[11px] text-white/40 mt-0.5">Sort into Images, Documents, Audio, Video, and more.</p>
                                     </div>
                                 </button>
                                 <button
@@ -123,14 +121,14 @@ export default function SmartToolsDialog({
                                         }));
                                         onClose();
                                     }}
-                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                    className="bndz-plugin-card !py-3 flex items-center gap-3 text-left hover:border-[rgba(56,189,248,0.28)] transition-colors"
                                 >
-                                    <div className="w-9 h-9 bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                    <div className="w-9 h-9 rounded-lg bg-emerald-900/30 border border-emerald-500/20 flex items-center justify-center shrink-0">
                                         <Icons8Icon id="sparkles_ui" size={18} />
                                     </div>
                                     <div>
                                         <h3 className="text-[13px] font-semibold text-gray-100">Batch Rename</h3>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">Pattern rename and AI-assisted renaming for selected files.</p>
+                                        <p className="text-[11px] text-white/40 mt-0.5">Pattern rename and AI-assisted renaming for selected files.</p>
                                     </div>
                                 </button>
                                 <button
@@ -139,14 +137,14 @@ export default function SmartToolsDialog({
                                         window.dispatchEvent(new CustomEvent('bndz-open-tag-assignment'));
                                         onClose();
                                     }}
-                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                    className="bndz-plugin-card !py-3 flex items-center gap-3 text-left hover:border-[rgba(56,189,248,0.28)] transition-colors"
                                 >
-                                    <div className="w-9 h-9 bg-pink-900/30 flex items-center justify-center shrink-0">
+                                    <div className="w-9 h-9 rounded-lg bg-pink-900/30 border border-pink-500/20 flex items-center justify-center shrink-0">
                                         <Icons8Icon id="tag_manager" size={18} />
                                     </div>
                                     <div>
                                         <h3 className="text-[13px] font-semibold text-gray-100">Quick Tag</h3>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">Keyboard-driven tagging overlay for the current selection.</p>
+                                        <p className="text-[11px] text-white/40 mt-0.5">Keyboard-driven tagging overlay for the current selection.</p>
                                     </div>
                                 </button>
                                 <button
@@ -157,14 +155,14 @@ export default function SmartToolsDialog({
                                         }));
                                         onClose();
                                     }}
-                                    className="bg-[#333] hover:bg-[#3a3a3a] border border-[#454545] p-3 flex items-center gap-3 text-left"
+                                    className="bndz-plugin-card !py-3 flex items-center gap-3 text-left hover:border-[rgba(56,189,248,0.28)] transition-colors"
                                 >
-                                    <div className="w-9 h-9 bg-amber-900/20 flex items-center justify-center shrink-0">
+                                    <div className="w-9 h-9 rounded-lg bg-amber-900/20 border border-amber-500/20 flex items-center justify-center shrink-0">
                                         <Icons8Icon id="storage_cleanup" size={18} />
                                     </div>
                                     <div>
                                         <h3 className="text-[13px] font-semibold text-gray-100">Storage Cleanup</h3>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">Find large files, empty folders, and reclaim disk space.</p>
+                                        <p className="text-[11px] text-white/40 mt-0.5">Find large files, empty folders, and reclaim disk space.</p>
                                     </div>
                                 </button>
                             </div>

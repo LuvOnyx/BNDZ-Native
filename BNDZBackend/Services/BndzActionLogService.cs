@@ -103,11 +103,26 @@ public sealed class BndzActionLogService
         }
     }
 
-    public IReadOnlyList<ActionLogEntryDto> GetRecent(int max = 64)
+    public IReadOnlyList<ActionLogEntryDto> GetRecent(int max = 100)
     {
         lock (_lock)
         {
+            max = Math.Clamp(max, 1, 4096);
             return _undo.TakeLast(max).Reverse().Select(ActionLogEntryDto.From).ToList();
+        }
+    }
+
+    public IReadOnlyList<ActionLogEntryDto> GetRedoRecent(int max = 100)
+    {
+        lock (_lock)
+        {
+            max = Math.Clamp(max, 1, 4096);
+            return _redo.TakeLast(max).Reverse().Select(e =>
+            {
+                var dto = ActionLogEntryDto.From(e);
+                dto.CanUndo = false;
+                return dto;
+            }).ToList();
         }
     }
 
@@ -173,6 +188,31 @@ public sealed class BndzActionLogService
         }
     }
 
+    /// <summary>Undo from the top of the stack through the entry with <paramref name="entryId"/> (inclusive).</summary>
+    public async Task<ActionLogResult> UndoToAsync(FileOperationService fileOps, string entryId)
+    {
+        if (string.IsNullOrWhiteSpace(entryId))
+            return await UndoAsync(fileOps).ConfigureAwait(false);
+
+        int count;
+        lock (_lock)
+        {
+            var idx = _undo.FindIndex(e => e.Id == entryId);
+            if (idx < 0) return ActionLogResult.Failure("That action is no longer in the undo history.");
+            count = _undo.Count - idx;
+        }
+
+        ActionLogResult last = ActionLogResult.Failure("Nothing to undo.");
+        for (var i = 0; i < count; i++)
+        {
+            last = await UndoAsync(fileOps).ConfigureAwait(false);
+            if (!last.Ok) return last;
+        }
+        return count == 1
+            ? last
+            : ActionLogResult.Success($"Undid {count} action(s).");
+    }
+
     public async Task<ActionLogResult> RedoAsync(FileOperationService fileOps)
     {
         ActionLogEntry? entry;
@@ -195,6 +235,31 @@ public sealed class BndzActionLogService
             lock (_lock) _redo.Add(entry);
             return ActionLogResult.Failure(ex.Message);
         }
+    }
+
+    /// <summary>Redo from the top of the redo stack through the entry with <paramref name="entryId"/> (inclusive).</summary>
+    public async Task<ActionLogResult> RedoToAsync(FileOperationService fileOps, string entryId)
+    {
+        if (string.IsNullOrWhiteSpace(entryId))
+            return await RedoAsync(fileOps).ConfigureAwait(false);
+
+        int count;
+        lock (_lock)
+        {
+            var idx = _redo.FindIndex(e => e.Id == entryId);
+            if (idx < 0) return ActionLogResult.Failure("That action is no longer in the redo history.");
+            count = _redo.Count - idx;
+        }
+
+        ActionLogResult last = ActionLogResult.Failure("Nothing to redo.");
+        for (var i = 0; i < count; i++)
+        {
+            last = await RedoAsync(fileOps).ConfigureAwait(false);
+            if (!last.Ok) return last;
+        }
+        return count == 1
+            ? last
+            : ActionLogResult.Success($"Redid {count} action(s).");
     }
 
     private static async Task ApplyInverseAsync(FileOperationService fileOps, ActionLogEntry entry)

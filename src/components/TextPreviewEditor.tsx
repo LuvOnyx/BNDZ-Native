@@ -81,8 +81,8 @@ export default function TextPreviewEditor({
   const isCode = isCodeExt(ext);
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#1e1e1e] min-h-0">
-      <div className="shrink-0 flex items-center justify-between gap-2 px-2 py-1.5 border-b border-[#333] bg-[#252526]">
+    <div className="w-full h-full flex flex-col bg-black/25 min-h-0">
+      <div className="shrink-0 flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-white/[0.06] bg-black/20">
         <div className="flex items-center gap-1.5 min-w-0">
           <Icons8Icon id={isCode ? 'code_ui' : 'file_ui'} size={13} className="shrink-0" />
           <span className="text-[10px] text-gray-400 truncate font-mono">{fileName}</span>
@@ -95,7 +95,7 @@ export default function TextPreviewEditor({
                 type="button"
                 title={mode === 'edit' ? 'Preview' : 'Edit'}
                 onClick={() => setMode(m => (m === 'edit' ? 'view' : 'edit'))}
-                className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white"
+                className="p-1.5 hover:bg-white/[0.08] rounded-md text-gray-400 hover:text-white"
               >
                 {mode === 'edit' ? <Icons8Icon id="eye_ui" size={13} /> : <Icons8Icon id="pencil_ui" size={13} />}
               </button>
@@ -104,7 +104,7 @@ export default function TextPreviewEditor({
                 title="Revert"
                 disabled={!dirty}
                 onClick={() => { setContent(initialContent); setDirty(false); }}
-                className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white disabled:opacity-30"
+                className="p-1.5 hover:bg-white/[0.08] rounded-md text-gray-400 hover:text-white disabled:opacity-30"
               >
                 <Icons8Icon id="reset_ui" size={13} />
               </button>
@@ -113,7 +113,7 @@ export default function TextPreviewEditor({
                 title="Save (Ctrl+S)"
                 disabled={!dirty || saving}
                 onClick={() => void save()}
-                className="p-1.5 hover:bg-[#333] rounded text-[#7eb8e8] hover:text-[#99c9f0] disabled:opacity-30"
+                className="p-1.5 hover:bg-white/[0.08] rounded-md text-[#7eb8e8] hover:text-[#99c9f0] disabled:opacity-30"
               >
                 <Icons8Icon id="check" size={13} />
               </button>
@@ -123,7 +123,7 @@ export default function TextPreviewEditor({
             type="button"
             title="Open in default app"
             onClick={openExternal}
-            className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white"
+            className="p-1.5 hover:bg-white/[0.08] rounded-md text-gray-400 hover:text-white"
           >
             <Icons8Icon id="external_link" size={13} />
           </button>

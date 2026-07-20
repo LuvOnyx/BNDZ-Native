@@ -212,7 +212,15 @@ $ok = 0
 $fail = 0
 
 foreach ($pair in $map.GetEnumerator()) {
-    $out = Join-Path $dest "$($pair.Key).png"
+    # Preserve hand-authored SVG/PNG overrides (dual pane, bottom panel, tags, …).
+    $customSvg = Join-Path $dest "$($pair.Key).svg"
+    $customPng = Join-Path $dest "$($pair.Key).png"
+    if ($pair.Key -in @('toggle_dual_pane', 'toggle_bottom', 'tag_manager') -and (Test-Path $customSvg)) {
+        Write-Host "skip custom $($pair.Key).svg" -ForegroundColor DarkCyan
+        $ok++
+        continue
+    }
+    $out = $customPng
     $base = if ($fluencyIds -contains $pair.Key) { $baseFluency } else { $base3d }
     $url = "$base/$($pair.Value).png"
     try {

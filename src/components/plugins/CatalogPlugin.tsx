@@ -12,6 +12,7 @@ import {
   PluginEmptyState,
   PluginHeroStrip,
   PluginHeroActionButton,
+  PluginFieldLabel,
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
@@ -33,6 +34,17 @@ type Props = {
   onNavigate?: (path: string) => void;
 };
 
+function pathLeaf(p: string) {
+  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
+  return parts[parts.length - 1] || p;
+}
+
+function pathParent(p: string) {
+  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
+  parts.pop();
+  return parts.join('\\');
+}
+
 export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props) {
   const [catalogs, setCatalogs] = useState<CatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +52,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
   const [editing, setEditing] = useState<CatalogEntry | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [queryDraft, setQueryDraft] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -55,6 +68,17 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (selectedId && !catalogs.some(c => c.id === selectedId)) {
+      setSelectedId(catalogs[0]?.id ?? null);
+    } else if (!selectedId && catalogs.length) {
+      setSelectedId(catalogs[0].id);
+    }
+  }, [catalogs, selectedId]);
+
+  const selected = catalogs.find(c => c.id === selectedId) ?? null;
+  const editingActive = editing && selected && editing.id === selected.id;
+
   const createCatalog = async () => {
     const name = draftName.trim();
     if (!name) return;
@@ -62,10 +86,11 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
       pushToast({ kind: 'warning', title: 'Empty catalog', message: 'Select items first, or add paths after creating.' });
     }
     const paths = selectedPaths.map(p => toWindowsPath(p));
-    await upsertCatalog({ name, paths });
+    const created = await upsertCatalog({ name, paths });
     setDraftName('');
     await load();
     notifyCatalogChanged();
+    if (created?.id) setSelectedId(created.id);
     pushToast({ kind: 'success', title: 'Catalog created', message: name });
   };
 
@@ -83,6 +108,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
   };
 
   const openEdit = (cat: CatalogEntry) => {
+    setSelectedId(cat.id);
     setEditing(cat);
     setRenameDraft(cat.name);
     setQueryDraft(cat.query || '');
@@ -142,96 +168,207 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <PluginHeroStrip
           icon={<Icons8Icon id="bookmark" size={52} className="opacity-90" />}
-          name={catalogs.length ? `${catalogs.length} catalog${catalogs.length === 1 ? '' : 's'}` : 'Virtual catalogs'}
+          name={selected ? selected.name : (catalogs.length ? `${catalogs.length} catalog${catalogs.length === 1 ? '' : 's'}` : 'Virtual catalogs')}
           typeLabel="VF collections"
-          meta={<span className="bndz-panel-muted text-xs">Browse at {VF_ROOT} · {selectedPaths.length ? `${selectedPaths.length} selected` : 'Select items to add'}</span>}
+          path={selected ? `${VF_ROOT}/${selected.id}` : undefined}
+          meta={
+            <span className="bndz-panel-muted text-xs">
+              {selected
+                ? `${(selected.paths || []).length} path(s)${selected.query?.trim() ? ' · search-backed' : ''}`
+                : `Browse at ${VF_ROOT} · ${selectedPaths.length ? `${selectedPaths.length} selected` : 'Select items to add'}`}
+            </span>
+          }
           actions={
             <>
-              <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={() => void createCatalog()} disabled={!draftName.trim()}>Create</PluginHeroActionButton>
+              {selected && (
+                <PluginHeroActionButton icon="explorer" variant="primary" onClick={() => onNavigate?.(`/vf/${selected.id}`)}>
+                  Open
+                </PluginHeroActionButton>
+              )}
               <PluginHeroActionButton icon="upload" onClick={() => importRef.current?.click()}>Import</PluginHeroActionButton>
               <PluginHeroActionButton icon="download" onClick={exportCatalogs}>Export</PluginHeroActionButton>
               <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importCatalogs(f); e.target.value = ''; }} />
             </>
           }
         />
-      <div className="flex flex-col gap-3 p-4 text-xs text-gray-300 flex-1 min-h-0 overflow-hidden">
-        <div className="flex gap-2 shrink-0">
-          <input
-            value={draftName}
-            onChange={e => setDraftName(e.target.value)}
-            placeholder="New catalog name…"
-            className={`${PLUGIN_INPUT_CLASS} flex-1 text-sm`}
-            onKeyDown={e => { if (e.key === 'Enter') void createCatalog(); }}
-          />
-          <PluginToolbarButton icon="plus_ui" onClick={() => void createCatalog()}>Create</PluginToolbarButton>
-          <PluginToolbarButton icon="refresh" onClick={() => void load()} title="Refresh" />
-        </div>
 
-        {selectedPaths.length > 0 && (
-          <PluginCard className="!py-2 border-amber-500/20 bg-amber-950/15 text-amber-200/90 text-xs">
-            {selectedPaths.length} selected — add to a catalog or create one above.
-          </PluginCard>
-        )}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Collection list */}
+          <div className="w-[240px] shrink-0 border-r border-white/[0.06] flex flex-col min-h-0 bg-black/15">
+            <div className="p-3 border-b border-white/[0.06] space-y-2 shrink-0">
+              <PluginSectionTitle icon="plus_ui">New collection</PluginSectionTitle>
+              <div className="flex gap-1.5">
+                <input
+                  value={draftName}
+                  onChange={e => setDraftName(e.target.value)}
+                  placeholder="Name…"
+                  className={`${PLUGIN_INPUT_CLASS} flex-1 !py-1.5`}
+                  onKeyDown={e => { if (e.key === 'Enter') void createCatalog(); }}
+                />
+                <PluginToolbarButton icon="plus_ui" onClick={() => void createCatalog()} disabled={!draftName.trim()} />
+              </div>
+            </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12 text-gray-500"><Icons8Icon id="loading" size={16} spin className="mr-2" /> Loading…</div>
-        ) : catalogs.length === 0 ? (
-          <PluginEmptyState
-            icon="bookmark"
-            title="No catalogs yet"
-            description="Create a catalog to build virtual folders at /vf."
-          />
-        ) : (
-          <div className="flex-1 space-y-2 overflow-y-auto bndz-scrollbar min-h-0">
-            {catalogs.map(cat => (
-              <PluginCard key={cat.id} className="!p-0 overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
-                  <Icons8Icon id="bookmark" size={14} className="shrink-0" />
-                  <button type="button" className="font-semibold text-white hover:underline truncate flex-1 text-left text-sm" onClick={() => onNavigate?.(`/vf/${cat.id}`)}>
-                    {cat.name}
-                  </button>
-                  {cat.query?.trim() && (
-                    <span className="bndz-plugin-kind-pill shrink-0" title={cat.query}>Search</span>
-                  )}
-                  <span className="text-xs bndz-panel-muted shrink-0">{(cat.paths || []).length}</span>
+            {selectedPaths.length > 0 && (
+              <div className="mx-2 mt-2 shrink-0">
+                <PluginCard className="!py-2 !px-2.5 border-amber-500/20 bg-amber-950/15 text-amber-200/90 text-[11px] leading-snug">
+                  {selectedPaths.length} selected — pick a catalog to add them.
+                </PluginCard>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-1 min-h-0">
+              {loading ? (
+                <div className="flex items-center justify-center py-8 text-gray-500 text-xs gap-2">
+                  <Icons8Icon id="loading" size={14} spin /> Loading…
+                </div>
+              ) : catalogs.length === 0 ? (
+                <PluginEmptyState
+                  icon="bookmark"
+                  title="No catalogs"
+                  description="Create a collection to build virtual folders at /vf."
+                />
+              ) : (
+                catalogs.map(cat => {
+                  const active = cat.id === selectedId;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => { setSelectedId(cat.id); if (editing && editing.id !== cat.id) setEditing(null); }}
+                      className={`w-full text-left rounded-lg border px-2.5 py-2 transition-colors ${
+                        active
+                          ? 'border-sky-400/35 bg-sky-500/10 shadow-[inset_0_1px_0_rgba(56,189,248,0.1)]'
+                          : 'border-transparent hover:border-white/10 hover:bg-white/[0.03]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Icons8Icon id="bookmark" size={13} className={`shrink-0 ${active ? 'opacity-90' : 'opacity-50'}`} />
+                        <span className={`text-xs font-semibold truncate flex-1 ${active ? 'text-white' : 'text-slate-300'}`}>
+                          {cat.name}
+                        </span>
+                        <span className="bndz-plugin-kind-pill !text-[9px] shrink-0">{(cat.paths || []).length}</span>
+                      </div>
+                      {cat.query?.trim() && (
+                        <div className="mt-1 text-[10px] bndz-panel-muted truncate pl-5">Search · {cat.query}</div>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onNavigate?.(VF_ROOT)}
+              className="shrink-0 m-2 text-[11px] text-sky-300/90 hover:text-sky-200 flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-white/[0.03]"
+            >
+              <Icons8Icon id="folder" size={12} />
+              Open catalog root (/vf)
+            </button>
+          </div>
+
+          {/* Designer pane */}
+          <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+            {!selected ? (
+              <PluginEmptyState
+                icon="bookmark"
+                title="Select a collection"
+                description="Pick a catalog on the left to inspect paths, edit metadata, or open it as a virtual folder."
+              />
+            ) : (
+              <>
+                <div className="shrink-0 px-4 py-3 border-b border-white/[0.06] flex items-center gap-2 flex-wrap bg-gradient-to-r from-sky-500/[0.06] to-transparent">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">{selected.name}</div>
+                    <div className="text-[11px] bndz-panel-muted bndz-mono truncate mt-0.5">
+                      {VF_ROOT}/{selected.id}
+                    </div>
+                  </div>
                   {selectedPaths.length > 0 && (
-                    <PluginToolbarButton icon="explorer" onClick={() => void addSelectionTo(cat)} title="Add selection" />
+                    <PluginToolbarButton icon="plus_ui" onClick={() => void addSelectionTo(selected)} title="Add selection">
+                      Add selection
+                    </PluginToolbarButton>
                   )}
                   <PluginToolbarButton
                     icon="pencil_ui"
-                    onClick={() => editing?.id === cat.id ? setEditing(null) : openEdit(cat)}
+                    active={!!editingActive}
+                    onClick={() => editingActive ? setEditing(null) : openEdit(selected)}
                   >
-                    {editing?.id === cat.id ? 'Close' : 'Edit'}
+                    {editingActive ? 'Close' : 'Edit'}
                   </PluginToolbarButton>
-                  <PluginToolbarButton icon="delete" onClick={() => void deleteCatalog(cat.id).then(() => { load(); notifyCatalogChanged(); })} />
+                  <PluginToolbarButton
+                    icon="delete"
+                    onClick={() => void deleteCatalog(selected.id).then(() => { load(); notifyCatalogChanged(); })}
+                  />
+                  <PluginToolbarButton icon="refresh" onClick={() => void load()} title="Refresh" />
                 </div>
-                {editing?.id === cat.id && (
-                  <div className="px-3 py-3 space-y-2 border-b border-white/[0.06]">
-                    <input value={renameDraft} onChange={e => setRenameDraft(e.target.value)} placeholder="Catalog name" className={PLUGIN_INPUT_CLASS} />
-                    <input value={queryDraft} onChange={e => setQueryDraft(e.target.value)} placeholder="Search query (optional XYplorer-style filter)" className={`${PLUGIN_INPUT_CLASS} bndz-mono`} />
-                    <PluginToolbarButton icon="check" active onClick={() => void saveEditing()}>Save</PluginToolbarButton>
+
+                {editingActive && (
+                  <div className="shrink-0 px-4 py-3 border-b border-white/[0.06] space-y-2 bg-black/20">
+                    <PluginSectionTitle icon="pencil_ui">Collection details</PluginSectionTitle>
+                    <div>
+                      <PluginFieldLabel>Name</PluginFieldLabel>
+                      <input value={renameDraft} onChange={e => setRenameDraft(e.target.value)} placeholder="Catalog name" className={PLUGIN_INPUT_CLASS} />
+                    </div>
+                    <div>
+                      <PluginFieldLabel>Search query (optional)</PluginFieldLabel>
+                      <input
+                        value={queryDraft}
+                        onChange={e => setQueryDraft(e.target.value)}
+                        placeholder="XYplorer-style filter…"
+                        className={`${PLUGIN_INPUT_CLASS} bndz-mono`}
+                      />
+                    </div>
+                    <PluginToolbarButton icon="check" active onClick={() => void saveEditing()}>Save changes</PluginToolbarButton>
                   </div>
                 )}
-                {editing?.id === cat.id && (
-                  <ul className="px-3 py-2 space-y-1 max-h-[160px] overflow-y-auto bndz-scrollbar">
-                    {(cat.paths || []).length === 0 && <li className="bndz-panel-muted italic text-xs">No paths</li>}
-                    {(cat.paths || []).map(p => (
-                      <li key={p} className="flex items-center gap-2 bndz-mono text-xs">
-                        <span className="truncate flex-1" title={p}>{p}</span>
-                        <button type="button" onClick={() => void removePath(cat, p)} className="text-red-400 hover:underline shrink-0">remove</button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </PluginCard>
-            ))}
-          </div>
-        )}
 
-        <button type="button" onClick={() => onNavigate?.(VF_ROOT)} className="text-[#7eb8e8] hover:underline text-left text-xs shrink-0">
-          Open catalog root (/vf) in active pane
-        </button>
-      </div>
+                <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 min-h-0">
+                  <PluginSectionTitle
+                    icon="file_ui"
+                    action={<span className="bndz-plugin-kind-pill">{(selected.paths || []).length}</span>}
+                  >
+                    Paths
+                  </PluginSectionTitle>
+
+                  {(selected.paths || []).length === 0 ? (
+                    <PluginEmptyState
+                      icon="folder"
+                      title="No paths yet"
+                      description="Select files in the list and click Add selection, or open Edit to manage this collection."
+                    />
+                  ) : (
+                    <div className="space-y-1.5">
+                      {(selected.paths || []).map(p => {
+                        const leaf = pathLeaf(p);
+                        const parent = pathParent(p);
+                        return (
+                          <PluginCard key={p} className="!py-2 !px-3 flex items-center gap-2.5 group">
+                            <Icons8Icon id="file_ui" size={14} className="shrink-0 opacity-55" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium text-slate-100 truncate">{leaf}</div>
+                              {parent && (
+                                <div className="text-[10px] bndz-panel-muted bndz-mono truncate mt-0.5" title={p}>{parent}</div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void removePath(selected, p)}
+                              className="opacity-0 group-hover:opacity-100 text-[10px] text-rose-400 hover:text-rose-300 shrink-0 px-1.5 py-0.5 rounded hover:bg-rose-500/10 transition-opacity"
+                            >
+                              remove
+                            </button>
+                          </PluginCard>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </PluginPanelShell>
   );

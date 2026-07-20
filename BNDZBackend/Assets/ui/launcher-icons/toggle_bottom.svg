@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 24 24">
+  <path fill="none" d="M0 0h24v24H0z" class="st2"/>
+  <path fill="#b0bec5" d="M22 8v8s0 1-1 1H3s-1 0-1-1V8s0-1 1-1h18s1 0 1 1" class="stshockcolor" data-st="fill:#B0BEC5;;"/>
+  <path fill="#263238" d="M4 9h7v2H4zm10 5h6v1h-6zM4 12h9v1H4zm0 2h6v1H4zm11-5h1v1h-1zm2 0h1v1h-1zm2 0h1v1h-1z" class="st1" opacity=".4"/>
+  <path fill="#fff" d="M22 15v1s0 1-1 1H3s-1 0-1-1v-1z" class="st3" opacity=".4"/>
+</svg>

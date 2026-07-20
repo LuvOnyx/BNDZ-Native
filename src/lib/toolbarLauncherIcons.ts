@@ -1,5 +1,5 @@
-/** Bump when PNG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '13';
+/** Bump when PNG/SVG assets change so WebView2 does not serve stale launcher-icons. */
+export const LAUNCHER_ICON_REV = '14';
 
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
@@ -36,11 +36,11 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   view_list: 'view_list.png',
   view_columns: 'view_columns.png',
   search: 'search.png',
-  toggle_dual_pane: 'toggle_dual_pane.png',
+  toggle_dual_pane: 'toggle_dual_pane.svg',
   toggle_preview: 'toggle_preview.png',
-  toggle_bottom: 'toggle_bottom.png',
+  toggle_bottom: 'toggle_bottom.svg',
   smart_tools: 'smart_tools.png',
-  tag_manager: 'tag_manager.png',
+  tag_manager: 'tag_manager.svg',
   icon_studio: 'icon_studio.png',
   find: 'find.png',
   dropstack: 'dropstack.png',
@@ -193,6 +193,13 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   panel_bottom_ui: 'panel_bottom_ui.png',
 };
 
+/** Custom assets that must not be overwritten by the Icons8 downloader. */
+export const CUSTOM_LAUNCHER_ICON_IDS = new Set([
+  'toggle_dual_pane',
+  'toggle_bottom',
+  'tag_manager',
+]);
+
 /** Icon ids that render fine at small (≤16px) sizes without becoming illegible 3D-render mush. */
 export const UI_GLYPH_IDS = new Set([
   'chevron_right', 'chevron_left', 'chevron_down', 'chevron_up', 'close', 'check',
@@ -208,7 +215,8 @@ export const UI_GLYPH_IDS = new Set([
   'rocket_ui', 'piechart_ui', 'move_ui', 'bookopen_ui', 'magnet_ui', 'radio_ui', 'volume_ui',
   'volume_off_ui', 'skip_back_ui', 'skip_forward_ui', 'pause_ui', 'brain_ui', 'wifi_off_ui',
   'folder_plus_ui', 'server_ui', 'play_circle_ui', 'arrow_down_circle_ui', 'checksquare_ui',
-  'columns_ui', 'scissors_ui', 'panel_bottom_ui', 'mini_tree',
+  'columns_ui', 'scissors_ui', 'panel_bottom_ui', 'mini_tree', 'tag_manager',
+  'toggle_dual_pane', 'toggle_bottom',
 ]);
 
 export function launcherIconUrl(id: string): string | undefined {

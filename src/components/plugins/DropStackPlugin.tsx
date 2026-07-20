@@ -33,6 +33,14 @@ function loadStack(): string[] {
     }
 }
 
+function splitPath(full: string): { leaf: string; parent: string } {
+    const normalized = full.replace(/[/\\]+$/, '');
+    const parts = normalized.split(/[/\\]/);
+    const leaf = parts.pop() || full;
+    const parent = parts.join('\\');
+    return { leaf, parent };
+}
+
 export default function DropStackPlugin({ focusedPath, selectedItems }: { focusedPath?: string; selectedItems?: string[] }) {
     const [stack, setStack] = useState<string[]>(loadStack);
     const [operating, setOperating] = useState(false);
@@ -123,6 +131,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                     name="Transfer staging area"
                     typeLabel="Batch queue"
                     path={focusedPath || undefined}
+                    meta={<span className="bndz-panel-muted text-xs">{stack.length} staged · persisted locally</span>}
                     actions={
                         <>
                             <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={addSelected} disabled={!selectedItems?.length}>Add selection</PluginHeroActionButton>
@@ -133,45 +142,92 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                     }
                 />
             <div className="flex flex-1 h-full gap-4 p-5 min-h-0">
-                <PluginCard className="w-[280px] !p-0 flex flex-col overflow-hidden shrink-0">
-                    <div className="px-3 py-2.5 border-b border-white/[0.06] flex justify-between items-center gap-2">
-                        <span className="bndz-plugin-section-title">Stash ({stack.length})</span>
+                <PluginCard className="w-[300px] !p-0 flex flex-col overflow-hidden shrink-0">
+                    <div className="px-3 py-2.5 border-b border-white/[0.06] flex justify-between items-center gap-2 bg-white/[0.02]">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="bndz-plugin-section-title">Stash</span>
+                            <span className="bndz-plugin-kind-pill">{stack.length}</span>
+                        </div>
                         <PluginToolbarButton icon="delete" onClick={clearStack} disabled={!stack.length}>Clear</PluginToolbarButton>
                     </div>
-                    <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-1 min-h-0">
+                    <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 space-y-1.5 min-h-0">
                         {stack.length === 0 ? (
-                            <PluginEmptyState icon="dropstack" description="Stack is empty — drop files in the zone on the right." />
-                        ) : stack.map((item, i) => (
-                            <div
-                                key={item}
-                                draggable
-                                onDragStart={() => setDragIndex(i)}
-                                onDragOver={e => { e.preventDefault(); }}
-                                onDrop={e => {
-                                    e.preventDefault();
-                                    if (dragIndex != null) moveItem(dragIndex, i);
-                                    setDragIndex(null);
-                                }}
-                                onDragEnd={() => setDragIndex(null)}
-                                className="flex items-center gap-2 bg-black/20 border border-white/[0.06] rounded-md px-2 py-1.5 group"
-                            >
-                                <DragHandleGlyph size={10} className="text-gray-600 shrink-0 cursor-grab" />
-                                <span className="text-xs bndz-mono text-gray-400 truncate flex-1" title={item}>{item.split(/[/\\]/).pop()}</span>
-                                <button type="button" onClick={() => removeStackItem(item)} className="text-red-400 opacity-70 hover:opacity-100 shrink-0"><Icons8Icon id="delete" size={10} /></button>
-                            </div>
-                        ))}
+                            <PluginEmptyState icon="dropstack" title="Stack empty" description="Drop files in the zone on the right, or add the current selection." />
+                        ) : stack.map((item, i) => {
+                            const { leaf, parent } = splitPath(item);
+                            const isDragging = dragIndex === i;
+                            return (
+                                <div
+                                    key={item}
+                                    draggable
+                                    onDragStart={() => setDragIndex(i)}
+                                    onDragOver={e => { e.preventDefault(); }}
+                                    onDrop={e => {
+                                        e.preventDefault();
+                                        if (dragIndex != null) moveItem(dragIndex, i);
+                                        setDragIndex(null);
+                                    }}
+                                    onDragEnd={() => setDragIndex(null)}
+                                    className={`flex items-center gap-2 rounded-lg px-2 py-2 group border transition-colors cursor-grab active:cursor-grabbing ${
+                                        isDragging
+                                            ? 'border-violet-400/40 bg-violet-500/10 opacity-70'
+                                            : 'bg-black/25 border-white/[0.07] hover:border-violet-400/25 hover:bg-white/[0.03]'
+                                    }`}
+                                    title={item}
+                                >
+                                    <div className="flex flex-col items-center gap-0.5 shrink-0 opacity-40 group-hover:opacity-80 transition-opacity">
+                                        <DragHandleGlyph size={11} className="text-violet-300/80" />
+                                        <span className="text-[9px] tabular-nums bndz-panel-muted leading-none">{i + 1}</span>
+                                    </div>
+                                    <Icons8Icon id="file_ui" size={14} className="shrink-0 opacity-60" />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium text-slate-100 truncate leading-tight">{leaf}</div>
+                                        {parent && (
+                                            <div className="text-[10px] bndz-panel-muted bndz-mono truncate mt-0.5 leading-tight">{parent}</div>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeStackItem(item)}
+                                        className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-300 shrink-0 p-1 rounded hover:bg-rose-500/10 transition-opacity"
+                                        title="Remove from stack"
+                                    >
+                                        <Icons8Icon id="delete" size={11} />
+                                    </button>
+                                </div>
+                            );
+                        })}
                     </div>
                 </PluginCard>
+
                 <div
-                    className={`bndz-plugin-dropzone flex-1 flex flex-col justify-center items-center text-xs gap-3 transition-colors ${dragOver ? 'bndz-plugin-dropzone-active' : ''}`}
+                    className={`bndz-plugin-dropzone flex-1 flex flex-col justify-center items-center gap-4 px-6 transition-all ${
+                        dragOver ? 'bndz-plugin-dropzone-active scale-[1.01]' : ''
+                    }`}
                     onDrop={handleDrop}
                     onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                 >
-                    <Icons8Icon id="upload" size={32} className="opacity-30" />
-                    <p className="text-gray-400">Drop files or folders here to stage</p>
-                    <p>Destination: <span className="bndz-mono text-gray-300">{focusedPath || '—'}</span></p>
-                    <p className="text-xs bndz-panel-muted">Persisted between sessions · drag to reorder</p>
+                    <div className={`rounded-2xl p-4 border border-dashed transition-colors ${
+                        dragOver ? 'border-violet-400/50 bg-violet-500/10' : 'border-white/10 bg-white/[0.02]'
+                    }`}>
+                        <Icons8Icon id="upload" size={36} className={dragOver ? 'opacity-70 text-violet-300' : 'opacity-30'} />
+                    </div>
+                    <div className="text-center space-y-1.5 max-w-sm">
+                        <p className={`text-sm font-medium ${dragOver ? 'text-violet-200' : 'text-slate-300'}`}>
+                            {dragOver ? 'Release to stage' : 'Drop files or folders here'}
+                        </p>
+                        <p className="text-xs bndz-panel-muted leading-relaxed">
+                            Stage from anywhere, reorder by drag, then copy or move the whole stash to the active pane.
+                        </p>
+                    </div>
+                    <PluginCard className="!py-2.5 !px-3 max-w-md w-full space-y-1">
+                        <div className="bndz-plugin-section-title">Destination</div>
+                        <p className="bndz-mono text-xs text-slate-300 truncate" title={focusedPath || undefined}>
+                            {focusedPath || '— open a folder in the active pane —'}
+                        </p>
+                    </PluginCard>
+                    <p className="text-[10px] bndz-panel-muted">Persisted between sessions · drag rows to reorder</p>
                 </div>
             </div>
             </div>

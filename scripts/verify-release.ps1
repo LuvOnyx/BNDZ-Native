@@ -43,7 +43,7 @@ $coreClr = Join-Path $PublishDir "coreclr.dll"
 if (Test-Path $coreClr) {
     Write-Host "  OK  Self-contained .NET runtime (coreclr.dll)" -ForegroundColor Green
 } else {
-    $failures += "Missing coreclr.dll — publish was not self-contained. Use npm run package:installer (includes -SelfContained)."
+    $failures += "Missing coreclr.dll - publish was not self-contained. Use npm run package:installer (includes -SelfContained)."
 }
 
 $exe = Join-Path $PublishDir "BNDZ.exe"

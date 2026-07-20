@@ -225,11 +225,14 @@ export default function StorageCleanupWizard({
   const headerIconId = mode === 'organize' ? 'folder_plus_ui' : 'copy';
 
   return (
-    <div className="absolute inset-0 z-20 flex flex-col bg-[#252526]" data-testid="storage-cleanup-wizard">
+    <div
+      className="absolute inset-0 z-20 flex flex-col bndz-plugin-tier bg-[var(--bndz-surface-panel,#0c0e14)] text-slate-300"
+      data-testid="storage-cleanup-wizard"
+    >
       {/* Header */}
-      <div className="shrink-0 px-5 py-4 border-b border-[#454545] flex items-center gap-4 bg-[#2b2b2b]">
+      <div className="bndz-plugin-toolbar shrink-0 px-5 py-4 border-b border-white/[0.06] flex items-center gap-4">
         <div
-          className="w-10 h-10 flex items-center justify-center shrink-0 border border-[#454545]"
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-white/[0.06]"
           style={{ background: `${accent}18`, borderColor: `${accent}40` }}
         >
           <Icons8Icon id={headerIconId} size={18} />
@@ -252,13 +255,13 @@ export default function StorageCleanupWizard({
       </div>
 
       {/* Step indicator */}
-      <div className="shrink-0 px-5 py-3 flex items-center gap-2 border-b border-white/[0.04]">
+      <div className="shrink-0 px-5 py-3 flex items-center gap-2 border-b border-white/[0.06]">
         {(['folder', 'analyze', 'preview'] as const).map((s, i) => {
           const active = step === s || (step === 'done' && s === 'preview');
           const done = stepIndex > i || step === 'done';
           return (
             <React.Fragment key={s}>
-              {i > 0 && <Icons8Icon id="chevron_right" size={12} className="text-gray-700 shrink-0" />}
+              {i > 0 && <Icons8Icon id="chevron_right" size={12} className="text-slate-600 shrink-0" />}
               <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${
                 active ? 'bg-white/10 text-white' : done ? 'text-emerald-500/80' : 'bndz-panel-muted'
               }`}>
@@ -317,9 +320,10 @@ export default function StorageCleanupWizard({
                 <PluginCard className="border-emerald-500/20 bg-emerald-950/10">
                   <PluginSectionTitle>Categories</PluginSectionTitle>
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: '📁' }]]).map(([bucket, cfg]) => (
-                      <span key={bucket} className="bndz-plugin-kind-pill border border-white/[0.06]" style={{ color: cfg.color, background: `${cfg.color}12` }}>
-                        {cfg.icon} {bucket}
+                    {Object.entries(ORGANIZE_BUCKETS).concat([['Other', { re: /$/, color: '#6b7280', icon: 'folder_open_ui' }]]).map(([bucket, cfg]) => (
+                      <span key={bucket} className="bndz-plugin-kind-pill border border-white/[0.06] inline-flex items-center gap-1.5" style={{ color: cfg.color, background: `${cfg.color}12` }}>
+                        <Icons8Icon id={cfg.icon} size={12} />
+                        {bucket}
                       </span>
                     ))}
                   </div>
@@ -342,11 +346,11 @@ export default function StorageCleanupWizard({
                 {mode === 'organize' ? 'Building organization plan…' : 'Scanning for duplicate files…'}
               </p>
               {dupProgress && (
-                <div className="w-full max-w-md rounded-xl border border-violet-500/25 bg-[#111116] p-4">
+                <div className="bndz-plugin-card w-full max-w-md border border-violet-500/25 p-4">
                   <div className="flex justify-between text-[11px] mb-2">
                     <span className="text-violet-300">{dupProgress.percent}%</span>
                   </div>
-                  <div className="h-2 rounded-full bg-[#1a1a22] overflow-hidden">
+                  <div className="h-2 rounded-full bg-black/40 overflow-hidden border border-white/[0.06]">
                     <div className="h-full bg-[#0078d4] transition-all" style={{ width: `${dupProgress.percent}%` }} />
                   </div>
                   <div className="text-[10px] text-gray-600 font-mono truncate mt-2">{dupProgress.currentPath}</div>
@@ -357,23 +361,24 @@ export default function StorageCleanupWizard({
 
           {step === 'preview' && mode === 'organize' && (
             <motion.div key="preview-org" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4 max-w-3xl mx-auto">
-              <div className="border border-emerald-500/25 bg-emerald-950/15 px-5 py-4 flex items-center justify-between">
+              <PluginCard className="border-emerald-500/25 bg-emerald-950/15 !px-5 !py-4 flex items-center justify-between">
                 <div>
                   <div className="text-[13px] font-bold text-emerald-200">{organizePlan.length} files will be organized</div>
                   <div className="text-[11px] text-gray-500 mt-1 font-mono truncate max-w-md">{folderWin}</div>
                 </div>
                 <Icons8Icon id="sparkles_ui" size={20} className="text-emerald-500/50" />
-              </div>
+              </PluginCard>
               {Object.entries(organizeByBucket).sort((a, b) => b[1].length - a[1].length).map(([bucket, entries]) => {
                 const cfg = ORGANIZE_BUCKETS[bucket];
+                const iconId = cfg?.icon || 'folder_open_ui';
                 return (
-                  <div key={bucket} className="border border-[#454545] bg-[#2b2b2b] overflow-hidden">
-                    <div className="px-4 py-2.5 border-b border-white/[0.05] flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: cfg?.color || '#9ca3af' }}>
-                      <span>{cfg?.icon || '📁'}</span>
+                  <PluginCard key={bucket} className="!p-0 overflow-hidden border border-white/[0.06]">
+                    <div className="px-4 py-2.5 border-b border-white/[0.06] flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: cfg?.color || '#9ca3af' }}>
+                      <Icons8Icon id={iconId} size={13} />
                       {bucket}
                       <span className="ml-auto text-gray-600 font-mono normal-case">{entries.length} files → {bucket}/</span>
                     </div>
-                    <div className="max-h-[140px] overflow-y-auto bndz-scrollbar divide-y divide-white/[0.03]">
+                    <div className="max-h-[140px] overflow-y-auto bndz-scrollbar divide-y divide-white/[0.04]">
                       {entries.slice(0, 24).map(e => (
                         <div key={e.file} className="px-4 py-2 flex items-center gap-2 text-[11px]">
                           <span className="text-gray-300 truncate flex-1">{e.name}</span>
@@ -385,7 +390,7 @@ export default function StorageCleanupWizard({
                         <div className="px-4 py-2 text-[10px] text-gray-600">+ {entries.length - 24} more…</div>
                       )}
                     </div>
-                  </div>
+                  </PluginCard>
                 );
               })}
             </motion.div>
@@ -393,7 +398,7 @@ export default function StorageCleanupWizard({
 
           {step === 'preview' && mode === 'cleanup' && (
             <motion.div key="preview-clean" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4 max-w-3xl mx-auto">
-              <div className="border border-[#0078d4]/30 bg-[#094771]/20 px-5 py-4 flex items-center justify-between">
+              <PluginCard className="border-[#0078d4]/30 bg-[#094771]/20 !px-5 !py-4 flex items-center justify-between">
                 <div>
                   <div className="text-[13px] font-bold text-[#cce4f7]">
                     {totalDeleteCount} duplicate files will be removed
@@ -403,10 +408,10 @@ export default function StorageCleanupWizard({
                   </div>
                 </div>
                 <Icons8Icon id="shield_ui" size={20} className="text-[#7eb8e8]/50" />
-              </div>
+              </PluginCard>
               <div className="space-y-3 max-h-[360px] overflow-y-auto bndz-scrollbar pr-1">
                 {dupPreview.map(group => (
-                  <div key={group.hash} className="border border-[#454545] bg-[#2b2b2b] p-4">
+                  <PluginCard key={group.hash} className="border border-white/[0.06] !p-4">
                     <div className="text-[11px] font-semibold text-gray-200 mb-2">
                       {group.paths.length} copies · {formatStorageSize(group.size)} each
                     </div>
@@ -416,7 +421,7 @@ export default function StorageCleanupWizard({
                         <Icons8Icon id="trash_ui" size={9} className="shrink-0" /> {p}
                       </div>
                     ))}
-                  </div>
+                  </PluginCard>
                 ))}
               </div>
             </motion.div>
@@ -436,7 +441,7 @@ export default function StorageCleanupWizard({
       </div>
 
       {/* Footer actions */}
-      <div className="shrink-0 px-5 py-4 border-t border-white/[0.06] flex items-center justify-between gap-3 bg-[#0a0a0e]">
+      <div className="shrink-0 px-5 py-4 border-t border-white/[0.06] flex items-center justify-between gap-3 bg-black/30">
         <PluginToolbarButton
           icon="chevron_left"
           onClick={() => {

@@ -47,7 +47,8 @@ public sealed class NativeShellFileOperationService
         bool bypassRecycleBin,
         Action<string, int, string, long, long, double, int, int>? onProgress = null,
         CancellationToken cancellationToken = default,
-        bool showProgress = true)
+        bool showProgress = true,
+        Action<string, string>? onAccessDenied = null)
     {
         return Task.Run(() =>
         {
@@ -65,8 +66,24 @@ public sealed class NativeShellFileOperationService
             }
             catch (Exception ex)
             {
+                var classified = PrivilegePolicyService.Classify(ex, "This file operation");
+                if (classified.NeedsElevation)
+                {
+                    onAccessDenied?.Invoke(operationId, classified.Message);
+                    throw;
+                }
                 Debug.WriteLine($"[NativeShell] Vanara IFileOperation failed, falling back to SHFileOperation: {ex.Message}");
-                ExecuteWithLegacyShell(action, sources, target, bypassRecycleBin, showProgress);
+                try
+                {
+                    ExecuteWithLegacyShell(action, sources, target, bypassRecycleBin, showProgress);
+                }
+                catch (Exception legacyEx)
+                {
+                    var legacyClassified = PrivilegePolicyService.Classify(legacyEx, "This file operation");
+                    if (legacyClassified.NeedsElevation)
+                        onAccessDenied?.Invoke(operationId, legacyClassified.Message);
+                    throw;
+                }
             }
 
             onProgress?.Invoke(operationId, 100, sources.LastOrDefault() ?? target, 0, 0, 0, total, total);

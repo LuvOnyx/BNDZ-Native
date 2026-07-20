@@ -26,7 +26,8 @@ namespace BNDZ.Services
                     return "";
 
                 using var item = new ShellItem(filePath);
-                var imageBase64 = TryGetShellImageBase64(item, ShellItemGetImageOptions.ResizeToFit);
+                // 512px source for preview/properties heroes — avoids upscaling grain from 256.
+                var imageBase64 = TryGetShellImageBase64(item, ShellItemGetImageOptions.ResizeToFit, 512);
                 if (!string.IsNullOrEmpty(imageBase64))
                     return imageBase64;
             }
@@ -361,11 +362,12 @@ namespace BNDZ.Services
             }
         }
 
-        private static string TryGetShellImageBase64(ShellItem item, ShellItemGetImageOptions flags)
+        private static string TryGetShellImageBase64(ShellItem item, ShellItemGetImageOptions flags, int pixelSize = 256)
         {
             try
             {
-                using var hbmp = item.GetImage(new SIZE(256, 256), flags);
+                int size = Math.Clamp(pixelSize, 16, 1024);
+                using var hbmp = item.GetImage(new SIZE(size, size), flags);
                 if (hbmp == null || hbmp.IsInvalid)
                     return "";
                 using var bitmap = hbmp.ToBitmap();

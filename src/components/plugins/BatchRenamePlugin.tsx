@@ -94,9 +94,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         return str;
     };
 
-    const processItem = (oldName: string, index: number) => {
-        if (aiOverrides[oldName]) return aiOverrides[oldName];
-
+    const processItemFromRules = (oldName: string, index: number) => {
         let baseName = oldName;
         let extension = "";
         const dotIndex = oldName.lastIndexOf('.');
@@ -136,6 +134,11 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         }
 
         return newBase + extension;
+    };
+
+    const processItem = (oldName: string, index: number) => {
+        if (aiOverrides[oldName] !== undefined) return aiOverrides[oldName];
+        return processItemFromRules(oldName, index);
     };
 
     const previews = targets.map((t, i) => ({
@@ -383,39 +386,93 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                     </PluginControlSection>
                 </div>
 
-                <div className="flex-1 overflow-y-auto relative bndz-scrollbar">
+                <div className="flex-1 overflow-y-auto relative bndz-scrollbar p-3">
                     {targets.length === 0 ? (
                         <PluginEmptyState icon="batch_rename" title="Select files to preview renames" description="Hold Ctrl or Shift in the list to select multiple files." />
                     ) : (
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead className="sticky top-0 border-b border-white/[0.06] z-10" style={{ background: 'var(--bndz-surface-chrome)' }}>
-                                <tr>
-                                    <th className="p-2.5 font-medium bndz-panel-muted w-1/2">Original name</th>
-                                    <th className="p-2.5 w-8" />
-                                    <th className="p-2.5 font-medium bndz-panel-muted w-1/2">New name</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {previews.map((p, i) => {
-                                    const changed = p.oldName !== p.newName;
-                                    const conflictKey = `${p.parentDir.toLowerCase()}\\${p.newName.toLowerCase()}`;
-                                    const hasConflict = changed && batchNameConflicts.has(conflictKey);
-                                    return (
-                                    <tr key={i} className={`border-b border-[#181818] hover:bg-[#111] group ${hasConflict ? 'bg-red-950/20' : ''}`}>
-                                        <td className="p-2.5 truncate max-w-xs transition-colors" style={{ color: changed ? '#888' : '#ccc' }} title={p.sourcePath}>
-                                            <span className={changed ? 'line-through decoration-red-500/50' : ''}>{p.oldName}</span>
-                                        </td>
-                                        <td className="p-2.5 flex justify-center text-gray-600 group-hover:text-emerald-500/50 transition-colors">
-                                            {changed ? <Icons8Icon id="chevron_right" size={12} /> : <div className="w-3" />}
-                                        </td>
-                                        <td className="p-2.5 truncate max-w-xs transition-colors" style={{ color: changed ? '#34d399' : '#ccc' }} title={`${p.parentDir}\\${p.newName}`}>
-                                            {p.newName}
-                                        </td>
-                                    </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                        <div className="flex flex-col gap-2">
+                            {previews.map((p, i) => {
+                                const changed = p.oldName !== p.newName;
+                                const emptyName = !p.newName?.trim();
+                                const conflictKey = `${p.parentDir.toLowerCase()}\\${p.newName.toLowerCase()}`;
+                                const hasConflict = changed && !emptyName && batchNameConflicts.has(conflictKey);
+                                const skipReason = emptyName
+                                    ? 'Empty name'
+                                    : !changed
+                                        ? 'Unchanged — skipped'
+                                        : null;
+                                return (
+                                    <div
+                                        key={`${p.sourcePath}-${i}`}
+                                        className={`bndz-plugin-card !py-2.5 !px-3 flex items-center gap-3 border border-white/[0.06] ${
+                                            hasConflict || emptyName
+                                                ? 'border-rose-500/35 bg-rose-950/15'
+                                                : !changed
+                                                    ? 'opacity-70'
+                                                    : 'hover:border-emerald-500/25'
+                                        }`}
+                                    >
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span
+                                                    className={`text-xs truncate ${changed ? 'text-slate-500 line-through decoration-rose-500/40' : 'text-slate-300'}`}
+                                                    title={p.sourcePath}
+                                                >
+                                                    {p.oldName}
+                                                </span>
+                                                {hasConflict && (
+                                                    <span className="bndz-plugin-kind-pill !text-[9px] shrink-0 text-rose-300 border-rose-500/30 bg-rose-500/10">
+                                                        Conflict
+                                                    </span>
+                                                )}
+                                                {skipReason && (
+                                                    <span
+                                                        className={`bndz-plugin-kind-pill !text-[9px] shrink-0 ${
+                                                            emptyName
+                                                                ? 'text-rose-300 border-rose-500/30 bg-rose-500/10'
+                                                                : 'text-slate-400 border-white/10 bg-white/[0.03]'
+                                                        }`}
+                                                    >
+                                                        {skipReason}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <Icons8Icon
+                                                    id="chevron_right"
+                                                    size={12}
+                                                    className={`shrink-0 ${changed && !skipReason ? 'text-emerald-500/60' : 'text-slate-600'}`}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={p.newName}
+                                                    onChange={e => {
+                                                        const next = e.target.value;
+                                                        setAiOverrides(prev => {
+                                                            const copy = { ...prev };
+                                                            if (next === processItemFromRules(p.oldName, i)) {
+                                                                delete copy[p.oldName];
+                                                            } else {
+                                                                copy[p.oldName] = next;
+                                                            }
+                                                            return copy;
+                                                        });
+                                                    }}
+                                                    title={`${p.parentDir}\\${p.newName}`}
+                                                    className={`${PLUGIN_INPUT_CLASS} !py-1 flex-1 min-w-0 ${
+                                                        hasConflict || emptyName
+                                                            ? 'border-rose-500/40 text-rose-200'
+                                                            : changed
+                                                                ? 'text-emerald-300'
+                                                                : 'text-slate-400'
+                                                    }`}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
             </div>

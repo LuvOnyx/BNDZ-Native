@@ -37,6 +37,26 @@ import {
 
 const ROW_HEIGHT = 26;
 const VIRTUAL_THRESHOLD = 32;
+const TREE_STATE_STORAGE_KEY = 'bndz.navTree.expanded';
+
+function loadRememberedExpandedPaths(): string[] {
+  try {
+    const raw = localStorage.getItem(TREE_STATE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRememberedExpandedPaths(paths: string[]) {
+  try {
+    localStorage.setItem(TREE_STATE_STORAGE_KEY, JSON.stringify(paths.slice(0, 400)));
+  } catch {
+    /* ignore quota */
+  }
+}
 
 interface VirtualizedNavTreeProps {
   nodes: NavTreeSourceNode[];
@@ -145,7 +165,8 @@ function TreeRow({
 }) {
   const isSelected = row.selected || (row.path && panePathsEqual(currentPath, row.path));
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
-  const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick;
+  const treeRt = buildSettingsRuntime(config).tree;
+  const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick && !treeRt.lockState;
   const indentPx = row.depth * 14 + 6;
 
   const handleClick = (e: React.MouseEvent) => {
@@ -183,7 +204,6 @@ function TreeRow({
   const canReorder = !!row.draggable && !row.isPlaceholder && !disallowDragFromTree;
   const canDragFile = !!row.path && !row.isPlaceholder && !disallowDragFromTree && !canReorder;
   const isFileDropTarget = !!row.path && fileDropTarget === row.path;
-  const treeRt = buildSettingsRuntime(config).tree;
   const treeColorFilter = treeRt.applyColorFilters && row.path
     ? evaluateColorFilter({ name: row.label, path: row.path, type: 'directory' }, config.colorFilters, config)
     : null;
@@ -222,7 +242,7 @@ function TreeRow({
         e.stopPropagation();
         clearSlowDoubleClickTimer(treeRenameTimerRef);
         treeLastClickRef.current = null;
-        if (!expandOnSingleClick && row.hasChildren) onToggle(row);
+        if (!treeRt.lockState && !expandOnSingleClick && row.hasChildren) onToggle(row);
         else if (row.path) onNavigate(row.path);
       }}
       onMouseDown={e => {
@@ -335,6 +355,7 @@ export function VirtualizedNavTree({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(280);
   const [dynamicState, setDynamicState] = useState<Record<string, DynamicTreeState>>({});
+  const didRestoreTreeStateRef = useRef(false);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [dropAfter, setDropAfter] = useState(false);
@@ -345,6 +366,65 @@ export function VirtualizedNavTree({
   const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rt = useMemo(() => buildSettingsRuntime(config), [config]);
+
+  // Persist expanded paths when "Remember state of tree" is enabled.
+  useEffect(() => {
+    if (!rt.tree.rememberState) return;
+    const expanded = Object.entries(dynamicState)
+      .filter(([, s]) => s.expanded)
+      .map(([p]) => p);
+    saveRememberedExpandedPaths(expanded);
+  }, [dynamicState, rt.tree.rememberState]);
+
+  // Restore remembered expanded paths (and load their children).
+  useEffect(() => {
+    if (!rt.tree.rememberState || didRestoreTreeStateRef.current) return;
+    didRestoreTreeStateRef.current = true;
+    const remembered = loadRememberedExpandedPaths().slice(0, 40);
+    if (!remembered.length) return;
+    setDynamicState(prev => {
+      const next = { ...prev };
+      for (const p of remembered) {
+        if (!next[p]?.expanded) {
+          next[p] = { expanded: true, children: next[p]?.children ?? null, loading: true };
+        }
+      }
+      return next;
+    });
+    let cancelled = false;
+    remembered.forEach(p => {
+      loadDirectoryChildren(p, rt.tree.showHidden, !!config?.skipInvisibleSubfolders, config).then(children => {
+        if (cancelled) return;
+        setDynamicState(inner => ({
+          ...inner,
+          [p]: { expanded: true, children, loading: false },
+        }));
+      });
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rt.tree.rememberState]);
+
+  // Auto-optimize: collapse branches that are not ancestors of the current path.
+  useEffect(() => {
+    if (!config.autoOptimizeTree || !currentPath) return;
+    setDynamicState(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [p, state] of Object.entries(prev)) {
+        if (!state.expanded) continue;
+        const isSelf = panePathsEqual(p, currentPath);
+        const isAncestor = currentPath.replace(/\\/g, '/').toLowerCase().startsWith(
+          `${p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()}/`,
+        );
+        if (!isSelf && !isAncestor) {
+          next[p] = { ...state, expanded: false };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [currentPath, config.autoOptimizeTree]);
 
   const clearExpandDragTimer = useCallback(() => {
     if (expandDragTimerRef.current) {
@@ -416,13 +496,13 @@ export function VirtualizedNavTree({
     e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
     setFileDropTargetPath(row.path);
 
-    if (config.expandTreeNodesOnDragOver && row.hasChildren && !row.isExpanded) {
+    if (config.expandTreeNodesOnDragOver && !config.lockTreeState && row.hasChildren && !row.isExpanded) {
       clearExpandDragTimer();
       expandDragTimerRef.current = setTimeout(() => {
         toggleRowRef.current(row);
       }, 650);
     }
-  }, [config.expandTreeNodesOnDragOver, clearExpandDragTimer]);
+  }, [config.expandTreeNodesOnDragOver, config.lockTreeState, clearExpandDragTimer]);
 
   const handleFileDragLeave = useCallback((row: FlatNavRow) => {
     if (fileDropTargetPath === row.path) setFileDropTargetPath(null);
@@ -475,9 +555,10 @@ export function VirtualizedNavTree({
       dynamicState,
       currentPath,
       markIntermediateNodes: !!config?.markIntermediateNodes,
+      checkExistence: !!config?.checkExistenceOfSubfoldersInTree,
       pathsEqual: panePathsEqual,
     }),
-    [nodes, dynamicState, currentPath, config?.markIntermediateNodes],
+    [nodes, dynamicState, currentPath, config?.markIntermediateNodes, config?.checkExistenceOfSubfoldersInTree],
   );
 
   useEffect(() => {
@@ -576,6 +657,32 @@ export function VirtualizedNavTree({
     overscan: 18,
     enabled: useVirtual,
   });
+
+  // Scroll selected / expanded folder into view per tree settings.
+  useEffect(() => {
+    if (!currentPath || (!config.scrollSelectedFolderToTheTop && !config.scrollSubfoldersIntoView)) return;
+    const idx = flatRows.findIndex(r => r.path && panePathsEqual(r.path, currentPath));
+    if (idx < 0) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      if (useVirtual) {
+        virtualizer.scrollToIndex(idx, {
+          align: config.scrollSelectedFolderToTheTop ? 'start' : 'auto',
+        });
+        return;
+      }
+      const top = idx * ROW_HEIGHT;
+      if (config.scrollSelectedFolderToTheTop) {
+        el.scrollTop = Math.max(0, top - 4);
+        return;
+      }
+      const viewTop = el.scrollTop;
+      const viewBottom = viewTop + el.clientHeight;
+      if (top < viewTop) el.scrollTop = top;
+      else if (top + ROW_HEIGHT > viewBottom) el.scrollTop = top + ROW_HEIGHT - el.clientHeight;
+    });
+  }, [currentPath, flatRows, config.scrollSelectedFolderToTheTop, config.scrollSubfoldersIntoView, useVirtual, virtualizer]);
 
   const renderRow = (row: FlatNavRow) => {
     const treeTipContent = showTreeTips && !row.isPlaceholder ? buildTreeTooltipContent(row, config) : null;
