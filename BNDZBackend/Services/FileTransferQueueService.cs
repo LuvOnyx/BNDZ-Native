@@ -106,6 +106,7 @@ public sealed class FileTransferQueueService
     private readonly List<QueuedWork> _pending = new();
     private readonly ConcurrentDictionary<string, FileTransferJob> _jobs = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancelSources = new();
+    private readonly ConcurrentDictionary<string, Process> _attachedProcesses = new();
     private readonly string _persistPath;
     private readonly object _persistLock = new();
     private int _queuedCount;
@@ -243,13 +244,16 @@ public sealed class FileTransferQueueService
     public void UpdateProgress(string operationId, int progress, string? currentFile, int itemsCompleted, int itemsTotal, long bytesTransferred = 0, long totalBytes = 0, double speedBytesPerSecond = 0)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
-        job.Progress = Math.Clamp(progress, 0, 100);
+        // Never show 100% while still Running — 100 is reserved for MarkCompleted.
+        var clamped = Math.Clamp(progress, 0, 100);
+        if (job.Status == FileTransferJobStatus.Running && clamped >= 100)
+            clamped = 99;
+        job.Progress = clamped;
         job.CurrentFile = currentFile;
         job.ItemsCompleted = itemsCompleted;
         job.ItemsTotal = Math.Max(itemsTotal, 1);
         job.BytesTransferred = bytesTransferred;
         job.TotalBytes = totalBytes;
-        job.SpeedBytesPerSecond = speedBytesPerSecond;
         if (totalBytes > 0 && bytesTransferred > 0 && speedBytesPerSecond > 0)
         {
             var remaining = totalBytes - bytesTransferred;
@@ -264,13 +268,6 @@ public sealed class FileTransferQueueService
             job.Status = FileTransferJobStatus.Running;
             job.StartedUtc ??= DateTime.UtcNow;
         }
-        if (job.Progress >= 100
-            && job.Status == FileTransferJobStatus.Running
-            && itemsCompleted >= job.ItemsTotal)
-        {
-            job.EtaSeconds = 0;
-            job.SpeedBytesPerSecond = 0;
-        }
         NotifyChanged();
     }
 
@@ -280,6 +277,7 @@ public sealed class FileTransferQueueService
         job.Status = FileTransferJobStatus.Completed;
         job.Progress = 100;
         job.CompletedUtc = DateTime.UtcNow;
+        DetachProcess(operationId);
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();
         NotifyChanged();
@@ -288,12 +286,55 @@ public sealed class FileTransferQueueService
     public void MarkFailed(string operationId, string? error)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
+        // Don't overwrite an intentional cancel with a failed status.
+        if (job.Status == FileTransferJobStatus.Cancelled) return;
         job.Status = FileTransferJobStatus.Failed;
         job.Error = error;
         job.CompletedUtc = DateTime.UtcNow;
+        DetachProcess(operationId);
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();
         NotifyChanged();
+    }
+
+    public void MarkCancelled(string operationId, string? reason = "Cancelled")
+    {
+        if (!_jobs.TryGetValue(operationId, out var job)) return;
+        if (job.Status is FileTransferJobStatus.Completed or FileTransferJobStatus.Cancelled)
+            return;
+        job.Status = FileTransferJobStatus.Cancelled;
+        job.Error = reason ?? "Cancelled";
+        job.CompletedUtc = DateTime.UtcNow;
+        DetachProcess(operationId);
+        _cancelSources.TryRemove(operationId, out var cts);
+        cts?.Dispose();
+        NotifyChanged();
+    }
+
+    /// <summary>Track an external process (WinRAR / TeraCopy) so Cancel can kill it. Caller owns Process lifetime.</summary>
+    public void AttachProcess(string operationId, Process process)
+    {
+        if (string.IsNullOrEmpty(operationId) || process == null) return;
+        _attachedProcesses[operationId] = process;
+    }
+
+    public void DetachProcess(string operationId)
+    {
+        _attachedProcesses.TryRemove(operationId, out _);
+    }
+
+    private void KillAttachedProcess(string operationId)
+    {
+        if (!_attachedProcesses.TryRemove(operationId, out var proc)) return;
+        try
+        {
+            if (!proc.HasExited)
+            {
+                try { proc.Kill(entireProcessTree: true); }
+                catch { try { proc.Kill(); } catch { /* ignore */ } }
+            }
+        }
+        catch { /* ignore */ }
     }
 
     public int ClearFinishedJobs()
@@ -323,25 +364,24 @@ public sealed class FileTransferQueueService
             }
         }
 
+        KillAttachedProcess(operationId);
+
         if (_cancelSources.TryGetValue(operationId, out var cts))
         {
-            cts.Cancel();
-            if (_jobs.TryGetValue(operationId, out var job))
-            {
-                job.Status = FileTransferJobStatus.Cancelled;
-                job.CompletedUtc = DateTime.UtcNow;
-                job.Error = "Cancelled";
-            }
-            NotifyChanged();
+            try { cts.Cancel(); } catch { /* ignore */ }
+            MarkCancelled(operationId);
             return true;
         }
 
         if (_jobs.TryGetValue(operationId, out var queued) && queued.Status == FileTransferJobStatus.Queued)
         {
-            queued.Status = FileTransferJobStatus.Cancelled;
-            queued.CompletedUtc = DateTime.UtcNow;
-            queued.Error = "Cancelled";
-            NotifyChanged();
+            MarkCancelled(operationId);
+            return true;
+        }
+
+        if (_jobs.TryGetValue(operationId, out var running) && running.Status == FileTransferJobStatus.Running)
+        {
+            MarkCancelled(operationId);
             return true;
         }
 
@@ -447,7 +487,7 @@ public sealed class FileTransferQueueService
                 }
                 catch (OperationCanceledException)
                 {
-                    MarkFailed(item.OperationId, "Cancelled");
+                    MarkCancelled(item.OperationId);
                     item.Completion.TrySetCanceled();
                 }
                 catch (Exception ex)

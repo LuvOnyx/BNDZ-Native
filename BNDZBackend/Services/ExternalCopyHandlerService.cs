@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace BNDZ.Services;
@@ -57,7 +58,9 @@ public sealed class ExternalCopyHandlerService
         string action,
         IReadOnlyList<string> sources,
         string target,
-        bool move)
+        bool move,
+        CancellationToken cancellationToken = default,
+        Action<Process>? onProcessStarted = null)
     {
         var exe = ResolveTeraCopyPath();
         if (string.IsNullOrEmpty(exe))
@@ -67,6 +70,8 @@ public sealed class ExternalCopyHandlerService
         target = Normalize(target);
         if (sources.Count == 0 || string.IsNullOrEmpty(target))
             return ExternalCopyResult.Failure("Invalid source or target paths.");
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         var verb = move ? "move" : "copy";
         var args = new List<string> { verb };
@@ -87,11 +92,27 @@ public sealed class ExternalCopyHandlerService
             if (proc == null)
                 return ExternalCopyResult.Failure("Could not start TeraCopy.");
 
-            proc.WaitForExit(3_600_000);
+            onProcessStarted?.Invoke(proc);
+
+            while (!proc.WaitForExit(250))
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { try { proc.Kill(); } catch { /* ignore */ } }
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (proc.ExitCode != 0)
                 return ExternalCopyResult.Failure($"TeraCopy exited with code {proc.ExitCode}.");
 
             return ExternalCopyResult.Success(verb);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

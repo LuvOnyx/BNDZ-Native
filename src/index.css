@@ -3371,36 +3371,63 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   box-shadow: inset 0 0 0 1px var(--accent, #0078d4);
 }
 
-/* Transfer queue — Explorer-flat rows, accent gradient on active progress only */
+/* Transfer queue — soft squircle chrome, real cancel affordance */
 .bndz-transfer-panel {
-  background: linear-gradient(180deg, #2b2b2b 0%, #252526 100%);
-  border-top: 1px solid var(--bndz-border-subtle, #454545);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 28%),
+    linear-gradient(180deg, #2a2a2e 0%, #1e1e22 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .bndz-transfer-header {
-  background: #252526;
-  border-bottom: 1px solid #3a3a3a;
+  background: rgba(0, 0, 0, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .bndz-transfer-header:hover {
-  background: #2a2a2a;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .bndz-transfer-row {
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .bndz-transfer-row:last-child {
   border-bottom: none;
 }
 
+.bndz-transfer-chip {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(226, 232, 240, 0.45);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.bndz-transfer-chip--high {
+  color: #99c9f0;
+  border-color: rgba(0, 120, 212, 0.35);
+  background: rgba(9, 71, 113, 0.25);
+}
+
 .bndz-transfer-progress-track {
-  background: #1a1a1a;
-  border: 1px solid #333;
+  height: 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
 }
 
 .bndz-transfer-progress-fill {
+  height: 100%;
+  border-radius: 3px;
   background: linear-gradient(90deg, var(--bndz-transfer-accent-dim, #094771) 0%, var(--bndz-transfer-accent, #0078d4) 55%, #3aa0f3 100%);
+  transition: width 0.2s ease-out;
 }
 
 .bndz-transfer-progress-fill.is-complete {
@@ -3409,6 +3436,43 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
 
 .bndz-transfer-progress-fill.is-failed {
   background: linear-gradient(90deg, #8b2f3a 0%, #c43c4a 100%);
+}
+
+.bndz-transfer-progress-fill.is-cancelled {
+  background: linear-gradient(90deg, #78716c 0%, #a8a29e 100%);
+}
+
+.bndz-transfer-cancel-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  color: #fecaca;
+  background: linear-gradient(180deg, rgba(232, 17, 35, 0.22) 0%, rgba(185, 28, 28, 0.16) 100%);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  transition: background 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+}
+
+.bndz-transfer-cancel-btn:hover {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.42) 0%, rgba(185, 28, 28, 0.35) 100%);
+  border-color: rgba(252, 165, 165, 0.55);
+}
+
+.bndz-transfer-clear-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  color: rgba(226, 232, 240, 0.55);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bndz-transfer-clear-btn:hover {
+  color: #fff;
+  background: rgba(9, 71, 113, 0.35);
+  border-color: rgba(0, 120, 212, 0.4);
 }
 
 .bndz-transfer-priority-high {

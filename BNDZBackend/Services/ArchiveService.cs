@@ -4,6 +4,8 @@ using System.IO;
 using System.IO.Compression;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 using SharpCompress.Writers;
@@ -123,10 +125,13 @@ public sealed class ArchiveService
         IEnumerable<string> sourcePaths,
         string targetArchivePath,
         string format,
-        Action<int, string>? onProgress = null)
+        Action<int, string>? onProgress = null,
+        CancellationToken cancellationToken = default,
+        Action<Process>? onProcessStarted = null)
     {
         await Task.Run(() =>
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var sources = sourcePaths.Select(NormalizePath).Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             targetArchivePath = NormalizePath(targetArchivePath);
             format = (format ?? "zip").ToLowerInvariant();
@@ -140,28 +145,39 @@ public sealed class ArchiveService
 
             if (format == "zip")
             {
-                CreateZipArchive(sources, targetArchivePath, onProgress);
+                CreateZipArchive(sources, targetArchivePath, onProgress, cancellationToken);
                 return;
             }
 
             if (format is "7z" or "tar" or "gz")
             {
-                CreateSharpCompressArchive(sources, targetArchivePath, format, onProgress);
+                CreateSharpCompressArchive(sources, targetArchivePath, format, onProgress, cancellationToken);
                 return;
             }
 
             if (format == "rar")
             {
-                if (TryCreateRarViaWinRar(sources, targetArchivePath, onProgress))
+                if (TryCreateRarViaWinRar(sources, targetArchivePath, onProgress, cancellationToken, onProcessStarted))
                     return;
                 throw new NotSupportedException("RAR creation requires WinRAR (Rar.exe). Install WinRAR or use ZIP/7z.");
             }
 
             throw new NotSupportedException($"Archive format '{format}' is not supported for creation. Use zip, 7z, or rar (WinRAR).");
-        });
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private static void CreateZipArchive(List<string> sources, string target, Action<int, string>? onProgress)
+    /// <summary>Progress after each file; capped at 99 until the caller marks the job complete.</summary>
+    private static int ProgressAfterIndex(int completedCount, int totalCount)
+    {
+        if (totalCount <= 0) return 99;
+        return Math.Min(99, (int)(completedCount * 99.0 / totalCount));
+    }
+
+    private static void CreateZipArchive(
+        List<string> sources,
+        string target,
+        Action<int, string>? onProgress,
+        CancellationToken cancellationToken)
     {
         if (File.Exists(target)) File.Delete(target);
 
@@ -172,13 +188,20 @@ public sealed class ArchiveService
         int i = 0;
         foreach (var (fullPath, entryName) in allFiles)
         {
-            onProgress?.Invoke((int)((i + 1) * 100.0 / allFiles.Count), entryName);
+            cancellationToken.ThrowIfCancellationRequested();
+            onProgress?.Invoke(ProgressAfterIndex(i, allFiles.Count), entryName);
             archive.CreateEntryFromFile(fullPath, entryName, CompressionLevel.Optimal);
             i++;
+            onProgress?.Invoke(ProgressAfterIndex(i, allFiles.Count), entryName);
         }
     }
 
-    private static void CreateSharpCompressArchive(List<string> sources, string target, string format, Action<int, string>? onProgress)
+    private static void CreateSharpCompressArchive(
+        List<string> sources,
+        string target,
+        string format,
+        Action<int, string>? onProgress,
+        CancellationToken cancellationToken)
     {
         if (File.Exists(target)) File.Delete(target);
 
@@ -197,10 +220,12 @@ public sealed class ArchiveService
         int i = 0;
         foreach (var (fullPath, entryName) in allFiles)
         {
-            onProgress?.Invoke((int)((i + 1) * 100.0 / allFiles.Count), entryName);
+            cancellationToken.ThrowIfCancellationRequested();
+            onProgress?.Invoke(ProgressAfterIndex(i, allFiles.Count), entryName);
             using var input = File.OpenRead(fullPath);
             writer.Write(entryName.Replace('\\', '/'), input, DateTime.Now);
             i++;
+            onProgress?.Invoke(ProgressAfterIndex(i, allFiles.Count), entryName);
         }
     }
 
@@ -347,10 +372,15 @@ public sealed class ArchiveService
         File.Delete(tempPath);
     }
 
-    public async Task ExtractArchiveAsync(string archivePath, string destinationDir, Action<int, string>? onProgress = null)
+    public async Task ExtractArchiveAsync(
+        string archivePath,
+        string destinationDir,
+        Action<int, string>? onProgress = null,
+        CancellationToken cancellationToken = default)
     {
         await Task.Run(() =>
         {
+            cancellationToken.ThrowIfCancellationRequested();
             archivePath = NormalizePath(archivePath);
             destinationDir = NormalizePath(destinationDir);
 
@@ -363,28 +393,56 @@ public sealed class ArchiveService
             var ext = Path.GetExtension(archivePath).TrimStart('.').ToLowerInvariant();
             if (ext == "zip")
             {
-                ZipFile.ExtractToDirectory(archivePath, destinationDir, overwriteFiles: true);
-                onProgress?.Invoke(100, archivePath);
+                using var zip = ZipFile.OpenRead(archivePath);
+                var entries = zip.Entries.Where(e => !string.IsNullOrEmpty(e.Name)).ToList();
+                int i = 0;
+                foreach (var entry in entries)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    onProgress?.Invoke(ProgressAfterIndex(i, entries.Count), entry.FullName);
+                    var destPath = Path.Combine(destinationDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                    var destParent = Path.GetDirectoryName(destPath);
+                    if (!string.IsNullOrEmpty(destParent))
+                        Directory.CreateDirectory(destParent);
+                    if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'))
+                    {
+                        Directory.CreateDirectory(destPath);
+                    }
+                    else
+                    {
+                        entry.ExtractToFile(destPath, overwrite: true);
+                    }
+                    i++;
+                    onProgress?.Invoke(ProgressAfterIndex(i, entries.Count), entry.FullName);
+                }
                 return;
             }
 
             using var archive = ArchiveFactory.OpenArchive(archivePath);
-            var entries = archive.Entries.Where(e => !e.IsDirectory).ToList();
-            int i = 0;
-            foreach (var entry in entries)
+            var arcEntries = archive.Entries.Where(e => !e.IsDirectory).ToList();
+            int n = 0;
+            foreach (var entry in arcEntries)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                onProgress?.Invoke(ProgressAfterIndex(n, arcEntries.Count), entry.Key ?? "");
                 entry.WriteToDirectory(destinationDir, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
-                onProgress?.Invoke((int)((i + 1) * 100.0 / entries.Count), entry.Key ?? "");
-                i++;
+                n++;
+                onProgress?.Invoke(ProgressAfterIndex(n, arcEntries.Count), entry.Key ?? "");
             }
-        });
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    private static bool TryCreateRarViaWinRar(List<string> sources, string target, Action<int, string>? onProgress)
+    private static bool TryCreateRarViaWinRar(
+        List<string> sources,
+        string target,
+        Action<int, string>? onProgress,
+        CancellationToken cancellationToken,
+        Action<Process>? onProcessStarted)
     {
         var rarExe = FindWinRarExe();
         if (rarExe == null) return false;
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (File.Exists(target)) File.Delete(target);
         var args = $"a -ep1 -idq \"{target}\" {string.Join(" ", sources.Select(s => $"\"{s}\""))}";
         var psi = new ProcessStartInfo
@@ -395,9 +453,25 @@ public sealed class ArchiveService
             CreateNoWindow = true,
         };
         using var proc = Process.Start(psi);
-        proc?.WaitForExit();
-        onProgress?.Invoke(100, target);
-        return proc?.ExitCode == 0;
+        if (proc == null) return false;
+        onProcessStarted?.Invoke(proc);
+        onProgress?.Invoke(5, target);
+
+        while (!proc.WaitForExit(250))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { try { proc.Kill(); } catch { /* ignore */ } }
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            onProgress?.Invoke(50, target);
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+            cancellationToken.ThrowIfCancellationRequested();
+
+        onProgress?.Invoke(99, target);
+        return proc.ExitCode == 0;
     }
 
     private static bool TryAddToRarViaWinRar(string archivePath, List<string> sources, List<string>? entryNames)

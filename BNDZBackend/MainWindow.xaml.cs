@@ -3458,14 +3458,21 @@ namespace BNDZ
                 {
                     if (engine == "teracopy" && action is "copy" or "move")
                     {
-                        var result = _externalCopyHandler.Execute(action, sources, target, action == "move");
+                        var result = _externalCopyHandler.Execute(
+                            action,
+                            sources,
+                            target,
+                            action == "move",
+                            ct,
+                            proc => _fileTransferQueue.AttachProcess(operationId, proc));
                         if (!result.Ok)
                         {
                             if (result.NotInstalled)
                                 throw new InvalidOperationException(result.Error ?? "TeraCopy is not installed. Install TeraCopy or change the copy handler in Settings.");
                             throw new IOException(result.Error ?? "TeraCopy operation failed.");
                         }
-                        OnProgress(operationId, 100, target, 0, 0, 0, sources.Count, sources.Count);
+                        _fileTransferQueue.DetachProcess(operationId);
+                        OnProgress(operationId, 99, target, 0, 0, 0, sources.Count, sources.Count);
                         RecordExternalActionLog(action, sources, target, bypassRecycleBin);
                     }
                     else if (engine == "native")
@@ -3553,7 +3560,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     if (ShouldPostFsOperationResult())
                         await PostFsOperationResultAsync(idProp, false, "Cancelled").ConfigureAwait(false);
                     throw;
@@ -3600,7 +3607,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     throw;
                 }
                 catch (Exception ex)
@@ -3644,7 +3651,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     throw;
                 }
                 catch (Exception ex)
@@ -3684,7 +3691,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     throw;
                 }
                 catch (Exception ex)
@@ -3705,19 +3712,27 @@ namespace BNDZ
         private async Task HandleCreateArchiveAsync(string operationId, List<string> sources, string target, string format, string? idProp = null)
         {
             var label = $"Create archive · {Path.GetFileName(target)}";
-            _fileTransferQueue.RegisterJob(operationId, "archive-create", label, "bndz", Math.Max(sources.Count, 1), "archive", FileTransferPriority.Low);
+            _fileTransferQueue.RegisterJob(operationId, "archive-create", label, "bndz", Math.Max(sources.Count, 1), "archive", FileTransferPriority.Normal, target);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 try
                 {
-                    await _archiveService.CreateArchiveAsync(sources, target, format, (pct, file) =>
-                    {
-                        ct.ThrowIfCancellationRequested();
-                        _fileTransferQueue.UpdateProgress(operationId, pct, file, pct, 100);
-                        var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
-                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
-                    }).ConfigureAwait(false);
+                    await _archiveService.CreateArchiveAsync(
+                        sources,
+                        target,
+                        format,
+                        (pct, file) =>
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            var itemsDone = Math.Max(0, Math.Min(100, pct));
+                            _fileTransferQueue.UpdateProgress(operationId, pct, file, itemsDone, 100);
+                            var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = itemsDone, totalItems = 100 } };
+                            PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
+                        },
+                        ct,
+                        proc => _fileTransferQueue.AttachProcess(operationId, proc)).ConfigureAwait(false);
+                    _fileTransferQueue.DetachProcess(operationId);
                     _actionLogService.Record(BndzActionLogService.ForCreateArchive(target, sources));
                     _fileTransferQueue.MarkCompleted(operationId);
                     var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = target, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
@@ -3726,12 +3741,15 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.DetachProcess(operationId);
+                    TryDeletePartialArchive(target);
+                    _fileTransferQueue.MarkCancelled(operationId);
                     await PostArchiveResultAsync("CREATE_ARCHIVE_RESULT", idProp, false, "Cancelled").ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
                 {
+                    _fileTransferQueue.DetachProcess(operationId);
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
                     var err = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 0, currentFile = "", error = ex.Message, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 0, totalItems = 1 } };
                     PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(err)));
@@ -3740,25 +3758,40 @@ namespace BNDZ
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "CREATE_ARCHIVE_RESULT").ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Normal, idProp, "CREATE_ARCHIVE_RESULT").ConfigureAwait(false);
+        }
+
+        private static void TryDeletePartialArchive(string target)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(target) && File.Exists(target))
+                    File.Delete(target);
+            }
+            catch { /* best-effort cleanup */ }
         }
 
         private async Task HandleExtractArchiveAsync(string operationId, string archivePath, string dest, string? idProp = null)
         {
             var label = $"Extract archive · {Path.GetFileName(archivePath)}";
-            _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Low);
+            _fileTransferQueue.RegisterJob(operationId, "archive-extract", label, "bndz", 1, "archive", FileTransferPriority.Normal, dest);
 
             async Task ExecuteCoreAsync(CancellationToken ct)
             {
                 try
                 {
-                    await _archiveService.ExtractArchiveAsync(archivePath, dest, (pct, file) =>
-                    {
-                        ct.ThrowIfCancellationRequested();
-                        _fileTransferQueue.UpdateProgress(operationId, pct, file, pct, 100);
-                        var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = pct, totalItems = 100 } };
-                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
-                    }).ConfigureAwait(false);
+                    await _archiveService.ExtractArchiveAsync(
+                        archivePath,
+                        dest,
+                        (pct, file) =>
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            var itemsDone = Math.Max(0, Math.Min(100, pct));
+                            _fileTransferQueue.UpdateProgress(operationId, pct, file, itemsDone, 100);
+                            var evt = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = pct, currentFile = file, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = itemsDone, totalItems = 100 } };
+                            PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(evt)));
+                        },
+                        ct).ConfigureAwait(false);
                     _actionLogService.Record(BndzActionLogService.ForExtractArchive(archivePath, dest));
                     _fileTransferQueue.MarkCompleted(operationId);
                     var done = new { type = "PROGRESS_UPDATE", payload = new { operationId, percentage = 100, currentFile = dest, bytesTransferred = 0L, totalBytes = 0L, speedBytesPerSecond = 0.0, itemsCompleted = 100, totalItems = 100 } };
@@ -3767,7 +3800,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     await PostArchiveResultAsync("EXTRACT_ARCHIVE_RESULT", idProp, false, "Cancelled").ConfigureAwait(false);
                     throw;
                 }
@@ -3781,7 +3814,7 @@ namespace BNDZ
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Low, idProp, "EXTRACT_ARCHIVE_RESULT").ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.Normal, idProp, "EXTRACT_ARCHIVE_RESULT").ConfigureAwait(false);
         }
 
         private Task PostArchiveResultAsync(string responseType, string? idProp, bool ok, string? error)
@@ -3906,7 +3939,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     if (ShouldPostDeferredIpcResult())
                     {
                         var cancelled = new
@@ -4038,7 +4071,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     throw;
                 }
                 catch (Exception ex)
@@ -4105,7 +4138,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     throw;
                 }
                 catch (Exception ex)
@@ -4161,7 +4194,7 @@ namespace BNDZ
                 }
                 catch (OperationCanceledException)
                 {
-                    _fileTransferQueue.MarkFailed(operationId, "Cancelled");
+                    _fileTransferQueue.MarkCancelled(operationId);
                     throw;
                 }
                 catch (Exception ex)
