@@ -555,10 +555,21 @@ namespace BNDZ
             try
             {
             // WebView2 uses D3D11 compositing by default; prefer explicit GPU rasterization for smooth panel resize/scroll
+            // Custom scheme for local file streaming — WebResourceRequested does NOT fire on SetVirtualHostNameToFolderMapping hosts.
+            var streamScheme = new CoreWebView2CustomSchemeRegistration(LocalStreamService.CustomScheme)
+            {
+                TreatAsSecure = true,
+                HasAuthorityComponent = true,
+            };
+            streamScheme.AllowedOrigins.Add("http://bndz.local");
+            streamScheme.AllowedOrigins.Add("https://bndz.local");
+
             var webEnvOptions = new CoreWebView2EnvironmentOptions
             {
                 AdditionalBrowserArguments = "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion"
             };
+            webEnvOptions.CustomSchemeRegistrations.Add(streamScheme);
+
             var webEnv = await CoreWebView2Environment.CreateAsync(null, null, webEnvOptions);
             await MainWebView.EnsureCoreWebView2Async(webEnv);
 
@@ -578,11 +589,16 @@ namespace BNDZ
                 Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
 
             // Register WebResourceRequested BEFORE navigation so it can intercept asset requests
-            // We add a filter for the specific pattern we want to intercept for native icon extraction
             MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
                 "http://bndz.local/assets/native-icon/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
             var allSources = Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestSourceKinds.All;
+            // Local file streaming via custom scheme (not under bndz.local folder mapping)
+            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+                $"{LocalStreamService.CustomScheme}:*",
+                Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
+                allSources);
+            // Legacy filters kept so old cached UI builds still hit the handler if they somehow resolve
             MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
                 "http://bndz.local/local-stream/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
@@ -3254,7 +3270,7 @@ namespace BNDZ
                         e.Response = response;
                     }
                 }
-                else if (e.Request.Uri.Contains("bndz.local/local-stream/", StringComparison.OrdinalIgnoreCase))
+                else if (LocalStreamService.IsStreamRequest(e.Request.Uri))
                 {
                     string localPath = LocalStreamService.ParseLocalStreamPath(e.Request.Uri);
                     var env = MainWebView.CoreWebView2.Environment;

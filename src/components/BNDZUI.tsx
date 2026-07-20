@@ -8842,6 +8842,14 @@ export default function BNDZUI() {
                      path={previewPath}
                      pathContentsCache={pathContentsCache}
                      onNavigate={p => setCurrentPath(p)}
+                     onOpenFloatingPreview={() => {
+                       if (!focusedItemId && !(currentTab.selectedItems?.length)) {
+                         setToastMessage('Select or focus an item first.');
+                         return;
+                       }
+                       setQuickPreviewIndex(quickPreviewStartIndex);
+                       setQuickPreviewOpen(true);
+                     }}
                   />
                </div>
             </ResizablePanel>

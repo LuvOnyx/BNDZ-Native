@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import MediaSeekBar from './MediaSeekBar';
 import { toWindowsPath } from '../lib/pathUtils';
-import { getMimeType } from '../lib/mediaTypes';
 
 interface MediaPreviewPlayerProps {
   src: string;
@@ -13,6 +12,8 @@ interface MediaPreviewPlayerProps {
   extension?: string;
   autoplay?: boolean;
   preferBlob?: boolean;
+  /** Opens BNDZ floating Quick Look overlay for the current media file. */
+  onOpenFloating?: () => void;
 }
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -27,7 +28,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function MediaPreviewPlayer({
-  src, type, title, poster, filePath, extension = '', autoplay = false, preferBlob = false,
+  src, type, title, poster, filePath, extension = '', autoplay = false, preferBlob = false, onOpenFloating,
 }: MediaPreviewPlayerProps) {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -40,7 +41,6 @@ export default function MediaPreviewPlayer({
   const [playbackRate, setPlaybackRate] = useState(1);
   const isNativeHost = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
   const [resolvedSrc, setResolvedSrc] = useState(() => (isNativeHost && type === 'audio' ? '' : src));
-  const [mimeType, setMimeType] = useState(getMimeType(extension));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [triedBlob, setTriedBlob] = useState(false);
 
@@ -78,7 +78,6 @@ export default function MediaPreviewPlayer({
         const url = URL.createObjectURL(blob);
         if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = url;
-        setMimeType(result.mime);
         setResolvedSrc(url);
         setLoadError(null);
         setBuffering(true);
@@ -100,7 +99,6 @@ export default function MediaPreviewPlayer({
     setLoadError(null);
     setTriedBlob(false);
     setResolvedSrc(isNativeHost && (preferBlob || type === 'audio') ? '' : src);
-    setMimeType(getMimeType(extension));
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current);
       blobUrlRef.current = null;
@@ -125,7 +123,7 @@ export default function MediaPreviewPlayer({
     const el = mediaRef.current;
     if (!el || !resolvedSrc) return;
     el.load();
-  }, [resolvedSrc, mimeType]);
+  }, [resolvedSrc]);
 
   const tryBlobFallback = useCallback(async () => {
     if (triedBlob || !filePath) return;
@@ -164,18 +162,19 @@ export default function MediaPreviewPlayer({
   const setVol = (v: number) => {
     const el = mediaRef.current;
     if (!el) return;
-    el.volume = v;
-    el.muted = v === 0;
-    setVolume(v);
-    setMuted(v === 0);
+    const clamped = Math.max(0, Math.min(1, v));
+    el.volume = clamped;
+    el.muted = clamped === 0;
+    setVolume(clamped);
+    setMuted(clamped === 0);
   };
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     const el = mediaRef.current;
     if (!el) return;
     el.muted = !el.muted;
     setMuted(el.muted);
-  };
+  }, []);
 
   const cycleRate = () => {
     const el = mediaRef.current;
@@ -186,12 +185,12 @@ export default function MediaPreviewPlayer({
     setPlaybackRate(next);
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = useCallback(() => {
     const el = mediaRef.current as HTMLVideoElement | null;
     if (!el || type !== 'video') return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen?.();
-  };
+  }, [type]);
 
   const togglePiP = async () => {
     const el = mediaRef.current as HTMLVideoElement | null;
@@ -240,20 +239,23 @@ export default function MediaPreviewPlayer({
     onError: handleMediaError,
   };
 
+  const volValue = muted ? 0 : volume;
+
   return (
-    <div className={`w-full h-full flex flex-col overflow-hidden bg-[#0a0a0e] ${type === 'video' ? '' : 'justify-center'}`}>
-      <div className={`relative flex-1 flex items-center justify-center min-h-0 bndz-preview-stage ${type === 'audio' ? 'py-8' : ''}`}>
+    <div className={`bndz-media-root ${type === 'video' ? 'bndz-media-root--video' : 'bndz-media-root--audio'}`}>
+      <div className={`bndz-media-stage bndz-preview-stage ${type === 'audio' ? 'bndz-media-stage--audio' : ''}`}>
         {loadError ? (
-          <div className="flex flex-col items-center gap-3 px-6 text-center">
-            <Icons8Icon id="warning" size={40} className="opacity-80" />
-            <p className="text-sm text-gray-400 max-w-[260px] leading-relaxed">{loadError}</p>
+          <div className="bndz-media-error">
+            <Icons8Icon id="warning" size={36} className="opacity-80" />
+            <p>{loadError}</p>
             {filePath && (
               <button
                 type="button"
                 onClick={() => import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(toWindowsPath(filePath), 'open'))}
-                className="text-xs font-semibold px-3 py-1.5 bg-[#094771]/35 border border-[#0078d4]/40 text-[#99c9f0] hover:bg-[#094771]/55"
+                className="bndz-media-btn-primary"
               >
-                Open in Default Player
+                <Icons8Icon id="external_link" size={12} />
+                Open in default player
               </button>
             )}
           </div>
@@ -261,7 +263,7 @@ export default function MediaPreviewPlayer({
           <video
             key={resolvedSrc}
             ref={mediaRef as React.RefObject<HTMLVideoElement>}
-            className="w-full h-full object-contain bg-black"
+            className="bndz-media-video"
             poster={poster}
             onClick={togglePlay}
             {...mediaProps}
@@ -269,74 +271,92 @@ export default function MediaPreviewPlayer({
         ) : (
           <>
             <audio key={resolvedSrc} ref={mediaRef as React.RefObject<HTMLAudioElement>} className="hidden" {...mediaProps} />
-            <div className="flex flex-col items-center gap-4 px-8 text-center">
-              <div className="w-28 h-28 bg-[#2b2b2b] border border-[#454545] flex items-center justify-center">
-                <Icons8Icon id="music_ui" size={44} />
+            <div className="bndz-media-audio-art">
+              <div className="bndz-media-audio-icon">
+                <Icons8Icon id="music_ui" size={40} />
               </div>
-              {title && <p className="text-sm font-semibold text-white truncate max-w-full">{title}</p>}
+              {title && <p className="bndz-media-audio-title">{title}</p>}
             </div>
           </>
         )}
 
         {buffering && !loadError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-            <div className="w-9 h-9 border-2 border-[#0078d4] border-t-transparent rounded-full animate-spin" />
+          <div className="bndz-media-buffering" aria-hidden>
+            <div className="bndz-media-spinner" />
           </div>
         )}
       </div>
 
-      <div className="shrink-0 bndz-media-transport px-3 py-2.5 flex flex-col gap-2">
-        {(type === 'video' || title) && (
-          <div className="flex items-center justify-between gap-2 min-h-[18px]">
-            <div className="text-xs text-gray-300 truncate font-medium">{title || 'Media'}</div>
-            <div className="bndz-mono text-[11px] text-gray-500 shrink-0">
-              {formatTime(current)} / {formatTime(duration)}
-            </div>
+      <div className="bndz-media-transport">
+        <div className="bndz-media-transport-meta">
+          <div className="bndz-media-transport-title truncate">{title || (type === 'video' ? 'Video' : 'Audio')}</div>
+          <div className="bndz-media-transport-time bndz-mono">
+            {formatTime(current)}
+            <span className="opacity-40"> / </span>
+            {formatTime(duration)}
           </div>
-        )}
+        </div>
 
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Back 10s">
-            <Icons8Icon id="skip_back_ui" size={15} />
-          </button>
-          <button type="button" onClick={togglePlay} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--primary" title={playing ? 'Pause' : 'Play'}>
-            {playing ? <Icons8Icon id="pause_ui" size={16} /> : <Icons8Icon id="play_ui" size={16} className="ml-0.5" />}
-          </button>
-          <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Forward 10s">
-            <Icons8Icon id="skip_forward_ui" size={15} />
-          </button>
-
+        <div className="bndz-media-seek-row">
           <MediaSeekBar value={current} max={duration || 0} disabled={!!loadError} onChange={seek} />
+        </div>
 
-          <button type="button" onClick={cycleRate} disabled={!!loadError} className="bndz-media-transport-btn w-10 text-[11px] font-semibold bndz-mono" title="Playback speed">
-            {playbackRate}x
-          </button>
+        <div className="bndz-media-transport-controls">
+          <div className="bndz-media-transport-cluster">
+            <button type="button" onClick={() => skip(-10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Back 10s">
+              <Icons8Icon id="skip_back_ui" size={15} />
+            </button>
+            <button type="button" onClick={togglePlay} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-transport-btn--primary" title={playing ? 'Pause' : 'Play'}>
+              {playing ? <Icons8Icon id="pause_ui" size={16} /> : <Icons8Icon id="play_ui" size={16} className="ml-0.5" />}
+            </button>
+            <button type="button" onClick={() => skip(10)} disabled={!!loadError} className="bndz-media-transport-btn" title="Forward 10s">
+              <Icons8Icon id="skip_forward_ui" size={15} />
+            </button>
+          </div>
 
-          <button type="button" onClick={toggleMute} disabled={!!loadError} className="bndz-media-transport-btn" title={muted ? 'Unmute' : 'Mute'}>
-            {muted || volume === 0 ? <Icons8Icon id="volume_off_ui" size={15} /> : <Icons8Icon id="volume_ui" size={15} />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={muted ? 0 : volume}
-            onChange={e => setVol(parseFloat(e.target.value))}
-            disabled={!!loadError}
-            className="w-14 h-1 accent-[#0078d4] cursor-pointer shrink-0 disabled:opacity-30"
-            aria-label="Volume"
-          />
+          <div className="bndz-media-transport-cluster bndz-media-transport-cluster--end">
+            <button type="button" onClick={cycleRate} disabled={!!loadError} className="bndz-media-transport-btn bndz-media-rate-btn" title="Playback speed">
+              {playbackRate}×
+            </button>
 
-          {type === 'video' && (
-            <>
-              <button type="button" onClick={togglePiP} disabled={!!loadError} className="bndz-media-transport-btn" title="Picture in picture">
-                <Icons8Icon id="picture_ui" size={15} />
-              </button>
-              <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="bndz-media-transport-btn" title="Fullscreen">
-                <Icons8Icon id="maximize_ui" size={15} />
-              </button>
-            </>
-          )}
+            <button type="button" onClick={toggleMute} disabled={!!loadError} className="bndz-media-transport-btn" title={muted ? 'Unmute' : 'Mute'}>
+              {muted || volume === 0 ? <Icons8Icon id="volume_off_ui" size={15} /> : <Icons8Icon id="volume_ui" size={15} />}
+            </button>
+            <MediaSeekBar
+              value={volValue}
+              max={1}
+              step={0.05}
+              disabled={!!loadError}
+              onChange={setVol}
+              className="bndz-media-volume"
+            />
+
+            {type === 'video' && (
+              <>
+                <button type="button" onClick={togglePiP} disabled={!!loadError} className="bndz-media-transport-btn" title="Picture in picture">
+                  <Icons8Icon id="picture_ui" size={15} />
+                </button>
+                <button type="button" onClick={toggleFullscreen} disabled={!!loadError} className="bndz-media-transport-btn" title="Fullscreen">
+                  <Icons8Icon id="maximize_ui" size={15} />
+                </button>
+              </>
+            )}
+
+            {onOpenFloating && (
+              <>
+                <span className="bndz-image-preview-sep" aria-hidden />
+                <button
+                  type="button"
+                  onClick={onOpenFloating}
+                  disabled={!!loadError}
+                  className="bndz-media-transport-btn bndz-media-transport-btn--accent"
+                  title="Open floating preview (Space)"
+                >
+                  <Icons8Icon id="eye_ui" size={15} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

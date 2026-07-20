@@ -1,4 +1,4 @@
-import { toWindowsPath, encodeLocalStreamPath } from './pathUtils';
+import { toVirtualStreamUrl } from './pathUtils';
 
 export interface ConfigIconLibrary {
     id: string;
@@ -22,5 +22,5 @@ export function formatLibrariesForConfig(libraries: Array<{ id?: string; name: s
 export function toLocalStreamUrl(icoPath: string): string {
     if (!icoPath) return '';
     if (icoPath.startsWith('data:')) return icoPath;
-    return `http://bndz.local/local-stream/${encodeLocalStreamPath(toWindowsPath(icoPath))}`;
+    return toVirtualStreamUrl(icoPath);
 }

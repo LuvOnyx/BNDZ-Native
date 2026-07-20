@@ -106,8 +106,8 @@ export const IPC = {
   async readFileContent(path: string): Promise<string> {
     try {
         if (this.isNative) {
-            const { toWindowsPath, encodeLocalStreamPath } = await import('./pathUtils');
-            const virtualUrl = `http://bndz.local/local-stream/${encodeLocalStreamPath(toWindowsPath(path))}`;
+            const { toVirtualStreamUrl } = await import('./pathUtils');
+            const virtualUrl = toVirtualStreamUrl(path);
             const response = await window.fetch(virtualUrl);
             if (response.ok) return await response.text();
         } else {

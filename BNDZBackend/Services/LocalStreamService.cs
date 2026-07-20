@@ -6,19 +6,42 @@ using Microsoft.Web.WebView2.Core;
 namespace BNDZ.Services
 {
     /// <summary>
-    /// Serves local files to WebView2 via bndz.local/local-stream with byte-range support for media playback.
+    /// Serves local files to WebView2 via the bndz-stream custom scheme (with byte-range support).
+    /// Must NOT use the bndz.local virtual-host folder mapping — WebResourceRequested does not fire there.
     /// </summary>
     public static class LocalStreamService
     {
+        public const string CustomScheme = "bndz-stream";
+        public const string CustomSchemeAuthority = "local";
+
         private static readonly Regex RangeRegex = new(@"bytes=(\d+)-(\d*)", RegexOptions.Compiled);
 
         public static string ParseLocalStreamPath(string requestUri)
         {
-            const string marker = "/local-stream/";
-            int idx = requestUri.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-            if (idx < 0) return "";
+            if (string.IsNullOrEmpty(requestUri)) return "";
 
-            string remainder = requestUri.Substring(idx + marker.Length);
+            string remainder;
+            if (requestUri.StartsWith(CustomScheme + ":", StringComparison.OrdinalIgnoreCase))
+            {
+                // bndz-stream://local/C%3A/Users/...  or  bndz-stream:///C%3A/...
+                string withoutScheme = requestUri.Substring(CustomScheme.Length + 1); // after "bndz-stream:"
+                if (withoutScheme.StartsWith("//", StringComparison.Ordinal))
+                    withoutScheme = withoutScheme.Substring(2);
+                // Strip optional authority ("local/")
+                if (withoutScheme.StartsWith(CustomSchemeAuthority + "/", StringComparison.OrdinalIgnoreCase))
+                    remainder = withoutScheme.Substring(CustomSchemeAuthority.Length + 1);
+                else
+                    remainder = withoutScheme.TrimStart('/');
+            }
+            else
+            {
+                // Legacy: http(s)://bndz.local/local-stream/... (broken under folder mapping; kept for parse compat)
+                const string marker = "/local-stream/";
+                int idx = requestUri.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0) return "";
+                remainder = requestUri.Substring(idx + marker.Length);
+            }
+
             int hash = remainder.IndexOf('#');
             if (hash >= 0) remainder = remainder.Substring(0, hash);
             int query = remainder.IndexOf('?');
@@ -38,6 +61,13 @@ namespace BNDZ.Services
                 remainder = char.ToUpperInvariant(remainder[0]) + remainder.Substring(1);
 
             return remainder;
+        }
+
+        public static bool IsStreamRequest(string requestUri)
+        {
+            if (string.IsNullOrEmpty(requestUri)) return false;
+            return requestUri.StartsWith(CustomScheme + ":", StringComparison.OrdinalIgnoreCase)
+                || requestUri.Contains("bndz.local/local-stream/", StringComparison.OrdinalIgnoreCase);
         }
 
         public static string GetContentType(string path)

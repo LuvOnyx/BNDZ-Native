@@ -134,7 +134,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     : isDir ? 'Folder' : isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isPdf ? 'PDF' : isArchive ? 'Archive' : isDocx ? 'Word' : ext ? ext.toUpperCase() : 'File';
 
   const renderPreview = () => {
-    if (isImage) return <ImageZoomPreview src={virtualUrl} alt={current.entity.name} />;
+    if (isImage) return <ImageZoomPreview src={virtualUrl} alt={current.entity.name} filePath={current.path} />;
     if (isVideo || isAudio) {
       return (
         <MediaPreviewPlayer
@@ -215,7 +215,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
           onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div
-            className="bndz-quick-preview-panel"
+            className={`bndz-quick-preview-panel ${(isVideo || isAudio || isImage) ? 'bndz-quick-preview-panel--media' : ''}`}
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
@@ -223,20 +223,31 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
             onMouseDown={e => e.stopPropagation()}
           >
             <div className="bndz-quick-preview-toolbar">
-              <div className="flex items-center gap-1">
-                <button type="button" className="bndz-quick-preview-nav" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)}>
-                  <Icons8Icon id="chevron_left" size={16} />
+              <div className="bndz-quick-preview-toolbar-cluster">
+                <button type="button" className="bndz-quick-preview-nav" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)} title="Previous (←)">
+                  <Icons8Icon id="chevron_left" size={15} />
                 </button>
-                <button type="button" className="bndz-quick-preview-nav" disabled={!hasNext} onClick={() => onIndexChange(index + 1)}>
-                  <Icons8Icon id="chevron_right" size={16} />
+                <button type="button" className="bndz-quick-preview-nav" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} title="Next (→)">
+                  <Icons8Icon id="chevron_right" size={15} />
                 </button>
                 {items.length > 1 && (
-                  <span className="text-[11px] text-[#9ca3af] ml-2">{index + 1} / {items.length}</span>
+                  <span className="bndz-quick-preview-count bndz-mono">{index + 1} / {items.length}</span>
                 )}
+                <span className="bndz-quick-preview-hint">Space / Esc to close</span>
               </div>
-              <button type="button" className="bndz-quick-preview-nav" onClick={onClose} title="Close (Esc)">
-                <CloseGlyph size={16} />
-              </button>
+              <div className="bndz-quick-preview-toolbar-cluster">
+                <button
+                  type="button"
+                  className="bndz-quick-preview-nav"
+                  title="Open with default app"
+                  onClick={() => runVerb(isDir ? 'open' : 'open')}
+                >
+                  <Icons8Icon id="external_link" size={14} />
+                </button>
+                <button type="button" className="bndz-quick-preview-nav bndz-quick-preview-nav--close" onClick={onClose} title="Close (Esc)">
+                  <CloseGlyph size={14} />
+                </button>
+              </div>
             </div>
 
             <PreviewMetadataStrip

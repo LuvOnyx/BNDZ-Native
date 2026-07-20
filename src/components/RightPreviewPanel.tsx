@@ -34,9 +34,10 @@ interface RightPreviewPanelProps {
   path?: string | null;
   pathContentsCache?: Record<string, any[]>;
   onNavigate?: (path: string) => void;
+  onOpenFloatingPreview?: () => void;
 }
 
-export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate }: RightPreviewPanelProps) {
+export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview }: RightPreviewPanelProps) {
   const { config } = useAppConfig();
   const [thumbnailNative, setThumbnailNative] = useState<string | null>(null);
   const [shellIcon, setShellIcon] = useState<string | null>(null);
@@ -229,6 +230,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     poster: thumbnailNative ? `data:image/png;base64,${thumbnailNative}` : undefined,
     autoplay: previewRt.autoplay,
     preferBlob: previewRt.preferBlob || isAudio,
+    onOpenFloating: onOpenFloatingPreview,
   };
 
   useEffect(() => {
@@ -473,6 +475,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
       }
 
+      if ((isAudio || isVideo) && previewRt.audioVideoEnabled && path) {
+          return (
+            <MediaPreviewPlayer
+              {...mediaPlayerProps}
+              type={isVideo ? 'video' : 'audio'}
+            />
+          );
+      }
+
       if (isSvg && previewAllowed) {
           const src = svgPreviewUrl || virtualUrl;
           return (
@@ -500,6 +511,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   src={primarySrc}
                   alt={entity.name}
                   fallbackSrc={fallbackChain[0]}
+                  filePath={path}
+                  onOpenFloating={onOpenFloatingPreview}
               />
           );
       }

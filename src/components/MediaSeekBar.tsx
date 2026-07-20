@@ -6,12 +6,15 @@ type Props = {
   disabled?: boolean;
   onChange: (value: number) => void;
   className?: string;
+  /** Keyboard nudge amount; defaults to 5 for time seek, use ~0.05 for volume. */
+  step?: number;
 };
 
 /** Native-feel seek bar with pointer drag and keyboard focus support. */
-export default function MediaSeekBar({ value, max, disabled, onChange, className = '' }: Props) {
+export default function MediaSeekBar({ value, max, disabled, onChange, className = '', step }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  const keyStep = step ?? (max <= 1 ? 0.05 : 5);
 
   const seekFromClientX = useCallback((clientX: number) => {
     const track = trackRef.current;
@@ -45,8 +48,8 @@ export default function MediaSeekBar({ value, max, disabled, onChange, className
       onPointerMove={onPointerMove}
       onKeyDown={(e) => {
         if (disabled) return;
-        if (e.key === 'ArrowLeft') { e.preventDefault(); onChange(Math.max(0, value - 5)); }
-        if (e.key === 'ArrowRight') { e.preventDefault(); onChange(Math.min(max, value + 5)); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); onChange(Math.max(0, value - keyStep)); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); onChange(Math.min(max, value + keyStep)); }
       }}
     >
       <div className="bndz-media-seek-fill" style={{ width: `${pct}%` }} />

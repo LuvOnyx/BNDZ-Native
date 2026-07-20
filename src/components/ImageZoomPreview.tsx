@@ -1,18 +1,26 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import { toWindowsPath } from '../lib/pathUtils';
 
 interface ImageZoomPreviewProps {
   src: string;
   alt: string;
   fallbackSrc?: string;
+  filePath?: string | null;
   onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+  /** Opens BNDZ floating Quick Look overlay for the current file. */
+  onOpenFloating?: () => void;
 }
 
-export default function ImageZoomPreview({ src, alt, fallbackSrc, onError }: ImageZoomPreviewProps) {
+export default function ImageZoomPreview({
+  src, alt, fallbackSrc, filePath, onError, onOpenFloating,
+}: ImageZoomPreviewProps) {
   const [scale, setScale] = useState(1);
   const [displayScale, setDisplayScale] = useState(1);
   const [imgSrc, setImgSrc] = useState(src);
   const [isDragging, setIsDragging] = useState(false);
+  const blobTriedRef = useRef(false);
+  const blobUrlRef = useRef<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<HTMLDivElement>(null);
@@ -22,7 +30,43 @@ export default function ImageZoomPreview({ src, alt, fallbackSrc, onError }: Ima
   const lastPosRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
 
-  useEffect(() => { setImgSrc(src); }, [src]);
+  useEffect(() => {
+    blobTriedRef.current = false;
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setImgSrc(src);
+  }, [src, filePath]);
+
+  useEffect(() => () => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+  }, []);
+
+  const tryBlobFallback = useCallback(async () => {
+    if (blobTriedRef.current || !filePath) return false;
+    blobTriedRef.current = true;
+    try {
+      const { IPC } = await import('../lib/ipcBridge');
+      if (!IPC.isNative) return false;
+      const result = await IPC.getMediaBlob(toWindowsPath(filePath));
+      if (!result.base64 || !result.mime) return false;
+      const binary = atob(result.base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: result.mime });
+      const url = URL.createObjectURL(blob);
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = url;
+      setImgSrc(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [filePath]);
 
   const applyTransform = useCallback(() => {
     const el = transformRef.current;
@@ -101,37 +145,65 @@ export default function ImageZoomPreview({ src, alt, fallbackSrc, onError }: Ima
   return (
     <div
       ref={containerRef}
-      className="w-full h-full flex flex-col bg-[#080808] pattern-checkerboard relative overflow-hidden"
+      className="bndz-image-preview"
       onMouseMove={onMouseMove}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
     >
-      <div className="absolute top-2 right-2 z-20 flex gap-1 bg-black/70 rounded-md p-1 border border-white/10">
-        <button type="button" onClick={zoomOut} className="p-1 hover:bg-white/10 rounded" title="Zoom out"><Icons8Icon id="zoom_out_ui" size={14} /></button>
-        <span className="text-[10px] font-mono text-gray-300 px-1 self-center min-w-[36px] text-center">{Math.round(displayScale * 100)}%</span>
-        <button type="button" onClick={zoomIn} className="p-1 hover:bg-white/10 rounded" title="Zoom in"><Icons8Icon id="zoom_in_ui" size={14} /></button>
-        <button type="button" onClick={fit} className="p-1 hover:bg-white/10 rounded" title="Fit"><Icons8Icon id="maximize_ui" size={14} /></button>
-        <button type="button" onClick={reset} className="p-1 hover:bg-white/10 rounded" title="Reset"><Icons8Icon id="reset_ui" size={14} /></button>
-      </div>
-      <div className={`flex-1 flex items-center justify-center ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}>
+      <div className={`bndz-image-preview-stage ${isDragging ? 'is-dragging' : ''}`}>
         <div
           ref={transformRef}
-          className="inline-flex items-center justify-center will-change-transform"
+          className="bndz-image-preview-transform"
           style={{ transform: 'translate3d(0px, 0px, 0) scale(1)' }}
         >
           <img
             src={imgSrc}
             alt={alt}
             draggable={false}
-            className="max-w-full max-h-full object-contain drop-shadow-2xl select-none"
+            className="bndz-image-preview-img"
             onMouseDown={onMouseDown}
             onError={(e) => {
               if (fallbackSrc && imgSrc !== fallbackSrc) {
                 setImgSrc(fallbackSrc);
+                return;
               }
-              onError?.(e);
+              void tryBlobFallback().then((ok) => {
+                if (!ok) onError?.(e);
+              });
             }}
           />
+        </div>
+      </div>
+
+      <div className="bndz-image-preview-chrome">
+        <span className="bndz-image-preview-hint">Scroll to zoom · Drag when zoomed</span>
+        <div className="bndz-image-preview-tools">
+          <button type="button" onClick={zoomOut} className="bndz-media-transport-btn" title="Zoom out">
+            <Icons8Icon id="zoom_out_ui" size={14} />
+          </button>
+          <span className="bndz-image-preview-scale bndz-mono">{Math.round(displayScale * 100)}%</span>
+          <button type="button" onClick={zoomIn} className="bndz-media-transport-btn" title="Zoom in">
+            <Icons8Icon id="zoom_in_ui" size={14} />
+          </button>
+          <button type="button" onClick={fit} className="bndz-media-transport-btn" title="Fit">
+            <Icons8Icon id="maximize_ui" size={14} />
+          </button>
+          <button type="button" onClick={reset} className="bndz-media-transport-btn" title="Reset">
+            <Icons8Icon id="reset_ui" size={14} />
+          </button>
+          {onOpenFloating && (
+            <>
+              <span className="bndz-image-preview-sep" aria-hidden />
+              <button
+                type="button"
+                onClick={onOpenFloating}
+                className="bndz-media-transport-btn bndz-media-transport-btn--accent"
+                title="Open floating preview (Space)"
+              >
+                <Icons8Icon id="eye_ui" size={14} />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

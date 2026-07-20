@@ -80,7 +80,7 @@ export function isValidShellTarget(path: string | null | undefined): boolean {
   return win.length > 2;
 }
 
-/** Encode a Windows path for safe use in WebView2 local-stream URLs (colon-safe) */
+/** Encode a Windows path for safe use in WebView2 stream URLs (colon-safe) */
 export function encodeLocalStreamPath(winPath: string): string {
   const normalized = winPath.replace(/\\/g, '/');
   return normalized.split('/').map((segment, i) => {
@@ -89,11 +89,19 @@ export function encodeLocalStreamPath(winPath: string): string {
   }).join('/');
 }
 
-/** Build virtual host URL for local file streaming in WebView2 */
+/**
+ * Build URL for local file streaming in WebView2.
+ * Uses custom scheme `bndz-stream://` — WebResourceRequested does not fire under
+ * SetVirtualHostNameToFolderMapping hosts like http://bndz.local/...
+ */
 export function toVirtualStreamUrl(path: string | null | undefined): string {
   const win = toWindowsPath(path);
   if (!win) return '';
-  return `http://bndz.local/local-stream/${encodeLocalStreamPath(win)}`;
+  const encoded = encodeLocalStreamPath(win);
+  const isNative =
+    typeof window !== 'undefined' && !!(window as any).chrome?.webview;
+  if (isNative) return `bndz-stream://local/${encoded}`;
+  return `/local-stream/${encoded}`;
 }
 
 /** Join pane directory path with entity name when backend path is missing */
