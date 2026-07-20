@@ -305,10 +305,18 @@ export const IPC = {
     };
   },
 
-  requestClose(source: 'x' | 'menu' | 'tray' = 'x'): void {
+  requestClose(source: 'x' | 'menu' | 'tray' | 'exit-without-saving' | 'restart-without-saving' | 'restart' = 'x'): void {
     if (this.isNative) {
       if (source === 'x') {
         this.windowChrome('close');
+        return;
+      }
+      if (source === 'restart' || source === 'restart-without-saving') {
+        (window as any).chrome.webview.postMessage({ type: 'RESTART_APP', payload: { save: source === 'restart' } });
+        return;
+      }
+      if (source === 'exit-without-saving') {
+        (window as any).chrome.webview.postMessage({ type: 'REQUEST_CLOSE', payload: { source: 'exit-without-saving' } });
         return;
       }
       (window as any).chrome.webview.postMessage({ type: 'REQUEST_CLOSE', payload: { source } });
@@ -1703,6 +1711,14 @@ export const IPC = {
     if (this.isNative) {
       const id = `${Date.now()}_writeText`;
       return _nativeCall<boolean>('WRITE_TEXT_FILE', 'WRITE_TEXT_FILE_RESULT', id, { path, content }, 60000);
+    }
+    return Promise.resolve(false);
+  },
+
+  writeBinaryFile(path: string, base64: string): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_writeBin`;
+      return _nativeCall<boolean>('WRITE_BINARY_FILE', 'WRITE_BINARY_FILE_RESULT', id, { path, base64 }, 60000);
     }
     return Promise.resolve(false);
   },

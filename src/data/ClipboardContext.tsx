@@ -75,9 +75,16 @@ interface ClipboardContextValue {
   copyToClipboard: (items: string[]) => void;
   setClipboardState: (items: string[], action: ClipboardAction) => void;
   restorePreviousClipboard: () => boolean;
-  executePaste: (targetDir: string) => Promise<void>;
+  executePaste: (targetDir: string, options?: PasteOptions) => Promise<void>;
   clearClipboard: () => void;
 }
+
+export type PasteOptions = {
+  /** Override clipboard cut/copy for this paste only. */
+  forceAction?: 'copy' | 'cut';
+  /** Force recreating source folder structure under the destination. */
+  recreateSourceStructure?: boolean;
+};
 
 const ClipboardContext = createContext<ClipboardContextValue | null>(null);
 
@@ -153,7 +160,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     };
   }, [clipboard, logClipboard]);
 
-  const executePaste = useCallback(async (targetDir: string) => {
+  const executePaste = useCallback(async (targetDir: string, options?: PasteOptions) => {
     if (!clipboard.items.length || !clipboard.action) return;
     const panePath = targetDir.replace(/\\/g, '/');
     if (isBndzVirtualPath(panePath)) return;
@@ -161,20 +168,25 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     if (!dest) return;
 
     const { IPC } = await import('../lib/ipcBridge');
-    const op = clipboard.action === 'cut' ? 'move' : 'copy';
+    const effectiveAction = options?.forceAction || clipboard.action;
+    const op = effectiveAction === 'cut' ? 'move' : 'copy';
     const winSources = clipboard.items.map(p => toWindowsPath(p));
     const label = winSources.length === 1
       ? (winSources[0].split('\\').pop() || 'item')
       : `${winSources.length} items`;
     const opId = `paste-${Date.now()}`;
 
-    const recreateSourceStructure = op === 'copy'
-      ? resolveRecreateStructureForPaste(config, winSources, msg => window.confirm(msg))
-      : false;
+    const recreateSourceStructure = options?.recreateSourceStructure === true
+      ? true
+      : options?.recreateSourceStructure === false
+        ? false
+        : (op === 'copy'
+          ? resolveRecreateStructureForPaste(config, winSources, msg => window.confirm(msg))
+          : false);
 
     await IPC.executeFsOperation(opId, op, winSources, dest, false, label, 'high', recreateSourceStructure);
 
-    if (clipboard.action === 'cut') {
+    if (effectiveAction === 'cut') {
       clearClipboard();
     }
   }, [clipboard, clearClipboard, config]);

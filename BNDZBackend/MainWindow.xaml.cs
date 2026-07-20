@@ -2272,7 +2272,48 @@ namespace BNDZ
                 {
                     var payload = root.GetProperty("payload");
                     string source = payload.TryGetProperty("source", out var src) ? src.GetString() ?? "menu" : "menu";
-                    Dispatcher.Invoke(() => RequestCloseFromUI(source));
+                    if (string.Equals(source, "exit-without-saving", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            _allowClose = true;
+                            Close();
+                        });
+                    }
+                    else
+                    {
+                        Dispatcher.Invoke(() => RequestCloseFromUI(source));
+                    }
+                }
+                else if (type == "RESTART_APP")
+                {
+                    var payload = root.TryGetProperty("payload", out var pl) ? pl : default;
+                    // save flag reserved for future session-persist control; restart always relaunches cleanly
+                    _ = payload;
+                    Dispatcher.Invoke(() =>
+                    {
+                        try
+                        {
+                            string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                                ?? Environment.ProcessPath
+                                ?? "";
+                            if (!string.IsNullOrWhiteSpace(exePath))
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = exePath,
+                                    UseShellExecute = true,
+                                    WorkingDirectory = System.IO.Path.GetDirectoryName(exePath) ?? Environment.CurrentDirectory,
+                                });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"RESTART_APP failed: {ex.Message}");
+                        }
+                        _allowClose = true;
+                        Close();
+                    });
                 }
                 else if (type == "GET_WINDOW_STATE")
                 {
@@ -2331,6 +2372,32 @@ namespace BNDZ
                             System.Diagnostics.Debug.WriteLine($"WRITE_TEXT_FILE failed: {ex.Message}");
                         }
                         var response = new { type = "WRITE_TEXT_FILE_RESULT", id = idProp, payload = ok };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })));
+                    });
+                }
+                else if (type == "WRITE_BINARY_FILE")
+                {
+                    var payload = root.GetProperty("payload");
+                    string path = NormalizeFsPath(payload.GetProperty("path").GetString() ?? "");
+                    string base64 = payload.TryGetProperty("base64", out var b64El) ? b64El.GetString() ?? "" : "";
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        bool ok = false;
+                        try
+                        {
+                            var dir = Path.GetDirectoryName(path);
+                            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                                Directory.CreateDirectory(dir);
+                            var bytes = Convert.FromBase64String(base64);
+                            File.WriteAllBytes(path, bytes);
+                            ok = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"WRITE_BINARY_FILE failed: {ex.Message}");
+                        }
+                        var response = new { type = "WRITE_BINARY_FILE_RESULT", id = idProp, payload = ok };
                         PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })));
                     });
                 }

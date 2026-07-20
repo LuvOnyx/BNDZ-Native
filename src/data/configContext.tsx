@@ -339,6 +339,29 @@ function scheduleSettingsSave(merged: AppConfig) {
     }, 250);
 }
 
+/** Drop any debounced settings write so Exit/Restart without Saving can skip persist. */
+export function discardPendingSettingsSave() {
+    if (settingsSaveTimer) {
+        clearTimeout(settingsSaveTimer);
+        settingsSaveTimer = null;
+    }
+    pendingSettingsSave = null;
+}
+
+/** Flush any pending settings write immediately (Exit Saving). */
+export function flushPendingSettingsSave() {
+    if (settingsSaveTimer) {
+        clearTimeout(settingsSaveTimer);
+        settingsSaveTimer = null;
+    }
+    const payload = pendingSettingsSave;
+    pendingSettingsSave = null;
+    if (!payload) return Promise.resolve();
+    return import('../lib/ipcBridge').then(({ IPC }) => {
+        IPC.saveSettings(payload);
+    }).catch(() => {});
+}
+
 const ConfigContext = createContext<{ config: AppConfig; updateConfig: (v: Partial<AppConfig>) => void }>({
     config: defaultConfig,
     updateConfig: () => {}
