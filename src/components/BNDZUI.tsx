@@ -231,7 +231,7 @@ const ToolbarButton = ({ iconId, launcherIcon, tagColor, onClick, className = ''
       aria-label={title || undefined}
       disabled={disabled}
       style={{ touchAction: 'manipulation' }}
-      className={`p-[4px] hover:bg-[#333] active:bg-[#444] rounded mx-[1px] flex items-center justify-center transition-none disabled:opacity-30 disabled:pointer-events-none disabled:hover:bg-transparent ${className}`}
+      className={`p-[4px] hover:bg-[#333] active:bg-[#444] rounded-[5px] mx-[1px] flex items-center justify-center transition-none disabled:opacity-30 disabled:pointer-events-none disabled:hover:bg-transparent ${className}`}
       onClick={onClick}
     >
         {tagColor ? (
@@ -1895,8 +1895,9 @@ export default function BNDZUI() {
         })();
       };
 
+      // Prefer near-immediate fetch so supplemental shell verbs appear while the user reads the menu.
       if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(runFetch, { timeout: 400 });
+        requestIdleCallback(runFetch, { timeout: 80 });
       } else {
         setTimeout(runFetch, 0);
       }
@@ -5173,14 +5174,7 @@ export default function BNDZUI() {
         case 'name':
           return (
             <div key={colId} className="flex items-center min-w-0 h-full w-full">
-              <div className="bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none flex items-center gap-1.5 min-w-0 shrink max-w-full" style={textStyle}>
-                {settingsRt.list.showTags && entityTags.length > 0 && (
-                  <span className="flex items-center gap-0.5 shrink-0">
-                    {entityTags.slice(0, 3).map(t => (
-                      <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
-                    ))}
-                  </span>
-                )}
+                              <div className="bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none flex items-center gap-1.5 min-w-0 shrink max-w-full" style={textStyle}>
                 {renameInput || displayName}
               </div>
               <div className="bndz-list-marquee-pad" aria-hidden />
@@ -5245,7 +5239,7 @@ export default function BNDZUI() {
         case 'tags':
           return (
             <div key={colId} className="bndz-list-select-cell px-2 flex gap-1 h-full items-center flex-wrap">
-              {entityTags.map(t => (
+              {settingsRt.list.showTags && entityTags.map(t => (
                 <TagBadge key={t} tagKey={t} catalog={availableTags} />
               ))}
             </div>
@@ -5445,7 +5439,7 @@ export default function BNDZUI() {
                  data-tab-id={tab.id}
                  data-tab-index={idx}
                  draggable={!tab.locked}
-                 className={`relative bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-all duration-200 ease-out ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${isTabFileDropHover ? 'ring-2 ring-[#0078d4]/70 bg-[#094771]/30' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${tabDropBefore ? 'bndz-tab-drop-before' : ''} ${tabDropAfter ? 'bndz-tab-drop-after' : ''}`}
+                 className={`relative bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t-[6px] z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-[background,border-color,color] duration-100 ease-out ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${isTabFileDropHover ? 'ring-2 ring-[#0078d4]/70 bg-[#094771]/30' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${tabDropBefore ? 'bndz-tab-drop-before' : ''} ${tabDropAfter ? 'bndz-tab-drop-after' : ''}`}
                  onDragStart={(e) => {
                    if (tab.locked) { e.preventDefault(); return; }
                    e.stopPropagation();
@@ -5940,7 +5934,10 @@ export default function BNDZUI() {
               };
 
               const rowEl = (e.target as HTMLElement).closest('.fs-item-wrapper') as HTMLElement | null;
-              const onSelectCell = isListSelectCellTarget(e.target);
+              // Grid tiles: whole tile is selectable (padding / DriveCard chrome often miss .bndz-list-select-cell).
+              const onSelectCell =
+                isListSelectCellTarget(e.target)
+                || (computedViewMode === 'grid' && !!rowEl && !isListMarqueeSurface(e.target));
 
               if (!rowEl) {
                 beginMarqueeGesture(
@@ -6722,8 +6719,8 @@ export default function BNDZUI() {
                      ) : (
                         <>
                            {computedViewMode === 'grid' ? (
-                             <>
-                               <div className="flex flex-col items-center w-full h-full relative overflow-hidden">
+                              <>
+                               <div className="bndz-list-select-cell flex flex-col items-center w-full h-full relative overflow-hidden">
                                   <div
                                     className={`bndz-clipboard-icon-slot flex items-center justify-center relative w-full shrink-0 ${iconDimClass}`}
                                     style={{ height: gridMetrics.iconSlot, minHeight: gridMetrics.iconSlot }}
@@ -6737,16 +6734,9 @@ export default function BNDZUI() {
                                   {filterResult?.badgeColor && (
                                       <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full ring-1 ring-black" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
                                   )}
-                                  {listRt.showTags && entityTags.length > 0 && (
-                                    <span className="absolute bottom-0 left-0 flex gap-0.5 flex-wrap p-0.5">
-                                      {entityTags.slice(0, 3).map(t => (
-                                        <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
-                                      ))}
-                                    </span>
-                                  )}
                                   </div>
                                   <div
-                                    className="bndz-list-select-cell text-center line-clamp-2 w-full break-words text-[11px] leading-tight shrink-0 px-0.5"
+                                    className="text-center line-clamp-2 w-full break-words text-[11px] leading-tight shrink-0 px-0.5"
                                     style={{
                                       height: gridMetrics.labelBlock,
                                       minHeight: gridMetrics.labelBlock,
@@ -6781,13 +6771,6 @@ export default function BNDZUI() {
                                </div>
                                <div className="bndz-list-marquee-pad" aria-hidden />
                              </div>
-                               {listRt.showTags && entityTags.length > 0 && (
-                                 <span className="flex items-center gap-0.5 shrink-0 mr-1">
-                                   {entityTags.slice(0, 3).map(t => (
-                                     <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
-                                   ))}
-                                 </span>
-                               )}
                                {cloudBadge && (
                                  <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
                                )}
@@ -7288,6 +7271,26 @@ export default function BNDZUI() {
              >Edit</div>
              {config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Edit'} anchorEl={menubarAnchors.current['Edit']} minWidth={240}>
+                    <MenubarSubmenu label="New">
+                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                        import('../lib/ipcBridge').then(({ IPC }) => {
+                          IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(currentTab.path || '/', 'New folder'), '', false, 'New folder');
+                          setTimeout(() => refreshWorkspace(), 150);
+                        });
+                      })}>New Folder</div>
+                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
+                        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), '', false, 'New Text Document.txt'));
+                      })}>New Text Document</div>
+                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
+                        const paths = getSelectedEntityPaths();
+                        if (paths.length !== 1) { setToastMessage('Select one item for a shortcut.'); return; }
+                        const { IPC } = await import('../lib/ipcBridge');
+                        const target = toWindowsPath(paths[0]);
+                        const res = await IPC.createLink(`${target}.lnk`, target, 'shortcut');
+                        setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed.')));
+                      })}>New Shortcut</div>
+                    </MenubarSubmenu>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setClipboardState(getSelectedEntityPaths(), 'cut'))}>
                       <Icons8Icon id="cut" size={14} /> Cut
                     </div>
@@ -7460,26 +7463,6 @@ export default function BNDZUI() {
                     <MenubarSubmenu label="Compare">
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => startFolderCompare())}>Compare / Sync Folders</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => openBottomPlugin('find'))}>Find Differences…</div>
-                    </MenubarSubmenu>
-
-                    <MenubarSubmenu label="New">
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
-                        import('../lib/ipcBridge').then(({ IPC }) => {
-                          IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(currentTab.path || '/', 'New folder'), '', false, 'New folder');
-                          setTimeout(() => refreshWorkspace(), 150);
-                        });
-                      })}>New Folder</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
-                        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), '', false, 'New Text Document.txt'));
-                      })}>New Text Document</div>
-                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
-                        const paths = getSelectedEntityPaths();
-                        if (paths.length !== 1) { setToastMessage('Select one item for a shortcut.'); return; }
-                        const { IPC } = await import('../lib/ipcBridge');
-                        const target = toWindowsPath(paths[0]);
-                        const res = await IPC.createLink(`${target}.lnk`, target, 'shortcut');
-                        setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed.')));
-                      })}>New Shortcut</div>
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>

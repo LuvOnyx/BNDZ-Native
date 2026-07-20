@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useAppConfig } from '../data/configContext';
 import { tagChipId } from '../lib/tagUtils';
 import {
@@ -169,36 +169,46 @@ function PaletteDraggable({ item, onAdd }: { item: typeof AVAILABLE_ITEMS[0]; on
     id: `palette-${item.id}`,
     data: { type: 'palette', itemId: item.id },
   });
+  const cat = TOOLBAR_CATEGORIES.find(c => c.id === item.category);
   return (
     <button
       ref={setNodeRef}
       type="button"
       {...listeners}
       {...attributes}
-      className={`bndz-toolbar-config-palette-item group w-full flex items-center justify-between p-2 hover:bg-white/[0.04] cursor-grab active:cursor-grabbing transition-all text-left ${isDragging ? 'opacity-40' : ''}`}
+      className={`bndz-tb-palette-row group ${isDragging ? 'bndz-tb-palette-row--dragging' : ''}`}
       onClick={onAdd}
+      title={`Add “${item.label}” to toolbar`}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 rounded-md bg-[#111] border border-[#333] flex items-center justify-center shrink-0">
-          <ListItemIcon item={item} />
-        </div>
-        <span className="text-sm truncate">{item.label}</span>
+      <div className="bndz-tb-palette-icon" style={cat ? { borderColor: `${cat.color}44` } : undefined}>
+        <ListItemIcon item={item} />
       </div>
-      <Icons8Icon id="plus_ui" size={14} className="text-[#3b82f6] opacity-60 group-hover:opacity-100 shrink-0" />
+      <div className="flex-1 min-w-0 text-left">
+        <div className="text-[12.5px] font-semibold text-white/90 truncate leading-tight">{item.label}</div>
+        {cat && (
+          <div className="text-[10px] text-white/35 truncate mt-0.5">{cat.label}</div>
+        )}
+      </div>
+      <span className="bndz-tb-palette-add opacity-0 group-hover:opacity-100 transition-opacity">
+        <Icons8Icon id="plus_ui" size={12} />
+      </span>
     </button>
   );
 }
 
-function ToolbarDropZone({ children }: { children: React.ReactNode }) {
+function ToolbarDropZone({ children, empty }: { children: React.ReactNode; empty?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: TOOLBAR_ZONE });
   return (
     <div
       ref={setNodeRef}
-      className={`bndz-toolbar-config-preview flex px-3 py-2 items-center flex-wrap relative transition-all ${
-        isOver ? 'border-[#0078d4]/55 bg-[#094771]/25 ring-1 ring-[#0078d4]/30' : ''
-      }`}
+      className={`bndz-tb-preview-bar ${isOver ? 'bndz-tb-preview-bar--over' : ''} ${empty ? 'bndz-tb-preview-bar--empty' : ''}`}
     >
       {children}
+      {empty && (
+        <div className="bndz-tb-preview-empty pointer-events-none">
+          Drag commands here, or click + in the library
+        </div>
+      )}
     </div>
   );
 }
@@ -208,11 +218,10 @@ function TrashDropZone() {
   return (
     <div
       ref={setNodeRef}
-      className={`mt-3 py-3 px-4 rounded-lg border border-dashed text-center text-xs transition-colors ${
-        isOver ? 'border-red-400 bg-red-950/30 text-red-300' : 'border-[#444] text-gray-500'
-      }`}
+      className={`bndz-tb-trash ${isOver ? 'bndz-tb-trash--over' : ''}`}
     >
-      Drag toolbar items here to remove
+      <Icons8Icon id="delete" size={14} />
+      <span>{isOver ? 'Release to remove' : 'Drag here to remove from toolbar'}</span>
     </div>
   );
 }
@@ -233,25 +242,39 @@ function SortableItem(props: any) {
     || { label: 'Unknown', isStructure: false, color: '#888', id: props.itemId } as any;
 
   if (itemDef.isStructure) {
-      return (
-          <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="px-2 py-1 bg-[#333] border border-[#555] rounded text-xs text-gray-300 mx-1 flex items-center justify-center cursor-move h-8 min-w-[32px]">
-              {itemDef.id === 'separator' ? '|' : itemDef.id === 'spacer' ? '< >' : '---'}
-          </div>
-      );
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className="bndz-tb-chip bndz-tb-chip--structure"
+        title={itemDef.label}
+      >
+        {itemDef.id === 'separator' ? '|' : itemDef.id === 'spacer' ? '⟷' : '↵'}
+      </div>
+    );
   }
 
   const isTag = String(props.itemId || '').startsWith('tag__') || itemDef.category === 'tags';
   const png = isTag ? undefined : launcherIconUrl(itemDef.id);
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="p-1.5 hover:bg-[#444] rounded cursor-move group relative flex items-center justify-center h-8 w-8 mx-0.5">
-       {isTag ? (
-         <TagGlyph color={itemDef.color || '#FACC15'} size={18} />
-       ) : png ? (
-         <img src={png} alt="" className="w-[18px] h-[18px] object-contain" draggable={false} />
-       ) : (
-         <Icons8Icon id="tag_manager" size={18} />
-       )}
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="bndz-tb-chip"
+      title={itemDef.label}
+    >
+      {isTag ? (
+        <TagGlyph color={itemDef.color || '#FACC15'} size={18} />
+      ) : png ? (
+        <img src={png} alt="" className="w-[18px] h-[18px] object-contain" draggable={false} />
+      ) : (
+        <Icons8Icon id="tag_manager" size={18} />
+      )}
     </div>
   );
 }
@@ -263,159 +286,237 @@ export default function ToolbarConfigurator({
   onClose: () => void;
   availableTags?: Array<{ id?: string; name?: string; label?: string; color?: string }>;
 }) {
-    const { config, updateConfig } = useAppConfig();
-    const profiles = config.toolbarProfiles && config.toolbarProfiles.length > 0 ? config.toolbarProfiles : [[{ id: "nav_back" }]];
-    const [activeIndex, setActiveIndex] = useState(config.activeToolbarProfileIndex || 0);
-    const [currentLayout, setCurrentLayout] = useState<{ uid: string, id: string }[]>(
-        (profiles[activeIndex] || []).map((i: any) => ({ uid: Math.random().toString(36).substring(7), id: i.id }))
-    );
-    const [search, setSearch] = useState('');
+  const { config, updateConfig } = useAppConfig();
+  const profiles = config.toolbarProfiles && config.toolbarProfiles.length > 0 ? config.toolbarProfiles : [[{ id: 'nav_back' }]];
+  const [activeIndex, setActiveIndex] = useState(config.activeToolbarProfileIndex || 0);
+  const [currentLayout, setCurrentLayout] = useState<{ uid: string; id: string }[]>(
+    (profiles[activeIndex] || []).map((i: any) => ({ uid: Math.random().toString(36).substring(7), id: i.id }))
+  );
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const searchRef = useRef<HTMLInputElement>(null);
 
-    const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-    );
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
-    const handleDragEnd = (event: any) => {
-        const { active, over } = event;
-        const activeData = active.data.current;
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    const activeData = active.data.current;
 
-        if (activeData?.type === 'palette') {
-          if (over && (over.id === TOOLBAR_ZONE || currentLayout.some(i => i.uid === over.id))) {
-            setCurrentLayout(prev => [...prev, { uid: Math.random().toString(36).substring(7), id: activeData.itemId }]);
-          }
-          return;
-        }
+    if (activeData?.type === 'palette') {
+      if (over && (over.id === TOOLBAR_ZONE || currentLayout.some(i => i.uid === over.id))) {
+        setCurrentLayout(prev => [...prev, { uid: Math.random().toString(36).substring(7), id: activeData.itemId }]);
+      }
+      return;
+    }
 
-        if (activeData?.type === 'toolbar') {
-          if (!over || over.id === TRASH_ZONE) {
-            setCurrentLayout(items => items.filter(item => item.uid !== active.id));
-            return;
-          }
-          if (over.id === TOOLBAR_ZONE) return;
+    if (activeData?.type === 'toolbar') {
+      if (!over || over.id === TRASH_ZONE) {
+        setCurrentLayout(items => items.filter(item => item.uid !== active.id));
+        return;
+      }
+      if (over.id === TOOLBAR_ZONE) return;
 
-          const oldIndex = currentLayout.findIndex(i => i.uid === active.id);
-          const newIndex = currentLayout.findIndex(i => i.uid === over.id);
-          if (oldIndex !== -1 && newIndex !== -1 && active.id !== over.id) {
-            setCurrentLayout(items => arrayMove(items, oldIndex, newIndex));
-          }
-        }
-    };
+      const oldIndex = currentLayout.findIndex(i => i.uid === active.id);
+      const newIndex = currentLayout.findIndex(i => i.uid === over.id);
+      if (oldIndex !== -1 && newIndex !== -1 && active.id !== over.id) {
+        setCurrentLayout(items => arrayMove(items, oldIndex, newIndex));
+      }
+    }
+  };
 
-    const handleAddItem = (itemId: string) => {
-        setCurrentLayout(prev => [...prev, { uid: Math.random().toString(36).substring(7), id: itemId }]);
-    };
+  const handleAddItem = (itemId: string) => {
+    setCurrentLayout(prev => [...prev, { uid: Math.random().toString(36).substring(7), id: itemId }]);
+  };
 
-    const handleSave = () => {
-        const newProfiles = [...profiles];
-        newProfiles[activeIndex] = currentLayout.map(i => ({ id: i.id }));
-        updateConfig({ toolbarProfiles: newProfiles, activeToolbarProfileIndex: activeIndex });
-        onClose();
-    };
+  const handleSave = () => {
+    const newProfiles = [...profiles];
+    newProfiles[activeIndex] = currentLayout.map(i => ({ id: i.id }));
+    updateConfig({ toolbarProfiles: newProfiles, activeToolbarProfileIndex: activeIndex });
+    onClose();
+  };
 
-    const handleAddNewProfile = () => {
-        const newProfiles = [...profiles, [{ id: "nav_back" }]];
-        updateConfig({ toolbarProfiles: newProfiles, activeToolbarProfileIndex: newProfiles.length - 1 });
-        setActiveIndex(newProfiles.length - 1);
-        setCurrentLayout([{ uid: Math.random().toString(36).substring(7), id: "nav_back" }]);
-    };
+  const handleAddNewProfile = () => {
+    const newProfiles = [...profiles, [{ id: 'nav_back' }]];
+    updateConfig({ toolbarProfiles: newProfiles, activeToolbarProfileIndex: newProfiles.length - 1 });
+    setActiveIndex(newProfiles.length - 1);
+    setCurrentLayout([{ uid: Math.random().toString(36).substring(7), id: 'nav_back' }]);
+  };
 
-    const [activeCategory, setActiveCategory] = useState<string>('all');
-    const tagItems = useMemo(() => buildTagToolbarItems(availableTags), [availableTags]);
-    const allPaletteItems = useMemo(() => [...AVAILABLE_ITEMS, ...tagItems], [tagItems]);
-    const filteredItems = useMemo(() => {
-        const q = search.toLowerCase();
-        return allPaletteItems.filter(i => {
-            if (activeCategory !== 'all' && i.category !== activeCategory) return false;
-            return i.label.toLowerCase().includes(q) || i.id.includes(q);
-        });
-    }, [allPaletteItems, search, activeCategory]);
+  const handleClearToolbar = () => {
+    setCurrentLayout([]);
+  };
 
-    return (
-        <BndzWindowFrame
-            title="Toolbar Designer"
-            subtitle={`Drag commands onto the preview bar · ${allPaletteItems.length} available`}
-            iconId="wrench"
-            onClose={onClose}
-            zIndexClass="z-[200]"
-            widthClass="w-[min(1152px,calc(100vw-2rem))]"
-            heightClass="h-[min(88vh,calc(100vh-2rem))]"
-        >
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <div className="flex flex-1 overflow-hidden min-h-0">
-                    <div className="w-[38%] border-r border-white/10 flex flex-col bg-[#12121a]/80">
-                        <div className="p-3 border-b border-white/5 space-y-2">
-                           <input 
-                              type="text" 
-                              placeholder="Search commands…" 
-                              value={search}
-                              onChange={e => setSearch(e.target.value)}
-                              className="w-full bg-[#0d0d12] border border-[#444] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#0078d4]/55 focus:ring-1 focus:ring-[#0078d4]/20"
-                           />
-                           <div className="flex flex-wrap gap-1">
-                             <button type="button" onClick={() => setActiveCategory('all')} className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${activeCategory === 'all' ? 'bg-[#094771]/35 border-[#0078d4]/45 text-[#cce4f7]' : 'border-[#444] text-gray-500 hover:text-gray-300'}`}>All</button>
-                             {TOOLBAR_CATEGORIES.map(cat => (
-                               <button key={cat.id} type="button" onClick={() => setActiveCategory(cat.id)} className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${activeCategory === cat.id ? 'border-white/20 text-white' : 'border-[#444] text-gray-500 hover:text-gray-300'}`} style={activeCategory === cat.id ? { backgroundColor: `${cat.color}22`, borderColor: `${cat.color}55`, color: cat.color } : undefined}>{cat.label}</button>
-                             ))}
-                           </div>
-                        </div>
-                        <div className="flex-1 overflow-y-auto bndz-scrollbar p-2 min-h-0">
-                           <div className="grid grid-cols-1 gap-1">
-                               {filteredItems.map(item => (
-                                   <PaletteDraggable key={item.id} item={item} onAdd={() => handleAddItem(item.id)} />
-                               ))}
-                               {!filteredItems.length && (
-                                 <div className="text-center text-gray-500 text-sm py-8 italic">No commands match your search.</div>
-                               )}
-                           </div>
-                        </div>
+  const tagItems = useMemo(() => buildTagToolbarItems(availableTags), [availableTags]);
+  const allPaletteItems = useMemo(() => [...AVAILABLE_ITEMS, ...tagItems], [tagItems]);
+  const filteredItems = useMemo(() => {
+    const q = search.toLowerCase();
+    return allPaletteItems.filter(i => {
+      if (activeCategory !== 'all' && i.category !== activeCategory) return false;
+      return i.label.toLowerCase().includes(q) || i.id.includes(q);
+    });
+  }, [allPaletteItems, search, activeCategory]);
+
+  const categoryCounts = useMemo(() => {
+    const map: Record<string, number> = { all: allPaletteItems.length };
+    for (const cat of TOOLBAR_CATEGORIES) {
+      map[cat.id] = allPaletteItems.filter(i => i.category === cat.id).length;
+    }
+    return map;
+  }, [allPaletteItems]);
+
+  return (
+    <BndzWindowFrame
+      title="Toolbar Designer"
+      subtitle="Compose your command bar — drag, order, save"
+      iconId="wrench"
+      onClose={onClose}
+      zIndexClass="z-[200]"
+      widthClass="w-[min(1180px,calc(100vw-2rem))]"
+      heightClass="h-[min(90vh,calc(100vh-2rem))]"
+    >
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="bndz-tb-root flex flex-1 flex-col min-h-0 overflow-hidden">
+          {/* Workshop header strip */}
+          <div className="bndz-tb-header shrink-0">
+            <div className="relative flex-1 min-w-0 max-w-[380px]">
+              <Icons8Icon id="search" size={13} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none" />
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search commands…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="bndz-native-input w-full !py-2 !pl-8 !pr-3 !text-[12px]"
+              />
+            </div>
+            <div className="bndz-tb-stats">
+              <span><strong>{allPaletteItems.length}</strong> commands</span>
+              <span><strong>{currentLayout.length}</strong> on bar</span>
+              <span><strong>{profiles.length}</strong> profile{profiles.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              <button type="button" className="bndz-hub-btn-ghost text-[11px] font-semibold px-3 py-1.5" onClick={handleClearToolbar}>
+                Clear bar
+              </button>
+              <button type="button" className="bndz-hub-btn-primary text-[12px] font-semibold px-4 py-1.5 flex items-center gap-1.5" onClick={handleSave}>
+                <Icons8Icon id="check" size={13} />
+                Save toolbar
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* Command library */}
+            <aside className="bndz-tb-library w-[42%] min-w-[300px] max-w-[440px] flex flex-col border-r border-white/[0.06] min-h-0">
+              <div className="bndz-tb-cat-rail shrink-0 px-3 py-2.5 flex flex-wrap gap-1.5 border-b border-white/[0.05]">
+                <button
+                  type="button"
+                  onClick={() => setActiveCategory('all')}
+                  className={`bndz-tb-cat ${activeCategory === 'all' ? 'bndz-tb-cat--active' : ''}`}
+                >
+                  All
+                  <span className="bndz-tb-cat-count">{categoryCounts.all}</span>
+                </button>
+                {TOOLBAR_CATEGORIES.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`bndz-tb-cat ${activeCategory === cat.id ? 'bndz-tb-cat--active' : ''}`}
+                    style={activeCategory === cat.id ? {
+                      backgroundColor: `${cat.color}1a`,
+                      borderColor: `${cat.color}55`,
+                      color: cat.color,
+                    } : undefined}
+                  >
+                    {cat.label}
+                    <span className="bndz-tb-cat-count">{categoryCounts[cat.id] || 0}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 overflow-y-auto styled-scrollbar p-2 min-h-0">
+                {filteredItems.length === 0 ? (
+                  <div className="px-4 py-14 text-center text-[12px] text-white/35">
+                    {search.trim() ? 'No commands match your search.' : 'No commands in this category.'}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {filteredItems.map(item => (
+                      <PaletteDraggable key={item.id} item={item} onAdd={() => handleAddItem(item.id)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            {/* Canvas / preview */}
+            <section className="flex-1 flex flex-col min-h-0 bg-black/15">
+              <div className="bndz-tb-profile-bar shrink-0 px-4 py-3 flex items-center gap-3 border-b border-white/[0.06]">
+                <span className="text-[10px] uppercase tracking-[0.14em] text-white/35 font-semibold">Profile</span>
+                <select
+                  value={activeIndex}
+                  onChange={e => {
+                    const idx = parseInt(e.target.value, 10);
+                    setActiveIndex(idx);
+                    setCurrentLayout((profiles[idx] || []).map((i: any) => ({
+                      uid: Math.random().toString(36).substring(7),
+                      id: i.id,
+                    })));
+                  }}
+                  className="bndz-native-input !w-auto !py-1.5 !px-3 !text-[12px] min-w-[140px]"
+                >
+                  {profiles.map((_, i) => (
+                    <option key={i} value={i}>Toolbar {i + 1}</option>
+                  ))}
+                </select>
+                <button type="button" className="bndz-hub-btn-ghost text-[11px] font-semibold px-2.5 py-1.5" onClick={handleAddNewProfile}>
+                  + New profile
+                </button>
+                <span className="ml-auto text-[11px] text-white/30 hidden sm:inline">
+                  Reorder by dragging · drop on remove zone to delete
+                </span>
+              </div>
+
+              <div className="flex-1 p-5 flex flex-col gap-4 min-h-0 overflow-y-auto styled-scrollbar">
+                <div>
+                  <div className="bndz-tb-section-label mb-2.5">Live preview</div>
+                  <div className="bndz-tb-chrome">
+                    <div className="bndz-tb-chrome-caption">
+                      <span className="w-2 h-2 rounded-[3px] bg-[#e81123]/80" />
+                      <span className="w-2 h-2 rounded-[3px] bg-[#f7c948]/80" />
+                      <span className="w-2 h-2 rounded-[3px] bg-[#3cc66d]/80" />
+                      <span className="ml-2 text-[10px] text-white/30 tracking-wide">BNDZ toolbar</span>
                     </div>
-
-                    <div className="w-[62%] flex flex-col bg-[#18181e] min-h-0">
-                        <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-[#1f1f28]/80">
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-medium text-gray-400">Profile</span>
-                                <select 
-                                   value={activeIndex} 
-                                   onChange={e => {
-                                      const idx = parseInt(e.target.value);
-                                      setActiveIndex(idx);
-                                      setCurrentLayout((profiles[idx] || []).map((i: any) => ({ uid: Math.random().toString(36).substring(7), id: i.id })));
-                                   }}
-                                   className="bg-[#0d0d12] border border-[#555] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#0078d4]/45"
-                                >
-                                    {profiles.map((_, i) => (
-                                        <option key={i} value={i}>Toolbar {i + 1}</option>
-                                    ))}
-                                </select>
-                                <button className="text-xs bg-[#2a2a32] hover:bg-[#35353f] border border-[#555] px-2.5 py-1.5 rounded-lg transition-colors" onClick={handleAddNewProfile}>+ New profile</button>
-                            </div>
-                            <button onClick={handleSave} className="bndz-native-dialog-primary flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold">
-                                <Icons8Icon id="check" size={14} /> Save toolbar
-                            </button>
-                        </div>
-                        <div className="flex-1 p-5 relative flex flex-col min-h-0">
-                            <div className="text-[10px] text-gray-500 mb-3 font-semibold uppercase tracking-widest">Live preview</div>
-                              <ToolbarDropZone>
-                                <SortableContext items={currentLayout.map(i => i.uid)} strategy={rectSortingStrategy}>
-                                  {currentLayout.map(item => {
-                                    if (item.id === 'new_row') {
-                                      return <div key={item.uid} className="w-full h-0 mb-2 basis-full" />;
-                                    }
-                                    return <SortableItem key={item.uid} id={item.uid} itemId={item.id} tags={availableTags} />;
-                                  })}
-                                </SortableContext>
-                                {currentLayout.length === 0 && (
-                                  <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 italic pointer-events-none">
-                                    Drag commands here or click + on the left
-                                  </div>
-                                )}
-                              </ToolbarDropZone>
-                              <TrashDropZone />
-                        </div>
-                    </div>
+                    <ToolbarDropZone empty={currentLayout.length === 0}>
+                      <SortableContext items={currentLayout.map(i => i.uid)} strategy={rectSortingStrategy}>
+                        {currentLayout.map(item => {
+                          if (item.id === 'new_row') {
+                            return <div key={item.uid} className="w-full h-0 mb-2 basis-full" />;
+                          }
+                          return <SortableItem key={item.uid} id={item.uid} itemId={item.id} tags={availableTags} />;
+                        })}
+                      </SortableContext>
+                    </ToolbarDropZone>
+                  </div>
                 </div>
-                </DndContext>
-        </BndzWindowFrame>
-    );
+
+                <TrashDropZone />
+
+                <div className="bndz-tb-hint">
+                  <Icons8Icon id="help_ui" size={13} className="opacity-50 shrink-0 mt-0.5" />
+                  <p>
+                    Click a library command to pin it instantly, or drag to place. Structure items
+                    (separator, spacer, new row) shape the bar layout without adding actions.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </DndContext>
+    </BndzWindowFrame>
+  );
 }

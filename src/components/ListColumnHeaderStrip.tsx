@@ -76,7 +76,7 @@ function SortableColumnHeader({
         }
       : null),
     transform: CSS.Translate.toString(transform),
-    transition: isDragging ? undefined : (transition || 'transform 160ms cubic-bezier(0.2, 0, 0, 1)'),
+    transition: isDragging ? undefined : (transition || 'transform 90ms cubic-bezier(0.2, 0, 0, 1)'),
     zIndex: isDragging ? 40 : undefined,
     position: 'relative',
   };

@@ -4,10 +4,13 @@ import { ContextMenuIcon } from './ContextMenuIcon';
 import { Icons8Icon } from './Icons8Icon';
 
 export const menuItemClass =
-  'bndz-context-menu-item px-2 py-[3px] flex items-center gap-2 cursor-default text-[12px] select-none leading-[22px]';
+  'bndz-context-menu-item flex items-center gap-2.5 cursor-default text-[12px] select-none leading-[22px]';
 
 export const submenuPanelClass =
-  'bndz-context-submenu absolute top-0 py-[2px] min-w-[196px] z-[500] max-h-[calc(100vh-24px)] overflow-visible';
+  'bndz-context-submenu absolute top-0 min-w-[200px] z-[500] max-h-[calc(100vh-24px)] overflow-visible';
+
+/** Submenu close grace — short enough to feel native when gliding, long enough to cross the gap. */
+const SUBMENU_CLOSE_MS = 45;
 
 /** Wrap a menu item action so it stops event propagation after firing. */
 export function runMenuAction(handler: (e: React.MouseEvent) => void | Promise<void>) {
@@ -79,7 +82,7 @@ export function ContextSubmenu({
 
   const scheduleClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), 120);
+    closeTimer.current = setTimeout(() => setOpen(false), SUBMENU_CLOSE_MS);
   };
 
   return (
@@ -91,11 +94,11 @@ export function ContextSubmenu({
       onMouseDown={e => e.stopPropagation()}
     >
       <div className={`${menuItemClass} justify-between ${open ? 'bndz-context-menu-item-active' : ''}`}>
-        <span className="flex items-center gap-2.5">
+        <span className="flex items-center gap-2.5 min-w-0">
           {iconId ? <Icons8Icon id={iconId} size={14} className="shrink-0 bndz-context-menu-icon" /> : iconVerb ? <ContextMenuIcon verb={iconVerb} /> : null}
-          {label}
+          <span className="truncate">{label}</span>
         </span>
-        {showChevron && <Icons8Icon id="chevron_right" size={12} className={`opacity-70 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />}
+        {showChevron && <Icons8Icon id="chevron_right" size={11} className={`opacity-55 shrink-0 ${open ? 'bndz-context-chevron--open' : ''}`} />}
       </div>
       {open && typeof document !== 'undefined' && createPortal(
         <div
@@ -203,7 +206,7 @@ export function ContextNestedSubmenu({
   };
   const scheduleClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), 120);
+    closeTimer.current = setTimeout(() => setOpen(false), SUBMENU_CLOSE_MS);
   };
 
   return (
@@ -215,11 +218,11 @@ export function ContextNestedSubmenu({
       onMouseDown={e => e.stopPropagation()}
     >
       <div className={`${menuItemClass} justify-between ${open ? 'bndz-context-menu-item-active' : ''}`}>
-        <span className="flex items-center gap-2.5">
+        <span className="flex items-center gap-2.5 min-w-0">
           {iconVerb ? <ContextMenuIcon verb={iconVerb} /> : null}
-          {label}
+          <span className="truncate">{label}</span>
         </span>
-        <Icons8Icon id="chevron_right" size={12} className="opacity-70 shrink-0" />
+        <Icons8Icon id="chevron_right" size={11} className={`opacity-55 shrink-0 ${open ? 'bndz-context-chevron--open' : ''}`} />
       </div>
       {open && typeof document !== 'undefined' && createPortal(
         <div

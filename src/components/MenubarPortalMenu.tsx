@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface MenubarPortalMenuProps {
@@ -10,6 +10,7 @@ interface MenubarPortalMenuProps {
 
 /** Menubar dropdown portaled to document.body so parent overflow/contain cannot clip it. */
 export function MenubarPortalMenu({ open, anchorEl, minWidth = 200, children }: MenubarPortalMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
   useLayoutEffect(() => {
@@ -19,8 +20,10 @@ export function MenubarPortalMenu({ open, anchorEl, minWidth = 200, children }: 
     let left = rect.left;
     let top = rect.bottom;
     setPos({ top, left });
-    requestAnimationFrame(() => {
-      const menu = document.querySelector('[data-bndz-menubar-menu][data-open="true"]') as HTMLElement | null;
+
+    // Measure once after paint — avoid re-clamping on every children identity change.
+    const id = requestAnimationFrame(() => {
+      const menu = menuRef.current;
       if (!menu) return;
       const m = menu.getBoundingClientRect();
       if (left + m.width > window.innerWidth - pad) {
@@ -33,15 +36,17 @@ export function MenubarPortalMenu({ open, anchorEl, minWidth = 200, children }: 
       if (top < pad) top = pad;
       setPos({ top, left });
     });
-  }, [open, anchorEl, children]);
+    return () => cancelAnimationFrame(id);
+  }, [open, anchorEl]);
 
   if (!open || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
+      ref={menuRef}
       data-bndz-menubar-menu
       data-open="true"
-      className="fixed z-[500] bndz-menubar-menu border border-[#454545] shadow-lg py-1 min-w-[200px] bndz-scrollbar"
+      className="fixed z-[500] bndz-menubar-menu bndz-context-menu bndz-scrollbar"
       style={{
         top: pos.top,
         left: pos.left,

@@ -10,7 +10,7 @@ interface ClampedFixedMenuProps {
   onClick?: (e: React.MouseEvent) => void;
 }
 
-/** Portal + viewport clamp + scroll for context menus */
+/** Portal + viewport clamp + scroll for context menus — chrome lives in CSS. */
 export default function ClampedFixedMenu({ x, y, className = '', children, onMouseDown, onClick }: ClampedFixedMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: y, left: x });
@@ -39,7 +39,7 @@ export default function ClampedFixedMenu({ x, y, className = '', children, onMou
     <div
       ref={ref}
       data-bndz-context-menu
-      className={`fixed z-[400] border border-[#454545] bg-[#2b2b2b] shadow-[0_2px_8px_rgba(0,0,0,0.35)] py-1.5 bndz-scrollbar ${className}`}
+      className={`fixed z-[400] bndz-context-menu bndz-scrollbar ${className}`}
       style={{
         top: pos.top,
         left: pos.left,

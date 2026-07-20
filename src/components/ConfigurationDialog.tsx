@@ -2343,15 +2343,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  {([
                    ['properties', 'Properties'],
                    ['context-menu-manager', 'Context Menus'],
-                   ['icon-studio', 'Icon Studio (installs on first use)'],
+                   ['icon-studio', 'Icon Studio'],
                    ['batch-rename', 'Batch Rename'],
                    ['find', 'Fast Search'],
                    ['dropstack', 'Drop Stack'],
                    ['filters', 'Visual Filters'],
                    ['metadata', 'Metadata Inspector'],
-                   ['icon-studio', 'Icon Studio'],
                  ] as const).map(([id, label]) => {
-                   const defaults = ['properties', 'context-menu-manager', 'icon-studio', 'batch-rename', 'find', 'dropstack', 'filters', 'metadata'];
+                   const defaults = ['properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare'];
                    const current = localConfig.installedPlugins || defaults;
                    return (
                      <Checkbox key={id} label={<span>Enable <span className="font-bold">{label}</span> Module</span>} checked={current.includes(id)} onChange={e => {
@@ -2414,7 +2413,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <p className="text-[11px] text-gray-500 mb-3">Current order (left → right). Drag tabs in the bottom panel to change.</p>
                 <div className="flex flex-wrap gap-2">
                   {(() => {
-                    const defaults = ['properties', 'context-menu-manager', 'icon-studio', 'batch-rename', 'find', 'dropstack', 'filters', 'metadata'];
+                    const defaults = ['properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare'];
                     const installed = localConfig.installedPlugins || defaults;
                     const order = (localConfig.bottomPluginTabOrder || []).filter((id: string) => installed.includes(id));
                     const rest = installed.filter((id: string) => !order.includes(id));

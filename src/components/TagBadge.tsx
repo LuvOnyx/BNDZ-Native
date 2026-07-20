@@ -15,7 +15,7 @@ export default function TagBadge({ tagKey, catalog = [], compact }: Props) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 shrink-0 rounded-sm border leading-none font-semibold uppercase tracking-wide ${
+      className={`inline-flex items-center gap-1 shrink-0 rounded-[5px] border leading-none font-semibold uppercase tracking-wide ${
         compact ? 'text-[8px] px-1 py-[1px]' : 'text-[9px] px-1.5 py-[2px]'
       }`}
       style={{

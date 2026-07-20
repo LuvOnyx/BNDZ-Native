@@ -111,7 +111,7 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     sidebarOrder: ['storage', 'quick', 'cloud', 'tree'],
     folderSizeBarStyle: 'bar',
     appearanceNavTreeColors: 'subtle',
-    installedPlugins: ['properties', 'context-menu-manager', 'icon-studio', 'batch-rename', 'find', 'dropstack', 'filters', 'metadata', 'storage-cleanup', 'folder-sync', 'catalog'],
+    installedPlugins: ['properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters', 'storage-cleanup', 'folder-sync', 'catalog'],
     customColumns: DEFAULT_CUSTOM_COLUMNS.map(c => ({ ...c })),
     shellInfoTipStandardFields: [...DEFAULT_STANDARD_FIELD_IDS],
     shellInfoTipExtraFields: [...DEFAULT_EXTRA_FIELD_IDS],

@@ -43,13 +43,11 @@ export default function DriveCard({ drive, layout = 'compact', selected }: Props
   if (layout === 'grid') {
     return (
       <div
-        className={`flex flex-col items-center w-full gap-1.5 p-2.5 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-[#0078d4]/50 bg-[#094771]/25' : 'border-white/[0.06]'}`}
+        className={`bndz-list-select-cell flex flex-col items-center w-full gap-1.5 p-2.5 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-[#0078d4]/50 bg-[#094771]/25' : 'border-white/[0.06]'}`}
       >
-        <div className="bndz-list-select-cell flex flex-col items-center w-full gap-1.5">
-          <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={40} eager />
-          <div className="text-[11px] font-medium text-center truncate w-full text-white/90" title={showLetterSuffix ? `${displayLabel} (${letter})` : letter}>
-            {displayLabel}{showLetterSuffix ? <span className="text-white/40"> ({letter})</span> : null}
-          </div>
+        <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={40} eager />
+        <div className="text-[11px] font-medium text-center truncate w-full text-white/90" title={showLetterSuffix ? `${displayLabel} (${letter})` : letter}>
+          {displayLabel}{showLetterSuffix ? <span className="text-white/40"> ({letter})</span> : null}
         </div>
         <StorageUsageBar usedPct={usedPct} height={6} className="w-full" />
         <div className="text-[9px] text-white/45 text-center truncate w-full">{freeOfTotal}</div>

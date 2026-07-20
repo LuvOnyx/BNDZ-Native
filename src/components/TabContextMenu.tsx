@@ -25,7 +25,7 @@ interface TabContextMenuProps {
 }
 
 const itemClass =
-  'bndz-context-menu-item w-full flex items-center gap-2.5 px-3 py-1.5 text-[12px] text-left transition-colors disabled:opacity-40 disabled:pointer-events-none';
+  'bndz-context-menu-item w-full flex items-center gap-2.5 text-[12px] text-left disabled:opacity-40 disabled:pointer-events-none';
 
 export function TabContextMenu({
   x,
@@ -54,13 +54,12 @@ export function TabContextMenu({
   };
 
   return (
-    <ClampedFixedMenu x={x} y={y}>
+    <ClampedFixedMenu x={x} y={y} className="min-w-[220px] select-none">
       <div
         data-bndz-tab-context-menu
-        className="bndz-context-menu min-w-[220px] py-1 select-none"
         onMouseDown={e => e.stopPropagation()}
       >
-        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider bndz-context-menu-icon border-b border-[var(--menu-border,rgba(255,255,255,0.1))] truncate">
+        <div className="px-2.5 py-1.5 mb-1 text-[10px] uppercase tracking-wider text-white/40 border-b border-white/[0.08] truncate">
           {tabLabel}
         </div>
         <button type="button" className={itemClass} onMouseDown={act(onLock)}>
@@ -106,7 +105,7 @@ export function TabContextMenu({
               key={preset.id}
               type="button"
               title={preset.label}
-              className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${!preset.color ? 'bg-[#333] border-[#555]' : ''} ${tabColor === preset.color ? 'ring-2 ring-white/60 scale-110' : 'border-transparent'}`}
+              className={`w-5 h-5 rounded-[5px] border-2 transition-transform hover:scale-105 ${!preset.color ? 'bg-[#333] border-[#555]' : ''} ${tabColor === preset.color ? 'ring-2 ring-white/60 scale-105' : 'border-transparent'}`}
               style={preset.color ? { backgroundColor: preset.color } : undefined}
               onMouseDown={act(() => { onSetColor(preset.color); onCloseMenu(); })}
             />

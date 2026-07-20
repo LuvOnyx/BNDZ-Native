@@ -311,7 +311,7 @@ export function PluginStoreDialog({ onClose }: { onClose: () => void }) {
                       <button
                         type="button"
                         onClick={() => togglePluginInstall(activePlugin.id)}
-                        className={activePlugin.isInstalled ? 'bndz-hub-btn-ghost px-4 py-2 text-[12px] font-semibold' : 'bndz-hub-btn-primary px-5 py-2 text-[12px] font-semibold'}
+                        className={activePlugin.isInstalled ? 'bndz-hub-btn-danger px-4 py-2 text-[12px] font-semibold' : 'bndz-hub-btn-primary px-5 py-2 text-[12px] font-semibold'}
                       >
                         {activePlugin.isInstalled ? 'Uninstall extension' : 'Install extension'}
                       </button>

@@ -31,12 +31,10 @@ export type PluginManifest = {
 export const DEFAULT_INSTALLED_PLUGINS = [
     'properties',
     'context-menu-manager',
-    'icon-studio',
     'batch-rename',
     'find',
     'dropstack',
     'filters',
-    'metadata',
     'storage-cleanup',
     'folder-sync',
     'catalog',
@@ -70,7 +68,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...IconStudioPluginDef,
         description: 'FolderIco-style icon libraries — import folders of icons, drag-drop PNGs, apply to folders and files.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: IconStudioPlugin,
@@ -106,7 +104,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...MetadataPluginDef,
-        isInstalled: true,
+        isInstalled: false,
         component: MetadataPlugin,
     },
     {
