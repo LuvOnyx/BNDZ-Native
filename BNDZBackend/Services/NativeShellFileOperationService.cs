@@ -50,44 +50,89 @@ public sealed class NativeShellFileOperationService
         bool showProgress = true,
         Action<string, string>? onAccessDenied = null)
     {
+        // IFileOperation / Explorer progress UI require STA. Never run progress UI on MTA thread-pool.
+        if (showProgress)
+        {
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    RunOperation(operationId, action, sources, target, bypassRecycleBin, onProgress, cancellationToken, showProgress: true, onAccessDenied);
+                    tcs.TrySetResult();
+                }
+                catch (OperationCanceledException oce)
+                {
+                    tcs.TrySetCanceled(oce.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "BNDZ-NativeShellOp",
+            };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            return tcs.Task;
+        }
+
         return Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            sources = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
-            target = NormalizePath(target);
-            action = (action ?? "copy").ToLowerInvariant();
-            var total = Math.Max(sources.Count, 1);
+            RunOperation(operationId, action, sources, target, bypassRecycleBin, onProgress, cancellationToken, showProgress: false, onAccessDenied);
+        }, cancellationToken);
+    }
 
-            onProgress?.Invoke(operationId, 0, sources.FirstOrDefault() ?? "", 0, 0, 0, 0, total);
+    private static void RunOperation(
+        string operationId,
+        string action,
+        List<string> sources,
+        string target,
+        bool bypassRecycleBin,
+        Action<string, int, string, long, long, double, int, int>? onProgress,
+        CancellationToken cancellationToken,
+        bool showProgress,
+        Action<string, string>? onAccessDenied)
+    {
+        sources = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
+        target = NormalizePath(target);
+        action = (action ?? "copy").ToLowerInvariant();
+        var total = Math.Max(sources.Count, 1);
 
+        onProgress?.Invoke(operationId, 0, sources.FirstOrDefault() ?? "", 0, 0, 0, 0, total);
+
+        try
+        {
+            ExecuteWithVanara(operationId, action, sources, target, bypassRecycleBin, showProgress, onProgress, total);
+        }
+        catch (Exception ex)
+        {
+            var classified = PrivilegePolicyService.Classify(ex, "This file operation");
+            if (classified.NeedsElevation)
+            {
+                onAccessDenied?.Invoke(operationId, classified.Message);
+                throw;
+            }
+            Debug.WriteLine($"[NativeShell] Vanara IFileOperation failed, falling back to SHFileOperation: {ex.Message}");
             try
             {
-                ExecuteWithVanara(operationId, action, sources, target, bypassRecycleBin, showProgress, onProgress, total);
+                ExecuteWithLegacyShell(action, sources, target, bypassRecycleBin, showProgress);
             }
-            catch (Exception ex)
+            catch (Exception legacyEx)
             {
-                var classified = PrivilegePolicyService.Classify(ex, "This file operation");
-                if (classified.NeedsElevation)
-                {
-                    onAccessDenied?.Invoke(operationId, classified.Message);
-                    throw;
-                }
-                Debug.WriteLine($"[NativeShell] Vanara IFileOperation failed, falling back to SHFileOperation: {ex.Message}");
-                try
-                {
-                    ExecuteWithLegacyShell(action, sources, target, bypassRecycleBin, showProgress);
-                }
-                catch (Exception legacyEx)
-                {
-                    var legacyClassified = PrivilegePolicyService.Classify(legacyEx, "This file operation");
-                    if (legacyClassified.NeedsElevation)
-                        onAccessDenied?.Invoke(operationId, legacyClassified.Message);
-                    throw;
-                }
+                var legacyClassified = PrivilegePolicyService.Classify(legacyEx, "This file operation");
+                if (legacyClassified.NeedsElevation)
+                    onAccessDenied?.Invoke(operationId, legacyClassified.Message);
+                throw;
             }
+        }
 
-            onProgress?.Invoke(operationId, 100, sources.LastOrDefault() ?? target, 0, 0, 0, total, total);
-        }, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        onProgress?.Invoke(operationId, 100, sources.LastOrDefault() ?? target, 0, 0, 0, total, total);
     }
 
     private static void ExecuteWithVanara(
@@ -174,9 +219,17 @@ public sealed class NativeShellFileOperationService
     {
         if (sources.Count == 0) return;
         var dest = targetDir.TrimEnd('\\');
-        if (!Directory.Exists(dest) && sources.Count == 1 && File.Exists(sources[0]))
-            dest = Path.GetDirectoryName(dest) ?? dest;
-        Directory.CreateDirectory(dest);
+        var isShellDest = PortableDeviceService.IsPortableDevicePath(dest)
+            || ShellPathResolver.IsShellVirtualPath(dest)
+            || dest.StartsWith("::{", StringComparison.Ordinal);
+
+        if (!isShellDest)
+        {
+            if (!Directory.Exists(dest) && sources.Count == 1 && File.Exists(sources[0]))
+                dest = Path.GetDirectoryName(dest) ?? dest;
+            Directory.CreateDirectory(dest);
+        }
+
         using var destFolder = new ShellFolder(dest);
 
         foreach (var src in sources)
@@ -193,6 +246,27 @@ public sealed class NativeShellFileOperationService
                 bump(src);
             }
         }
+    }
+
+    /// <summary>Copy filesystem sources into a shell/MTP destination folder (phones, etc.).</summary>
+    public static void CopyToShellDestination(IEnumerable<string> sources, string shellDestFolder)
+    {
+        var list = sources.Select(NormalizePath).Where(s => !string.IsNullOrEmpty(s)).ToList();
+        if (list.Count == 0 || string.IsNullOrWhiteSpace(shellDestFolder))
+            throw new ArgumentException("Missing sources or destination.");
+
+        using var op = new ShellFileOperations();
+        op.Options = ShellFileOperations.OperationFlags.AllowUndo
+            | ShellFileOperations.OperationFlags.NoConfirmMkDir;
+        using var destFolder = new ShellFolder(shellDestFolder);
+        foreach (var src in list)
+        {
+            using var sourceItem = new ShellItem(src);
+            op.QueueCopyOperation(sourceItem, destFolder);
+        }
+        op.PerformOperations();
+        if (op.AnyOperationsAborted)
+            throw new OperationCanceledException("Copy to device was aborted.");
     }
 
     private static void QueueSingleTargetMove(ShellFileOperations op, string source, string targetPath, Action<string?> bump)

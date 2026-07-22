@@ -15,6 +15,28 @@ type Props = {
   enabled?: boolean;
 };
 
+const TRANSFER_EXPANDED_KEY = 'bndz-transfer-panel-expanded';
+
+/** Survives unmount when the panel hides between jobs. */
+let transferPanelExpandedSession: boolean | null = null;
+
+function readTransferExpandedPreference(): boolean {
+  if (transferPanelExpandedSession !== null) return transferPanelExpandedSession;
+  try {
+    const raw = localStorage.getItem(TRANSFER_EXPANDED_KEY);
+    if (raw === '0') return false;
+    if (raw === '1') return true;
+  } catch { /* ignore */ }
+  return true;
+}
+
+function writeTransferExpandedPreference(expanded: boolean) {
+  transferPanelExpandedSession = expanded;
+  try {
+    localStorage.setItem(TRANSFER_EXPANDED_KEY, expanded ? '1' : '0');
+  } catch { /* ignore */ }
+}
+
 function JobRow({
   job,
   onCancel,
@@ -131,9 +153,17 @@ function JobRow({
 /** Docked transfer queue — real cancel + soft-squircle chrome. */
 export default function FileTransferQueuePanel({ className = '', enabled = true }: Props) {
   const [state, setState] = useState<FileTransferQueueState>({ queuedCount: 0, activeCount: 0, jobs: [] });
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(readTransferExpandedPreference);
   const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>({});
   const [cancellingIds, setCancellingIds] = useState<Record<string, boolean>>({});
+
+  const setExpandedAndPersist = (next: boolean | ((prev: boolean) => boolean)) => {
+    setExpanded(prev => {
+      const value = typeof next === 'function' ? next(prev) : next;
+      writeTransferExpandedPreference(value);
+      return value;
+    });
+  };
 
   useEffect(() => {
     if (!enabled) return;
@@ -227,7 +257,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
       <div className="bndz-transfer-header w-full flex items-center gap-2 px-3 py-2">
         <button
           type="button"
-          onClick={() => setExpanded(v => !v)}
+          onClick={() => setExpandedAndPersist(v => !v)}
           className="flex items-center gap-2 flex-1 min-w-0 text-left"
         >
           <Icons8Icon id="loading" size={12} spin={state.activeCount > 0} />

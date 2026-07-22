@@ -31,7 +31,7 @@
     "audit:wiring": "node scripts/wiring-audit.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts"
+    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts && tsx scripts/test-drop-destination.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

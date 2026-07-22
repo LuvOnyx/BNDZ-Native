@@ -26,10 +26,10 @@ export interface RenameOperation {
 export interface ShareMenuItem {
   id?: string;
   label?: string;
-  kind?: 'verb' | 'sendto' | 'open' | 'cloud-share';
+  kind?: 'verb' | 'sendto' | 'open' | 'cloud-share' | 'copy-to-device';
   verb?: string;
   target?: string;
-  group?: 'main' | 'sendto' | 'cloud';
+  group?: 'main' | 'sendto' | 'cloud' | 'device';
   separator?: boolean;
 }
 
@@ -1111,10 +1111,17 @@ export const IPC = {
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
   },
 
-  saveSettings(settings: any) {
+  saveSettings(settings: any): Promise<{ ok: boolean }> {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'SAVE_SETTINGS', payload: settings });
+      const id = `${Date.now()}_saveSettings`;
+      return _nativeCall<{ ok: boolean }>('SAVE_SETTINGS', 'SAVE_SETTINGS_RESULT', id, settings, 15000)
+        .then(r => ({ ok: r?.ok !== false }))
+        .catch(() => ({ ok: false }));
     }
+    try {
+      localStorage.setItem('bndz_config', JSON.stringify(settings));
+    } catch { /* ignore */ }
+    return Promise.resolve({ ok: true });
   },
 
   loadSettings(): Promise<any> {
@@ -1432,7 +1439,9 @@ export const IPC = {
   getIconLibraries(): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_getIconLibs`;
-      return _nativeCall<any[]>('GET_ICON_LIBRARIES', 'ICON_LIBRARIES_RESULT', id).catch(() => []);
+      return _nativeCall<any[]>('GET_ICON_LIBRARIES', 'ICON_LIBRARIES_RESULT', id, undefined, 8000)
+        .then(libs => (Array.isArray(libs) ? libs : []))
+        .catch(() => []);
     }
     return Promise.resolve([]);
   },

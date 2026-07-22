@@ -139,9 +139,108 @@ namespace BNDZ
             _trayService.EnsureVisible();
             Closing += OnMainWindowClosing;
             StateChanged += (_, _) => PostWindowStateChanged();
+            SourceInitialized += (_, _) => ApplyStartupWindowPlacement();
             
             SetupDebouncedWatcher();
             InitializeWebViewAsync();
+        }
+
+        private void ApplyStartupWindowPlacement()
+        {
+            try
+            {
+                var json = _settingsManager.LoadSettings();
+                if (string.IsNullOrWhiteSpace(json)) return;
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                var state = root.TryGetProperty("startupWindowState", out var sw)
+                    ? (sw.GetString() ?? "Normal")
+                    : "Normal";
+                if (string.Equals(state, "false", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(state))
+                    state = "Normal";
+
+                if (root.TryGetProperty("windowPlacement", out var place) && place.ValueKind == JsonValueKind.Object)
+                {
+                    var left = place.TryGetProperty("left", out var l) ? l.GetDouble() : double.NaN;
+                    var top = place.TryGetProperty("top", out var t) ? t.GetDouble() : double.NaN;
+                    var width = place.TryGetProperty("width", out var w) ? w.GetDouble() : double.NaN;
+                    var height = place.TryGetProperty("height", out var h) ? h.GetDouble() : double.NaN;
+                    var maximized = place.TryGetProperty("maximized", out var m) && m.ValueKind == JsonValueKind.True;
+
+                    if (!double.IsNaN(width) && width >= MinWidth) Width = width;
+                    if (!double.IsNaN(height) && height >= MinHeight) Height = height;
+                    if (!double.IsNaN(left) && !double.IsNaN(top))
+                    {
+                        // Keep on-screen if possible
+                        Left = left;
+                        Top = top;
+                        WindowStartupLocation = WindowStartupLocation.Manual;
+                    }
+
+                    if (maximized && string.Equals(state, "Normal", StringComparison.OrdinalIgnoreCase))
+                        state = "Maximized";
+                }
+
+                switch (state)
+                {
+                    case "Maximized":
+                        WindowState = WindowState.Maximized;
+                        break;
+                    case "Minimized":
+                        WindowState = WindowState.Minimized;
+                        break;
+                    case "Fullscreen":
+                        WindowState = WindowState.Maximized;
+                        WindowStyle = WindowStyle.None;
+                        break;
+                    default:
+                        WindowState = WindowState.Normal;
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Window] ApplyStartupWindowPlacement: {ex.Message}");
+            }
+        }
+
+        private void PersistWindowPlacementIntoSettings()
+        {
+            try
+            {
+                var json = _settingsManager.LoadSettings() ?? "{}";
+                using var doc = JsonDocument.Parse(json);
+                using var stream = new MemoryStream();
+                using (var writer = new Utf8JsonWriter(stream))
+                {
+                    writer.WriteStartObject();
+                    foreach (var p in doc.RootElement.EnumerateObject())
+                    {
+                        if (p.NameEquals("windowPlacement")) continue;
+                        p.WriteTo(writer);
+                    }
+
+                    var bounds = WindowState == WindowState.Normal
+                        ? new Rect(Left, Top, Width, Height)
+                        : RestoreBounds;
+
+                    writer.WritePropertyName("windowPlacement");
+                    writer.WriteStartObject();
+                    writer.WriteNumber("left", bounds.Left);
+                    writer.WriteNumber("top", bounds.Top);
+                    writer.WriteNumber("width", Math.Max(bounds.Width, MinWidth));
+                    writer.WriteNumber("height", Math.Max(bounds.Height, MinHeight));
+                    writer.WriteBoolean("maximized", WindowState == WindowState.Maximized);
+                    writer.WriteEndObject();
+                    writer.WriteEndObject();
+                }
+                _settingsManager.SaveSettings(Encoding.UTF8.GetString(stream.ToArray()));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Window] PersistWindowPlacement: {ex.Message}");
+            }
         }
 
         private void OnMainWindowClosing(object? sender, CancelEventArgs e)
@@ -396,10 +495,29 @@ namespace BNDZ
             return text.Substring(start, end - start + 1);
         }
 
-        private void PostExternalFileDrop(string[] paths)
+        private DateTime _lastExternalDropUtc = DateTime.MinValue;
+        private string? _lastExternalDropFingerprint;
+
+        private void PostExternalFileDrop(string[] paths, double? webViewX = null, double? webViewY = null)
         {
             if (paths == null || paths.Length == 0) return;
-            var msg = new { type = "EXTERNAL_FILES_DROPPED", payload = new { paths } };
+            var fingerprint = string.Join('|', paths);
+            var now = DateTime.UtcNow;
+            if (fingerprint == _lastExternalDropFingerprint && (now - _lastExternalDropUtc).TotalMilliseconds < 400)
+                return;
+            _lastExternalDropFingerprint = fingerprint;
+            _lastExternalDropUtc = now;
+
+            var msg = new
+            {
+                type = "EXTERNAL_FILES_DROPPED",
+                payload = new
+                {
+                    paths,
+                    webViewX,
+                    webViewY,
+                },
+            };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(json));
         }
@@ -408,10 +526,19 @@ namespace BNDZ
         {
             AllowDrop = true;
             MainWebView.AllowDrop = true;
+            // Critical: when true (default), Chromium owns OLE drops and WPF Drop never fires —
+            // React then sees File objects with no .path in WebView2. Force host-owned drops.
+            try { MainWebView.AllowExternalDrop = false; }
+            catch (Exception ex) { Debug.WriteLine($"[Drop] AllowExternalDrop: {ex.Message}"); }
 
             void OnDragOver(object sender, System.Windows.DragEventArgs e)
             {
-                if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+                var canDrop = e.Data != null && (
+                    e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop, true)
+                    || e.Data.GetDataPresent("FileGroupDescriptorW", false)
+                    || e.Data.GetDataPresent("FileNameW", true)
+                    || e.Data.GetDataPresent("FileName", true));
+                if (canDrop)
                 {
                     e.Effects = System.Windows.DragDropEffects.Copy;
                     e.Handled = true;
@@ -420,24 +547,33 @@ namespace BNDZ
 
             void OnDrop(object sender, System.Windows.DragEventArgs e)
             {
-                if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;
+                if (e.Handled) return;
                 try
                 {
-                    var raw = e.Data.GetData(System.Windows.DataFormats.FileDrop);
-                    if (raw is string[] files && files.Length > 0)
-                        PostExternalFileDrop(files);
+                    var files = ExternalDropHelper.ExtractPaths(e.Data);
+                    if (files.Length > 0)
+                    {
+                        // Coordinates relative to the WebView viewport (matches document.elementFromPoint).
+                        var pt = e.GetPosition(MainWebView);
+                        PostExternalFileDrop(files, pt.X, pt.Y);
+                    }
+                    else
+                    {
+                        Debug.WriteLine("[Drop] No extractable paths in drop payload.");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Drop] {ex.Message}");
+                    Debug.WriteLine($"[Drop] {ex.Message}");
                 }
                 e.Handled = true;
             }
 
-            DragOver += OnDragOver;
-            Drop += OnDrop;
-            MainWebView.DragOver += OnDragOver;
-            MainWebView.Drop += OnDrop;
+            // Preview* only — avoids double-fire from both Preview and bubble Drop on Window + WebView.
+            PreviewDragOver += OnDragOver;
+            PreviewDrop += OnDrop;
+            MainWebView.PreviewDragOver += OnDragOver;
+            MainWebView.PreviewDrop += OnDrop;
         }
 
         private void PostIconResult(string? id, string? payload)
@@ -722,7 +858,9 @@ namespace BNDZ
                         error = "License required. Activate BNDZ to continue.",
                         licenseRequired = true,
                     };
-                    var blockedResponse = new { type = $"{type}_RESULT", id = blockedId, payload = blockedPayload };
+                    // Frontend waits on names like ICON_LIBRARIES_RESULT, not GET_ICON_LIBRARIES_RESULT.
+                    var blockedResultType = LicenseService.ResolveIpcResultType(type);
+                    var blockedResponse = new { type = blockedResultType, id = blockedId, payload = blockedPayload };
                     var blockedJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(blockedResponse, blockedJson)));
@@ -965,10 +1103,32 @@ namespace BNDZ
                     }
                     else if (action == "openExplorer")
                     {
-                        var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-                        if (!string.IsNullOrEmpty(startPath)) {
-                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "explorer.exe", Arguments = startPath, UseShellExecute = true });
+                        try
+                        {
+                            if (File.Exists(path))
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = "explorer.exe",
+                                    Arguments = $"/select,\"{path}\"",
+                                    UseShellExecute = true,
+                                });
+                            }
+                            else
+                            {
+                                var startPath = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+                                if (!string.IsNullOrEmpty(startPath) && Directory.Exists(startPath))
+                                {
+                                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                    {
+                                        FileName = "explorer.exe",
+                                        Arguments = $"\"{startPath}\"",
+                                        UseShellExecute = true,
+                                    });
+                                }
+                            }
                         }
+                        catch { }
                     }
                     else if (action == "openWith")
                     {
@@ -1154,7 +1314,16 @@ namespace BNDZ
                             payloadObj = _shellContextMenuService.GetContextMenuItems(path)
                                 .Select(i => i.Separator
                                     ? (object)new { separator = true }
-                                    : new { id = i.Id, label = i.Label, icon = i.Icon, verb = i.Verb, isPrimary = i.IsPrimary })
+                                    : new {
+                                        id = i.Id,
+                                        label = i.Label,
+                                        icon = i.Icon,
+                                        iconBase64 = i.IconBase64,
+                                        verb = i.Verb,
+                                        isPrimary = i.IsPrimary,
+                                        kind = i.Kind,
+                                        commandId = i.CommandId,
+                                    })
                                 .ToList();
                         } catch (Exception ex) {
                             System.Diagnostics.Debug.WriteLine($"Failed GET_CONTEXT_MENU_ITEMS: {ex.Message}");
@@ -1958,17 +2127,26 @@ namespace BNDZ
                 }
                 else if (type == "SAVE_SETTINGS")
                 {
+                    var idProp = root.TryGetProperty("id", out var sid) ? sid.GetString() : null;
+                    var ok = true;
                     try
                     {
-                        var payload = root.GetProperty("payload");
-                        string jsonString = payload.GetRawText();
+                        string jsonString = root.TryGetProperty("payload", out var payloadEl)
+                            ? payloadEl.GetRawText()
+                            : "{}";
                         _settingsManager.SaveSettings(jsonString);
                         FileOperationPreferences.ApplyFromJson(jsonString);
                         ApplyFileOperationPreferences();
                     }
                     catch (Exception ex)
                     {
+                        ok = false;
                         Console.WriteLine($"Error saving settings: {ex.Message}");
+                    }
+                    if (!string.IsNullOrEmpty(idProp))
+                    {
+                        var response = new { type = "SAVE_SETTINGS_RESULT", id = idProp, payload = new { ok } };
+                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response)));
                     }
                 }
                 else if (type == "LOAD_SETTINGS")
@@ -2304,9 +2482,11 @@ namespace BNDZ
                         switch (action.ToLowerInvariant())
                         {
                             case "tray":
+                                PersistWindowPlacementIntoSettings();
                                 _trayService?.HideToTray();
                                 break;
                             case "quit":
+                                PersistWindowPlacementIntoSettings();
                                 _allowClose = true;
                                 Close();
                                 break;
@@ -3326,17 +3506,21 @@ namespace BNDZ
 
         private void PostFileTransferQueueChanged()
         {
-            if (MainWebView.CoreWebView2 == null) return;
-            var evt = new
+            // Queue notifications fire from worker threads; WebView2 must be touched on the UI thread.
+            PostToUi(() =>
             {
-                type = "FILE_TRANSFER_QUEUE_CHANGED",
-                payload = _fileTransferQueue.GetQueueState(),
-            };
-            try
-            {
-                MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
-            }
-            catch { /* WebView may be tearing down */ }
+                if (MainWebView.CoreWebView2 == null) return;
+                var evt = new
+                {
+                    type = "FILE_TRANSFER_QUEUE_CHANGED",
+                    payload = _fileTransferQueue.GetQueueState(),
+                };
+                try
+                {
+                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt));
+                }
+                catch { /* WebView may be tearing down */ }
+            });
         }
 
         private void ApplyFileOperationPreferences()
@@ -3625,7 +3809,23 @@ namespace BNDZ
                 catch (Exception ex)
                 {
                     _fileTransferQueue.MarkFailed(operationId, ex.Message);
-                    OnProgress(operationId, 100, ex.Message, 0, 0, 0, 0, 1);
+                    var failEvt = new
+                    {
+                        type = "PROGRESS_UPDATE",
+                        payload = new
+                        {
+                            operationId,
+                            percentage = -1,
+                            currentFile = "",
+                            error = ex.Message,
+                            engine,
+                        },
+                    };
+                    PostToUi(() =>
+                    {
+                        try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(failEvt)); }
+                        catch { }
+                    });
                     if (ShouldPostFsOperationResult())
                         await PostFsOperationResultAsync(idProp, false, ex.Message).ConfigureAwait(false);
                     throw;

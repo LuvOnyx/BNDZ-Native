@@ -123,7 +123,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   csvOtherSeparator: false,
   ctrlWheelScrollsThroughTheListViews: false,
   customItemsInTheContextMenu: false,
-  customKeyboardShortcuts: false,
+  customKeyboardShortcuts: true,
   searchShortcut: 'Ctrl+F',
   cycleTabsInRecentlyUsedOrder: false,
   dateFormatInActionLabels: false,
@@ -136,7 +136,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   delayBeforeFilterIsApplied: false,
   deleteOnKeyUp: false,
   deleteToRecycleBin: false,
-  detectPortableDevices: false,
+  detectPortableDevices: true,
   dimmedIcons: false,
   directionalFormattingCodesProtection: false,
   disallowDeleteByKeyInFolderTree: false,
@@ -297,7 +297,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   overlayCaption: false,
   pasteAndFind: false,
   pasteToSelectedListFolder: false,
-  permanentStartupPath: false,
+  permanentStartupPath: '',
   persistAcrossFolders: false,
   persistQuickSearchAcrossFolders: false,
   persistVisualFiltersAcrossFolders: false,
@@ -337,7 +337,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   rightSidebarEnabled: true,
   rounded: false,
   saveChangesToDiskImmediately: false,
-  saveSettingsOnExit: false,
+  saveSettingsOnExit: true,
   scripting: true,
   scrollMargin: false,
   scrollSelectedFolderToTheTop: false,
@@ -454,8 +454,15 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   sortFoldersApart: true,
   sortMethod: "Natural",
   sortSizeColumnsDescendingByDefault: false,
-  startupPane: false,
-  startupWindowState: false,
+  startupPane: 'Last active panel',
+  startupWindowState: 'Normal',
+  windowPlacement: null as null | {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    maximized: boolean;
+  },
   stayUp: false,
   stickyCheckboxSelection: false,
   sundayIsTheFirstDayOfTheWeek: false,
@@ -568,6 +575,7 @@ export const SETTINGS_VALUE_PATCHES: Record<string, string | number | boolean> =
   allowedNumberOfItemsPerLoggedAction: 50,
   defaultViewMode: 'details',
   listGroupBy: 'none',
+  stickyGroupHeaders: true,
   branchViewStrip: true,
   updateCheckUrl: '',
   sortMethod: 'Natural',

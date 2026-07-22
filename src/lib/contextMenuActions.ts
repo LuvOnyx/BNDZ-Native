@@ -101,15 +101,35 @@ export const BUILT_IN_CONTEXT_VERBS = new Set([
   'rename', 'properties', 'settings', 'share', 'grantaccess', 'sendto',
 ]);
 
-export function filterSupplementalNativeItems(items: any[] | undefined): any[] {
+export type NativeContextMenuItem = {
+  id?: string;
+  label?: string;
+  verb?: string;
+  icon?: string;
+  isPrimary?: boolean;
+  separator?: boolean;
+  kind?: 'shell' | 'builtin';
+  commandId?: number;
+};
+
+export function filterSupplementalNativeItems(items: NativeContextMenuItem[] | undefined): NativeContextMenuItem[] {
   if (!items?.length) return [];
   const filtered = items.filter(item => {
     if (item.separator) return true;
+    // Live IContextMenu extensions — always keep (even without classic verbs).
+    if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId > 0)) {
+      const v = (item.verb || item.id || '').toLowerCase();
+      // Still skip exact duplicates of BNDZ built-ins when they came through as shell.
+      if (v && BUILT_IN_CONTEXT_VERBS.has(v) && item.kind !== 'shell') return false;
+      if (v && BUILT_IN_CONTEXT_VERBS.has(v) && item.kind === 'builtin') return false;
+      if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return false;
+      return true;
+    }
     const v = (item.verb || item.id || '').toLowerCase();
     return v && !BUILT_IN_CONTEXT_VERBS.has(v);
   });
   // Drop orphan / leading / trailing / adjacent separators left after verb filtering.
-  const out: any[] = [];
+  const out: NativeContextMenuItem[] = [];
   for (const item of filtered) {
     if (item.separator) {
       if (!out.length || out[out.length - 1].separator) continue;
@@ -120,4 +140,13 @@ export function filterSupplementalNativeItems(items: any[] | undefined): any[] {
   }
   while (out.length && out[out.length - 1].separator) out.pop();
   return out;
+}
+
+/** Resolve the verb string to send to the host for a supplemental native item. */
+export function resolveNativeItemVerb(item: NativeContextMenuItem): string {
+  if (item.kind === 'shell' && typeof item.commandId === 'number' && item.commandId > 0) {
+    return `shellcmd:${item.commandId}`;
+  }
+  if (item.verb?.startsWith('shellcmd:')) return item.verb;
+  return item.verb || item.id || '';
 }

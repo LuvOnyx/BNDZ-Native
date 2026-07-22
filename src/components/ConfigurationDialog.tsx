@@ -778,8 +778,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  </div>
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">C</span>ustom items in the context menu</span>} checked={localConfig.customItemsInTheContextMenu ?? false} onChange={e => updateLocalConfig({ customItemsInTheContextMenu: e.target.checked })} />
                  <div className="ml-[20px] flex gap-2 mt-4 mb-4">
-                    <ActionBtn label="Folder Tree..." className="w-[150px]" onClick={() => { setActiveTab('Context Menu'); openBottomPluginFromConfig('context-menu'); }} />
-                    <ActionBtn label="File List..." className="w-[150px]" onClick={() => { setActiveTab('Context Menu'); openBottomPluginFromConfig('context-menu'); }} />
+                    <ActionBtn label="Folder Tree..." className="w-[150px]" onClick={() => { setActiveTab('Context Menu'); openBottomPluginFromConfig('context-menu-manager'); }} />
+                    <ActionBtn label="File List..." className="w-[150px]" onClick={() => { setActiveTab('Context Menu'); openBottomPluginFromConfig('context-menu-manager'); }} />
                  </div>
                  
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>ide shell extensions from shell context menu</span>} checked={localConfig.hideShellExtensionsFromShellContextMenu ?? false} onChange={e => updateLocalConfig({ hideShellExtensionsFromShellContextMenu: e.target.checked })} />
@@ -944,7 +944,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <div className="flex flex-col gap-1 ml-2 mb-4 mt-2">
                  <span className="text-[12px] text-[#e0e0e0]">Permanent start<span className="underline decoration-1 underline-offset-[3px]">u</span>p path:</span>
                  <div className="flex items-center gap-2">
-                    <input type="text" className="w-[500px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 outline-none" value={localConfig.permanentStartupPath} onChange={e => updateLocalConfig({ permanentStartupPath: e.target.value })} />
+                    <input type="text" className="w-[500px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 outline-none" value={typeof localConfig.permanentStartupPath === 'string' ? localConfig.permanentStartupPath : ''} onChange={e => updateLocalConfig({ permanentStartupPath: e.target.value })} />
                     <button className="h-6 w-8 bg-[#2a2d2e] border border-[#555] text-white flex items-center justify-center hover:bg-[#3a3d3e]">...</button>
                  </div>
                  <div className="mt-1">
@@ -954,10 +954,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
               <div className="grid grid-cols-[140px_200px] gap-2 ml-2 mb-4 mt-4 items-center">
                  <span className="text-[12px] text-[#e0e0e0]">Startup pane:</span>
-                 <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-full outline-none" value={localConfig.startupPane} onChange={e => updateLocalConfig({ startupPane: e.target.value })}><option>Last active panel</option><option>Left pane</option><option>Right pane</option><option>Folder tree</option></select>
+                 <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-full outline-none" value={typeof localConfig.startupPane === 'string' && localConfig.startupPane ? localConfig.startupPane : 'Last active panel'} onChange={e => updateLocalConfig({ startupPane: e.target.value })}><option>Last active panel</option><option>Left pane</option><option>Right pane</option><option>Folder tree</option></select>
                  
                  <span className="text-[12px] text-[#e0e0e0]">Startup <span className="underline decoration-1 underline-offset-[3px]">w</span>indow state:</span>
-                 <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-full outline-none" value={localConfig.startupWindowState} onChange={e => updateLocalConfig({ startupWindowState: e.target.value })}><option>Normal</option><option>Maximized</option><option>Minimized</option><option>Fullscreen</option></select>
+                 <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-full outline-none" value={typeof localConfig.startupWindowState === 'string' && localConfig.startupWindowState && localConfig.startupWindowState !== 'false' ? localConfig.startupWindowState : 'Normal'} onChange={e => updateLocalConfig({ startupWindowState: e.target.value })}><option>Normal</option><option>Maximized</option><option>Minimized</option><option>Fullscreen</option></select>
               </div>
 
               <div className="ml-2 mb-4 space-y-[6px]">
@@ -2476,7 +2476,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  
                  <div className="h-4"></div>
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">C</span>atalog</span>} checked={localConfig.catalog ?? false} onChange={e => updateLocalConfig({ catalog: e.target.checked })} />
-                 <Checkbox label={<span>Custom <span className="underline decoration-1 underline-offset-[3px]">K</span>eyboard Shortcuts</span>} checked={localConfig.customKeyboardShortcuts ?? false} onChange={e => updateLocalConfig({ customKeyboardShortcuts: e.target.checked })} />
+                 <Checkbox label={<span>Custom <span className="underline decoration-1 underline-offset-[3px]">K</span>eyboard Shortcuts</span>} checked={localConfig.customKeyboardShortcuts ?? true} onChange={e => updateLocalConfig({ customKeyboardShortcuts: e.target.checked })} />
               </div>
             </TabsContent>
 
@@ -2602,6 +2602,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <Checkbox label={<span>Semi-<span className="underline decoration-1 underline-offset-[3px]">t</span>ransparent grid color</span>} checked={localConfig.semiTransparentGridColor ?? false} onChange={e => updateLocalConfig({ semiTransparentGridColor: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">U</span>nderline selected ro<span className="underline decoration-1 underline-offset-[3px]">w</span>s</span>} checked={localConfig.underlineSelectedRows ?? false} onChange={e => updateLocalConfig({ underlineSelectedRows: e.target.checked })} />
                  <Checkbox label={<span>Sticky c<span className="underline decoration-1 underline-offset-[3px]">h</span>eckbox selection</span>} checked={localConfig.stickyCheckboxSelection ?? false} onChange={e => updateLocalConfig({ stickyCheckboxSelection: e.target.checked })} />
+                 <Checkbox label={<span>Sticky type <span className="underline decoration-1 underline-offset-[3px]">g</span>roup headers</span>} checked={localConfig.stickyGroupHeaders !== false} onChange={e => updateLocalConfig({ stickyGroupHeaders: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">T</span>ranslucent selection b<span className="underline decoration-1 underline-offset-[3px]">o</span>x</span>} checked={localConfig.translucentSelectionBox ?? false} onChange={e => updateLocalConfig({ translucentSelectionBox: e.target.checked })} />
               </div>
               

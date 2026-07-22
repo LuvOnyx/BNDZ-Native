@@ -7,7 +7,8 @@ export interface ConfigIconLibrary {
     icons: string[];
 }
 
-export function formatLibrariesForConfig(libraries: Array<{ id?: string; name: string; sourceFolder?: string; icons: Array<{ icoStr?: string; name?: string } | string> }>): ConfigIconLibrary[] {
+export function formatLibrariesForConfig(libraries: Array<{ id?: string; name: string; sourceFolder?: string; icons: Array<{ icoStr?: string; name?: string } | string> }> | null | undefined): ConfigIconLibrary[] {
+    if (!Array.isArray(libraries)) return [];
     return libraries.map(lib => ({
         id: lib.id || `lib_${lib.name}`,
         name: lib.name,

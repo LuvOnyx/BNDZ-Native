@@ -10,7 +10,10 @@ public class FileManagementService
             return RecycleBinService.GetContentsAsync();
 
         var shellPath = ShellPathResolver.ResolveForShell(path);
-        if (!string.IsNullOrEmpty(shellPath) && ShellPathResolver.IsShellVirtualPath(shellPath))
+        if (!string.IsNullOrEmpty(shellPath) && (
+            ShellPathResolver.IsShellVirtualPath(shellPath)
+            || PortableDeviceService.IsPortableDevicePath(shellPath)
+            || PortableDeviceService.IsPortableDevicePath(path)))
             return ShellFolderEnumerator.EnumerateAsync(shellPath);
 
         return Task.Run(() =>

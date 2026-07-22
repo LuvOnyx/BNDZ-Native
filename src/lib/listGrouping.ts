@@ -121,3 +121,24 @@ export const LIST_GROUP_BY_OPTIONS: { value: ListGroupBy; label: string }[] = [
   { value: 'size', label: 'Size' },
   { value: 'name', label: 'Name' },
 ];
+
+/** Active sticky group for a scroll position (uniform row height virtualizer). */
+export function resolveStickyGroupHeader(
+  rows: ListRowItem[] | null | undefined,
+  scrollTop: number,
+  rowHeight: number,
+): { header: ListGroupHeader; index: number } | null {
+  if (!rows?.length || rowHeight <= 0) return null;
+  let active: { header: ListGroupHeader; index: number } | null = null;
+  const top = Math.max(0, scrollTop);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!isGroupHeaderRow(row)) continue;
+    if (i * rowHeight <= top + 0.5) {
+      active = { header: row, index: i };
+    } else {
+      break;
+    }
+  }
+  return active;
+}

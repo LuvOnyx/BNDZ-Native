@@ -124,6 +124,8 @@ interface ContextMenuItemProps {
   iconId?: string;
   iconNode?: React.ReactNode;
   iconVerb?: string;
+  /** data: URL or http(s) image for native shell menu bitmaps */
+  iconSrc?: string | null;
   trailing?: React.ReactNode;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
@@ -136,18 +138,25 @@ export const ContextMenuItem = React.memo(function ContextMenuItem({
   iconId,
   iconNode,
   iconVerb,
+  iconSrc,
   trailing,
   onClick,
   className = '',
   disabled,
 }: ContextMenuItemProps) {
+  const resolvedIcon = iconNode
+    ?? (iconSrc
+      ? <img src={iconSrc} alt="" className="w-3.5 h-3.5 shrink-0 object-contain bndz-context-menu-icon" draggable={false} />
+      : null)
+    ?? (iconId ? <Icons8Icon id={iconId} size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />);
+
   return (
     <div
       role="menuitem"
       className={`${menuItemClass} ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}
       onClick={disabled || !onClick ? undefined : runMenuAction(onClick)}
     >
-      {iconNode ?? (iconId ? <Icons8Icon id={iconId} size={14} className="shrink-0" /> : <ContextMenuIcon verb={iconVerb || verb} />)}
+      {resolvedIcon}
       <span className="flex-1">{label}</span>
       {trailing ? <span className="text-[#99c9f0]/80 text-[10px] shrink-0">{trailing}</span> : null}
     </div>

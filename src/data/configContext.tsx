@@ -196,6 +196,13 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     } else if (merged.xCloseAction !== 'ask' && merged.xCloseAction !== 'tray' && merged.xCloseAction !== 'quit') {
         merged.xCloseAction = merged.minimizeToTrayOnXClose ? 'tray' : 'ask';
     }
+    if (typeof merged.permanentStartupPath !== 'string') merged.permanentStartupPath = '';
+    if (typeof merged.startupWindowState !== 'string' || !merged.startupWindowState || merged.startupWindowState === 'false') {
+        merged.startupWindowState = 'Normal';
+    }
+    if (typeof merged.startupPane !== 'string' || !merged.startupPane || merged.startupPane === 'false') {
+        merged.startupPane = 'Last active panel';
+    }
     if ((merged.folderColorFilterVersion ?? 0) < 1) {
         const rows = Array.isArray(merged.colorFilters) ? merged.colorFilters : [];
         merged.colorFilters = rows.map((row: any) => {
@@ -325,18 +332,14 @@ export const defaultConfig: AppConfig = normalizeConfig({
 
 let settingsSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSettingsSave: AppConfig | null = null;
+let settingsSaveChain: Promise<void> = Promise.resolve();
 
 function scheduleSettingsSave(merged: AppConfig) {
     pendingSettingsSave = merged;
     if (settingsSaveTimer) return;
     settingsSaveTimer = setTimeout(() => {
         settingsSaveTimer = null;
-        const payload = pendingSettingsSave;
-        pendingSettingsSave = null;
-        if (!payload) return;
-        import('../lib/ipcBridge').then(({ IPC }) => {
-            IPC.saveSettings(payload);
-        }).catch(() => {});
+        void flushPendingSettingsSave();
     }, 250);
 }
 
@@ -349,18 +352,45 @@ export function discardPendingSettingsSave() {
     pendingSettingsSave = null;
 }
 
-/** Flush any pending settings write immediately (Exit Saving). */
-export function flushPendingSettingsSave() {
+/**
+ * Flush any pending settings write and wait until it hits disk.
+ * Critical before quit / tray — otherwise remember-decision races the process exit.
+ */
+export function flushPendingSettingsSave(): Promise<void> {
     if (settingsSaveTimer) {
         clearTimeout(settingsSaveTimer);
         settingsSaveTimer = null;
     }
     const payload = pendingSettingsSave;
     pendingSettingsSave = null;
-    if (!payload) return Promise.resolve();
-    return import('../lib/ipcBridge').then(({ IPC }) => {
-        IPC.saveSettings(payload);
-    }).catch(() => {});
+    if (!payload) return settingsSaveChain;
+
+    settingsSaveChain = settingsSaveChain
+        .catch(() => {})
+        .then(() =>
+            import('../lib/ipcBridge').then(({ IPC }) => IPC.saveSettings(payload)).then(() => {})
+        )
+        .catch(() => {});
+    return settingsSaveChain;
+}
+
+/** Merge + persist immediately (awaits disk). Use for close-remember and other must-survive writes. */
+export async function persistConfigNow(
+    current: AppConfig,
+    patch: Partial<AppConfig>,
+    setConfig: (cfg: AppConfig) => void,
+): Promise<AppConfig> {
+    const merged = normalizeConfig({ ...current, ...patch });
+    setConfig(merged);
+    applySettingsRuntime(merged);
+    applyBackendSettings(merged);
+    if (settingsSaveTimer) {
+        clearTimeout(settingsSaveTimer);
+        settingsSaveTimer = null;
+    }
+    pendingSettingsSave = null;
+    await import('../lib/ipcBridge').then(({ IPC }) => IPC.saveSettings(merged));
+    return merged;
 }
 
 const ConfigContext = createContext<{ config: AppConfig; updateConfig: (v: Partial<AppConfig>) => void }>({
@@ -379,18 +409,22 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
                     const saved = await IPC.loadSettings();
                     let cfg = saved ? mergeWithDefaults(saved) : defaultConfig;
 
-                    if (IPC.isNative) {
-                        try {
-                            const libs = await IPC.getIconLibraries();
-                            if (libs?.length) {
-                                cfg = { ...cfg, iconLibraries: formatLibrariesForConfig(libs) };
-                            }
-                        } catch { /* keep saved iconLibraries */ }
-                    }
-
+                    // Apply settings immediately so the splash/gate is not blocked on icon libs.
                     setConfig(cfg);
                     applySettingsRuntime(cfg);
                     applyBackendSettings(cfg);
+                    setLoaded(true);
+
+                    if (IPC.isNative) {
+                        try {
+                            const libs = await IPC.getIconLibraries();
+                            if (Array.isArray(libs) && libs.length) {
+                                const next = { ...cfg, iconLibraries: formatLibrariesForConfig(libs) };
+                                setConfig(next);
+                            }
+                        } catch { /* keep saved iconLibraries */ }
+                    }
+                    return;
                 } catch {
                     setConfig(defaultConfig);
                 }

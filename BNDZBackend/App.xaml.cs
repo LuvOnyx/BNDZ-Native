@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Principal;
 using System.Text.Json;
+using System.Threading;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using BNDZ.Services;
@@ -14,6 +15,7 @@ namespace BNDZ
     public partial class App : System.Windows.Application
     {
         public static ServiceProvider ServiceProvider { get; private set; } = null!;
+        private static Mutex? _instanceMutex;
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
@@ -50,6 +52,41 @@ namespace BNDZ
 
             AppIconService.EnsureApplicationIco();
             WindowsToastService.EnsureRegistered();
+
+            // Headless shell verb — must run before always-elevate / single-instance so Explorer
+            // Icon Studio apply does not trip UAC or hand off to the main window.
+            if (e.Args.Length >= 3 && string.Equals(e.Args[0], "--apply-icon", StringComparison.OrdinalIgnoreCase))
+            {
+                string iconPath = e.Args[1];
+                string targetPath = e.Args[2];
+                string? exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                if (!string.IsNullOrEmpty(exeDir))
+                    iconPath = iconPath.Replace("[ASSETS]", Path.Combine(exeDir, "Assets"));
+                try
+                {
+                    if (!string.IsNullOrEmpty(iconPath)
+                        && File.Exists(iconPath)
+                        && !iconPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var converted = new IconLibraryScanner().ConvertToIco(iconPath);
+                        if (!string.IsNullOrEmpty(converted))
+                            iconPath = converted;
+                    }
+
+                    var iconSvc = new IconStudioService();
+                    if (Directory.Exists(targetPath))
+                        iconSvc.ApplyFolderIcon(targetPath, iconPath);
+                    else if (File.Exists(targetPath))
+                        iconSvc.ApplyFileIcon(targetPath, iconPath);
+                    BNDZ.Services.FolcolorPort.ResetIconCache();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[IconStudio] --apply-icon failed: {ex.Message}");
+                }
+                Current.Shutdown();
+                return;
+            }
 
             // Persist "always elevate" only after an elevated confirmation launch.
             if (HasArg(e.Args, "--enable-always-elevated") && IsProcessElevated())
@@ -93,22 +130,8 @@ namespace BNDZ
                 }
             }
 
-            if (e.Args.Length >= 3 && e.Args[0] == "--apply-icon")
+            if (!TryAcquireSingleInstance(e.Args))
             {
-                string iconPath = e.Args[1];
-                string targetPath = e.Args[2];
-                string? exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-                if (!string.IsNullOrEmpty(exeDir))
-                    iconPath = iconPath.Replace("[ASSETS]", Path.Combine(exeDir, "Assets"));
-                try {
-                    var iconSvc = new IconStudioService();
-                    if (Directory.Exists(targetPath)) {
-                        iconSvc.ApplyFolderIcon(targetPath, iconPath);
-                    } else if (File.Exists(targetPath)) {
-                        iconSvc.ApplyFileIcon(targetPath, iconPath);
-                    }
-                    BNDZ.Services.FolcolorPort.ResetIconCache();
-                } catch {}
                 Current.Shutdown();
                 return;
             }
@@ -128,6 +151,47 @@ namespace BNDZ
 
             BndzFileManagerIpcService.Instance.RegisterMain(mainWindow);
             BndzFileManagerIpcService.Instance.Start();
+        }
+
+        /// <summary>
+        /// Honor "Allow multiple instances". When disabled, activate the existing process instead.
+        /// </summary>
+        private static bool TryAcquireSingleInstance(string[] args)
+        {
+            try
+            {
+                if (ReadAllowMultipleInstances())
+                    return true;
+
+                const string name = @"Local\BNDZ-FileManager-SingleInstance";
+                _instanceMutex = new Mutex(true, name, out var createdNew);
+                if (createdNew) return true;
+
+                // Hand off open-path to the running instance when possible.
+                var openPath = ResolveOpenPath(args);
+                if (!string.IsNullOrWhiteSpace(openPath))
+                    BndzFileManagerIpcService.TrySendOpenPathToRunningInstance(openPath);
+
+                return false;
+            }
+            catch
+            {
+                return true; // fail open
+            }
+        }
+
+        private static bool ReadAllowMultipleInstances()
+        {
+            try
+            {
+                var json = new SettingsManager().LoadSettings();
+                if (string.IsNullOrWhiteSpace(json)) return false;
+                using var doc = JsonDocument.Parse(json);
+                return doc.RootElement.TryGetProperty("allowMultipleInstances", out var el)
+                    && el.ValueKind == JsonValueKind.True;
+            }
+            catch { }
+            return false;
         }
 
         private static bool HasArg(string[] args, string flag) =>

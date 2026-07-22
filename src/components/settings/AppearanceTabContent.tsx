@@ -93,6 +93,15 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           />
           <span className="text-[12px] text-white/90">Show item checkboxes in details view</span>
         </label>
+        <label className="flex items-center gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-[#0078d4]"
+            checked={localConfig.stickyGroupHeaders !== false}
+            onChange={e => patch({ stickyGroupHeaders: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90">Sticky type group headers while scrolling</span>
+        </label>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
           <div className="sm:w-[160px] shrink-0">
             <div className="text-[12px] font-medium text-white/90">Highlight color</div>

@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Win32;
 
 namespace BNDZ.Services;
 
@@ -44,14 +45,18 @@ public sealed class LicenseStatusDto
 
 /// <summary>
 /// Online 1-seat activation (Cloudflare) + 14-day trial.
-/// Activate/deactivate require network. Local DPAPI token allows use offline until
-/// an online validate reports revoked / wrong machine.
+/// Activation is stored under HKCU\Software\BNDZ\License (DPAPI blob) so AppData
+/// cleaners / roaming profile wipes do not drop a paid seat. Legacy AppData files
+/// are migrated on first successful read.
 /// </summary>
 public static class LicenseService
 {
     public const int TrialDays = 14;
     public const string DefaultDevSecret = "BNDZ-36-Commercial-Key-Seed-CHANGE-ME";
     public const string DefaultLicenseApiBase = "https://bndz-license-api.mikeyrespondi.workers.dev";
+
+    private const string LicenseRegistryKeyPath = @"Software\BNDZ\License";
+    private const string LicenseRegistryValueName = "Activation";
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
     private static readonly byte[] DpapiEntropy = Encoding.UTF8.GetBytes("BNDZ64-License-v2");
@@ -73,6 +78,13 @@ public static class LicenseService
         "GET_WINDOW_STATE",
         "REQUEST_CLOSE",
         "OPEN_LEGAL_DOC",
+        // Startup shell reads — must not 15s-timeout behind the license gate.
+        "GET_ICON_LIBRARIES",
+        "GET_DRIVES",
+        "GET_SYSTEM_SHORTCUTS",
+        "GET_TAGS_CONFIG",
+        "GET_CLOUD_PROVIDERS",
+        "GET_NETWORK_LOCATIONS",
     };
 
     private static string AppDataDir => Path.Combine(
@@ -132,6 +144,19 @@ public static class LicenseService
 
     public static bool IsIpcAllowedWhenUnlicensed(string? type) =>
         !string.IsNullOrEmpty(type) && UnlicensedIpcAllowList.Contains(type);
+
+    /// <summary>
+    /// Map request type → response type the WebView listens for.
+    /// GET_* → strip prefix (GET_ICON_LIBRARIES → ICON_LIBRARIES_RESULT).
+    /// </summary>
+    public static string ResolveIpcResultType(string requestType)
+    {
+        if (string.IsNullOrEmpty(requestType))
+            return "IPC_RESULT";
+        if (requestType.StartsWith("GET_", StringComparison.OrdinalIgnoreCase))
+            return requestType.Substring(4) + "_RESULT";
+        return requestType + "_RESULT";
+    }
 
     private static LicenseStatusDto? _statusCache;
     private static long _statusCacheTicks;
@@ -204,7 +229,9 @@ public static class LicenseService
             return (false, "Enter your serial number.");
         if (string.IsNullOrWhiteSpace(email))
             return (false, "Enter your registration email.");
-        if (!ValidateSerial(serial))
+        // Retail builds verify the serial HMAC locally. Debug (default secret) trusts
+        // the activation API — customer keys are signed with the retail secret.
+        if (!IsUsingDefaultSecret && !ValidateSerial(serial))
             return (false, "Invalid serial number. Check the format and try again.");
 
         var hwid = MachineIdService.GetHardwareId();
@@ -226,7 +253,7 @@ public static class LicenseService
                 return (false, err);
             }
 
-            if (!VerifyActivationToken(payload.Token, serial, hwid))
+            if (!IsUsingDefaultSecret && !VerifyActivationToken(payload.Token, serial, hwid))
                 return (false, "Activation token failed local verification.");
 
             var rec = new LicenseRecord
@@ -241,9 +268,7 @@ public static class LicenseService
                 LastValidatedUtc = DateTime.UtcNow,
             };
 
-            Directory.CreateDirectory(AppDataDir);
-            WriteProtectedJson(LicensePath, rec);
-            TryDelete(LicensePathLegacy);
+            PersistLicenseRecord(rec);
             InvalidateStatusCache();
             return (true, payload.Message ?? "BNDZ has been activated on this PC.");
         }
@@ -279,8 +304,7 @@ public static class LicenseService
             }
         }
 
-        TryDelete(LicensePath);
-        TryDelete(LicensePathLegacy);
+        ClearPersistedLicense();
         InvalidateStatusCache();
     }
 
@@ -292,11 +316,28 @@ public static class LicenseService
         {
             var rec = ReadLicenseRecord();
             if (rec == null) return null;
+            if (string.IsNullOrWhiteSpace(rec.Serial))
+                return null;
+
+            var hwid = MachineIdService.GetHardwareId();
+
+            // Debug / missing retail embeds: still honor a DPAPI-bound seat from the
+            // installed retail build on this same Windows user (HKCU). Crypto verify
+            // would fail against DefaultDevSecret and falsely show "Enter license key".
+            if (IsUsingDefaultSecret)
+            {
+                if (!string.IsNullOrEmpty(rec.Hwid) &&
+                    !string.Equals(rec.Hwid, hwid, StringComparison.OrdinalIgnoreCase))
+                    return null;
+                if (string.IsNullOrEmpty(rec.Token) && !rec.IsValid)
+                    return null;
+                rec.IsValid = true;
+                return rec;
+            }
 
             if (!ValidateSerial(rec.Serial))
                 return null;
 
-            var hwid = MachineIdService.GetHardwareId();
             if (!string.IsNullOrEmpty(rec.Token))
             {
                 if (!VerifyActivationToken(rec.Token, rec.Serial, hwid))
@@ -332,15 +373,16 @@ public static class LicenseService
             if (resp.IsSuccessStatusCode && payload?.Valid == true)
             {
                 rec.LastValidatedUtc = DateTime.UtcNow;
-                WriteProtectedJson(LicensePath, rec);
+                PersistLicenseRecord(rec);
                 return;
             }
 
             var reason = payload?.Reason ?? "";
-            if (reason is "revoked" or "not_activated" or "token_superseded" or "invalid_token")
+            // Only hard-clear on confirmed revoke. Transient API / seat drift must not
+            // wipe a locally verified activation and bounce the user back to trial.
+            if (string.Equals(reason, "revoked", StringComparison.OrdinalIgnoreCase))
             {
-                TryDelete(LicensePath);
-                TryDelete(LicensePathLegacy);
+                ClearPersistedLicense();
                 InvalidateStatusCache();
             }
         }
@@ -494,20 +536,92 @@ public static class LicenseService
 
     private static LicenseRecord? ReadLicenseRecord()
     {
+        var fromRegistry = TryReadLicenseFromRegistry();
+        if (fromRegistry != null)
+            return fromRegistry;
+
         if (File.Exists(LicensePath))
-            return ReadProtectedJson<LicenseRecord>(LicensePath);
+        {
+            try
+            {
+                var fromFile = ReadProtectedJson<LicenseRecord>(LicensePath);
+                if (fromFile != null && !string.IsNullOrEmpty(fromFile.Serial))
+                {
+                    PersistLicenseRecord(fromFile); // migrate AppData → HKCU
+                    return fromFile;
+                }
+            }
+            catch { /* fall through */ }
+        }
 
         if (File.Exists(LicensePathLegacy))
         {
-            var legacy = JsonSerializer.Deserialize<LicenseRecord>(File.ReadAllText(LicensePathLegacy));
-            if (legacy != null && ValidateSerial(legacy.Serial))
+            try
             {
-                WriteProtectedJson(LicensePath, legacy);
-                TryDelete(LicensePathLegacy);
-                return legacy;
+                var legacy = JsonSerializer.Deserialize<LicenseRecord>(File.ReadAllText(LicensePathLegacy));
+                if (legacy != null && ValidateSerial(legacy.Serial))
+                {
+                    PersistLicenseRecord(legacy);
+                    return legacy;
+                }
             }
+            catch { /* fall through */ }
         }
+
         return null;
+    }
+
+    private static void PersistLicenseRecord(LicenseRecord rec)
+    {
+        var json = JsonSerializer.Serialize(rec, new JsonSerializerOptions { WriteIndented = false });
+        var protectedBytes = Protect(Encoding.UTF8.GetBytes(json));
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(LicenseRegistryKeyPath, writable: true);
+            key?.SetValue(LicenseRegistryValueName, protectedBytes, RegistryValueKind.Binary);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[License] Registry write failed: {ex.Message}");
+            // Fall back to AppData so activation still sticks if HKCU is locked down.
+            Directory.CreateDirectory(AppDataDir);
+            File.WriteAllBytes(LicensePath, protectedBytes);
+            return;
+        }
+
+        // Prefer registry; remove legacy AppData copies after a successful HKCU write.
+        TryDelete(LicensePath);
+        TryDelete(LicensePathLegacy);
+    }
+
+    private static LicenseRecord? TryReadLicenseFromRegistry()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(LicenseRegistryKeyPath, writable: false);
+            if (key?.GetValue(LicenseRegistryValueName) is not byte[] protectedBytes || protectedBytes.Length == 0)
+                return null;
+            var json = Encoding.UTF8.GetString(Unprotect(protectedBytes));
+            return JsonSerializer.Deserialize<LicenseRecord>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void ClearPersistedLicense()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(LicenseRegistryKeyPath, writable: true);
+            key?.DeleteValue(LicenseRegistryValueName, throwOnMissingValue: false);
+        }
+        catch { }
+
+        TryDelete(LicensePath);
+        TryDelete(LicensePathLegacy);
     }
 
     private static void PersistTrial(DateTime firstRunUtc)

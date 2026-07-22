@@ -133,4 +133,26 @@ public sealed class BndzFileManagerIpcService : IDisposable
         }
         catch { }
     }
+
+    /// <summary>Second-instance handoff: ask the running FM to open a path (or just activate).</summary>
+    public static bool TrySendOpenPathToRunningInstance(string? path)
+    {
+        try
+        {
+            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.None);
+            client.Connect(800);
+            var payload = string.IsNullOrWhiteSpace(path)
+                ? JsonSerializer.Serialize(new { action = "show" })
+                : JsonSerializer.Serialize(new { action = "open_path", path });
+            var bytes = Encoding.UTF8.GetBytes(payload + "\n");
+            client.Write(bytes, 0, bytes.Length);
+            client.Flush();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[BndzFileManagerIpcService] Handoff failed: {ex.Message}");
+            return false;
+        }
+    }
 }

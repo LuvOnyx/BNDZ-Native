@@ -56,7 +56,7 @@ export function readSettingString(config: AppConfig, key: string, fallback = '')
 
 /** Keyboard shortcut map from config keys — respects customKeyboardShortcuts toggle. */
 export function buildKeyboardMap(config: AppConfig): Record<string, string> {
-  const useCustom = readSettingBool(config, 'customKeyboardShortcuts', false);
+  const useCustom = readSettingBool(config, 'customKeyboardShortcuts', true);
   const map: Record<string, string> = {};
   for (const action of KEYBINDING_ACTIONS) {
     map[action.id] = useCustom

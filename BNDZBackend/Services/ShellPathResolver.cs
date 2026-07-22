@@ -101,7 +101,8 @@ public static class ShellPathResolver
     {
         if (string.IsNullOrEmpty(resolved)) return false;
         return resolved.StartsWith("::{", StringComparison.Ordinal)
-            || resolved.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
+            || resolved.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+            || PortableDeviceService.IsPortableDevicePath(resolved);
     }
 
     public static bool PathExistsForShell(string resolved)

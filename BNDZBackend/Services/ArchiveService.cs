@@ -137,7 +137,20 @@ public sealed class ArchiveService
             format = (format ?? "zip").ToLowerInvariant();
 
             if (sources.Count == 0)
+            {
+                if (format == "zip")
+                {
+                    // Explorer-compatible empty ZIP (EOCD only) for "New → Compressed Folder".
+                    using (var fs = File.Create(targetArchivePath))
+                    using (var zip = new System.IO.Compression.ZipArchive(fs, System.IO.Compression.ZipArchiveMode.Create))
+                    {
+                        _ = zip;
+                    }
+                    onProgress?.Invoke(100, targetArchivePath);
+                    return;
+                }
                 throw new InvalidOperationException("No valid source paths");
+            }
 
             var targetDir = Path.GetDirectoryName(targetArchivePath);
             if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))

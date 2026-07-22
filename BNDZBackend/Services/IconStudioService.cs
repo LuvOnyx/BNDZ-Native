@@ -367,6 +367,7 @@ namespace BNDZ.Services
         {
             try
             {
+                CleanupOrphanIconStudioKeys();
                 var libs = GetPersistedLibraries();
                 string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
                     ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
@@ -376,8 +377,30 @@ namespace BNDZ.Services
                     WriteIconStudioMenu(root, pathToken, filesOnly, libs, exePath);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[IconStudio] UpdateContextMenu failed: {ex.Message}");
+            }
             SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Older builds wrote ExtendedSubCommandsKey children under HKCU\Folder\… instead of
+        /// HKCU\Software\Classes\Folder\…. Remove those orphans so Explorer isn't confused.
+        /// </summary>
+        private static void CleanupOrphanIconStudioKeys()
+        {
+            foreach (var orphan in new[]
+            {
+                @"Folder\shell\IconStudio",
+                @"Directory\shell\IconStudio",
+                @"Directory\Background\shell\IconStudio",
+                @"*\shell\IconStudio",
+            })
+            {
+                try { Registry.CurrentUser.DeleteSubKeyTree(orphan, throwOnMissingSubKey: false); }
+                catch { /* ignore */ }
+            }
         }
 
         private static void WriteIconStudioMenu(
@@ -393,10 +416,12 @@ namespace BNDZ.Services
             folderKey.SetValue("MUIVerb", "Icon Studio");
             folderKey.SetValue("Icon", "imageres.dll,-103");
 
+            // ExtendedSubCommandsKey is relative to Software\Classes.
             string subShellRelative = menuRoot.Replace(@"Software\Classes\", "") + @"\shell";
             folderKey.SetValue("ExtendedSubCommandsKey", subShellRelative);
 
-            using var subShellKey = Registry.CurrentUser.CreateSubKey(subShellRelative);
+            // Children must live under Software\Classes\… (create via the parent key).
+            using var subShellKey = folderKey.CreateSubKey("shell");
             if (subShellKey == null) return;
 
             foreach (var sk in subShellKey.GetSubKeyNames())
@@ -415,7 +440,7 @@ namespace BNDZ.Services
                 string iconShellRelative = subShellRelative + @"\" + safeName + @"\shell";
                 libKey.SetValue("ExtendedSubCommandsKey", iconShellRelative);
 
-                using var iconShellKey = Registry.CurrentUser.CreateSubKey(iconShellRelative);
+                using var iconShellKey = libKey.CreateSubKey("shell");
                 if (iconShellKey == null) continue;
 
                 int iconIdx = 1;

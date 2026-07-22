@@ -12,6 +12,7 @@ import {
   isContextMenuBackground,
   isRecycleBinLocationMenu,
   contextMenuRefreshLabel,
+  resolveNativeItemVerb,
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
 import { isQueuedIpcResult } from '../lib/transferIpc';
@@ -97,7 +98,26 @@ function ContextMenuView({
     if (surface === 'tree-background' || surface === 'tree-item') onRefreshTree?.();
     else onRefreshList?.();
   };
-  const supplementalNative = filterSupplementalNativeItems(menu.nativeContextItems);
+  const supplementalNative = (() => {
+    let items = filterSupplementalNativeItems(menu.nativeContextItems);
+    const hidden: string[] = Array.isArray(config.shellMenuHiddenIds) ? config.shellMenuHiddenIds : [];
+    const pinned: string[] = Array.isArray(config.shellMenuPinnedIds) ? config.shellMenuPinnedIds : [];
+    if (config.hideShellExtensionsFromShellContextMenu) return [];
+    if (hidden.length) {
+      items = items.filter(i => {
+        if (i.separator) return true;
+        const id = i.id || i.verb || i.label || '';
+        return !hidden.includes(id);
+      });
+    }
+    if (pinned.length) {
+      const pinSet = new Set(pinned);
+      const pinnedItems = items.filter(i => !i.separator && pinSet.has(i.id || i.verb || i.label || ''));
+      const rest = items.filter(i => i.separator || !pinSet.has(i.id || i.verb || i.label || ''));
+      items = [...pinnedItems, ...(pinnedItems.length && rest.length ? [{ separator: true } as any] : []), ...rest];
+    }
+    return items;
+  })();
   const [iconLibs, setIconLibs] = useState<any[]>(config.iconLibraries || []);
   const [iconLibsLoaded, setIconLibsLoaded] = useState(false);
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
@@ -116,6 +136,23 @@ function ContextMenuView({
     : [];
 
   const runIpc = async () => (await import('../lib/ipcBridge')).IPC;
+
+  /** Show when the item's parent folder differs from the menu folder (search / virtual / cross-folder). */
+  const openFileLocationParent = (() => {
+    if (isBackground || targetPaths.length !== 1) return null;
+    const win = toWindowsPath(targetPaths[0]);
+    if (!win) return null;
+    const parentWin = win.replace(/\\[^\\]+$/, '').replace(/\\$/, '');
+    if (!parentWin || parentWin.length < 2) return null;
+    const cwd = toWindowsPath(menu.path).replace(/\\$/, '');
+    if (parentWin.toLowerCase() === cwd.toLowerCase()) return null;
+    const parentPane = normalizePanePath(
+      parentWin.startsWith('\\\\')
+        ? parentWin.replace(/\\/g, '/')
+        : `/${parentWin.replace(/\\/g, '/')}`,
+    );
+    return { parentWin, parentPane };
+  })();
 
   useEffect(() => {
     setShareRequested(false);
@@ -181,6 +218,9 @@ function ContextMenuView({
     const IPC = await runIpc();
     if (item.kind === 'sendto' && item.target) {
       IPC.executeContextMenuVerb(wins.length === 1 ? wins[0] : wins, 'sendto', undefined, undefined, false, item.target);
+    } else if (item.kind === 'copy-to-device' && item.target) {
+      IPC.executeContextMenuVerb(wins.length === 1 ? wins[0] : wins, 'copy-to-device', undefined, undefined, false, item.target);
+      setToastMessage(`Sending to ${item.label?.replace(/^Send to\s+/i, '').replace(/…$/, '') || 'device'}…`);
     } else if (item.kind === 'open' && item.target) {
       addTab(activePaneId, item.target);
     } else if (item.verb) {
@@ -190,10 +230,11 @@ function ContextMenuView({
   };
 
   const shareMain = shareItems.filter(i => i.group === 'main');
+  const shareDevices = shareItems.filter(i => i.group === 'device');
   const shareSendTo = shareItems.filter(i => i.group === 'sendto');
   const shareCloud = shareItems.filter(i => i.group === 'cloud');
   const effectiveShareMain = shareMain.length > 0 ? shareMain : staticShareMain;
-  const showShareMenu = !isBackground && effectiveShareMain.length > 0;
+  const showShareMenu = !isBackground && (effectiveShareMain.length > 0 || shareDevices.length > 0);
 
   const handleVerb = async (verb: string) => {
     const v = (verb || '').toLowerCase();
@@ -272,14 +313,19 @@ function ContextMenuView({
 
   const renderNativeItem = (item: any, i: number) => {
     if (item.separator) return <div key={`sep-${i}`} className="bndz-context-menu-sep" />;
+    const verb = resolveNativeItemVerb(item);
+    const iconSrc = typeof item.iconBase64 === 'string' && item.iconBase64.startsWith('data:')
+      ? item.iconBase64
+      : null;
     return (
       <ContextMenuItem
-        key={item.id || i}
+        key={item.id || `native-${i}`}
         label={item.label || item.id}
-        verb={item.verb || item.id}
-        iconVerb={item.icon || item.verb}
+        verb={verb}
+        iconSrc={iconSrc}
+        iconVerb={iconSrc ? undefined : (item.icon || item.verb || 'shell')}
         className={item.isPrimary ? 'font-semibold' : ''}
-        onClick={() => handleVerb(item.verb || item.id)}
+        onClick={() => handleVerb(verb)}
       />
     );
   };
@@ -350,95 +396,133 @@ function ContextMenuView({
         <ContextMenuItem label={refreshLabel} iconVerb="refresh" onClick={() => { runRefresh(); onClose(); }} />
 
         {config.enableContextSubmenus !== false && (
-          <>
-            <ContextSubmenu label="Smart Tools" iconVerb="sparkles" groupClass="bg-smart">
-              {targetPaths.length > 0 && (
-                <ContextMenuItem
-                  label="Ask about selection"
-                  iconVerb="sparkles"
-                  onClick={e => {
-                    e.stopPropagation();
-                    const prompt = `What can you tell me about these ${targetPaths.length} item(s)?\n${targetPaths.slice(0, 8).map(p => toWindowsPath(p)).join('\n')}`;
-                    window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'assistant', prompt } }));
-                    onClose();
-                  }}
-                />
-              )}
+          <ContextSubmenu label="Smart Tools" iconVerb="sparkles" groupClass="bg-smart">
+            {targetPaths.length > 0 && (
               <ContextMenuItem
-                label="Assistant"
+                label="Ask about selection"
                 iconVerb="sparkles"
                 onClick={e => {
                   e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'assistant' } }));
+                  const prompt = `What can you tell me about these ${targetPaths.length} item(s)?\n${targetPaths.slice(0, 8).map(p => toWindowsPath(p)).join('\n')}`;
+                  window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'assistant', prompt } }));
                   onClose();
                 }}
               />
+            )}
+            <ContextMenuItem
+              label="Assistant"
+              iconVerb="sparkles"
+              onClick={e => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'assistant' } }));
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              label="Find duplicates"
+              iconVerb="copy"
+              onClick={e => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'duplicates' } }));
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              label="Auto-organize folder"
+              iconVerb="folder"
+              onClick={e => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'organize' } }));
+                onClose();
+              }}
+            />
+            <div className="bndz-context-menu-sep" />
+            {[
+              ['Create folders 01-12.bat', 'Assets/Resources/Scripts/Create folders 01-12.bat'],
+              ['Example parsing selection with PowerShell.ps1', 'Assets/Resources/Scripts/Example parsing selection with PowerShell.ps1'],
+              ['Powershell create folder with current date_time.ps1', 'Assets/Resources/Scripts/Powershell create folder with current date_time.ps1'],
+              ['Save details of selected files as text file.bat', 'Assets/Resources/Scripts/Save details of selected files as text file.bat'],
+              ['Save folder list as text.bat', 'Assets/Resources/Scripts/Save folder list as text.bat'],
+            ].map(([label, script]) => (
               <ContextMenuItem
-                label="Find duplicates"
-                iconVerb="copy"
-                onClick={e => {
+                key={label}
+                label={label}
+                iconVerb="terminal"
+                onClick={async e => {
                   e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'duplicates' } }));
+                  const IPC = await runIpc();
+                  IPC.shellExecute('executeScript', resolveScriptPath(script), menu.path);
                   onClose();
                 }}
               />
-              <ContextMenuItem
-                label="Auto-organize folder"
-                iconVerb="folder"
-                onClick={e => {
-                  e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'organize' } }));
-                  onClose();
-                }}
-              />
-              <div className="bndz-context-menu-sep" />
-              {[
-                ['Create folders 01-12.bat', 'Assets/Resources/Scripts/Create folders 01-12.bat'],
-                ['Example parsing selection with PowerShell.ps1', 'Assets/Resources/Scripts/Example parsing selection with PowerShell.ps1'],
-                ['Powershell create folder with current date_time.ps1', 'Assets/Resources/Scripts/Powershell create folder with current date_time.ps1'],
-                ['Save details of selected files as text file.bat', 'Assets/Resources/Scripts/Save details of selected files as text file.bat'],
-                ['Save folder list as text.bat', 'Assets/Resources/Scripts/Save folder list as text.bat'],
-              ].map(([label, script]) => (
-                <ContextMenuItem
-                  key={label}
-                  label={label}
-                  iconVerb="terminal"
-                  onClick={async e => {
-                    e.stopPropagation();
-                    const IPC = await runIpc();
-                    IPC.shellExecute('executeScript', resolveScriptPath(script), menu.path);
-                    onClose();
-                  }}
-                />
-              ))}
-            </ContextSubmenu>
+            ))}
+          </ContextSubmenu>
+        )}
 
-            <ContextSubmenu label="New" iconVerb="newfolder" groupClass="bg-new">
-              <ContextMenuItem
-                label="Folder"
-                iconVerb="folder"
-                onClick={async e => {
-                  e.stopPropagation();
-                  const IPC = await runIpc();
-                  IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(menu.path, 'New folder'), '');
-                  runRefresh();
-                  onClose();
-                }}
-              />
-              <div className="bndz-context-menu-sep" />
-              <ContextMenuItem
-                label="Text Document"
-                iconVerb="filetext"
-                onClick={async e => {
-                  e.stopPropagation();
-                  const IPC = await runIpc();
-                  IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(menu.path, 'New Text Document.txt'), '');
-                  runRefresh();
-                  onClose();
-                }}
-              />
-            </ContextSubmenu>
-          </>
+        {!isBndzVirtualPath(menu.path) && !isRecycleBinPath(menu.path) && normalizePanePath(menu.path) !== '/' && (
+          <ContextSubmenu label="New" iconVerb="newfolder" groupClass="bg-new">
+            <ContextMenuItem
+              label="Folder"
+              iconVerb="folder"
+              onClick={async e => {
+                e.stopPropagation();
+                const IPC = await runIpc();
+                IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(menu.path, 'New folder'), '');
+                runRefresh();
+                onClose();
+              }}
+            />
+            <div className="bndz-context-menu-sep" />
+            <ContextMenuItem
+              label="Text Document"
+              iconVerb="filetext"
+              onClick={async e => {
+                e.stopPropagation();
+                const IPC = await runIpc();
+                IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(menu.path, 'New Text Document.txt'), '');
+                runRefresh();
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              label="Markdown Document"
+              iconVerb="filetext"
+              onClick={async e => {
+                e.stopPropagation();
+                const IPC = await runIpc();
+                IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(menu.path, 'New Document.md'), '');
+                runRefresh();
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              label="Compressed (zipped) Folder"
+              iconVerb="zip"
+              onClick={async e => {
+                e.stopPropagation();
+                const IPC = await runIpc();
+                const zipPath = joinPanePathForFs(menu.path, 'New Compressed Folder.zip');
+                const res = await IPC.createArchive([], zipPath, 'zip');
+                setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'Compressed folder created.' : (res.error || 'Failed to create zip.')));
+                if (!isQueuedIpcResult(res) && res.ok) runRefresh();
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              label="Shortcut"
+              iconVerb="shortcut"
+              onClick={async e => {
+                e.stopPropagation();
+                const IPC = await runIpc();
+                const linkPath = joinPanePathForFs(menu.path, 'New Shortcut.lnk');
+                const target = toWindowsPath(menu.path);
+                const res = await IPC.createLink(linkPath, target, 'shortcut');
+                setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
+                if (!isQueuedIpcResult(res) && res.success) runRefresh();
+                onClose();
+              }}
+            />
+          </ContextSubmenu>
         )}
 
         {menu.surface === 'list-background' && (onSortBy || onGroupByChange) && (
@@ -709,6 +793,23 @@ function ContextMenuView({
               onClick={() => void handleShareItem(item)}
             />
           ))}
+          {shareDevices.length > 0 && (
+            <>
+              <div className="bndz-context-menu-sep" />
+              <ContextNestedSubmenu label="Phone / devices">
+                <div className="max-h-[220px] overflow-y-auto overflow-x-hidden bndz-scrollbar">
+                  {shareDevices.map(item => (
+                    <ContextMenuItem
+                      key={item.id || item.label}
+                      label={item.label || 'Device'}
+                      iconVerb="portable-device"
+                      onClick={() => void handleShareItem(item)}
+                    />
+                  ))}
+                </div>
+              </ContextNestedSubmenu>
+            </>
+          )}
           {shareSendTo.length > 0 && (
             <>
               <div className="bndz-context-menu-sep" />
@@ -887,6 +988,17 @@ function ContextMenuView({
           />
         );
       })}
+
+      {openFileLocationParent && (
+        <ContextMenuItem
+          label="Open file location"
+          iconVerb="openexplorer"
+          onClick={() => {
+            addTab(activePaneId, openFileLocationParent.parentPane);
+            onClose();
+          }}
+        />
+      )}
 
       <ContextSubmenu label="Open in..." iconVerb="open" groupClass="open-in">
         <ContextMenuItem

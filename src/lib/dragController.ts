@@ -8,6 +8,8 @@ const DRAG_THRESHOLD_PX = 14;
 const DOUBLE_CLICK_GUARD_MS = 400;
 /** Hold time before drag can start after threshold is met. */
 const DEFAULT_DRAG_DELAY_MS = 120;
+/** Faster arm when dragging an already-selected item (Explorer-like). */
+const SELECTED_DRAG_DELAY_MS = 40;
 
 type DragSession = {
   pointerId: number;
@@ -50,6 +52,23 @@ export function canStartDragFromList(disallowDrag?: boolean): boolean {
   if (marqueeActive) return false;
   if (isWithinDoubleClickGuard()) return false;
   return true;
+}
+
+/**
+ * Prefer file drag over stealing into marquee from a select-cell pending gesture.
+ * Shift always allows marquee. Already-selected rows never lose to horizontal flicks.
+ */
+export function preferFileDragOverMarquee(opts: {
+  wasSelected: boolean;
+  shiftKey: boolean;
+  dx: number;
+  dy: number;
+}): boolean {
+  if (opts.shiftKey) return false;
+  if (opts.wasSelected) return true;
+  // Unselected: clear sideways intent → marquee; otherwise prefer drag.
+  const horizontalMarquee = opts.dx > 8 && opts.dx > opts.dy * 1.35;
+  return !horizontalMarquee;
 }
 
 export function beginDragSession(
@@ -107,3 +126,5 @@ export function clearDragSession() {
 }
 
 export const DRAG_THRESHOLD = DRAG_THRESHOLD_PX;
+export const DRAG_DELAY_DEFAULT = DEFAULT_DRAG_DELAY_MS;
+export const DRAG_DELAY_SELECTED = SELECTED_DRAG_DELAY_MS;

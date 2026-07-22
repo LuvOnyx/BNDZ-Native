@@ -25,7 +25,7 @@ export const ContextMenuPluginDef = {
     icon: 'shell_menus',
 };
 
-type ShellTab = 'app' | 'global';
+type ShellTab = 'app' | 'global' | 'shell';
 type TargetMode = 'all' | 'directory' | 'background';
 
 interface MenuAction {
@@ -35,6 +35,15 @@ interface MenuAction {
     icon?: string;
     targetMode?: TargetMode;
     hasSubmenu?: boolean;
+}
+
+interface ShellExtItem {
+    id: string;
+    label: string;
+    verb?: string;
+    commandId?: number;
+    kind?: string;
+    separator?: boolean;
 }
 
 const VARIABLE_HELP = [
@@ -102,12 +111,17 @@ function expandShellTokens(cmd: string, paths: string[]): string {
 
 export default function ContextMenuPlugin({ selectedItems, focusedPath }: { selectedItems?: string[]; focusedPath?: string }) {
     const { config, updateConfig } = useAppConfig();
-    const [tab, setTab] = useState<ShellTab>('global');
+    const [tab, setTab] = useState<ShellTab>('app');
     const [appActions, setAppActions] = useState<MenuAction[]>(config.customContextMenuActions || []);
     const [globalActions, setGlobalActions] = useState<MenuAction[]>([]);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [showHelp, setShowHelp] = useState(false);
     const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [shellItems, setShellItems] = useState<ShellExtItem[]>([]);
+    const [shellLoading, setShellLoading] = useState(false);
+    const [shellError, setShellError] = useState<string | null>(null);
+    const hiddenShellIds: string[] = Array.isArray(config.shellMenuHiddenIds) ? config.shellMenuHiddenIds : [];
+    const pinnedShellIds: string[] = Array.isArray(config.shellMenuPinnedIds) ? config.shellMenuPinnedIds : [];
 
     useEffect(() => {
         setGlobalActions((config.globalContextMenuActions as MenuAction[]) ?? []);
@@ -124,6 +138,45 @@ export default function ContextMenuPlugin({ selectedItems, focusedPath }: { sele
             return p ? [p] : [];
         }
         return [];
+    };
+
+    const refreshShellItems = async () => {
+        const paths = resolveTestPaths();
+        if (!paths.length) {
+            setShellError('Select a file or folder in the list, then scan.');
+            setShellItems([]);
+            return;
+        }
+        setShellLoading(true);
+        setShellError(null);
+        try {
+            const items = await IPC.fetchNativeContextMenuItems(paths[0]);
+            setShellItems((items || []).filter((i: ShellExtItem) => !i.separator && i.kind !== 'builtin'));
+        } catch (err: any) {
+            setShellError(String(err?.message || err || 'Scan failed'));
+            setShellItems([]);
+        } finally {
+            setShellLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (tab === 'shell') void refreshShellItems();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab]);
+
+    const toggleShellHidden = (id: string) => {
+        const next = hiddenShellIds.includes(id)
+            ? hiddenShellIds.filter(x => x !== id)
+            : [...hiddenShellIds, id];
+        updateConfig({ shellMenuHiddenIds: next });
+    };
+
+    const toggleShellPinned = (id: string) => {
+        const next = pinnedShellIds.includes(id)
+            ? pinnedShellIds.filter(x => x !== id)
+            : [...pinnedShellIds, id];
+        updateConfig({ shellMenuPinnedIds: next });
     };
 
     const persistActions = (mode: ShellTab, next: MenuAction[]) => {
@@ -441,15 +494,17 @@ export default function ContextMenuPlugin({ selectedItems, focusedPath }: { sele
         <div className="flex flex-col h-full min-h-0 overflow-hidden">
             <PluginHeroStrip
                 icon={<Icons8Icon id="shell_menus" size={52} className="opacity-90" />}
-                name={tab === 'global' ? 'Windows Explorer menus' : 'BNDZ context menus'}
-                typeLabel={tab === 'global' ? 'OS-wide shell' : 'In-app only'}
-                meta={<span className="bndz-panel-muted text-xs">{actions.length} action(s) · {selectionHint}</span>}
+                name={tab === 'global' ? 'Windows Explorer menus' : tab === 'shell' ? 'Windows shell extensions' : 'BNDZ context menus'}
+                typeLabel={tab === 'global' ? 'OS-wide shell' : tab === 'shell' ? 'Live IContextMenu' : 'In-app only'}
+                meta={<span className="bndz-panel-muted text-xs">{tab === 'shell' ? `${shellItems.length} extension(s) · ${selectionHint}` : `${actions.length} action(s) · ${selectionHint}`}</span>}
                 actions={
                     tab === 'global' ? (
                         <>
                             <PluginHeroActionButton icon="plus_ui" onClick={() => addGlobalAction()}>Add</PluginHeroActionButton>
                             <PluginHeroActionButton icon="check" variant="primary" onClick={saveGlobalActions}>Deploy</PluginHeroActionButton>
                         </>
+                    ) : tab === 'shell' ? (
+                        <PluginHeroActionButton icon="refresh" onClick={() => void refreshShellItems()}>Scan selection</PluginHeroActionButton>
                     ) : (
                         <>
                             <PluginHeroActionButton icon="plus_ui" onClick={() => addAppAction()}>Add</PluginHeroActionButton>
@@ -462,17 +517,6 @@ export default function ContextMenuPlugin({ selectedItems, focusedPath }: { sele
             <PluginSidebar className="!w-[200px] !min-w-[176px] p-2">
                 <button
                     type="button"
-                    onClick={() => setTab('global')}
-                    className={`bndz-plugin-tab w-full !rounded-md !justify-start !px-3 !py-2 ${tab === 'global' ? 'bndz-plugin-tab-active' : ''}`}
-                >
-                    <span className="inline-flex items-center gap-2 w-full">
-                        <Icons8Icon id="go_network" size={14} />
-                        Windows Explorer
-                        <span className="ml-auto bndz-plugin-kind-pill !text-[10px]">OS-wide</span>
-                    </span>
-                </button>
-                <button
-                    type="button"
                     onClick={() => setTab('app')}
                     className={`bndz-plugin-tab w-full !rounded-md !justify-start !px-3 !py-2 ${tab === 'app' ? 'bndz-plugin-tab-active' : ''}`}
                 >
@@ -482,6 +526,28 @@ export default function ContextMenuPlugin({ selectedItems, focusedPath }: { sele
                         <span className="ml-auto bndz-plugin-kind-pill !text-[10px]">In-app</span>
                     </span>
                 </button>
+                <button
+                    type="button"
+                    onClick={() => setTab('shell')}
+                    className={`bndz-plugin-tab w-full !rounded-md !justify-start !px-3 !py-2 ${tab === 'shell' ? 'bndz-plugin-tab-active' : ''}`}
+                >
+                    <span className="inline-flex items-center gap-2 w-full">
+                        <Icons8Icon id="windows_ui" size={14} />
+                        Shell extensions
+                        <span className="ml-auto bndz-plugin-kind-pill !text-[10px]">Native</span>
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setTab('global')}
+                    className={`bndz-plugin-tab w-full !rounded-md !justify-start !px-3 !py-2 ${tab === 'global' ? 'bndz-plugin-tab-active' : ''}`}
+                >
+                    <span className="inline-flex items-center gap-2 w-full">
+                        <Icons8Icon id="go_network" size={14} />
+                        Windows Explorer
+                        <span className="ml-auto bndz-plugin-kind-pill !text-[10px]">OS-wide</span>
+                    </span>
+                </button>
 
                 <div className="mt-auto pt-2 border-t border-white/[0.06]">
                     <button type="button" onClick={() => setShowHelp(v => !v)} className="w-full flex items-center gap-2 text-xs bndz-panel-muted hover:text-gray-300 py-1.5 px-1">
@@ -489,7 +555,9 @@ export default function ContextMenuPlugin({ selectedItems, focusedPath }: { sele
                     </button>
                     {showHelp && (
                         <p className="text-xs bndz-panel-muted leading-relaxed mt-2 p-2 rounded-md border border-white/[0.06] bg-black/20">
-                            Pick a template, customize the label, then save. Windows menus require <strong className="text-pink-300">Deploy</strong> once. Drag items or use arrows to reorder. Expand an item and use <strong className="text-pink-300">Test on selection</strong> against the current file list selection.
+                            <strong className="text-pink-300">Inside BNDZ</strong> — custom in-app commands.{' '}
+                            <strong className="text-pink-300">Shell extensions</strong> — live Windows items (Cursor, Git, …): pin or hide.{' '}
+                            <strong className="text-pink-300">Windows Explorer</strong> — inject BNDZ into Explorer (Deploy).
                         </p>
                     )}
                 </div>
@@ -497,6 +565,47 @@ export default function ContextMenuPlugin({ selectedItems, focusedPath }: { sele
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
                 <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-4 min-h-0">
+                    {tab === 'shell' ? (
+                        <>
+                            <PluginCard className="flex gap-2.5 items-start border-[#0078d4]/25 bg-[#094771]/15 !py-3">
+                                <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80 text-[#99c9f0]" />
+                                <span className="text-xs text-[#cce4f7]/90">
+                                    Live Windows right-click extensions for the current selection. Pin to show first, or Hide to keep them out of BNDZ menus.
+                                </span>
+                            </PluginCard>
+                            {shellLoading && <div className="text-xs bndz-panel-muted">Scanning shell menu…</div>}
+                            {shellError && <div className="text-xs text-rose-300">{shellError}</div>}
+                            {!shellLoading && !shellError && shellItems.length === 0 && (
+                                <PluginEmptyState icon="sparkles_ui" title="No shell extensions found" description="Select a real file or folder, then Scan selection." />
+                            )}
+                            <div className="space-y-1.5">
+                                {shellItems.map(item => {
+                                    const id = item.id || item.verb || item.label;
+                                    const hidden = hiddenShellIds.includes(id);
+                                    const pinned = pinnedShellIds.includes(id);
+                                    return (
+                                        <PluginCard key={id} className={`!py-2 !px-3 flex items-center gap-3 ${hidden ? 'opacity-50' : ''}`}>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm text-white truncate">{item.label}</div>
+                                                <div className="text-[10px] bndz-panel-muted truncate">{item.verb || id}</div>
+                                            </div>
+                                            <PluginToolbarButton
+                                                icon={pinned ? 'star' : 'star_outline'}
+                                                title={pinned ? 'Unpin' : 'Pin to top of menu'}
+                                                onClick={() => toggleShellPinned(id)}
+                                            />
+                                            <PluginToolbarButton
+                                                icon={hidden ? 'eye' : 'eye_off'}
+                                                title={hidden ? 'Show in menu' : 'Hide from menu'}
+                                                onClick={() => toggleShellHidden(id)}
+                                            />
+                                        </PluginCard>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    ) : (
+                        <>
                     {tab === 'global' && (
                         <PluginCard className="flex gap-2.5 items-start border-[#0078d4]/25 bg-[#094771]/15 !py-3">
                             <Icons8Icon id="key_ui" size={16} className="shrink-0 mt-0.5 opacity-80 text-[#99c9f0]" />
@@ -554,6 +663,8 @@ export default function ContextMenuPlugin({ selectedItems, focusedPath }: { sele
                                 ))}
                             </div>
                         </PluginCard>
+                    )}
+                        </>
                     )}
                 </div>
             </div>

@@ -128,8 +128,9 @@ public class ShellIntegrationService
                 startInfo.Arguments = "shell:::{871C5380-42A0-1069-A2EA-08002B30309D}";
                 break;
             case "share":
-                startInfo.FileName = "rundll32.exe";
-                startInfo.Arguments = "shell32.dll,SHHelpShortcuts_RunDLL Connect";
+                // Nearby Sharing / Bluetooth share settings — not Map Network Drive.
+                startInfo.FileName = "ms-settings:crossdevice";
+                startInfo.UseShellExecute = true;
                 break;
             case "burn_disc":
                 startInfo.FileName = "isoburn.exe";

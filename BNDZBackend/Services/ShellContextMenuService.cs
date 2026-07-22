@@ -15,8 +15,13 @@ public sealed class ShellContextMenuService
         public string? Label { get; init; }
         public string? Verb { get; init; }
         public string? Icon { get; init; }
+        /// <summary>data:image/png;base64,… when extracted from the live shell menu.</summary>
+        public string? IconBase64 { get; init; }
         public bool IsPrimary { get; init; }
         public bool Separator { get; init; }
+        /// <summary>shell | builtin</summary>
+        public string? Kind { get; init; }
+        public uint? CommandId { get; init; }
 
         public static MenuItemDto Sep() => new() { Separator = true };
     }
@@ -127,28 +132,55 @@ public sealed class ShellContextMenuService
         var items = new List<MenuItemDto>();
         if (string.IsNullOrEmpty(path)) return items;
 
+        // Prefer live IContextMenu enumeration (third-party shell extensions included).
+        var enumerated = ShellContextMenuEnumerator.Enumerate(path);
+        if (enumerated.Count > 0)
+        {
+            foreach (var e in enumerated)
+            {
+                if (e.Separator)
+                {
+                    items.Add(MenuItemDto.Sep());
+                    continue;
+                }
+                items.Add(new MenuItemDto
+                {
+                    Id = e.Id,
+                    Label = e.Label,
+                    Verb = e.Verb,
+                    Icon = e.Kind == "shell" ? "shell" : (e.Verb ?? "open"),
+                    IconBase64 = e.IconBase64,
+                    IsPrimary = e.IsPrimary,
+                    Kind = e.Kind,
+                    CommandId = e.CommandId,
+                });
+            }
+            return items;
+        }
+
+        // Fallback if COM enumeration fails (locked path, virtual namespace, etc.)
         bool isDir = Directory.Exists(path);
         bool isFile = File.Exists(path);
         if (!isDir && !isFile) return items;
 
-        items.Add(new MenuItemDto { Id = "open", Label = "Open", Verb = "open", Icon = "open", IsPrimary = true });
+        items.Add(new MenuItemDto { Id = "open", Label = "Open", Verb = "open", Icon = "open", IsPrimary = true, Kind = "builtin" });
 
         if (isFile)
         {
             var ext = Path.GetExtension(path).ToLowerInvariant();
             if (ext is ".txt" or ".md" or ".log" or ".json" or ".xml" or ".csv")
-                items.Add(new MenuItemDto { Id = "edit", Label = "Edit", Verb = "edit", Icon = "edit" });
-            items.Add(new MenuItemDto { Id = "openas", Label = "Open with...", Verb = "openas", Icon = "open" });
+                items.Add(new MenuItemDto { Id = "edit", Label = "Edit", Verb = "edit", Icon = "edit", Kind = "builtin" });
+            items.Add(new MenuItemDto { Id = "openas", Label = "Open with...", Verb = "openas", Icon = "open", Kind = "builtin" });
         }
 
         items.Add(MenuItemDto.Sep());
-        items.Add(new MenuItemDto { Id = "cut", Label = "Cut", Verb = "cut", Icon = "cut" });
-        items.Add(new MenuItemDto { Id = "copy", Label = "Copy", Verb = "copy", Icon = "copy" });
-        items.Add(new MenuItemDto { Id = "paste", Label = "Paste", Verb = "paste", Icon = "paste" });
-        items.Add(new MenuItemDto { Id = "delete", Label = "Delete", Verb = "delete", Icon = "trash" });
-        items.Add(new MenuItemDto { Id = "rename", Label = "Rename", Verb = "rename", Icon = "rename" });
+        items.Add(new MenuItemDto { Id = "cut", Label = "Cut", Verb = "cut", Icon = "cut", Kind = "builtin" });
+        items.Add(new MenuItemDto { Id = "copy", Label = "Copy", Verb = "copy", Icon = "copy", Kind = "builtin" });
+        items.Add(new MenuItemDto { Id = "paste", Label = "Paste", Verb = "paste", Icon = "paste", Kind = "builtin" });
+        items.Add(new MenuItemDto { Id = "delete", Label = "Delete", Verb = "delete", Icon = "trash", Kind = "builtin" });
+        items.Add(new MenuItemDto { Id = "rename", Label = "Rename", Verb = "rename", Icon = "rename", Kind = "builtin" });
         items.Add(MenuItemDto.Sep());
-        items.Add(new MenuItemDto { Id = "properties", Label = "Properties", Verb = "properties", Icon = "settings" });
+        items.Add(new MenuItemDto { Id = "properties", Label = "Properties", Verb = "properties", Icon = "settings", Kind = "builtin" });
 
         return items;
     }
@@ -229,7 +261,44 @@ public sealed class ShellContextMenuService
                         return InvokeSendTo(sendToTarget, paths[0]);
                     return false;
 
+                case "share":
+                    return ModernShareHelper.TryShowShareUi(hwnd, paths)
+                        || ModernShareHelper.TryShowShareUiForActiveWindow(paths);
+
+                case "grantaccess":
+                    // Network sharing ACL UI lives on the Properties dialog Sharing tab.
+                    foreach (var p in paths)
+                        ShellPropertiesHelper.ShowProperties(p, hwnd);
+                    return true;
+
+                case "copy-to-device":
+                    if (paths.Count > 0 && !string.IsNullOrEmpty(sendToTarget))
+                        return CopyPathsToPortableDevice(paths, sendToTarget);
+                    return false;
+
                 default:
+                    // Opaque IContextMenu command (third-party shell extension).
+                    if (verb.StartsWith("shellcmd:", StringComparison.OrdinalIgnoreCase)
+                        && uint.TryParse(verb.AsSpan("shellcmd:".Length), out var cmdOffset))
+                    {
+                        return ShellContextMenuEnumerator.Invoke(paths[0], cmdOffset);
+                    }
+
+                    // Non-builtin verb — prefer IContextMenu when we have a commandId in the verb payload:
+                    // Frontend may send "shellcmd:N" or the raw verb; try IContextMenu first with offset 0 skip.
+                    if (!string.IsNullOrEmpty(verb)
+                        && verb is not ("open" or "edit" or "openas" or "openwith" or "cut" or "copy"
+                            or "paste" or "delete" or "rename" or "properties" or "share" or "sendto" or "copy-to-device"))
+                    {
+                        // Re-enumerate and match by verb or label is expensive; try ShellExecute verb first.
+                        try
+                        {
+                            LaunchShellVerb(paths[0], verb, hwnd);
+                            return true;
+                        }
+                        catch { }
+                    }
+
                     foreach (var p in paths)
                     {
                         try { LaunchShellVerb(p, verb); } catch { }
@@ -424,6 +493,30 @@ public sealed class ShellContextMenuService
         if (isDir)
             items.Add(new { id = "grantaccess", label = "Give access to…", kind = "verb", verb = "grantaccess", group = "main" });
 
+        // Connected phones / MTP — copy via shell, no Bluetooth / OneDrive / Nearby required.
+        try
+        {
+            foreach (dynamic node in PortableDeviceService.GetTreeNodes())
+            {
+                string name = node.name ?? "Phone";
+                string devicePath = node.path ?? "";
+                if (string.IsNullOrWhiteSpace(devicePath)) continue;
+                items.Add(new
+                {
+                    id = $"device-{name}",
+                    label = $"Send to {name}…",
+                    kind = "copy-to-device",
+                    verb = "copy-to-device",
+                    target = (string)devicePath,
+                    group = "device",
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"GetShareMenuItems portable devices failed: {ex.Message}");
+        }
+
         try
         {
             var sendToDir = Environment.GetFolderPath(Environment.SpecialFolder.SendTo);
@@ -486,6 +579,22 @@ public sealed class ShellContextMenuService
         catch (Exception ex)
         {
             Debug.WriteLine($"InvokeSendTo failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>Copy files onto a connected portable device (MTP) via Vanara ShellFolder — no Win32 mkdir.</summary>
+    private static bool CopyPathsToPortableDevice(List<string> sources, string deviceFolderPath)
+    {
+        if (sources.Count == 0 || string.IsNullOrWhiteSpace(deviceFolderPath)) return false;
+        try
+        {
+            NativeShellFileOperationService.CopyToShellDestination(sources, deviceFolderPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"CopyPathsToPortableDevice failed: {ex.Message}");
             return false;
         }
     }

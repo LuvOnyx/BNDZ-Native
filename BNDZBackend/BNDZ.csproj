@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
@@ -46,6 +46,11 @@
       Text="Release builds require Services\LicenseTokenSecretEmbedded.Release.cs. Run scripts/build-release.ps1 with BNDZ_TOKEN_HMAC_SECRET set." />
   </Target>
 
+  <!-- Debug uses empty embeds; Release.*.cs are written by build-release.ps1 and must not compile in Debug. -->
+  <ItemGroup Condition="'$(Configuration)' != 'Release'">
+    <Compile Remove="Services\LicenseSecretEmbedded.Release.cs" />
+    <Compile Remove="Services\LicenseTokenSecretEmbedded.Release.cs" />
+  </ItemGroup>
   <!-- Release.*.cs are already in the default Compile glob; only remove Debug stubs to avoid duplicate types. -->
   <ItemGroup Condition="'$(Configuration)' == 'Release' AND Exists('$(MSBuildProjectDirectory)\Services\LicenseSecretEmbedded.Release.cs')">
     <Compile Remove="Services\LicenseSecretEmbedded.cs" />

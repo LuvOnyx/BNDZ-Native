@@ -108,7 +108,7 @@ function KeybindingRow({
 }
 
 export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }: Props) {
-  const customEnabled = !!localConfig.customKeyboardShortcuts;
+  const customEnabled = localConfig.customKeyboardShortcuts ?? true;
   const conflicts = useMemo(() => findKeybindingConflicts(localConfig), [localConfig]);
   const conflictIds = useMemo(() => new Set(Object.values(conflicts).flat()), [conflicts]);
 

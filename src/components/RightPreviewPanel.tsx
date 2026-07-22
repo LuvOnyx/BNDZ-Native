@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
-import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath } from '../lib/pathUtils';
+import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath, normalizePanePath, isRecycleBinPath } from '../lib/pathUtils';
 import { isPreviewEnabledForExt, buildSettingsRuntime } from '../lib/settingsRuntime';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
+import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
 import { Icons8Icon } from './Icons8Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
@@ -118,6 +119,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
            }
         });
         if (shellIsDir && folderBrowsePath && config.folderContentsPreview !== false) {
+           const pane = normalizePanePath(folderBrowsePath);
+           const skipStats = isDriveEntity
+             || pane === '/'
+             || pane === '/this-pc'
+             || isRecycleBinPath(pane)
+             || isBndzVirtualPath(pane)
+             || pane.toLowerCase().startsWith('/shell:');
+           if (skipStats) {
+             setFolderStats(null);
+             setFolderChildren([]);
+           } else {
            const sortBy = String(config.folderContentsPreviewSortedBy || 'Name');
            const sortItems = (items: any[]) => {
              const dirsFirst = [...items].sort((a, b) => {
@@ -152,6 +164,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     applyItems(items || []);
                  }).catch(() => { if (active) { setFolderStats(null); setFolderChildren([]); } });
               });
+           }
            }
         } else {
            setFolderStats(null);
@@ -694,7 +707,10 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                        {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
                     </div>
                  )}
-                 {isDir && !folderStats && (
+                 {isDir && !folderStats && !isDrive && (() => {
+                    const pane = normalizePanePath(path || '');
+                    return pane !== '/' && pane !== '/this-pc' && !isRecycleBinPath(pane) && !isBndzVirtualPath(pane) && !pane.toLowerCase().startsWith('/shell:');
+                 })() && (
                     <div className="bndz-panel-muted text-center animate-pulse">Calculating folder size…</div>
                  )}
                  {isDrive && (entity as any).driveInfo && (
