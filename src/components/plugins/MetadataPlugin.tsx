@@ -27,9 +27,10 @@ export const MetadataPluginDef = {
 };
 
 const MEDIA_KEYS = new Set([
-    'Dimensions', 'Duration', 'Bitrate', 'Codec', 'Camera Model', 'Date Taken',
-    'F-Stop', 'Exposure Time', 'Focal Length', 'ISO Speed', 'Frame Rate',
-    'Audio Bitrate', 'Sample Rate', 'Channels',
+    'Dimensions', 'Duration', 'Bitrate', 'Codec', 'Camera Model', 'Camera Make', 'Date Taken',
+    'F-Stop', 'Exposure Time', 'Focal Length', 'ISO Speed', 'Frame Rate', 'Lens Model',
+    'Audio Bitrate', 'Sample Rate', 'Channels', 'GPS', 'Title', 'Album', 'Artists', 'Genre',
+    'Year', 'Track', 'Media Format', 'Copyright', 'Artist',
 ]);
 
 function groupMetadata(meta: Record<string, string>) {

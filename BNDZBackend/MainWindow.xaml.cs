@@ -502,8 +502,10 @@ namespace BNDZ
 
         private DateTime _lastExternalDropUtc = DateTime.MinValue;
         private string? _lastExternalDropFingerprint;
+        /// <summary>True while BNDZ-initiated DoDragDrop is running (OLE re-entry into our window).</summary>
+        private bool _bndzOleDragActive;
 
-        private void PostExternalFileDrop(string[] paths, double? webViewX = null, double? webViewY = null)
+        private void PostExternalFileDrop(string[] paths, double? webViewX = null, double? webViewY = null, string preferredEffect = "copy")
         {
             if (paths == null || paths.Length == 0) return;
             var fingerprint = string.Join('|', paths);
@@ -513,6 +515,7 @@ namespace BNDZ
             _lastExternalDropFingerprint = fingerprint;
             _lastExternalDropUtc = now;
 
+            var effect = string.Equals(preferredEffect, "move", StringComparison.OrdinalIgnoreCase) ? "move" : "copy";
             var msg = new
             {
                 type = "EXTERNAL_FILES_DROPPED",
@@ -521,6 +524,8 @@ namespace BNDZ
                     paths,
                     webViewX,
                     webViewY,
+                    preferredEffect = effect,
+                    fromBndzOle = _bndzOleDragActive,
                 },
             };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
@@ -533,34 +538,76 @@ namespace BNDZ
             MainWebView.AllowDrop = true;
             // Critical: when true (default), Chromium owns OLE drops and WPF Drop never fires —
             // React then sees File objects with no .path in WebView2. Force host-owned drops.
-            try { MainWebView.AllowExternalDrop = false; }
-            catch (Exception ex) { Debug.WriteLine($"[Drop] AllowExternalDrop: {ex.Message}"); }
+            void EnforceHostOwnedDrops()
+            {
+                try
+                {
+                    MainWebView.AllowExternalDrop = false;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Drop] AllowExternalDrop: {ex.Message}");
+                }
+            }
+            EnforceHostOwnedDrops();
 
-            void OnDragOver(object sender, System.Windows.DragEventArgs e)
+            string ResolvePreferredDropEffect(System.Windows.DragEventArgs e)
+            {
+                // Ctrl = copy (Explorer convention).
+                if ((e.KeyStates & System.Windows.DragDropKeyStates.ControlKey) != 0)
+                    return "copy";
+                // Shift = move when allowed.
+                if ((e.KeyStates & System.Windows.DragDropKeyStates.ShiftKey) != 0
+                    && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
+                    return "move";
+                // In-app OLE re-entry keeps move intent; true external apps always copy into BNDZ.
+                if (_bndzOleDragActive && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
+                    return "move";
+                return "copy";
+            }
+
+            void AcceptFileDrag(System.Windows.DragEventArgs e)
             {
                 var canDrop = e.Data != null && (
                     e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop, true)
                     || e.Data.GetDataPresent("FileGroupDescriptorW", false)
                     || e.Data.GetDataPresent("FileNameW", true)
                     || e.Data.GetDataPresent("FileName", true));
-                if (canDrop)
+                if (!canDrop)
                 {
-                    e.Effects = System.Windows.DragDropEffects.Copy;
+                    e.Effects = System.Windows.DragDropEffects.None;
                     e.Handled = true;
+                    return;
                 }
+
+                var preferred = ResolvePreferredDropEffect(e);
+                var want = preferred == "move"
+                    ? System.Windows.DragDropEffects.Move
+                    : System.Windows.DragDropEffects.Copy;
+                var allowed = e.AllowedEffects & want;
+                if (allowed == System.Windows.DragDropEffects.None)
+                    allowed = e.AllowedEffects & (System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
+                // Never leave Effects=None when files are present — Explorer won't raise Drop.
+                e.Effects = allowed == System.Windows.DragDropEffects.None
+                    ? System.Windows.DragDropEffects.Copy
+                    : allowed;
+                e.Handled = true;
             }
 
             void OnDrop(object sender, System.Windows.DragEventArgs e)
             {
-                if (e.Handled) return;
+                // Do not bail on e.Handled — Window + WebView both preview-tunnel;
+                // the first empty attempt must not block the second.
                 try
                 {
                     var files = ExternalDropHelper.ExtractPaths(e.Data);
                     if (files.Length > 0)
                     {
+                        var preferred = ResolvePreferredDropEffect(e);
                         // Coordinates relative to the WebView viewport (matches document.elementFromPoint).
                         var pt = e.GetPosition(MainWebView);
-                        PostExternalFileDrop(files, pt.X, pt.Y);
+                        PostExternalFileDrop(files, pt.X, pt.Y, preferred);
+                        e.Handled = true;
                     }
                     else
                     {
@@ -571,14 +618,21 @@ namespace BNDZ
                 {
                     Debug.WriteLine($"[Drop] {ex.Message}");
                 }
-                e.Handled = true;
             }
 
-            // Preview* only — avoids double-fire from both Preview and bubble Drop on Window + WebView.
-            PreviewDragOver += OnDragOver;
-            PreviewDrop += OnDrop;
-            MainWebView.PreviewDragOver += OnDragOver;
-            MainWebView.PreviewDrop += OnDrop;
+            // handledEventsToo: Chromium/WebView2 sometimes marks DragOver handled before we see it.
+            AddHandler(System.Windows.DragDrop.PreviewDragEnterEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
+            AddHandler(System.Windows.DragDrop.PreviewDragOverEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
+            AddHandler(System.Windows.DragDrop.PreviewDropEvent, new System.Windows.DragEventHandler(OnDrop), true);
+            MainWebView.AddHandler(System.Windows.DragDrop.PreviewDragEnterEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
+            MainWebView.AddHandler(System.Windows.DragDrop.PreviewDragOverEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
+            MainWebView.AddHandler(System.Windows.DragDrop.PreviewDropEvent, new System.Windows.DragEventHandler(OnDrop), true);
+            MainWebView.DragEnter += (_, e) => AcceptFileDrag(e);
+            MainWebView.DragOver += (_, e) => AcceptFileDrag(e);
+            MainWebView.Drop += OnDrop;
+
+            // Re-assert after each navigation — some WebView2 builds reset AllowExternalDrop.
+            MainWebView.CoreWebView2.NavigationCompleted += (_, __) => EnforceHostOwnedDrops();
         }
 
         private void PostIconResult(string? id, string? payload)
@@ -986,10 +1040,15 @@ namespace BNDZ
                     PostToUi(() => {
                         try
                         {
+                            _bndzOleDragActive = true;
                             var dataObject = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, pathArray);
                             System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
                         }
                         catch { }
+                        finally
+                        {
+                            _bndzOleDragActive = false;
+                        }
                     });
                 }
                 else if (type == "CLEAR_THUMBNAIL_CACHE")
@@ -3770,6 +3829,14 @@ namespace BNDZ
 
                 try
                 {
+                    // Snapshot destinations BEFORE execute — after a move, sources no longer exist
+                    // and Plan() would return empty (missing Action History destinations).
+                    IReadOnlyList<(string Src, string Dest)>? plannedTargets = null;
+                    if (action is "copy" or "move" or "rename")
+                    {
+                        plannedTargets = FileOperationPathPlanner.Plan(action == "rename" ? "move" : action, sources, target, recreateSourceStructure);
+                    }
+
                     if (engine == "teracopy" && action is "copy" or "move")
                     {
                         var result = _externalCopyHandler.Execute(
@@ -3787,7 +3854,7 @@ namespace BNDZ
                         }
                         _fileTransferQueue.DetachProcess(operationId);
                         OnProgress(operationId, 99, target, 0, 0, 0, sources.Count, sources.Count);
-                        RecordExternalActionLog(action, sources, target, bypassRecycleBin);
+                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
                     }
                     else if (engine == "native")
                     {
@@ -3801,6 +3868,8 @@ namespace BNDZ
                             if (valid.Count == 0)
                                 throw new FileNotFoundException("None of the source items exist. The operation could not run.");
                             sources = valid;
+                            if (action is "copy" or "move")
+                                plannedTargets = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
                         }
                         await _nativeFileOperationService.ExecuteOperationAsync(
                             operationId,
@@ -3812,7 +3881,7 @@ namespace BNDZ
                             ct,
                             prefs.ShouldShowNativeProgress(action, sources, target),
                             OnAccessDenied).ConfigureAwait(false);
-                        RecordExternalActionLog(action, sources, target, bypassRecycleBin);
+                        RecordExternalActionLog(action, sources, target, bypassRecycleBin, plannedTargets);
                     }
                     else
                     {
@@ -3854,9 +3923,10 @@ namespace BNDZ
                             cancellationToken: ct).ConfigureAwait(false);
                     }
 
-                    if (action is "copy" or "move" && prefs.CopyTagsOnCopyOperations)
+                    if ((action is "copy" or "move") && prefs.CopyTagsOnCopyOperations)
                     {
-                        var mappings = FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
+                        var mappings = plannedTargets
+                            ?? FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
                         _tagSidecarStore.CopyMetadata(mappings);
                     }
 
@@ -4301,7 +4371,12 @@ namespace BNDZ
             await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "UNDO_REDO_RESULT").ConfigureAwait(false);
         }
 
-        private void RecordExternalActionLog(string action, List<string> sources, string target, bool bypassRecycleBin)
+        private void RecordExternalActionLog(
+            string action,
+            List<string> sources,
+            string target,
+            bool bypassRecycleBin,
+            IReadOnlyList<(string Src, string Dest)>? plannedTargets = null)
         {
             try
             {
@@ -4310,8 +4385,10 @@ namespace BNDZ
                 {
                     case "copy":
                     {
-                        var plan = FileOperationPathPlanner.Plan("copy", sources, target);
-                        var created = plan.Select(p => p.Dest).ToList();
+                        var created = plannedTargets?.Select(p => p.Dest).ToList()
+                            ?? FileOperationPathPlanner.Plan("copy", sources, target).Select(p => p.Dest).ToList();
+                        if (created.Count == 0 && !string.IsNullOrWhiteSpace(target))
+                            created = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
                         if (created.Count > 0)
                             _actionLogService.Record(BndzActionLogService.ForCopy(sources, created));
                         break;
@@ -4319,8 +4396,10 @@ namespace BNDZ
                     case "move":
                     case "rename":
                     {
-                        var plan = FileOperationPathPlanner.Plan(action, sources, target);
-                        var moved = plan.Select(p => p.Dest).ToList();
+                        var moved = plannedTargets?.Select(p => p.Dest).ToList()
+                            ?? FileOperationPathPlanner.Plan(action, sources, target).Select(p => p.Dest).ToList();
+                        if (moved.Count == 0 && !string.IsNullOrWhiteSpace(target))
+                            moved = sources.Select(s => Path.Combine(target, Path.GetFileName(s.TrimEnd('\\', '/')))).ToList();
                         if (moved.Count > 0)
                             _actionLogService.Record(BndzActionLogService.ForMove(sources, moved));
                         break;

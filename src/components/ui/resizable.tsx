@@ -34,9 +34,11 @@ export const ResizablePanelGroup = ({
     ...props
 }: ResizablePanelGroupProps & { groupRef?: React.Ref<GroupImperativeHandle> }) => {
     const resolvedOrientation = orientation ?? direction ?? 'horizontal';
+    // min-h-0 + overflow-hidden keep nested scroll regions independent
+    // (list vs bottom panel) instead of growing the group past the viewport.
     const resolvedClassName = className && className !== 'undefined'
-        ? `${className} h-full w-full`
-        : 'h-full w-full';
+        ? `${className} h-full w-full min-h-0 min-w-0 overflow-hidden`
+        : 'h-full w-full min-h-0 min-w-0 overflow-hidden';
 
     return (
         <Group
@@ -54,8 +56,22 @@ export const ResizablePanelGroup = ({
 
 interface ResizablePanelProps extends React.ComponentProps<typeof Panel> {}
 
-export const ResizablePanel = ({ children, className, ...props }: ResizablePanelProps) => (
-    <Panel className={className} {...props}>
+/**
+ * react-resizable-panels v4 defaults each panel's inner wrapper to
+ * `overflow: auto`. That makes the workspace panel scroll the list +
+ * bottom plugin as one unit. Override to hidden so only nested regions
+ * (file list, plugin body) scroll.
+ */
+export const ResizablePanel = ({ children, className, style, ...props }: ResizablePanelProps) => (
+    <Panel
+        className={
+            className
+                ? `bndz-resizable-panel min-h-0 min-w-0 ${className}`
+                : 'bndz-resizable-panel min-h-0 min-w-0'
+        }
+        style={{ overflow: 'hidden', ...style }}
+        {...props}
+    >
         {children}
     </Panel>
 );

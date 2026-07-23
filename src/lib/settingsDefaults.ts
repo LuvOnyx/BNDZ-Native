@@ -132,7 +132,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   defaultNameToCurrentFolderTxt: false,
   defaultToRepeatActionOnCollisions: false,
   defaultToTreeLikeSortOrder: false,
-  delayBeforeADraggedOverTabIsAutoSelected: 250,
+  delayBeforeADraggedOverTabIsAutoSelected: 120,
   delayBeforeFilterIsApplied: false,
   deleteOnKeyUp: false,
   deleteToRecycleBin: false,

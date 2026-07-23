@@ -42,7 +42,7 @@ export default function WindowTitleBar({ title = 'BNDZ' }: WindowTitleBarProps) 
       onDoubleClick={() => IPC.windowChrome('maximize')}
     >
       <div className="flex items-center gap-2 pl-3 pr-2 min-w-0 flex-1" onMouseDown={onDrag}>
-        <img src={BNDZ_APP_ICON} alt="" className="w-5 h-5 object-contain" draggable={false} />
+        <img src={BNDZ_APP_ICON} alt="" className="w-6 h-6 rounded-[5px] object-cover object-center shrink-0" draggable={false} />
         <span className="text-[11px] font-semibold text-gray-300 tracking-wide truncate">{title}</span>
       </div>
       <div className="flex h-full shrink-0">

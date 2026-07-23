@@ -50,7 +50,12 @@ export function VirtualizedFileList<T>({
   useEffect(() => {
     if (!scrollEl) return;
     const syncMinHeight = () => {
-      const h = scrollEl.clientHeight;
+      const style = getComputedStyle(scrollEl);
+      const padY =
+        (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+      // Content box only — matching clientHeight would always overflow by padding
+      // and leave the scrollbar active on short lists.
+      const h = Math.max(0, scrollEl.clientHeight - padY);
       if (h > 0) setScrollMinHeight(prev => (prev === h ? prev : h));
     };
     syncMinHeight();
@@ -103,8 +108,17 @@ export function VirtualizedFileList<T>({
   }
 
   const contentMin = scrollMinHeight ?? 0;
-  const withFolderPad = (contentHeight: number) =>
-    Math.max(contentHeight, contentMin) + LIST_FOLDER_CONTEXT_PAD_PX;
+  /**
+   * Fill the viewport when the list is short (empty area stays clickable),
+   * but only grow past the viewport when content actually needs the trailing
+   * folder-context pad — otherwise overflow-y:auto always shows a scrollbar
+   * and the list "scrolls" even when it isn't full.
+   */
+  const withFolderPad = (contentHeight: number) => {
+    const padded = contentHeight + LIST_FOLDER_CONTEXT_PAD_PX;
+    if (contentMin <= 0) return padded;
+    return Math.max(padded, contentMin);
+  };
 
   const renderBody = () => {
     if (!useVirtual || !scrollEl) {
@@ -116,7 +130,9 @@ export function VirtualizedFileList<T>({
               gap,
               // Fixed track size — never stretch with 1fr (that caused huge empty gaps).
               gridTemplateColumns: `repeat(auto-fill, ${gridMinItemWidth}px)`,
-              minHeight: withFolderPad(0),
+              // Fill the content box; paddingBottom stays inside minHeight (border-box)
+              // so short lists do not force a scrollbar.
+              minHeight: contentMin || undefined,
               paddingBottom: LIST_FOLDER_CONTEXT_PAD_PX,
             }}
           >
@@ -130,7 +146,7 @@ export function VirtualizedFileList<T>({
         <div
           className={className}
           style={{
-            minHeight: withFolderPad(0),
+            minHeight: contentMin || undefined,
             width: '100%',
             gap: mode === 'list' ? gap : undefined,
             paddingBottom: LIST_FOLDER_CONTEXT_PAD_PX,
@@ -213,7 +229,9 @@ export function VirtualizedFileList<T>({
     );
   };
 
-  const nonVirtualMinH = scrollMinHeight ? { minHeight: withFolderPad(0) } : undefined;
+  // Host matches the scrollport when short — do not add the folder pad here
+  // (body already accounts for it without forcing overflow).
+  const nonVirtualMinH = contentMin > 0 ? { minHeight: contentMin } : undefined;
 
   return <div ref={hostRef} className="w-full min-h-0" style={nonVirtualMinH}>{renderBody()}</div>;
 }

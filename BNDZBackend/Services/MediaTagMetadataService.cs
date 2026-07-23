@@ -14,6 +14,13 @@ namespace BNDZ.Services;
 /// </summary>
 public static class MediaTagMetadataService
 {
+    private static readonly HashSet<string> TagLibExts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".wav", ".wma", ".opus", ".aiff", ".ape",
+        ".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".wmv",
+        ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp",
+    };
+
     public static void Enrich(Dictionary<string, string> meta, string filePath)
     {
         if (meta == null || string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
@@ -40,6 +47,9 @@ public static class MediaTagMetadataService
 
     private static void EnrichTagLib(Dictionary<string, string> meta, string filePath)
     {
+        if (!TagLibExts.Contains(Path.GetExtension(filePath)))
+            return;
+
         using var file = TagFile.Create(filePath);
         var tag = file.Tag;
         SetIfEmpty(meta, "Title", tag.Title);
@@ -79,7 +89,12 @@ public static class MediaTagMetadataService
     private static void EnrichExif(Dictionary<string, string> meta, string filePath)
     {
         var ext = Path.GetExtension(filePath);
-        if (ext is not (".jpg" or ".jpeg" or ".jfif" or ".tif" or ".tiff" or ".webp" or ".png" or ".heic" or ".heif"))
+        // MetadataExtractor 2.9+: images, camera RAW, HEIF/AVIF, and common containers.
+        if (ext is not (
+            ".jpg" or ".jpeg" or ".jfif" or ".tif" or ".tiff" or ".webp" or ".png"
+            or ".heic" or ".heif" or ".avif" or ".gif" or ".bmp" or ".ico" or ".psd"
+            or ".cr2" or ".cr3" or ".nef" or ".arw" or ".dng" or ".orf" or ".rw2" or ".raf"
+            or ".mp4" or ".mov" or ".avi"))
             return;
 
         var directories = ImageMetadataReader.ReadMetadata(filePath);
@@ -110,9 +125,40 @@ public static class MediaTagMetadataService
         if (gps != null)
         {
             var loc = gps.GetGeoLocation();
-            if (loc != null && !loc.IsZero)
-                SetIfEmpty(meta, "GPS", $"{loc.Latitude:0.#####}, {loc.Longitude:0.#####}");
+            if (loc is { } geo)
+            {
+                var text = geo.ToString();
+                if (!string.IsNullOrWhiteSpace(text) && !text.Equals("0° 0'", StringComparison.Ordinal))
+                    SetIfEmpty(meta, "GPS", text);
+            }
         }
+
+        // IPTC / XMP captions when Property System left them empty.
+        try
+        {
+            foreach (var dir in directories)
+            {
+                var typeName = dir.GetType().Name;
+                if (typeName.Contains("Iptc", StringComparison.OrdinalIgnoreCase)
+                    || typeName.Contains("Xmp", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var tag in dir.Tags)
+                    {
+                        if (string.IsNullOrWhiteSpace(tag.Description)) continue;
+                        var name = tag.Name ?? "";
+                        if (name.Contains("Caption", StringComparison.OrdinalIgnoreCase)
+                            || name.Contains("Description", StringComparison.OrdinalIgnoreCase)
+                            || name.Contains("Title", StringComparison.OrdinalIgnoreCase)
+                            || name.Contains("Keywords", StringComparison.OrdinalIgnoreCase)
+                            || name.Contains("Subject", StringComparison.OrdinalIgnoreCase))
+                        {
+                            SetIfEmpty(meta, name, tag.Description);
+                        }
+                    }
+                }
+            }
+        }
+        catch { /* best-effort */ }
     }
 
     private static void SetIfEmpty(Dictionary<string, string> meta, string key, string? value)

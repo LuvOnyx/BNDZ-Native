@@ -10,6 +10,8 @@
 - When restoring missing features, use specified backup builds (e.g. BNDZ 3.2 for settings menu, BNDZ 3.6 for plugin marketplace).
 - Preserve listview interaction fixes (drag, virtualized marquee, Ctrl+marquee) when reverting other work.
 - Clone upstream repos and rename/rebrand concepts to BNDZ product language for end users.
+- **Project rule (always apply):** `.cursor/rules/bndz-implementation-rule.mdc` — native host + META upgrades + #1-app quality on every implementation.
+- **Mandatory after every implementation:** fresh `npm run build` **and** `dotnet build BNDZBackend/BNDZ.csproj -c Debug` before asking the user to test (WebView2 serves built assets).
 
 ## Learned Workspace Facts
 
@@ -19,3 +21,4 @@
 - `package:installer:rust` expects pre-staged binaries; `package:installer:rust:source` is the full compile path.
 - List interaction logic primarily in `src/components/BNDZUI.tsx` and `src/lib/dragController.ts`.
 - Frontend IPC bridge at `src/lib/ipcBridge.ts`.
+- META upgrades: deepen NuGet-backed host services into list/preview/search/metadata surfaces; see `.cursor/rules/bndz-implementation-rule.mdc`.

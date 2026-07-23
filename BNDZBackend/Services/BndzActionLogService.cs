@@ -407,12 +407,17 @@ public sealed class BndzActionLogService
     public static ActionLogEntry ForMove(IReadOnlyList<string> sources, IReadOnlyList<string> targets, string? label = null)
     {
         var name = sources.FirstOrDefault() is { } s ? Path.GetFileName(s) : "item";
+        var destHint = DestinationHint(targets);
+        var isRename = sources.Count == 1 && targets.Count == 1 &&
+                       string.Equals(Path.GetDirectoryName(sources[0]), Path.GetDirectoryName(targets[0]), StringComparison.OrdinalIgnoreCase);
         return new ActionLogEntry
         {
-            Kind = sources.Count == 1 && targets.Count == 1 &&
-                   string.Equals(Path.GetDirectoryName(sources[0]), Path.GetDirectoryName(targets[0]), StringComparison.OrdinalIgnoreCase)
-                ? ActionKind.Rename : ActionKind.Move,
-            Label = label ?? $"Move {name}",
+            Kind = isRename ? ActionKind.Rename : ActionKind.Move,
+            Label = label ?? (isRename
+                ? $"Rename {name}"
+                : sources.Count == 1
+                    ? $"Move {name} → {destHint}"
+                    : $"Move {sources.Count} item(s) → {destHint}"),
             SourcePaths = sources.ToList(),
             TargetPaths = targets.ToList(),
         };
@@ -428,13 +433,30 @@ public sealed class BndzActionLogService
         };
 
     public static ActionLogEntry ForCopy(IReadOnlyList<string> sources, IReadOnlyList<string> createdPaths)
-        => new()
+    {
+        var destHint = DestinationHint(createdPaths);
+        return new()
         {
             Kind = ActionKind.Copy,
-            Label = $"Copy {sources.Count} item(s)",
+            Label = sources.Count == 1
+                ? $"Copy {Path.GetFileName(sources[0])} → {destHint}"
+                : $"Copy {sources.Count} item(s) → {destHint}",
             SourcePaths = sources.ToList(),
             TargetPaths = createdPaths.ToList(),
         };
+    }
+
+    private static string DestinationHint(IReadOnlyList<string> targets)
+    {
+        if (targets == null || targets.Count == 0) return "(unknown destination)";
+        var first = targets[0];
+        var dir = Directory.Exists(first) ? first : Path.GetDirectoryName(first);
+        if (string.IsNullOrWhiteSpace(dir)) return first;
+        // Prefer a short folder name; keep drive roots readable.
+        var trimmed = dir.TrimEnd('\\', '/');
+        if (trimmed.Length <= 3) return trimmed + (trimmed.EndsWith(':') ? "\\" : "");
+        return Path.GetFileName(trimmed) is { Length: > 0 } name ? name : trimmed;
+    }
 
     public static ActionLogEntry ForDelete(IReadOnlyList<string> paths, bool recycleBin)
         => new()
@@ -586,15 +608,27 @@ public sealed class ActionLogEntryDto
     public string Label { get; set; } = "";
     public string Utc { get; set; } = "";
     public bool CanUndo { get; set; }
+    public List<string> SourcePaths { get; set; } = new();
+    public List<string> TargetPaths { get; set; } = new();
+    public string? Destination { get; set; }
 
-    public static ActionLogEntryDto From(ActionLogEntry e) => new()
+    public static ActionLogEntryDto From(ActionLogEntry e)
     {
-        Id = e.Id,
-        Kind = e.Kind.ToString(),
-        Label = e.Label,
-        Utc = e.Utc.ToString("O"),
-        CanUndo = e.Kind is not ActionKind.Delete || e.UsedRecycleBin,
-    };
+        var dest = e.TargetPaths.FirstOrDefault();
+        if (!string.IsNullOrEmpty(dest) && !Directory.Exists(dest))
+            dest = Path.GetDirectoryName(dest);
+        return new()
+        {
+            Id = e.Id,
+            Kind = e.Kind.ToString(),
+            Label = e.Label,
+            Utc = e.Utc.ToString("O"),
+            CanUndo = e.Kind is not ActionKind.Delete || e.UsedRecycleBin,
+            SourcePaths = e.SourcePaths?.ToList() ?? new List<string>(),
+            TargetPaths = e.TargetPaths?.ToList() ?? new List<string>(),
+            Destination = dest,
+        };
+    }
 }
 
 public sealed class ActionLogResult

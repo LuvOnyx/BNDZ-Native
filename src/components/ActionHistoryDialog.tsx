@@ -12,6 +12,9 @@ export type HistoryEntry = {
   label: string;
   utc: string;
   canUndo: boolean;
+  destination?: string | null;
+  sourcePaths?: string[];
+  targetPaths?: string[];
 };
 
 type Props = {
@@ -193,6 +196,11 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] text-gray-100 font-medium truncate">{entry.label}</div>
+                  {entry.destination && (
+                    <div className="text-[10px] text-gray-500 truncate mt-0.5" title={entry.destination}>
+                      → {entry.destination}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
                     <span
                       className="uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border"

@@ -154,12 +154,12 @@ function SortablePaneTab({
       style={style}
       data-tab-id={tab.id}
       data-tab-index={index}
-      className={`relative bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t-[6px] z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-[background,border-color,color,box-shadow] duration-75 ease-out ${
+      className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[6px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow] duration-75 ease-out ${
         flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'
       } ${isActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${
         makeSelectedTabBold && isActive ? 'font-bold' : 'font-semibold'
       } ${isDragging ? 'opacity-60 bndz-tab-item--dragging' : ''} ${
-        isFileDropHover ? 'ring-2 ring-[#38bdf8]/70 bg-[#094771]/30' : ''
+        isFileDropHover ? 'ring-2 ring-[#38bdf8]/70 bg-[#094771]/30 shadow-[inset_0_-2px_0_#38bdf8]' : ''
       } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''}`}
       {...attributes}
       {...listeners}
@@ -210,7 +210,8 @@ function SortablePaneTab({
       {showXClose && (
         <span
           data-tab-close
-          className="ml-2 opacity-70 hover:opacity-100 cursor-pointer"
+          className="bndz-tab-close ml-2"
+          title="Close tab"
           onPointerDown={e => e.stopPropagation()}
           onClick={e => {
             e.stopPropagation();
@@ -284,9 +285,11 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
 
   return (
     <div
-      className={`bndz-chrome-tabstrip flex pt-1 px-1 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''}`}
+      data-tabstrip
+      data-pane-id={paneId}
+      className={`bndz-chrome-tabstrip flex pt-1 px-1 pb-0.5 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''}`}
       style={{
-        minHeight: tabBarHeight || 28,
+        minHeight: Math.max(tabBarHeight || 28, 32),
         background: 'var(--bndz-surface-chrome)',
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',
@@ -360,7 +363,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
 
       {showNewTabButton !== false && (
         <div
-          className={`ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400 font-bold transition-colors ${
+          className={`ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-default text-gray-400 font-bold transition-colors ${
             newTabDropActive ? 'ring-1 ring-inset ring-[#38bdf8]/60 bg-[#333]' : ''
           }`}
           data-new-tab-zone={paneId}
@@ -388,7 +391,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
         </div>
       )}
       {showTabListButton && (
-        <div className="ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400">
+        <div className="ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-default text-gray-400">
           <Icons8Icon id="layers_ui" size={12} />
         </div>
       )}

@@ -47,13 +47,19 @@ public static class SkiaThumbnailService
             var tw = Math.Max(1, (int)Math.Round(original.Width * scale));
             var th = Math.Max(1, (int)Math.Round(original.Height * scale));
 
-            using var resized = original.Resize(new SKImageInfo(tw, th), SKFilterQuality.Medium);
+            using var resized = original.Resize(
+                new SKImageInfo(tw, th),
+                new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
             if (resized == null) return "";
 
             using var image = SKImage.FromBitmap(resized);
             using var data = image.Encode(SKEncodedImageFormat.Png, 90);
             if (data == null) return "";
-            return Convert.ToBase64String(data.ToArray());
+            using var ms = BndzHostCaches.Streams.GetStream("skia-thumb");
+            data.SaveTo(ms);
+            if (ms.TryGetBuffer(out var segment) && segment.Array != null)
+                return Convert.ToBase64String(segment.Array, segment.Offset, segment.Count);
+            return Convert.ToBase64String(ms.ToArray());
         }
         catch (Exception ex)
         {

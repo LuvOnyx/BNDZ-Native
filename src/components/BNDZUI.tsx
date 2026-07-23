@@ -39,6 +39,8 @@ import {
   hitTestTabAtPoint,
   beginFileDragSession,
   endFileDragSession,
+  stashOleDragSession,
+  consumeOleDragSession,
   getFileDragSession,
   resolveFileDropDestination,
   isInternalFileDragChromeAtPoint,
@@ -869,10 +871,31 @@ export default function BNDZUI() {
 
   const exitBottomImmersive = React.useCallback(() => {
     if (!bottomImmersive) return;
+    const docked = Math.min(
+      MAX_BOTTOM_DOCKED - 4,
+      Math.max(DEFAULT_INNER_LAYOUT.bottom!, lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom!),
+    );
     motionPanelImmersiveExit(immersiveShellRef.current, () => {
+      // Clear leftover motion transforms — translated abspos hosts can inflate
+      // ancestor scrollable overflow and spawn a bogus workspace scrollbar.
+      const host = immersiveShellRef.current;
+      if (host) {
+        host.style.transform = '';
+        host.style.opacity = '';
+        host.style.removeProperty('translate');
+        host.style.removeProperty('scale');
+      }
       setBottomImmersive(false);
+      requestAnimationFrame(() => {
+        try {
+          innerGroupRef.current?.setLayout({
+            main: 100 - docked,
+            bottom: docked,
+          });
+        } catch { /* ignore */ }
+      });
     });
-  }, [bottomImmersive]);
+  }, [bottomImmersive, innerGroupRef]);
 
   useEffect(() => {
     if (!bottomImmersive) return;
@@ -3435,16 +3458,15 @@ export default function BNDZUI() {
   ) => {
     void (async () => {
       const rt = buildSettingsRuntime(config);
-      if (rt.shell.confirmMove) {
+      if (rt.shell.confirmMove && op === 'move') {
         const labelPreview = sourcePaths.length === 1
           ? (sourcePaths[0].split(/[/\\]/).pop() || 'item')
           : `${sourcePaths.length} items`;
-        const verb = op === 'copy' ? 'Copy' : 'Move';
         const approved = await confirm({
-          title: `${verb} ${sourcePaths.length === 1 ? 'Item' : 'Items'}`,
-          message: `${verb} ${labelPreview} to ${destWin}?`,
+          title: `Move ${sourcePaths.length === 1 ? 'Item' : 'Items'}`,
+          message: `Move ${labelPreview} to ${destWin}?`,
           type: 'warning',
-          confirmLabel: verb,
+          confirmLabel: 'Move',
         });
         if (!approved) return;
       }
@@ -4175,8 +4197,9 @@ export default function BNDZUI() {
     }
   };
 
-  /** Pointer-drag: switch tab immediately so the target list is live under the cursor. */
+  /** Pointer-drag: switch tab as soon as the cursor is over it (Ctrl+drag copy included). */
   const activateTabForFileDragImmediate = React.useCallback((paneId: string, tabIndex: number) => {
+    if (config.autoSelectTabsOnDragOver === false) return;
     const sourcePaneId = getFileDragSession()?.sourcePaneId ?? activePaneIdRef.current;
     const activeId = activePaneIdRef.current;
     if (
@@ -4185,9 +4208,16 @@ export default function BNDZUI() {
       && paneId !== activeId
     ) return;
     const targetPane = panesRef.current.find(p => p.id === paneId);
-    if (targetPane?.tabs[tabIndex]?.locked) return;
+    if (!targetPane || tabIndex < 0 || tabIndex >= targetPane.tabs.length) return;
+    if (targetPane.tabs[tabIndex]?.locked) return;
     const prev = tabFileDragHoverRef.current;
-    if (prev?.paneId === paneId && prev?.tabIndex === tabIndex) return;
+    const alreadyActive =
+      (paneId === activeId || paneId === sourcePaneId)
+      && (panesRef.current.find(p => p.id === paneId)?.activeTabIndex === tabIndex);
+    if (prev?.paneId === paneId && prev?.tabIndex === tabIndex && alreadyActive) {
+      setTabFileDropTarget({ paneId, tabIndex });
+      return;
+    }
     clearTabFileDragTimer();
     tabFileDragHoverRef.current = { paneId, tabIndex };
     flushSync(() => {
@@ -4195,14 +4225,14 @@ export default function BNDZUI() {
       setActivePaneId(paneId);
       setPanes(prevPanes => prevPanes.map(p => p.id === paneId ? { ...p, activeTabIndex: tabIndex } : p));
     });
-    const targetPath = targetPane?.tabs[tabIndex]?.path;
+    const targetPath = targetPane.tabs[tabIndex]?.path;
     if (targetPath) {
       const norm = normalizePanePath(targetPath);
       if (pathContentsCacheRef.current[norm] === undefined) {
         void refetchPath(norm);
       }
     }
-  }, [config.alsoAutoSelectTabsInTheInactivePane, refetchPath]);
+  }, [config.alsoAutoSelectTabsInTheInactivePane, config.autoSelectTabsOnDragOver, refetchPath]);
 
   /** HTML5 drag-over tabs: delayed switch (Explorer-style). */
   const scheduleTabSwitchOnFileDrag = (paneId: string, tabIndex: number) => {
@@ -4380,8 +4410,16 @@ export default function BNDZUI() {
       }
 
       const destWin = toWindowsPath(destPath);
-      // External drops always copy into the manager (Explorer-like).
-      executeInternalDropRef.current('copy', paths.map(p => toWindowsPath(p)), destWin);
+      // Only honor OLE session for BNDZ-originated re-entry. Stale stash must never
+      // turn Explorer/desktop drops into moves (or steal op from preferredEffect).
+      const fromBndzOle = !!detail.fromBndzOle;
+      const oleSession = fromBndzOle ? consumeOleDragSession() : null;
+      if (!fromBndzOle) consumeOleDragSession(); // discard stale stash
+      const preferred = String(detail.preferredEffect || '').toLowerCase();
+      let op: 'copy' | 'move' = 'copy';
+      if (oleSession?.op === 'move' || oleSession?.op === 'copy') op = oleSession.op;
+      else if (preferred === 'move') op = 'move';
+      executeInternalDropRef.current(op, paths.map(p => toWindowsPath(p)), destWin, oleSession?.sourceTabPath);
     };
     window.addEventListener('bndz-external-drop', onExternalDrop);
     return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
@@ -5776,7 +5814,7 @@ export default function BNDZUI() {
       <div 
         key={pane.id}
         data-pane-id={pane.id}
-        className={`flex-1 flex flex-col min-w-0 ${config.applyColors ? '' : 'bg-[#1c1c1c]'} ${isActive && isDualPane ? 'shadow-[inset_0_0_0_1px_rgba(59,130,246,0.6)] z-10' : ''} relative`}
+        className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden ${config.applyColors ? '' : 'bg-[#1c1c1c]'} ${isActive && isDualPane ? 'shadow-[inset_0_0_0_1px_rgba(59,130,246,0.6)] z-10' : ''} relative`}
         style={config.applyColors ? { backgroundColor: 'var(--list-bg)', color: 'var(--list-text)' } : {}}
         onClick={() => { setActivePaneId(pane.id); }}
         onDragOver={handleDragOver}
@@ -6202,7 +6240,7 @@ export default function BNDZUI() {
            data-pane-id={pane.id}
            data-list-body
            tabIndex={-1}
-           className={`flex-1 overflow-y-auto focus:outline-none relative bndz-scrollbar bndz-file-list-scroll cursor-default ${
+           className={`flex-1 min-h-0 overflow-y-auto focus:outline-none relative bndz-scrollbar bndz-file-list-scroll cursor-default ${
              listGroupBy !== 'none' && computedViewMode === 'details' ? 'px-1 pb-1 pt-0' : 'p-1'
            }`}
            style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
@@ -6337,12 +6375,15 @@ export default function BNDZUI() {
 
               const syncDragModifiers = (e: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }) => {
                 const copy = isCopyDragModifier(e);
-                if (listGestureRef.current?.mode === 'drag') {
-                  listGestureRef.current.copyDrag = copy;
-                }
                 dropModifierRef.current.copy = copy;
                 if (listGestureRef.current?.mode === 'drag') {
+                  listGestureRef.current.copyDrag = copy;
                   setListDragOperation(copy ? 'copy' : 'move');
+                  const session = getFileDragSession();
+                  if (session && session.op !== (copy ? 'copy' : 'move')) {
+                    beginFileDragSession({ ...session, op: copy ? 'copy' : 'move' });
+                  }
+                  setListDragGhost(g => (g ? { ...g, copy } : g));
                 }
               };
 
@@ -6381,21 +6422,31 @@ export default function BNDZUI() {
                 if (newTabPaneId) {
                   setNewTabDropPaneId(newTabPaneId);
                   setTabFileDropTarget(null);
-                  return;
+                  return true;
                 }
                 setNewTabDropPaneId(null);
                 const tabHit = hitTestTabAtPoint(clientX, clientY);
                 if (!tabHit?.tabId) {
+                  // Leaving the tab strip — clear hover highlight but keep last hover
+                  // destination until another tab is targeted (so list drop still works).
                   setTabFileDropTarget(null);
-                  return;
+                  return false;
                 }
+                let matched = false;
                 for (const p of panesRef.current) {
                   const idx = p.tabs.findIndex(t => t.id === tabHit.tabId);
                   if (idx >= 0) {
                     activateTabForFileDragImmediate(p.id, idx);
+                    matched = true;
                     break;
                   }
                 }
+                // Fallback: attributes from hit-test when id lookup races a remount.
+                if (!matched && tabHit.paneId && tabHit.tabIndex >= 0) {
+                  activateTabForFileDragImmediate(tabHit.paneId, tabHit.tabIndex);
+                  matched = true;
+                }
+                return matched;
               };
 
               const resolveBreadcrumbHoverAtPoint = (clientX: number, clientY: number): string | null => {
@@ -6514,7 +6565,10 @@ export default function BNDZUI() {
                     updateListDragGhost({ clientX: x, clientY: y } as PointerEvent);
                   });
                   bindKeyModifiers();
-                  try { listEl.setPointerCapture(capturePointerId); } catch { /* ignore */ }
+                  // Capture on the stable pane root so switching tabs mid-drag does not
+                  // drop pointer capture when the list body reflows.
+                  const captureHost = (listEl.closest('[data-pane-id]') as HTMLElement | null) || listEl;
+                  try { captureHost.setPointerCapture(capturePointerId); } catch { /* ignore */ }
                 }
 
                 if (listGestureRef.current.mode === 'drag') {
@@ -6548,6 +6602,7 @@ export default function BNDZUI() {
                         oleDragStarted = true;
                         nativeOleDragRef.current = true;
                         internalDragRef.current = false;
+                        stashOleDragSession(getFileDragSession());
                         setListDragOperation(null);
                         setListDragGhost(null);
                         unbindKeyModifiers();
@@ -6697,6 +6752,7 @@ export default function BNDZUI() {
                 setTabFileDropTarget(null);
                 setNewTabDropPaneId(null);
                 clearTabFileDragTimer();
+                // Clears active session only — pending OLE stash survives for EXTERNAL_FILES_DROPPED.
                 endFileDragSession();
               };
 
@@ -7472,7 +7528,7 @@ export default function BNDZUI() {
         onDoubleClick={() => import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize'))}
       >
          <div className="flex items-center gap-2 pl-3 pr-3 border-r border-[#444] shrink-0">
-            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-10 h-10 object-contain drop-shadow-md" draggable={false} />
+            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-9 h-9 rounded-[7px] object-cover object-center drop-shadow-md shrink-0" draggable={false} />
             <span className="text-[12px] font-bold tracking-widest text-gray-200 uppercase hidden sm:inline">BNDZ</span>
          </div>
          <div
@@ -9138,14 +9194,15 @@ export default function BNDZUI() {
               data-tutorial="workspace"
               defaultSize={panelPct(outerDefaultLayout.workspace!)}
               minSize={panelPct(35)}
-              className="bndz-chrome-workspace bndz-gpu-layer min-h-0"
+              className="bndz-chrome-workspace bndz-gpu-layer min-h-0 overflow-hidden"
             >
-               <div className="relative h-full w-full min-h-0">
+               <div className="relative h-full w-full min-h-0 overflow-hidden flex flex-col">
                <ResizablePanelGroup
                    key={`workspace-inner-v${config.workspaceLayoutVersion ?? WORKSPACE_LAYOUT_VERSION}`}
                    id="workspace-inner"
                    groupRef={innerGroupRef}
                    direction="vertical"
+                   className="flex-1 min-h-0"
                    defaultLayout={innerDefaultLayout}
                    onLayout={(layout) => {
                      const bottom = Number((layout as Record<string, number>).bottom ?? 0);
@@ -9156,8 +9213,13 @@ export default function BNDZUI() {
                    onLayoutChanged={saveInnerLayout}
                >
                   {/* Main File Grid */}
-                  <ResizablePanel id="main" defaultSize={panelPct(innerDefaultLayout.main!)} minSize={panelPct(20)}>
-                     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#202020] relative">
+                  <ResizablePanel
+                    id="main"
+                    defaultSize={panelPct(innerDefaultLayout.main!)}
+                    minSize={panelPct(20)}
+                    className="min-h-0 overflow-hidden"
+                  >
+                     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-[#202020] relative">
                         {isSyncMode && (
                            <div className="w-full bg-[#36274c] border-b border-[#5e4186] px-4 py-2 flex items-center justify-between shrink-0 z-30 shadow-md">
                                <div className="flex items-center gap-3">
@@ -9238,7 +9300,7 @@ export default function BNDZUI() {
                      maxSize={panelPct(MAX_BOTTOM_DOCKED)}
                      collapsible
                      collapsedSize={0}
-                     className={`bndz-chrome-bottom border-t border-[#282830] flex min-h-0 z-30 ${
+                     className={`bndz-chrome-bottom border-t border-[#282830] flex min-h-0 overflow-hidden z-30 ${
                        bottomImmersive ? 'bndz-chrome-bottom--immersive-dock' : ''
                      }`}
                   >

@@ -334,14 +334,14 @@ internal static class ShellContextMenuEnumerator
         var buf = Marshal.AllocHGlobal(512);
         try
         {
-            var hr = cm.GetCommandString((IntPtr)offset, GCS.GCS_VERBW, default, buf, 256);
+            var hr = cm.GetCommandString((nuint)offset, GCS.GCS_VERBW, default, buf, 256);
             if (hr.Succeeded)
             {
                 var v = Marshal.PtrToStringUni(buf)?.Trim();
                 if (!string.IsNullOrEmpty(v)) return v;
             }
 
-            hr = cm.GetCommandString((IntPtr)offset, GCS.GCS_VERBA, default, buf, 256);
+            hr = cm.GetCommandString((nuint)offset, GCS.GCS_VERBA, default, buf, 256);
             if (hr.Succeeded)
             {
                 var v = Marshal.PtrToStringAnsi(buf)?.Trim();

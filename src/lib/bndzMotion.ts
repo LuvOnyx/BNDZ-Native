@@ -92,7 +92,13 @@ export function motionPanelImmersiveExit(
     scale: [1, 0.99],
     duration: MOTION.normal,
     ease: MOTION.easeIn,
-    onComplete,
+    onComplete: () => {
+      el.style.transform = '';
+      el.style.opacity = '';
+      el.style.removeProperty('translate');
+      el.style.removeProperty('scale');
+      onComplete?.();
+    },
   });
 }
 

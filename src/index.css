@@ -752,6 +752,15 @@ html.theme-light .nav-tree-row:hover {
   overflow: visible;
 }
 
+/**
+ * react-resizable-panels v4 hardcodes overflow:auto on each panel's inner
+ * wrapper (and documents that Group overflow can't be overridden via style).
+ * Force clip so the workspace panel never scrolls list + bottom plugin as one.
+ */
+.bndz-resizable-panel {
+  overflow: hidden !important;
+}
+
 /* GPU promotion for static chrome only — avoid will-change/contain on scroll surfaces (breaks HTML5 drag in WebView2). */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
@@ -1850,12 +1859,22 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
+  overflow: hidden;
+  contain: strict;
 }
 
 .bndz-bottom-immersive-host.is-open {
   pointer-events: auto;
   opacity: 1;
   visibility: visible;
+  contain: layout style;
+}
+
+/* Kill motion leftovers when restored — prevents phantom workspace scrollbars */
+.bndz-bottom-immersive-host:not(.is-open) {
+  transform: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 .bndz-bottom-immersive-shell {
@@ -2793,6 +2812,47 @@ html[data-density="spacious"] .nav-tree-row {
   transition: background 0.08s ease, border-color 0.08s ease, color 0.08s ease, box-shadow 0.1s ease !important;
   user-select: none;
   touch-action: pan-x;
+  cursor: default;
+}
+
+.bndz-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 4px;
+  color: rgba(203, 213, 225, 0.55);
+  cursor: default;
+  flex-shrink: 0;
+  transition: color 0.1s ease, background 0.1s ease, box-shadow 0.1s ease, opacity 0.1s ease;
+}
+
+.bndz-tab-close:hover {
+  color: #ff4d6d;
+  background: rgba(255, 45, 85, 0.16);
+  box-shadow:
+    0 0 0 1px rgba(255, 45, 85, 0.35),
+    0 0 10px rgba(255, 45, 85, 0.45);
+}
+
+.bndz-tab-close:active {
+  color: #fff;
+  background: rgba(255, 45, 85, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(255, 77, 109, 0.7),
+    0 0 14px rgba(255, 45, 85, 0.7),
+    inset 0 0 6px rgba(255, 255, 255, 0.12);
+}
+
+.bndz-chrome-tabstrip .cursor-pointer {
+  cursor: default;
+}
+
+.bndz-bottom-tab,
+.bndz-bottom-tabstrip button {
+  cursor: default;
 }
 
 .bndz-chrome-tabstrip {
@@ -3472,7 +3532,9 @@ html[data-theme] .bndz-destination-picker-footer {
 .bndz-register-brand-mark {
   width: 40px;
   height: 40px;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 8px;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
 }
 

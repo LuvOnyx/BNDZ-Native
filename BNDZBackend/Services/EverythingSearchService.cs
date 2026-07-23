@@ -431,8 +431,20 @@ public class EverythingSearchService
         try
         {
             var prop = item.GetType().GetProperty("path");
-            return prop?.GetValue(item) as string;
+            var raw = prop?.GetValue(item) as string;
+            return NormalizeSearchPathKey(raw);
         }
         catch { return null; }
+    }
+
+    /// <summary>Unify pane (/C:/...) and Win32 (C:\...) paths for HashSet dedupe.</summary>
+    private static string? NormalizeSearchPathKey(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var p = path.Trim().Replace('\\', '/');
+        if (p.StartsWith('/')) p = p.TrimStart('/');
+        if (p.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            p = p["file:".Length..].TrimStart('/');
+        return string.IsNullOrEmpty(p) ? null : p;
     }
 }

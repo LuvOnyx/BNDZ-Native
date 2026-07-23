@@ -27,6 +27,14 @@ export const DEFAULT_CUSTOM_COLUMNS: CustomColumnDef[] = [
   { id: 'bit_depth', label: 'Bit Depth', propertyKey: 'Bit Depth', pattern: '{Media}', enabled: false, widthPx: 80 },
   { id: 'bit_rate', label: 'Bit Rate', propertyKey: 'Audio Bitrate', pattern: '{Media}', enabled: false, widthPx: 90 },
   { id: 'channels', label: 'Channels', propertyKey: 'Channels', pattern: '{Media}', enabled: false, widthPx: 80 },
+  { id: 'title', label: 'Title', propertyKey: 'Title', pattern: '{Media}', enabled: false, widthPx: 160 },
+  { id: 'album', label: 'Album', propertyKey: 'Album', pattern: '{Media}', enabled: false, widthPx: 140 },
+  { id: 'artists', label: 'Artists', propertyKey: 'Artists', pattern: '{Media}', enabled: false, widthPx: 140 },
+  { id: 'genre', label: 'Genre', propertyKey: 'Genre', pattern: '{Media}', enabled: false, widthPx: 100 },
+  { id: 'year', label: 'Year', propertyKey: 'Year', pattern: '{Media}', enabled: false, widthPx: 64 },
+  { id: 'track', label: 'Track', propertyKey: 'Track', pattern: '{Media}', enabled: false, widthPx: 64 },
+  { id: 'gps', label: 'GPS', propertyKey: 'GPS', pattern: '{Photo}', enabled: false, widthPx: 140 },
+  { id: 'lens_model', label: 'Lens Model', propertyKey: 'Lens Model', pattern: '{Photo}', enabled: false, widthPx: 140 },
   { id: 'focal_length', label: 'Focal Length', propertyKey: 'Focal Length', pattern: '{Photo}', enabled: false, widthPx: 100 },
   { id: 'iso_speed', label: 'ISO Speed', propertyKey: 'ISO Speed', pattern: '{Photo}', enabled: false, widthPx: 80 },
   { id: 'version', label: 'Version', propertyKey: 'File Version', pattern: 'exe;dll', enabled: false, widthPx: 100 },
@@ -115,6 +123,7 @@ export function moveCustomColumnRow(rows: CustomColumnDef[], index: number, dire
 
 export const CUSTOM_COLUMN_PROPERTY_OPTIONS = [
   'Dimensions', 'Aspect Ratio', 'Date Taken', 'Camera Model', 'F-Stop', 'Exposure Time',
-  'Focal Length', 'ISO Speed', 'Duration', 'Sample Rate', 'Bit Depth', 'Audio Bitrate',
-  'Channels', 'File Version', 'Authors', 'Owner', 'ACL Rule', 'md5',
+  'Focal Length', 'ISO Speed', 'Lens Model', 'GPS', 'Duration', 'Sample Rate', 'Bit Depth',
+  'Audio Bitrate', 'Channels', 'Title', 'Album', 'Artists', 'Genre', 'Year', 'Track',
+  'File Version', 'Authors', 'Owner', 'ACL Rule', 'md5',
 ] as const;

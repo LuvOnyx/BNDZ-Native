@@ -28,6 +28,9 @@ type LogEntry = {
   label: string;
   utc: string;
   canUndo: boolean;
+  destination?: string | null;
+  sourcePaths?: string[];
+  targetPaths?: string[];
 };
 
 const KIND_STYLES: Record<string, { label: string; className: string }> = {
@@ -264,6 +267,11 @@ export default function ActionLogPlugin() {
 
                       <div className="flex-1 min-w-0">
                         <div className="truncate text-slate-100 font-medium leading-snug">{entry.label}</div>
+                        {entry.destination && (
+                          <div className="truncate text-[10px] text-slate-500 mt-0.5" title={entry.destination}>
+                            → {entry.destination}
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {entry.canUndo && (
                             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300/80 border border-emerald-500/25 bg-emerald-500/10 rounded px-1.5 py-0.5">

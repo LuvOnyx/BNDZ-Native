@@ -30,10 +30,14 @@ public sealed class SystemTrayService : IDisposable
                 icon = new Icon(icoPath);
             else
             {
-                var light = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "BNDZ-light.png");
-                var dark = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "BNDZ-dark.png");
-                var png = File.Exists(light) ? light : dark;
-                if (File.Exists(png))
+                var assets = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
+                string? png = null;
+                foreach (var name in new[] { "BNDZ-light.png", "BNDZ-dark.png" })
+                {
+                    var candidate = Path.Combine(assets, name);
+                    if (File.Exists(candidate)) { png = candidate; break; }
+                }
+                if (png != null)
                     icon = Icon.FromHandle(((Bitmap)Image.FromFile(png)).GetHicon());
             }
 

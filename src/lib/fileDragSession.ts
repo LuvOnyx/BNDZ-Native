@@ -6,17 +6,39 @@
 export type TabHoverTarget = { paneId: string; tabIndex: number; tabId: string };
 export type ListFolderTarget = { id: string; type?: string; name?: string };
 
-/** Hit-test a tab strip row at screen coordinates. */
+/** Hit-test a tab strip row at screen coordinates (tolerant of small gaps / icon-only hits). */
 export function hitTestTabAtPoint(clientX: number, clientY: number): TabHoverTarget | null {
-  const hit = document.elementFromPoint(clientX, clientY);
-  const tabEl = hit?.closest('[data-tab-id]') as HTMLElement | null;
-  const tabId = tabEl?.getAttribute('data-tab-id');
-  if (!tabId) return null;
-  const paneEl = tabEl?.closest('[data-pane-id]') as HTMLElement | null;
-  const paneId = paneEl?.getAttribute('data-pane-id') || '';
-  const tabIndex = parseInt(tabEl?.getAttribute('data-tab-index') || '-1', 10);
-  if (!paneId || tabIndex < 0) return { paneId: '', tabIndex: 0, tabId };
-  return { paneId, tabIndex, tabId };
+  const probes: Array<[number, number]> = [
+    [clientX, clientY],
+    [clientX, clientY - 6],
+    [clientX, clientY + 6],
+    [clientX - 8, clientY],
+    [clientX + 8, clientY],
+  ];
+
+  const resolveFromEl = (hit: Element | null): TabHoverTarget | null => {
+    if (!hit) return null;
+    const tabEl = hit.closest('[data-tab-id]') as HTMLElement | null;
+    const tabId = tabEl?.getAttribute('data-tab-id');
+    if (!tabId) return null;
+    const paneEl = tabEl?.closest('[data-pane-id]') as HTMLElement | null;
+    const paneId = paneEl?.getAttribute('data-pane-id') || '';
+    const tabIndex = parseInt(tabEl?.getAttribute('data-tab-index') || '-1', 10);
+    if (!paneId || tabIndex < 0) return { paneId: '', tabIndex: 0, tabId };
+    return { paneId, tabIndex, tabId };
+  };
+
+  for (const [x, y] of probes) {
+    // Prefer deep stack so overlays / icons don't hide the tab chrome.
+    const stack = typeof document.elementsFromPoint === 'function'
+      ? document.elementsFromPoint(x, y)
+      : [document.elementFromPoint(x, y)].filter(Boolean) as Element[];
+    for (const el of stack) {
+      const hit = resolveFromEl(el);
+      if (hit) return hit;
+    }
+  }
+  return null;
 }
 
 /** Hit-test the "+" new-tab drop zone. Returns pane id or null. */
@@ -63,17 +85,42 @@ export type FileDragSessionState = {
 };
 
 let activeSession: FileDragSessionState | null = null;
+/** Survives pointer-up while native OLE DoDragDrop runs, so drop-back keeps move intent. */
+let pendingOleSession: FileDragSessionState | null = null;
 
 export function beginFileDragSession(state: FileDragSessionState) {
   activeSession = state;
+  pendingOleSession = null;
 }
 
 export function getFileDragSession(): FileDragSessionState | null {
-  return activeSession;
+  return activeSession ?? pendingOleSession;
 }
 
 export function endFileDragSession() {
   activeSession = null;
+  // Keep pendingOleSession — OLE DoDragDrop may still complete after pointer-up.
+}
+
+/** Call when escalating an in-app drag to native OLE so move/copy intent survives the drop. */
+export function stashOleDragSession(state?: FileDragSessionState | null) {
+  const s = state ?? activeSession;
+  const stashed = s ? { ...s, paths: [...s.paths] } : null;
+  pendingOleSession = stashed;
+  if (stashed) {
+    window.setTimeout(() => {
+      // Stale OLE stash must not poison later Explorer→BNDZ drops.
+      if (pendingOleSession === stashed) pendingOleSession = null;
+    }, 60_000);
+  }
+}
+
+/** Read and clear OLE/in-app session for an EXTERNAL_FILES_DROPPED that originated from BNDZ. */
+export function consumeOleDragSession(): FileDragSessionState | null {
+  const s = pendingOleSession ?? activeSession;
+  pendingOleSession = null;
+  activeSession = null;
+  return s;
 }
 
 /** True when the pointer is over in-app chrome that accepts internal file drops (not desktop OLE). */
@@ -83,6 +130,7 @@ export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number
   return !!(
     hit.closest('[data-pane-id]')
     || hit.closest('[data-tab-id]')
+    || hit.closest('[data-tabstrip]')
     || hit.closest('[data-new-tab-zone]')
     || hit.closest('[data-breadcrumb-path]')
     || hit.closest('[data-nav-path]')
@@ -101,7 +149,7 @@ export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number
 }
 
 /** Default tab auto-switch delay (ms) — short hover before switching. */
-export const DEFAULT_TAB_HOVER_DELAY_MS = 200;
+export const DEFAULT_TAB_HOVER_DELAY_MS = 120;
 
 export type PaneTabSnapshot = {
   id: string;

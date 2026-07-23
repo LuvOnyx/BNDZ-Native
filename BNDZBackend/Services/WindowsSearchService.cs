@@ -64,7 +64,7 @@ public sealed class WindowsSearchService
             var catalog = manager.GetCatalog("SystemIndex");
             var helper = catalog.GetQueryHelper();
             helper.QueryMaxResults = limit;
-            helper.QuerySelectColumns = "System.ItemPathDisplay";
+            helper.QuerySelectColumns = "System.ItemPathDisplay, System.Size, System.DateModified";
             helper.QuerySorting = "System.DateModified DESC";
 
             if (!string.IsNullOrWhiteSpace(rootPath))
@@ -100,7 +100,7 @@ public sealed class WindowsSearchService
             ? q.Replace('*', '%').Replace('?', '_')
             : $"%{q}%";
 
-        var sql = $"SELECT TOP {limit} System.ItemPathDisplay FROM SystemIndex WHERE " +
+        var sql = $"SELECT TOP {limit} System.ItemPathDisplay, System.Size, System.DateModified FROM SystemIndex WHERE " +
                   $"(System.FileName LIKE '{like}'";
         if (!q.Contains('%') && !q.Contains('_') && q.Length >= 2)
             sql += $" OR CONTAINS(*,'\"{q.Replace("\"", "")}*\"')";
@@ -133,12 +133,23 @@ public sealed class WindowsSearchService
             var name = Path.GetFileName(path.TrimEnd('\\'));
             var isDir = Directory.Exists(path);
             long size = 0;
-            try { if (!isDir && File.Exists(path)) size = new FileInfo(path).Length; } catch { }
+            try
+            {
+                if (reader.FieldCount > 1 && !reader.IsDBNull(1))
+                    size = Convert.ToInt64(reader[1]);
+            }
+            catch { /* fall through */ }
+            if (size <= 0 && !isDir)
+            {
+                try { if (File.Exists(path)) size = new FileInfo(path).Length; } catch { }
+            }
 
+            // Match Everything / BndzFileIndex pane paths so merge dedupe works.
+            var panePath = "/" + path.Replace('\\', '/');
             results.Add(new
             {
                 name = string.IsNullOrEmpty(name) ? path : name,
-                path,
+                path = panePath,
                 isDirectory = isDir,
                 size,
                 extension = isDir ? "" : Path.GetExtension(path),

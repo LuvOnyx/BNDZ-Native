@@ -30,10 +30,8 @@ namespace BNDZ.Services
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string icoPath = Path.Combine(baseDir, "Assets", "BNDZ.ico");
-                string light = Path.Combine(baseDir, "Assets", "BNDZ-light.png");
-                string dark = Path.Combine(baseDir, "Assets", "BNDZ-dark.png");
-                string png = File.Exists(light) ? light : dark;
-                if (!File.Exists(png)) return;
+                string? png = ResolveBrandPng(baseDir);
+                if (png == null) return;
                 SaveIcoToDisk(png, icoPath);
             }
             catch (Exception ex)
@@ -48,10 +46,8 @@ namespace BNDZ.Services
             try
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string light = Path.Combine(baseDir, "Assets", "BNDZ-light.png");
-                string dark = Path.Combine(baseDir, "Assets", "BNDZ-dark.png");
-                string path = File.Exists(light) ? light : dark;
-                if (!File.Exists(path)) return;
+                string? path = ResolveBrandPng(baseDir);
+                if (path == null) return;
 
                 window.Icon = CreateMultiSizeIcon(path);
             }
@@ -59,6 +55,18 @@ namespace BNDZ.Services
             {
                 Console.WriteLine($"[AppIconService] Failed: {ex.Message}");
             }
+        }
+
+        /// <summary>Prefer the classic light brand PNG, then dark.</summary>
+        private static string? ResolveBrandPng(string baseDir)
+        {
+            var assets = Path.Combine(baseDir, "Assets");
+            foreach (var name in new[] { "BNDZ-light.png", "BNDZ-dark.png" })
+            {
+                var p = Path.Combine(assets, name);
+                if (File.Exists(p)) return p;
+            }
+            return null;
         }
 
         public static ImageSource CreateMultiSizeIcon(string pngPath)
@@ -114,8 +122,10 @@ namespace BNDZ.Services
 
             bool taskbarSlot = w <= 60;
             bool wideBanner = src.Width > src.Height * 1.35f;
+            // Full app icons (square squircle PNGs) already include the plate — don't double-frame.
+            bool finishedAppIcon = Math.Abs(src.Width - src.Height) <= src.Width * 0.08f;
 
-            if (taskbarSlot)
+            if (taskbarSlot && !finishedAppIcon)
             {
                 float pad = w * 0.05f;
                 using var plate = new GraphicsPath();
@@ -129,11 +139,19 @@ namespace BNDZ.Services
                 g.FillPath(bg, plate);
             }
 
-            float scale = taskbarSlot
-                ? Math.Max(w / (float)src.Width, h / (float)src.Height) * (w <= 24 ? 1.42f : w <= 48 ? 1.32f : 1.22f)
-                : wideBanner
-                    ? Math.Min((w * 0.88f) / src.Width, (h * 0.88f) / src.Height)
-                    : Math.Max((w * 0.94f) / src.Width, (h * 0.94f) / src.Height);
+            float scale;
+            if (finishedAppIcon)
+                // Square finished marks still need a slight zoom in small taskbar
+                // slots — contain×0.98 made the glyph look undersized.
+                scale = Math.Min(w / (float)src.Width, h / (float)src.Height) * (taskbarSlot ? (w <= 24 ? 1.18f : 1.10f) : 1f);
+            else if (taskbarSlot)
+                scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * (w <= 24 ? 1.42f : w <= 48 ? 1.32f : 1.22f);
+            else if (wideBanner)
+                // Wide light banner: cover-crop into the square ICO slot so the
+                // folder glyph fills the chrome (same idea as object-cover in UI).
+                scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * (taskbarSlot ? 1.08f : 1f);
+            else
+                scale = Math.Max((w * 0.94f) / src.Width, (h * 0.94f) / src.Height);
 
             float drawW = src.Width * scale;
             float drawH = src.Height * scale;
