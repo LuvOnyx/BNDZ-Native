@@ -50,7 +50,7 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
     <div className="p-1">
       <SettingsTabHeader
         title="Fonts"
-        description="Font pack for List, Tree, Tabs, and the top menu — plus preview, plugins, and status. Overrides inherit from the global UI font."
+        description="BNDZ font pack for List, Tree, Tabs, and the top menu bar — plus preview, plugins, and status. Pick a face per region or inherit the global UI font."
       />
 
       <SettingsSection title="Global UI">

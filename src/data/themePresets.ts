@@ -62,6 +62,7 @@ export function themeSurfaceColor(surface: string): string {
 /** Map a theme preset onto colorConfig keys used by the runtime */
 export function themeToColorConfig(preset: ThemePreset): Record<string, string | boolean> {
   const surface = themeSurfaceColor(preset.surface);
+  const isLight = hexLuminance(preset.bg) > 0.55;
   return {
     theme: preset.name,
     bgMain: preset.bg,
@@ -99,8 +100,7 @@ export function themeToColorConfig(preset: ThemePreset): Record<string, string |
     colorConfig29: surface,
     colorConfig34: preset.accent,
     colorConfig35: preset.accent,
-    colorConfig46: mixHex(preset.bg, '#000000', 0.18),
-    colorConfig47: mixHex(preset.bg, '#000000', 0.14),
+    colorConfig46: mixHex(surface === 'rgba(0,0,0,0)' ? preset.bg : surface, isLight ? '#ffffff' : '#000000', isLight ? 0.04 : 0.12),
     applyColors: true,
   };
 }

@@ -59,7 +59,6 @@ export const COLOR_CONFIG_FIELDS: ColorConfigField[] = [
   { key: 'colorConfig20', label: 'Sidebar / Neon Accent', default: '#007acc', previewText: '#ffffff', section: 'chrome' },
   { key: 'colorConfig21', label: 'Pane Divider', default: '#333333', previewText: '#ffffff', section: 'chrome' },
   { key: 'colorConfig24', label: 'Search Match Highlight', default: '#fbbf24', previewText: '#000000', section: 'chrome' },
-  { key: 'colorConfig47', label: 'Menubar Background', default: '#1e1e1e', previewText: '#e0e0e0', section: 'chrome' },
 
   { key: 'colorConfig25', label: 'Tag Badge Background', default: '#3b82f6', previewText: '#ffffff', section: 'tags' },
   { key: 'colorConfig26', label: 'Tag Badge Text', default: '#ffffff', previewText: '#3b82f6', section: 'tags' },

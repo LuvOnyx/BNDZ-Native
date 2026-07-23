@@ -680,7 +680,6 @@ const COLOR_CSS_MAP: [string, string][] = [
   ['--col-accent-comment', 'colorConfig44'],
   ['--col-accent-path', 'colorConfig45'],
   ['--statusbar-bg', 'colorConfig46'],
-  ['--menubar-bg', 'colorConfig47'],
 ];
 
 /** Map custom colorConfig onto theme chrome variables (sidebar, list, tabs, etc.) */
@@ -688,10 +687,10 @@ const THEME_CHROME_COLOR_MAP: [string, string][] = [
   ['--bg-main', 'colorConfig11'],
   ['--sidebar-bg', 'colorConfig2'],
   ['--text-main', 'colorConfig1'],
-  ['--menubar-bg', 'colorConfig47'],
   ['--toolbar-bg', 'colorConfig4'],
   ['--toolbar-text', 'colorConfig3'],
   ['--statusbar-bg', 'colorConfig46'],
+  ['--status-text', 'colorConfig5'],
   ['--text-muted', 'colorConfig5'],
   ['--list-bg', 'colorConfig11'],
   ['--list-text', 'colorConfig10'],

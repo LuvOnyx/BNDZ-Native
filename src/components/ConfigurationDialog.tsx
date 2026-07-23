@@ -447,14 +447,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   };
 
   const categoryTabActive: Record<string, string> = {
-    General: 'data-[state=active]:bg-[#094771]/35 data-[state=active]:text-[#cce4f7] data-[state=active]:border-[#0078d4]/35',
-    'Colors and Styles': 'data-[state=active]:bg-violet-600/18 data-[state=active]:text-violet-100 data-[state=active]:border-violet-500/35',
-    Information: 'data-[state=active]:bg-emerald-600/18 data-[state=active]:text-emerald-100 data-[state=active]:border-emerald-500/35',
-    'File Operations': 'data-[state=active]:bg-amber-600/18 data-[state=active]:text-amber-100 data-[state=active]:border-amber-500/35',
-    'Find and Filter': 'data-[state=active]:bg-cyan-600/18 data-[state=active]:text-cyan-100 data-[state=active]:border-cyan-500/35',
-    Preview: 'data-[state=active]:bg-pink-600/18 data-[state=active]:text-pink-100 data-[state=active]:border-pink-500/35',
-    'Tabs and Panes': 'data-[state=active]:bg-indigo-600/18 data-[state=active]:text-indigo-100 data-[state=active]:border-indigo-500/35',
-    Other: 'data-[state=active]:bg-slate-600/18 data-[state=active]:text-slate-100 data-[state=active]:border-slate-500/35',
+    General: 'data-active:bg-[#094771]/45 data-active:text-[#cce4f7] data-active:border-[#0078d4]/45 data-active:font-medium',
+    'Colors and Styles': 'data-active:bg-violet-600/25 data-active:text-violet-100 data-active:border-violet-500/45 data-active:font-medium',
+    Information: 'data-active:bg-emerald-600/25 data-active:text-emerald-100 data-active:border-emerald-500/45 data-active:font-medium',
+    'File Operations': 'data-active:bg-amber-600/25 data-active:text-amber-100 data-active:border-amber-500/45 data-active:font-medium',
+    'Find and Filter': 'data-active:bg-cyan-600/25 data-active:text-cyan-100 data-active:border-cyan-500/45 data-active:font-medium',
+    Preview: 'data-active:bg-pink-600/25 data-active:text-pink-100 data-active:border-pink-500/45 data-active:font-medium',
+    'Tabs and Panes': 'data-active:bg-indigo-600/25 data-active:text-indigo-100 data-active:border-indigo-500/45 data-active:font-medium',
+    Other: 'data-active:bg-slate-600/25 data-active:text-slate-100 data-active:border-slate-500/45 data-active:font-medium',
   };
 
   return (
@@ -504,7 +504,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        <TabsTrigger 
                          key={j} 
                          value={item} 
-                         className={`!flex-none !grow-0 !shrink-0 !h-auto !min-h-[26px] !w-full !justify-start !text-left !px-2.5 !py-1.5 !text-[12px] !font-normal !rounded-md !border !border-transparent !whitespace-normal !leading-snug text-[#c8c8c8] hover:bg-white/5 !shadow-none after:!hidden ${categoryTabActive[cat.name] || categoryTabActive.Other}`}
+                         className={`bndz-settings-nav-item !flex-none !grow-0 !shrink-0 !h-auto !min-h-[26px] !w-full !justify-start !text-left !px-2.5 !py-1.5 !pl-3 !text-[12px] !font-normal !rounded-md !border !border-transparent !whitespace-normal !leading-snug text-[#c8c8c8] hover:bg-white/5 !shadow-none after:!hidden ${categoryTabActive[cat.name] || categoryTabActive.Other}`}
                        >
                          {item}
                        </TabsTrigger>

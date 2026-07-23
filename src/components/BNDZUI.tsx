@@ -695,7 +695,7 @@ export default function BNDZUI() {
   const dualPaneSecondRef = useRef<HTMLDivElement>(null);
   const innerGroupRef = useGroupRef();
   const immersiveShellRef = useRef<HTMLDivElement>(null);
-  const lastDockedBottomPctRef = useRef(DEFAULT_INNER_LAYOUT.bottom || 9.75);
+  const lastDockedBottomPctRef = useRef(DEFAULT_INNER_LAYOUT.bottom!);
   const immersiveLatchRef = useRef(false);
 
   const outerDefaultLayout = useMemo(
@@ -729,14 +729,36 @@ export default function BNDZUI() {
     return () => window.removeEventListener('bndz-apply-list-styles', onApplyListStyles);
   }, [config]);
 
-  /** One-time upgrade for panel defaults + sidebar cloud section */
+  /** Force-reset workspace panel sizes when layout defaults change (must re-run after settings load). */
+  useEffect(() => {
+    if ((config.workspaceLayoutVersion ?? 0) >= WORKSPACE_LAYOUT_VERSION) return;
+    updateConfig({
+      workspaceLayoutVersion: WORKSPACE_LAYOUT_VERSION,
+      workspaceLayoutOuter: { ...DEFAULT_OUTER_LAYOUT },
+      workspaceLayoutInner: { ...DEFAULT_INNER_LAYOUT },
+    });
+  }, [config.workspaceLayoutVersion]);
+
+  /** After layout-version reset, force the live splitter to the default bottom plugin height. */
+  useEffect(() => {
+    if ((config.workspaceLayoutVersion ?? 0) !== WORKSPACE_LAYOUT_VERSION) return;
+    if (bottomImmersive) return;
+    const targetMain = DEFAULT_INNER_LAYOUT.main!;
+    const targetBottom = DEFAULT_INNER_LAYOUT.bottom!;
+    lastDockedBottomPctRef.current = targetBottom;
+    const apply = () => {
+      try {
+        innerGroupRef.current?.setLayout({ main: targetMain, bottom: targetBottom });
+      } catch { /* ignore */ }
+    };
+    apply();
+    requestAnimationFrame(apply);
+    const t = window.setTimeout(apply, 50);
+    return () => window.clearTimeout(t);
+  }, [config.workspaceLayoutVersion, bottomImmersive]);
+
   useEffect(() => {
     const patches: Record<string, unknown> = {};
-    if ((config.workspaceLayoutVersion ?? 0) < WORKSPACE_LAYOUT_VERSION) {
-      patches.workspaceLayoutVersion = WORKSPACE_LAYOUT_VERSION;
-      patches.workspaceLayoutOuter = { ...DEFAULT_OUTER_LAYOUT };
-      patches.workspaceLayoutInner = { ...DEFAULT_INNER_LAYOUT };
-    }
     if ((config.sidebarOrderVersion ?? 0) < 2) {
       patches.sidebarOrderVersion = 2;
       const order = [...(config.sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])];
@@ -830,7 +852,7 @@ export default function BNDZUI() {
     immersiveLatchRef.current = true;
     const docked = Math.min(
       MAX_BOTTOM_DOCKED - 4,
-      Math.max(DEFAULT_INNER_LAYOUT.bottom || 9.75, lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom || 9.75),
+      Math.max(DEFAULT_INNER_LAYOUT.bottom!, lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom!),
     );
     setBottomImmersive(true);
     requestAnimationFrame(() => {
@@ -874,7 +896,7 @@ export default function BNDZUI() {
       return;
     }
     const bottom = effectiveBottomOpen
-      ? (bottomImmersive ? (lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom || 9.75) : bottomRaw)
+      ? (bottomImmersive ? (lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom!) : bottomRaw)
       : (config.workspaceLayoutInner?.bottom ?? innerDefaultLayout.bottom);
     const nextInner = {
       main: layout.main ?? innerDefaultLayout.main,
@@ -9319,11 +9341,7 @@ export default function BNDZUI() {
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (
       <div
-        className="bndz-chrome-statusbar bndz-status-bar-metal px-3 py-1 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
-        style={{
-          background: 'var(--statusbar-bg, var(--bndz-surface-chrome))',
-          color: 'var(--status-text, #a0a0a0)',
-        }}
+        className="bndz-chrome-statusbar bndz-status-bar-tree-tab bndz-sidebar-section-header bndz-sidebar-section-drives px-3 py-1.5 pl-4 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
         title="Right-click for folder menu"
         onContextMenu={(e) => {
           if ((e.target as HTMLElement).closest('button, a, input')) return;

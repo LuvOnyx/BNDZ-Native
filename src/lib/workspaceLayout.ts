@@ -10,7 +10,7 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 32;
+export const WORKSPACE_LAYOUT_VERSION = 38;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
@@ -22,10 +22,10 @@ export const DEFAULT_OUTER_LAYOUT: Layout = {
     preview: 12,
 };
 
-/** Compact docked bottom strip — 9.75% matches the preferred start height. */
+/** Bottom plugin panel start height — full heroes + usable content. */
 export const DEFAULT_INNER_LAYOUT: Layout = {
-    main: 90.25,
-    bottom: 9.75,
+    main: 73,
+    bottom: 27,
 };
 
 export const DUAL_PANE_IDS = ['pane1', 'pane2'] as const;

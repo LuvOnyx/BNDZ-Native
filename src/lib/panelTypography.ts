@@ -11,33 +11,24 @@ export type PanelFontTokens = {
   monoFamily: string;
 };
 
-/** Curated Windows-friendly UI font pack (no web-font downloads required). */
+/**
+ * BNDZ font pack — expressive UI faces (bundled via @fontsource).
+ * Avoids generic stacks (Inter / Roboto / Arial / system defaults as the product look).
+ */
 const FONT_PRESETS: Record<string, string> = {
-  'Segoe UI Variable': '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-  'Segoe UI': '"Segoe UI", system-ui, sans-serif',
-  Calibri: 'Calibri, "Segoe UI", sans-serif',
-  Candara: 'Candara, "Segoe UI", sans-serif',
-  Corbel: 'Corbel, "Segoe UI", sans-serif',
-  Verdana: 'Verdana, Geneva, sans-serif',
-  Tahoma: 'Tahoma, "Segoe UI", sans-serif',
-  'Trebuchet MS': '"Trebuchet MS", "Segoe UI", sans-serif',
-  Arial: 'Arial, Helvetica, sans-serif',
-  'Franklin Gothic': '"Franklin Gothic Medium", "Segoe UI", sans-serif',
-  'Century Gothic': '"Century Gothic", CenturyGothic, sans-serif',
-  Georgia: 'Georgia, "Times New Roman", serif',
-  'Palatino Linotype': '"Palatino Linotype", Palatino, serif',
-  Constantia: 'Constantia, Georgia, serif',
-  Garamond: 'Garamond, "Times New Roman", serif',
-  'Lucida Sans': '"Lucida Sans Unicode", "Lucida Grande", sans-serif',
+  Outfit: 'Outfit, sans-serif',
+  'Space Grotesk': '"Space Grotesk", sans-serif',
+  Sora: 'Sora, sans-serif',
+  Manrope: 'Manrope, sans-serif',
+  'DM Sans': '"DM Sans", sans-serif',
+  Syne: 'Syne, sans-serif',
+  'Instrument Sans': '"Instrument Sans", sans-serif',
 };
 
 const MONO_PRESETS: Record<string, string> = {
-  'Cascadia Code': '"Cascadia Code", "Cascadia Mono", Consolas, monospace',
-  'Cascadia Mono': '"Cascadia Mono", "Cascadia Code", Consolas, monospace',
-  Consolas: 'Consolas, "Courier New", monospace',
-  'Courier New': '"Courier New", Courier, monospace',
-  'Lucida Console': '"Lucida Console", Consolas, monospace',
-  'Segoe UI Mono': '"Segoe UI Mono", Consolas, monospace',
+  'JetBrains Mono': '"JetBrains Mono", monospace',
+  'IBM Plex Mono': '"IBM Plex Mono", monospace',
+  'Fira Code': '"Fira Code", monospace',
 };
 
 export const UI_FONT_PRESET_OPTIONS = Object.entries(FONT_PRESETS).map(([label, value]) => ({ label, value }));
@@ -62,10 +53,10 @@ function zoneSizeKey(zone: PanelFontZone): keyof AppConfig {
 }
 
 export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelFontTokens {
-  const baseFamily = readSettingString(config, 'uiFontFamily', FONT_PRESETS['Segoe UI Variable']);
+  const baseFamily = readSettingString(config, 'uiFontFamily', FONT_PRESETS.Outfit);
   const baseSize = readSettingNumber(config, 'fontSize', 12);
   const baseWeight = readSettingNumber(config, 'uiFontWeight', 500);
-  const monoFamily = readSettingString(config, 'uiFontFamilyMono', MONO_PRESETS['Cascadia Code']);
+  const monoFamily = readSettingString(config, 'uiFontFamilyMono', MONO_PRESETS['JetBrains Mono']);
 
   const familyOverride = readSettingString(config, String(zoneFamilyKey(zone)), '');
   const sizeOverride = readSettingNumber(config, String(zoneSizeKey(zone)), 0);
