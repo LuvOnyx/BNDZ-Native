@@ -2,13 +2,23 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
+using DiffPlex.DiffBuilder;
+using DiffPlex.DiffBuilder.Model;
 
 namespace BNDZ.Services;
 
-/// <summary>XYplorer-style binary file compare with hash + first-diff offset.</summary>
+/// <summary>XYplorer-style binary file compare with hash + first-diff offset + DiffPlex text diff.</summary>
 public static class FileCompareService
 {
+    private static readonly string[] TextExts =
+    {
+        ".txt", ".md", ".cs", ".ts", ".tsx", ".js", ".jsx", ".json", ".xml", ".html", ".css", ".scss",
+        ".csv", ".log", ".ini", ".cfg", ".yml", ".yaml", ".ps1", ".bat", ".cmd", ".py", ".rs", ".go",
+        ".sql", ".svg", ".gitignore", ".editorconfig", ".props", ".targets",
+    };
+
     public static Task<object> CompareAsync(string pathA, string pathB, int previewBytes = 64)
     {
         return Task.Run(() =>
@@ -88,6 +98,13 @@ public static class FileCompareService
                 previewB = ReadPreview(winB, Math.Max(0, firstDiff - previewBytes / 2), previewBytes);
             }
 
+            object? textDiff = null;
+            if (LooksLikeText(winA) && LooksLikeText(winB) && sizeA <= 2_000_000 && sizeB <= 2_000_000)
+            {
+                try { textDiff = BuildTextDiff(winA, winB); }
+                catch { /* binary masquerading as text */ }
+            }
+
             return new
             {
                 ok = true,
@@ -101,8 +118,45 @@ public static class FileCompareService
                 firstDiffOffset = firstDiff,
                 previewA = ToHex(previewA),
                 previewB = ToHex(previewB),
+                textDiff,
             };
         });
+    }
+
+    private static object BuildTextDiff(string pathA, string pathB)
+    {
+        var a = File.ReadAllText(pathA, Encoding.UTF8);
+        var b = File.ReadAllText(pathB, Encoding.UTF8);
+        var diff = InlineDiffBuilder.Diff(a, b);
+        var lines = diff.Lines
+            .Take(400)
+            .Select(l => new
+            {
+                type = l.Type switch
+                {
+                    ChangeType.Inserted => "insert",
+                    ChangeType.Deleted => "delete",
+                    ChangeType.Modified => "modify",
+                    ChangeType.Imaginary => "gap",
+                    _ => "same",
+                },
+                text = l.Text ?? "",
+                position = l.Position,
+            })
+            .ToList();
+
+        return new
+        {
+            hasDifferences = diff.HasDifferences,
+            lines,
+            truncated = diff.Lines.Count > 400,
+        };
+    }
+
+    private static bool LooksLikeText(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return TextExts.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
     }
 
     private static byte[] ReadPreview(string path, long offset, int count)

@@ -6,7 +6,7 @@ export const TEXT_EDIT_EXTENSIONS = new Set([
 
 export const CODE_EXTENSIONS = new Set([
   'js', 'ts', 'jsx', 'tsx', 'cs', 'html', 'htm', 'css', 'scss', 'less', 'py', 'cpp', 'c', 'h',
-  'hpp', 'java', 'go', 'rs', 'php', 'rb', 'sql', 'vue', 'svelte',
+  'hpp', 'java', 'go', 'rs', 'php', 'rb', 'sql', 'vue', 'svelte', 'lua',
 ]);
 
 export function isTextEditableExt(ext: string): boolean {
@@ -39,6 +39,7 @@ export function prismLanguageForExt(ext: string): string {
     cs: 'csharp', cpp: 'cpp', c: 'c', h: 'c', md: 'markdown', ps1: 'powershell',
     sh: 'bash', yml: 'yaml', yaml: 'yaml', json: 'json', html: 'html', htm: 'html',
     css: 'css', xml: 'xml', sql: 'sql', go: 'go', rs: 'rust', java: 'java', php: 'php',
+    lua: 'lua', rb: 'ruby', vue: 'markup', svelte: 'markup',
   };
   return map[e] || e;
 }

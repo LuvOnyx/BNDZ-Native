@@ -204,7 +204,8 @@
   }
 
   .nav-tree-scroll {
-    mask-image: linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 6px), transparent 100%);
+    /* Soft fade via padding only — CSS mask-image forces extra compositing on every scroll frame. */
+    padding-block: 2px;
   }
 
   .status-bar-glow {
@@ -239,7 +240,7 @@
 
   .nav-tree-row {
     border-radius: 4px;
-    transition: background 0.12s ease, box-shadow 0.12s ease;
+    contain: layout style;
   }
 
   .nav-tree-row:hover:not(.nav-tree-row-selected) {
@@ -248,7 +249,7 @@
 
   .fs-item-wrapper {
     border-radius: 3px;
-    transition: background 0.1s ease, box-shadow 0.12s ease, outline-color 0.12s ease;
+    contain: layout style;
   }
 
   .fs-item-wrapper:hover:not(.fs-item-selected) {
@@ -763,6 +764,8 @@ html.theme-light .nav-tree-row:hover {
 
 .bndz-file-list-scroll {
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
   cursor: default;
 }
 
@@ -833,12 +836,62 @@ html.theme-light .nav-tree-row:hover {
   line-height: var(--bndz-font-status-line-height, 1.25);
 }
 
+/* Status bar — same machined “metal tab” language as sidebar Tree section headers */
+.bndz-status-bar-metal {
+  position: relative;
+  border-top: 1px solid color-mix(in srgb, var(--sidebar-accent, var(--accent, #0078d4)) 28%, rgba(255, 255, 255, 0.08));
+  border-radius: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 -1px 0 rgba(0, 0, 0, 0.2);
+  background-image:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--sidebar-accent, var(--accent, #0078d4)) 18%, transparent) 0%,
+      color-mix(in srgb, var(--sidebar-accent, var(--accent, #0078d4)) 5%, transparent) 28%,
+      transparent 72%
+    );
+}
+
+.bndz-status-bar-metal::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 1px 0 0 1px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--sidebar-accent, var(--accent, #0078d4)) 88%, #ffffff) 0%,
+    var(--sidebar-accent, var(--accent, #0078d4)) 55%,
+    color-mix(in srgb, var(--sidebar-accent, var(--accent, #0078d4)) 70%, #000000) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 8px color-mix(in srgb, var(--sidebar-accent, var(--accent, #0078d4)) 40%, transparent);
+  pointer-events: none;
+}
+
+html[data-theme] .bndz-chrome-statusbar.bndz-status-bar-metal {
+  background-color: var(--statusbar-bg) !important;
+  color: var(--status-text, var(--text-muted, #a0a0a0));
+}
+
 .bndz-chrome-menubar,
-.bndz-chrome-toolbar,
-.bndz-chrome-tabs {
+.bndz-chrome-toolbar {
   font-family: var(--bndz-font-chrome-family, var(--bndz-font-family));
   font-size: var(--bndz-font-chrome-size, var(--bndz-font-size));
   font-weight: var(--bndz-font-chrome-weight, var(--bndz-font-weight-ui, 500));
+}
+
+.bndz-chrome-tabstrip,
+.bndz-tab-item,
+.bndz-chrome-tabs {
+  font-family: var(--bndz-font-tabs-family, var(--bndz-font-chrome-family, var(--bndz-font-family)));
+  font-size: var(--bndz-font-tabs-size, var(--bndz-tab-font-size, 11px));
+  font-weight: var(--bndz-font-tabs-weight, var(--bndz-font-weight-ui, 500));
 }
 
 .bndz-mono,
@@ -1780,6 +1833,69 @@ html.theme-light .nav-tree-row:hover {
   box-shadow: inset 0 -2px 0 #38bdf8;
 }
 
+.bndz-bottom-immersive-host {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.bndz-bottom-immersive-host.is-open {
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+}
+
+.bndz-bottom-immersive-shell {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(56, 189, 248, 0.10), transparent 55%),
+    linear-gradient(180deg, #14161e 0%, #0e1016 100%);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.bndz-bottom-panel--immersive {
+  background: transparent;
+}
+
+.bndz-bottom-immersive-bar {
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.12) 0%, rgba(15, 17, 24, 0.92) 100%);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.18);
+}
+
+.bndz-bottom-immersive-exit,
+.bndz-bottom-immersive-enter,
+.bndz-bottom-hub-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #bae6fd;
+  background: rgba(56, 189, 248, 0.10);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+}
+
+.bndz-bottom-immersive-exit:hover,
+.bndz-bottom-immersive-enter:hover,
+.bndz-bottom-hub-btn:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #e0f2fe;
+}
+
+.bndz-bottom-immersive-placeholder {
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.06), transparent 60%);
+}
+
+.bndz-transfer-row--dismissing {
+  pointer-events: none;
+}
+
 .bndz-plugin-toolbar {
   min-height: 36px;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(8, 12, 20, 0.35) 100%);
@@ -2396,11 +2512,11 @@ html[data-theme] .bndz-list-col-header--active {
 }
 
 .bndz-tab-drop-before {
-  box-shadow: inset 2px 0 0 0 rgb(56 189 248);
+  box-shadow: inset 2px 0 0 0 #38bdf8, -1px 0 10px rgba(56, 189, 248, 0.45);
 }
 
 .bndz-tab-drop-after {
-  box-shadow: inset -2px 0 0 0 rgb(56 189 248);
+  box-shadow: inset -2px 0 0 0 #38bdf8, 1px 0 10px rgba(56, 189, 248, 0.45);
 }
 
 .bndz-sidebar-drop-before {
@@ -2430,14 +2546,15 @@ html[data-theme] .bndz-list-col-header--active {
 
 .bndz-list-marquee-trail,
 .bndz-list-marquee-pad {
-  flex: 1 1 24px;
-  min-width: 8px;
+  flex: 0 1 10px;
+  min-width: 4px;
+  max-width: 18px;
   align-self: stretch;
   cursor: inherit;
 }
 
 .bndz-list-marquee-pad {
-  min-height: 6px;
+  min-height: 4px;
 }
 
 .bndz-list-columns {
@@ -2661,16 +2778,52 @@ html[data-density="spacious"] .nav-tree-row {
   padding-bottom: 4px;
 }
 
-/* Tab strip variants */
+/* Tab strip variants — snappy press + neon active underline */
+.bndz-tab-item {
+  transition: background 0.08s ease, border-color 0.08s ease, color 0.08s ease, box-shadow 0.1s ease !important;
+  user-select: none;
+  touch-action: pan-x;
+}
+
+.bndz-chrome-tabstrip {
+  overflow-x: auto;
+  overflow-y: hidden !important;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+}
+
+.bndz-tabstrip--reordering {
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  cursor: grabbing;
+}
+
+.bndz-tab-item--dragging {
+  opacity: 0.7;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(56, 189, 248, 0.35) !important;
+  cursor: grabbing !important;
+  will-change: transform;
+}
+
+.bndz-tabstrip--reordering .bndz-tab-item:not(.bndz-tab-item--dragging) {
+  transition: transform 90ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+.bndz-tab-item:active:not(.bndz-tab-active) {
+  background: rgba(56, 189, 248, 0.08) !important;
+}
+
 html[data-tab-style="underline"] .bndz-tab-item.bndz-tab-active {
-  border-bottom: 2px solid #007acc;
+  border-bottom: 2px solid #38bdf8;
   margin-bottom: -2px;
+  color: #e0f2fe !important;
+  box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.35);
 }
 
 html[data-tab-style="segment"] .bndz-tab-item.bndz-tab-active {
   background: var(--bndz-surface-raised) !important;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border-color: rgba(56, 189, 248, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(56, 189, 248, 0.12);
 }
 
 html[data-tab-style="flat"] .bndz-chrome-tabstrip {
@@ -2683,7 +2836,8 @@ html[data-tab-style="flat"] .bndz-tab-item {
 }
 
 html[data-tab-style="flat"] .bndz-tab-item.bndz-tab-active {
-  background: rgba(255, 255, 255, 0.06) !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+  color: #e0f2fe !important;
 }
 
 /* Surface style toggles glass on panels */
@@ -3016,8 +3170,8 @@ html[data-theme] .bndz-destination-picker-footer {
 
 .bndz-context-menu-item:hover,
 .bndz-context-menu-item-active {
-  background: var(--menu-hover, #094771);
-  color: #fff;
+  background: var(--menu-hover, rgba(56, 189, 248, 0.20));
+  color: #e0f2fe;
 }
 
 .bndz-context-menu-icon {

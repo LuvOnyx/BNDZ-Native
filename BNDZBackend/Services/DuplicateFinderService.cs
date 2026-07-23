@@ -1,6 +1,8 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Hashing;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
@@ -88,24 +90,45 @@ public sealed class DuplicateFinderService
             }
         }
 
+        // Size → XxHash64 (fast) → SHA-256 (authoritative) for true duplicates.
         var hashGroups = new Dictionary<string, DuplicateGroup>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in bySize.Where(x => x.Value.Count > 1))
         {
             ct.ThrowIfCancellationRequested();
+            var byXx = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var path in kv.Value)
             {
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    string hash = await ComputeSha256Async(path, ct);
-                    if (!hashGroups.TryGetValue(hash, out var group))
+                    var xx = await ComputeXxHash64Async(path, ct).ConfigureAwait(false);
+                    if (!byXx.TryGetValue(xx, out var list))
                     {
-                        group = new DuplicateGroup { Hash = hash, Size = kv.Key, Paths = new List<string>() };
-                        hashGroups[hash] = group;
+                        list = new List<string>();
+                        byXx[xx] = list;
                     }
-                    group.Paths.Add(path);
+                    list.Add(path);
                 }
                 catch { /* skip */ }
+            }
+
+            foreach (var xxGroup in byXx.Values.Where(g => g.Count > 1))
+            {
+                foreach (var path in xxGroup)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        string hash = await ComputeSha256Async(path, ct).ConfigureAwait(false);
+                        if (!hashGroups.TryGetValue(hash, out var group))
+                        {
+                            group = new DuplicateGroup { Hash = hash, Size = kv.Key, Paths = new List<string>() };
+                            hashGroups[hash] = group;
+                        }
+                        group.Paths.Add(path);
+                    }
+                    catch { /* skip */ }
+                }
             }
         }
 
@@ -136,11 +159,29 @@ public sealed class DuplicateFinderService
         return files;
     }
 
+    private static async Task<string> ComputeXxHash64Async(string path, CancellationToken ct)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+        var hasher = new XxHash64();
+        var buffer = ArrayPool<byte>.Shared.Rent(256 * 1024);
+        try
+        {
+            int read;
+            while ((read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
+                hasher.Append(buffer.AsSpan(0, read));
+            return Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
     private static async Task<string> ComputeSha256Async(string path, CancellationToken ct)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
         using var sha = SHA256.Create();
-        var hash = await sha.ComputeHashAsync(stream, ct);
+        var hash = await sha.ComputeHashAsync(stream, ct).ConfigureAwait(false);
         return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
     }
 

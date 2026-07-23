@@ -18,6 +18,7 @@ import { isQueuedIpcResult } from '../lib/transferIpc';
 interface ArchivePreviewPanelProps {
   path: string;
   format: string;
+  /** Browse for destination, then extract whole archive. */
   onExtract?: () => void;
 }
 
@@ -338,12 +339,20 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   };
 
   const extractSelected = async () => {
-    if (!primarySelected || primarySelected.isDirectory) return;
+    if (!primarySelected) return;
     setBusy(`Extracting ${primarySelected.name}…`);
     try {
       const { IPC } = await import('../lib/ipcBridge');
-      const dest = winPath.replace(/\\[^\\]+$/, '');
+      const dest = await IPC.openFolderDialog('Extract selected archive items to…');
+      if (!dest) {
+        setStatus('Extract cancelled.');
+        return;
+      }
       const result = await IPC.archiveExtractEntry(winPath, primarySelected.path, dest);
+      if (isQueuedIpcResult(result)) {
+        setStatus('Extract queued — see Background processing.');
+        return;
+      }
       setStatus(result.success ? `Extracted to ${dest}` : (result.error || 'Extract failed'));
     } finally {
       setBusy(null);
@@ -387,11 +396,13 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
               {stats.compressed > 0 && <span>{ratio}% packed</span>}
             </div>
           </div>
-          {onExtract && (
-            <button type="button" onClick={onExtract} className="bndz-archive-btn-primary shrink-0">
-              <Icons8Icon id="extract" size={13} />
-              Extract
-            </button>
+          {(onExtract) && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button type="button" onClick={onExtract} className="bndz-archive-btn-primary shrink-0" title="Choose a folder…">
+                <Icons8Icon id="extract" size={13} />
+                Extract…
+              </button>
+            </div>
           )}
         </div>
 
@@ -576,7 +587,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
           <div className="bndz-archive-inspector-actions">
             <button type="button" onClick={() => void extractSelected()} className="bndz-archive-btn-primary">
               <Icons8Icon id="extract" size={12} />
-              Extract here
+              Extract…
             </button>
             {isNative && (
               <button

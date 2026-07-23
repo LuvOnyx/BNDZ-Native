@@ -39,6 +39,7 @@ namespace BNDZ
         private string? _activeFolderSyncTransferOpId;
         private readonly FolderSyncService _folderSyncService = new();
         private readonly SettingsManager _settingsManager;
+        private readonly GlobalHotkeyService _globalHotkeys;
         private readonly NativeShellService _nativeShellService = new();
         private readonly ShellContextMenuService _shellContextMenuService = new();
         private readonly ArchiveService _archiveService = new();
@@ -64,7 +65,8 @@ namespace BNDZ
         // When the user checks "Apply to remaining conflicts", subsequent conflicts within the
         // same operationId resolve immediately with this value instead of re-prompting the UI.
         private ConcurrentDictionary<string, string> _conflictBatchResolution = new();
-        private ConcurrentDictionary<string, string> _iconCacheDb = new();
+        // Icon/thumb caches live in BndzHostCaches (BitFaster ConcurrentLru).
+        // private ConcurrentDictionary kept removed — use BndzHostCaches.Icons / Thumbnails.
 
         private SystemTrayService? _trayService;
         private bool _allowClose;
@@ -82,11 +84,14 @@ namespace BNDZ
             _fileOperationService = new FileOperationService();
             _fileOperationService.SetActionLog(_actionLogService);
             _settingsManager = new SettingsManager();
+            _globalHotkeys = new GlobalHotkeyService();
+            _globalHotkeys.HotkeyPressed += OnGlobalHotkeyPressed;
             try
             {
                 var bootSettings = _settingsManager.LoadSettings();
                 FileOperationPreferences.ApplyFromJson(bootSettings);
                 ApplyFileOperationPreferences();
+                ApplyGlobalHotkeysFromSettingsJson(bootSettings);
                 _actionLogService.LoadPersistedIfEnabled();
                 _fileTransferQueue.LoadPersistedHistory();
             }
@@ -993,7 +998,7 @@ namespace BNDZ
                     _ = Task.Run(() =>
                     {
                         var result = ThumbnailCacheService.ClearAll();
-                        _iconCacheDb.Clear();
+                        BndzHostCaches.ClearAll();
                         var response = new
                         {
                             type = "CLEAR_THUMBNAIL_CACHE_RESULT",
@@ -2004,6 +2009,27 @@ namespace BNDZ
                         : $"link-{DateTime.UtcNow.Ticks}";
                     _ = HandleCreateLinkAsync(operationId, linkPath, targetPath, linkType, idProp);
                 }
+                else if (type == "RESOLVE_SHORTCUT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    string path = NormalizeFsPath(payload.GetProperty("path").GetString() ?? "");
+                    _ = Task.Run(() =>
+                    {
+                        object payloadObj;
+                        try
+                        {
+                            payloadObj = _linkService.ResolveShortcut(path);
+                        }
+                        catch (Exception ex)
+                        {
+                            payloadObj = new LinkService.ShortcutResolveResult { Success = false, Error = ex.Message };
+                        }
+                        var response = new { type = "RESOLVE_SHORTCUT_RESULT", id = idProp, payload = payloadObj };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
                 else if (type == "SHELL_INTEGRATION")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
@@ -2137,6 +2163,7 @@ namespace BNDZ
                         _settingsManager.SaveSettings(jsonString);
                         FileOperationPreferences.ApplyFromJson(jsonString);
                         ApplyFileOperationPreferences();
+                        ApplyGlobalHotkeysFromSettingsJson(jsonString);
                     }
                     catch (Exception ex)
                     {
@@ -2158,6 +2185,7 @@ namespace BNDZ
                         if (string.IsNullOrEmpty(settingsJson)) settingsJson = "null";
                         FileOperationPreferences.ApplyFromJson(settingsJson == "null" ? null : settingsJson);
                         ApplyFileOperationPreferences();
+                        ApplyGlobalHotkeysFromSettingsJson(settingsJson == "null" ? null : settingsJson);
                         
                         var responseJson = "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":\"" + idProp + "\",\"payload\":" + settingsJson + "}";
                         PostToUi(() => {
@@ -2195,20 +2223,9 @@ namespace BNDZ
 
                     _ = Task.Run(() => 
                     {
-                        bool isVirtualIcon = ShellPathResolver.IsShellVirtualPath(path)
-                            || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
-                        string cacheKey = path;
-                        if (!isVirtualIcon && !isDirectory && !string.IsNullOrEmpty(path)
-                            && !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) 
-                            && !path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) 
-                            && !path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)) 
-                        {
-                            var ext = Path.GetExtension(path);
-                            if (!string.IsNullOrEmpty(ext))
-                                cacheKey = ext.ToLowerInvariant();
-                        }
+                        string cacheKey = BndzHostCaches.IconCacheKey(path, isDirectory);
 
-                        if (_iconCacheDb.TryGetValue(cacheKey, out string? cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
+                        if (BndzHostCaches.Icons.TryGet(cacheKey, out var cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
                         {
                             PostIconResult(idProp, cachedBase64);
                             return;
@@ -2222,7 +2239,7 @@ namespace BNDZ
                         }
                         
                         if (!string.IsNullOrEmpty(extractedBase64)) {
-                            _iconCacheDb[cacheKey] = extractedBase64;
+                            BndzHostCaches.Icons.AddOrUpdate(cacheKey, extractedBase64);
                         }
 
                         PostIconResult(idProp, string.IsNullOrEmpty(extractedBase64) ? null : extractedBase64);
@@ -2252,18 +2269,10 @@ namespace BNDZ
 
                                     bool isVirtualIcon = ShellPathResolver.IsShellVirtualPath(path)
                                         || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
-                                    string cacheKey = path;
-                                    if (!isVirtualIcon && !isDir && !string.IsNullOrEmpty(path)
-                                        && !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                                        && !path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
-                                        && !path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        var ext = Path.GetExtension(path);
-                                        if (!string.IsNullOrEmpty(ext))
-                                            cacheKey = ext.ToLowerInvariant();
-                                    }
+                                    _ = isVirtualIcon;
+                                    string cacheKey = BndzHostCaches.IconCacheKey(path, isDir);
 
-                                    if (_iconCacheDb.TryGetValue(cacheKey, out string? cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
+                                    if (BndzHostCaches.Icons.TryGet(cacheKey, out var cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
                                     {
                                         results[path] = cachedBase64;
                                         continue;
@@ -2277,7 +2286,7 @@ namespace BNDZ
                                     catch { }
 
                                     if (!string.IsNullOrEmpty(extracted))
-                                        _iconCacheDb[cacheKey] = extracted;
+                                        BndzHostCaches.Icons.AddOrUpdate(cacheKey, extracted);
 
                                     results[path] = string.IsNullOrEmpty(extracted) ? null : extracted;
                                 }
@@ -2301,7 +2310,7 @@ namespace BNDZ
                 else if (type == "CLEAR_ICON_CACHE")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    _iconCacheDb.Clear();
+                    BndzHostCaches.ClearAll();
                     var response = new { type = "CLEAR_ICON_CACHE_RESULT", id = idProp };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() => {
@@ -2383,7 +2392,7 @@ namespace BNDZ
                             
                             if (success) {
                                 BNDZ.Services.FolcolorPort.ResetIconCache();
-                                _iconCacheDb.Clear();
+                                BndzHostCaches.ClearAll();
                             } else if (error == null) {
                                 error = "Apply failed — check permissions (OneDrive folders may need to be available offline).";
                             }
@@ -3535,6 +3544,70 @@ namespace BNDZ
             _fileTransferQueue.SetPersistenceEnabled(prefs.PersistTransferQueue);
         }
 
+        private void ApplyGlobalHotkeysFromSettingsJson(string? json)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) || json == "null" ? "{}" : json);
+                var root = doc.RootElement;
+                string? Read(params string[] keys)
+                {
+                    foreach (var key in keys)
+                    {
+                        if (root.TryGetProperty(key, out var el) && el.ValueKind == JsonValueKind.String)
+                            return el.GetString();
+                    }
+                    if (root.TryGetProperty("keyboard", out var kb) && kb.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var key in keys)
+                        {
+                            if (kb.TryGetProperty(key, out var el) && el.ValueKind == JsonValueKind.String)
+                                return el.GetString();
+                        }
+                    }
+                    return null;
+                }
+
+                // Defaults: Alt+Space show/hide (launcher-style), Ctrl+Shift+P palette, Ctrl+Shift+F search.
+                var showHide = Read("globalShowHideHotkey", "showHideHotkey") ?? "Alt+Space";
+                var palette = Read("globalCommandPaletteHotkey", "commandPaletteHotkey") ?? "Ctrl+Shift+P";
+                var search = Read("globalSearchHotkey", "globalSearchHotkey") ?? "Ctrl+Shift+F";
+                _globalHotkeys.ApplyFromSettings(showHide, palette, search);
+            }
+            catch
+            {
+                _globalHotkeys.ApplyFromSettings("Alt+Space", "Ctrl+Shift+P", "Ctrl+Shift+F");
+            }
+        }
+
+        private void OnGlobalHotkeyPressed(string id)
+        {
+            PostToUi(() =>
+            {
+                try
+                {
+                    if (string.Equals(id, GlobalHotkeyService.ShowHideId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (IsVisible && WindowState != WindowState.Minimized && IsActive)
+                        {
+                            WindowState = WindowState.Minimized;
+                        }
+                        else
+                        {
+                            ShowAndActivate();
+                        }
+                    }
+
+                    MainWebView?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(new
+                    {
+                        type = "GLOBAL_HOTKEY",
+                        payload = new { id },
+                    }));
+                }
+                catch { }
+            });
+        }
+
         private static FileTransferPriority ParseTransferPriority(JsonElement payload)
         {
             if (!payload.TryGetProperty("priority", out var prop)) return FileTransferPriority.Normal;
@@ -3718,6 +3791,17 @@ namespace BNDZ
                     }
                     else if (engine == "native")
                     {
+                        if (action is "copy" or "move" or "delete")
+                        {
+                            var valid = sources.Where(s =>
+                                !string.IsNullOrWhiteSpace(s)
+                                && (File.Exists(s) || Directory.Exists(s)
+                                    || PortableDeviceService.IsPortableDevicePath(s)
+                                    || ShellPathResolver.IsShellVirtualPath(s))).ToList();
+                            if (valid.Count == 0)
+                                throw new FileNotFoundException("None of the source items exist. The operation could not run.");
+                            sources = valid;
+                        }
                         await _nativeFileOperationService.ExecuteOperationAsync(
                             operationId,
                             action,

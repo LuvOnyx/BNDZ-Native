@@ -61,7 +61,7 @@ export function ShellNativeIcon({
         setVisible(true);
         obs.disconnect();
       }
-    }, { rootMargin: '200px', threshold: 0 });
+    }, { rootMargin: '64px', threshold: 0 });
     obs.observe(el);
     return () => obs.disconnect();
   }, [eager, path]);

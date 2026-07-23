@@ -9,10 +9,12 @@ import {
   resolveContextTargetPaths,
   resolveContextTargetPanePaths,
   filterSupplementalNativeItems,
+  takeShellCascadeByLabel,
   isContextMenuBackground,
   isRecycleBinLocationMenu,
   contextMenuRefreshLabel,
   resolveNativeItemVerb,
+  type NativeContextMenuItem,
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
 import { isQueuedIpcResult } from '../lib/transferIpc';
@@ -24,10 +26,19 @@ import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
+import type { ClipboardAction } from '../data/ClipboardContext';
 import type { SortColumnId } from '../lib/listColumns';
 import type { ListGroupBy } from '../lib/listGrouping';
 import { LIST_GROUP_BY_OPTIONS } from '../lib/listGrouping';
-import type { ClipboardAction } from '../data/ClipboardContext';
+import {
+  classifyContextItemKind,
+  openLocationForApp,
+  openLocationForItemParent,
+  openLocationForShortcut,
+  type ContextItemKind,
+  type OpenLocationTarget,
+  type ResolvedShortcutInfo,
+} from '../lib/contextItemKind';
 
 const SORT_BY_OPTIONS: Array<{ value: SortColumnId; label: string }> = [
   { value: 'name', label: 'Name' },
@@ -98,14 +109,14 @@ function ContextMenuView({
     if (surface === 'tree-background' || surface === 'tree-item') onRefreshTree?.();
     else onRefreshList?.();
   };
-  const supplementalNative = (() => {
+  const supplementalNativeAll = (() => {
     let items = filterSupplementalNativeItems(menu.nativeContextItems);
     const hidden: string[] = Array.isArray(config.shellMenuHiddenIds) ? config.shellMenuHiddenIds : [];
     const pinned: string[] = Array.isArray(config.shellMenuPinnedIds) ? config.shellMenuPinnedIds : [];
-    if (config.hideShellExtensionsFromShellContextMenu) return [];
+    if (config.hideShellExtensionsFromShellContextMenu) return [] as NativeContextMenuItem[];
     if (hidden.length) {
       items = items.filter(i => {
-        if (i.separator) return true;
+        if (i.separator || (i.children && i.children.length)) return true;
         const id = i.id || i.verb || i.label || '';
         return !hidden.includes(id);
       });
@@ -114,10 +125,14 @@ function ContextMenuView({
       const pinSet = new Set(pinned);
       const pinnedItems = items.filter(i => !i.separator && pinSet.has(i.id || i.verb || i.label || ''));
       const rest = items.filter(i => i.separator || !pinSet.has(i.id || i.verb || i.label || ''));
-      items = [...pinnedItems, ...(pinnedItems.length && rest.length ? [{ separator: true } as any] : []), ...rest];
+      items = [...pinnedItems, ...(pinnedItems.length && rest.length ? [{ separator: true } as NativeContextMenuItem] : []), ...rest];
     }
     return items;
   })();
+  // Promote shell "New" cascade into the folder background New submenu (avoid duplicate at bottom).
+  const { cascade: shellNewCascade, rest: supplementalNative } = isBackground
+    ? takeShellCascadeByLabel(supplementalNativeAll, 'New')
+    : { cascade: null as NativeContextMenuItem | null, rest: supplementalNativeAll };
   const [iconLibs, setIconLibs] = useState<any[]>(config.iconLibraries || []);
   const [iconLibsLoaded, setIconLibsLoaded] = useState(false);
   const [shareItems, setShareItems] = useState<import('../lib/ipcBridge').ShareMenuItem[]>([]);
@@ -137,22 +152,53 @@ function ContextMenuView({
 
   const runIpc = async () => (await import('../lib/ipcBridge')).IPC;
 
-  /** Show when the item's parent folder differs from the menu folder (search / virtual / cross-folder). */
-  const openFileLocationParent = (() => {
+  const itemKind: ContextItemKind = isBackground
+    ? 'folder'
+    : classifyContextItemKind({
+        isDirectory: menu.isDirectory,
+        name: menu.entityName,
+        extension: menu.entityExtension,
+        path: targetPaths[0],
+      });
+
+  const [shortcutInfo, setShortcutInfo] = useState<ResolvedShortcutInfo | null>(null);
+
+  useEffect(() => {
+    setShortcutInfo(null);
+    if (isBackground || itemKind !== 'shortcut' || targetPaths.length !== 1) return;
+    let active = true;
+    (async () => {
+      try {
+        const IPC = await runIpc();
+        const res = await IPC.resolveShortcut(toWindowsPath(targetPaths[0]));
+        if (active) setShortcutInfo(res as ResolvedShortcutInfo);
+      } catch {
+        if (active) setShortcutInfo({ success: false, error: 'Could not resolve shortcut' });
+      }
+    })();
+    return () => { active = false; };
+  }, [isBackground, itemKind, targetPaths[0], menu.x, menu.y]);
+
+  /** Open file location — shortcut target, app folder, or cross-folder item parent. */
+  const openLocationTarget: OpenLocationTarget | null = (() => {
     if (isBackground || targetPaths.length !== 1) return null;
     const win = toWindowsPath(targetPaths[0]);
     if (!win) return null;
-    const parentWin = win.replace(/\\[^\\]+$/, '').replace(/\\$/, '');
-    if (!parentWin || parentWin.length < 2) return null;
-    const cwd = toWindowsPath(menu.path).replace(/\\$/, '');
-    if (parentWin.toLowerCase() === cwd.toLowerCase()) return null;
-    const parentPane = normalizePanePath(
-      parentWin.startsWith('\\\\')
-        ? parentWin.replace(/\\/g, '/')
-        : `/${parentWin.replace(/\\/g, '/')}`,
-    );
-    return { parentWin, parentPane };
+    const cwd = toWindowsPath(menu.path);
+    if (itemKind === 'shortcut') return openLocationForShortcut(shortcutInfo);
+    if (itemKind === 'app') return openLocationForApp(win, cwd);
+    return openLocationForItemParent(win, cwd);
   })();
+
+  const goOpenFileLocation = async (loc: OpenLocationTarget) => {
+    const cwd = toWindowsPath(menu.path).replace(/[/\\]+$/, '');
+    if (loc.folderWin.replace(/[/\\]+$/, '').toLowerCase() !== cwd.toLowerCase()) {
+      addTab(activePaneId, loc.folderPane);
+    } else {
+      setToastMessage('Already viewing this location.');
+    }
+    onClose();
+  };
 
   useEffect(() => {
     setShareRequested(false);
@@ -311,15 +357,27 @@ function ContextMenuView({
     onClose();
   };
 
-  const renderNativeItem = (item: any, i: number) => {
-    if (item.separator) return <div key={`sep-${i}`} className="bndz-context-menu-sep" />;
-    const verb = resolveNativeItemVerb(item);
+  const renderNativeItem = (item: NativeContextMenuItem, i: number, keyPrefix = 'native'): React.ReactNode => {
+    if (item.separator) return <div key={`${keyPrefix}-sep-${i}`} className="bndz-context-menu-sep" />;
     const iconSrc = typeof item.iconBase64 === 'string' && item.iconBase64.startsWith('data:')
       ? item.iconBase64
       : null;
+    if (item.children && item.children.length > 0) {
+      return (
+        <ContextSubmenu
+          key={`${keyPrefix}-${item.id || item.label || i}`}
+          label={item.label || item.id || 'More'}
+          iconVerb={item.icon || 'shell'}
+        >
+          {item.children.map((child, j) => renderNativeItem(child, j, `${keyPrefix}-${i}`))}
+        </ContextSubmenu>
+      );
+    }
+    const verb = resolveNativeItemVerb(item);
+    if (!verb) return null;
     return (
       <ContextMenuItem
-        key={item.id || `native-${i}`}
+        key={`${keyPrefix}-${item.id || verb || i}`}
         label={item.label || item.id}
         verb={verb}
         iconSrc={iconSrc}
@@ -522,6 +580,13 @@ function ContextMenuView({
                 onClose();
               }}
             />
+            {shellNewCascade?.children && shellNewCascade.children.length > 0 && (
+              <>
+                <div className="bndz-context-menu-sep" />
+                <div className="px-2.5 py-1 text-[10px] uppercase tracking-wide text-white/35 select-none">Windows New</div>
+                {shellNewCascade.children.map((child, j) => renderNativeItem(child, j, 'shell-new'))}
+              </>
+            )}
           </ContextSubmenu>
         )}
 
@@ -578,7 +643,7 @@ function ContextMenuView({
         {supplementalNative.length > 0 && (
           <>
             <div className="bndz-context-menu-sep" />
-            {supplementalNative.map(renderNativeItem)}
+            {supplementalNative.map((item, i) => renderNativeItem(item, i))}
           </>
         )}
       </ClampedFixedMenu>
@@ -654,11 +719,26 @@ function ContextMenuView({
   const extractHere = async () => {
     const panePaths = resolveContextTargetPanePaths(menu);
     const win = toWindowsPath(panePaths[0] || targetPaths[0]);
-    const parent = win.replace(/\\[^\\]+$/, '');
-    const folder = win.split('\\').pop()?.replace(/\.[^.]+$/, '') || 'extracted';
+    const { archiveQuickExtractDest } = await import('../lib/archiveExtractDest');
+    const dest = archiveQuickExtractDest(win);
     const IPC = await runIpc();
-    const res = await IPC.extractArchive(win, `${parent}\\${folder}`);
+    const res = await IPC.extractArchive(win, dest);
+    const folder = dest.split('\\').pop() || 'extracted';
     setToastMessage(isQueuedIpcResult(res) ? 'Extract queued — see transfer panel.' : (res.ok ? `Extracted to ${folder}` : (res.error || 'Extract failed.')));
+    onClose();
+  };
+
+  const extractToBrowse = async () => {
+    const panePaths = resolveContextTargetPanePaths(menu);
+    const win = toWindowsPath(panePaths[0] || targetPaths[0]);
+    const IPC = await runIpc();
+    const dest = await IPC.openFolderDialog('Extract archive to…');
+    if (!dest) {
+      onClose();
+      return;
+    }
+    const res = await IPC.extractArchive(win, dest);
+    setToastMessage(isQueuedIpcResult(res) ? 'Extract queued — see transfer panel.' : (res.ok ? `Extracted to ${dest}` : (res.error || 'Extract failed.')));
     onClose();
   };
 
@@ -683,12 +763,19 @@ function ContextMenuView({
       )}
 
       {isArchive && (
-        <ContextMenuItem
-          label="Extract Here"
-          iconVerb="extract"
-          className="font-semibold"
-          onClick={() => void extractHere()}
-        />
+        <>
+          <ContextMenuItem
+            label="Extract…"
+            iconVerb="extract"
+            className="font-semibold"
+            onClick={() => void extractToBrowse()}
+          />
+          <ContextMenuItem
+            label="Quick Extract"
+            iconVerb="extract"
+            onClick={() => void extractHere()}
+          />
+        </>
       )}
 
       {(config.pinnedContextActions || []).length > 0 && (
@@ -705,7 +792,7 @@ function ContextMenuView({
         </>
       )}
 
-      {/* Primary open */}
+      {/* Primary open — folder / shortcut / app / file */}
       <ContextMenuItem
         label="Open"
         iconVerb="open"
@@ -713,13 +800,57 @@ function ContextMenuView({
         onClick={() => handleVerb('open')}
       />
 
-      {menu.isDirectory ? (
+      {itemKind === 'folder' && (
         <ContextMenuItem
           label="Open in New Tab"
           iconVerb="open"
           onClick={() => { addTab(activePaneId, entityPath); onClose(); }}
         />
-      ) : (
+      )}
+
+      {itemKind === 'shortcut' && (
+        <>
+          <ContextMenuItem
+            label={openLocationTarget ? openLocationTarget.label : 'Open file location'}
+            iconVerb="openexplorer"
+            disabled={!openLocationTarget}
+            onClick={() => {
+              if (!openLocationTarget) {
+                setToastMessage(shortcutInfo?.error || 'Could not resolve shortcut target.');
+                onClose();
+                return;
+              }
+              void goOpenFileLocation(openLocationTarget);
+            }}
+          />
+          {shortcutInfo?.targetExists && !shortcutInfo.targetIsDirectory && /\.exe$/i.test(shortcutInfo.targetPath || '') && (
+            <ContextMenuItem
+              label="Run as administrator"
+              iconVerb="runas"
+              onClick={() => handleVerb('runas')}
+            />
+          )}
+        </>
+      )}
+
+      {itemKind === 'app' && (
+        <>
+          <ContextMenuItem
+            label="Run as administrator"
+            iconVerb="runas"
+            onClick={() => handleVerb('runas')}
+          />
+          {openLocationTarget && (
+            <ContextMenuItem
+              label={openLocationTarget.label}
+              iconVerb="openexplorer"
+              onClick={() => void goOpenFileLocation(openLocationTarget)}
+            />
+          )}
+        </>
+      )}
+
+      {itemKind === 'file' && (
         <>
           <ContextMenuItem label="Open With..." iconVerb="openas" onClick={() => handleVerb('openas')} />
           <ContextMenuItem
@@ -728,7 +859,18 @@ function ContextMenuView({
             onClick={() => handleVerb('edit')}
             disabled={!['txt', 'md', 'log', 'json', 'xml', 'csv', 'ini', 'bat', 'ps1'].includes(ext)}
           />
+          {openLocationTarget && (
+            <ContextMenuItem
+              label={openLocationTarget.label}
+              iconVerb="openexplorer"
+              onClick={() => void goOpenFileLocation(openLocationTarget)}
+            />
+          )}
         </>
+      )}
+
+      {(itemKind === 'shortcut' || itemKind === 'app') && (
+        <ContextMenuItem label="Open With..." iconVerb="openas" onClick={() => handleVerb('openas')} />
       )}
 
       <div className="bndz-context-menu-sep" />
@@ -989,14 +1131,11 @@ function ContextMenuView({
         );
       })}
 
-      {openFileLocationParent && (
+      {itemKind === 'folder' && openLocationTarget && (
         <ContextMenuItem
-          label="Open file location"
+          label={openLocationTarget.label}
           iconVerb="openexplorer"
-          onClick={() => {
-            addTab(activePaneId, openFileLocationParent.parentPane);
-            onClose();
-          }}
+          onClick={() => void goOpenFileLocation(openLocationTarget)}
         />
       )}
 
@@ -1077,7 +1216,12 @@ function ContextMenuView({
           <>
             <div className="bndz-context-menu-sep" />
             <ContextMenuItem
-              label="Extract Here"
+              label="Extract…"
+              iconVerb="extract"
+              onClick={async e => { e.stopPropagation(); await extractToBrowse(); }}
+            />
+            <ContextMenuItem
+              label="Quick Extract"
               iconVerb="extract"
               onClick={async e => { e.stopPropagation(); await extractHere(); }}
             />
@@ -1208,7 +1352,7 @@ function ContextMenuView({
       {supplementalNative.length > 0 && (
         <>
           <div className="bndz-context-menu-sep" />
-          {supplementalNative.map(renderNativeItem)}
+          {supplementalNative.map((item, i) => renderNativeItem(item, i))}
         </>
       )}
     </ClampedFixedMenu>

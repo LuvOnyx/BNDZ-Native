@@ -19,12 +19,24 @@ const CHIPS: Array<{ id: ListKindFilter; label: string }> = [
 type Props = {
   value: ListKindFilter;
   onChange: (v: ListKindFilter) => void;
+  /** Right-click empty chrome → folder background menu (New / Paste / shell). */
+  onFolderContextMenu?: (e: React.MouseEvent) => void;
 };
 
 /** Secondary kind filters — soft squircle chips with per-kind accent colors. */
-export default function ListFilterChips({ value, onChange }: Props) {
+export default function ListFilterChips({ value, onChange, onFolderContextMenu }: Props) {
   return (
-    <div className="bndz-list-filter-bar flex items-center gap-1.5 px-2 py-1.5 border-b border-white/[0.06] bg-black/20 shrink-0 flex-wrap">
+    <div
+      className="bndz-list-filter-bar flex items-center gap-1.5 px-2 py-1.5 border-b border-white/[0.06] bg-black/20 shrink-0 flex-wrap"
+      title="Right-click for folder menu (New, Paste, Windows shell)"
+      onContextMenu={(e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        if (!onFolderContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onFolderContextMenu(e);
+      }}
+    >
       <div className="flex items-center gap-1 mr-1">
         {CHIPS.map(c => (
           <button
@@ -38,6 +50,7 @@ export default function ListFilterChips({ value, onChange }: Props) {
           </button>
         ))}
       </div>
+      <div className="flex-1 min-h-[22px] min-w-[48px]" aria-hidden />
     </div>
   );
 }

@@ -203,15 +203,17 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if (typeof merged.startupPane !== 'string' || !merged.startupPane || merged.startupPane === 'false') {
         merged.startupPane = 'Last active panel';
     }
-    if ((merged.folderColorFilterVersion ?? 0) < 1) {
+    if ((merged.folderColorFilterVersion ?? 0) < 2) {
+        // v2: drop auto green folder icons on recent-change filters — keep row chrome only.
         const rows = Array.isArray(merged.colorFilters) ? merged.colorFilters : [];
         merged.colorFilters = rows.map((row: any) => {
-            if (row?.folderIcon) return row;
             const t = String(row?.t || '').toLowerCase();
-            if (t.includes('agem:')) return { ...row, folderIcon: 'green' };
-            return row;
+            if (!t.includes('agem:')) return row;
+            if (!row?.folderIcon) return row;
+            const { folderIcon: _removed, ...rest } = row;
+            return rest;
         });
-        merged.folderColorFilterVersion = 1;
+        merged.folderColorFilterVersion = 2;
     }
     return merged;
 }
@@ -314,8 +316,8 @@ export const defaultConfig: AppConfig = normalizeConfig({
         {i: 3, c: true, t: "attr:system", style: "bg-[#F4D03F] text-black px-1"},
         {i: 4, c: true, t: "attr:encrypted", style: "text-[#2ECC71] px-1"},
         {i: 5, c: true, t: "attr:compressed", style: "text-[#3498DB] px-1"},
-        {i: 6, c: true, t: "ageM: <= 30 n //modified in the last 30 mins", style: "bg-[#82E05B] text-black px-1", folderIcon: "green"},
-        {i: 7, c: true, t: "ageM: d //modified today", style: "bg-[#82E05B] text-white px-1", folderIcon: "green"},
+        {i: 6, c: true, t: "ageM: <= 30 n //modified in the last 30 mins", style: "bg-[#82E05B] text-black px-1"},
+        {i: 7, c: true, t: "ageM: d //modified today", style: "bg-[#82E05B] text-white px-1"},
         {i: 8, c: true, t: "attr:d", style: "text-[#B6B6B6] px-1"},
         {i: 9, c: true, t: "size:0 //empty files", style: "bg-[#FDFDFD] text-[#3498DB] px-1"},
         {i: 10, c: true, t: "B:prop:#empty:2|f-s //empty folders", style: "bg-transparent text-white px-1 border border-white"},

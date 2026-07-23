@@ -252,8 +252,10 @@ export function getSkillIconIdForApp(name: string): string | null {
 
 export async function fetchIconifySvg(iconId: string): Promise<string | null> {
   if (!iconId) return null;
-  const cached = svgCache.get(iconId);
-  if (cached) return cached;
+  if (svgCache.has(iconId)) {
+    const cached = svgCache.get(iconId)!;
+    return cached || null;
+  }
 
   const pending = inflight.get(iconId);
   if (pending) return pending;
@@ -270,7 +272,16 @@ export async function fetchIconifySvg(iconId: string): Promise<string | null> {
       idsToTry.push(iconId.replace('-plain', '').replace('-wordmark', ''));
     }
 
-    for (const id of [...new Set(idsToTry)]) {
+    const unique = [...new Set(idsToTry)];
+    for (const id of unique) {
+      if (svgCache.has(id)) {
+        const hit = svgCache.get(id)!;
+        if (hit) {
+          svgCache.set(iconId, hit);
+          return hit;
+        }
+        continue;
+      }
       try {
         const res = await fetch(`https://api.iconify.design/${id}.svg`, { cache: 'force-cache' });
         if (res.ok) {
@@ -281,10 +292,13 @@ export async function fetchIconifySvg(iconId: string): Promise<string | null> {
             return svg;
           }
         }
+        // Negative-cache misses so remounts / alias retries don't spam the network.
+        svgCache.set(id, '');
       } catch {
-        /* try next variant */
+        svgCache.set(id, '');
       }
     }
+    svgCache.set(iconId, '');
     return null;
   })().finally(() => inflight.delete(iconId));
 

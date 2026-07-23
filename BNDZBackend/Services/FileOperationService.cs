@@ -63,12 +63,11 @@ public class FileOperationService
                 case "create-dir":
                 {
                     var dir = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
-                    if (!string.IsNullOrEmpty(dir))
-                    {
-                        var existed = Directory.Exists(dir);
-                        Directory.CreateDirectory(dir);
-                        if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(dir));
-                    }
+                    if (string.IsNullOrEmpty(dir))
+                        throw new InvalidOperationException("No folder path was provided.");
+                    var existed = Directory.Exists(dir);
+                    Directory.CreateDirectory(dir);
+                    if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateDir(dir));
                     onProgress?.Invoke(operationId, 100, dir, 0, 0, 0, 1, 1);
                     break;
                 }
@@ -76,20 +75,21 @@ public class FileOperationService
                 case "create-file":
                 {
                     var filePath = !string.IsNullOrEmpty(target) ? target : sources.FirstOrDefault() ?? "";
-                    if (!string.IsNullOrEmpty(filePath))
-                    {
-                        var dir = Path.GetDirectoryName(filePath);
-                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                            Directory.CreateDirectory(dir);
-                        var existed = File.Exists(filePath);
-                        if (!existed) File.WriteAllBytes(filePath, Array.Empty<byte>());
-                        if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(filePath));
-                    }
+                    if (string.IsNullOrEmpty(filePath))
+                        throw new InvalidOperationException("No file path was provided.");
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                        Directory.CreateDirectory(dir);
+                    var existed = File.Exists(filePath);
+                    if (!existed) File.WriteAllBytes(filePath, Array.Empty<byte>());
+                    if (!existed && recordActionLog) _actionLog?.Record(BndzActionLogService.ForCreateFile(filePath));
                     onProgress?.Invoke(operationId, 100, filePath, 0, 0, 0, 1, 1);
                     break;
                 }
 
                 case "delete":
+                    if (sources.Count == 0)
+                        throw new InvalidOperationException("No items to delete.");
                     await DeleteItemsAsync(operationId, sources, bypassRecycleBin, onProgress, cancellationToken);
                     if (sources.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForDelete(sources, !bypassRecycleBin));
@@ -279,12 +279,12 @@ public class FileOperationService
         if (move && sources.Count == 1 && !string.IsNullOrEmpty(targetDir))
         {
             var singleSrc = sources[0];
+            // Existing directory destination → fall through to general copy/move plan.
+            // Non-existing path is the destination *file* (rename / move-as) — never
+            // CreateDirectory(target) then nest the old filename inside it.
             if (File.Exists(singleSrc) && !Directory.Exists(targetDir))
             {
                 var destFile = targetDir;
-                if (!destFile.EndsWith(Path.GetFileName(singleSrc), StringComparison.OrdinalIgnoreCase)
-                    && !File.Exists(destFile))
-                    destFile = Path.Combine(targetDir, Path.GetFileName(singleSrc));
                 if (File.Exists(destFile) && onConflict != null)
                 {
                     var resolution = await onConflict(operationId, Path.GetFileName(destFile), singleSrc, destFile);
@@ -304,12 +304,51 @@ public class FileOperationService
         if (!Directory.Exists(targetDir))
             Directory.CreateDirectory(targetDir);
 
+        var existingSources = sources
+            .Select(NormalizePath)
+            .Where(s => !string.IsNullOrEmpty(s) && (File.Exists(s) || Directory.Exists(s)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (existingSources.Count == 0)
+            throw new FileNotFoundException("None of the source items exist. The operation could not run.");
+
+        // Ensure folder trees exist at destination even when a folder is empty (no files in plan).
+        foreach (var src in existingSources.Where(Directory.Exists))
+        {
+            var destRoot = Path.Combine(targetDir, Path.GetFileName(src.TrimEnd('\\', '/')));
+            Directory.CreateDirectory(destRoot);
+            foreach (var dir in Directory.EnumerateDirectories(src, "*", SearchOption.AllDirectories))
+            {
+                var rel = Path.GetRelativePath(src, dir);
+                Directory.CreateDirectory(Path.Combine(destRoot, rel));
+            }
+            if (!createdPaths.Contains(destRoot, StringComparer.OrdinalIgnoreCase))
+                createdPaths.Add(destRoot);
+        }
+
         var plan = FileOperationPathPlanner.Plan(move ? "move" : "copy", sources, targetDir, recreateSourceStructure);
         var work = new List<(string src, string dest, long size)>();
         foreach (var (src, dest) in plan)
         {
             if (!File.Exists(src)) continue;
             work.Add((src, dest, new FileInfo(src).Length));
+        }
+
+        if (work.Count == 0 && createdPaths.Count == 0)
+            throw new InvalidOperationException("Nothing to copy or move — sources were empty or inaccessible.");
+
+        if (work.Count == 0)
+        {
+            // Empty folders only — directory tree already created above.
+            if (move)
+            {
+                foreach (var src in existingSources.Where(Directory.Exists))
+                {
+                    try { Directory.Delete(src, true); } catch { /* best effort */ }
+                }
+            }
+            onProgress?.Invoke(operationId, 100, existingSources.LastOrDefault() ?? "", 0, 0, 0, createdPaths.Count, Math.Max(createdPaths.Count, 1));
+            return createdPaths;
         }
 
         long totalBytes = work.Sum(w => w.size);

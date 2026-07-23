@@ -1,7 +1,7 @@
 import type { AppConfig } from '../data/configContext';
 import { readSettingNumber, readSettingString } from './settingsWiring';
 
-export type PanelFontZone = 'tree' | 'list' | 'preview' | 'bottom' | 'status' | 'chrome';
+export type PanelFontZone = 'tree' | 'list' | 'tabs' | 'preview' | 'bottom' | 'status' | 'chrome';
 
 export type PanelFontTokens = {
   family: string;
@@ -11,21 +11,33 @@ export type PanelFontTokens = {
   monoFamily: string;
 };
 
+/** Curated Windows-friendly UI font pack (no web-font downloads required). */
 const FONT_PRESETS: Record<string, string> = {
   'Segoe UI Variable': '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
   'Segoe UI': '"Segoe UI", system-ui, sans-serif',
-  Inter: 'Inter, "Segoe UI", system-ui, sans-serif',
-  Roboto: 'Roboto, "Segoe UI", system-ui, sans-serif',
-  Tahoma: 'Tahoma, "Segoe UI", system-ui, sans-serif',
+  Calibri: 'Calibri, "Segoe UI", sans-serif',
+  Candara: 'Candara, "Segoe UI", sans-serif',
+  Corbel: 'Corbel, "Segoe UI", sans-serif',
+  Verdana: 'Verdana, Geneva, sans-serif',
+  Tahoma: 'Tahoma, "Segoe UI", sans-serif',
+  'Trebuchet MS': '"Trebuchet MS", "Segoe UI", sans-serif',
   Arial: 'Arial, Helvetica, sans-serif',
+  'Franklin Gothic': '"Franklin Gothic Medium", "Segoe UI", sans-serif',
+  'Century Gothic': '"Century Gothic", CenturyGothic, sans-serif',
   Georgia: 'Georgia, "Times New Roman", serif',
+  'Palatino Linotype': '"Palatino Linotype", Palatino, serif',
+  Constantia: 'Constantia, Georgia, serif',
+  Garamond: 'Garamond, "Times New Roman", serif',
+  'Lucida Sans': '"Lucida Sans Unicode", "Lucida Grande", sans-serif',
 };
 
 const MONO_PRESETS: Record<string, string> = {
   'Cascadia Code': '"Cascadia Code", "Cascadia Mono", Consolas, monospace',
+  'Cascadia Mono': '"Cascadia Mono", "Cascadia Code", Consolas, monospace',
   Consolas: 'Consolas, "Courier New", monospace',
   'Courier New': '"Courier New", Courier, monospace',
   'Lucida Console': '"Lucida Console", Consolas, monospace',
+  'Segoe UI Mono': '"Segoe UI Mono", Consolas, monospace',
 };
 
 export const UI_FONT_PRESET_OPTIONS = Object.entries(FONT_PRESETS).map(([label, value]) => ({ label, value }));
@@ -34,10 +46,11 @@ export const MONO_FONT_PRESET_OPTIONS = Object.entries(MONO_PRESETS).map(([label
 export const PANEL_FONT_ZONE_META: { id: PanelFontZone; label: string; description: string }[] = [
   { id: 'tree', label: 'Navigation tree', description: 'Sidebar folders, drives, favorites' },
   { id: 'list', label: 'File list', description: 'Details, grid, and list views' },
+  { id: 'tabs', label: 'List tabs', description: 'Folder tabs above the file list' },
+  { id: 'chrome', label: 'Top menu bar', description: 'Menubar and toolbar labels' },
   { id: 'preview', label: 'Preview panel', description: 'Inspector tabs, metadata, media chrome' },
   { id: 'bottom', label: 'Bottom plugins', description: 'Plugin tabs and embedded tools' },
   { id: 'status', label: 'Status bar', description: 'Footer selection and progress text' },
-  { id: 'chrome', label: 'Menus & toolbar', description: 'Menubar, toolbar, and dialogs' },
 ];
 
 function zoneFamilyKey(zone: PanelFontZone): keyof AppConfig {
@@ -60,6 +73,7 @@ export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelF
   const zoneDefaults: Record<PanelFontZone, { size: number; weight: number; lineHeight: number }> = {
     tree: { size: 12, weight: baseWeight, lineHeight: 1.35 },
     list: { size: 12, weight: baseWeight, lineHeight: 1.3 },
+    tabs: { size: readSettingNumber(config, 'tabFontSize', 11) || 11, weight: baseWeight, lineHeight: 1.25 },
     preview: { size: 12, weight: baseWeight, lineHeight: 1.4 },
     bottom: { size: 12, weight: baseWeight, lineHeight: 1.35 },
     status: { size: 11, weight: baseWeight, lineHeight: 1.25 },

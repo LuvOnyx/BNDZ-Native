@@ -5,6 +5,7 @@ import {
   setHoverPending,
   updateHoverPendingPosition,
 } from './floatingTooltip';
+import { isIconQueueScrolling } from './iconRequestQueue';
 import {
   DEFAULT_HOVER_BOX_CONTEXTS,
   DEFAULT_HOVER_BOX_ITEM_TYPES,
@@ -100,6 +101,7 @@ export function bindFloatingTooltipHandlers(
   return {
     onMouseEnter: (e) => {
       if (!content) return;
+      if (isIconQueueScrolling()) return;
       if (!shouldShowTooltipOnSurface(config, surface)) return;
       const payload = hoverBox ? { ...content, mode: 'hoverbox' as const } : content;
       // Advanced floating tooltips only appear while Left Shift is held — never on plain hover.

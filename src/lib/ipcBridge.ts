@@ -171,6 +171,9 @@ export const IPC = {
           this._duplicateProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'FOLDER_SYNC_PROGRESS') {
           this._folderSyncProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'GLOBAL_HOTKEY') {
+          const id = data.payload?.id ?? '';
+          window.dispatchEvent(new CustomEvent('bndz-global-hotkey', { detail: { id } }));
         } else if (data.type === 'CLOSE_REQUEST') {
           const source = data.payload?.source;
           this._closeRequestListeners.forEach(cb => cb({ source }));
@@ -1508,6 +1511,25 @@ export const IPC = {
     if (this.isNative) {
       const id = `${Date.now()}_createLink`;
       return _nativeCall<{ success: boolean; error?: string }>('CREATE_LINK', 'CREATE_LINK_RESULT', id, { linkPath, targetPath, linkType }, 15000);
+    }
+    return Promise.resolve({ success: false, error: 'Native only' });
+  },
+
+  resolveShortcut(path: string): Promise<{
+    success: boolean;
+    error?: string;
+    targetPath?: string;
+    workingDirectory?: string;
+    arguments?: string;
+    description?: string;
+    targetExists?: boolean;
+    targetIsDirectory?: boolean;
+    locationPath?: string;
+    isUrl?: boolean;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_resolveShortcut`;
+      return _nativeCall('RESOLVE_SHORTCUT', 'RESOLVE_SHORTCUT_RESULT', id, { path }, 8000);
     }
     return Promise.resolve({ success: false, error: 'Native only' });
   },

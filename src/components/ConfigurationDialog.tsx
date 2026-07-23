@@ -1388,7 +1388,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                      Keeps recent transfer jobs in the queue panel after restart. Jobs interrupted by shutdown are marked accordingly.
                    </p>
                  </div>
-                 <div className="mt-3">
+                   <div className="mt-3">
                    <Checkbox
                      label={<span>Show transfer <span className="underline decoration-1 underline-offset-[3px]">p</span>rogress panel</span>}
                      checked={localConfig.showTransferQueuePanel ?? true}
@@ -1396,6 +1396,16 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                    />
                    <p className="text-[11px] text-gray-500 mt-1 max-w-[560px]">
                      Docked bar above the status line showing copy, move, and sync progress with destination paths. Uncheck to hide it entirely.
+                   </p>
+                 </div>
+                 <div className="mt-3">
+                   <Checkbox
+                     label={<span><span className="underline decoration-1 underline-offset-[3px]">A</span>uto-clear finished jobs</span>}
+                     checked={localConfig.autoClearFinishedTransfers ?? true}
+                     onChange={e => updateLocalConfig({ autoClearFinishedTransfers: e.target.checked })}
+                   />
+                   <p className="text-[11px] text-gray-500 mt-1 max-w-[560px]">
+                     Finished transfers dissolve out of the panel automatically. Turn off to keep Done / Failed / Cancelled rows until you clear them.
                    </p>
                  </div>
               </div>

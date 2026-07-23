@@ -106,28 +106,48 @@ export type NativeContextMenuItem = {
   label?: string;
   verb?: string;
   icon?: string;
+  iconBase64?: string;
   isPrimary?: boolean;
   separator?: boolean;
   kind?: 'shell' | 'builtin';
   commandId?: number;
+  children?: NativeContextMenuItem[];
 };
+
+function nativeItemKey(item: NativeContextMenuItem): string {
+  return (item.id || item.verb || item.label || '').toLowerCase();
+}
+
+function isShellCascade(item: NativeContextMenuItem): boolean {
+  return Array.isArray(item.children) && item.children.length > 0;
+}
+
+function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem | null {
+  if (item.separator) return item;
+  if (isShellCascade(item)) {
+    const kids = filterSupplementalNativeItems(item.children);
+    if (!kids.length) return null;
+    return { ...item, children: kids };
+  }
+  // Live IContextMenu extensions — always keep (even without classic verbs).
+  if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId > 0)) {
+    const v = nativeItemKey(item);
+    // Skip exact duplicates of BNDZ built-ins (leaf verbs only; cascades stay).
+    if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return null;
+    return item;
+  }
+  const v = nativeItemKey(item);
+  if (!v || BUILT_IN_CONTEXT_VERBS.has(v)) return null;
+  return item;
+}
 
 export function filterSupplementalNativeItems(items: NativeContextMenuItem[] | undefined): NativeContextMenuItem[] {
   if (!items?.length) return [];
-  const filtered = items.filter(item => {
-    if (item.separator) return true;
-    // Live IContextMenu extensions — always keep (even without classic verbs).
-    if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId > 0)) {
-      const v = (item.verb || item.id || '').toLowerCase();
-      // Still skip exact duplicates of BNDZ built-ins when they came through as shell.
-      if (v && BUILT_IN_CONTEXT_VERBS.has(v) && item.kind !== 'shell') return false;
-      if (v && BUILT_IN_CONTEXT_VERBS.has(v) && item.kind === 'builtin') return false;
-      if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return false;
-      return true;
-    }
-    const v = (item.verb || item.id || '').toLowerCase();
-    return v && !BUILT_IN_CONTEXT_VERBS.has(v);
-  });
+  const filtered: NativeContextMenuItem[] = [];
+  for (const raw of items) {
+    const item = filterOneNativeItem(raw);
+    if (item) filtered.push(item);
+  }
   // Drop orphan / leading / trailing / adjacent separators left after verb filtering.
   const out: NativeContextMenuItem[] = [];
   for (const item of filtered) {
@@ -140,6 +160,24 @@ export function filterSupplementalNativeItems(items: NativeContextMenuItem[] | u
   }
   while (out.length && out[out.length - 1].separator) out.pop();
   return out;
+}
+
+/** Pull a named shell cascade (e.g. New) out of the supplemental list for promoted placement. */
+export function takeShellCascadeByLabel(
+  items: NativeContextMenuItem[],
+  label: string,
+): { cascade: NativeContextMenuItem | null; rest: NativeContextMenuItem[] } {
+  const want = label.trim().toLowerCase();
+  let cascade: NativeContextMenuItem | null = null;
+  const rest: NativeContextMenuItem[] = [];
+  for (const item of items) {
+    if (!cascade && isShellCascade(item) && (item.label || '').trim().toLowerCase() === want) {
+      cascade = item;
+      continue;
+    }
+    rest.push(item);
+  }
+  return { cascade, rest: filterSupplementalNativeItems(rest) };
 }
 
 /** Resolve the verb string to send to the host for a supplemental native item. */

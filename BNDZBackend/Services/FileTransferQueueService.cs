@@ -316,15 +316,18 @@ public sealed class FileTransferQueueService
     {
         if (string.IsNullOrEmpty(operationId) || process == null) return;
         _attachedProcesses[operationId] = process;
+        ProcessJobService.TryAttach(operationId, process);
     }
 
     public void DetachProcess(string operationId)
     {
         _attachedProcesses.TryRemove(operationId, out _);
+        ProcessJobService.Release(operationId);
     }
 
     private void KillAttachedProcess(string operationId)
     {
+        ProcessJobService.Terminate(operationId);
         if (!_attachedProcesses.TryRemove(operationId, out var proc)) return;
         try
         {

@@ -99,6 +99,8 @@ export function themeToColorConfig(preset: ThemePreset): Record<string, string |
     colorConfig29: surface,
     colorConfig34: preset.accent,
     colorConfig35: preset.accent,
+    colorConfig46: mixHex(preset.bg, '#000000', 0.18),
+    colorConfig47: mixHex(preset.bg, '#000000', 0.14),
     applyColors: true,
   };
 }
@@ -139,6 +141,8 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--toolbar-bg', toolbar);
   root.style.setProperty('--sidebar-bg', sidebar);
   root.style.setProperty('--statusbar-bg', mixHex(preset.bg, '#000000', isLight ? 0.05 : 0.2));
+  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
+  root.style.setProperty('--sidebar-accent', preset.accent);
   root.style.setProperty('--border-subtle', isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)');
   root.style.setProperty('--border-strong', isLight ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.16)');
   root.style.setProperty('--accent', preset.accent);

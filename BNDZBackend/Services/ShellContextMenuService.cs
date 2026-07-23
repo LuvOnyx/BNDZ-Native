@@ -22,6 +22,8 @@ public sealed class ShellContextMenuService
         /// <summary>shell | builtin</summary>
         public string? Kind { get; init; }
         public uint? CommandId { get; init; }
+        /// <summary>Cascaded shell submenu (New, Send to, …).</summary>
+        public List<MenuItemDto>? Children { get; init; }
 
         public static MenuItemDto Sep() => new() { Separator = true };
     }
@@ -132,29 +134,12 @@ public sealed class ShellContextMenuService
         var items = new List<MenuItemDto>();
         if (string.IsNullOrEmpty(path)) return items;
 
-        // Prefer live IContextMenu enumeration (third-party shell extensions included).
+        // Prefer live IContextMenu enumeration (third-party shell extensions + OS cascades).
         var enumerated = ShellContextMenuEnumerator.Enumerate(path);
         if (enumerated.Count > 0)
         {
             foreach (var e in enumerated)
-            {
-                if (e.Separator)
-                {
-                    items.Add(MenuItemDto.Sep());
-                    continue;
-                }
-                items.Add(new MenuItemDto
-                {
-                    Id = e.Id,
-                    Label = e.Label,
-                    Verb = e.Verb,
-                    Icon = e.Kind == "shell" ? "shell" : (e.Verb ?? "open"),
-                    IconBase64 = e.IconBase64,
-                    IsPrimary = e.IsPrimary,
-                    Kind = e.Kind,
-                    CommandId = e.CommandId,
-                });
-            }
+                items.Add(ToDto(e));
             return items;
         }
 
@@ -183,6 +168,31 @@ public sealed class ShellContextMenuService
         items.Add(new MenuItemDto { Id = "properties", Label = "Properties", Verb = "properties", Icon = "settings", Kind = "builtin" });
 
         return items;
+    }
+
+    private static MenuItemDto ToDto(ShellContextMenuEnumerator.EnumeratedItem e)
+    {
+        if (e.Separator) return MenuItemDto.Sep();
+        List<MenuItemDto>? children = null;
+        if (e.Children is { Count: > 0 })
+        {
+            children = new List<MenuItemDto>(e.Children.Count);
+            foreach (var child in e.Children)
+                children.Add(ToDto(child));
+        }
+
+        return new MenuItemDto
+        {
+            Id = e.Id,
+            Label = e.Label,
+            Verb = e.Verb,
+            Icon = e.Children is { Count: > 0 } ? "shell" : (e.Kind == "shell" ? "shell" : (e.Verb ?? "open")),
+            IconBase64 = e.IconBase64,
+            IsPrimary = e.IsPrimary,
+            Kind = e.Kind,
+            CommandId = e.CommandId > 0 ? e.CommandId : null,
+            Children = children,
+        };
     }
 
     public bool InvokeVerb(IEnumerable<string> rawPaths, string verb, IntPtr hwnd, bool bypassRecycleBin = false, string? sendToTarget = null)

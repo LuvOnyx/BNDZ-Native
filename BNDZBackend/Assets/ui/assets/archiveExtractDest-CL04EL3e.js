@@ -1,0 +1,1 @@
+function n(t){const c=t.replace(/\//g,"\\"),r=c.replace(/\\[^\\]+$/,""),e=c.split("\\").pop()||"archive",a=e.includes(".")?e.replace(/\.[^.]+$/,""):e;return`${r}\\${a||"extracted"}`}export{n as archiveQuickExtractDest};

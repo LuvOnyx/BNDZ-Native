@@ -9,6 +9,7 @@ import { reorderNavTreeKeys } from '../lib/navTreeOrder';
 import type { AppConfig } from '../data/configContext';
 import { buildTreeTooltipContent } from '../lib/treeTooltip';
 import { shouldShowTreeTooltip, bindFloatingTooltipHandlers } from '../lib/tooltipSettings';
+import { markScrolling as markIconQueueScrolling } from '../lib/iconRequestQueue';
 import {
   BNDZ_TREE_REORDER_MIME,
   hasBndzFileDrag,
@@ -658,7 +659,7 @@ export function VirtualizedNavTree({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 18,
+    overscan: 6,
     enabled: useVirtual,
   });
 
@@ -731,6 +732,7 @@ export function VirtualizedNavTree({
         ref={scrollRef}
         className="flex-1 min-h-[200px] overflow-y-auto styled-scrollbar nav-tree-scroll"
         style={{ maxHeight: Math.max(height, 240) }}
+        onScroll={() => markIconQueueScrolling()}
         onContextMenu={e => {
           if ((e.target as HTMLElement).closest('.nav-tree-row')) return;
           if (!onBackgroundContextMenu) return;

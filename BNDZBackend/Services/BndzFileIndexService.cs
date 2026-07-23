@@ -157,6 +157,7 @@ public sealed class BndzFileIndexService : IDisposable
         var root = NormalizeWinPath(rootPath);
         if (!Directory.Exists(root)) return;
 
+        IndexPathGlobbing.ConfigureExcludes();
         _writeLock.Wait(ct);
         var batch = 0;
         try
@@ -253,7 +254,7 @@ public sealed class BndzFileIndexService : IDisposable
             {
                 ct.ThrowIfCancellationRequested();
                 var name = Path.GetFileName(sub);
-                if (SkipDirs.Contains(name) || name.StartsWith('.')) continue;
+                if (SkipDirs.Contains(name) || name.StartsWith('.') || IndexPathGlobbing.IsExcluded(sub, root)) continue;
                 try
                 {
                     var di = new DirectoryInfo(sub);

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DndContext,
   closestCenter,
@@ -60,6 +61,9 @@ export default function BottomPluginPanel(props: any & {
   launchContext?: BottomPluginLaunchContext | null;
   onLaunchContextConsumed?: () => void;
   onActiveTabChange?: (pluginId: string | null, pluginName?: string) => void;
+  immersive?: boolean;
+  onExitImmersive?: () => void;
+  onEnterImmersive?: () => void;
 }) {
   const {
     onOpenPluginStore,
@@ -68,6 +72,9 @@ export default function BottomPluginPanel(props: any & {
     launchContext,
     onLaunchContextConsumed,
     onActiveTabChange,
+    immersive = false,
+    onExitImmersive,
+    onEnterImmersive,
     ...pluginProps
   } = props;
   const { pluginRegistry, ensurePluginInstalled } = usePluginRegistry();
@@ -75,7 +82,12 @@ export default function BottomPluginPanel(props: any & {
   const panelRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [immersiveHost, setImmersiveHost] = useState<HTMLElement | null>(null);
   const lazyUnmount = config.bottomPanelLazyUnmount !== false;
+
+  useEffect(() => {
+    setImmersiveHost(document.getElementById('bndz-bottom-immersive-host'));
+  }, [immersive]);
 
   const orderedPlugins = useMemo(() => {
     const installed = pluginRegistry.filter((p: any) => p.isInstalled);
@@ -146,7 +158,7 @@ export default function BottomPluginPanel(props: any & {
       if (e.key !== 'PageDown' && e.key !== 'PageUp') return;
       const panel = panelRef.current;
       if (!panel) return;
-      const root = panel.closest('.bndz-chrome-bottom');
+      const root = panel.closest('.bndz-chrome-bottom, .bndz-bottom-immersive-shell');
       if (!root || !document.contains(root)) return;
       e.preventDefault();
       cycleTab(e.key === 'PageDown' ? 1 : -1);
@@ -214,8 +226,31 @@ export default function BottomPluginPanel(props: any & {
     );
   }
 
-  return (
-    <div ref={panelRef} className="bndz-bottom-panel flex flex-col h-full min-h-0" tabIndex={-1}>
+  const panelBody = (
+    <div
+      ref={panelRef}
+      className={`bndz-bottom-panel flex flex-col h-full min-h-0 ${immersive ? 'bndz-bottom-panel--immersive' : ''}`}
+      tabIndex={-1}
+    >
+      {immersive && (
+        <div className="bndz-bottom-immersive-bar shrink-0 flex items-center gap-3 px-3 py-2">
+          <button
+            type="button"
+            className="bndz-bottom-immersive-exit"
+            onClick={() => onExitImmersive?.()}
+            title="Restore docked panel (Esc)"
+          >
+            <Icons8Icon id="chevron_down" size={12} />
+            Restore
+          </button>
+          <span className="text-[11px] text-[#99c9f0]/90 font-semibold tracking-wide">
+            Immersive · {activePlugin?.name || 'Plugin'}
+          </span>
+          <span className="text-[10px] text-gray-500 ml-auto">
+            Covers the file list · Esc to restore
+          </span>
+        </div>
+      )}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
           <div className="bndz-bottom-tabstrip flex border-b border-white/[0.06] shrink-0 overflow-x-auto scrollbar-hidden items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
@@ -257,6 +292,28 @@ export default function BottomPluginPanel(props: any & {
                 )}
               </div>
             )}
+            <div className="ml-auto flex items-center gap-1 px-2 shrink-0">
+              {!immersive && onEnterImmersive && (
+                <button
+                  type="button"
+                  className="bndz-bottom-immersive-enter"
+                  title="Expand plugin over the file list"
+                  onClick={() => onEnterImmersive()}
+                >
+                  <Icons8Icon id="maximize_ui" size={12} />
+                </button>
+              )}
+              {onOpenPluginStore && (
+                <button
+                  type="button"
+                  className="bndz-bottom-hub-btn"
+                  title="Extension Hub"
+                  onClick={onOpenPluginStore}
+                >
+                  <Icons8Icon id="extension_hub" size={12} />
+                </button>
+              )}
+            </div>
           </div>
         </SortableContext>
       </DndContext>
@@ -274,7 +331,7 @@ export default function BottomPluginPanel(props: any & {
               className={`absolute inset-0 ${isActive ? 'z-10' : 'z-0 pointer-events-none invisible'}`}
               aria-hidden={!isActive}
             >
-              <Component {...mergedPluginProps} isPluginTabActive={isActive} />
+              <Component {...mergedPluginProps} isPluginTabActive={isActive} immersive={immersive} />
             </div>
           );
         })}
@@ -286,4 +343,26 @@ export default function BottomPluginPanel(props: any & {
       </div>
     </div>
   );
+
+  if (immersive && immersiveHost) {
+    return (
+      <>
+        <div className="bndz-bottom-immersive-placeholder h-full flex items-center justify-center gap-2 px-3 text-[11px] text-gray-500">
+          <Icons8Icon id="extension_hub" size={12} className="opacity-60" />
+          Immersive mode covering the list
+          <button type="button" className="text-[#7eb8e8] hover:text-[#99c9f0] font-medium" onClick={() => onExitImmersive?.()}>
+            Restore
+          </button>
+        </div>
+        {createPortal(
+          <div className="bndz-bottom-immersive-shell h-full w-full flex flex-col min-h-0">
+            {panelBody}
+          </div>,
+          immersiveHost,
+        )}
+      </>
+    );
+  }
+
+  return panelBody;
 }

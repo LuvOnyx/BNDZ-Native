@@ -1,6 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
+/** Trailing empty canvas so folder (New / Paste) context menu stays reachable when the list is full. */
+export const LIST_FOLDER_CONTEXT_PAD_PX = 72;
+
 interface VirtualizedFileListProps<T> {
   items: T[];
   enabled?: boolean;
@@ -81,7 +84,7 @@ export function VirtualizedFileList<T>({
     count: virtualCount,
     getScrollElement: () => scrollEl,
     estimateSize,
-    overscan: mode === 'grid' ? 3 : 8,
+    overscan: mode === 'grid' ? 2 : 5,
     enabled: useVirtual && !!scrollEl,
   });
 
@@ -99,6 +102,10 @@ export function VirtualizedFileList<T>({
     );
   }
 
+  const contentMin = scrollMinHeight ?? 0;
+  const withFolderPad = (contentHeight: number) =>
+    Math.max(contentHeight, contentMin) + LIST_FOLDER_CONTEXT_PAD_PX;
+
   const renderBody = () => {
     if (!useVirtual || !scrollEl) {
       if (mode === 'grid') {
@@ -109,7 +116,8 @@ export function VirtualizedFileList<T>({
               gap,
               // Fixed track size — never stretch with 1fr (that caused huge empty gaps).
               gridTemplateColumns: `repeat(auto-fill, ${gridMinItemWidth}px)`,
-              minHeight: scrollMinHeight,
+              minHeight: withFolderPad(0),
+              paddingBottom: LIST_FOLDER_CONTEXT_PAD_PX,
             }}
           >
             {items.map((item, i) => (
@@ -119,18 +127,26 @@ export function VirtualizedFileList<T>({
         );
       }
       return (
-        <div className={className} style={{ minHeight: scrollMinHeight, width: '100%', gap: mode === 'list' ? gap : undefined }}>
+        <div
+          className={className}
+          style={{
+            minHeight: withFolderPad(0),
+            width: '100%',
+            gap: mode === 'list' ? gap : undefined,
+            paddingBottom: LIST_FOLDER_CONTEXT_PAD_PX,
+          }}
+        >
           {items.map((item, i) => renderItem(item, i))}
         </div>
       );
     }
 
     if (mode === 'grid') {
-      const bodyHeight = Math.max(virtualizer.getTotalSize(), scrollMinHeight ?? 0);
+      const bodyHeight = withFolderPad(virtualizer.getTotalSize());
       return (
         <div
           className={className}
-          style={{ height: bodyHeight, minHeight: scrollMinHeight, position: 'relative', width: '100%' }}
+          style={{ height: bodyHeight, minHeight: withFolderPad(0), position: 'relative', width: '100%' }}
         >
           {virtualizer.getVirtualItems().map(vi => {
             const startIdx = vi.index * gridCols;
@@ -140,9 +156,11 @@ export function VirtualizedFileList<T>({
                 key={vi.key}
                 style={{
                   position: 'absolute',
-                  top: vi.start,
+                  top: 0,
                   left: 0,
                   width: '100%',
+                  transform: `translateY(${vi.start}px)`,
+                  contain: 'layout style',
                   pointerEvents: 'none',
                 }}
               >
@@ -165,11 +183,11 @@ export function VirtualizedFileList<T>({
       );
     }
 
-    const bodyHeight = Math.max(virtualizer.getTotalSize(), scrollMinHeight ?? 0);
+    const bodyHeight = withFolderPad(virtualizer.getTotalSize());
     return (
       <div
         className={className}
-        style={{ height: bodyHeight, minHeight: scrollMinHeight, position: 'relative', width: '100%' }}
+        style={{ height: bodyHeight, minHeight: withFolderPad(0), position: 'relative', width: '100%' }}
       >
         {virtualizer.getVirtualItems().map(vi => (
           <div
@@ -177,10 +195,12 @@ export function VirtualizedFileList<T>({
             data-index={vi.index}
             style={{
               position: 'absolute',
-              top: vi.start,
+              top: 0,
               left: 0,
               width: '100%',
               height: rowHeight,
+              transform: `translateY(${vi.start}px)`,
+              contain: 'layout style',
               pointerEvents: 'none',
             }}
           >
@@ -193,7 +213,7 @@ export function VirtualizedFileList<T>({
     );
   };
 
-  const nonVirtualMinH = scrollMinHeight ? { minHeight: scrollMinHeight } : undefined;
+  const nonVirtualMinH = scrollMinHeight ? { minHeight: withFolderPad(0) } : undefined;
 
   return <div ref={hostRef} className="w-full min-h-0" style={nonVirtualMinH}>{renderBody()}</div>;
 }

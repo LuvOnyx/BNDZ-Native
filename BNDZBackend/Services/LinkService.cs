@@ -123,6 +123,103 @@ public sealed class LinkService
         }
     }
 
+    public ShortcutResolveResult ResolveShortcut(string linkPath)
+    {
+        linkPath = NormalizePath(linkPath);
+        if (string.IsNullOrEmpty(linkPath) || !File.Exists(linkPath))
+            return new ShortcutResolveResult { Success = false, Error = "Shortcut not found" };
+
+        var ext = Path.GetExtension(linkPath);
+        if (ext.Equals(".url", StringComparison.OrdinalIgnoreCase))
+            return ResolveInternetShortcut(linkPath);
+        if (!ext.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+            return new ShortcutResolveResult { Success = false, Error = "Not a shortcut" };
+
+        try
+        {
+            var linkType = Type.GetTypeFromProgID("WScript.Shell");
+            if (linkType == null)
+                return new ShortcutResolveResult { Success = false, Error = "WScript.Shell unavailable" };
+
+            dynamic shell = Activator.CreateInstance(linkType)!;
+            dynamic shortcut = shell.CreateShortcut(linkPath);
+            string target = ((string?)shortcut.TargetPath)?.Trim() ?? "";
+            string workingDir = ((string?)shortcut.WorkingDirectory)?.Trim() ?? "";
+            string args = ((string?)shortcut.Arguments)?.Trim() ?? "";
+            string description = ((string?)shortcut.Description)?.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(target))
+                return new ShortcutResolveResult { Success = false, Error = "Shortcut has no target" };
+
+            // Expand environment variables commonly stored in .lnk targets.
+            try { target = Environment.ExpandEnvironmentVariables(target); } catch { }
+            try { if (!string.IsNullOrEmpty(workingDir)) workingDir = Environment.ExpandEnvironmentVariables(workingDir); } catch { }
+
+            var targetExists = File.Exists(target) || Directory.Exists(target);
+            var targetIsDir = Directory.Exists(target);
+            string? locationPath = null;
+            if (targetExists)
+            {
+                locationPath = targetIsDir
+                    ? target
+                    : Path.GetDirectoryName(target);
+            }
+            else if (!string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir))
+            {
+                locationPath = workingDir;
+            }
+
+            return new ShortcutResolveResult
+            {
+                Success = true,
+                LinkPath = linkPath,
+                TargetPath = target,
+                WorkingDirectory = workingDir,
+                Arguments = args,
+                Description = description,
+                TargetExists = targetExists,
+                TargetIsDirectory = targetIsDir,
+                LocationPath = locationPath,
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ShortcutResolveResult { Success = false, Error = ex.Message };
+        }
+    }
+
+    private static ShortcutResolveResult ResolveInternetShortcut(string urlPath)
+    {
+        try
+        {
+            string? url = null;
+            foreach (var line in File.ReadLines(urlPath))
+            {
+                if (line.StartsWith("URL=", StringComparison.OrdinalIgnoreCase))
+                {
+                    url = line[4..].Trim();
+                    break;
+                }
+            }
+            if (string.IsNullOrWhiteSpace(url))
+                return new ShortcutResolveResult { Success = false, Error = "Internet shortcut has no URL" };
+
+            return new ShortcutResolveResult
+            {
+                Success = true,
+                LinkPath = urlPath,
+                TargetPath = url,
+                TargetExists = false,
+                TargetIsDirectory = false,
+                IsUrl = true,
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ShortcutResolveResult { Success = false, Error = ex.Message };
+        }
+    }
+
     private static string NormalizePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return "";
@@ -137,5 +234,21 @@ public sealed class LinkService
         public bool Success { get; set; }
         public string? LinkType { get; set; }
         public string? Error { get; set; }
+    }
+
+    public sealed class ShortcutResolveResult
+    {
+        public bool Success { get; set; }
+        public string? Error { get; set; }
+        public string? LinkPath { get; set; }
+        public string? TargetPath { get; set; }
+        public string? WorkingDirectory { get; set; }
+        public string? Arguments { get; set; }
+        public string? Description { get; set; }
+        public bool TargetExists { get; set; }
+        public bool TargetIsDirectory { get; set; }
+        /// <summary>Folder to open for "Open file location" (parent of file target, or the directory target).</summary>
+        public string? LocationPath { get; set; }
+        public bool IsUrl { get; set; }
     }
 }

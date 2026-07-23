@@ -238,9 +238,13 @@ export function entitySortName(entity: any): string {
   return raw != null ? String(raw) : '';
 }
 
-/** Resolve default sort column from global sortMethod setting */
+/** Resolve sort column: pane override → persisted preference → sortMethod setting */
 export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): SortColumnId {
   if (pane?.sortColumn) return pane.sortColumn as SortColumnId;
+  const persisted = config.listSortColumn as SortColumnId | undefined;
+  if (persisted === 'name' || persisted === 'type' || persisted === 'size' || persisted === 'modified' || persisted === 'created' || persisted === 'tags') {
+    return persisted;
+  }
   const method = config.sortMethod || 'Natural';
   switch (method) {
     case 'Date Modified': return 'modified';
@@ -256,6 +260,12 @@ export function resolveSortDirection(
   config: AppConfig
 ): 'asc' | 'desc' {
   if (paneDirection) return paneDirection;
+  if (config.listSortDirection === 'asc' || config.listSortDirection === 'desc') {
+    // Only apply persisted direction when it matches the persisted column (or no pane override).
+    if (!config.listSortColumn || config.listSortColumn === column) {
+      return config.listSortDirection;
+    }
+  }
   if (column === 'size' && config.sortSizeColumnsDescendingByDefault) return 'desc';
   if (column === 'modified' && config.sortDateColumnsDescendingByDefault) return 'desc';
   if (config.sortFoldersAlwaysAscending && column === 'name') return 'asc';
@@ -669,6 +679,8 @@ const COLOR_CSS_MAP: [string, string][] = [
   ['--col-accent-label', 'colorConfig43'],
   ['--col-accent-comment', 'colorConfig44'],
   ['--col-accent-path', 'colorConfig45'],
+  ['--statusbar-bg', 'colorConfig46'],
+  ['--menubar-bg', 'colorConfig47'],
 ];
 
 /** Map custom colorConfig onto theme chrome variables (sidebar, list, tabs, etc.) */
@@ -676,10 +688,10 @@ const THEME_CHROME_COLOR_MAP: [string, string][] = [
   ['--bg-main', 'colorConfig11'],
   ['--sidebar-bg', 'colorConfig2'],
   ['--text-main', 'colorConfig1'],
-  ['--menubar-bg', 'colorConfig27'],
+  ['--menubar-bg', 'colorConfig47'],
   ['--toolbar-bg', 'colorConfig4'],
   ['--toolbar-text', 'colorConfig3'],
-  ['--statusbar-bg', 'colorConfig17'],
+  ['--statusbar-bg', 'colorConfig46'],
   ['--text-muted', 'colorConfig5'],
   ['--list-bg', 'colorConfig11'],
   ['--list-text', 'colorConfig10'],

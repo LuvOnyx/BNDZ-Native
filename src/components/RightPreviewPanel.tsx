@@ -394,10 +394,10 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const extractArchive = async () => {
     if (!path) return;
     const win = toWindowsPath(path);
-    const base = win.replace(/\\[^\\]+$/, '');
-    const name = entity.name.replace(/\.[^.]+$/, '');
     const { IPC } = await import('../lib/ipcBridge');
-    const res = await IPC.extractArchive(win, `${base}\\${name}`);
+    const dest = await IPC.openFolderDialog('Extract archive to…');
+    if (!dest) return;
+    const res = await IPC.extractArchive(win, dest);
     if (isQueuedIpcResult(res)) return;
     if (!res.ok) {
       window.dispatchEvent(new CustomEvent('bndz-native-alert', {

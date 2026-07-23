@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import type { FileTransferJobDto, FileTransferQueueState } from '../lib/ipcBridge';
 import {
@@ -9,6 +9,8 @@ import {
   isTransferActive,
   visibleTransferJobs,
 } from '../lib/fileTransferQueue';
+import { motionTransferDismiss } from '../lib/bndzMotion';
+import { useAppConfig } from '../data/configContext';
 
 type Props = {
   className?: string;
@@ -16,6 +18,7 @@ type Props = {
 };
 
 const TRANSFER_EXPANDED_KEY = 'bndz-transfer-panel-expanded';
+const AUTO_CLEAR_DELAY_MS = 1600;
 
 /** Survives unmount when the panel hides between jobs. */
 let transferPanelExpandedSession: boolean | null = null;
@@ -43,12 +46,16 @@ function JobRow({
   cancelling,
   errorExpanded,
   onToggleError,
+  dismissing,
+  rowRef,
 }: {
   job: FileTransferJobDto;
   onCancel: (id: string) => void;
   cancelling: boolean;
   errorExpanded: boolean;
   onToggleError: () => void;
+  dismissing?: boolean;
+  rowRef?: (el: HTMLDivElement | null) => void;
 }) {
   const canCancel = (job.status === 'queued' || job.status === 'running') && !cancelling;
   const engineLabel = job.engine === 'native' ? 'Windows' : job.engine === 'teracopy' ? 'TeraCopy' : 'BNDZ';
@@ -83,7 +90,11 @@ function JobRow({
       : Math.max(0, Math.min(job.status === 'running' ? 99 : 100, job.progress ?? 0));
 
   return (
-    <div className="bndz-transfer-row grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 py-2 last:border-b-0">
+    <div
+      ref={rowRef}
+      className={`bndz-transfer-row grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 py-2 last:border-b-0 ${dismissing ? 'bndz-transfer-row--dismissing' : ''}`}
+      data-transfer-id={job.operationId}
+    >
       <div className="min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           {job.status === 'completed' && (
@@ -152,10 +163,17 @@ function JobRow({
 
 /** Docked transfer queue — real cancel + soft-squircle chrome. */
 export default function FileTransferQueuePanel({ className = '', enabled = true }: Props) {
+  const { config } = useAppConfig();
+  const autoClear = config.autoClearFinishedTransfers !== false;
   const [state, setState] = useState<FileTransferQueueState>({ queuedCount: 0, activeCount: 0, jobs: [] });
   const [expanded, setExpanded] = useState(readTransferExpandedPreference);
   const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>({});
   const [cancellingIds, setCancellingIds] = useState<Record<string, boolean>>({});
+  const [dismissingIds, setDismissingIds] = useState<Record<string, boolean>>({});
+  const [hiddenIds, setHiddenIds] = useState<Record<string, boolean>>({});
+  const rowElsRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const clearTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const animatingRef = useRef<Record<string, boolean>>({});
 
   const setExpandedAndPersist = (next: boolean | ((prev: boolean) => boolean)) => {
     setExpanded(prev => {
@@ -208,15 +226,52 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
       unsub?.();
       unsubProgress?.();
       if (progressPoll) clearTimeout(progressPoll);
+      Object.values(clearTimersRef.current).forEach(clearTimeout);
     };
   }, [enabled]);
+
+  // Auto-clear finished jobs with dissolve animation.
+  useEffect(() => {
+    if (!enabled || !autoClear) return;
+    const finished = state.jobs.filter(j =>
+      (j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled')
+      && !hiddenIds[j.operationId]
+      && !animatingRef.current[j.operationId]
+      && !clearTimersRef.current[j.operationId],
+    );
+    for (const job of finished) {
+      const id = job.operationId;
+      clearTimersRef.current[id] = setTimeout(() => {
+        delete clearTimersRef.current[id];
+        const el = rowElsRef.current[id];
+        animatingRef.current[id] = true;
+        setDismissingIds(prev => ({ ...prev, [id]: true }));
+        motionTransferDismiss(el, () => {
+          setHiddenIds(prev => ({ ...prev, [id]: true }));
+          setDismissingIds(prev => {
+            const n = { ...prev };
+            delete n[id];
+            return n;
+          });
+          delete animatingRef.current[id];
+          void (async () => {
+            const { IPC } = await import('../lib/ipcBridge');
+            // Clear all finished once idle; individual hide already removed from UI.
+            const stillActive = state.activeCount > 0 || state.queuedCount > 0
+              || state.jobs.some(j => j.status === 'queued' || j.status === 'running');
+            if (!stillActive) await IPC.clearFileTransferHistory();
+          })();
+        });
+      }, AUTO_CLEAR_DELAY_MS);
+    }
+  }, [state, autoClear, enabled, hiddenIds]);
 
   if (!enabled) return null;
 
   const active = isTransferActive(state);
   if (!active) return null;
 
-  const jobs = visibleTransferJobs(state.jobs);
+  const jobs = visibleTransferJobs(state.jobs).filter(j => !hiddenIds[j.operationId]);
   const completedRecent = jobs.filter(j => j.status === 'completed').length;
   const failedRecent = jobs.filter(j => j.status === 'failed').length;
   const cancelledRecent = jobs.filter(j => j.status === 'cancelled').length;
@@ -243,6 +298,8 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
     await IPC.clearFileTransferHistory();
     setExpandedErrors({});
     setCancellingIds({});
+    setHiddenIds({});
+    setDismissingIds({});
   };
 
   const summaryParts: string[] = [];
@@ -297,6 +354,8 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
                 ...prev,
                 [job.operationId]: !prev[job.operationId],
               }))}
+              dismissing={!!dismissingIds[job.operationId]}
+              rowRef={el => { rowElsRef.current[job.operationId] = el; }}
             />
           ))}
         </div>

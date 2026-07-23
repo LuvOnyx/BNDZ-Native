@@ -247,6 +247,7 @@ public sealed class ArchiveService
         archivePath = NormalizePath(archivePath);
         destinationDir = NormalizePath(destinationDir);
         entryPath = entryPath.Replace('\\', '/').TrimStart('/');
+        var entryNorm = entryPath.TrimEnd('/');
 
         if (!File.Exists(archivePath))
             throw new FileNotFoundException("Archive not found", archivePath);
@@ -258,29 +259,123 @@ public sealed class ArchiveService
         if (ext == "zip")
         {
             using var zip = ZipFile.OpenRead(archivePath);
-            var entry = zip.GetEntry(entryPath) ?? zip.Entries.FirstOrDefault(e =>
-                e.FullName.Equals(entryPath, StringComparison.OrdinalIgnoreCase) ||
-                e.FullName.TrimEnd('/').Equals(entryPath, StringComparison.OrdinalIgnoreCase));
-            if (entry == null) throw new FileNotFoundException("Entry not found in archive", entryPath);
-            string destFile = Path.Combine(destinationDir, Path.GetFileName(entryPath.TrimEnd('/')));
-            entry.ExtractToFile(destFile, overwrite: true);
+            var matches = zip.Entries
+                .Where(e =>
+                {
+                    var full = (e.FullName ?? "").Replace('\\', '/');
+                    var trimmed = full.TrimEnd('/');
+                    return trimmed.Equals(entryNorm, StringComparison.OrdinalIgnoreCase)
+                        || full.StartsWith(entryNorm + "/", StringComparison.OrdinalIgnoreCase);
+                })
+                .ToList();
+            if (matches.Count == 0)
+                throw new FileNotFoundException("Entry not found in archive", entryPath);
+
+            var leafName = Path.GetFileName(entryNorm);
+            if (string.IsNullOrEmpty(leafName)) leafName = "item";
+            var isTree = matches.Count > 1
+                || matches.Any(e => (e.FullName ?? "").Replace('\\', '/').TrimEnd('/').Length > entryNorm.Length)
+                || matches.Any(e => (e.FullName ?? "").EndsWith('/') || (e.FullName ?? "").EndsWith('\\'));
+
+            foreach (var entry in matches)
+            {
+                var full = (entry.FullName ?? "").Replace('\\', '/');
+                string destPath;
+                if (!isTree)
+                {
+                    destPath = Path.Combine(destinationDir, leafName);
+                }
+                else
+                {
+                    var rel = full.StartsWith(entryNorm, StringComparison.OrdinalIgnoreCase)
+                        ? full[entryNorm.Length..].TrimStart('/')
+                        : Path.GetFileName(full.TrimEnd('/'));
+                    destPath = string.IsNullOrEmpty(rel)
+                        ? Path.Combine(destinationDir, leafName)
+                        : Path.Combine(destinationDir, leafName, rel.Replace('/', Path.DirectorySeparatorChar));
+                }
+
+                if (full.EndsWith('/') || string.IsNullOrEmpty(entry.Name))
+                {
+                    Directory.CreateDirectory(destPath.EndsWith(Path.DirectorySeparatorChar)
+                        ? destPath
+                        : Path.GetDirectoryName(destPath + Path.DirectorySeparatorChar) ?? destPath);
+                    if (!full.EndsWith('/'))
+                        Directory.CreateDirectory(destPath);
+                    else
+                        Directory.CreateDirectory(destPath);
+                    continue;
+                }
+
+                var parent = Path.GetDirectoryName(destPath);
+                if (!string.IsNullOrEmpty(parent))
+                    Directory.CreateDirectory(parent);
+                entry.ExtractToFile(destPath, overwrite: true);
+            }
             return;
         }
 
         using var archive = ArchiveFactory.OpenArchive(archivePath);
-        var arcEntry = archive.Entries.FirstOrDefault(e =>
-            (e.Key ?? "").Replace('\\', '/').TrimEnd('/').Equals(entryPath, StringComparison.OrdinalIgnoreCase));
-        if (arcEntry == null) throw new FileNotFoundException("Entry not found in archive", entryPath);
-        if (arcEntry.IsDirectory)
+        var arcMatches = archive.Entries
+            .Where(e =>
+            {
+                var key = (e.Key ?? "").Replace('\\', '/').TrimEnd('/');
+                return key.Equals(entryNorm, StringComparison.OrdinalIgnoreCase)
+                    || key.StartsWith(entryNorm + "/", StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+        if (arcMatches.Count == 0)
+            throw new FileNotFoundException("Entry not found in archive", entryPath);
+
+        var outLeaf = Path.GetFileName(entryNorm);
+        if (string.IsNullOrEmpty(outLeaf)) outLeaf = "item";
+        var isFolder = arcMatches.Count > 1
+            || arcMatches.Any(e => e.IsDirectory)
+            || arcMatches.Any(e =>
+            {
+                var key = (e.Key ?? "").Replace('\\', '/').TrimEnd('/');
+                return key.Length > entryNorm.Length;
+            });
+
+        if (isFolder)
+            Directory.CreateDirectory(Path.Combine(destinationDir, outLeaf));
+
+        foreach (var arcEntry in arcMatches)
         {
-            string dir = Path.Combine(destinationDir, Path.GetFileName(entryPath.TrimEnd('/')));
-            Directory.CreateDirectory(dir);
-            return;
+            var key = (arcEntry.Key ?? "").Replace('\\', '/');
+            var keyTrim = key.TrimEnd('/');
+            if (arcEntry.IsDirectory || key.EndsWith('/'))
+            {
+                var relDir = keyTrim.StartsWith(entryNorm, StringComparison.OrdinalIgnoreCase)
+                    ? keyTrim[entryNorm.Length..].TrimStart('/')
+                    : Path.GetFileName(keyTrim);
+                var dirPath = string.IsNullOrEmpty(relDir)
+                    ? Path.Combine(destinationDir, outLeaf)
+                    : Path.Combine(destinationDir, outLeaf, relDir.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(dirPath);
+                continue;
+            }
+
+            string destOut;
+            if (!isFolder)
+            {
+                destOut = Path.Combine(destinationDir, outLeaf);
+            }
+            else
+            {
+                var rel = keyTrim.StartsWith(entryNorm, StringComparison.OrdinalIgnoreCase)
+                    ? keyTrim[entryNorm.Length..].TrimStart('/')
+                    : Path.GetFileName(keyTrim);
+                destOut = Path.Combine(destinationDir, outLeaf, rel.Replace('/', Path.DirectorySeparatorChar));
+            }
+
+            var parentOut = Path.GetDirectoryName(destOut);
+            if (!string.IsNullOrEmpty(parentOut))
+                Directory.CreateDirectory(parentOut);
+            using var stream = arcEntry.OpenEntryStream();
+            using var fs = File.Create(destOut);
+            stream.CopyTo(fs);
         }
-        using var stream = arcEntry.OpenEntryStream();
-        string destOut = Path.Combine(destinationDir, Path.GetFileName(entryPath.TrimEnd('/', '\\')));
-        using var fs = File.Create(destOut);
-        stream.CopyTo(fs);
     }
 
     /// <summary>Extract a single entry to a temp folder for drag-out / preview. Returns absolute path to extracted file or folder.</summary>

@@ -37,17 +37,23 @@ export default function IconPreviewImage({ path, size = 48, className = '' }: Ic
       lastPathRef.current = path;
       const cached = previewCache.get(path);
       setSrc(cached || null);
-      setLoading(!cached);
+      setLoading(cached === undefined);
     }
   }, [path]);
 
   useEffect(() => {
     if (!visible || !path || src) return;
+    // Empty-string sentinel = known miss
+    if (previewCache.get(path) === '') {
+      setLoading(false);
+      return;
+    }
 
     const iconifyId = parseIconifyLibraryPath(path);
     if (iconifyId) {
       const cached = previewCache.get(path);
       if (cached) { setSrc(cached); setLoading(false); return; }
+      if (cached === '') { setLoading(false); return; }
       let active = true;
       setLoading(true);
       fetchIconifySvg(iconifyId).then(svg => {
@@ -56,9 +62,16 @@ export default function IconPreviewImage({ path, size = 48, className = '' }: Ic
           const data = iconifySvgToDataUrl(svg);
           previewCache.set(path, data);
           setSrc(data);
+        } else {
+          // Sentinel so IntersectionObserver remounts don't re-fetch missing icons.
+          previewCache.set(path, '');
         }
         setLoading(false);
-      }).catch(() => { if (active) setLoading(false); });
+      }).catch(() => {
+        if (!active) return;
+        previewCache.set(path, '');
+        setLoading(false);
+      });
       return () => { active = false; };
     }
 

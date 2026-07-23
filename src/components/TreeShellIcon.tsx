@@ -1,6 +1,4 @@
-import { useEffect } from 'react';
 import { ShellNativeIcon } from './ShellNativeIcon';
-import { requestNativeIcon } from '../lib/nativeIconService';
 import { shellIconIsDirectory } from '../lib/shellPaths';
 
 interface TreeShellIconProps {
@@ -9,15 +7,9 @@ interface TreeShellIconProps {
   size?: number;
 }
 
-/** Navigation-tree icon — always uses iconPath for shell fetch and preloads eagerly. */
+/** Navigation-tree icon — lazy via IntersectionObserver (no eager IPC storm while scrolling). */
 export function TreeShellIcon({ path, iconPath, size = 15 }: TreeShellIconProps) {
   const fetchPath = iconPath || path;
-
-  useEffect(() => {
-    if (!fetchPath) return;
-    void requestNativeIcon(fetchPath, shellIconIsDirectory(fetchPath), 'shell');
-  }, [fetchPath]);
-
   if (!fetchPath) return null;
 
   return (
@@ -25,7 +17,6 @@ export function TreeShellIcon({ path, iconPath, size = 15 }: TreeShellIconProps)
       path={fetchPath}
       isDir={shellIconIsDirectory(fetchPath)}
       size={size}
-      eager
     />
   );
 }

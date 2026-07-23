@@ -61,7 +61,7 @@ export function ThumbnailIcon({ entity, isDir, path, size = 16 }: { entity: FSEn
         setIsVisible(true);
         observer.disconnect();
       }
-    }, { rootMargin: '120px', threshold: 0 });
+    }, { rootMargin: '48px', threshold: 0 });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);

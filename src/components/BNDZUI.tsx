@@ -30,6 +30,7 @@ import {
 import { isCopyDragModifier } from '../lib/listDragModifiers';
 import { isListSelectCellTarget, isListMarqueeSurface } from '../lib/listRowHitTargets';
 import ListDragGhost, { type ListDragGhostState } from './ListDragGhost';
+import { autoScrollNearEdges, createDragAutoScrollLoop } from '../lib/dragAutoScroll';
 import {
   hitTestBreadcrumbAtPoint,
   hitTestListFolderAtPoint,
@@ -60,8 +61,8 @@ import { highlightNameMatch } from '../lib/liveFilterHighlight';
 import { renderStatusBarTemplate } from '../lib/statusBarTemplate';
 import { renderTitleBarTemplate } from '../lib/titleBarTemplate';
 import { createRafPointerThrottler } from '../lib/pointerDragGhost';
-import { dropSideFromPointer, computeReorderInsertIndex } from '../lib/reorderOnDrop';
 import { filterByName } from '../lib/fuzzyFilter';
+import PaneTabStrip from './PaneTabStrip';
 import MiniTreePanel from './MiniTreePanel';
 import AddressAutocompleteDropdown from './AddressAutocompleteDropdown';
 import WindowControls from './WindowControls';
@@ -69,6 +70,7 @@ import ContextMenuView from './ContextMenuView';
 import { filterSupplementalNativeItems, type ContextMenuSurface } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
 import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
+import { markScrolling as markIconQueueScrolling } from '../lib/iconRequestQueue';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
 import BottomPluginPanel from './BottomPluginPanel';
 import { LeftSidebar } from './LeftSidebar';
@@ -103,7 +105,7 @@ import { formatFolderSizeLabel } from '../lib/folderSizeDisplay';
 import { VirtualizedFileList } from './VirtualizedFileList';
 import MillerColumnsView from './MillerColumnsView';
 import BranchViewStrip from './BranchViewStrip';
-import { flattenGroupedList, isGroupHeaderRow, LIST_GROUP_BY_OPTIONS, resolveStickyGroupHeader, type ListGroupBy } from '../lib/listGrouping';
+import { flattenGroupedList, isGroupHeaderRow, LIST_GROUP_BY_OPTIONS, resolveStickyGroupHeader, type ListGroupBy, type ListRowItem } from '../lib/listGrouping';
 import { cloudBadgeForPath, cloudSidebarStatusLabel, type CloudProvider } from '../lib/cloudStatus';
 import { VirtualizedNavTree } from './VirtualizedNavTree';
 import TutorialOverlay from './TutorialOverlay';
@@ -164,7 +166,6 @@ import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, reso
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { pushToast, dismissToast, type ToastKind } from './ToastHost';
 import { getPaneTabLabel } from '../lib/paneLabels';
-import { tabAccentStyle } from '../lib/tabColors';
 import { formatAddressBarPath, formatDriveLetter, formatDriveRootLabel, getBreadcrumbSegments, parseUserPathToPane, resolveUserPathToPane } from '../lib/displayPath';
 import { isVirtualCatalogPath } from '../lib/virtualPaths';
 import { listCatalogs } from '../lib/catalog';
@@ -210,9 +211,12 @@ import {
   MIN_PREVIEW_SIZE,
   MIN_SIDEBAR_SIZE,
   MAX_SIDEBAR_SIZE,
+  MAX_BOTTOM_DOCKED,
+  BOTTOM_IMMERSIVE_TRIGGER,
   normalizeOuterLayout,
   panelPct,
 } from '../lib/workspaceLayout';
+import { motionPanelImmersiveEnter, motionPanelImmersiveExit } from '../lib/bndzMotion';
 import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { TagGlyph } from './TagGlyph';
 import FolderColorIcon from './FolderColorIcon';
@@ -262,9 +266,22 @@ function formatSize(bytes: number | null | undefined) {
 }
 
 function nativeContextSignature(items: any[] | undefined): string {
-  return filterSupplementalNativeItems(items)
-    .map((item: any) => String(item.id || item.verb || item.label || ''))
-    .join('|');
+  const walk = (list: any[] | undefined): string[] => {
+    if (!list?.length) return [];
+    const out: string[] = [];
+    for (const item of list) {
+      if (item?.separator) {
+        out.push('-');
+        continue;
+      }
+      out.push(String(item.id || item.verb || item.label || ''));
+      if (Array.isArray(item.children) && item.children.length) {
+        out.push(`{${walk(item.children).join(',')}}`);
+      }
+    }
+    return out;
+  };
+  return walk(filterSupplementalNativeItems(items)).join('|');
 }
 
 interface PaneState {
@@ -549,10 +566,7 @@ export default function BNDZUI() {
       marqueeState.currY = p.y;
       scheduleMarqueeRect(next);
       scheduleMarqueeSelection(next);
-      const edge = 48;
-      const rect = listEl.getBoundingClientRect();
-      if (ev.clientY > rect.bottom - edge) listEl.scrollTop += 12;
-      else if (ev.clientY < rect.top + edge) listEl.scrollTop -= 12;
+      autoScrollNearEdges(listEl, ev.clientY, { edgePx: 56, maxStepPx: 28 });
     };
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
@@ -674,11 +688,15 @@ export default function BNDZUI() {
   const [smartToolsPrompt, setSmartToolsPrompt] = useState<string | undefined>();
   const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState(config.previewPanelOpen !== false);
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(config.bottomPanelOpen !== false);
+  const [bottomImmersive, setBottomImmersive] = useState(false);
   const bottomPanelRef = usePanelRef();
   const previewPanelRef = usePanelRef();
   const previewPanelInnerRef = useRef<HTMLDivElement>(null);
   const dualPaneSecondRef = useRef<HTMLDivElement>(null);
   const innerGroupRef = useGroupRef();
+  const immersiveShellRef = useRef<HTMLDivElement>(null);
+  const lastDockedBottomPctRef = useRef(DEFAULT_INNER_LAYOUT.bottom || 9.75);
+  const immersiveLatchRef = useRef(false);
 
   const outerDefaultLayout = useMemo(
     () => getOuterDefaultLayout(config.workspaceLayoutOuter),
@@ -698,9 +716,9 @@ export default function BNDZUI() {
     applySettingsRuntime(config);
   }, [
     config.fontSize, config.uiFontFamily, config.uiFontWeight, config.uiFontFamilyMono,
-    config.treeFontFamily, config.listFontFamily, config.previewFontFamily,
+    config.treeFontFamily, config.listFontFamily, config.tabsFontFamily, config.previewFontFamily,
     config.bottomFontFamily, config.statusFontFamily, config.chromeFontFamily,
-    config.treeFontSize, config.listFontSize, config.previewFontSize,
+    config.treeFontSize, config.listFontSize, config.tabsFontSize, config.previewFontSize,
     config.bottomFontSize, config.statusFontSize, config.chromeFontSize,
     config.rowHeight,
   ]);
@@ -807,9 +825,56 @@ export default function BNDZUI() {
     }, 200);
   };
 
+  const enterBottomImmersive = React.useCallback(() => {
+    if (bottomImmersive || immersiveLatchRef.current) return;
+    immersiveLatchRef.current = true;
+    const docked = Math.min(
+      MAX_BOTTOM_DOCKED - 4,
+      Math.max(DEFAULT_INNER_LAYOUT.bottom || 9.75, lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom || 9.75),
+    );
+    setBottomImmersive(true);
+    requestAnimationFrame(() => {
+      try {
+        innerGroupRef.current?.setLayout({
+          main: 100 - docked,
+          bottom: docked,
+        });
+      } catch { /* ignore */ }
+      motionPanelImmersiveEnter(immersiveShellRef.current);
+      immersiveLatchRef.current = false;
+    });
+  }, [bottomImmersive, innerGroupRef]);
+
+  const exitBottomImmersive = React.useCallback(() => {
+    if (!bottomImmersive) return;
+    motionPanelImmersiveExit(immersiveShellRef.current, () => {
+      setBottomImmersive(false);
+    });
+  }, [bottomImmersive]);
+
+  useEffect(() => {
+    if (!bottomImmersive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        exitBottomImmersive();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [bottomImmersive, exitBottomImmersive]);
+
   const saveInnerLayout = (layout: Record<string, number>) => {
+    const bottomRaw = layout.bottom ?? innerDefaultLayout.bottom ?? 22;
+    if (!bottomImmersive && bottomRaw < BOTTOM_IMMERSIVE_TRIGGER) {
+      lastDockedBottomPctRef.current = bottomRaw;
+    }
+    if (!bottomImmersive && effectiveBottomOpen && bottomRaw >= BOTTOM_IMMERSIVE_TRIGGER) {
+      enterBottomImmersive();
+      return;
+    }
     const bottom = effectiveBottomOpen
-      ? (layout.bottom ?? innerDefaultLayout.bottom)
+      ? (bottomImmersive ? (lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom || 9.75) : bottomRaw)
       : (config.workspaceLayoutInner?.bottom ?? innerDefaultLayout.bottom);
     const nextInner = {
       main: layout.main ?? innerDefaultLayout.main,
@@ -871,8 +936,13 @@ export default function BNDZUI() {
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [licenseEpoch, setLicenseEpoch] = useState(0);
   const [showHelpTopics, setShowHelpTopics] = useState(false);
-  /** Per-pane scrollTop for sticky type-group overlays. */
-  const [listScrollTops, setListScrollTops] = useState<Record<string, number>>({});
+  /** Sticky header identity per pane — React updates only when the active group changes. */
+  const [stickyHeaderKeys, setStickyHeaderKeys] = useState<Record<string, string>>({});
+  const listScrollTopsRef = useRef<Record<string, number>>({});
+  const paneScrollElsRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const stickyHeaderKeysRef = useRef<Record<string, string>>({});
+  const stickyScrollMetaRef = useRef<Record<string, { rows: ListRowItem[]; rowHeight: number; enabled: boolean }>>({});
+  const paneScrollSyncRafRef = useRef(0);
   const [, setUiHintTick] = useState(0);
   useEffect(() => {
     const u1 = subscribeShiftKey(() => setUiHintTick(t => t + 1));
@@ -1036,8 +1106,8 @@ export default function BNDZUI() {
        id: 'pane1', 
        tabs: [{ id: 't1', path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
        activeTabIndex: 0,
-       sortColumn: 'name',
-       sortDirection: 'asc'
+       sortColumn: ((config.listSortColumn as SortColumnId) || 'name'),
+       sortDirection: config.listSortDirection === 'desc' ? 'desc' : 'asc',
      }
   ]);
   const panesRef = useRef(panes);
@@ -1136,7 +1206,21 @@ export default function BNDZUI() {
       setIsSmartToolsOpen(true);
     };
     window.addEventListener('bndz-open-smart-tools', onOpenSmartTools);
-    return () => window.removeEventListener('bndz-open-smart-tools', onOpenSmartTools);
+    const onGlobalHotkey = (ev: Event) => {
+      const id = (ev as CustomEvent).detail?.id as string | undefined;
+      if (!id) return;
+      if (id === 'bndz.commandPalette') {
+        setIsCommandPaletteOpen(prev => !prev);
+      } else if (id === 'bndz.globalSearch') {
+        window.dispatchEvent(new CustomEvent('bndz-focus-omni'));
+        setIsCommandPaletteOpen(false);
+      }
+    };
+    window.addEventListener('bndz-global-hotkey', onGlobalHotkey);
+    return () => {
+      window.removeEventListener('bndz-open-smart-tools', onOpenSmartTools);
+      window.removeEventListener('bndz-global-hotkey', onGlobalHotkey);
+    };
   }, []);
 
   useEffect(() => {
@@ -1526,6 +1610,11 @@ export default function BNDZUI() {
   const [isGlobalSearchLoading, setIsGlobalSearchLoading] = useState(false);
   const [globalSearchEngine, setGlobalSearchEngine] = useState<'everything' | 'indexed' | null>(null);
   const omniFilterRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onFocusOmni = () => { try { omniFilterRef.current?.focus(); } catch { /* */ } };
+    window.addEventListener('bndz-focus-omni', onFocusOmni);
+    return () => window.removeEventListener('bndz-focus-omni', onFocusOmni);
+  }, []);
   const paneScrollSyncRef = useRef(false);
   const tabsetAutosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restoredTabsetRef = useRef(false);
@@ -1657,8 +1746,44 @@ export default function BNDZUI() {
       }));
       setPanes(restored);
       setIsDualPane(restored.length > 1);
+      const sortPane = restored.find(p => p.id === activePaneId) || restored[0];
+      if (sortPane?.sortColumn) {
+        updateConfig({
+          listSortColumn: sortPane.sortColumn,
+          listSortDirection: sortPane.sortDirection === 'desc' ? 'desc' : 'asc',
+        });
+      }
     }
   }, [config.restoreLastTabsetOnStartup, config.lastActiveTabsetId, config.savedTabsets, config.permanentStartupPath]);
+
+  // Apply persisted list sort when no tabset restored panes (survives reboot).
+  const appliedListSortRef = useRef(false);
+  useEffect(() => {
+    if (appliedListSortRef.current) return;
+    if (restoredTabsetRef.current) {
+      appliedListSortRef.current = true;
+      return;
+    }
+    // Wait until config has had a chance to load tabset id (undefined → settled).
+    const col = config.listSortColumn as SortColumnId | undefined;
+    const dir = config.listSortDirection === 'desc' ? 'desc' : config.listSortDirection === 'asc' ? 'asc' : undefined;
+    if (!col && !dir) return;
+    if (config.restoreLastTabsetOnStartup !== false && config.lastActiveTabsetId && !restoredTabsetRef.current) {
+      // Tabset restore effect may still run — apply after a microtask if it didn't.
+      const t = window.setTimeout(() => {
+        if (appliedListSortRef.current || restoredTabsetRef.current) return;
+        appliedListSortRef.current = true;
+        const c = (config.listSortColumn as SortColumnId) || 'name';
+        const d = config.listSortDirection === 'desc' ? 'desc' : 'asc';
+        setPanes(prev => prev.map(p => ({ ...p, sortColumn: c, sortDirection: d })));
+      }, 50);
+      return () => clearTimeout(t);
+    }
+    appliedListSortRef.current = true;
+    const c = col || 'name';
+    const d = dir || 'asc';
+    setPanes(prev => prev.map(p => ({ ...p, sortColumn: c, sortDirection: d })));
+  }, [config.listSortColumn, config.listSortDirection, config.restoreLastTabsetOnStartup, config.lastActiveTabsetId]);
 
   // Permanent startup path (overrides default This PC / last tabset when set)
   const appliedStartupPathRef = useRef(false);
@@ -1699,12 +1824,12 @@ export default function BNDZUI() {
         id: `pane-${Date.now()}`,
         tabs: [{ id: `t-${Date.now()}`, path: '/workspace', history: ['/workspace'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
         activeTabIndex: 0,
-        sortColumn: 'name',
-        sortDirection: 'asc',
+        sortColumn: (config.listSortColumn as SortColumnId) || 'name',
+        sortDirection: config.listSortDirection === 'desc' ? 'desc' : 'asc',
       },
     ]);
     setIsDualPane(true);
-  }, [config.dualPaneOpen, config.restoreLastTabsetOnStartup, config.lastActiveTabsetId, config.defaultViewMode, isDualPane, panes]);
+  }, [config.dualPaneOpen, config.restoreLastTabsetOnStartup, config.lastActiveTabsetId, config.defaultViewMode, config.listSortColumn, config.listSortDirection, isDualPane, panes]);
 
   // Auto-save tabset on workspace changes
   useEffect(() => {
@@ -2724,8 +2849,6 @@ export default function BNDZUI() {
   const [linuxExpanded, setLinuxExpanded] = useState(false);
   const [librariesExpanded, setLibrariesExpanded] = useState(true);
   const [destinationPicker, setDestinationPicker] = useState<{ mode: 'copy' | 'move'; sources: string[] } | null>(null);
-  const [draggedTab, setDraggedTab] = useState<{ paneId: string; index: number } | null>(null);
-  const [tabDropIndicator, setTabDropIndicator] = useState<{ paneId: string; index: number; side: 'before' | 'after' } | null>(null);
   const [tabFileDropTarget, setTabFileDropTarget] = useState<{ paneId: string; tabIndex: number } | null>(null);
   const [newTabDropPaneId, setNewTabDropPaneId] = useState<string | null>(null);
   const tabFileDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3067,8 +3190,8 @@ export default function BNDZUI() {
          id: `pane-${Date.now()}`, 
          tabs: [{ id: `t-${Date.now()}`, path: '/workspace', history: ['/workspace'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
          activeTabIndex: 0,
-         sortColumn: 'name',
-         sortDirection: 'asc'
+         sortColumn: ((config.listSortColumn as SortColumnId) || 'name'),
+         sortDirection: config.listSortDirection === 'desc' ? 'desc' : 'asc',
        }]);
        setIsDualPane(true);
        updateConfig({ dualPaneOpen: true });
@@ -3159,17 +3282,40 @@ export default function BNDZUI() {
   };
 
   const handlePaneScroll = (paneId: string, e: React.UIEvent<HTMLDivElement>) => {
-    const top = e.currentTarget.scrollTop;
-    setListScrollTops(prev => (prev[paneId] === top ? prev : { ...prev, [paneId]: top }));
+    const el = e.currentTarget;
+    const top = el.scrollTop;
+    listScrollTopsRef.current[paneId] = top;
+    markIconQueueScrolling();
+
+    const meta = stickyScrollMetaRef.current[paneId];
+    if (meta?.enabled && meta.rows?.length) {
+      const sticky = resolveStickyGroupHeader(meta.rows, top, meta.rowHeight);
+      const identity = sticky
+        ? `${sticky.header.label}|${sticky.header.count}|${sticky.index}`
+        : '';
+      if (stickyHeaderKeysRef.current[paneId] !== identity) {
+        stickyHeaderKeysRef.current[paneId] = identity;
+        setStickyHeaderKeys(prev => (prev[paneId] === identity ? prev : { ...prev, [paneId]: identity }));
+      }
+    }
+
     if (!isDualPane || config.syncDualPaneScroll === false) return;
     if (paneScrollSyncRef.current) return;
     paneScrollSyncRef.current = true;
-    document.querySelectorAll('.bndz-file-list-scroll').forEach(el => {
-      if (el.getAttribute('data-pane-id') !== paneId) {
-        (el as HTMLElement).scrollTop = top;
+    if (paneScrollSyncRafRef.current) cancelAnimationFrame(paneScrollSyncRafRef.current);
+    paneScrollSyncRafRef.current = requestAnimationFrame(() => {
+      paneScrollSyncRafRef.current = 0;
+      const syncTop = listScrollTopsRef.current[paneId] ?? top;
+      for (const [id, other] of Object.entries(paneScrollElsRef.current)) {
+        if (id === paneId || !other) continue;
+        if (Math.abs(other.scrollTop - syncTop) < 1) continue;
+        other.scrollTop = syncTop;
       }
+      // Keep the guard through the synced panes' scroll events.
+      requestAnimationFrame(() => {
+        paneScrollSyncRef.current = false;
+      });
     });
-    requestAnimationFrame(() => { paneScrollSyncRef.current = false; });
   };
 
   const runAddressQuickScriptHandler = (raw: string, paneId: string) => {
@@ -4470,8 +4616,8 @@ export default function BNDZUI() {
                   id: `pane${Date.now()}`,
                   tabs: [{ id: `t${Date.now()}`, path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
                   activeTabIndex: 0,
-                  sortColumn: 'name' as const,
-                  sortDirection: 'asc' as const
+                  sortColumn: ((config.listSortColumn as SortColumnId) || 'name'),
+                  sortDirection: (config.listSortDirection === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
               };
               return [...prev, newPane];
           });
@@ -4603,16 +4749,22 @@ export default function BNDZUI() {
       setToastMessage('View is locked. Unlock to change sort.');
       return;
     }
-    setPanes(prev => prev.map(p => {
-      if (p.id !== paneId) return p;
-      const effectiveCol = p.sortColumn ?? resolveSortColumn(config, p);
-      const effectiveDir = resolveSortDirection(effectiveCol, p.sortDirection, config);
-      if (effectiveCol === column) {
-        return { ...p, sortColumn: column, sortDirection: effectiveDir === 'asc' ? 'desc' : 'asc' };
-      }
-      return { ...p, sortColumn: column, sortDirection: column === 'size' && config.sortSizeColumnsDescendingByDefault ? 'desc' : 'asc' };
-    }));
-    // Size sort needs scanned folder sizes — kick a scan when switching to Size.
+    const effectiveCol = pane
+      ? (pane.sortColumn ?? resolveSortColumn(config, pane))
+      : resolveSortColumn(config);
+    const effectiveDir = resolveSortDirection(effectiveCol, pane?.sortDirection, config);
+    const nextDir: 'asc' | 'desc' = effectiveCol === column
+      ? (effectiveDir === 'asc' ? 'desc' : 'asc')
+      : (column === 'size' && config.sortSizeColumnsDescendingByDefault)
+        ? 'desc'
+        : (column === 'modified' && config.sortDateColumnsDescendingByDefault)
+          ? 'desc'
+          : 'asc';
+    setPanes(prev => prev.map(p => (
+      p.id !== paneId ? p : { ...p, sortColumn: column, sortDirection: nextDir }
+    )));
+    // Persist globally so sort survives close/reboot even without tabset restore.
+    updateConfig({ listSortColumn: column, listSortDirection: nextDir });
     if (column === 'size') {
       queueMicrotask(() => scanCurrentFolderSizes(false));
     }
@@ -5189,6 +5341,11 @@ export default function BNDZUI() {
     const listRows = contents && computedViewMode === 'details' && listGroupBy !== 'none'
       ? flattenGroupedList(contents, listGroupBy)
       : (contents || []);
+    stickyScrollMetaRef.current[pane.id] = {
+      rows: listGroupBy !== 'none' && computedViewMode === 'details' ? (listRows as ListRowItem[]) : [],
+      rowHeight: detailsRowHeight,
+      enabled: config.stickyGroupHeaders !== false && listGroupBy !== 'none' && computedViewMode === 'details',
+    };
 
     const mouseRt = settingsRt.mouse;
 
@@ -5645,179 +5802,63 @@ export default function BNDZUI() {
             }}
           />
         )}
-        {/* Tab Strip */}
-        <div className="bndz-chrome-tabstrip flex pt-1 px-1 shrink-0 overflow-x-auto border-b border-[#333] items-end scrollbar-hidden" style={{ minHeight: config.tabBarHeight || 28, background: 'var(--bndz-surface-chrome)' }}>
-           {pane.tabs.map((tab, idx) => {
-             const isTabActive = idx === pane.activeTabIndex;
-             const name = isFindingTab(tab) ? findingTabLabel(tab) : getPaneTabLabel(tab.path);
-             const isTabDragging = draggedTab?.paneId === pane.id && draggedTab.index === idx;
-             const isTabFileDropHover = tabFileDropTarget?.paneId === pane.id && tabFileDropTarget.tabIndex === idx;
-             const tabDropBefore = tabDropIndicator?.paneId === pane.id && tabDropIndicator.index === idx && tabDropIndicator.side === 'before';
-             const tabDropAfter = tabDropIndicator?.paneId === pane.id && tabDropIndicator.index === idx && tabDropIndicator.side === 'after';
-             return (
-               <div 
-                 key={tab.id}
-                 data-tab-id={tab.id}
-                 data-tab-index={idx}
-                 draggable={!tab.locked}
-                 className={`relative bndz-tab-item flex items-center px-3 py-[4px] ml-[2px] rounded-t-[6px] z-10 -mb-[1px] cursor-pointer group border-t border-l border-r transition-[background,border-color,color] duration-100 ease-out ${config.flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'} ${isTabActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${config.makeSelectedTabBold && isTabActive ? 'font-bold' : 'font-semibold'} ${isTabDragging ? 'opacity-50' : ''} ${isTabFileDropHover ? 'ring-2 ring-[#0078d4]/70 bg-[#094771]/30' : ''} ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${tabDropBefore ? 'bndz-tab-drop-before' : ''} ${tabDropAfter ? 'bndz-tab-drop-after' : ''}`}
-                 onDragStart={(e) => {
-                   if (tab.locked) { e.preventDefault(); return; }
-                   e.stopPropagation();
-                   setDraggedTab({ paneId: pane.id, index: idx });
-                   setTabDropIndicator(null);
-                   e.dataTransfer.effectAllowed = 'move';
-                 }}
-                 onDragOver={(e) => {
-                   e.preventDefault();
-                   e.stopPropagation();
-                   const hasFileDrag = hasBndzFileDrag(e) || (e.dataTransfer.files?.length ?? 0) > 0;
-                   if (hasFileDrag) {
-                     const copy = e.ctrlKey || e.altKey;
-                     dropModifierRef.current.copy = copy;
-                     e.dataTransfer.dropEffect = copy ? 'copy' : 'move';
-                     setTabFileDropTarget({ paneId: pane.id, tabIndex: idx });
-                     setTabDropIndicator(null);
-                     scheduleTabSwitchOnFileDrag(pane.id, idx);
-                     return;
-                   }
-                   if (!draggedTab || draggedTab.paneId !== pane.id || draggedTab.index === idx) return;
-                   const rect = e.currentTarget.getBoundingClientRect();
-                   const side = dropSideFromPointer(e.clientX, e.clientY, rect, 'x');
-                   setTabDropIndicator(prev =>
-                     prev?.paneId === pane.id && prev.index === idx && prev.side === side
-                       ? prev
-                       : { paneId: pane.id, index: idx, side },
-                   );
-                 }}
-                 onDragLeave={(e) => {
-                   if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                     if (tabFileDropTarget?.paneId === pane.id && tabFileDropTarget.tabIndex === idx) {
-                       setTabFileDropTarget(null);
-                     }
-                     if (tabDropIndicator?.paneId === pane.id && tabDropIndicator.index === idx) {
-                       setTabDropIndicator(null);
-                     }
-                     if (tabFileDragHoverRef.current?.paneId === pane.id && tabFileDragHoverRef.current?.tabIndex === idx) {
-                       tabFileDragHoverRef.current = null;
-                       clearTabFileDragTimer();
-                     }
-                   }
-                 }}
-                 onDrop={(e) => {
-                   e.preventDefault();
-                   e.stopPropagation();
-                   clearTabFileDragTimer();
-                   setTabFileDropTarget(null);
-                   tabFileDragHoverRef.current = null;
-                   const hasFileDrag = hasBndzFileDrag(e) || (e.dataTransfer.files?.length ?? 0) > 0;
-                   if (hasFileDrag) {
-                     const targetTab = pane.tabs[idx];
-                     setActiveTab(pane.id, idx);
-                     handleDrop(e, null, targetTab.path);
-                     setTabDropIndicator(null);
-                     return;
-                   }
-                   if (draggedTab && draggedTab.paneId === pane.id && tabDropIndicator?.paneId === pane.id) {
-                     const insertIdx = computeReorderInsertIndex(
-                       draggedTab.index,
-                       tabDropIndicator.index,
-                       tabDropIndicator.side === 'after',
-                     );
-                     reorderTab(pane.id, draggedTab.index, insertIdx);
-                   }
-                   setDraggedTab(null);
-                   setTabDropIndicator(null);
-                 }}
-                 onDragEnd={() => { setDraggedTab(null); setTabDropIndicator(null); }}
-                 onClick={(e) => { e.stopPropagation(); setActiveTab(pane.id, idx); }}
-                 onAuxClick={(e) => {
-                   if (e.button !== 1) return;
-                   e.preventDefault();
-                   e.stopPropagation();
-                   dispatchCustomEvent(config, 'middle-click-tab', buildCeaHandlers(pane.id, idx));
-                 }}
-                 onContextMenu={(e) => {
-                   e.preventDefault();
-                   e.stopPropagation();
-                   setTabContextMenu({ x: e.clientX, y: e.clientY, paneId: pane.id, tabIndex: idx });
-                 }}
-                 style={{
-                   ...(config.applyColors ? {
-                    backgroundColor: isTabActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
-                    color: isTabActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)'
-                 } : {
-                    backgroundColor: isTabActive ? 'var(--bndz-surface-raised)' : 'var(--bndz-surface-chrome)',
-                    color: isTabActive ? '#6db4e6' : '#6b7280'
-                 }),
-                   ...tabAccentStyle(tab.color, isTabActive),
-                 }}
-               >
-                 {config.showIconsTabs !== false && (
-                    <span className="mr-1.5 shrink-0">
-                      <ShellNativeIcon
-                        path={tab.path}
-                        isDir={tab.path !== '/' && !tab.path.match(/^\/[A-Za-z]:$/)}
-                        size={12}
-                        eager
-                      />
-                    </span>
-                 )}
-                 {tab.locked && <Icons8Icon id="lock_ui" size={10} className="mr-1 shrink-0" title="Locked" />}
-                 <span className="truncate" style={{ fontSize: config.tabFontSize || 11 }}>{name}</span>
-                 {config.showXCloseButtonsOnTabs !== "None" && pane.tabs.length > 1 && (config.showXCloseButtonsOnTabs === "All tabs" || isTabActive) && (
-                    <span className="ml-2 opacity-70 hover:opacity-100 cursor-pointer" onClick={(e) => closeTabAt(pane.id, idx, e)}><CloseGlyph size={12} /></span>
-                 )}
-               </div>
-             );
-           })}
-           {config.showNewTabButton !== false && (
-             <div 
-               className={`ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400 font-bold transition-colors ${newTabDropPaneId === pane.id ? 'ring-1 ring-inset ring-[#0078d4]/60 bg-[#333]' : ''}`}
-               data-new-tab-zone={pane.id}
-               title="New tab · Drop a folder here to open it in a new tab"
-               onClick={(e) => { e.stopPropagation(); addTab(pane.id, currentTab.path); }}
-               onDragOver={e => {
-                 const hasFileDrag = hasBndzFileDrag(e) || (e.dataTransfer.files?.length ?? 0) > 0;
-                 if (hasFileDrag) {
-                   e.preventDefault();
-                   e.stopPropagation();
-                   e.dataTransfer.dropEffect = 'move';
-                   setNewTabDropPaneId(pane.id);
-                 }
-               }}
-               onDragLeave={() => { if (newTabDropPaneId === pane.id) setNewTabDropPaneId(null); }}
-               onDrop={e => {
-                 e.preventDefault();
-                 e.stopPropagation();
-                 setNewTabDropPaneId(null);
-                 const bndzPayload = readBndzFileDragData(e);
-                 if (bndzPayload?.paths?.length) {
-                   const folderPath = bndzPayload.paths.find(p => !p.match(/\.[^/\\]+$/)) || bndzPayload.paths[0];
-                   const panePathNorm = folderPath.replace(/\\/g, '/');
-                   addTab(pane.id, panePathNorm.startsWith('/') ? panePathNorm : `/${panePathNorm}`);
-                   return;
-                 }
-                 if (e.dataTransfer.files?.length) {
-                   const filePaths = Array.from(e.dataTransfer.files).map((f: any) => f.path).filter(Boolean);
-                   if (filePaths.length) {
-                     const folderPath = filePaths[0].replace(/[/\\][^/\\]+$/, '').replace(/\\/g, '/');
-                     addTab(pane.id, folderPath.startsWith('/') ? folderPath : `/${folderPath}`);
-                   }
-                 }
-               }}
-             >
-               <span className="text-[14px] leading-tight">+</span>
-             </div>
-           )}
-           {config.showTabListButton && (
-             <div 
-               className="ml-1 px-2 py-[2px] hover:bg-[#333] rounded-t flex items-center justify-center cursor-pointer text-gray-400"
-             >
-               <Icons8Icon id="layers_ui" size={12} />
-             </div>
-           )}
-        </div>
+        {/* Tab Strip — dnd-kit horizontal reorder (same pattern as column headers) */}
+        <PaneTabStrip
+          paneId={pane.id}
+          tabs={pane.tabs}
+          activeTabIndex={pane.activeTabIndex}
+          tabBarHeight={config.tabBarHeight}
+          flexibleTabWidth={config.flexibleTabWidth}
+          makeSelectedTabBold={config.makeSelectedTabBold}
+          applyColors={config.applyColors}
+          showIconsTabs={config.showIconsTabs}
+          showXCloseButtonsOnTabs={config.showXCloseButtonsOnTabs}
+          showNewTabButton={config.showNewTabButton}
+          showTabListButton={config.showTabListButton}
+          tabFontSize={config.tabFontSize}
+          getPaneTabLabel={getPaneTabLabel}
+          onActivate={(idx) => setActiveTab(pane.id, idx)}
+          onReorder={(from, to) => reorderTab(pane.id, from, to)}
+          onClose={(idx, e) => { void closeTabAt(pane.id, idx, e); }}
+          onContextMenu={(idx, e) => {
+            setTabContextMenu({ x: e.clientX, y: e.clientY, paneId: pane.id, tabIndex: idx });
+          }}
+          onMiddleClick={(idx) => {
+            dispatchCustomEvent(config, 'middle-click-tab', buildCeaHandlers(pane.id, idx));
+          }}
+          onAddTab={() => addTab(pane.id, currentTab.path)}
+          onFileDropOnTab={(idx, e) => {
+            const targetTab = pane.tabs[idx];
+            setActiveTab(pane.id, idx);
+            handleDrop(e, null, targetTab.path);
+          }}
+          onFileDropOnNewTab={(e) => {
+            const bndzPayload = readBndzFileDragData(e);
+            if (bndzPayload?.paths?.length) {
+              const folderPath = bndzPayload.paths.find(p => !p.match(/\.[^/\\]+$/)) || bndzPayload.paths[0];
+              const panePathNorm = folderPath.replace(/\\/g, '/');
+              addTab(pane.id, panePathNorm.startsWith('/') ? panePathNorm : `/${panePathNorm}`);
+              return;
+            }
+            if (e.dataTransfer.files?.length) {
+              const filePaths = Array.from(e.dataTransfer.files).map((f: any) => f.path).filter(Boolean);
+              if (filePaths.length) {
+                const folderPath = filePaths[0].replace(/[/\\][^/\\]+$/, '').replace(/\\/g, '/');
+                addTab(pane.id, folderPath.startsWith('/') ? folderPath : `/${folderPath}`);
+              }
+            }
+          }}
+          scheduleTabSwitchOnFileDrag={(idx) => scheduleTabSwitchOnFileDrag(pane.id, idx)}
+          clearTabFileDragTimer={clearTabFileDragTimer}
+          tabFileDropTargetIndex={tabFileDropTarget?.paneId === pane.id ? tabFileDropTarget.tabIndex : null}
+          newTabDropActive={newTabDropPaneId === pane.id}
+          setNewTabDropActive={(active) => setNewTabDropPaneId(active ? pane.id : null)}
+          setTabFileDropTargetIndex={(idx) => {
+            if (idx == null) setTabFileDropTarget(null);
+            else setTabFileDropTarget({ paneId: pane.id, tabIndex: idx });
+          }}
+          dropModifierCopy={(copy) => { dropModifierRef.current.copy = copy; }}
+        />
         
         {/* Breadcrumb Row */}
         <div className={`flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1 py-[2px] shrink-0 ${isDualPane && !isActive ? 'opacity-90' : ''}`}
@@ -6009,6 +6050,15 @@ export default function BNDZUI() {
               {/* Explicit Details only — neutral default has no density slider. */}
               {currentTab.viewMode === 'details' && (
                 <>
+                  <input
+                    type="range"
+                    min={12}
+                    max={48}
+                    value={detailsIconSz}
+                    onChange={e => updateConfig({ detailsIconSize: Number(e.target.value) })}
+                    className="w-[72px] h-1 accent-[#0078d4]"
+                    title="Details icon size"
+                  />
                   <select
                     value={listGroupBy}
                     onChange={e => updateConfig({ listGroupBy: e.target.value as ListGroupBy })}
@@ -6019,15 +6069,6 @@ export default function BNDZUI() {
                       <option key={o.value} value={o.value}>Group: {o.label}</option>
                     ))}
                   </select>
-                  <input
-                    type="range"
-                    min={12}
-                    max={48}
-                    value={detailsIconSz}
-                    onChange={e => updateConfig({ detailsIconSize: Number(e.target.value) })}
-                    className="w-[72px] h-1 accent-[#0078d4]"
-                    title="Details icon size"
-                  />
                 </>
               )}
               {/* Neutral default: Group by only (no size slider). */}
@@ -6127,20 +6168,29 @@ export default function BNDZUI() {
           <ListFilterChips
             value={listKindFilter}
             onChange={setListKindFilter}
+            onFolderContextMenu={(e) => {
+              void handleContextMenuRequest(e, panePath, null, true, null, undefined, 'list-background');
+            }}
           />
         )}
 
         {/* List Items */}
         <div 
+           ref={(node) => { paneScrollElsRef.current[pane.id] = node; }}
            data-pane-id={pane.id}
            data-list-body
            tabIndex={-1}
-           className={`flex-1 overflow-y-auto focus:outline-none relative bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer cursor-default ${
+           className={`flex-1 overflow-y-auto focus:outline-none relative bndz-scrollbar bndz-file-list-scroll cursor-default ${
              listGroupBy !== 'none' && computedViewMode === 'details' ? 'px-1 pb-1 pt-0' : 'p-1'
            }`}
            style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
            onScroll={e => handlePaneScroll(pane.id, e)}
-           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); handleDragOver(e); }}
+           onDragOver={(e) => {
+             e.preventDefault();
+             e.stopPropagation();
+             autoScrollNearEdges(e.currentTarget, e.clientY, { edgePx: 64, maxStepPx: 36 });
+             handleDragOver(e);
+           }}
            onDrop={(e) => handleDrop(e)}
            onContextMenu={(e) => {
              if ((e.target as HTMLElement).closest('.fs-item-wrapper')) return;
@@ -6333,6 +6383,12 @@ export default function BNDZUI() {
               };
 
               let ghostThrottler: ((x: number, y: number) => void) | null = null;
+              let dragPointerY: number | null = null;
+              const dragScrollLoop = createDragAutoScrollLoop(
+                () => listEl,
+                () => dragPointerY,
+                { edgePx: 64, maxStepPx: 32 },
+              );
 
               const updateListDragGhost = (ev: PointerEvent) => {
                 const g = listGestureRef.current;
@@ -6441,6 +6497,12 @@ export default function BNDZUI() {
 
                 if (listGestureRef.current.mode === 'drag') {
                   syncDragModifiers(ev);
+                  dragPointerY = ev.clientY;
+                  dragScrollLoop.start();
+                  autoScrollNearEdges(listEl, ev.clientY, { edgePx: 64, maxStepPx: 32 });
+                  // Also scroll the nav tree when dragging over it.
+                  const treeScroll = document.querySelector('.nav-tree-scroll') as HTMLElement | null;
+                  if (treeScroll) autoScrollNearEdges(treeScroll, ev.clientY, { edgePx: 48, maxStepPx: 24 });
                   const navTreeHover = hitTestNavTreeAtPoint(ev.clientX, ev.clientY);
                   setNavTreeFileDropTarget(navTreeHover);
                   const breadcrumbHover = navTreeHover
@@ -6468,6 +6530,7 @@ export default function BNDZUI() {
                         setListDragGhost(null);
                         unbindKeyModifiers();
                         listGestureRef.current = null;
+                        dragScrollLoop.stop();
                         window.removeEventListener('pointermove', onMove);
                         IPC.startDrag(dragPaths);
                       }
@@ -6478,6 +6541,8 @@ export default function BNDZUI() {
 
               const onUp = (ev: PointerEvent) => {
                 if (ev.pointerId !== capturePointerId) return;
+                dragScrollLoop.stop();
+                dragPointerY = null;
                 window.removeEventListener('pointermove', onMove);
                 window.removeEventListener('pointerup', onUp);
                 unbindKeyModifiers();
@@ -6737,8 +6802,10 @@ export default function BNDZUI() {
             {(() => {
               const stickyOn = config.stickyGroupHeaders !== false;
               if (!stickyOn || listGroupBy === 'none' || computedViewMode !== 'details') return null;
-              const scrollTop = listScrollTops[pane.id] || 0;
-              const sticky = resolveStickyGroupHeader(listRows, scrollTop, detailsRowHeight);
+              // stickyHeaderKeys forces a re-render only when the active group identity changes.
+              void stickyHeaderKeys[pane.id];
+              const scrollTop = listScrollTopsRef.current[pane.id] || 0;
+              const sticky = resolveStickyGroupHeader(listRows as ListRowItem[], scrollTop, detailsRowHeight);
               if (!sticky || scrollTop <= sticky.index * detailsRowHeight) return null;
               return (
                 <div className="sticky top-0 z-20 h-0 overflow-visible pointer-events-none">
@@ -7021,6 +7088,11 @@ export default function BNDZUI() {
                     onContextMenu={(e) => {
                        e.preventDefault();
                        e.stopPropagation();
+                       // Shift+right-click → folder canvas menu (New / Paste) even when the list is full.
+                       if (e.shiftKey) {
+                         void handleContextMenuRequest(e, panePath, null, true, null, undefined, 'list-background');
+                         return;
+                       }
                        contextMenuBlockRef.current = true;
                        suppressNavClickUntilRef.current = Date.now() + 800;
                        const isPart = currentTab.selectedItems.includes(entity.id);
@@ -7497,18 +7569,17 @@ export default function BNDZUI() {
                     </MenubarSubmenu>
 
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                       const cPath = currentTab.path;
-                       import('../lib/ipcBridge').then(({ IPC }) => {
-                         IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath || '/', 'New folder'), '', false, 'New folder');
-                         setTimeout(() => refreshWorkspace(), 150);
-                       });
-                    })}><Icons8Icon id="new_folder" size={14} /> New Folder</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                       import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), '', false, 'New Text Document.txt'));
-                    })}><Icons8Icon id="new_file" size={14} /> New Text Document</div>
-
-                    <MenubarSubmenu label="New (Other)">
+                    <MenubarSubmenu label="New" iconId="new_folder">
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                               const cPath = currentTab.path;
+                               import('../lib/ipcBridge').then(({ IPC }) => {
+                                 IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath || '/', 'New folder'), '', false, 'New folder');
+                                 setTimeout(() => refreshWorkspace(), 150);
+                               });
+                            })}><Icons8Icon id="new_folder" size={14} /> New Folder</div>
+                            <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                               import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), '', false, 'New Text Document.txt'));
+                            })}><Icons8Icon id="new_file" size={14} /> New Text Document</div>
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
                               if (!paths.length) { setToastMessage('Select files to archive.'); return; }
@@ -9047,11 +9118,19 @@ export default function BNDZUI() {
               minSize={panelPct(35)}
               className="bndz-chrome-workspace bndz-gpu-layer min-h-0"
             >
+               <div className="relative h-full w-full min-h-0">
                <ResizablePanelGroup
+                   key={`workspace-inner-v${config.workspaceLayoutVersion ?? WORKSPACE_LAYOUT_VERSION}`}
                    id="workspace-inner"
                    groupRef={innerGroupRef}
                    direction="vertical"
                    defaultLayout={innerDefaultLayout}
+                   onLayout={(layout) => {
+                     const bottom = Number((layout as Record<string, number>).bottom ?? 0);
+                     if (!bottomImmersive && effectiveBottomOpen && bottom >= BOTTOM_IMMERSIVE_TRIGGER) {
+                       enterBottomImmersive();
+                     }
+                   }}
                    onLayoutChanged={saveInnerLayout}
                >
                   {/* Main File Grid */}
@@ -9122,8 +9201,11 @@ export default function BNDZUI() {
 
                   <ResizableHandle
                      direction="vertical"
-                     disabled={!effectiveBottomOpen}
-                     className="bndz-resize-handle h-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-20"
+                     disabled={!effectiveBottomOpen || bottomImmersive}
+                     className={`bndz-resize-handle h-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-20 ${
+                       bottomImmersive ? 'opacity-0 pointer-events-none' : ''
+                     }`}
+                     title="Drag up past the limit to open Immersive plugin mode"
                   />
                   {/* Bottom Plugin Panel — always mounted; collapsed via panelRef when hidden */}
                   <ResizablePanel
@@ -9131,11 +9213,18 @@ export default function BNDZUI() {
                      panelRef={bottomPanelRef}
                      defaultSize={panelPct(innerDefaultLayout.bottom!)}
                      minSize={panelPct(5)}
+                     maxSize={panelPct(MAX_BOTTOM_DOCKED)}
                      collapsible
                      collapsedSize={0}
-                     className="bndz-chrome-bottom border-t border-[#282830] flex min-h-0 z-30"
+                     className={`bndz-chrome-bottom border-t border-[#282830] flex min-h-0 z-30 ${
+                       bottomImmersive ? 'bndz-chrome-bottom--immersive-dock' : ''
+                     }`}
                   >
-                     <div className="flex-1 overflow-hidden h-full flex flex-col min-h-0">
+                     <div
+                       className={`flex-1 overflow-hidden h-full flex flex-col min-h-0 ${
+                         bottomImmersive ? 'bndz-bottom-dock-while-immersive' : ''
+                       }`}
+                     >
                         <BottomPluginPanel
                            entity={previewEntity}
                            config={config}
@@ -9155,10 +9244,20 @@ export default function BNDZUI() {
                            folderSizeMap={folderSizeMap}
                            onNavigate={(path: string) => setCurrentPath(path)}
                            selectedPaths={bottomSelectionTargets.paths}
+                           immersive={bottomImmersive}
+                           onExitImmersive={exitBottomImmersive}
+                           onEnterImmersive={enterBottomImmersive}
                         />
                      </div>
                   </ResizablePanel>
                </ResizablePanelGroup>
+               <div
+                 id="bndz-bottom-immersive-host"
+                 ref={immersiveShellRef}
+                 className={`bndz-bottom-immersive-host ${bottomImmersive ? 'is-open' : ''}`}
+                 aria-hidden={!bottomImmersive}
+               />
+               </div>
             </ResizablePanel>
 
             <ResizableHandle
@@ -9219,7 +9318,23 @@ export default function BNDZUI() {
 
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (
-      <div className="bndz-chrome-statusbar border-t border-[#333] px-3 py-1 flex items-center justify-between text-[#a0a0a0] shrink-0 gap-3 min-h-[26px] text-[11px]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+      <div
+        className="bndz-chrome-statusbar bndz-status-bar-metal px-3 py-1 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
+        style={{
+          background: 'var(--statusbar-bg, var(--bndz-surface-chrome))',
+          color: 'var(--status-text, #a0a0a0)',
+        }}
+        title="Right-click for folder menu"
+        onContextMenu={(e) => {
+          if ((e.target as HTMLElement).closest('button, a, input')) return;
+          const pane = panes.find(p => p.id === activePaneId);
+          const tab = pane?.tabs[pane.activeTabIndex];
+          if (!tab?.path) return;
+          e.preventDefault();
+          e.stopPropagation();
+          void handleContextMenuRequest(e, tab.path, null, true, null, undefined, 'list-background');
+        }}
+      >
          <div className="truncate">
            {config.useStatusBarTemplate && config.unwiredConfig14 ? (
              <span>{renderStatusBarTemplate(String(config.unwiredConfig14), {
@@ -9664,7 +9779,10 @@ export default function BNDZUI() {
           sortColumn={currentPane.sortColumn as SortColumnId | undefined}
           sortDirection={currentPane.sortDirection}
           onSortBy={col => toggleSort(activePaneId, col)}
-          onSetSortDirection={dir => setPanes(prev => prev.map(p => p.id === activePaneId ? { ...p, sortDirection: dir } : p))}
+          onSetSortDirection={dir => {
+            setPanes(prev => prev.map(p => p.id === activePaneId ? { ...p, sortDirection: dir } : p));
+            updateConfig({ listSortDirection: dir });
+          }}
           listGroupBy={(config.listGroupBy as ListGroupBy) || 'none'}
           onGroupByChange={value => updateConfig({ listGroupBy: value })}
           onRenameFavorite={path => setRenamingFavoritePath(path)}

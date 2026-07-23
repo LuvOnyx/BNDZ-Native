@@ -43,7 +43,8 @@ export const ResizablePanelGroup = ({
             groupRef={groupRef}
             orientation={resolvedOrientation}
             className={resolvedClassName}
-            onLayoutChanged={onLayoutChanged ?? onLayout}
+            onLayoutChange={onLayout}
+            onLayoutChanged={onLayoutChanged}
             {...props}
         >
             {children}

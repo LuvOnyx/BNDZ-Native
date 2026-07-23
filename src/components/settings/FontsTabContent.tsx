@@ -50,7 +50,7 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
     <div className="p-1">
       <SettingsTabHeader
         title="Fonts"
-        description="Per-panel typography tuned for native readability — no more ultra-thin UI text. Overrides inherit from the global UI font."
+        description="Font pack for List, Tree, Tabs, and the top menu — plus preview, plugins, and status. Overrides inherit from the global UI font."
       />
 
       <SettingsSection title="Global UI">
@@ -200,6 +200,18 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
             <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">File list</div>
             <div style={{ fontFamily: (localConfig.listFontFamily as string) || baseFamily, fontSize: (localConfig.listFontSize as number) || 12 }}>
               report-2026.pdf · vacation-photos · project-notes.md
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">List tabs</div>
+            <div style={{ fontFamily: (localConfig.tabsFontFamily as string) || baseFamily, fontSize: (localConfig.tabsFontSize as number) || (localConfig.tabFontSize as number) || 11 }}>
+              Desktop · Downloads · Pictures
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Top menu bar</div>
+            <div style={{ fontFamily: (localConfig.chromeFontFamily as string) || baseFamily, fontSize: (localConfig.chromeFontSize as number) || baseSize }}>
+              File · Edit · View · Go · Tools
             </div>
           </div>
           <div>

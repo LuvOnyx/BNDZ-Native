@@ -35,6 +35,9 @@ function run() {
   assert.equal(isListMarqueeSurface(asTarget(selectCell)), false);
   assert.equal(isListSelectCellTarget(asTarget(selectCell)), true);
   assert.equal(isListSelectCellTarget(asTarget(marqueePad)), false);
+  // Whole row (non-marquee) is a solid click/drag hit target.
+  assert.equal(isListSelectCellTarget(asTarget(row)), true);
+  assert.equal(isListMarqueeSurface(asTarget(row)), false);
 
   console.log('test-list-row-hit-targets: ok');
 }

@@ -76,6 +76,23 @@ public class EverythingSearchService
                     if (!string.IsNullOrEmpty(p)) seen.Add(p);
                 }
 
+                var indexOnly = indexed.Count;
+                var winSearchHits = 0;
+                try
+                {
+                    var winSearch = new WindowsSearchService().Search(query, Math.Max(1, limit - indexed.Count), string.IsNullOrEmpty(primaryRoot) ? null : primaryRoot);
+                    foreach (var hit in winSearch)
+                    {
+                        var p = ExtractResultPath(hit);
+                        if (string.IsNullOrEmpty(p) || seen.Contains(p)) continue;
+                        indexed.Add(hit);
+                        seen.Add(p);
+                        winSearchHits++;
+                        if (indexed.Count >= limit) break;
+                    }
+                }
+                catch { /* optional engine */ }
+
                 var everythingHits = new List<object>();
                 if (TrySearchEverything(query, limit, primaryRoot, everythingHits))
                 {
@@ -90,9 +107,27 @@ public class EverythingSearchService
                 }
 
                 if (indexed.Count > 0)
-                    return (indexed.Take(limit).ToList(), everythingHits.Count > 0 ? "indexed+everything" : "indexed");
+                {
+                    string engine = "indexed";
+                    if (everythingHits.Count > 0) engine = "indexed+everything";
+                    else if (winSearchHits > 0) engine = "indexed+windows-search";
+                    _ = indexOnly;
+                    return (indexed.Take(limit).ToList(), engine);
+                }
             }
             catch { /* fall through */ }
+        }
+
+        // Windows Search alone when BNDZ index path was skipped / empty.
+        if (!useRegex && !booleanMode && !searchContent)
+        {
+            try
+            {
+                var ws = new WindowsSearchService().Search(query, limit, string.IsNullOrEmpty(primaryRoot) ? null : primaryRoot);
+                if (ws.Count > 0)
+                    return (ws.Take(limit).ToList(), "windows-search");
+            }
+            catch { }
         }
 
         if (booleanMode && !useRegex)

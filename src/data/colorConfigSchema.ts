@@ -8,11 +8,11 @@ export interface ColorConfigField {
 
 export const COLOR_CONFIG_SECTIONS: { id: string; title: string; description?: string }[] = [
   { id: 'tree', title: 'Navigation Tree', description: 'Sidebar tree text and background' },
-  { id: 'tabs', title: 'Tabs', description: 'Active and inactive tab colors' },
+  { id: 'tabs', title: 'Tabs', description: 'List tabs — active/inactive text and backgrounds' },
   { id: 'list', title: 'File List', description: 'List view foreground, background, and selection' },
   { id: 'breadcrumb', title: 'Breadcrumb & Toolbar', description: 'Path bar and toolbar chrome' },
   { id: 'details', title: 'Details & Preview', description: 'Column headers, per-column accents, and preview panel' },
-  { id: 'chrome', title: 'Status & Accents', description: 'Status bar, dividers, and highlights' },
+  { id: 'chrome', title: 'Status Bar & Accents', description: 'Status bar, menubar, neon accent, and highlights' },
   { id: 'tags', title: 'Tags & Menus', description: 'Tag badges and context menus' },
   { id: 'selection', title: 'Control Selections', description: 'Focused and unfocused control highlights' },
   { id: 'tracing', title: 'Tree Tracing & Pins', description: 'Path tracing and recent location pins' },
@@ -54,10 +54,12 @@ export const COLOR_CONFIG_FIELDS: ColorConfigField[] = [
   { key: 'colorConfig18', label: 'Preview Panel Background', default: '#151515', previewText: '#e0e0e0', section: 'details' },
   { key: 'colorConfig19', label: 'Preview Panel Text', default: '#e0e0e0', previewText: '#151515', section: 'details' },
 
-  { key: 'colorConfig5', label: 'Status Bar Text', default: '#aaaaaa', previewText: '#007acc', section: 'chrome' },
-  { key: 'colorConfig20', label: 'Sidebar Accent', default: '#007acc', previewText: '#ffffff', section: 'chrome' },
+  { key: 'colorConfig5', label: 'Status Bar Text', default: '#aaaaaa', previewText: '#1a1a1f', section: 'chrome' },
+  { key: 'colorConfig46', label: 'Status Bar Background', default: '#1a1a1f', previewText: '#aaaaaa', section: 'chrome' },
+  { key: 'colorConfig20', label: 'Sidebar / Neon Accent', default: '#007acc', previewText: '#ffffff', section: 'chrome' },
   { key: 'colorConfig21', label: 'Pane Divider', default: '#333333', previewText: '#ffffff', section: 'chrome' },
   { key: 'colorConfig24', label: 'Search Match Highlight', default: '#fbbf24', previewText: '#000000', section: 'chrome' },
+  { key: 'colorConfig47', label: 'Menubar Background', default: '#1e1e1e', previewText: '#e0e0e0', section: 'chrome' },
 
   { key: 'colorConfig25', label: 'Tag Badge Background', default: '#3b82f6', previewText: '#ffffff', section: 'tags' },
   { key: 'colorConfig26', label: 'Tag Badge Text', default: '#ffffff', previewText: '#3b82f6', section: 'tags' },

@@ -10,7 +10,7 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 29;
+export const WORKSPACE_LAYOUT_VERSION = 32;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
@@ -22,10 +22,10 @@ export const DEFAULT_OUTER_LAYOUT: Layout = {
     preview: 12,
 };
 
-/** Bottom panel sized so the General tab bar sits gently on the status bar. */
+/** Compact docked bottom strip — 9.75% matches the preferred start height. */
 export const DEFAULT_INNER_LAYOUT: Layout = {
-    main: 78,
-    bottom: 22,
+    main: 90.25,
+    bottom: 9.75,
 };
 
 export const DUAL_PANE_IDS = ['pane1', 'pane2'] as const;
@@ -54,9 +54,16 @@ export const MAX_OUTER_LAYOUT: Layout = {
 };
 
 export const MIN_INNER_LAYOUT: Layout = {
-    main: 50,
+    main: 8,
     bottom: 5,
 };
+
+/**
+ * Immersive snap only when dragged nearly to the top of the list —
+ * mirror of collapsing by pulling all the way to the bottom.
+ */
+export const MAX_BOTTOM_DOCKED = 92;
+export const BOTTOM_IMMERSIVE_TRIGGER = 88;
 
 /** ResizablePanel min/max props (percent of outer group). */
 export const MIN_SIDEBAR_SIZE = MIN_OUTER_LAYOUT.sidebar!;
@@ -228,7 +235,7 @@ export function normalizeInnerLayout(raw: unknown): Layout {
     }
 
     main = clamp(main, MIN_INNER_LAYOUT.main!, 95);
-    bottom = clamp(bottom, MIN_INNER_LAYOUT.bottom!, 50);
+    bottom = clamp(bottom, MIN_INNER_LAYOUT.bottom!, MAX_BOTTOM_DOCKED);
     if (main + bottom > 100) {
         bottom = Math.max(MIN_INNER_LAYOUT.bottom!, 100 - main);
     }

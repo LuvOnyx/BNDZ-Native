@@ -309,6 +309,8 @@ namespace BNDZ
             services.AddSingleton<NativeShellService>();
             services.AddSingleton<IconStudioService>();
             services.AddSingleton<EverythingSearchService>();
+            services.AddSingleton<WindowsSearchService>();
+            services.AddSingleton<GlobalHotkeyService>();
             
             // UI Windows
             services.AddTransient<MainWindow>();

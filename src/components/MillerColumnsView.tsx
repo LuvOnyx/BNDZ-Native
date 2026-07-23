@@ -93,7 +93,7 @@ export default function MillerColumnsView({
           );
         })}
       </div>
-      <div className="flex flex-1 min-h-0 overflow-x-auto bndz-scrollbar bndz-file-list-scroll bndz-gpu-layer">
+      <div className="flex flex-1 min-h-0 overflow-x-auto bndz-scrollbar bndz-file-list-scroll">
         {columnPaths.map((colPath) => {
           const items = pathContentsCache[colPath];
           const loading = items === undefined;
@@ -101,7 +101,7 @@ export default function MillerColumnsView({
           return (
             <div
               key={colPath}
-              className="shrink-0 w-[220px] border-r border-white/[0.06] flex flex-col min-h-0 bndz-gpu-layer"
+              className="shrink-0 w-[220px] border-r border-white/[0.06] flex flex-col min-h-0"
             >
               <div className="shrink-0 px-2 py-1 text-[10px] uppercase tracking-wider text-gray-500 border-b border-white/[0.04] truncate">
                 {colLabel}
