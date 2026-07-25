@@ -31,7 +31,7 @@ export default function ListDragGhost({ ghost }: Props) {
       >
         <div className="relative flex items-center justify-center w-7 h-7 rounded-[var(--bndz-radius-sm)] bg-black/20">
           {ghost.previewPath ? (
-            <ShellNativeIcon path={ghost.previewPath} size={22} eager />
+            <ShellNativeIcon path={ghost.previewPath} size={22} preferThumbnail eager />
           ) : (
             <Icons8Icon id={ghost.isDirectory ? 'explorer' : 'file_ui'} size={14} />
           )}

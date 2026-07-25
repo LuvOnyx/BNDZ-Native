@@ -16,6 +16,7 @@ import FolderSizeSyncChip from './FolderSizeSyncChip';
 import { SizeBar, type SizeBarStyle } from './SizeBar';
 import IndexProgressChip from './IndexProgressChip';
 import DriveCard from './DriveCard';
+import { BreadcrumbTrail } from './BreadcrumbTrail';
 import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
@@ -1709,10 +1710,19 @@ export default function BNDZUI() {
   const startColumnResize = (colId: ListColumnId, startX: number, headerEl: HTMLElement) => {
     columnResizeActiveRef.current = true;
     const startWidth = headerEl.getBoundingClientRect().width;
+    const folderKey = normalizePanePath(currentPath || '/');
     const onMove = (ev: MouseEvent) => {
       const next = Math.max(56, Math.min(520, startWidth + (ev.clientX - startX)));
+      const rounded = Math.round(next);
       updateConfig({
-        listColumnWidths: { ...(config.listColumnWidths || {}), [colId]: Math.round(next) },
+        listColumnWidths: { ...(config.listColumnWidths || {}), [colId]: rounded },
+        listColumnWidthsByPath: {
+          ...(config.listColumnWidthsByPath || {}),
+          [folderKey]: {
+            ...((config.listColumnWidthsByPath || {})[folderKey] || {}),
+            [colId]: rounded,
+          },
+        },
       });
     };
     const onUp = () => {
@@ -2085,6 +2095,16 @@ export default function BNDZUI() {
         e.preventDefault();
         setSmartToolsTab('assistant');
         setIsSmartToolsOpen(true);
+      }
+
+      // View mode chords — Ctrl+Shift+1/2/3/4 (details / list / grid / columns)
+      if (!isInput && e.ctrlKey && e.shiftKey && !e.altKey) {
+        const digit = e.key;
+        if (digit === '1' || digit === '2' || digit === '3' || digit === '4') {
+          e.preventDefault();
+          const mode = digit === '1' ? 'details' : digit === '2' ? 'list' : digit === '3' ? 'grid' : 'columns';
+          setViewMode(mode, activePaneId);
+        }
       }
 
       // Inline rename — list item or pinned Rapid access favorite label
@@ -5676,7 +5696,7 @@ export default function BNDZUI() {
       e.dataTransfer.dropEffect = copy ? 'copy' : 'move';
     };
 
-    const visibleListColumns = getVisibleListColumns(config, { isGlobalSearch: isGlobal });
+    const visibleListColumns = getVisibleListColumns(config, { isGlobalSearch: isGlobal, folderPath: normalizePanePath(currentTab.path) });
 
     let maxFolderSizeInDir = 0;
     const dirItemsForSize = pathContentsCache[normPanePath] || contents || [];
@@ -6166,50 +6186,38 @@ export default function BNDZUI() {
                        {filterText.trimStart().substring(2).trim()}
                     </span>
                  </React.Fragment>
-              ) : getBreadcrumbSegments(currentTab.path, catalogNameMap).map((seg, idx) => (
-                  <React.Fragment key={seg.path}>
-                    {idx > 0 && <span className="text-gray-500 mx-1 shrink-0">&gt;</span>}
-                    <span
-                      className={`hover:underline cursor-pointer font-semibold shrink-0 rounded-[var(--bndz-radius-sm)] transition-colors ${breadcrumbDropTarget === seg.path ? 'bg-[#0078d4]/20 ring-1 ring-[#0078d4]/60 px-1 -mx-1' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (e.ctrlKey || e.metaKey) { addTab(pane.id, seg.path); return; }
-                        if (isDualPane && pane.id !== activePaneId) setActivePaneId(pane.id);
-                        setCurrentPath(seg.path, pane.id);
-                      }}
-                      onAuxClick={(e) => {
-                        if (e.button !== 1) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        addTab(pane.id, seg.path);
-                      }}
-                      onDragOver={(e) => {
-                        const isFileDrag = hasBndzFileDrag(e) || e.dataTransfer.types.includes('Files');
-                        if (!isFileDrag) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        e.dataTransfer.dropEffect = (e.ctrlKey || e.altKey) ? 'copy' : 'move';
-                        if (breadcrumbDropTarget !== seg.path) setBreadcrumbDropTarget(seg.path);
-                      }}
-                      onDragLeave={(e) => {
-                        e.stopPropagation();
-                        if (breadcrumbDropTarget === seg.path) setBreadcrumbDropTarget(null);
-                      }}
-                      onDrop={(e) => {
-                        setBreadcrumbDropTarget(null);
-                        const isFileDrag = hasBndzFileDrag(e) || (e.dataTransfer.files?.length ?? 0) > 0;
-                        if (!isFileDrag) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDrop(e, null, seg.path);
-                      }}
-                      title="Click to navigate · Ctrl+click or middle-click to open in a new tab · Drop files here to move/copy"
-                      data-breadcrumb-path={seg.path}
-                    >
-                      {seg.label}
-                    </span>
-                  </React.Fragment>
-                ))}
+              ) : (
+                <BreadcrumbTrail
+                  segments={getBreadcrumbSegments(currentTab.path, catalogNameMap)}
+                  dropTarget={breadcrumbDropTarget}
+                  onNavigate={(path, opts) => {
+                    if (opts?.newTab) { addTab(pane.id, path); return; }
+                    if (isDualPane && pane.id !== activePaneId) setActivePaneId(pane.id);
+                    setCurrentPath(path, pane.id);
+                  }}
+                  onDragOverSeg={(e, path) => {
+                    const isFileDrag = hasBndzFileDrag(e) || e.dataTransfer.types.includes('Files');
+                    if (!isFileDrag) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = (e.ctrlKey || e.altKey) ? 'copy' : 'move';
+                    if (breadcrumbDropTarget !== path) setBreadcrumbDropTarget(path);
+                  }}
+                  onDragLeaveSeg={(e, path) => {
+                    e.stopPropagation();
+                    if (breadcrumbDropTarget === path) setBreadcrumbDropTarget(null);
+                  }}
+                  onDropSeg={(e, path) => {
+                    setBreadcrumbDropTarget(null);
+                    const isFileDrag = hasBndzFileDrag(e) || (e.dataTransfer.files?.length ?? 0) > 0;
+                    if (!isFileDrag) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDrop(e, null, path);
+                  }}
+                  hasBndzFileDrag={hasBndzFileDrag}
+                />
+              )}
             </div>
             <ToolbarButton
               launcherIcon={launcherIconUrl('lock_ui')}
@@ -6321,7 +6329,7 @@ export default function BNDZUI() {
            )}
            <div className={`bndz-list-col-header bndz-list-col-header--gutter ${detailsIconColClass}`} aria-hidden />
            <ListColumnHeaderStrip
-             columns={getVisibleListColumns(config, { isGlobalSearch: isGlobal })}
+             columns={getVisibleListColumns(config, { isGlobalSearch: isGlobal, folderPath: normalizePanePath(currentTab.path) })}
              sortColumn={pane.sortColumn ?? resolveSortColumn(config, pane)}
              sortDirection={resolveSortDirection(pane.sortColumn ?? resolveSortColumn(config, pane), pane.sortDirection, config)}
              onToggleSort={(colId) => {
@@ -9509,6 +9517,16 @@ export default function BNDZUI() {
                      path={previewPath}
                      pathContentsCache={pathContentsCache}
                      onNavigate={p => setCurrentPath(p)}
+                     selectionPaths={(currentTab.selectedItems || []).map(id => {
+                       const ent = (pathContentsCache[currentTab.path] || pathContentsCache[normalizePanePath(currentTab.path)] || [])
+                         .find((x: any) => x.id === id);
+                       return ent ? joinPanePath(currentTab.path, ent) : id;
+                     }).filter(Boolean)}
+                     onSelectPath={p => {
+                       const ent = (pathContentsCache[currentTab.path] || pathContentsCache[normalizePanePath(currentTab.path)] || [])
+                         .find((x: any) => joinPanePath(currentTab.path, x) === p || x.path === p || x.id === p);
+                       if (ent?.id) setFocusedItemId(ent.id);
+                     }}
                      onOpenFloatingPreview={() => {
                        if (!focusedItemId && !(currentTab.selectedItems?.length)) {
                          setToastMessage('Select or focus an item first.');

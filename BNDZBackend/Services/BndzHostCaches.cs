@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using BitFaster.Caching.Lru;
 using Microsoft.IO;
@@ -19,20 +21,43 @@ public static class BndzHostCaches
     /// <summary>Thumbnails keyed by path|size|mtimeTicks.</summary>
     public static ConcurrentLru<string, string> Thumbnails { get; } = new(capacity: 2048);
 
-    private static long _iconL1Hits, _iconL2Hits, _iconMissExtract;
-    private static long _thumbL1Hits, _thumbL2Hits, _thumbMissExtract;
+    /// <summary>Negative CAS — failed extract keys with UTC ticks when recorded.</summary>
+    private static readonly ConcurrentDictionary<string, long> ThumbNegatives = new(StringComparer.OrdinalIgnoreCase);
 
-    public static object GetPerfSnapshot() => new
+    /// <summary>Do not retry a failed extract for this long (mtime key already invalidates on change).</summary>
+    private static readonly long NegativeTtlTicks = TimeSpan.FromMinutes(10).Ticks;
+
+    private static long _iconL1Hits, _iconL2Hits, _iconMissExtract;
+    private static long _thumbL1Hits, _thumbL2Hits, _thumbMissExtract, _thumbNegHits;
+    private static long _thumbExtractWindowStart = Environment.TickCount64;
+    private static long _thumbExtractWindowCount;
+
+    public static object GetPerfSnapshot()
     {
-        iconL1Hits = Interlocked.Read(ref _iconL1Hits),
-        iconL2Hits = Interlocked.Read(ref _iconL2Hits),
-        iconExtracts = Interlocked.Read(ref _iconMissExtract),
-        thumbL1Hits = Interlocked.Read(ref _thumbL1Hits),
-        thumbL2Hits = Interlocked.Read(ref _thumbL2Hits),
-        thumbExtracts = Interlocked.Read(ref _thumbMissExtract),
-        iconLruCount = Icons.Count,
-        thumbLruCount = Thumbnails.Count,
-    };
+        var now = Environment.TickCount64;
+        var start = Interlocked.Read(ref _thumbExtractWindowStart);
+        var count = Interlocked.Read(ref _thumbExtractWindowCount);
+        var elapsedSec = Math.Max(0.001, (now - start) / 1000.0);
+        if (now - start > 5000)
+        {
+            Interlocked.Exchange(ref _thumbExtractWindowStart, now);
+            Interlocked.Exchange(ref _thumbExtractWindowCount, 0);
+        }
+        return new
+        {
+            iconL1Hits = Interlocked.Read(ref _iconL1Hits),
+            iconL2Hits = Interlocked.Read(ref _iconL2Hits),
+            iconExtracts = Interlocked.Read(ref _iconMissExtract),
+            thumbL1Hits = Interlocked.Read(ref _thumbL1Hits),
+            thumbL2Hits = Interlocked.Read(ref _thumbL2Hits),
+            thumbExtracts = Interlocked.Read(ref _thumbMissExtract),
+            thumbNegHits = Interlocked.Read(ref _thumbNegHits),
+            thumbExtractsPerSec = Math.Round(count / elapsedSec, 2),
+            iconLruCount = Icons.Count,
+            thumbLruCount = Thumbnails.Count,
+            thumbNegCount = ThumbNegatives.Count,
+        };
+    }
 
     public static string IconCacheKey(string path, bool isDirectory)
     {
@@ -116,6 +141,16 @@ public static class BndzHostCaches
             return hit;
         }
 
+        if (ThumbNegatives.TryGetValue(key, out var negAt))
+        {
+            if (DateTime.UtcNow.Ticks - negAt < NegativeTtlTicks)
+            {
+                Interlocked.Increment(ref _thumbNegHits);
+                return null;
+            }
+            ThumbNegatives.TryRemove(key, out _);
+        }
+
         var disk = BndzMediaDiskCache.Instance;
         var allowDisk = disk.AllowsThumbPath(path);
         if (allowDisk)
@@ -129,17 +164,26 @@ public static class BndzHostCaches
             }
         }
 
-        // Gold path: always extract on cold miss, then write CAS. "Show cached thumbnails only"
-        // is a UI preference — never blank media list cells from the host extract path.
-
+        // Gold path: extract on cold miss, then write CAS.
         string extracted;
         try { extracted = extract() ?? ""; }
         catch { extracted = ""; }
 
         if (string.IsNullOrEmpty(extracted))
+        {
+            ThumbNegatives[key] = DateTime.UtcNow.Ticks;
+            // Cap negative map growth.
+            if (ThumbNegatives.Count > 8000)
+            {
+                foreach (var stale in ThumbNegatives.Keys.Take(2000))
+                    ThumbNegatives.TryRemove(stale, out _);
+            }
             return null;
+        }
 
         Interlocked.Increment(ref _thumbMissExtract);
+        Interlocked.Increment(ref _thumbExtractWindowCount);
+        ThumbNegatives.TryRemove(key, out _);
         Thumbnails.AddOrUpdate(key, extracted);
         if (allowDisk)
             disk.PutBase64(BndzMediaDiskCache.Kind.Thumbnail, key, extracted);
@@ -148,7 +192,11 @@ public static class BndzHostCaches
 
     public static void ClearIcons() => Icons.Clear();
 
-    public static void ClearThumbnails() => Thumbnails.Clear();
+    public static void ClearThumbnails()
+    {
+        Thumbnails.Clear();
+        ThumbNegatives.Clear();
+    }
 
     public static void ClearAll(bool includeDisk = true)
     {

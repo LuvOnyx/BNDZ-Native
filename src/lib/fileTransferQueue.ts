@@ -126,12 +126,12 @@ function isRecentlyCompleted(job: FileTransferJobDto): boolean {
 
 export function isTransferActive(state: FileTransferQueueState): boolean {
   return state.activeCount > 0 || state.queuedCount > 0
-    || state.jobs.some(j => j.status === 'queued' || j.status === 'running')
+    || state.jobs.some(j => j.status === 'queued' || j.status === 'running' || j.status === 'paused')
     || state.jobs.some(isRecentlyCompleted);
 }
 
 export function visibleTransferJobs(jobs: FileTransferJobDto[]): FileTransferJobDto[] {
   return jobs.filter(j =>
-    j.status === 'queued' || j.status === 'running' || j.status === 'failed' || isRecentlyCompleted(j),
+    j.status === 'queued' || j.status === 'running' || j.status === 'paused' || j.status === 'failed' || isRecentlyCompleted(j),
   );
 }

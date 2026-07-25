@@ -17,6 +17,12 @@ import {
 } from './PluginPanelPrimitives';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { listCatalogs, type CatalogEntry } from '../../lib/catalog';
+import {
+  loadSmartCollections,
+  upsertSmartCollection,
+  removeSmartCollection,
+  type SmartCollection,
+} from '../../lib/smartCollections';
 
 export const FindPluginDef = {
     id: "find",
@@ -44,6 +50,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const [status, setStatus] = useState('');
     const [dupProgress, setDupProgress] = useState<{ percent: number; message?: string } | null>(null);
     const [savedCatalogs, setSavedCatalogs] = useState<CatalogEntry[]>([]);
+    const [smartCollections, setSmartCollections] = useState<SmartCollection[]>(() => loadSmartCollections());
     const searchHistory: string[] = Array.isArray(config?.findSearchHistory)
         ? config.findSearchHistory.filter((q: unknown): q is string => typeof q === 'string')
         : [];
@@ -266,6 +273,61 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     {mode !== 'duplicates' && (
                         <>
                             <div className="bndz-context-menu-sep opacity-30" />
+                            <div className="flex items-center justify-between gap-2">
+                                <PluginSectionTitle icon="filters">Smart collections</PluginSectionTitle>
+                                <button
+                                    type="button"
+                                    className="text-[10px] text-[#7eb8e8] hover:text-[#99c9f0]"
+                                    title="Save current query as a smart collection"
+                                    onClick={() => {
+                                        const q = query.trim();
+                                        if (!q) return;
+                                        const name = window.prompt('Collection name', q.slice(0, 40));
+                                        if (!name) return;
+                                        setSmartCollections(upsertSmartCollection({
+                                            name,
+                                            query: q,
+                                            scopePath: mode === 'local' ? scopePath : undefined,
+                                            searchContent,
+                                        }));
+                                    }}
+                                >
+                                    Save
+                                </button>
+                            </div>
+                            <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto bndz-scrollbar">
+                                {smartCollections.length === 0 ? (
+                                    <span className="text-[10px] text-gray-600 px-1">Save a query to pin a live collection.</span>
+                                ) : smartCollections.map(sc => (
+                                    <div key={sc.id} className="flex items-center gap-1 group">
+                                        <button
+                                            type="button"
+                                            className="flex-1 text-left text-xs px-2 py-1 rounded-[8px] text-gray-400 hover:bg-[#094771]/30 hover:text-[#cce4f7] truncate"
+                                            title={sc.query}
+                                            onClick={() => {
+                                                setQuery(sc.query);
+                                                setSearchContent(!!sc.searchContent);
+                                                void doSearch(sc.query);
+                                            }}
+                                        >
+                                            {sc.name}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="opacity-0 group-hover:opacity-100 text-[10px] text-gray-600 hover:text-red-400 px-1"
+                                            onClick={() => setSmartCollections(removeSmartCollection(sc.id))}
+                                            title="Remove"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                    {mode !== 'duplicates' && (
+                        <>
+                            <div className="bndz-context-menu-sep opacity-30" />
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
                                 <input type="checkbox" checked={regexEnabled} onChange={e => setRegexEnabled(e.target.checked)} className="accent-[#0078d4]" />
                                 Regular expressions
@@ -367,11 +429,16 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     key={`${r.path}-${i}`}
                                     className="grid grid-cols-[minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors"
                                     onDoubleClick={() => navigateTo(r.path)}
-                                    title={r.path}
+                                    title={r.snippet ? `${r.path}\n${r.snippet}` : r.path}
                                   >
-                                    <span className="text-gray-100 truncate font-medium">{r.name}</span>
+                                    <div className="min-w-0">
+                                      <span className="text-gray-100 truncate font-medium block">{r.name}</span>
+                                      {r.snippet && (
+                                        <span className="text-[10px] text-white/35 truncate block mt-0.5 leading-snug">{r.snippet}</span>
+                                      )}
+                                    </div>
                                     <span className="text-white/40 font-mono text-[11px] truncate">{r.path}</span>
-                                    <span className="bndz-plugin-kind-pill w-fit self-center">{r.matchType === 'content' ? 'grep' : r.isDirectory ? 'dir' : 'file'}</span>
+                                    <span className="bndz-plugin-kind-pill w-fit self-center">{r.matchType === 'content' || r.snippet ? 'grep' : r.isDirectory ? 'dir' : 'file'}</span>
                                   </div>
                                 ))}
                               </div>

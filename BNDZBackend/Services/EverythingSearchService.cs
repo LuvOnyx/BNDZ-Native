@@ -78,49 +78,78 @@ public class EverythingSearchService
                     return (indexed.Take(limit).ToList(), "indexed");
 
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var item in indexed)
+                var ranked = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                const double k = 60.0; // RRF constant
+
+                void Accrue(IEnumerable<object> list, double weight)
                 {
-                    var p = ExtractResultPath(item);
-                    if (!string.IsNullOrEmpty(p)) seen.Add(p);
+                    var i = 0;
+                    foreach (var item in list)
+                    {
+                        var p = ExtractResultPath(item);
+                        if (string.IsNullOrEmpty(p)) continue;
+                        var score = weight / (k + i + 1);
+                        ranked[p] = ranked.TryGetValue(p, out var prev) ? prev + score : score;
+                        i++;
+                    }
                 }
 
-                var indexOnly = indexed.Count;
+                Accrue(indexed, 1.0);
+
                 var winSearchHits = 0;
+                var winSearch = new List<object>();
                 try
                 {
-                    var winSearch = new WindowsSearchService().Search(query, Math.Max(1, limit - indexed.Count), string.IsNullOrEmpty(primaryRoot) ? null : primaryRoot);
-                    foreach (var hit in winSearch)
-                    {
-                        var p = ExtractResultPath(hit);
-                        if (string.IsNullOrEmpty(p) || seen.Contains(p)) continue;
-                        indexed.Add(hit);
-                        seen.Add(p);
-                        winSearchHits++;
-                        if (indexed.Count >= limit) break;
-                    }
+                    winSearch = new WindowsSearchService().Search(query, limit, string.IsNullOrEmpty(primaryRoot) ? null : primaryRoot);
+                    Accrue(winSearch, 0.85);
+                    winSearchHits = winSearch.Count;
                 }
                 catch { /* optional engine */ }
 
                 var everythingHits = new List<object>();
                 if (TrySearchEverything(query, limit, primaryRoot, everythingHits))
+                    Accrue(everythingHits, 1.1);
+
+                // Recency bump from index/Windows hits that carry modified ticks when available.
+                foreach (var item in indexed.Concat(winSearch).Concat(everythingHits))
                 {
-                    foreach (var hit in everythingHits)
+                    var p = ExtractResultPath(item);
+                    if (string.IsNullOrEmpty(p) || !ranked.ContainsKey(p)) continue;
+                    try
                     {
-                        var p = ExtractResultPath(hit);
-                        if (string.IsNullOrEmpty(p) || seen.Contains(p)) continue;
-                        indexed.Add(hit);
-                        seen.Add(p);
-                        if (indexed.Count >= limit) break;
+                        var mod = item.GetType().GetProperty("modified")?.GetValue(item);
+                        if (mod is long ticks && ticks > 0)
+                        {
+                            var ageDays = Math.Max(0, (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc)).TotalDays);
+                            ranked[p] += 0.15 / (1.0 + ageDays / 30.0);
+                        }
                     }
+                    catch { /* ignore */ }
                 }
 
-                if (indexed.Count > 0)
+                var byPath = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in indexed.Concat(winSearch).Concat(everythingHits))
+                {
+                    var p = ExtractResultPath(item);
+                    if (string.IsNullOrEmpty(p) || byPath.ContainsKey(p)) continue;
+                    byPath[p] = item;
+                    seen.Add(p);
+                }
+
+                var fused = ranked
+                    .OrderByDescending(kv => kv.Value)
+                    .Select(kv => byPath.TryGetValue(kv.Key, out var o) ? o : null)
+                    .Where(o => o != null)
+                    .Cast<object>()
+                    .Take(limit)
+                    .ToList();
+
+                if (fused.Count > 0)
                 {
                     string engine = "indexed";
-                    if (everythingHits.Count > 0) engine = "indexed+everything";
-                    else if (winSearchHits > 0) engine = "indexed+windows-search";
-                    _ = indexOnly;
-                    return (indexed.Take(limit).ToList(), engine);
+                    if (everythingHits.Count > 0) engine = "rrf:indexed+everything";
+                    else if (winSearchHits > 0) engine = "rrf:indexed+windows-search";
+                    return (fused, engine);
                 }
             }
             catch { /* fall through */ }

@@ -114,12 +114,13 @@ export function ThumbnailIcon({
   const shellFetchEnabled = isVisible && shouldFetchNativeShellIcon(entity, config);
   const thumbFetchEnabled = isVisible && useThumbnail && shouldFetchNativeThumbnail(entity, config);
 
-  // Direct fetch (no nested queue wrapper) — kicks CAS fill the moment the row mounts.
+  // Direct fetch — viewport-visible rows get priorityBoost so they fill before offscreen prefetch.
   useEffect(() => {
     if (!isVisible || !path) return;
-    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', LIST_THUMB_PX);
-    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell');
-  }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled]);
+    const boost = eager ? 800 : 400;
+    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', LIST_THUMB_PX, boost);
+    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, Math.max(0, boost - 200));
+  }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled, eager]);
 
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail);

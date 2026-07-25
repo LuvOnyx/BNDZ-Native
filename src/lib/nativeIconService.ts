@@ -12,7 +12,11 @@ export const PREVIEW_THUMB_PX = 256;
 interface IconCacheEntry {
   data: string | null;
   status: 'ready' | 'loading' | 'error';
+  /** Epoch ms when error was recorded — skip retries until TTL or cache buster. */
+  errorAt?: number;
 }
+
+const NEGATIVE_TTL_MS = 10 * 60 * 1000;
 
 const cache = new Map<string, IconCacheEntry>();
 const typeGlyphCache = new Map<string, string>();
@@ -72,7 +76,7 @@ function commitCache(key: string, data: string | null, typeKey?: string | null) 
     cache.set(key, { data, status: 'ready' });
     if (typeKey && typeKey.startsWith('.')) typeGlyphCache.set(typeKey, data);
   } else {
-    cache.set(key, { data: null, status: 'error' });
+    cache.set(key, { data: null, status: 'error', errorAt: Date.now() });
   }
   notify(key);
 }
@@ -92,6 +96,12 @@ export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequ
     }
   }
   return null;
+}
+
+function isNegativeFresh(entry: IconCacheEntry | undefined): boolean {
+  if (!entry || entry.status !== 'error') return false;
+  const at = entry.errorAt ?? 0;
+  return Date.now() - at < NEGATIVE_TTL_MS;
 }
 
 export function subscribeIcon(path: string, isDirectory: boolean, kind: IconRequestKind, cb: () => void): () => void {
@@ -123,6 +133,7 @@ export function requestNativeIcon(
   isDirectory: boolean,
   kind: IconRequestKind = 'shell',
   thumbPx = LIST_THUMB_PX,
+  priorityBoost = 0,
 ): Promise<string | null> {
   if (!path) return Promise.resolve(null);
   const key = iconKey(path, isDirectory, kind);
@@ -130,6 +141,8 @@ export function requestNativeIcon(
 
   const cached = cache.get(key);
   if (cached?.status === 'ready' && cached.data) return Promise.resolve(cached.data);
+  // Negative CAS — do not re-storm IPC for known failures until TTL / cache buster.
+  if (isNegativeFresh(cached)) return Promise.resolve(null);
 
   if (typeKey?.startsWith('.')) {
     const glyph = typeGlyphCache.get(typeKey);
@@ -156,7 +169,8 @@ export function requestNativeIcon(
 
   if (!cached?.data) cache.set(key, { data: cached?.data ?? null, status: 'loading' });
 
-  const priority = kind === 'thumbnail' ? 1 : 0;
+  // Priority: thumbnails > shell; boost for viewport-near rows (higher = sooner).
+  const priority = (kind === 'thumbnail' ? 1000 : 0) + Math.max(0, Math.min(999, priorityBoost | 0));
   const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority)
     .then(data => {
       commitCache(key, data, typeKey);

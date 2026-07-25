@@ -81,10 +81,14 @@ export function reorderListColumns(
 
 export function getVisibleListColumns(
   config: AppConfig,
-  options?: { isGlobalSearch?: boolean },
+  options?: { isGlobalSearch?: boolean; folderPath?: string },
 ): ListColumnDef[] {
   const vis = resolveListColumnVisibility(config, options);
-  const widths = (config.listColumnWidths || {}) as Partial<Record<string, number>>;
+  const globalWidths = (config.listColumnWidths || {}) as Partial<Record<string, number>>;
+  const byPath = ((config as any).listColumnWidthsByPath || {}) as Record<string, Partial<Record<string, number>>>;
+  const folderKey = (options?.folderPath || '').replace(/\\/g, '/');
+  const folderWidths = folderKey ? (byPath[folderKey] || byPath[`/${folderKey}`.replace(/\/+/g, '/')] || {}) : {};
+  const widths = { ...globalWidths, ...folderWidths } as Partial<Record<string, number>>;
   const order = resolveListColumnOrder(config);
   const byId = new Map(LIST_COLUMN_DEFS.map(c => [c.id, c]));
   const builtin = order

@@ -43,6 +43,8 @@ function writeTransferExpandedPreference(expanded: boolean) {
 function JobRow({
   job,
   onCancel,
+  onPause,
+  onResume,
   cancelling,
   errorExpanded,
   onToggleError,
@@ -51,13 +53,17 @@ function JobRow({
 }: {
   job: FileTransferJobDto;
   onCancel: (id: string) => void;
+  onPause: (id: string) => void;
+  onResume: (id: string) => void;
   cancelling: boolean;
   errorExpanded: boolean;
   onToggleError: () => void;
   dismissing?: boolean;
   rowRef?: (el: HTMLDivElement | null) => void;
 }) {
-  const canCancel = (job.status === 'queued' || job.status === 'running') && !cancelling;
+  const canCancel = (job.status === 'queued' || job.status === 'running' || job.status === 'paused') && !cancelling;
+  const canPause = job.status === 'running' && !cancelling;
+  const canResume = job.status === 'paused' && !cancelling;
   const engineLabel = job.engine === 'native' ? 'Windows' : job.engine === 'teracopy' ? 'TeraCopy' : 'BNDZ';
   const progressLine = formatTransferProgressLine(job);
   const destination = formatTransferDestination(job);
@@ -65,11 +71,13 @@ function JobRow({
   const statusColor =
     job.status === 'failed' ? 'text-rose-300'
     : job.status === 'completed' ? 'text-emerald-300'
+    : job.status === 'paused' ? 'text-sky-300'
     : job.status === 'cancelled' || cancelling ? 'text-amber-300/90'
     : 'text-[#99c9f0]';
 
   const statusLabel = cancelling
     ? 'Cancelling…'
+    : job.status === 'paused' ? 'Paused'
     : job.status === 'running' || job.status === 'queued'
       ? `${Math.min(99, job.progress ?? 0)}%`
     : job.status === 'completed' ? 'Done'
@@ -147,15 +155,27 @@ function JobRow({
         <span className={`text-[10px] font-mono tabular-nums ${statusColor}`}>
           {statusLabel}
         </span>
-        {canCancel && (
-          <button
-            type="button"
-            onClick={() => onCancel(job.operationId)}
-            className="bndz-transfer-cancel-btn"
-          >
-            Cancel
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {canPause && (
+            <button type="button" onClick={() => onPause(job.operationId)} className="bndz-transfer-cancel-btn">
+              Pause
+            </button>
+          )}
+          {canResume && (
+            <button type="button" onClick={() => onResume(job.operationId)} className="bndz-transfer-cancel-btn">
+              Resume
+            </button>
+          )}
+          {canCancel && (
+            <button
+              type="button"
+              onClick={() => onCancel(job.operationId)}
+              className="bndz-transfer-cancel-btn"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -293,6 +313,22 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
     }
   };
 
+  const handlePause = async (operationId: string) => {
+    const { IPC } = await import('../lib/ipcBridge');
+    try {
+      await IPC.pauseFileTransfer(operationId);
+      setState(await IPC.getFileTransferQueue());
+    } catch { /* ignore */ }
+  };
+
+  const handleResume = async (operationId: string) => {
+    const { IPC } = await import('../lib/ipcBridge');
+    try {
+      await IPC.resumeFileTransfer(operationId);
+      setState(await IPC.getFileTransferQueue());
+    } catch { /* ignore */ }
+  };
+
   const handleClearFinished = async () => {
     const { IPC } = await import('../lib/ipcBridge');
     await IPC.clearFileTransferHistory();
@@ -348,6 +384,8 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
               key={job.operationId}
               job={job}
               onCancel={id => void handleCancel(id)}
+              onPause={id => void handlePause(id)}
+              onResume={id => void handleResume(id)}
               cancelling={!!cancellingIds[job.operationId]}
               errorExpanded={!!expandedErrors[job.operationId]}
               onToggleError={() => setExpandedErrors(prev => ({

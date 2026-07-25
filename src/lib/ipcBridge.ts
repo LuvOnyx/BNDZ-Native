@@ -46,7 +46,7 @@ export interface DefaultFileManagerStatus {
   driveOpen: boolean;
 }
 
-export type FileTransferJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type FileTransferJobStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
 export interface FileTransferJobDto {
   operationId: string;
@@ -617,6 +617,30 @@ export const IPC = {
       return _nativeCall<{ ok: boolean; operationId: string }>(
         'CANCEL_FILE_TRANSFER',
         'CANCEL_FILE_TRANSFER_RESULT',
+        undefined,
+        { operationId },
+      );
+    }
+    return Promise.resolve({ ok: false, operationId });
+  },
+
+  pauseFileTransfer(operationId: string): Promise<{ ok: boolean; operationId: string }> {
+    if (this.isNative) {
+      return _nativeCall<{ ok: boolean; operationId: string }>(
+        'PAUSE_FILE_TRANSFER',
+        'PAUSE_FILE_TRANSFER_RESULT',
+        undefined,
+        { operationId },
+      );
+    }
+    return Promise.resolve({ ok: false, operationId });
+  },
+
+  resumeFileTransfer(operationId: string): Promise<{ ok: boolean; operationId: string }> {
+    if (this.isNative) {
+      return _nativeCall<{ ok: boolean; operationId: string }>(
+        'RESUME_FILE_TRANSFER',
+        'RESUME_FILE_TRANSFER_RESULT',
         undefined,
         { operationId },
       );

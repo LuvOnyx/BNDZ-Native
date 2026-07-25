@@ -19,7 +19,7 @@ function concurrencyLimit(): number {
 function pump() {
   const limit = concurrencyLimit();
   while (active < limit && pending.length > 0) {
-    // Higher priority first (thumbnails > shell glyphs).
+    // Higher priority first (viewport-near thumbs > other thumbs > shell glyphs).
     pending.sort((a, b) => b.priority - a.priority);
     const job = pending.shift();
     if (job) job.run();
@@ -41,7 +41,19 @@ export function isIconQueueScrolling(): boolean {
   return scrolling;
 }
 
-/** @param priority 0 = shell glyph, 1 = list thumbnail (preferred) */
+/** Depth of waiting + in-flight icon/thumb IPC work (Perf HUD). */
+export function getIconQueueDepth(): number {
+  return pending.length + active;
+}
+
+export function getIconQueueActive(): number {
+  return active;
+}
+
+/**
+ * @param priority Higher runs first.
+ *   shell ≈ 0–99, list thumb ≈ 1000+, viewport boost adds distance score (closer = higher).
+ */
 export function enqueueIconRequest<T>(fn: () => Promise<T>, priority = 0): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const run = () => {

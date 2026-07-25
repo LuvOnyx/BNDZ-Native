@@ -1051,6 +1051,30 @@ namespace BNDZ
                         MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
                     });
                 }
+                else if (type == "PAUSE_FILE_TRANSFER")
+                {
+                    var payload = root.GetProperty("payload");
+                    string opId = payload.TryGetProperty("operationId", out var opProp) ? opProp.GetString() ?? "" : "";
+                    bool ok = !string.IsNullOrEmpty(opId) && _fileTransferQueue.Pause(opId);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "PAUSE_FILE_TRANSFER_RESULT", id = idProp, payload = new { ok, operationId = opId } };
+                    PostToUi(() =>
+                    {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
+                    });
+                }
+                else if (type == "RESUME_FILE_TRANSFER")
+                {
+                    var payload = root.GetProperty("payload");
+                    string opId = payload.TryGetProperty("operationId", out var opProp) ? opProp.GetString() ?? "" : "";
+                    bool ok = !string.IsNullOrEmpty(opId) && _fileTransferQueue.Resume(opId);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var response = new { type = "RESUME_FILE_TRANSFER_RESULT", id = idProp, payload = new { ok, operationId = opId } };
+                    PostToUi(() =>
+                    {
+                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
+                    });
+                }
                 else if (type == "CLEAR_FILE_TRANSFER_HISTORY")
                 {
                     var cleared = _fileTransferQueue.ClearFinishedJobs();

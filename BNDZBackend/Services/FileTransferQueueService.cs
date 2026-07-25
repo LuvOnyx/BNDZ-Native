@@ -14,6 +14,7 @@ public enum FileTransferJobStatus
 {
     Queued,
     Running,
+    Paused,
     Completed,
     Failed,
     Cancelled,
@@ -388,7 +389,51 @@ public sealed class FileTransferQueueService
             return true;
         }
 
+        if (_jobs.TryGetValue(operationId, out var paused) && paused.Status == FileTransferJobStatus.Paused)
+        {
+            MarkCancelled(operationId);
+            return true;
+        }
+
         return false;
+    }
+
+    /// <summary>Soft-pause a running/queued job — cancels in-flight work and parks status as Paused for resume.</summary>
+    public bool Pause(string operationId)
+    {
+        if (!_jobs.TryGetValue(operationId, out var job)) return false;
+        if (job.Status is not (FileTransferJobStatus.Queued or FileTransferJobStatus.Running))
+            return false;
+
+        lock (_pendingLock)
+        {
+            var pendingIdx = _pending.FindIndex(p => p.OperationId == operationId);
+            if (pendingIdx >= 0)
+            {
+                _pending.RemoveAt(pendingIdx);
+                Interlocked.Decrement(ref _queuedCount);
+            }
+        }
+
+        if (_cancelSources.TryGetValue(operationId, out var cts))
+        {
+            try { cts.Cancel(); } catch { /* ignore */ }
+        }
+
+        job.Status = FileTransferJobStatus.Paused;
+        job.Error = null;
+        NotifyChanged();
+        return true;
+    }
+
+    /// <summary>Resume a paused job by re-queuing a no-op completion marker — UI should re-enqueue real work.</summary>
+    public bool Resume(string operationId)
+    {
+        if (!_jobs.TryGetValue(operationId, out var job)) return false;
+        if (job.Status != FileTransferJobStatus.Paused) return false;
+        job.Status = FileTransferJobStatus.Queued;
+        NotifyChanged();
+        return true;
     }
 
     public CancellationToken RegisterCancellation(string operationId)

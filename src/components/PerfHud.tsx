@@ -8,8 +8,11 @@ type PerfStats = {
   thumbL1Hits?: number;
   thumbL2Hits?: number;
   thumbExtracts?: number;
+  thumbNegHits?: number;
+  thumbExtractsPerSec?: number;
   iconLruCount?: number;
   thumbLruCount?: number;
+  thumbNegCount?: number;
 };
 
 function readEnabled(): boolean {
@@ -24,6 +27,7 @@ function readEnabled(): boolean {
 export default function PerfHud() {
   const [open, setOpen] = useState(readEnabled);
   const [stats, setStats] = useState<PerfStats | null>(null);
+  const [queueDepth, setQueueDepth] = useState(0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -46,27 +50,36 @@ export default function PerfHud() {
       return;
     }
     let alive = true;
-    const tick = () => {
-      IPC.getPerfStats().then(s => { if (alive) setStats(s || null); }).catch(() => {});
+    const tick = async () => {
+      try {
+        const s = await IPC.getPerfStats();
+        if (alive) setStats(s || null);
+      } catch { /* ignore */ }
+      try {
+        const { getIconQueueDepth } = await import('../lib/iconRequestQueue');
+        if (alive) setQueueDepth(getIconQueueDepth());
+      } catch { /* ignore */ }
     };
     tick();
-    const id = window.setInterval(tick, 1500);
+    const id = window.setInterval(tick, 1200);
     return () => { alive = false; window.clearInterval(id); };
   }, [open]);
 
   if (!open) return null;
 
-  const row = (label: string, value: number | undefined) => (
+  const row = (label: string, value: number | string | undefined) => (
     <div className="flex justify-between gap-3">
       <span className="text-[#8b919a]">{label}</span>
-      <span className="text-[#e5e7eb] tabular-nums">{(value ?? 0).toLocaleString()}</span>
+      <span className="text-[#e5e7eb] tabular-nums">
+        {typeof value === 'number' ? value.toLocaleString() : (value ?? '0')}
+      </span>
     </div>
   );
 
   return (
     <div
       className="fixed bottom-3 right-3 z-[99990] pointer-events-none select-none rounded-[10px] border border-[#3a3a3a] bg-[#1a1c20]/95 backdrop-blur-sm px-3 py-2 shadow-lg"
-      style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.45, minWidth: 168 }}
+      style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.45, minWidth: 176 }}
     >
       <div className="text-[#60a5fa] font-semibold tracking-wide mb-1">BNDZ PERF</div>
       {row('icon L1', stats?.iconL1Hits)}
@@ -75,6 +88,9 @@ export default function PerfHud() {
       {row('thumb L1', stats?.thumbL1Hits)}
       {row('thumb L2', stats?.thumbL2Hits)}
       {row('thumb extract', stats?.thumbExtracts)}
+      {row('thumb neg', stats?.thumbNegHits)}
+      {row('thumb/s', stats?.thumbExtractsPerSec)}
+      {row('icon queue', queueDepth)}
       {row('icon LRU', stats?.iconLruCount)}
       {row('thumb LRU', stats?.thumbLruCount)}
       <div className="text-[#6b7280] mt-1.5">Ctrl+Shift+Alt+P</div>

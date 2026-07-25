@@ -12,6 +12,7 @@ const LIST_KEYS = new Set([
   'selectNextItemAfterDeleteAndMove', 'addNewItemsAtTheEndOfTheList',
   'alwaysShowFolderSizes', 'autoSyncFolderSizes', 'cacheFolderSizes', 'showCachedFolderSizesOnly',
   'enableIconifyFileIcons', 'showCachedIconsOnly', 'listColumnVisibility', 'listColumnWidths',
+  'listColumnWidthsByPath',
   'tutorialCompleted', 'tutorialNeverShow',
   'showItemCountWithFolderSizes', 'wrapAroundList', 'showTagsInFileList',
   'showRelativePathInPathColumn', 'underlineSelectedRows', 'verticalGridLinesInDetailsView',

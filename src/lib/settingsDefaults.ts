@@ -384,6 +384,8 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   tooltipMutedColor: '#9ca3af',
   tooltipCornerRadius: 16,
   showCachedFolderSizesOnly: false,
+  listColumnWidths: {} as Record<string, number>,
+  listColumnWidthsByPath: {} as Record<string, Record<string, number>>,
   showCachedThumbnailsOnly: false,
   showCaption: false,
   showCustomFileIcons: false,

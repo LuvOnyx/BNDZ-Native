@@ -24,6 +24,7 @@ import { isAudioExt, isVideoExt, isImageExt } from '../lib/mediaTypes';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
+import { SelectionFilmstrip } from './SelectionFilmstrip';
 
 type PreviewTab = 'preview' | 'details' | 'media';
 
@@ -37,9 +38,12 @@ interface RightPreviewPanelProps {
   pathContentsCache?: Record<string, any[]>;
   onNavigate?: (path: string) => void;
   onOpenFloatingPreview?: () => void;
+  /** Multi-select filmstrip paths (Windows or pane). */
+  selectionPaths?: string[];
+  onSelectPath?: (path: string) => void;
 }
 
-export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview }: RightPreviewPanelProps) {
+export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview, selectionPaths, onSelectPath }: RightPreviewPanelProps) {
   const { config } = useAppConfig();
   const [thumbnailNative, setThumbnailNative] = useState<string | null>(null);
   const [shellIcon, setShellIcon] = useState<string | null>(null);
@@ -964,6 +968,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              </motion.div>
           </AnimatePresence>
        </div>
+       {(selectionPaths?.length ?? 0) > 1 && (
+         <SelectionFilmstrip
+           paths={selectionPaths!}
+           activePath={path || (entity as any)?.path}
+           onSelect={onSelectPath}
+         />
+       )}
     </div>
   );
 }

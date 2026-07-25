@@ -382,7 +382,9 @@ public sealed class BndzFileIndexService : IDisposable
             using var conn = OpenConnection();
             using var cmd = conn.CreateCommand();
             var sql = """
-                SELECT f.path, f.name, f.size, f.is_dir, f.modified
+                SELECT f.path, f.name, f.size, f.is_dir, f.modified,
+                       snippet(c, 1, '', '', '…', 12) AS snip,
+                       bm25(c) AS rank
                 FROM content_fts c
                 JOIN files f ON f.path = c.path
                 WHERE c MATCH $q
@@ -400,13 +402,34 @@ public sealed class BndzFileIndexService : IDisposable
             sql += " ORDER BY bm25(c) LIMIT $lim";
             cmd.Parameters.AddWithValue("$lim", Math.Max(1, Math.Min(limit, 2000)));
             cmd.CommandText = sql;
-            return ReadFileRows(cmd);
+            return ReadContentRows(cmd);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[Index/ContentFTS] {ex.Message}");
             return results;
         }
+    }
+
+    private static List<object> ReadContentRows(SqliteCommand cmd)
+    {
+        var results = new List<object>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var path = reader.GetString(0);
+            var name = reader.GetString(1);
+            var size = reader.GetInt64(2);
+            var isDir = reader.GetInt32(3) == 1;
+            var modified = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt64(4) : 0L;
+            var snip = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
+            var rank = reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetDouble(6) : 0d;
+            if (isDir)
+                results.Add(new { id = path, name, path, type = "directory", modified, snippet = snip, rank });
+            else
+                results.Add(new { id = path, name, path, type = "file", size, modified, snippet = snip, rank });
+        }
+        return results;
     }
 
     private static List<object> TryFtsSearch(SqliteConnection conn, string[] terms, int limit, string scopeRootPanePath)
