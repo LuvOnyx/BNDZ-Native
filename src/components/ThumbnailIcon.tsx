@@ -8,15 +8,16 @@ import {
   fetchIconifySvg,
   iconifySvgToDataUrl,
 } from '../lib/fileTypeIcons';
-import { applyIconCacheBuster } from '../lib/nativeIconService';
+import { applyIconCacheBuster, LIST_THUMB_PX, requestNativeIcon } from '../lib/nativeIconService';
 import { entityShellIsDirectory } from '../lib/shellPaths';
-import { useNativeIcon, useNativeIconFetch } from '../lib/useNativeIcon';
+import { useNativeIcon } from '../lib/useNativeIcon';
 import { IconPlaceholder } from './IconPlaceholder';
 
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif']);
-const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg']);
-const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus']);
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif', 'avif']);
+const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg', 'flv', 'ts', 'm2ts']);
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus', 'aiff', 'ape']);
 const ARCHIVE_EXTS = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso']);
+const DOC_PREVIEW_EXTS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'psd', 'ai']);
 
 function entityExt(entity: FSEntity): string {
   const direct = ((entity as any).extension || '').toLowerCase().replace(/^\./, '');
@@ -27,33 +28,69 @@ function entityExt(entity: FSEntity): string {
   return name.slice(dot + 1).toLowerCase();
 }
 
-export function ThumbnailIcon({ entity, isDir, path, size = 16 }: { entity: FSEntity, isDir: boolean, path: string, size?: number }) {
+/**
+ * List/grid icon — CAS thumb first, shell glyph second.
+ * Virtualized rows are already viewport-culled, so we fetch eagerly (no IntersectionObserver).
+ */
+export function ThumbnailIcon({
+  entity,
+  isDir,
+  path,
+  size = 16,
+  eager = true,
+}: {
+  entity: FSEntity;
+  isDir: boolean;
+  path: string;
+  size?: number;
+  /** When true (default), fetch immediately — required for virtualized list rows. */
+  eager?: boolean;
+}) {
   const { config } = useAppConfig();
   const ext = entityExt(entity);
   const isExe = ext === 'exe' || ext === 'lnk' || ext === 'msi';
-  const useThumbnail = !isDir && (
-    IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || AUDIO_EXTS.has(ext) || ARCHIVE_EXTS.has(ext)
-  );
+  const isVideo = VIDEO_EXTS.has(ext);
+  const folderThumbs = config.showFolderThumbnails === true;
+  const useThumbnail = (isDir && folderThumbs) || (!isDir && (
+    IMAGE_EXTS.has(ext) || isVideo || AUDIO_EXTS.has(ext) || ARCHIVE_EXTS.has(ext) || DOC_PREVIEW_EXTS.has(ext)
+  ));
   const dirFlag = entityShellIsDirectory(entity, path);
   const [iconifyUrl, setIconifyUrl] = useState<string | null>(null);
   const [nativeFailed, setNativeFailed] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
+  const [thumbBroken, setThumbBroken] = useState(false);
+  const [shellBroken, setShellBroken] = useState(false);
+  const [isVisible, setIsVisible] = useState(eager);
   const containerRef = useRef<HTMLDivElement>(null);
+  const showFilm = isVideo && config.showFilmStripOverlayOnVideoThumbnails === true;
+  const showTypeBadge = useThumbnail && config.showFileIconOnThumbnail === true;
 
   useEffect(() => {
     if (config.iconCacheBuster) {
       applyIconCacheBuster(config.iconCacheBuster);
       setIconifyUrl(null);
       setNativeFailed(false);
+      setThumbBroken(false);
+      setShellBroken(false);
     }
   }, [config.iconCacheBuster]);
 
   useEffect(() => {
     setIconifyUrl(null);
     setNativeFailed(false);
-  }, [path, dirFlag, ext]);
+    setThumbBroken(false);
+    setShellBroken(false);
+    if (eager) {
+      setIsVisible(true);
+      return;
+    }
+    setIsVisible(false);
+  }, [path, dirFlag, ext, eager]);
 
   useEffect(() => {
+    if (eager) {
+      setIsVisible(true);
+      return;
+    }
     const el = containerRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(([entry]) => {
@@ -61,38 +98,56 @@ export function ThumbnailIcon({ entity, isDir, path, size = 16 }: { entity: FSEn
         setIsVisible(true);
         observer.disconnect();
       }
-    }, { rootMargin: '48px', threshold: 0 });
+    }, { rootMargin: '160px', threshold: 0 });
     observer.observe(el);
+    // Synchronous check — IO callbacks are async and can miss already-visible rows in WebView2.
+    if (typeof observer.takeRecords === 'function') {
+      const hits = observer.takeRecords();
+      if (hits.some(h => h.isIntersecting)) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }
     return () => observer.disconnect();
-  }, []);
+  }, [path, eager]);
 
   const shellFetchEnabled = isVisible && shouldFetchNativeShellIcon(entity, config);
   const thumbFetchEnabled = isVisible && useThumbnail && shouldFetchNativeThumbnail(entity, config);
 
-  useNativeIconFetch(path, dirFlag, 'shell', isVisible, shellFetchEnabled);
-  useNativeIconFetch(path, dirFlag, 'thumbnail', isVisible, thumbFetchEnabled);
+  // Direct fetch (no nested queue wrapper) — kicks CAS fill the moment the row mounts.
+  useEffect(() => {
+    if (!isVisible || !path) return;
+    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', LIST_THUMB_PX);
+    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell');
+  }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled]);
 
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail);
-  const nativeSrc = (useThumbnail && thumbSrc) || shellSrc || entity.iconBase64 || null;
+
+  const usableThumb = useThumbnail && thumbSrc && !thumbBroken ? thumbSrc : null;
+  const usableShell = shellSrc && !shellBroken ? shellSrc : null;
+  // Gold priority: small CAS thumb → shell glyph → iconify. Never full-file stream in list.
+  const nativeSrc = usableThumb || usableShell || entity.iconBase64 || null;
 
   useEffect(() => {
     if (nativeSrc) {
       setNativeFailed(false);
       return;
     }
-    if (!isVisible || !shellFetchEnabled) return;
+    if (!isVisible || (!shellFetchEnabled && !thumbFetchEnabled)) return;
     if (!path) return;
     let active = true;
     const timer = window.setTimeout(() => {
       if (active && !nativeSrc) setNativeFailed(true);
-    }, 2800);
+    }, 4500);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [nativeSrc, isVisible, shellFetchEnabled, path]);
+  }, [nativeSrc, isVisible, shellFetchEnabled, thumbFetchEnabled, path]);
 
   useEffect(() => {
     if (nativeSrc || !nativeFailed) return;
     if (config.enableIconifyFileIcons === false || config.showCachedIconsOnly) return;
+    // Prefer not to flash Devicon letters over media that should have real thumbs.
+    if (useThumbnail) return;
     let active = true;
     (async () => {
       if (isExe || ext === 'lnk') {
@@ -112,21 +167,54 @@ export function ThumbnailIcon({ entity, isDir, path, size = 16 }: { entity: FSEn
       }
     })();
     return () => { active = false; };
-  }, [nativeSrc, nativeFailed, isExe, ext, entity.name, config.enableIconifyFileIcons, config.showCachedIconsOnly]);
+  }, [nativeSrc, nativeFailed, isExe, ext, entity.name, config.enableIconifyFileIcons, config.showCachedIconsOnly, useThumbnail]);
 
   const displaySrc = nativeSrc || iconifyUrl;
+  const hasRealThumb = !!usableThumb;
 
   return (
-    <div ref={containerRef} style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <div
+      ref={containerRef}
+      className={showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}
+      style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}
+    >
       {displaySrc ? (
         <img
           src={displaySrc}
           alt=""
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           draggable={false}
+          onError={() => {
+            if (usableThumb && displaySrc === usableThumb) {
+              setThumbBroken(true);
+              return;
+            }
+            if (usableShell && displaySrc === usableShell) {
+              setShellBroken(true);
+              return;
+            }
+            setNativeFailed(true);
+          }}
         />
       ) : (
         <IconPlaceholder size={size} />
+      )}
+      {showTypeBadge && hasRealThumb && usableShell && usableShell !== usableThumb && size >= 28 && (
+        <img
+          src={usableShell}
+          alt=""
+          draggable={false}
+          style={{
+            position: 'absolute',
+            right: -1,
+            bottom: -1,
+            width: Math.max(10, Math.round(size * 0.38)),
+            height: Math.max(10, Math.round(size * 0.38)),
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 0 1px rgba(0,0,0,.8))',
+            pointerEvents: 'none',
+          }}
+        />
       )}
     </div>
   );

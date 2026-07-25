@@ -742,6 +742,54 @@ function ContextMenuView({
     onClose();
   };
 
+  // Flat host menu used when the React menu would clip inside the WebView HWND.
+  const hostOverflowItems: import('./ClampedFixedMenu').HostMenuItem[] = [
+    { id: 'open', label: 'Open', bold: true },
+    { id: 'openas', label: 'Open With…' },
+    { id: 'sep1', label: '', separator: true },
+    { id: 'cut', label: 'Cut' },
+    { id: 'copy', label: 'Copy' },
+    { id: 'paste', label: 'Paste' },
+    { id: 'sep2', label: '', separator: true },
+    { id: 'copyto', label: 'Copy to…' },
+    { id: 'moveto', label: 'Move to…' },
+    { id: 'delete', label: 'Delete', danger: true },
+    { id: 'rename', label: 'Rename' },
+    { id: 'sep3', label: '', separator: true },
+    { id: 'smart-rename', label: 'Smart Rename' },
+    { id: 'copypath', label: 'Copy Path' },
+    { id: 'properties', label: 'Properties' },
+    ...((menu.nativeContextItems || [])
+      .filter((n: any) => n && !n.separator && (n.label || n.verb))
+      .slice(0, 14)
+      .flatMap((n: any, i: number) => {
+        const rows: import('./ClampedFixedMenu').HostMenuItem[] = [];
+        if (i === 0) rows.push({ id: 'sep-native', label: '', separator: true });
+        rows.push({
+          id: `native:${n.verb || n.id || n.label}`,
+          label: String(n.label || n.verb || 'Shell command'),
+        });
+        return rows;
+      })),
+  ];
+
+  const onHostCommand = (id: string) => {
+    if (id === 'open') void handleVerb('open');
+    else if (id === 'openas') void handleVerb('openas');
+    else if (id === 'cut') void handleVerb('cut');
+    else if (id === 'copy') void handleVerb('copy');
+    else if (id === 'paste') void handleVerb('paste');
+    else if (id === 'delete') void handleVerb('delete');
+    else if (id === 'rename') void handleVerb('rename');
+    else if (id === 'properties') void handleVerb('properties');
+    else if (id === 'copypath') void handleVerb('copypath');
+    else if (id === 'copyto') { void onCopyTo?.(resolveContextTargetPanePaths(menu)); onClose(); return; }
+    else if (id === 'moveto') { void onMoveTo?.(resolveContextTargetPanePaths(menu)); onClose(); return; }
+    else if (id === 'smart-rename') { onOpenBatchRename?.(); onClose(); return; }
+    else if (id.startsWith('native:')) void handleVerb(id.slice('native:'.length));
+    else onClose();
+  };
+
   return (
     <ClampedFixedMenu
       x={menu.x}
@@ -749,6 +797,9 @@ function ContextMenuView({
       className="min-w-[220px]"
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
+      hostOverflowItems={hostOverflowItems}
+      onHostCommand={onHostCommand}
+      onClose={onClose}
     >
       {isInRecycleBin && onRestoreRecycleItems && (
         <>

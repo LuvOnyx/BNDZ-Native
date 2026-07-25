@@ -10,6 +10,17 @@
   --tooltip-border: rgba(255, 255, 255, 0.14);
   --tooltip-accent: #0078d4;
   --accent: #0078d4;
+  --status-neon: #0078d4;
+  --status-neon-soft: rgba(0, 120, 212, 0.16);
+  --status-neon-mid: rgba(0, 120, 212, 0.04);
+  --status-neon-glow: rgba(0, 120, 212, 0.35);
+  --plugin-hero-fill: linear-gradient(
+    90deg,
+    rgba(12, 18, 32, 0.97) 0%,
+    rgba(8, 10, 16, 0.58) 52%,
+    rgba(56, 189, 248, 0.07) 100%
+  );
+  --plugin-hero-edge: rgba(56, 189, 248, 0.16);
   /* macOS-inspired glass & radii — cool slate, subtle corners (NOT pills) */
   --bndz-radius-sm: 5px;
   --bndz-radius-md: 6px;
@@ -206,6 +217,11 @@
   .nav-tree-scroll {
     /* Soft fade via padding only — CSS mask-image forces extra compositing on every scroll frame. */
     padding-block: 2px;
+    /* Always show a usable scroll thumb in the tree (global styled-scrollbar hides until hover). */
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+  .nav-tree-scroll::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
   }
 
   .status-bar-glow {
@@ -333,6 +349,29 @@
   .bndz-shell-icon-hero-img {
     filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
   }
+
+  /* Video list thumbs — subtle film-strip rails when enabled in Config */
+  .bndz-list-thumb--film::before,
+  .bndz-list-thumb--film::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 18%;
+    max-width: 6px;
+    pointer-events: none;
+    z-index: 1;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.55) 0 2px,
+        rgba(255, 255, 255, 0.18) 2px 3px,
+        rgba(0, 0, 0, 0.55) 3px 5px
+      );
+    opacity: 0.85;
+  }
+  .bndz-list-thumb--film::before { left: 0; border-radius: 2px 0 0 2px; }
+  .bndz-list-thumb--film::after { right: 0; border-radius: 0 2px 2px 0; }
 
   .bndz-html-preview-frame {
     min-height: 180px;
@@ -560,9 +599,16 @@ html[data-theme] .bndz-chrome-menubar {
   color: var(--text-main) !important;
 }
 
-html[data-theme] .bndz-chrome-toolbar {
+html[data-theme] .bndz-chrome-toolbar,
+html[data-theme] .bndz-chrome-omnibar {
   background: var(--toolbar-bg) !important;
   border-color: var(--border-subtle) !important;
+}
+
+/* Custom Colors pack — paint fills (solid OR gradient) without requiring a named theme. */
+html[data-apply-colors="true"] .bndz-chrome-sidebar {
+  background: var(--tree-bg) !important;
+  color: var(--tree-text);
 }
 
 html[data-theme][data-apply-colors="true"] .bndz-chrome-sidebar {
@@ -570,15 +616,18 @@ html[data-theme][data-apply-colors="true"] .bndz-chrome-sidebar {
   color: var(--tree-text);
 }
 
+html[data-apply-colors="true"] .nav-tree-label,
 html[data-theme][data-apply-colors="true"] .nav-tree-label {
   color: var(--tree-text) !important;
   opacity: 0.92;
 }
 
+html[data-apply-colors="true"] .nav-tree-row:hover .nav-tree-label,
 html[data-theme][data-apply-colors="true"] .nav-tree-row:hover .nav-tree-label {
   opacity: 1;
 }
 
+html[data-apply-colors="true"] .nav-tree-row-selected,
 html[data-theme][data-apply-colors="true"] .nav-tree-row-selected {
   background: var(--list-selected-bg) !important;
   box-shadow: inset 2px 0 0 var(--sidebar-accent, var(--accent)) !important;
@@ -586,6 +635,7 @@ html[data-theme][data-apply-colors="true"] .nav-tree-row-selected {
 
 html[data-theme] .bndz-chrome-sidebar {
   background: var(--sidebar-bg) !important;
+  color: var(--tree-text, var(--text-main));
 }
 
 html[data-theme] .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
@@ -862,15 +912,15 @@ html[data-theme][data-apply-colors="true"] .bndz-chrome-statusbar.bndz-status-ba
   border-left: none !important;
   border-right: none !important;
   border-bottom: none !important;
-  border-top: 1px solid rgba(0, 120, 212, 0.28) !important;
+  border-top: 1px solid color-mix(in srgb, var(--status-neon, var(--accent, #0078d4)) 28%, transparent) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     inset 0 -1px 0 rgba(0, 0, 0, 0.35),
     0 1px 0 rgba(0, 0, 0, 0.2) !important;
   background: linear-gradient(
     90deg,
-    rgba(0, 120, 212, 0.16) 0%,
-    rgba(0, 120, 212, 0.04) 38%,
+    var(--status-neon-soft, rgba(0, 120, 212, 0.16)) 0%,
+    var(--status-neon-mid, rgba(0, 120, 212, 0.04)) 38%,
     transparent 78%
   ) !important;
   color: var(--status-text, var(--text-muted, #a0a0a0)) !important;
@@ -889,10 +939,15 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   bottom: 2px !important;
   width: 3px !important;
   border-radius: 1px 0 0 1px !important;
-  background: linear-gradient(180deg, #5eb3f0 0%, #0078d4 55%, #005a9e 100%) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--status-neon, var(--accent, #0078d4)) 72%, #fff) 0%,
+    var(--status-neon, var(--accent, #0078d4)) 55%,
+    color-mix(in srgb, var(--status-neon, var(--accent, #0078d4)) 70%, #000) 100%
+  ) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 0 6px rgba(0, 120, 212, 0.35) !important;
+    0 0 6px var(--status-neon-glow, rgba(0, 120, 212, 0.35)) !important;
   pointer-events: none !important;
   opacity: 1 !important;
   visibility: visible !important;
@@ -2013,8 +2068,27 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 }
 
 .bndz-plugin-hero {
-  background: linear-gradient(90deg, rgba(12, 18, 32, 0.95) 0%, rgba(8, 10, 16, 0.55) 60%, transparent 100%);
-  box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.08);
+  /*
+   * Classic System Properties wash — must stay VISIBLE over solid --panel-bottom-bg.
+   * Ends in a faint accent veil (not fully transparent) so themes cannot flatten it
+   * into the same navy as the plugin panel body.
+   */
+  background-color: transparent !important;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(12, 18, 32, 0.97) 0%,
+      rgba(8, 10, 16, 0.58) 52%,
+      rgba(56, 189, 248, 0.07) 100%
+    ) !important;
+  box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.16) !important;
+}
+
+/* Theme / Colors tint — same geometry, theme-colored stops (set on html). */
+html[data-plugin-hero-themed="true"] .bndz-plugin-hero {
+  background-color: transparent !important;
+  background-image: var(--plugin-hero-fill) !important;
+  box-shadow: inset 0 -1px 0 var(--plugin-hero-edge, rgba(56, 189, 248, 0.16)) !important;
 }
 
 .bndz-plugin-input,

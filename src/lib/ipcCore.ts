@@ -1,4 +1,5 @@
 import { generateId } from './generateId';
+import { decodeBnd1DirListing } from './dirListingBinary';
 
 /** Unique IPC request IDs — prevents response cross-wiring under burst load. */
 export function generateIpcId(suffix?: string): string {
@@ -16,6 +17,15 @@ type PendingHandler = {
 const pending = new Map<string, PendingHandler>();
 let listenerInstalled = false;
 
+function resolvePending(id: string | undefined, type: string | undefined, payload: unknown) {
+  if (!id || !type) return;
+  const handler = pending.get(id);
+  if (!handler || handler.responseType !== type) return;
+  pending.delete(id);
+  clearTimeout(handler.timer);
+  handler.resolve(payload);
+}
+
 function ensureGlobalListener() {
   if (listenerInstalled || typeof window === 'undefined') return;
   const webview = (window as any).chrome?.webview;
@@ -30,14 +40,62 @@ function ensureGlobalListener() {
         return;
       }
     }
-    if (!data?.type || !data?.id) return;
+    if (!data?.type) return;
+    if (data.type === 'DIR_CONTENTS_APPEND' && Array.isArray(data.payload)) {
+      window.dispatchEvent(new CustomEvent('bndz-dir-append', {
+        detail: { id: data.id, path: data.path || '', items: data.payload },
+      }));
+      return;
+    }
+    if (!data?.id) return;
+    resolvePending(data.id, data.type, data.payload);
+  });
 
-    const handler = pending.get(data.id);
-    if (!handler || handler.responseType !== data.type) return;
+  // Zero-copy SharedBuffer path for massive directory listings (and future bulk payloads).
+  webview.addEventListener('sharedbufferreceived', (e: any) => {
+    try {
+      let meta: any = e.additionalData;
+      if (typeof meta === 'string') {
+        try {
+          meta = JSON.parse(meta);
+        } catch {
+          meta = {};
+        }
+      }
+      meta ??= {};
+      const id = meta.id as string | undefined;
+      const type = meta.type as string | undefined;
+      const format = meta.format as string | undefined;
+      const buffer: ArrayBuffer | undefined = e.getBuffer?.();
+      if (!buffer || !id || !type) {
+        if (buffer) {
+          try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+        }
+        return;
+      }
 
-    pending.delete(data.id);
-    clearTimeout(handler.timer);
-    handler.resolve(data.payload);
+      let payload: unknown;
+      if (format === 'bnd1') {
+        payload = decodeBnd1DirListing(buffer);
+      } else {
+        try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+        return;
+      }
+
+      try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+
+      if (type === 'DIR_CONTENTS_APPEND') {
+        const path = (meta.path as string | undefined) || '';
+        window.dispatchEvent(new CustomEvent('bndz-dir-append', {
+          detail: { id, path, items: payload },
+        }));
+        return;
+      }
+
+      resolvePending(id, type, payload);
+    } catch (err) {
+      console.warn('[IPC] SharedBuffer decode failed', err);
+    }
   });
 
   listenerInstalled = true;

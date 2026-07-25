@@ -80,9 +80,44 @@ public sealed class BndzFileIndexService : IDisposable
                   path TEXT PRIMARY KEY,
                   last_indexed INTEGER NOT NULL DEFAULT 0
                 );
+                CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
+                  name,
+                  path,
+                  tokenize = 'porter unicode61'
+                );
+                CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
+                  path UNINDEXED,
+                  body,
+                  tokenize = 'unicode61'
+                );
                 """;
             cmd.ExecuteNonQuery();
+            EnsureFtsBackfill(conn);
             _schemaReady = true;
+        }
+    }
+
+    private static void EnsureFtsBackfill(SqliteConnection conn)
+    {
+        try
+        {
+            using var count = conn.CreateCommand();
+            count.CommandText = "SELECT (SELECT COUNT(*) FROM files_fts), (SELECT COUNT(*) FROM files)";
+            using var r = count.ExecuteReader();
+            if (!r.Read()) return;
+            var fts = r.GetInt64(0);
+            var files = r.GetInt64(1);
+            if (files == 0 || fts >= files) return;
+            using var rebuild = conn.CreateCommand();
+            rebuild.CommandText = """
+                DELETE FROM files_fts;
+                INSERT INTO files_fts(name, path) SELECT name, path FROM files;
+                """;
+            rebuild.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/FTS] backfill: {ex.Message}");
         }
     }
 
@@ -167,7 +202,9 @@ public sealed class BndzFileIndexService : IDisposable
             var upsert = conn.CreateCommand();
             upsert.CommandText = """
                 INSERT INTO files(path,name,ext,size,modified,is_dir,media_kind) VALUES($p,$n,$e,$s,$m,$d,$k)
-                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k
+                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k;
+                DELETE FROM files_fts WHERE path=$p;
+                INSERT INTO files_fts(name, path) VALUES($n, $p);
                 """;
             upsert.Parameters.Add("$p", SqliteType.Text);
             upsert.Parameters.Add("$n", SqliteType.Text);
@@ -239,6 +276,7 @@ public sealed class BndzFileIndexService : IDisposable
                     if (tx == null) tx = conn.BeginTransaction();
                     upsert.Transaction = tx;
                     upsert.ExecuteNonQuery();
+                    TryIndexTextContent(conn, tx, file, panePath, ext, fi.Length);
                     if (++batch % 250 == 0)
                     {
                         tx!.Commit();
@@ -300,8 +338,13 @@ public sealed class BndzFileIndexService : IDisposable
         if (terms.Length == 0) return results;
 
         using var conn = OpenConnection();
-        using var cmd = conn.CreateCommand();
 
+        // Gold path: FTS5 name/path match (prefix tokens), then LIKE fallback.
+        var fts = TryFtsSearch(conn, terms, limit, scopeRootPanePath);
+        if (fts.Count > 0)
+            return fts;
+
+        using var cmd = conn.CreateCommand();
         var where = new List<string>();
         for (var i = 0; i < terms.Length; i++)
         {
@@ -326,11 +369,158 @@ public sealed class BndzFileIndexService : IDisposable
         return ReadFileRows(cmd);
     }
 
+    /// <summary>FTS5 content body search for indexed text files (Smart Tools / content mode).</summary>
+    public List<object> SearchContent(string query, int limit, string scopeRootPanePath = "")
+    {
+        var results = new List<object>();
+        if (string.IsNullOrWhiteSpace(query)) return results;
+        var match = BuildFtsMatch(query.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (string.IsNullOrEmpty(match)) return results;
+
+        try
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            var sql = """
+                SELECT f.path, f.name, f.size, f.is_dir, f.modified
+                FROM content_fts c
+                JOIN files f ON f.path = c.path
+                WHERE c MATCH $q
+                """;
+            cmd.Parameters.AddWithValue("$q", match);
+            if (!string.IsNullOrWhiteSpace(scopeRootPanePath))
+            {
+                var win = PaneToWin(scopeRootPanePath);
+                if (!string.IsNullOrEmpty(win))
+                {
+                    sql += " AND f.path LIKE $scope ESCAPE '\\'";
+                    cmd.Parameters.AddWithValue("$scope", ToPanePath(win).TrimEnd('/') + "/%");
+                }
+            }
+            sql += " ORDER BY bm25(c) LIMIT $lim";
+            cmd.Parameters.AddWithValue("$lim", Math.Max(1, Math.Min(limit, 2000)));
+            cmd.CommandText = sql;
+            return ReadFileRows(cmd);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/ContentFTS] {ex.Message}");
+            return results;
+        }
+    }
+
+    private static List<object> TryFtsSearch(SqliteConnection conn, string[] terms, int limit, string scopeRootPanePath)
+    {
+        try
+        {
+            var match = BuildFtsMatch(terms);
+            if (string.IsNullOrEmpty(match)) return [];
+
+            using var cmd = conn.CreateCommand();
+            var sql = """
+                SELECT f.path, f.name, f.size, f.is_dir, f.modified
+                FROM files_fts
+                JOIN files f ON f.path = files_fts.path
+                WHERE files_fts MATCH $q
+                """;
+            cmd.Parameters.AddWithValue("$q", match);
+            if (!string.IsNullOrWhiteSpace(scopeRootPanePath))
+            {
+                var win = PaneToWin(scopeRootPanePath);
+                if (!string.IsNullOrEmpty(win))
+                {
+                    sql += " AND f.path LIKE $scope ESCAPE '\\'";
+                    cmd.Parameters.AddWithValue("$scope", ToPanePath(win).TrimEnd('/') + "/%");
+                }
+            }
+            sql += " ORDER BY bm25(files_fts), f.is_dir DESC, f.modified DESC LIMIT $lim";
+            cmd.Parameters.AddWithValue("$lim", Math.Max(1, Math.Min(limit, 5000)));
+            cmd.CommandText = sql;
+            return ReadFileRows(cmd);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/FTS] {ex.Message}");
+            return [];
+        }
+    }
+
+    private static string BuildFtsMatch(string[] terms)
+    {
+        var parts = new List<string>();
+        foreach (var t in terms)
+        {
+            var cleaned = new string(t.Where(c => char.IsLetterOrDigit(c) || c is '_' or '-' or '.').ToArray());
+            if (cleaned.Length < 1) continue;
+            // Prefix match — gold UX for partial names; quote if needed.
+            if (cleaned.Any(c => !char.IsLetterOrDigit(c) && c is not '_' and not '-'))
+                parts.Add($"\"{cleaned.Replace("\"", "")}\"*");
+            else
+                parts.Add($"{cleaned}*");
+        }
+        return parts.Count == 0 ? "" : string.Join(" AND ", parts);
+    }
+
+    private static readonly HashSet<string> IndexableTextExts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "txt", "md", "markdown", "csv", "json", "xml", "yml", "yaml", "toml", "ini", "log",
+        "cs", "ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "kt", "swift",
+        "html", "htm", "css", "scss", "sql", "ps1", "bat", "cmd", "sh",
+    };
+
+    private static void TryIndexTextContent(SqliteConnection conn, SqliteTransaction? tx, string winPath, string panePath, string ext, long size)
+    {
+        if (size <= 0 || size > 512 * 1024) return;
+        if (!IndexableTextExts.Contains(ext)) return;
+        try
+        {
+            var snippet = ReadTextSnippet(winPath, 12_000);
+            if (string.IsNullOrWhiteSpace(snippet)) return;
+
+            using var del = conn.CreateCommand();
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM content_fts WHERE path=$p";
+            del.Parameters.AddWithValue("$p", panePath);
+            del.ExecuteNonQuery();
+
+            using var ins = conn.CreateCommand();
+            ins.Transaction = tx;
+            ins.CommandText = "INSERT INTO content_fts(path, body) VALUES($p, $b)";
+            ins.Parameters.AddWithValue("$p", panePath);
+            ins.Parameters.AddWithValue("$b", snippet);
+            ins.ExecuteNonQuery();
+        }
+        catch { /* best-effort content index */ }
+    }
+
+    private static string ReadTextSnippet(string path, int maxChars)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(fs, detectEncodingFromByteOrderMarks: true);
+        var buf = new char[Math.Min(maxChars, 16_384)];
+        var n = reader.Read(buf, 0, buf.Length);
+        if (n <= 0) return "";
+        return new string(buf, 0, n);
+    }
+
     public List<object> GetRecentFiles(int limit = 500) =>
         QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 ORDER BY modified DESC LIMIT $lim", limit);
 
     public List<object> GetMediaFiles(int limit = 1000) =>
         QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 AND media_kind IN ('image','video') ORDER BY modified DESC LIMIT $lim", limit);
+
+    public List<object> GetAudioFiles(int limit = 1000) =>
+        QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 AND media_kind='audio' ORDER BY modified DESC LIMIT $lim", limit);
+
+    public List<object> GetDocumentFiles(int limit = 1000) =>
+        QueryView("""
+            SELECT path,name,size,is_dir,modified FROM files
+            WHERE is_dir=0 AND (
+              media_kind='document'
+              OR lower(ext) IN ('pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','rtf','odt')
+            )
+            ORDER BY modified DESC LIMIT $lim
+            """, limit);
 
     public List<object> GetLargeFiles(int limit = 500, long minBytes = 100 * 1024 * 1024) =>
         QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 AND size >= $min ORDER BY size DESC LIMIT $lim", limit, minBytes);
@@ -450,7 +640,9 @@ public sealed class BndzFileIndexService : IDisposable
             using var upsert = conn.CreateCommand();
             upsert.CommandText = """
                 INSERT INTO files(path,name,ext,size,modified,is_dir,media_kind) VALUES($p,$n,$e,$s,$m,$d,$k)
-                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k
+                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k;
+                DELETE FROM files_fts WHERE path=$p;
+                INSERT INTO files_fts(name, path) VALUES($n, $p);
                 """;
             upsert.Parameters.Add("$p", SqliteType.Text);
             upsert.Parameters.Add("$n", SqliteType.Text);
@@ -472,6 +664,7 @@ public sealed class BndzFileIndexService : IDisposable
                 upsert.Parameters["$d"].Value = 0;
                 upsert.Parameters["$k"].Value = ClassifyMedia(ext) ?? (object)DBNull.Value;
                 upsert.ExecuteNonQuery();
+                TryIndexTextContent(conn, null, path, ToPanePath(path), ext, fi.Length);
             }
             else if (Directory.Exists(path))
             {

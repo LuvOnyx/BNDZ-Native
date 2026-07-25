@@ -25,39 +25,15 @@ namespace BNDZ.Services
                 if (string.IsNullOrEmpty(filePath))
                     return "";
 
-                var size = pixelSize <= 0 ? 512 : Math.Clamp(pixelSize, 16, 512);
-                var cacheKey = BndzHostCaches.ThumbnailCacheKey(filePath, size);
-                if (BndzHostCaches.Thumbnails.TryGet(cacheKey, out var cached) && !string.IsNullOrEmpty(cached))
-                    return cached;
-
-                // Prefer Skia for still images — faster + sharper than shell for photos.
-                var skia = SkiaThumbnailService.TryEncodeThumbnailBase64(filePath, size);
-                if (!string.IsNullOrEmpty(skia))
-                {
-                    BndzHostCaches.Thumbnails.AddOrUpdate(cacheKey, skia);
-                    return skia;
-                }
-
-                using var item = new ShellItem(filePath);
-                var imageBase64 = TryGetShellImageBase64(item, ShellItemGetImageOptions.ResizeToFit, size);
-                if (!string.IsNullOrEmpty(imageBase64))
-                {
-                    BndzHostCaches.Thumbnails.AddOrUpdate(cacheKey, imageBase64);
-                    return imageBase64;
-                }
+                // Pure content extract — L1/L2 CAS ownership lives in BndzHostCaches.ResolveThumbnailBase64.
+                // Never fall back to ExtractAssociatedIcon here: that returns type glyphs and would
+                // poison the thumbnail CAS so every .png/.mp4 looked "thumbnailed" as a letter icon.
+                // Bounded so IPC always answers (shell GetImage can hang on system paths).
+                return MediaThumbnailService.ExtractBase64Bounded(filePath, pixelSize) ?? "";
             }
             catch
             {
-                try
-                {
-                    var icon = System.Drawing.Icon.ExtractAssociatedIcon(filePath);
-                    if (icon != null)
-                    {
-                        using var bitmap = icon.ToBitmap();
-                        return BitmapToBase64Png(bitmap);
-                    }
-                }
-                catch { }
+                /* fall through */
             }
             return "";
         }
@@ -106,7 +82,8 @@ namespace BNDZ.Services
 
         private static string BitmapToBase64Png(Bitmap bitmap)
         {
-            using var ms = BndzHostCaches.Streams.GetStream("shell-png");
+            // Exact-length buffer — avoid pooled-stream edge cases on the hot icon path.
+            using var ms = new System.IO.MemoryStream();
             bitmap.MakeTransparent();
             bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
             return Convert.ToBase64String(ms.ToArray());

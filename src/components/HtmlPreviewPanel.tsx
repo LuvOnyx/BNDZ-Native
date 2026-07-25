@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toWindowsPath, toVirtualStreamUrl } from '../lib/pathUtils';
 import { htmlPreviewBaseUrl, prepareHtmlForPreview } from '../lib/htmlPreview';
 
@@ -9,30 +9,22 @@ type Props = {
 
 /**
  * Renders local HTML in an iframe with a base href so relative assets resolve
- * through bndz-stream. Uses a blob URL to avoid WebView2 iframe quirks.
+ * through bndz-stream. Uses srcDoc (not blob:) to avoid WebView2 sandbox warnings
+ * about blocked script execution in blob frames.
  *
- * Scripts are intentionally not enabled — many local HTML files ship incomplete
- * jQuery/helpers (e.g. updateSelectors) that throw into the WebView console.
- * Layout/CSS/images still load; use Open for full interactive pages.
+ * Scripts stay disabled — many local HTML files ship incomplete helpers that
+ * throw into the WebView console. Use Open for full interactive pages.
  */
 export default function HtmlPreviewPanel({ path, title }: Props) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [srcDoc, setSrcDoc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const blobRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError(null);
-
-    const revoke = () => {
-      if (blobRef.current) {
-        URL.revokeObjectURL(blobRef.current);
-        blobRef.current = null;
-      }
-      setBlobUrl(null);
-    };
+    setSrcDoc(null);
 
     (async () => {
       try {
@@ -52,24 +44,18 @@ export default function HtmlPreviewPanel({ path, title }: Props) {
         if (!html.trim()) throw new Error('HTML file is empty.');
 
         const prepared = prepareHtmlForPreview(html, htmlPreviewBaseUrl(path));
-        const blob = new Blob([prepared], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        blobRef.current = url;
-        setBlobUrl(url);
+        setSrcDoc(prepared);
       } catch (err: any) {
         if (active) {
           setError(err?.message || 'Failed to load HTML preview.');
-          setBlobUrl(null);
+          setSrcDoc(null);
         }
       } finally {
         if (active) setLoading(false);
       }
     })();
 
-    return () => {
-      active = false;
-      revoke();
-    };
+    return () => { active = false; };
   }, [path]);
 
   if (loading) {
@@ -82,18 +68,15 @@ export default function HtmlPreviewPanel({ path, title }: Props) {
 
   if (error) {
     return (
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-        <p className="text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 rounded px-3 py-2 max-w-full break-words">
-          {error}
-        </p>
-        <p className="text-[10px] text-gray-500">Try Source view or open in your default browser.</p>
+      <div className="flex-1 min-h-0 flex items-center justify-center text-xs text-rose-300/90 p-4 text-center">
+        {error}
       </div>
     );
   }
 
   return (
     <iframe
-      src={blobUrl ?? undefined}
+      srcDoc={srcDoc ?? undefined}
       sandbox="allow-same-origin allow-forms allow-popups"
       className="bndz-html-preview-frame w-full flex-1 min-h-0 border-0 bg-white"
       title={title || 'HTML preview'}

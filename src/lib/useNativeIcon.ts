@@ -3,6 +3,7 @@ import {
   getCachedIcon,
   requestNativeIcon,
   subscribeIcon,
+  LIST_THUMB_PX,
   type IconRequestKind,
 } from './nativeIconService';
 
@@ -24,9 +25,7 @@ export function useNativeIcon(
     }
     const apply = () => {
       const next = getCachedIcon(path, isDirectory, kind);
-      if (next) {
-        setSrc(prev => (prev === next ? prev : next));
-      }
+      setSrc(prev => (prev === next ? prev : next));
     };
     apply();
     return subscribeIcon(path, isDirectory, kind, apply);
@@ -41,9 +40,10 @@ export function useNativeIconFetch(
   kind: IconRequestKind,
   visible: boolean,
   enabled = true,
+  thumbPx = LIST_THUMB_PX,
 ) {
   useEffect(() => {
     if (!visible || !path || !enabled) return;
-    void requestNativeIcon(path, isDirectory, kind);
-  }, [path, isDirectory, kind, visible, enabled]);
+    void requestNativeIcon(path, isDirectory, kind, thumbPx);
+  }, [path, isDirectory, kind, visible, enabled, thumbPx]);
 }

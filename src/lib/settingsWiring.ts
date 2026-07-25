@@ -175,4 +175,12 @@ export function buildUiRuntime(config: AppConfig) {
   };
 }
 
-export const WIRED_KEY_COUNT = Object.keys(SETTINGS_DEFAULTS).length;
+/** Keys that only exist for dataset dump / future work — not product behavior. */
+export const DATASET_ONLY_KEY_HINT =
+  'Many Configuration keys sync to document.dataset for diagnostics; only keys consumed by settingsRuntime / feature code affect behavior.';
+
+/** Count of keys that have defaults — NOT proof they are behavior-wired. */
+export const SETTINGS_DEFAULT_KEY_COUNT = Object.keys(SETTINGS_DEFAULTS).length;
+
+/** @deprecated Misnamed — use SETTINGS_DEFAULT_KEY_COUNT. Dataset sync ≠ wired. */
+export const WIRED_KEY_COUNT = SETTINGS_DEFAULT_KEY_COUNT;

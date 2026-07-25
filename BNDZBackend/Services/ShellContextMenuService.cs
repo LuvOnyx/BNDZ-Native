@@ -93,39 +93,14 @@ public sealed class ShellContextMenuService
     }
 
     /// <summary>
-    /// Opens Explorer and selects the target so the user gets the native shell surface.
-    /// Full IContextMenu popup at arbitrary WebView coordinates requires COM hosting beyond WebView2 input routing.
+    /// Reserved for a real IContextMenu / TrackPopupMenuEx host.
+    /// Must NEVER open Explorer — that made right-click feel like navigating/opening folders.
+    /// Callers should use GetContextMenuItems + the BNDZ UI menu instead.
     /// </summary>
     public void ShowNativeContextMenu(IntPtr hwnd, string path, int screenX, int screenY)
     {
-        path = NormalizePath(path);
-        if (string.IsNullOrEmpty(path)) return;
-
-        try
-        {
-            if (File.Exists(path) || Directory.Exists(path))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = $"/select,\"{path}\"",
-                    UseShellExecute = true
-                });
-            }
-            else if (Directory.Exists(path))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = path,
-                    UseShellExecute = true,
-                    Verb = "open"
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"ShowNativeContextMenu failed: {ex.Message}");
-        }
+        // Intentionally no-op. Opening explorer.exe /select was a regression.
+        Debug.WriteLine($"ShowNativeContextMenu ignored (use GetContextMenuItems): {NormalizePath(path)} @ {screenX},{screenY}");
     }
 
     public List<MenuItemDto> GetContextMenuItems(string path)

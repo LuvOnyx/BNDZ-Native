@@ -130,12 +130,12 @@ function SortablePaneTab({
   const style: React.CSSProperties = {
     ...(applyColors
       ? {
-          backgroundColor: isActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
+          background: isActive ? 'var(--tab-active-bg)' : 'var(--tab-inactive-bg)',
           color: isActive ? 'var(--tab-active-text)' : 'var(--tab-inactive-text)',
         }
       : {
-          backgroundColor: isActive ? 'var(--bndz-surface-raised)' : 'var(--bndz-surface-chrome)',
-          color: isActive ? '#e0f2fe' : '#94a3b8',
+          background: isActive ? 'var(--tab-active-bg, var(--bndz-surface-raised))' : 'var(--tab-inactive-bg, var(--bndz-surface-chrome))',
+          color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
         }),
     ...tabAccentStyle(tab.color, isActive),
     // Force horizontal-only even if a transform frame slips past modifiers.

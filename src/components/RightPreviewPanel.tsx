@@ -23,6 +23,7 @@ import { isArchiveExt, isTorrentExt } from '../lib/archiveTypes';
 import { isAudioExt, isVideoExt, isImageExt } from '../lib/mediaTypes';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
+import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
 
 type PreviewTab = 'preview' | 'details' | 'media';
 
@@ -536,13 +537,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isImage && previewAllowed) {
-          // Prefer the real file stream — shellIcon is the generic type glyph and must
-          // never be primary (it "loads" successfully so stream/blob fallbacks never run).
+          // Prefer real file stream. Never use shell type glyphs as image preview —
+          // they load successfully and block blob/thumb fallbacks.
           const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
               : null;
-          const primarySrc = virtualUrl || thumbData || shellIcon || '';
-          const fallbackSrc = thumbData || shellIcon || undefined;
+          const primarySrc = virtualUrl || thumbData || '';
+          const fallbackSrc = thumbData || undefined;
           return (
               <ImageZoomPreview
                   src={primarySrc}
@@ -719,6 +720,16 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     </div>
                  )}
              </div>
+             {!isDir && extendedDetails && curatedPreviewFacts(extendedDetails).length > 0 && (
+               <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 pb-2 text-[10px] text-[#9aa3ad]">
+                 {curatedPreviewFacts(extendedDetails).map(f => (
+                   <span key={`${f.label}:${f.value}`} className="min-w-0 max-w-full truncate" title={`${f.label}: ${f.value}`}>
+                     <span className="text-[#6b7280]">{f.label}</span>{' '}
+                     <span className="text-[#d1d5db]">{f.value}</span>
+                   </span>
+                 ))}
+               </div>
+             )}
              <div className="absolute bottom-3 right-3 flex gap-1.5">
                 {isDir ? (
                    <span className="bndz-glass-chip text-[#38bdf8] text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">DIR</span>

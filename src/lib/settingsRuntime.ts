@@ -3,6 +3,7 @@ import { filterTreeListEntities } from './treeListItemFilter';
 import { applyThemeByName } from '../data/themePresets';
 import { applyAppearanceVariants } from './appearanceVariants';
 import { SETTINGS_DEFAULTS } from './settingsDefaults';
+import { fillToBackground, fillToSolid, migratePluginHeroFill } from './colorFill';
 import {
   syncAllSettingsToDocument,
   buildKeyboardMap,
@@ -173,7 +174,7 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
     thumbnail: {
       enabled: config.enableNativeThumbnails !== false,
       highRes: config.highResNativeWindowsThumbnails !== false,
-      showFolders: config.showFolderThumbnails !== false,
+      showFolders: config.showFolderThumbnails === true,
       showNonImages: config.showThumbnailsForNonImages !== false,
       showRaw: config.showThumbnailsForRawFiles !== false,
       showOnThumbnail: config.showFileIconOnThumbnail !== false,
@@ -473,15 +474,17 @@ export function shouldFetchNativeShellIcon(_entity: any, config: AppConfig): boo
 export function shouldFetchNativeThumbnail(entity: any, config: AppConfig): boolean {
   const rt = buildSettingsRuntime(config);
   if (!rt.thumbnail.enabled || rt.thumbnail.genericFast) return false;
-  if (entity.type === 'directory') return rt.thumbnail.showFolders;
+  if (entity.type === 'directory') return rt.thumbnail.showFolders === true;
   const ext = entityExtension(entity);
   // Images, icons, video frames, audio artwork, and archive shell thumbs.
-  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif'];
-  const videoExts = ['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg'];
-  const audioExts = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus'];
+  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif', 'avif'];
+  const videoExts = ['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg', 'flv', 'ts', 'm2ts'];
+  const audioExts = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus', 'aiff', 'ape'];
   const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso'];
+  const docExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'psd', 'ai'];
   if (imageExts.includes(ext) || videoExts.includes(ext)) return true;
   if (audioExts.includes(ext) || archiveExts.includes(ext)) return true;
+  if (docExts.includes(ext)) return rt.thumbnail.showNonImages;
   if (['raw', 'cr2', 'nef', 'arw', 'dng', 'orf', 'rw2'].includes(ext)) return rt.thumbnail.showRaw;
   return rt.thumbnail.showNonImages;
 }
@@ -723,22 +726,91 @@ const DEDICATED_TOOLTIP_COLOR_KEYS: [string, string][] = [
   ['--tooltip-muted', 'tooltipMutedColor'],
 ];
 
+function isFillValue(val: unknown): val is string {
+  return typeof val === 'string' && (val.startsWith('#') || val.startsWith('{') || val.includes('gradient('));
+}
+
+function cssVarAcceptsGradient(cssVar: string): boolean {
+  return (
+    cssVar.includes('-bg') ||
+    cssVar === '--scrollbar-thumb' ||
+    cssVar === '--list-hover' ||
+    cssVar === '--list-selected' ||
+    cssVar === '--list-selected-bg' ||
+    cssVar === '--list-focused-bg' ||
+    cssVar === '--list-hover-bg' ||
+    cssVar === '--list-alt-bg' ||
+    cssVar === '--search-highlight' ||
+    cssVar === '--filter-match' ||
+    cssVar === '--highlight-bg' ||
+    cssVar === '--unfocused-highlight-bg' ||
+    cssVar === '--tag-bg' ||
+    cssVar === '--plugin-hero-fill'
+  );
+}
+
+function applyFillVar(root: HTMLElement, cssVar: string, raw: unknown): void {
+  if (!isFillValue(raw)) return;
+  const value = cssVarAcceptsGradient(cssVar) ? fillToBackground(raw) : fillToSolid(raw);
+  root.style.setProperty(cssVar, value);
+  // Keep sidebar chrome token in lockstep with tree background so theme CSS
+  // cannot fight a custom (including gradient) tree fill.
+  if (cssVar === '--tree-bg') {
+    root.style.setProperty('--sidebar-bg', value);
+  }
+}
+
+function applyStatusNeonAndPluginHeroVars(config: AppConfig, root: HTMLElement): void {
+  const neon = fillToSolid(config.colorConfig20, '#007acc');
+  if (neon.startsWith('#')) {
+    root.style.setProperty('--status-neon', neon);
+    root.style.setProperty('--status-neon-soft', `${neon}28`);
+    root.style.setProperty('--status-neon-mid', `${neon}0a`);
+    root.style.setProperty('--status-neon-glow', `${neon}59`);
+  }
+
+  // Themes already set a classic-shaped, theme-colored --plugin-hero-fill.
+  // Only override when the user set an explicit custom fill in Colors.
+  // Treat legacy fully-transparent end-stop fills as "no custom" so the visible
+  // classic/theme wash is restored instead of a flat navy strip.
+  const raw47 = config.colorConfig47;
+  const hasHeroFill =
+    typeof raw47 === 'string' &&
+    (raw47.startsWith('{') || raw47.includes('gradient(') ||
+      (raw47.startsWith('#') && (isFillValue(config.colorConfig48) || isFillValue(config.colorConfig49))));
+
+  if (!hasHeroFill) return;
+
+  const heroSerialized = migratePluginHeroFill(raw47, config.colorConfig48, config.colorConfig49);
+  const heroBg = fillToBackground(heroSerialized);
+  const looksLikeInvisibleWash =
+    /transparent\s+100%|#00000000|rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)\s*100%/i.test(heroBg) &&
+    !/38bdf8|rgba\(\s*56\s*,\s*189\s*,\s*248/i.test(heroBg);
+
+  if (heroBg.includes('gradient') && !looksLikeInvisibleWash) {
+    root.style.setProperty('--plugin-hero-fill', heroBg);
+    root.style.setProperty('--plugin-hero-edge', `${fillToSolid(config.colorConfig20, '#38bdf8')}29`);
+    root.dataset.pluginHeroThemed = 'true';
+  }
+}
+
 function applyColorCssVars(config: AppConfig, root: HTMLElement): void {
   for (const [cssVar, configKey] of COLOR_CSS_MAP) {
-    const val = config[configKey];
-    if (typeof val === 'string' && val.startsWith('#')) root.style.setProperty(cssVar, val);
+    applyFillVar(root, cssVar, config[configKey]);
   }
   for (const [cssVar, configKey] of THEME_CHROME_COLOR_MAP) {
     const val = config[configKey];
-    if (typeof val === 'string' && val.startsWith('#')) {
-      root.style.setProperty(cssVar, val);
-      if (cssVar === '--accent') root.style.setProperty('--accent-muted', `${val}33`);
+    if (!isFillValue(val)) continue;
+    applyFillVar(root, cssVar, val);
+    if (cssVar === '--accent') {
+      const solid = fillToSolid(val);
+      root.style.setProperty('--accent-muted', `${solid}33`);
     }
   }
   for (const [cssVar, configKey] of DEDICATED_TOOLTIP_COLOR_KEYS) {
-    const val = config[configKey];
-    if (typeof val === 'string' && val.startsWith('#')) root.style.setProperty(cssVar, val);
+    applyFillVar(root, cssVar, config[configKey]);
   }
+  applyStatusNeonAndPluginHeroVars(config, root);
   const radius = config.tooltipCornerRadius;
   if (typeof radius === 'number' && radius >= 0) {
     root.style.setProperty('--tooltip-radius', `${radius}px`);
@@ -762,10 +834,8 @@ function applyColumnAccentCssVars(config: AppConfig, root: HTMLElement): void {
   for (const [cssVar, configKey] of COLUMN_ACCENT_CSS_MAP) {
     const raw = config[configKey];
     const fallback = SETTINGS_DEFAULTS[configKey];
-    const val = (typeof raw === 'string' && raw.startsWith('#'))
-      ? raw
-      : (typeof fallback === 'string' ? fallback : undefined);
-    if (val) root.style.setProperty(cssVar, val);
+    const source = isFillValue(raw) ? raw : (typeof fallback === 'string' ? fallback : undefined);
+    if (source) root.style.setProperty(cssVar, fillToSolid(source));
   }
 }
 
@@ -775,6 +845,11 @@ function clearColorCssVars(root: HTMLElement): void {
   for (const [cssVar] of DEDICATED_TOOLTIP_COLOR_KEYS) root.style.removeProperty(cssVar);
   root.style.removeProperty('--accent-muted');
   root.style.removeProperty('--tooltip-radius');
+  root.style.removeProperty('--status-neon');
+  root.style.removeProperty('--status-neon-soft');
+  root.style.removeProperty('--status-neon-mid');
+  root.style.removeProperty('--status-neon-glow');
+  // Do NOT clear --plugin-hero-fill / edge — that flattened heroes to a solid panel.
 }
 
 import { buildPanelTypographyCssVars } from './panelTypography';
@@ -885,10 +960,16 @@ export function applySettingsRuntime(config: AppConfig): void {
 
   if (rt.ui.applyColors) {
     if (config.theme) applyThemeByName(config.theme);
+    else {
+      // No named theme — still paint classic hero and mark themed off so CSS hardcode shows.
+      root.dataset.pluginHeroThemed = 'false';
+    }
     applyColorCssVars(config, root);
   } else {
     clearColorCssVars(root);
-    applyThemeByName(config.theme);
+    if (config.theme) applyThemeByName(config.theme);
+    else root.dataset.pluginHeroThemed = 'false';
+    applyStatusNeonAndPluginHeroVars(config, root);
   }
 
   // Column header accents stay personalizable even when the global color pack is off.

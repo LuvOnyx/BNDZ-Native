@@ -134,12 +134,14 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if ('dualPane' in raw) merged.dualPaneFeature = raw.dualPane !== false;
     if ('showTopMenuBar' in raw) merged.showTopMenubar = !!raw.showTopMenuBar;
     if ('enableSubmenus' in raw) merged.enableContextSubmenus = !!raw.enableSubmenus;
-    // NOTE: `useCustomContextMenu` is independent and defaults true — the rich BNDZ
-    // menu is always primary. The legacy `nativeContextMenu` flag must NOT force it
-    // false (that caused the tiny native-only menu to preempt the rich one in the
-    // file list). Only an explicit `useNativeOSContextMenu` preference influences it.
+    // BNDZ custom menu is always primary. Legacy native flags only control shell-verb
+    // merge into that menu — never switch to Explorer launch.
     if ('useNativeOSContextMenu' in raw && !('useCustomContextMenu' in raw))
-        merged.useCustomContextMenu = !raw.useNativeOSContextMenu;
+        merged.useCustomContextMenu = true;
+    if ('nativeContextMenu' in raw && !('useNativeOSContextMenu' in raw)) {
+        merged.useNativeOSContextMenu = !!raw.nativeContextMenu;
+        merged.useCustomContextMenu = true;
+    }
     if ('keepFoldersOnTop' in raw || 'sortFoldersApart' in raw) {
         merged.sortFoldersFirst = !!(raw.keepFoldersOnTop ?? raw.sortFoldersApart ?? merged.sortFoldersFirst);
     }
@@ -273,7 +275,9 @@ export const defaultConfig: AppConfig = normalizeConfig({
     allowGlobalIconOverwrite: false,
     autoConvertIcons: true,
     highResNativeWindowsThumbnails: true,
-    showFolderThumbnails: true,
+    // Off by default — folder collage/shell thumbs on system roots (C:\Windows etc.) hang IPC.
+    showFolderThumbnails: false,
+    showCachedThumbnailsOnly: false,
     showThumbnailsForRawFiles: true,
     showThumbnailsForNonImages: true,
     showThumbnailsInTitlesViews: true,
@@ -338,6 +342,9 @@ let settingsSaveChain: Promise<void> = Promise.resolve();
 
 function scheduleSettingsSave(merged: AppConfig) {
     pendingSettingsSave = merged;
+    // When "Save settings on exit" is off, keep the in-memory draft but skip disk writes
+    // until Apply / persistConfigNow / exit-with-save.
+    if (merged.saveSettingsOnExit === false) return;
     if (settingsSaveTimer) return;
     settingsSaveTimer = setTimeout(() => {
         settingsSaveTimer = null;

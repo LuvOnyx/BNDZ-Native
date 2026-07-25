@@ -166,12 +166,13 @@ export default function ImageZoomPreview({
             draggable={false}
             className="bndz-image-preview-img"
             onError={(e) => {
-              if (fallbackSrc && imgSrc !== fallbackSrc) {
-                setImgSrc(fallbackSrc);
-                return;
-              }
               void tryBlobFallback().then((ok) => {
-                if (!ok) onError?.(e);
+                if (ok) return;
+                if (fallbackSrc && imgSrc !== fallbackSrc) {
+                  setImgSrc(fallbackSrc);
+                  return;
+                }
+                onError?.(e);
               });
             }}
           />

@@ -14,20 +14,27 @@ export interface ColorSliderProps extends AriaColorSliderProps {
   label?: string;
 }
 
-export function ColorSlider({ label, ...props }: ColorSliderProps) {
+export function ColorSlider({ label, channel, className, ...props }: ColorSliderProps) {
+  const isOpacity = channel === 'alpha';
   return (
     (
-      <AriaColorSlider {...props}>
+      <AriaColorSlider
+        channel={channel}
+        className={[className, isOpacity ? 'bndz-opacity-slider' : null].filter(Boolean).join(' ') || undefined}
+        {...props}
+      >
         <Label>{label}</Label>
         <SliderOutput />
-        <SliderTrack
-          style={({ defaultStyle }) => ({
-            background: `${defaultStyle.background},
-            repeating-conic-gradient(#CCC 0% 25%, white 0% 50%) 50% / 16px 16px`
-          })}
-        >
-          <ColorThumb />
-        </SliderTrack>
+        <div className={isOpacity ? 'bndz-opacity-track-inset' : undefined}>
+          <SliderTrack
+            style={({ defaultStyle }) => ({
+              background: `${defaultStyle.background},
+              repeating-conic-gradient(#CCC 0% 25%, white 0% 50%) 50% / 16px 16px`
+            })}
+          >
+            <ColorThumb />
+          </SliderTrack>
+        </div>
       </AriaColorSlider>
     )
   );

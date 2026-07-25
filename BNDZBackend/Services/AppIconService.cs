@@ -141,9 +141,14 @@ namespace BNDZ.Services
 
             float scale;
             if (finishedAppIcon)
-                // Square finished marks still need a slight zoom in small taskbar
-                // slots — contain×0.98 made the glyph look undersized.
-                scale = Math.Min(w / (float)src.Width, h / (float)src.Height) * (taskbarSlot ? (w <= 24 ? 1.18f : 1.10f) : 1f);
+            {
+                // Square finished marks: cover-crop so the glyph fills taskbar/desktop
+                // slots (contain left the brand looking tiny in Explorer/taskbar).
+                float zoom = taskbarSlot
+                    ? (w <= 16 ? 1.55f : w <= 24 ? 1.42f : w <= 32 ? 1.32f : w <= 48 ? 1.22f : 1.12f)
+                    : 1.06f;
+                scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * zoom;
+            }
             else if (taskbarSlot)
                 scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * (w <= 24 ? 1.42f : w <= 48 ? 1.32f : 1.22f);
             else if (wideBanner)

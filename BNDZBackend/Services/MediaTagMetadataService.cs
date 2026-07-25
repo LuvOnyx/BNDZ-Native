@@ -167,4 +167,40 @@ public static class MediaTagMetadataService
         if (meta.TryGetValue(key, out var existing) && !string.IsNullOrWhiteSpace(existing)) return;
         meta[key] = value.Trim();
     }
+
+    /// <summary>Write editable TagLib fields (title/album/artists/genre/comment/year/track).</summary>
+    public static (bool Ok, string? Error) TryWriteTags(string filePath, Dictionary<string, string?> fields)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
+            return (false, "File not found.");
+        if (fields == null || fields.Count == 0)
+            return (false, "No fields to write.");
+
+        var ext = Path.GetExtension(filePath);
+        if (!TagLibExts.Contains(ext))
+            return (false, "Format does not support TagLib write.");
+
+        try
+        {
+            using var file = TagFile.Create(filePath);
+            var tag = file.Tag;
+            if (fields.TryGetValue("Title", out var title)) tag.Title = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+            if (fields.TryGetValue("Album", out var album)) tag.Album = string.IsNullOrWhiteSpace(album) ? null : album.Trim();
+            if (fields.TryGetValue("Comment", out var comment)) tag.Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+            if (fields.TryGetValue("Genre", out var genre))
+                tag.Genres = string.IsNullOrWhiteSpace(genre) ? [] : genre.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (fields.TryGetValue("Artists", out var artists) || fields.TryGetValue("Artist", out artists))
+                tag.Performers = string.IsNullOrWhiteSpace(artists) ? [] : artists.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (fields.TryGetValue("Year", out var yearStr) && uint.TryParse(yearStr, out var year))
+                tag.Year = year;
+            if (fields.TryGetValue("Track", out var trackStr) && uint.TryParse(trackStr, out var track))
+                tag.Track = track;
+            file.Save();
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
 }

@@ -4,6 +4,7 @@ import { Checkbox } from '../ui/checkbox';
 import { ColorSettingRow } from './ColorSettingRow';
 import { COLOR_CONFIG_SECTIONS, COLOR_CONFIG_FIELDS, getColorConfigDefaults } from '../../data/colorConfigSchema';
 import { applySettingsRuntime } from '../../lib/settingsRuntime';
+import { fillToBackground, fillToSolid, migratePluginHeroFill } from '../../lib/colorFill';
 
 interface ColorsTabContentProps {
   localConfig: Record<string, any>;
@@ -11,13 +12,16 @@ interface ColorsTabContentProps {
 }
 
 function MiniPreview({ localConfig }: { localConfig: Record<string, any> }) {
-  const treeBg = localConfig.colorConfig2 || '#111111';
-  const treeText = localConfig.colorConfig1 || '#d4d4d4';
-  const listBg = localConfig.colorConfig11 || '#1c1c1c';
-  const listText = localConfig.colorConfig10 || '#e0e0e0';
-  const selBg = localConfig.colorConfig14 || '#264f78';
-  const tabActive = localConfig.colorConfig7 || '#2d2d30';
-  const accent = localConfig.colorConfig20 || '#007acc';
+  const treeBg = fillToBackground(localConfig.colorConfig2 || '#111111');
+  const treeText = fillToSolid(localConfig.colorConfig1 || '#d4d4d4');
+  const listBg = fillToBackground(localConfig.colorConfig11 || '#1c1c1c');
+  const listText = fillToSolid(localConfig.colorConfig10 || '#e0e0e0');
+  const selBg = fillToBackground(localConfig.colorConfig14 || '#264f78');
+  const tabActive = fillToBackground(localConfig.colorConfig7 || '#2d2d30');
+  const accent = fillToSolid(localConfig.colorConfig20 || '#007acc');
+  const hero = fillToBackground(
+    migratePluginHeroFill(localConfig.colorConfig47, localConfig.colorConfig48, localConfig.colorConfig49),
+  );
 
   return (
     <div className="rounded-xl border border-white/10 overflow-hidden shadow-2xl shadow-black/40">
@@ -39,6 +43,9 @@ function MiniPreview({ localConfig }: { localConfig: Record<string, any> }) {
           </div>
         </div>
       </div>
+      <div className="h-8 px-3 flex items-center text-[9px] text-sky-100/80 border-t border-white/5" style={{ background: hero }}>
+        Plugin hero preview
+      </div>
       <div className="px-3 py-1.5 text-[9px] text-gray-500 bg-[#0d0d10] border-t border-white/5 flex items-center gap-1.5">
         <Icons8Icon id="sparkles_ui" size={10} />
         Live workspace preview
@@ -49,23 +56,40 @@ function MiniPreview({ localConfig }: { localConfig: Record<string, any> }) {
 
 export default function ColorsTabContent({ localConfig, updateLocalConfig }: ColorsTabContentProps) {
   const defaults = getColorConfigDefaults();
+  const applyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setColor = (key: string, val: string) => {
-    const next = { ...localConfig, [key]: val, applyColors: true };
-    updateLocalConfig({ [key]: val, applyColors: true });
-    applySettingsRuntime(next as any);
+    const updates: Record<string, any> = { [key]: val, applyColors: true };
+    // Collapse legacy mid/edge when editing the unified hero gradient
+    if (key === 'colorConfig47') {
+      updates.colorConfig48 = false;
+      updates.colorConfig49 = false;
+    }
+    const next = { ...localConfig, ...updates };
+    updateLocalConfig(updates);
+    // Live-paint documentElement immediately so workspace tracks the picker.
+    // Tiny rAF coalesce keeps opacity drags smooth without feeling laggy.
+    if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+    applyTimerRef.current = setTimeout(() => {
+      applySettingsRuntime(next as any);
+      applyTimerRef.current = null;
+    }, 16);
   };
 
   const resetDefaults = () => {
-    updateLocalConfig({ ...defaults, applyColors: true });
-    applySettingsRuntime({ ...localConfig, ...defaults, applyColors: true } as any);
+    updateLocalConfig({ ...defaults, colorConfig48: false, colorConfig49: false, applyColors: true });
+    applySettingsRuntime({ ...localConfig, ...defaults, colorConfig48: false, colorConfig49: false, applyColors: true } as any);
   };
 
   const sectionColors = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const field of COLOR_CONFIG_FIELDS) {
       if (!map[field.section]) map[field.section] = [];
-      map[field.section].push(localConfig[field.key] || field.default);
+      const raw =
+        field.key === 'colorConfig47'
+          ? migratePluginHeroFill(localConfig.colorConfig47, localConfig.colorConfig48, localConfig.colorConfig49)
+          : localConfig[field.key] || field.default;
+      map[field.section].push(fillToBackground(raw));
     }
     return map;
   }, [localConfig]);
@@ -79,7 +103,7 @@ export default function ColorsTabContent({ localConfig, updateLocalConfig }: Col
             Colors
           </h1>
           <p className="text-[12px] text-[#a0a0a0] max-w-[480px]">
-            Customize every workspace surface. Changes apply instantly when custom colors are enabled — even with an active theme.
+            Every color uses one picker — Solid or Gradient. Gradients edit as steps inside the picker. Plugin heroes are gradient-only.
           </p>
         </div>
         <MiniPreview localConfig={localConfig} />
@@ -133,17 +157,29 @@ export default function ColorsTabContent({ localConfig, updateLocalConfig }: Col
                   ))}
                 </div>
               </div>
-              <div className="p-3 space-y-1">
-                {fields.map(field => (
-                  <ColorSettingRow
-                    key={field.key}
-                    label={field.label}
-                    value={localConfig[field.key] || field.default}
-                    defaultValue={field.default}
-                    previewTextColor={field.previewText}
-                    onChange={val => setColor(field.key, val)}
-                  />
-                ))}
+              <div className="p-3 space-y-2">
+                {fields.map(field => {
+                  const value =
+                    field.key === 'colorConfig47'
+                      ? migratePluginHeroFill(
+                          localConfig.colorConfig47 || field.default,
+                          localConfig.colorConfig48,
+                          localConfig.colorConfig49,
+                        )
+                      : localConfig[field.key] || field.default;
+                  return (
+                    <ColorSettingRow
+                      key={field.key}
+                      label={field.label}
+                      value={value}
+                      defaultValue={field.default}
+                      previewTextColor={field.previewText}
+                      fillMode={field.fillMode || 'any'}
+                      minStops={field.minStops || 2}
+                      onChange={val => setColor(field.key, val)}
+                    />
+                  );
+                })}
               </div>
             </div>
           );

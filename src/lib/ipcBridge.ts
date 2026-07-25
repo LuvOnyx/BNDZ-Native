@@ -1286,6 +1286,22 @@ export const IPC = {
     }
   },
 
+  /**
+   * Host-owned WPF context menu — paints outside the WebView/app frame.
+   * Returns the selected item id, or null if dismissed.
+   */
+  showHostContextMenu(opts: {
+    clientX: number;
+    clientY: number;
+    items: Array<{ id: string; label: string; separator?: boolean; disabled?: boolean; danger?: boolean; bold?: boolean }>;
+  }): Promise<string | null> {
+    if (this.isNative) {
+      const id = `${Date.now()}_hostCtxMenu`;
+      return _nativeCall<string | null>('SHOW_HOST_CONTEXT_MENU', 'HOST_CONTEXT_MENU_RESULT', id, opts, 120000);
+    }
+    return Promise.resolve(null);
+  },
+
   getNativeShellIconBase64(path: string, isDirectory: boolean): Promise<string | null> {
     if (this.isNative) {
       return _nativeCall<string | null>('GET_SHELL_ICON', 'SHELL_ICON_RESULT', '', { path, isDirectory }, 45000);
@@ -1310,15 +1326,29 @@ export const IPC = {
     if (this.isNative) {
       // Do NOT wrap in iconRequestQueue here — nativeIconService already queues.
       // Nested enqueue caused a deadlock (outers held all slots waiting for inners).
+      // Host bounds extract (~6s); keep FE timeout tight so slots free fast on hang.
       return _nativeCall<string | null>(
         'GET_THUMBNAIL',
         'THUMBNAIL_RESULT',
         `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_thumb`,
         { path, size },
-        45000,
+        12000,
       );
     }
     return new Promise(resolve => setTimeout(() => resolve(null), 50));
+  },
+
+  getNativeThumbnailsBatch(paths: string[], size = 96): Promise<Record<string, string | null>> {
+    if (this.isNative) {
+      return _nativeCall<Record<string, string | null>>(
+        'GET_THUMBNAILS_BATCH',
+        'THUMBNAILS_BATCH_RESULT',
+        '',
+        { paths, size },
+        45000,
+      );
+    }
+    return Promise.resolve({});
   },
 
   openFileDialog(filter: string = 'Images (*.png;*.ico;*.jpg;*.jpeg)|*.png;*.ico;*.jpg;*.jpeg|All files (*.*)|*.*'): Promise<string[]> {
@@ -1418,6 +1448,22 @@ export const IPC = {
     return new Promise(resolve =>
       setTimeout(() => resolve({ 'Audio Bitrate': '320 kbps', 'Dimensions': '1920x1080' }), 50)
     );
+  },
+
+  writeMediaTags(path: string, fields: Record<string, string | null | undefined>): Promise<{ ok?: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_writeMediaTags`;
+      return _nativeCall<{ ok?: boolean; error?: string }>('WRITE_MEDIA_TAGS', 'WRITE_MEDIA_TAGS_RESULT', id, { path, fields }, 30000);
+    }
+    return Promise.resolve({ ok: false, error: 'Native only' });
+  },
+
+  getPerfStats(): Promise<Record<string, number>> {
+    if (this.isNative) {
+      const id = `${Date.now()}_perfStats`;
+      return _nativeCall<Record<string, number>>('GET_PERF_STATS', 'PERF_STATS_RESULT', id, {}, 5000);
+    }
+    return Promise.resolve({});
   },
 
   getAsyncHashes(path: string): Promise<{md5?: string, sha256?: string}> {

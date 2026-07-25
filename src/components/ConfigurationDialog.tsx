@@ -106,11 +106,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   };
 
   const applyChanges = () => {
-    updateGlobalConfig(localConfig);
-    applySettingsRuntime(localConfig);
-    setHasChanges(false);
-    setApplyFeedback('applied');
-    window.setTimeout(() => setApplyFeedback('idle'), 2200);
+    void import('../data/configContext').then(({ persistConfigNow }) => {
+      void persistConfigNow(globalConfig, localConfig, updateGlobalConfig).then(() => {
+        applySettingsRuntime(localConfig);
+        setHasChanges(false);
+        setApplyFeedback('applied');
+        window.setTimeout(() => setApplyFeedback('idle'), 2200);
+      });
+    });
   };
   const okChanges = () => { applyChanges(); onClose(); };
 
@@ -245,7 +248,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
         setShellStatus(result.message || 'Shell integration change failed.');
       } else {
         setShellStatus(result.message);
-        updateGlobalConfig(nextConfig);
+        const { persistConfigNow } = await import('../data/configContext');
+        await persistConfigNow(globalConfig, nextConfig, updateGlobalConfig);
         const { markShellIntegrationApplied } = await import('../lib/shellIntegrationRuntime');
         markShellIntegrationApplied(nextConfig);
       }
@@ -772,7 +776,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
               <SectionHeader title="Context Menus" />
               <div className="ml-2 mb-4 space-y-[6px]">
-                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">N</span>ative context menu</span>} checked={localConfig.nativeContextMenu ?? false} onChange={e => updateLocalConfig({ nativeContextMenu: e.target.checked })} />
+                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">N</span>ative context menu</span>} checked={localConfig.nativeContextMenu ?? localConfig.useNativeOSContextMenu ?? false} onChange={e => updateLocalConfig({ nativeContextMenu: e.target.checked, useNativeOSContextMenu: e.target.checked })} />
                  <div className="ml-[20px]">
                     <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>old Ctrl to invert the above selection</span>} checked={localConfig.holdCtrlToInvertTheAboveSelection ?? false} onChange={e => updateLocalConfig({ holdCtrlToInvertTheAboveSelection: e.target.checked })} />
                  </div>
@@ -1689,11 +1693,15 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <SectionHeader title="Context Menus" />
               <div className="ml-[10px] mb-[24px]">
                  <Checkbox 
-                     label={<span>Use <span className="font-bold underline decoration-1 underline-offset-[3px]">N</span>ative OS Context Menu</span>} 
-                     checked={localConfig.useNativeOSContextMenu ?? false} 
-                     onChange={e => updateLocalConfig({ useNativeOSContextMenu: e.target.checked })} 
+                     label={<span>Include <span className="font-bold underline decoration-1 underline-offset-[3px]">N</span>ative shell verbs in BNDZ menu</span>} 
+                     checked={localConfig.useNativeOSContextMenu ?? localConfig.nativeContextMenu ?? true} 
+                     onChange={e => updateLocalConfig({
+                       useNativeOSContextMenu: e.target.checked,
+                       nativeContextMenu: e.target.checked,
+                       useCustomContextMenu: true,
+                     })} 
                  />
-                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">If unchecked, the file manager will attempt to use a custom styled menu override.</p>
+                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. When enabled, live Windows shell verbs are merged into it.</p>
               </div>
 
               <SectionHeader title="Default File Manager" />
@@ -1701,7 +1709,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
               <div className="flex items-center gap-[42px] ml-[24px] mb-8 mt-[10px]">
                  <span className="text-[12px] text-[#e0e0e0]">Scope:</span>
-                 <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[355px] outline-none" value={localConfig.selectConfig1 || ""} onChange={e => updateLocalConfig({selectConfig1: e.target.value})}><option>Only for the current user</option><option>Option 1</option><option>Option 2</option><option>Option 3</option></select>
+                 <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[355px] outline-none" value={localConfig.selectConfig1 || "Only for the current user"} onChange={e => updateLocalConfig({selectConfig1: e.target.value})}><option>Only for the current user</option><option disabled>All users on this PC (requires admin — coming soon)</option></select>
               </div>
 
               <div className="ml-[8px] mb-8 space-y-[10px] mt-6">
@@ -1765,11 +1773,11 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <div className="ml-[8px] mb-8 space-y-[12px] mt-2">
                  <div>
                     <span className="text-[12px] text-[#e0e0e0] block mb-1">Default action on drag and drop to same drive:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none hover:border-[#888]" value={localConfig.selectConfig2 || ""} onChange={e => updateLocalConfig({selectConfig2: e.target.value})}><option>Move (Windows Standard)</option><option>Option 1</option><option>Option 2</option><option>Option 3</option></select>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none hover:border-[#888]" value={localConfig.selectConfig2 || "Move (Windows Standard)"} onChange={e => updateLocalConfig({selectConfig2: e.target.value})}><option>Move (Windows Standard)</option><option>Copy</option></select>
                  </div>
                  <div className="pt-2">
                     <span className="text-[12px] text-[#e0e0e0] block mb-1">Default action on drag and drop to different drive:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none hover:border-[#888]" value={localConfig.selectConfig3 || ""} onChange={e => updateLocalConfig({selectConfig3: e.target.value})}><option>Copy (Windows Standard)</option><option>Option 1</option><option>Option 2</option><option>Option 3</option></select>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[360px] outline-none hover:border-[#888]" value={localConfig.selectConfig3 || "Copy (Windows Standard)"} onChange={e => updateLocalConfig({selectConfig3: e.target.value})}><option>Copy (Windows Standard)</option><option>Move</option></select>
                  </div>
                  <div className="text-white mt-5 pt-3">
                     <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">E</span>xtended compatibility for clipboard and drag and drop</span>} checked={localConfig.extendedCompatibilityForClipboardAndDragAndDrop ?? false} onChange={e => updateLocalConfig({ extendedCompatibilityForClipboardAndDragAndDrop: e.target.checked })} />
@@ -2014,12 +2022,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
               
               <div className="ml-2 mb-4 space-y-[6px]">
-                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">C</span>ache thumbnails on disk</span>} checked={localConfig.cacheThumbnailsOnDisk ?? false} onChange={e => updateLocalConfig({ cacheThumbnailsOnDisk: e.target.checked })} />
+                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">C</span>ache thumbnails on disk</span>} checked={localConfig.cacheThumbnailsOnDisk !== false} onChange={e => updateLocalConfig({ cacheThumbnailsOnDisk: e.target.checked })} />
                   <div className="ml-[20px] space-y-[6px]">
-                     <Checkbox label={<span>Include local dis<span className="underline decoration-1 underline-offset-[3px]">k</span>s</span>} checked={localConfig.includeLocalDisks ?? false} onChange={e => updateLocalConfig({ includeLocalDisks: e.target.checked })} disabled={!localConfig.cacheThumbnailsOnDisk} />
-                     <Checkbox label={<span>Include remov<span className="underline decoration-1 underline-offset-[3px]">a</span>ble media and network locations</span>} checked={localConfig.includeRemovableMediaAndNetworkLocations ?? false} onChange={e => updateLocalConfig({ includeRemovableMediaAndNetworkLocations: e.target.checked })} disabled={!localConfig.cacheThumbnailsOnDisk} />
-                     <Checkbox label={<span>Include searc<span className="underline decoration-1 underline-offset-[3px]">h</span> results</span>} checked={localConfig.includeSearchResults ?? false} onChange={e => updateLocalConfig({ includeSearchResults: e.target.checked })} disabled={!localConfig.cacheThumbnailsOnDisk} />
-                     <Checkbox label={<span>Show cached thumbnails only</span>} checked={localConfig.showCachedThumbnailsOnly ?? false} onChange={e => updateLocalConfig({ showCachedThumbnailsOnly: e.target.checked })} disabled={!localConfig.cacheThumbnailsOnDisk} />
+                     <Checkbox label={<span>Include local dis<span className="underline decoration-1 underline-offset-[3px]">k</span>s</span>} checked={localConfig.includeLocalDisks !== false} onChange={e => updateLocalConfig({ includeLocalDisks: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
+                     <Checkbox label={<span>Include remov<span className="underline decoration-1 underline-offset-[3px]">a</span>ble media and network locations</span>} checked={!!localConfig.includeRemovableMediaAndNetworkLocations} onChange={e => updateLocalConfig({ includeRemovableMediaAndNetworkLocations: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
+                     <Checkbox label={<span>Include searc<span className="underline decoration-1 underline-offset-[3px]">h</span> results</span>} checked={!!localConfig.includeSearchResults} onChange={e => updateLocalConfig({ includeSearchResults: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
+                     <Checkbox label={<span>Show cached thumbnails only (leave off — blocks first-visit extract)</span>} checked={!!localConfig.showCachedThumbnailsOnly} onChange={e => updateLocalConfig({ showCachedThumbnailsOnly: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
                      <div className="flex items-center gap-2 mt-2">
                         <span className="text-[12px] text-[#e0e0e0] w-[80px]">Cache path:</span>
                         <input type="text" className="bg-[#1e1e1e] border border-[#666] text-white text-[12px] px-2 w-[220px] h-6 outline-none" value={localConfig.Config4 || "Thumbnails\\"} onChange={e => updateLocalConfig({ Config4: e.target.value })}  />
@@ -2027,7 +2035,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                         <ActionBtn label="Clear..." className="w-[60px] h-6 min-h-[24px] ml-auto" onClick={clearThumbnailCachePath} title="Reset cache path to default" />
                      </div>
                      <div className="ml-[90px] mt-1">
-                        <Checkbox label={<span>Resolve cache path from c<span className="underline decoration-1 underline-offset-[3px]">u</span>rrent folder</span>} checked={localConfig.resolveCachePathFromCurrentFolder ?? false} onChange={e => updateLocalConfig({ resolveCachePathFromCurrentFolder: e.target.checked })} disabled={!localConfig.cacheThumbnailsOnDisk} />
+                        <Checkbox label={<span>Resolve cache path from c<span className="underline decoration-1 underline-offset-[3px]">u</span>rrent folder</span>} checked={!!localConfig.resolveCachePathFromCurrentFolder} onChange={e => updateLocalConfig({ resolveCachePathFromCurrentFolder: e.target.checked })} disabled={localConfig.cacheThumbnailsOnDisk === false} />
                      </div>
                   </div>
                   
@@ -2035,7 +2043,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   <Checkbox label={<span>Create all thumbnails at <span className="underline decoration-1 underline-offset-[3px]">o</span>nce</span>} checked={localConfig.createAllThumbnailsAtOnce ?? false} onChange={e => updateLocalConfig({ createAllThumbnailsAtOnce: e.target.checked })} />
                   <Checkbox label={<span>Show thumbnails for <span className="underline decoration-1 underline-offset-[3px]">R</span>AW files</span>} checked={localConfig.showThumbnailsForRawFiles ?? false} onChange={e => updateLocalConfig({ showThumbnailsForRawFiles: e.target.checked })} />
                   <Checkbox label={<span>Show thumbnails for <span className="underline decoration-1 underline-offset-[3px]">n</span>on-images</span>} checked={localConfig.showThumbnailsForNonImages ?? false} onChange={e => updateLocalConfig({ showThumbnailsForNonImages: e.target.checked })} />
-                  <Checkbox label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">f</span>older thumbnails</span>} checked={localConfig.showFolderThumbnails ?? false} onChange={e => updateLocalConfig({ showFolderThumbnails: e.target.checked })} />
+                  <Checkbox label={<span>Show <span className="underline decoration-1 underline-offset-[3px]">f</span>older thumbnails</span>} checked={!!localConfig.showFolderThumbnails} onChange={e => updateLocalConfig({ showFolderThumbnails: e.target.checked })} />
                   <Checkbox label={<span>Show thumbnails in titles <span className="underline decoration-1 underline-offset-[3px]">v</span>iews</span>} checked={localConfig.showThumbnailsInTitlesViews ?? false} onChange={e => updateLocalConfig({ showThumbnailsInTitlesViews: e.target.checked })} />
                   <div className="ml-[20px] flex gap-4 items-center">
                      <div className="flex gap-2 items-center">

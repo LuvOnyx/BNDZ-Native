@@ -709,9 +709,18 @@ export default function BNDZUI() {
     [config.workspaceLayoutInner]
   );
 
+  // Repaint chrome whenever theme, apply-colors, or any colorConfig fill changes.
+  const colorRuntimeKey = [
+    config.theme,
+    config.applyColors,
+    config.accent,
+    config.bgMain,
+    ...Array.from({ length: 49 }, (_, i) => String((config as any)[`colorConfig${i + 1}`] ?? '')),
+  ].join('\0');
+
   useEffect(() => {
     applySettingsRuntime(config);
-  }, [config.theme, config.applyColors, config.accent, config.bgMain,
+  }, [colorRuntimeKey,
     config.appearanceChromePalette, config.appearanceSurfaceStyle, config.appearanceSelectionStyle]);
 
   useEffect(() => {
@@ -1141,6 +1150,26 @@ export default function BNDZUI() {
       return setPathCacheEntry(prev, path, data);
     });
   }, [config.addNewItemsAtTheEndOfTheList]);
+
+  // Progressive SharedBuffer append — replace first-paint page with full tagged listing.
+  useEffect(() => {
+    const onAppend = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as { path?: string; items?: any[] } | undefined;
+      if (!detail?.items || !Array.isArray(detail.items)) return;
+      const rawPath = detail.path || '';
+      if (!rawPath) return;
+      const path = normalizePanePath(rawPath);
+      const normalized = normalizeDirEntries(detail.items);
+      cachePathContents(path, normalized);
+      void prefetchIconsForEntities(normalized, path);
+      void prefetchMediaThumbnailsForEntities(normalized, path, 96, {
+        includeFolders: configRef.current.showFolderThumbnails === true,
+      });
+    };
+    window.addEventListener('bndz-dir-append', onAppend as EventListener);
+    return () => window.removeEventListener('bndz-dir-append', onAppend as EventListener);
+  }, [cachePathContents]);
+
   // loadingPaths tracks which paths are currently being fetched so we show a spinner
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
@@ -1168,14 +1197,24 @@ export default function BNDZUI() {
       ...(rememberPatch || {}),
     };
     if (cfg.autoSaveTabsetsOnSwitch !== false) {
-      const autosave = { id: '__autosave__', name: '(Auto-save)', panes: JSON.parse(JSON.stringify(currentPanes)) };
+      const panesWithScroll = currentPanes.map(p => ({
+        ...p,
+        scrollTop: listScrollTopsRef.current[p.id] ?? (p as any).scrollTop ?? 0,
+      }));
+      const autosave = { id: '__autosave__', name: '(Auto-save)', panes: JSON.parse(JSON.stringify(panesWithScroll)) };
       const rest = (cfg.savedTabsets || []).filter((t: any) => t.id !== '__autosave__');
       patch.savedTabsets = [...rest, autosave];
       patch.lastActiveTabsetId = '__autosave__';
     }
+    // Close-remember + tabset autosave must hit disk even when "Save settings on exit" is off.
+    if (rememberPatch || cfg.saveSettingsOnExit !== false) {
+      const { persistConfigNow } = await import('../data/configContext');
+      await persistConfigNow(cfg, patch as any, updateConfig);
+      return;
+    }
     updateConfig(patch as any);
-    const { flushPendingSettingsSave } = await import('../data/configContext');
-    await flushPendingSettingsSave();
+    const { discardPendingSettingsSave } = await import('../data/configContext');
+    discardPendingSettingsSave();
   }, [updateConfig]);
 
   useEffect(() => {
@@ -1327,9 +1366,12 @@ export default function BNDZUI() {
           const normalized = normalizeDirEntries(data);
           setPathContentsCache(prev => setPathCacheEntry(prev, path, normalized));
           setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-          void prefetchIconsForEntities(normalized, path).then(() =>
-            prefetchMediaThumbnailsForEntities(normalized, path),
-          );
+          void Promise.all([
+            prefetchIconsForEntities(normalized, path),
+            prefetchMediaThumbnailsForEntities(normalized, path, 96, {
+              includeFolders: configRef.current.showFolderThumbnails === true,
+            }),
+          ]);
         }).catch((err: unknown) => {
           const message = err instanceof Error ? err.message : 'Could not load folder contents.';
           setPathLoadErrors(prev => ({ ...prev, [path]: message }));
@@ -1798,6 +1840,17 @@ export default function BNDZUI() {
           listSortDirection: sortPane.sortDirection === 'desc' ? 'desc' : 'asc',
         });
       }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          for (const pane of restored) {
+            const top = Number((pane as any).scrollTop) || 0;
+            if (top <= 0) continue;
+            listScrollTopsRef.current[pane.id] = top;
+            const el = paneScrollElsRef.current[pane.id];
+            if (el) el.scrollTop = top;
+          }
+        });
+      });
     }
   }, [config.restoreLastTabsetOnStartup, config.lastActiveTabsetId, config.savedTabsets, config.permanentStartupPath]);
 
@@ -1844,6 +1897,30 @@ export default function BNDZUI() {
     setCurrentPath(pane);
   }, [config.permanentStartupPath]);
 
+  // Startup & Exit → Focus panel
+  const appliedStartupPaneRef = useRef(false);
+  useEffect(() => {
+    if (appliedStartupPaneRef.current) return;
+    const choice = String(config.startupPane || 'Last active panel');
+    if (!choice || choice === 'Last active panel' || choice === 'false') return;
+    appliedStartupPaneRef.current = true;
+    if (choice === 'Left pane') {
+      setActivePaneId('pane1');
+      return;
+    }
+    if (choice === 'Right pane') {
+      setActivePaneId('pane2');
+      if (!isDualPane && panes.length < 2) {
+        // Dual-pane restore effect may still run; mark intent via config flag consumer.
+        updateConfig({ dualPaneOpen: true });
+      }
+      return;
+    }
+    if (choice === 'Folder tree') {
+      window.dispatchEvent(new CustomEvent('bndz-focus-nav-tree'));
+    }
+  }, [config.startupPane, isDualPane, panes.length, updateConfig]);
+
   // Match OS light/dark once at startup when enabled
   const appliedOsThemeRef = useRef(false);
   useEffect(() => {
@@ -1881,7 +1958,11 @@ export default function BNDZUI() {
     if (config.autoSaveTabsetsOnSwitch === false) return;
     if (tabsetAutosaveRef.current) clearTimeout(tabsetAutosaveRef.current);
     tabsetAutosaveRef.current = setTimeout(() => {
-      const autosave = { id: '__autosave__', name: '(Auto-save)', panes: JSON.parse(JSON.stringify(panes)) };
+      const panesWithScroll = panes.map(p => ({
+        ...p,
+        scrollTop: listScrollTopsRef.current[p.id] ?? (p as any).scrollTop ?? 0,
+      }));
+      const autosave = { id: '__autosave__', name: '(Auto-save)', panes: JSON.parse(JSON.stringify(panesWithScroll)) };
       const rest = (config.savedTabsets || []).filter(t => t.id !== '__autosave__');
       updateConfig({ savedTabsets: [...rest, autosave], lastActiveTabsetId: '__autosave__' });
     }, 900);
@@ -2112,6 +2193,9 @@ export default function BNDZUI() {
               : targetPath);
       const winPath = toWindowsPath(menuItemPath);
 
+      // Always use the BNDZ context menu. Native shell verbs are merged in below.
+      // Do NOT call IPC.showNativeContextMenu — the backend stub opens Explorer (/select),
+      // which made right-click feel like "opening" folders.
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
@@ -3103,11 +3187,19 @@ export default function BNDZUI() {
         expanded: smartViewsExpanded,
         onClick: () => setCurrentPath(BNDZ_VIEWS_ROOT),
         onToggle: () => setSmartViewsExpanded(!smartViewsExpanded),
-        childrenItems: (['recent', 'media', 'large'] as const).map(view => ({
+        childrenItems: (['recent', 'media', 'audio', 'documents', 'large'] as const).map(view => ({
           label: bndzVirtualLabel(view),
           path: bndzVirtualPath(view),
-          icon: view === 'recent' ? 'clock_ui' : view === 'media' ? 'film_ui' : 'hard_drive_ui',
-          iconColor: view === 'recent' ? '#fbbf24' : view === 'media' ? '#7eb8e8' : '#a78bfa',
+          icon: view === 'recent' ? 'clock_ui'
+            : view === 'media' ? 'film_ui'
+            : view === 'audio' ? 'music_ui'
+            : view === 'documents' ? 'file_ui'
+            : 'hard_drive_ui',
+          iconColor: view === 'recent' ? '#fbbf24'
+            : view === 'media' ? '#7eb8e8'
+            : view === 'audio' ? '#34d399'
+            : view === 'documents' ? '#60a5fa'
+            : '#a78bfa',
         })),
       },
       {
@@ -3970,15 +4062,35 @@ export default function BNDZUI() {
     closeMenu();
   };
 
-  const addTab = (paneId: string, path: string) => {
+  const addTab = (paneId: string, path: string, options?: { preferConfiguredHome?: boolean }) => {
+    let targetPath = path;
+    if (options?.preferConfiguredHome) {
+      const home = typeof config.newTabPath === 'string' ? config.newTabPath.trim() : '';
+      if (home) {
+        const norm = home.replace(/\\/g, '/');
+        targetPath = norm.startsWith('/') ? norm : `/${norm}`;
+      }
+    }
     const tabId = `t-${Date.now()}`;
     scheduleTabEnter(tabId);
+    const placeAtEnd = String(config.openNewTab || '') === 'At the end';
     setPanes(prev => prev.map(p => {
-      if (p.id === paneId) {
-        const newTab: TabState = { id: tabId, path, history: [path], historyIndex: 0, selectedItems: [], viewMode: undefined };
+      if (p.id !== paneId) return p;
+      const newTab: TabState = {
+        id: tabId,
+        path: targetPath,
+        history: [targetPath],
+        historyIndex: 0,
+        selectedItems: [],
+        viewMode: undefined,
+      };
+      if (placeAtEnd || p.tabs.length === 0) {
         return { ...p, tabs: [...p.tabs, newTab], activeTabIndex: p.tabs.length };
       }
-      return p;
+      const insertAt = Math.min(p.activeTabIndex + 1, p.tabs.length);
+      const tabs = [...p.tabs];
+      tabs.splice(insertAt, 0, newTab);
+      return { ...p, tabs, activeTabIndex: insertAt };
     }));
   };
 
@@ -5099,7 +5211,7 @@ export default function BNDZUI() {
         }
       } else if (e.key === 't' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        addTab(activePaneId, activeTab.path);
+        addTab(activePaneId, activeTab.path, { preferConfiguredHome: true });
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         const items = getSortedContentsForActivePane();
@@ -5740,10 +5852,25 @@ export default function BNDZUI() {
         const destWin = toWindowsPath(destPath);
         const dataStr = e.dataTransfer.getData('application/bndz-file');
         let payloadCopy = false;
+        let sourcePathsHint: string[] = [];
         if (dataStr) {
-          try { payloadCopy = !!JSON.parse(dataStr).copy; } catch { /* ignore */ }
+          try {
+            const parsed = JSON.parse(dataStr);
+            payloadCopy = !!parsed.copy;
+            if (Array.isArray(parsed?.paths)) sourcePathsHint = parsed.paths.map((p: string) => toWindowsPath(p));
+          } catch { /* ignore */ }
         }
-        const op = (payloadCopy || dropModifierRef.current.copy || e.ctrlKey || e.altKey) ? 'copy' : 'move';
+        const op = resolveDropOperation({
+          payloadCopy,
+          dropModifierCopy: dropModifierRef.current.copy,
+          ctrlKey: e.ctrlKey || e.metaKey,
+          altKey: e.altKey,
+          shiftKey: e.shiftKey,
+          sourcePaths: sourcePathsHint,
+          destDir: destWin,
+          sameDriveDefault: config.selectConfig2,
+          crossDriveDefault: config.selectConfig3,
+        });
         const shellRt = settingsRt.shell;
 
         const runDrop = async (sourcePaths: string[], sourcePath?: string) => {
@@ -5815,7 +5942,7 @@ export default function BNDZUI() {
         key={pane.id}
         data-pane-id={pane.id}
         className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden ${config.applyColors ? '' : 'bg-[#1c1c1c]'} ${isActive && isDualPane ? 'shadow-[inset_0_0_0_1px_rgba(59,130,246,0.6)] z-10' : ''} relative`}
-        style={config.applyColors ? { backgroundColor: 'var(--list-bg)', color: 'var(--list-text)' } : {}}
+        style={config.applyColors ? { background: 'var(--list-bg)', color: 'var(--list-text)' } : { background: 'var(--list-bg, #1c1c1c)', color: 'var(--list-text, #d4d4d4)' }}
         onClick={() => { setActivePaneId(pane.id); }}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
@@ -5886,7 +6013,7 @@ export default function BNDZUI() {
           onMiddleClick={(idx) => {
             dispatchCustomEvent(config, 'middle-click-tab', buildCeaHandlers(pane.id, idx));
           }}
-          onAddTab={() => addTab(pane.id, currentTab.path)}
+          onAddTab={() => addTab(pane.id, currentTab.path, { preferConfiguredHome: true })}
           onFileDropOnTab={(idx, e) => {
             const targetTab = pane.tabs[idx];
             setActiveTab(pane.id, idx);
@@ -5922,7 +6049,9 @@ export default function BNDZUI() {
         
         {/* Breadcrumb Row */}
         <div className={`flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1 py-[2px] shrink-0 ${isDualPane && !isActive ? 'opacity-90' : ''}`}
-             style={config.applyColors ? { backgroundColor: 'var(--breadcrumb-bg)', color: 'var(--breadcrumb-text)' } : {}}>
+             style={config.applyColors
+               ? { background: 'var(--breadcrumb-bg)', color: 'var(--breadcrumb-text)' }
+               : { background: 'var(--breadcrumb-bg, var(--bndz-surface-chrome))', color: 'var(--breadcrumb-text, var(--text-muted))' }}>
             <ToolbarButton launcherIcon={launcherIconUrl('nav_back')} className={`w-5 ${currentTab.historyIndex > 0 ? '' : 'opacity-30'}`} onClick={() => goBack(pane.id)} />
             <ToolbarButton launcherIcon={launcherIconUrl('nav_forward')} className={`w-5 ${currentTab.historyIndex < currentTab.history.length - 1 ? '' : 'opacity-30'}`} onClick={() => goForward(pane.id)} />
             <ToolbarButton launcherIcon={launcherIconUrl('nav_up')} className="w-5" onClick={() => goUp(pane.id)} />
@@ -6696,13 +6825,18 @@ export default function BNDZUI() {
                   if (dragPaths.length) {
                     const destPath = navTreeTarget || breadcrumbTarget
                       || (dropEnt?.name ? joinPanePath(dropResolution.tabPath, dropEnt as { name: string; path?: string; id?: string }) : dropResolution.tabPath);
+                    const destWin = toWindowsPath(destPath);
                     const op = resolveDropOperation({
                       payloadCopy: gesture.copyDrag,
                       dropModifierCopy: dropModifierRef.current.copy,
                       ctrlKey: ev.ctrlKey || ev.metaKey,
                       altKey: ev.altKey,
+                      shiftKey: ev.shiftKey,
+                      sourcePaths: dragPaths.map(toWindowsPath),
+                      destDir: destWin,
+                      sameDriveDefault: config.selectConfig2,
+                      crossDriveDefault: config.selectConfig3,
                     });
-                    const destWin = toWindowsPath(destPath);
                     const hasForeignTarget = !!(
                       navTreeTarget
                       || breadcrumbTarget
@@ -7108,12 +7242,12 @@ export default function BNDZUI() {
                           boxSizing: 'border-box' as const,
                         } : {}),
                         ...(showSelectionChrome && config.listSelectionHighlightColor
-                          ? { backgroundColor: config.listSelectionHighlightColor }
-                          : config.applyColors && showSelectionChrome ? { backgroundColor: 'var(--list-selected-bg)' } : {}),
+                          ? { background: config.listSelectionHighlightColor }
+                          : config.applyColors && showSelectionChrome ? { background: 'var(--list-selected-bg)' } : {}),
                         ...(zebraAlt && !showSelectionChrome && !filterResult?.rowTint && !filterColor && !colorFilterResult?.inlineStyle
-                          ? (config.applyColors ? { backgroundColor: 'var(--list-alt-bg)' } : { backgroundColor: '#1e1e1e' })
+                          ? (config.applyColors ? { background: 'var(--list-alt-bg)' } : { background: '#1e1e1e' })
                           : {}),
-                        ...(filterResult?.rowTint && !showSelectionChrome ? { backgroundColor: filterResult.rowTint } : filterColor && !showSelectionChrome ? { backgroundColor: `${filterColor}1A` } : {}),
+                        ...(filterResult?.rowTint && !showSelectionChrome ? { background: filterResult.rowTint } : filterColor && !showSelectionChrome ? { background: `${filterColor}1A` } : {}),
                         ...(!showSelectionChrome && colorFilterResult?.inlineStyle ? colorFilterResult.inlineStyle : {})
                     }}
                     onMouseDown={(e) => {
@@ -7461,19 +7595,8 @@ export default function BNDZUI() {
     return { paths, types };
   }, [currentTab.selectedItems, currentTab.path, pathContentsCache, fileSystem, panes]);
 
-  const customStyles = config.applyColors ? {
-    '--tree-bg': config.colorConfig2,
-    '--tree-text': config.colorConfig1,
-    '--tab-active-bg': config.colorConfig7,
-    '--tab-active-text': config.colorConfig6,
-    '--tab-inactive-bg': config.colorConfig9,
-    '--tab-inactive-text': config.colorConfig8,
-    '--list-bg': config.colorConfig11,
-    '--list-text': config.colorConfig10,
-    '--list-selected-bg': config.colorConfig14,
-    '--breadcrumb-bg': config.colorConfig23,
-    '--breadcrumb-text': config.colorConfig22,
-  } as React.CSSProperties : {};
+  // Color/theme fills live on documentElement via applySettingsRuntime (fillToBackground).
+  // Do NOT dump raw colorConfig JSON onto this node — that clobbered gradients and live preview.
 
   const uiRadius = config.uiCornerRadius === 'sharp' ? '0px' : config.uiCornerRadius === 'round' ? '12px' : '6px';
 
@@ -7494,12 +7617,13 @@ export default function BNDZUI() {
     <div
       data-testid="bndz-app"
       style={{
-        ...customStyles,
         fontFamily: config.uiFontFamily || undefined,
         fontSize: config.fontSize ? `${config.fontSize}px` : undefined,
         ['--bndz-ui-radius' as string]: uiRadius,
+        background: 'var(--bg-main, #0f0f0f)',
+        color: 'var(--text-main, #d4d4d4)',
       }}
-      className={`flex flex-col h-screen w-full bg-[#0f0f0f] text-[#d4d4d4] font-sans text-[12px] select-none overflow-hidden ${
+      className={`flex flex-col h-screen w-full font-sans text-[12px] select-none overflow-hidden ${
         config.compactToolbar ? 'bndz-compact-toolbar' : ''
       } ${config.denseMenubar ? 'bndz-dense-menubar' : ''} ${config.showPanelAccentBorders ? 'bndz-accent-borders' : ''}`}
       onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
@@ -7519,7 +7643,7 @@ export default function BNDZUI() {
       <div
         ref={menubarRef}
         className="bndz-chrome-menubar flex items-stretch h-9 border-b border-[#333] text-[#ccc] shrink-0 select-none z-[200]"
-        style={{ background: 'var(--bndz-surface-chrome)' }}
+        style={{ background: 'var(--menubar-bg, var(--bndz-surface-chrome))' }}
         onMouseDown={e => {
           e.stopPropagation();
           if ((e.target as HTMLElement).closest('[data-window-btn],[data-menu-trigger]')) return;
@@ -7528,7 +7652,7 @@ export default function BNDZUI() {
         onDoubleClick={() => import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize'))}
       >
          <div className="flex items-center gap-2 pl-3 pr-3 border-r border-[#444] shrink-0">
-            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-9 h-9 rounded-[7px] object-cover object-center drop-shadow-md shrink-0" draggable={false} />
+            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-9 h-9 rounded-[7px] object-cover object-center drop-shadow-md shrink-0 scale-[0.98]" draggable={false} />
             <span className="text-[12px] font-bold tracking-widest text-gray-200 uppercase hidden sm:inline">BNDZ</span>
          </div>
          <div
@@ -8212,7 +8336,9 @@ export default function BNDZUI() {
                             if (contents.length) {
                               const { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities } = await import('../lib/nativeIconService');
                               await prefetchIconsForEntities(contents, currentTab.path);
-                              await prefetchMediaThumbnailsForEntities(contents, currentTab.path);
+                              await prefetchMediaThumbnailsForEntities(contents, currentTab.path, 96, {
+                                includeFolders: config.showFolderThumbnails === true,
+                              });
                             }
                             setToastMessage("Icon cache rebuilt for current folder.");
                             refreshWorkspace();
@@ -8611,7 +8737,7 @@ export default function BNDZUI() {
          }}
       >
          {toolbarRows.map((row, rowIndex) => (
-         <div key={rowIndex} className="bndz-chrome-toolbar flex items-center px-1 py-0.5 overflow-visible min-h-[28px]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+         <div key={rowIndex} className="bndz-chrome-toolbar flex items-center px-1 py-0.5 overflow-visible min-h-[28px]" style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}>
          {row.map((item: any, i: number) => {
              const def = resolveToolbarItem(item.id, availableTags);
              if (!def) return null;
@@ -8860,7 +8986,7 @@ export default function BNDZUI() {
          </div>
          ))}
 
-         <div className="bndz-chrome-toolbar flex items-center px-1 py-0.5 overflow-visible min-h-[28px]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+         <div className="bndz-chrome-toolbar flex items-center px-1 py-0.5 overflow-visible min-h-[28px]" style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}>
          {/* Drive letters scoped to active pane (always show at end for fast access) */}
          <div className="w-[1px] h-4 bg-[#444] mx-2"></div>
          <div className="flex text-[10px] items-center gap-[2px] mx-1 font-mono">
@@ -8884,7 +9010,7 @@ export default function BNDZUI() {
 
       {/* Omni-Filter Bar + docked selection actions (opt-in via Appearance) */}
       <div className="shrink-0 relative z-30">
-      <div data-tutorial="omnibar" className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0" style={{ background: 'var(--bndz-surface-chrome)' }}>
+      <div data-tutorial="omnibar" className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0" style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}>
          <Icons8Icon id="search" size={14} className="mr-2 opacity-60" />
          <input 
             ref={omniFilterRef}
@@ -8981,10 +9107,10 @@ export default function BNDZUI() {
               defaultSize={panelPct(outerDefaultLayout.sidebar!)}
               minSize={panelPct(MIN_SIDEBAR_SIZE)}
               maxSize={panelPct(MAX_SIDEBAR_SIZE)}
-              className="bndz-chrome-sidebar border-r border-[#282830] overflow-hidden py-2 flex flex-col min-h-0"
+              className="bndz-chrome-sidebar border-r border-[#282830] overflow-hidden flex flex-col min-h-0"
               style={config.applyColors
-                ? { backgroundColor: 'var(--tree-bg)', color: 'var(--tree-text)' }
-                : { background: 'var(--bndz-surface-chrome)' }}
+                ? { background: 'var(--tree-bg)', color: 'var(--tree-text)' }
+                : { background: 'var(--sidebar-bg, var(--bndz-surface-chrome))', color: 'var(--tree-text, var(--text-main))' }}
             >
                <LeftSidebar
                   sidebarOrder={config.sidebarOrder}

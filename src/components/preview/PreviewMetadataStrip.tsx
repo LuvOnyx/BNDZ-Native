@@ -2,6 +2,8 @@ import React from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { formatFsDate } from '../../lib/pathUtils';
 
+export type PreviewMetaFact = { label: string; value: string };
+
 type Props = {
   name: string;
   path?: string | null;
@@ -9,6 +11,8 @@ type Props = {
   modified?: number | string | Date | null;
   kindLabel?: string;
   isDirectory?: boolean;
+  /** Curated EXIF / TagLib facts (camera, duration, etc.). */
+  facts?: PreviewMetaFact[];
   onOpen?: () => void;
   onReveal?: () => void;
   onCopyPath?: () => void;
@@ -31,8 +35,10 @@ function formatModified(value: Props['modified']) {
 
 /** Flat metadata ribbon — adapted from Spacedrive inspector header patterns, BNDZ-native. */
 export default function PreviewMetadataStrip({
-  name, path, size, modified, kindLabel, isDirectory, onOpen, onReveal, onCopyPath,
+  name, path, size, modified, kindLabel, isDirectory, facts, onOpen, onReveal, onCopyPath,
 }: Props) {
+  const shownFacts = (facts || []).filter(f => f.value).slice(0, 6);
+
   return (
     <div className="bndz-preview-metadata-strip shrink-0 border-b border-[#3a3a3a] bg-[#2a2a2a] px-3 py-2">
       <div className="flex items-start gap-2 min-w-0">
@@ -46,6 +52,17 @@ export default function PreviewMetadataStrip({
             {!isDirectory && size != null && <span>{formatSize(size)}</span>}
             <span>{formatModified(modified)}</span>
           </div>
+          {shownFacts.length > 0 && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] text-[#9aa3ad]">
+              {shownFacts.map(f => (
+                <span key={`${f.label}:${f.value}`} className="min-w-0 max-w-full truncate" title={`${f.label}: ${f.value}`}>
+                  <span className="text-[#6b7280]">{f.label}</span>
+                  {' '}
+                  <span className="text-[#d1d5db]">{f.value}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {onOpen && (
@@ -67,4 +84,33 @@ export default function PreviewMetadataStrip({
       </div>
     </div>
   );
+}
+
+const CURATED_FACT_KEYS: Array<{ key: string; label: string }> = [
+  { key: 'Camera Model', label: 'Camera' },
+  { key: 'ISO Speed', label: 'ISO' },
+  { key: 'F-Stop', label: 'ƒ' },
+  { key: 'Focal Length', label: 'Focal' },
+  { key: 'Duration', label: 'Duration' },
+  { key: 'Dimensions', label: 'Size' },
+  { key: 'Artists', label: 'Artist' },
+  { key: 'Artist', label: 'Artist' },
+  { key: 'Album', label: 'Album' },
+  { key: 'Date Taken', label: 'Taken' },
+  { key: 'GPS', label: 'GPS' },
+];
+
+/** Pick up to 6 curated facts from extended metadata. */
+export function curatedPreviewFacts(meta: Record<string, string> | null | undefined): PreviewMetaFact[] {
+  if (!meta) return [];
+  const out: PreviewMetaFact[] = [];
+  const seen = new Set<string>();
+  for (const { key, label } of CURATED_FACT_KEYS) {
+    const value = meta[key];
+    if (!value || seen.has(label)) continue;
+    seen.add(label);
+    out.push({ label, value });
+    if (out.length >= 6) break;
+  }
+  return out;
 }

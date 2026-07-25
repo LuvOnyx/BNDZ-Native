@@ -54,6 +54,18 @@ public static class ShellPathResolver
             if (shellLower is "shell:mycomputerfolder" or "shell:thispcfolder") return ThisPcClsid;
             if (shellLower == "shell:networkplacesfolder") return NetworkClsid;
             if (shellLower is "shell:portabledevices" or "shell:portable devices") return PortableDevicesClsid;
+
+            // Compound: shell:Desktop\file.png → real Desktop path + leaf.
+            var slash = trimmed.IndexOfAny(['\\', '/']);
+            if (slash > 0)
+            {
+                var folderToken = trimmed[..slash];
+                var leaf = trimmed[(slash + 1)..].Replace('/', '\\').TrimStart('\\');
+                var folder = MapShellKnownFolder(folderToken);
+                if (!string.IsNullOrEmpty(folder) && !string.IsNullOrEmpty(leaf))
+                    return Path.Combine(folder, leaf);
+            }
+
             return MapShellKnownFolder(trimmed) ?? trimmed;
         }
 

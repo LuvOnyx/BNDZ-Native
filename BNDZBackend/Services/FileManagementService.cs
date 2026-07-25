@@ -29,37 +29,18 @@ public class FileManagementService
 
                 if (!Directory.Exists(fsPath)) return results;
 
-                foreach (var dir in Directory.GetDirectories(fsPath))
+                // Single-pass enumerate — faster than GetDirectories + GetFiles.
+                var opts = new EnumerationOptions
                 {
-                    var di = new DirectoryInfo(dir);
-                    results.Add(new
-                    {
-                        id = dir.Replace('\\', '/'),
-                        name = di.Name,
-                        type = "directory",
-                        path = dir.Replace('\\', '/'),
-                        size = 0L,
-                        modified = di.LastWriteTimeUtc.ToString("O"),
-                        created = di.CreationTimeUtc.ToString("O"),
-                        attributes = GetAttributeFlags(di.Attributes)
-                    });
-                }
-
-                foreach (var file in Directory.GetFiles(fsPath))
+                    IgnoreInaccessible = true,
+                    RecurseSubdirectories = false,
+                    ReturnSpecialDirectories = false,
+                    AttributesToSkip = 0,
+                };
+                foreach (var info in new DirectoryInfo(fsPath).EnumerateFileSystemInfos("*", opts))
                 {
-                    var fi = new FileInfo(file);
-                    results.Add(new
-                    {
-                        id = file.Replace('\\', '/'),
-                        name = fi.Name,
-                        type = "file",
-                        path = file.Replace('\\', '/'),
-                        size = fi.Length,
-                        extension = fi.Extension.TrimStart('.').ToLowerInvariant(),
-                        modified = fi.LastWriteTimeUtc.ToString("O"),
-                        created = fi.CreationTimeUtc.ToString("O"),
-                        attributes = GetAttributeFlags(fi.Attributes)
-                    });
+                    var isDir = (info.Attributes & FileAttributes.Directory) == FileAttributes.Directory;
+                    results.Add(DirListingSharedBuffer.FromFileSystemInfo(info, isDir));
                 }
             }
             catch { }
@@ -68,16 +49,67 @@ public class FileManagementService
         });
     }
 
-    private static string[] GetAttributeFlags(FileAttributes attributes)
+    /// <summary>Typed fast path used by SharedBuffer IPC — no JSON round-trip.</summary>
+    public async Task<List<DirListingSharedBuffer.DirEntryDto>> GetDirEntriesAsync(string path)
     {
-        var flags = new List<string>();
-        if (attributes.HasFlag(FileAttributes.Hidden)) flags.Add("hidden");
-        if (attributes.HasFlag(FileAttributes.System)) flags.Add("system");
-        if (attributes.HasFlag(FileAttributes.ReadOnly)) flags.Add("readonly");
-        if (attributes.HasFlag(FileAttributes.Archive)) flags.Add("archive");
-        if (attributes.HasFlag(FileAttributes.Compressed)) flags.Add("compressed");
-        if (attributes.HasFlag(FileAttributes.Encrypted)) flags.Add("encrypted");
-        if (attributes.HasFlag(FileAttributes.ReparsePoint)) flags.Add("reparse");
-        return flags.ToArray();
+        if (RecycleBinService.IsRecycleBinPath(path))
+        {
+            var raw = await RecycleBinService.GetContentsAsync().ConfigureAwait(false);
+            return MapToDtos(raw);
+        }
+
+        var shellPath = ShellPathResolver.ResolveForShell(path);
+        if (!string.IsNullOrEmpty(shellPath) && (
+            ShellPathResolver.IsShellVirtualPath(shellPath)
+            || PortableDeviceService.IsPortableDevicePath(shellPath)
+            || PortableDeviceService.IsPortableDevicePath(path)))
+        {
+            var raw = await ShellFolderEnumerator.EnumerateAsync(shellPath).ConfigureAwait(false);
+            return MapToDtos(raw);
+        }
+
+        return await Task.Run(() =>
+        {
+            var results = new List<DirListingSharedBuffer.DirEntryDto>();
+            try
+            {
+                var fsPath = shellPath;
+                if (string.IsNullOrEmpty(fsPath))
+                    fsPath = ShellPathResolver.NormalizeIncoming(path);
+
+                if (!Directory.Exists(fsPath)) return results;
+
+                var opts = new EnumerationOptions
+                {
+                    IgnoreInaccessible = true,
+                    RecurseSubdirectories = false,
+                    ReturnSpecialDirectories = false,
+                    AttributesToSkip = 0,
+                };
+                foreach (var info in new DirectoryInfo(fsPath).EnumerateFileSystemInfos("*", opts))
+                {
+                    var isDir = (info.Attributes & FileAttributes.Directory) == FileAttributes.Directory;
+                    results.Add(DirListingSharedBuffer.FromFileSystemInfo(info, isDir));
+                }
+            }
+            catch { }
+
+            return results;
+        }).ConfigureAwait(false);
+    }
+
+    private static List<DirListingSharedBuffer.DirEntryDto> MapToDtos(List<object> raw)
+    {
+        var list = new List<DirListingSharedBuffer.DirEntryDto>(raw.Count);
+        foreach (var item in raw)
+        {
+            if (item is DirListingSharedBuffer.DirEntryDto dto)
+                list.Add(dto);
+            else if (item is ShellChildItem sci)
+                list.Add(DirListingSharedBuffer.FromShellChild(sci));
+            else
+                list.Add(DirListingSharedBuffer.FromLegacyObject(item));
+        }
+        return list;
     }
 }

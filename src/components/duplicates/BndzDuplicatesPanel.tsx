@@ -17,6 +17,7 @@ export default function BndzDuplicatesPanel({ folderPath, onReveal }: Props) {
   const [progress, setProgress] = useState<{ percent: number; currentPath: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [minKb, setMinKb] = useState(64);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!IPC.isNative) return;
@@ -44,6 +45,34 @@ export default function BndzDuplicatesPanel({ folderPath, onReveal }: Props) {
     } finally {
       setScanning(false);
       setProgress(null);
+    }
+  };
+
+  const deleteExtras = async () => {
+    const extras = groups.flatMap(g => (g.paths || []).slice(1));
+    if (!extras.length) {
+      setError('No duplicate extras to delete.');
+      return;
+    }
+    if (!window.confirm(`Move ${extras.length} duplicate file(s) to the Recycle Bin? The first copy in each group is kept.`)) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      const opId = `dup-delete-${Date.now()}`;
+      const result = await IPC.executeFsOperation(opId, 'delete', extras, '', false, 'Delete duplicate extras');
+      if (!result?.ok) {
+        setError(result?.error || 'Delete failed');
+        return;
+      }
+      setGroups(prev => prev
+        .map(g => ({ ...g, paths: (g.paths || []).slice(0, 1) }))
+        .filter(g => (g.paths?.length || 0) > 0));
+    } catch (err: any) {
+      setError(err?.message || 'Delete failed');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -78,6 +107,17 @@ export default function BndzDuplicatesPanel({ folderPath, onReveal }: Props) {
           {scanning ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="search" size={14} />}
           Scan folder
         </button>
+        {groups.some(g => (g.paths?.length || 0) > 1) && (
+          <button
+            type="button"
+            onClick={() => void deleteExtras()}
+            disabled={scanning || deleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] bg-[#5a1d1d] hover:bg-[#7a2828] text-white disabled:opacity-50"
+          >
+            {deleting ? <Icons8Icon id="loading" size={14} spin /> : <Icons8Icon id="trash" size={14} />}
+            Delete extras
+          </button>
+        )}
         {scanning && (
           <button type="button" onClick={cancel} className="text-[11px] text-gray-400 hover:text-white px-2 py-1">
             Cancel

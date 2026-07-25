@@ -13,6 +13,8 @@ import ToastHost from './components/ToastHost';
 import { PluginRegistryProvider } from './data/PluginRegistryContext';
 import { initGlobalEscapeListener } from './lib/globalEscape';
 import LaunchSplash from './components/LaunchSplash';
+import PerfHud from './components/PerfHud';
+import LegalAcceptGate from './components/LegalAcceptGate';
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(() => {
@@ -38,11 +40,14 @@ export default function App() {
         <PluginRegistryProvider>
           <ModalProvider>
             <AiModelGateProvider>
+            <LegalAcceptGate>
             {!splashDone && <LaunchSplash onDone={handleSplashDone} />}
             <Suspense fallback={null}>
               <BNDZUI />
             </Suspense>
             <ToastHost />
+            <PerfHud />
+            </LegalAcceptGate>
             </AiModelGateProvider>
           </ModalProvider>
         </PluginRegistryProvider>

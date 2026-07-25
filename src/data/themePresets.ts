@@ -101,6 +101,10 @@ export function themeToColorConfig(preset: ThemePreset): Record<string, string |
     colorConfig34: preset.accent,
     colorConfig35: preset.accent,
     colorConfig46: mixHex(surface === 'rgba(0,0,0,0)' ? preset.bg : surface, isLight ? '#ffffff' : '#000000', isLight ? 0.04 : 0.12),
+    // Classic-shaped hero, theme-tinted (Colors tab can still override).
+    colorConfig47: buildThemePluginHeroSerialized(preset.bg, preset.accent, isLight),
+    colorConfig48: false,
+    colorConfig49: false,
     applyColors: true,
   };
 }
@@ -125,6 +129,38 @@ function mixHex(a: string, b: string, t: number): string {
   return `#${r}${g}${bl}`;
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  if (h.length < 6) return `rgba(12, 18, 32, ${alpha})`;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${Number(Math.max(0, Math.min(1, alpha)).toFixed(3))})`;
+}
+
+/** Same geometry as the original shipped hero; colors come from the theme. */
+export function buildThemePluginHeroFill(bg: string, accent: string, isLight: boolean): string {
+  // Darker left wash + accent mid + faint accent veil (not fully transparent) so the
+  // strip stays visible over solid --panel-bottom-bg instead of vanishing into it.
+  const from = mixHex(bg, '#000000', isLight ? 0.18 : 0.48);
+  const via = mixHex(bg, accent, isLight ? 0.12 : 0.22);
+  return `linear-gradient(90deg, ${hexToRgba(from, 0.97)} 0%, ${hexToRgba(via, 0.55)} 52%, ${hexToRgba(accent, 0.08)} 100%)`;
+}
+
+export function buildThemePluginHeroSerialized(bg: string, accent: string, isLight: boolean): string {
+  const from = mixHex(bg, '#000000', isLight ? 0.16 : 0.44);
+  const via = mixHex(bg, accent, isLight ? 0.10 : 0.18);
+  return JSON.stringify({
+    mode: 'gradient',
+    angle: 90,
+    stops: [
+      { color: `${from}f7`, pos: 0 },
+      { color: `${via}8c`, pos: 52 },
+      { color: `${accent}14`, pos: 100 },
+    ],
+  });
+}
+
 export function applyThemeCssVars(preset: ThemePreset): void {
   const root = document.documentElement;
   const surface = themeSurfaceColor(preset.surface);
@@ -140,8 +176,27 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--menubar-bg', menubar);
   root.style.setProperty('--toolbar-bg', toolbar);
   root.style.setProperty('--sidebar-bg', sidebar);
+  // Mirror into the color-pack + chrome tokens so themes repaint even when
+  // components still read --tree-bg / --bndz-surface-* (and gradients can override later).
+  root.style.setProperty('--tree-bg', sidebar);
+  root.style.setProperty('--tree-text', preset.text);
+  root.style.setProperty('--list-bg', preset.bg);
+  root.style.setProperty('--list-text', preset.text);
+  root.style.setProperty('--bndz-surface-base', preset.bg);
+  root.style.setProperty('--bndz-surface-raised', elevated);
+  root.style.setProperty('--bndz-surface-chrome', menubar);
+  root.style.setProperty('--bndz-surface-panel', surface);
+  root.style.setProperty('--bndz-border-subtle', isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)');
   root.style.setProperty('--statusbar-bg', mixHex(preset.bg, '#000000', isLight ? 0.05 : 0.2));
   root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
+  root.style.setProperty('--status-neon', preset.accent);
+  root.style.setProperty('--status-neon-soft', `${preset.accent}28`);
+  root.style.setProperty('--status-neon-mid', `${preset.accent}0a`);
+  root.style.setProperty('--status-neon-glow', `${preset.accent}59`);
+  // Classic hero shape, theme-tinted — mark html so CSS applies the override.
+  root.style.setProperty('--plugin-hero-fill', buildThemePluginHeroFill(preset.bg, preset.accent, isLight));
+  root.style.setProperty('--plugin-hero-edge', hexToRgba(preset.accent, 0.16));
+  root.dataset.pluginHeroThemed = 'true';
   root.style.setProperty('--sidebar-accent', preset.accent);
   root.style.setProperty('--border-subtle', isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)');
   root.style.setProperty('--border-strong', isLight ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.16)');
@@ -174,6 +229,14 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--list-text-secondary', isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)');
   root.style.setProperty('--list-bg', preset.bg);
   root.style.setProperty('--list-text', preset.text);
+  root.style.setProperty('--list-alt-bg', elevated);
+  root.style.setProperty('--list-hover-bg', isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)');
+  root.style.setProperty('--list-selected-bg', `${preset.accent}40`);
+  root.style.setProperty('--list-focused-bg', preset.accent);
+  root.style.setProperty('--breadcrumb-bg', surface === 'rgba(0,0,0,0)' ? menubar : surface);
+  root.style.setProperty('--breadcrumb-text', preset.text);
+  root.style.setProperty('--header-bg', elevated);
+  root.style.setProperty('--header-text', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--tab-active-bg', elevated);
   root.style.setProperty('--tab-active-text', preset.accent);
   root.style.setProperty('--tab-inactive-bg', menubar);

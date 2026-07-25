@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { shellIconIsDirectory } from '../lib/shellPaths';
 import { useAppConfig } from '../data/configContext';
 import { shouldFetchNativeShellIcon } from '../lib/settingsRuntime';
-import { applyIconCacheBuster } from '../lib/nativeIconService';
+import { applyIconCacheBuster, LIST_THUMB_PX } from '../lib/nativeIconService';
 import { useNativeIcon, useNativeIconFetch } from '../lib/useNativeIcon';
 import { IconPlaceholder } from './IconPlaceholder';
 
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif']);
-const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v']);
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'jfif', 'heic', 'avif']);
+const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg']);
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'wma', 'opus']);
 
 function extFromPath(path: string): string {
   const name = path.split(/[/\\]/).pop() || '';
@@ -21,7 +22,6 @@ interface ShellNativeIconProps {
   size?: number;
   preferThumbnail?: boolean;
   eager?: boolean;
-  /** Large preview/hero contexts — scale icon to fill the slot (shell PNGs have padding). */
   hero?: boolean;
 }
 
@@ -38,12 +38,15 @@ export function ShellNativeIcon({
   const ref = useRef<HTMLDivElement>(null);
 
   const ext = path ? extFromPath(path) : '';
-  const useThumb = preferThumbnail ?? (IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext));
+  const useThumb = preferThumbnail ?? (
+    IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || AUDIO_EXTS.has(ext)
+  );
   const dirFlag = isDir ?? shellIconIsDirectory(path);
   const shellFetch = visible && !!path && shouldFetchNativeShellIcon({}, config);
   const thumbFetch = visible && !!path && useThumb
     && config.enableNativeThumbnails !== false
     && !config.showCachedIconsOnly;
+  const thumbPx = hero || size >= 64 ? Math.max(LIST_THUMB_PX, Math.min(256, size)) : LIST_THUMB_PX;
 
   useEffect(() => {
     applyIconCacheBuster(config.iconCacheBuster);
@@ -54,6 +57,7 @@ export function ShellNativeIcon({
       setVisible(true);
       return;
     }
+    setVisible(false);
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(([e]) => {
@@ -61,18 +65,17 @@ export function ShellNativeIcon({
         setVisible(true);
         obs.disconnect();
       }
-    }, { rootMargin: '64px', threshold: 0 });
+    }, { rootMargin: '96px', threshold: 0 });
     obs.observe(el);
     return () => obs.disconnect();
   }, [eager, path]);
 
   useNativeIconFetch(path, dirFlag, 'shell', visible, shellFetch);
-  useNativeIconFetch(path, dirFlag, 'thumbnail', visible, thumbFetch);
+  useNativeIconFetch(path, dirFlag, 'thumbnail', visible, thumbFetch, thumbPx);
 
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumb);
   const src = (useThumb && thumbSrc) || shellSrc;
-
   const heroScale = hero ? 1.06 : 1;
 
   return (

@@ -159,9 +159,26 @@ export function isNetworkPanePath(path: string | null | undefined): boolean {
 export function resolveShellIconPath(path: string | null | undefined): string {
   if (!path) return '';
   if (path.startsWith('::{')) return path;
-  if (path.toLowerCase().startsWith('shell:')) return path;
   if (isRecycleBinPath(path)) return SHELL_CLSID.recycleBin;
   const pane = normalizePanePath(path);
+
+  // /shell:Desktop/file.png → expand known folder then join leaf (never pass shell:Desktop\file to host).
+  if (pane.toLowerCase().startsWith('/shell:')) {
+    const rest = pane.slice('/shell:'.length);
+    const slash = rest.indexOf('/');
+    if (slash < 0) {
+      const token = `shell:${rest}`;
+      if (token.toLowerCase() === 'shell:recyclebin') return SHELL_CLSID.recycleBin;
+      if (token.toLowerCase() === 'shell:libraries') return SHELL_CLSID.libraries;
+      if (token.toLowerCase() === 'shell:portabledevices') return SHELL_CLSID.portableDevices;
+      return token;
+    }
+    const folderToken = `shell:${rest.slice(0, slash)}`;
+    const leaf = rest.slice(slash + 1).replace(/\//g, '\\');
+    // Prefer leaving compound shell paths as shell:Folder\leaf for host ResolveForShell.
+    return leaf ? `${folderToken}\\${leaf}` : folderToken;
+  }
+
   if (pane === '/shell:Libraries' || pane.toLowerCase() === '/shell:libraries') return SHELL_CLSID.libraries;
   if (pane === '/shell:PortableDevices' || pane.toLowerCase() === '/shell:portabledevices') return SHELL_CLSID.portableDevices;
   if (pane === '/') return SHELL_CLSID.thisPc;
@@ -169,6 +186,10 @@ export function resolveShellIconPath(path: string | null | undefined): string {
   if (isDriveRootPanePath(pane)) {
     const win = toWindowsPath(pane);
     return win.endsWith('\\') ? win : `${win}\\`;
+  }
+  if (path.toLowerCase().startsWith('shell:')) {
+    if (path.toLowerCase() === 'shell:recyclebin') return SHELL_CLSID.recycleBin;
+    return path;
   }
   const win = toWindowsPath(pane);
   if (win.startsWith('\\\\')) return win;

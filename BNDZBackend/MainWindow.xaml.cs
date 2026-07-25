@@ -68,6 +68,7 @@ namespace BNDZ
         // Icon/thumb caches live in BndzHostCaches (BitFaster ConcurrentLru).
         // private ConcurrentDictionary kept removed — use BndzHostCaches.Icons / Thumbnails.
 
+        private CoreWebView2Environment? _webViewEnvironment;
         private SystemTrayService? _trayService;
         private bool _allowClose;
         private string? _pendingOpenPath;
@@ -89,9 +90,11 @@ namespace BNDZ
             try
             {
                 var bootSettings = _settingsManager.LoadSettings();
+                bootSettings = SanitizeThumbnailSettingsJson(bootSettings);
                 FileOperationPreferences.ApplyFromJson(bootSettings);
                 ApplyFileOperationPreferences();
                 ApplyGlobalHotkeysFromSettingsJson(bootSettings);
+                BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
                 _actionLogService.LoadPersistedIfEnabled();
                 _fileTransferQueue.LoadPersistedHistory();
             }
@@ -647,6 +650,45 @@ namespace BNDZ
             });
         }
 
+        private static object DirEntryToLegacy(DirListingSharedBuffer.DirEntryDto e) => new
+        {
+            id = e.Id,
+            name = e.Name,
+            type = e.Type,
+            path = e.Path,
+            size = e.Size,
+            extension = e.Extension,
+            modified = e.ModifiedUtc.ToString("O"),
+            created = e.CreatedUtc.ToString("O"),
+            attributes = DirListingSharedBuffer.AttrNamesFrom(e.AttrBits),
+            label = e.Label,
+            comment = e.Comment,
+            tags = e.Tags,
+            isShellItem = e.IsShellItem,
+        };
+
+        private void PostDirContentsJson(string? id, List<DirListingSharedBuffer.DirEntryDto> entries)
+        {
+            var legacy = entries.Select(DirEntryToLegacy).ToList();
+            var response = new { type = "DIR_CONTENTS_RESULT", id, payload = legacy };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+        }
+
+        private void PostDirContentsJsonAppend(string? id, string folderPath, List<DirListingSharedBuffer.DirEntryDto> entries)
+        {
+            var legacy = entries.Select(DirEntryToLegacy).ToList();
+            var response = new
+            {
+                type = "DIR_CONTENTS_APPEND",
+                id,
+                path = folderPath.Replace('\\', '/'),
+                payload = legacy,
+            };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+        }
+
         private void PushDrivesUpdate()
         {
             var drives = _cloudStorageService.GetAnnotatedDrives();
@@ -749,7 +791,8 @@ namespace BNDZ
         {
             try
             {
-            // WebView2 uses D3D11 compositing by default; prefer explicit GPU rasterization for smooth panel resize/scroll
+            // WebView2 uses D3D11 compositing by default; prefer explicit GPU rasterization for smooth panel resize/scroll.
+            // --disable-frame-rate-limit unlocks vsync cap for snappier UI; --ignore-gpu-blocklist keeps GPU on blocked adapters.
             // Custom scheme for local file streaming — WebResourceRequested does NOT fire on SetVirtualHostNameToFolderMapping hosts.
             var streamScheme = new CoreWebView2CustomSchemeRegistration(LocalStreamService.CustomScheme)
             {
@@ -762,10 +805,11 @@ namespace BNDZ
             // CustomSchemeRegistrations is ctor-only (read-only property). Passing null leaves
             // the getter returning null, so .Add would NullReferenceException at startup.
             var webEnvOptions = new CoreWebView2EnvironmentOptions(
-                additionalBrowserArguments: "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion",
+                additionalBrowserArguments: "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion --disable-frame-rate-limit --ignore-gpu-blocklist",
                 customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme });
 
             var webEnv = await CoreWebView2Environment.CreateAsync(null, null, webEnvOptions);
+            _webViewEnvironment = webEnv;
             await MainWebView.EnsureCoreWebView2Async(webEnv);
 
             if (MainWebView.CoreWebView2 == null)
@@ -1057,7 +1101,6 @@ namespace BNDZ
                     _ = Task.Run(() =>
                     {
                         var result = ThumbnailCacheService.ClearAll();
-                        BndzHostCaches.ClearAll();
                         var response = new
                         {
                             type = "CLEAR_THUMBNAIL_CACHE_RESULT",
@@ -1283,19 +1326,50 @@ namespace BNDZ
                     string path = payload.GetProperty("path").GetString() ?? "";
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
 
-                    _ = Task.Run(async () => 
+                    _ = Task.Run(async () =>
                     {
-                        var results = await _fileService.GetDirContentsAsync(path);
-                        var enriched = BndzTagSidecarStore.EnrichDirResults(results, _tagSidecarStore);
+                        var entries = await _fileService.GetDirEntriesAsync(path).ConfigureAwait(false);
+                        var pageSize = DirListingSharedBuffer.FirstPaintPageSize;
+                        var useProgressive = entries.Count > pageSize;
 
-                        var response = new { type = "DIR_CONTENTS_RESULT", id = idProp, payload = enriched };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        var responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                        await PostToUiAsync(() =>
+                        {
+                            var env = _webViewEnvironment;
+                            var wv = MainWebView.CoreWebView2;
+                            if (env == null || wv == null)
+                            {
+                                PostDirContentsJson(idProp, entries);
+                                return;
+                            }
 
-                        PostToUi(() => {
-                             IpcDebugLog($"[SEND] {responseJson}");
-                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
-                        });
+                            if (useProgressive)
+                            {
+                                // First paint: no tag sidecar yet — dirs/files show instantly.
+                                var page = entries.GetRange(0, pageSize);
+                                if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, page, path, partial: true))
+                                    PostDirContentsJson(idProp, page);
+                            }
+                            else
+                            {
+                                DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
+                                if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, entries, path, partial: false))
+                                    PostDirContentsJson(idProp, entries);
+                            }
+                        }).ConfigureAwait(false);
+
+                        if (!useProgressive) return;
+
+                        // Full list + tags as append — UI already interactive on first page.
+                        DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
+                        await PostToUiAsync(() =>
+                        {
+                            var env = _webViewEnvironment;
+                            var wv = MainWebView.CoreWebView2;
+                            if (env != null && wv != null
+                                && DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_APPEND", idProp, entries, path, partial: false))
+                                return;
+                            PostDirContentsJsonAppend(idProp, path, entries);
+                        }).ConfigureAwait(false);
                     });
                 }
                 else if (type == "GET_SUB_DIRECTORIES")
@@ -1360,6 +1434,69 @@ namespace BNDZ
                     Dispatcher.Invoke(() => {
                         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                         _shellContextMenuService.ShowNativeContextMenu(hwnd, path, x, y);
+                    });
+                }
+                else if (type == "SHOW_HOST_CONTEXT_MENU")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    int clientX = payload.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number ? cx.GetInt32() : 0;
+                    int clientY = payload.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number ? cy.GetInt32() : 0;
+                    var items = new List<HostContextMenuService.Item>();
+                    if (payload.TryGetProperty("items", out var itemsEl) && itemsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in itemsEl.EnumerateArray())
+                        {
+                            var sep = el.TryGetProperty("separator", out var sepEl) && sepEl.ValueKind == JsonValueKind.True;
+                            items.Add(new HostContextMenuService.Item
+                            {
+                                Id = el.TryGetProperty("id", out var idItem) ? idItem.GetString() ?? "" : "",
+                                Label = el.TryGetProperty("label", out var lab) ? lab.GetString() ?? "" : "",
+                                Separator = sep,
+                                Disabled = el.TryGetProperty("disabled", out var dis) && dis.ValueKind == JsonValueKind.True,
+                                Danger = el.TryGetProperty("danger", out var dang) && dang.ValueKind == JsonValueKind.True,
+                                Bold = el.TryGetProperty("bold", out var bold) && bold.ValueKind == JsonValueKind.True,
+                            });
+                        }
+                    }
+
+                    PostToUi(() =>
+                    {
+                        try
+                        {
+                            System.Windows.Point screenPt;
+                            try
+                            {
+                                screenPt = MainWebView != null
+                                    ? MainWebView.PointToScreen(new System.Windows.Point(clientX, clientY))
+                                    : PointToScreen(new System.Windows.Point(clientX, clientY));
+                            }
+                            catch
+                            {
+                                var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                                var (sx, sy) = HostContextMenuService.ClientToScreenPoint(hwnd, clientX, clientY);
+                                screenPt = new System.Windows.Point(sx, sy);
+                            }
+
+                            HostContextMenuService.Show(
+                                this,
+                                (int)Math.Round(screenPt.X),
+                                (int)Math.Round(screenPt.Y),
+                                items,
+                                chosen =>
+                                {
+                                    var response = new { type = "HOST_CONTEXT_MENU_RESULT", id = idProp, payload = chosen };
+                                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                                    PostToUi(() => MainWebView?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                                });
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[HostCtx] {ex.Message}");
+                            var response = new { type = "HOST_CONTEXT_MENU_RESULT", id = idProp, payload = (string?)null };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            MainWebView?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                        }
                     });
                 }
                 else if (type == "GET_CONTEXT_MENU_ITEMS")
@@ -1737,8 +1874,11 @@ namespace BNDZ
 
                     _ = Task.Run(() => 
                     {
-                        var nativeSvc = new NativeShellService();
-                        string base64 = nativeSvc.GetNativeThumbnailBase64(path, thumbSize);
+                        var nativeSvc = _nativeShellService;
+                        string? base64 = BndzHostCaches.ResolveThumbnailBase64(
+                            path,
+                            thumbSize,
+                            () => nativeSvc.GetNativeThumbnailBase64(path, thumbSize) ?? "");
 
                         var response = new { type = "THUMBNAIL_RESULT", id = idProp, payload = string.IsNullOrEmpty(base64) ? null : base64 };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -1746,6 +1886,70 @@ namespace BNDZ
 
                         PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
+                        });
+                    });
+                }
+                else if (type == "GET_THUMBNAILS_BATCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                    int thumbSize = 96;
+                    List<string> paths = new();
+                    try
+                    {
+                        var payload = root.GetProperty("payload");
+                        if (payload.TryGetProperty("size", out var sizeEl) && sizeEl.ValueKind == JsonValueKind.Number)
+                            thumbSize = sizeEl.GetInt32();
+                        if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var p in pathsEl.EnumerateArray())
+                            {
+                                var raw = p.GetString() ?? "";
+                                if (string.IsNullOrWhiteSpace(raw)) continue;
+                                var resolved = ShellPathResolver.ResolveForShell(raw);
+                                if (string.IsNullOrEmpty(resolved))
+                                {
+                                    resolved = raw.StartsWith("/") ? raw.Substring(1).Replace("/", "\\") : raw.Replace("/", "\\");
+                                }
+                                paths.Add(resolved);
+                            }
+                        }
+                    }
+                    catch { }
+
+                    _ = Task.Run(() =>
+                    {
+                        var nativeSvc = _nativeShellService;
+                        // Parallel extract with bounded concurrency — fills CAS for list warm.
+                        Parallel.ForEach(
+                            paths,
+                            new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 2, 8) },
+                            path =>
+                            {
+                                try
+                                {
+                                    var b64 = BndzHostCaches.ResolveThumbnailBase64(
+                                        path,
+                                        thumbSize,
+                                        () => nativeSvc.GetNativeThumbnailBase64(path, thumbSize) ?? "");
+                                    lock (results)
+                                    {
+                                        results[path] = string.IsNullOrEmpty(b64) ? null : b64;
+                                    }
+                                }
+                                catch
+                                {
+                                    lock (results) { results[path] = null; }
+                                }
+                            });
+
+                        var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
+                            catch { }
                         });
                     });
                 }
@@ -1771,6 +1975,37 @@ namespace BNDZ
                         PostToUi(() => {
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
+                    });
+                }
+                else if (type == "WRITE_MEDIA_TAGS")
+                {
+                    var payload = root.GetProperty("payload");
+                    string path = NormalizeFsPath(payload.GetProperty("path").GetString() ?? "");
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var fields = new Dictionary<string, string?>();
+                    if (payload.TryGetProperty("fields", out var fieldsEl) && fieldsEl.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in fieldsEl.EnumerateObject())
+                            fields[prop.Name] = prop.Value.ValueKind == JsonValueKind.Null ? null : prop.Value.GetString();
+                    }
+
+                    _ = Task.Run(() =>
+                    {
+                        var (ok, error) = MediaTagMetadataService.TryWriteTags(path, fields);
+                        var response = new { type = "WRITE_MEDIA_TAGS_RESULT", id = idProp, payload = new { ok, error } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "GET_PERF_STATS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var payload = BndzHostCaches.GetPerfSnapshot();
+                        var response = new { type = "PERF_STATS_RESULT", id = idProp, payload };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "GET_MEDIA_BLOB")
@@ -2094,6 +2329,14 @@ namespace BNDZ
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var payload = root.GetProperty("payload");
                     string action = payload.GetProperty("action").GetString() ?? "";
+                    // Copy values before Task.Run — JsonDocument is disposed when this handler returns.
+                    bool enable = payload.TryGetProperty("enable", out var enableEl)
+                        && enableEl.ValueKind == JsonValueKind.True;
+                    string? extraArgs = null;
+                    if (payload.TryGetProperty("extraArgs", out var extraArgsProp)
+                        && extraArgsProp.ValueKind == JsonValueKind.String)
+                        extraArgs = extraArgsProp.GetString();
+
                     _ = Task.Run(() =>
                     {
                         object resultPayload;
@@ -2102,32 +2345,17 @@ namespace BNDZ
                             switch (action)
                             {
                                 case "setContextMenu":
-                                {
-                                    bool enable = payload.GetProperty("enable").GetBoolean();
                                     resultPayload = _shellIntegrationService.SetInContextMenu(enable);
                                     break;
-                                }
                                 case "setDefault":
-                                {
-                                    bool enable = payload.GetProperty("enable").GetBoolean();
                                     resultPayload = _shellIntegrationService.SetAsDefaultFileManager(enable);
                                     break;
-                                }
                                 case "setWin11MoreOptions":
-                                {
-                                    bool enable = payload.GetProperty("enable").GetBoolean();
                                     resultPayload = _shellIntegrationService.SetWin11MoreOptions(enable);
                                     break;
-                                }
                                 case "relaunchAdmin":
-                                {
-                                    string? extraArgs = null;
-                                    if (payload.TryGetProperty("extraArgs", out var extraArgsProp)
-                                        && extraArgsProp.ValueKind == JsonValueKind.String)
-                                        extraArgs = extraArgsProp.GetString();
                                     resultPayload = _shellIntegrationService.RelaunchAsAdministrator(extraArgs);
                                     break;
-                                }
                                 case "isElevated":
                                     resultPayload = new { elevated = _shellIntegrationService.IsElevated() };
                                     break;
@@ -2223,6 +2451,7 @@ namespace BNDZ
                         FileOperationPreferences.ApplyFromJson(jsonString);
                         ApplyFileOperationPreferences();
                         ApplyGlobalHotkeysFromSettingsJson(jsonString);
+                        BndzMediaDiskCache.Instance.ApplySettingsJson(jsonString);
                     }
                     catch (Exception ex)
                     {
@@ -2243,6 +2472,8 @@ namespace BNDZ
                         string? settingsJson = _settingsManager.LoadSettings();
                         if (string.IsNullOrEmpty(settingsJson)) settingsJson = "null";
                         FileOperationPreferences.ApplyFromJson(settingsJson == "null" ? null : settingsJson);
+                        if (settingsJson != "null")
+                            BndzMediaDiskCache.Instance.ApplySettingsJson(settingsJson);
                         ApplyFileOperationPreferences();
                         ApplyGlobalHotkeysFromSettingsJson(settingsJson == "null" ? null : settingsJson);
                         
@@ -2282,23 +2513,17 @@ namespace BNDZ
 
                     _ = Task.Run(() => 
                     {
-                        string cacheKey = BndzHostCaches.IconCacheKey(path, isDirectory);
-
-                        if (BndzHostCaches.Icons.TryGet(cacheKey, out var cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
+                        string? extractedBase64 = null;
+                        try
                         {
-                            PostIconResult(idProp, cachedBase64);
-                            return;
+                            extractedBase64 = BndzHostCaches.ResolveIconBase64(
+                                path,
+                                isDirectory,
+                                () => _nativeShellService.GetNativeShellIconBase64(path, isDirectory) ?? "");
                         }
-
-                        string extractedBase64 = "";
-                        try {
-                            extractedBase64 = _nativeShellService.GetNativeShellIconBase64(path, isDirectory) ?? "";
-                        } catch (Exception ex) {
+                        catch (Exception ex)
+                        {
                             System.Diagnostics.Debug.WriteLine($"Failed to get shell icon for {path}: {ex.Message}");
-                        }
-                        
-                        if (!string.IsNullOrEmpty(extractedBase64)) {
-                            BndzHostCaches.Icons.AddOrUpdate(cacheKey, extractedBase64);
                         }
 
                         PostIconResult(idProp, string.IsNullOrEmpty(extractedBase64) ? null : extractedBase64);
@@ -2326,26 +2551,15 @@ namespace BNDZ
                                     if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:\\?$"))
                                         isDir = false;
 
-                                    bool isVirtualIcon = ShellPathResolver.IsShellVirtualPath(path)
-                                        || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
-                                    _ = isVirtualIcon;
-                                    string cacheKey = BndzHostCaches.IconCacheKey(path, isDir);
-
-                                    if (BndzHostCaches.Icons.TryGet(cacheKey, out var cachedBase64) && !string.IsNullOrEmpty(cachedBase64))
-                                    {
-                                        results[path] = cachedBase64;
-                                        continue;
-                                    }
-
-                                    string extracted = "";
+                                    string? extracted = null;
                                     try
                                     {
-                                        extracted = _nativeShellService.GetNativeShellIconBase64(path, isDir) ?? "";
+                                        extracted = BndzHostCaches.ResolveIconBase64(
+                                            path,
+                                            isDir,
+                                            () => _nativeShellService.GetNativeShellIconBase64(path, isDir) ?? "");
                                     }
                                     catch { }
-
-                                    if (!string.IsNullOrEmpty(extracted))
-                                        BndzHostCaches.Icons.AddOrUpdate(cacheKey, extracted);
 
                                     results[path] = string.IsNullOrEmpty(extracted) ? null : extracted;
                                 }
@@ -2369,7 +2583,7 @@ namespace BNDZ
                 else if (type == "CLEAR_ICON_CACHE")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    BndzHostCaches.ClearAll();
+                    BndzHostCaches.ClearAll(includeDisk: true);
                     var response = new { type = "CLEAR_ICON_CACHE_RESULT", id = idProp };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() => {
@@ -3077,6 +3291,8 @@ namespace BNDZ
                         {
                             "recent" => svc.GetRecentFiles(limit),
                             "media" => svc.GetMediaFiles(limit),
+                            "audio" => svc.GetAudioFiles(limit),
+                            "documents" => svc.GetDocumentFiles(limit),
                             "large" => svc.GetLargeFiles(limit),
                             _ => [],
                         };
@@ -3636,6 +3852,81 @@ namespace BNDZ
             catch
             {
                 _globalHotkeys.ApplyFromSettings("Alt+Space", "Ctrl+Shift+P", "Ctrl+Shift+F");
+            }
+        }
+
+        /// <summary>
+        /// Gold path: first visit must extract into CAS. Force off settings that blank the list or
+        /// flood IPC with hanging folder-shell thumbs on system roots.
+        /// </summary>
+        private string? SanitizeThumbnailSettingsJson(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json) || json == "null") return json;
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                var cachedOnly = root.TryGetProperty("showCachedThumbnailsOnly", out var elCached)
+                    && elCached.ValueKind == JsonValueKind.True;
+                var folderThumbs = root.TryGetProperty("showFolderThumbnails", out var elFolder)
+                    && elFolder.ValueKind == JsonValueKind.True;
+                var emptyThumbs = !BndzMediaDiskCache.Instance.HasAnyEntries(BndzMediaDiskCache.Kind.Thumbnail);
+
+                // Always clear cached-only when catalog is empty. One-shot clear folder thumbs
+                // (configContext used to default them on and hung GET_THUMBNAIL on C:\Windows etc.).
+                var forceFolderOff = false;
+                try
+                {
+                    var marker = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "BNDZ", "Cache", ".v4-folder-thumbs-off");
+                    if (!File.Exists(marker))
+                    {
+                        forceFolderOff = folderThumbs;
+                        Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
+                        File.WriteAllText(marker, "1");
+                    }
+                }
+                catch { /* ignore */ }
+
+                if ((!cachedOnly || !emptyThumbs) && !forceFolderOff)
+                    return json;
+
+                using var stream = new MemoryStream();
+                using (var writer = new Utf8JsonWriter(stream))
+                {
+                    writer.WriteStartObject();
+                    var wroteCached = false;
+                    var wroteFolder = false;
+                    foreach (var prop in root.EnumerateObject())
+                    {
+                        if (prop.NameEquals("showCachedThumbnailsOnly") && cachedOnly && emptyThumbs)
+                        {
+                            writer.WriteBoolean("showCachedThumbnailsOnly", false);
+                            wroteCached = true;
+                            continue;
+                        }
+                        if (prop.NameEquals("showFolderThumbnails") && forceFolderOff)
+                        {
+                            writer.WriteBoolean("showFolderThumbnails", false);
+                            wroteFolder = true;
+                            continue;
+                        }
+                        prop.WriteTo(writer);
+                    }
+                    if (cachedOnly && emptyThumbs && !wroteCached)
+                        writer.WriteBoolean("showCachedThumbnailsOnly", false);
+                    if (forceFolderOff && !wroteFolder)
+                        writer.WriteBoolean("showFolderThumbnails", false);
+                    writer.WriteEndObject();
+                }
+                var patched = Encoding.UTF8.GetString(stream.ToArray());
+                _settingsManager.SaveSettings(patched);
+                return patched;
+            }
+            catch
+            {
+                return json;
             }
         }
 

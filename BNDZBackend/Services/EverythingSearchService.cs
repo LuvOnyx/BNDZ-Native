@@ -61,6 +61,14 @@ public class EverythingSearchService
             try
             {
                 var scopePane = string.IsNullOrEmpty(primaryRoot) ? "" : "/" + primaryRoot.Replace("\\", "/").TrimStart('/');
+
+                if (searchContent)
+                {
+                    var contentHits = BndzFileIndexService.Instance.SearchContent(query, limit, scopePane);
+                    if (contentHits.Count > 0)
+                        return (contentHits.Take(limit).ToList(), "indexed-content");
+                }
+
                 var indexed = BndzFileIndexService.Instance.Search(query, limit, scopePane);
 
                 if (!preferEverything)

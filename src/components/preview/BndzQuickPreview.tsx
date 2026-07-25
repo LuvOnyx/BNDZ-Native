@@ -14,7 +14,7 @@ import PdfPreviewPanel from '../PdfPreviewPanel';
 import TextPreviewEditor from '../TextPreviewEditor';
 import MarkdownPreviewPanel from '../MarkdownPreviewPanel';
 import ArchivePreviewPanel from '../ArchivePreviewPanel';
-import PreviewMetadataStrip from './PreviewMetadataStrip';
+import PreviewMetadataStrip, { curatedPreviewFacts } from './PreviewMetadataStrip';
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
 
 const DocxPreviewPanel = lazy(() => import('../DocxPreviewPanel'));
@@ -40,6 +40,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const [indexedMeta, setIndexedMeta] = useState<Record<string, unknown> | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
+  const [extMeta, setExtMeta] = useState<Record<string, string> | null>(null);
 
   useEffect(() => {
     if (!open || !current?.path || !IPC.isNative) {
@@ -54,6 +55,18 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     });
     return () => { active = false; };
   }, [open, current?.path]);
+
+  useEffect(() => {
+    if (!open || !current?.path || !IPC.isNative || current.entity?.type === 'directory') {
+      setExtMeta(null);
+      return;
+    }
+    let active = true;
+    IPC.getExtendedMetadata(toWindowsPath(current.path)).then(meta => {
+      if (active) setExtMeta(meta || null);
+    }).catch(() => { if (active) setExtMeta(null); });
+    return () => { active = false; };
+  }, [open, current?.path, current?.entity?.type]);
 
   const displaySize = (current?.entity as any)?.size ?? (indexedMeta?.size as number | undefined);
   const displayModified = (current?.entity as any)?.modified ?? (indexedMeta?.modified as number | undefined);
@@ -262,6 +275,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
               modified={displayModified}
               kindLabel={kindLabel}
               isDirectory={isDir}
+              facts={curatedPreviewFacts(extMeta)}
               onOpen={() => runVerb(isDir ? 'open' : 'open')}
               onReveal={() => runVerb('reveal')}
               onCopyPath={copyPath}

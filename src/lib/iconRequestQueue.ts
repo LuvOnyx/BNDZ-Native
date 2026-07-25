@@ -5,10 +5,12 @@ let scrolling = false;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 const SCROLL_IDLE_MS = 120;
 
-const MAX_CONCURRENT = 14;
-const MAX_CONCURRENT_WHILE_SCROLLING = 4;
+const MAX_CONCURRENT = 16;
+const MAX_CONCURRENT_WHILE_SCROLLING = 6;
 let active = 0;
-const pending: Array<() => void> = [];
+
+type Queued = { run: () => void; priority: number };
+const pending: Queued[] = [];
 
 function concurrencyLimit(): number {
   return scrolling ? MAX_CONCURRENT_WHILE_SCROLLING : MAX_CONCURRENT;
@@ -17,8 +19,10 @@ function concurrencyLimit(): number {
 function pump() {
   const limit = concurrencyLimit();
   while (active < limit && pending.length > 0) {
+    // Higher priority first (thumbnails > shell glyphs).
+    pending.sort((a, b) => b.priority - a.priority);
     const job = pending.shift();
-    if (job) job();
+    if (job) job.run();
   }
 }
 
@@ -37,7 +41,8 @@ export function isIconQueueScrolling(): boolean {
   return scrolling;
 }
 
-export function enqueueIconRequest<T>(fn: () => Promise<T>): Promise<T> {
+/** @param priority 0 = shell glyph, 1 = list thumbnail (preferred) */
+export function enqueueIconRequest<T>(fn: () => Promise<T>, priority = 0): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const run = () => {
       active++;
@@ -48,7 +53,7 @@ export function enqueueIconRequest<T>(fn: () => Promise<T>): Promise<T> {
           pump();
         });
     };
-    pending.push(run);
+    pending.push({ run, priority });
     pump();
   });
 }

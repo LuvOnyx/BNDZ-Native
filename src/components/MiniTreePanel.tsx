@@ -20,8 +20,9 @@ export default function MiniTreePanel({ nodes, activePath, onNavigate }: Props) 
 
   const normActive = activePath?.replace(/\\/g, '/');
 
+  // No module scrollbar — items show fully; the left sidebar panel scrolls.
   return (
-    <div className="flex flex-col gap-0.5 min-h-[48px] max-h-[240px] overflow-y-auto bndz-scrollbar px-1 mx-1">
+    <div className="flex flex-col gap-0.5 px-1.5 mx-1.5">
       {nodes.map(node => {
         const active = normActive === node.path || normActive?.startsWith(`${node.path}/`);
         return (
@@ -33,7 +34,7 @@ export default function MiniTreePanel({ nodes, activePath, onNavigate }: Props) 
             className={`flex items-center gap-1.5 py-1 pr-2 rounded text-left text-[11px] w-full transition-colors ${
               active ? 'bg-[#094771]/40 text-[#cce4f7]' : 'text-gray-400 hover:bg-[#222] hover:text-gray-200'
             }`}
-            style={{ paddingLeft: 8 + node.depth * 10 }}
+            style={{ paddingLeft: 10 + node.depth * 12 }}
           >
             <Icons8Icon id="explorer" size={11} className="shrink-0 opacity-70" />
             <span className="truncate">{node.label}</span>

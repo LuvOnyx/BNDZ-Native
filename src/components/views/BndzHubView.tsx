@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RECENT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
+import { BNDZ_AUDIO, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RECENT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
 import BndzIndexEmptyState from './BndzIndexEmptyState';
 
@@ -27,6 +27,18 @@ const VIEWS = [
     icon: 'film_ui',
     accent: '#7eb8e8',
     desc: 'Photos and videos from indexed Pictures, Videos, and more',
+  },
+  {
+    path: BNDZ_AUDIO,
+    icon: 'music_ui',
+    accent: '#34d399',
+    desc: 'Music and audio from indexed libraries',
+  },
+  {
+    path: BNDZ_DOCUMENTS,
+    icon: 'file_ui',
+    accent: '#60a5fa',
+    desc: 'PDFs, Office docs, and text from the index',
   },
   {
     path: BNDZ_LARGE,
@@ -77,7 +89,7 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
 
       <div className="flex-1 overflow-y-auto bndz-scrollbar px-3 pb-4 pt-1 space-y-1.5">
         {VIEWS.map(v => {
-          const viewKey = v.path.split('/').pop() as 'recent' | 'media' | 'large';
+          const viewKey = v.path.split('/').pop() as 'recent' | 'media' | 'audio' | 'documents' | 'large';
           return (
             <button
               key={v.path}

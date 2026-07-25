@@ -1,0 +1,299 @@
+/* BNDZ fill color picker — gradient steps live inside the picker popover */
+
+.bndz-fill-swatch {
+  display: inline-block;
+  width: 28px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+}
+
+.bndz-fill-swatch-aria {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.bndz-fill-picker-dialog {
+  min-width: 220px !important;
+  gap: 10px !important;
+}
+
+.bndz-fill-mode-row {
+  display: flex;
+  gap: 6px;
+}
+
+.bndz-fill-mode-btn {
+  flex: 1;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #9aa0a6;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.bndz-fill-mode-btn:hover {
+  color: #e8eaed;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.bndz-fill-mode-btn.is-active {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #e0f2fe;
+}
+
+.bndz-fill-mode-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.bndz-fill-rail-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bndz-fill-rail {
+  position: relative;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+  cursor: default;
+  touch-action: none;
+}
+
+.bndz-fill-stop {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 4px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45);
+  padding: 0;
+  cursor: grab;
+  z-index: 1;
+}
+
+.bndz-fill-stop:active {
+  cursor: grabbing;
+}
+
+.bndz-fill-stop.is-active {
+  z-index: 2;
+  box-shadow: 0 0 0 2px #38bdf8, 0 0 0 1px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.5);
+  transform: scale(1.08);
+}
+
+.bndz-fill-rail-caption {
+  font-size: 9px;
+  color: #6b7280;
+  letter-spacing: 0.02em;
+}
+
+.bndz-fill-step-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bndz-fill-angle-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.bndz-fill-angle-step {
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+  color: #9ca3af;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.bndz-fill-angle-step:hover {
+  color: #e5e7eb;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.bndz-fill-angle-step.is-active {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #e0f2fe;
+  font-weight: 700;
+}
+
+.bndz-fill-step-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.bndz-fill-chip {
+  flex: 1;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #d1d5db;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bndz-fill-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.bndz-fill-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* High-quality opacity slider — inset groove + smooth thumb */
+.bndz-fill-picker-dialog .bndz-opacity-slider {
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.bndz-fill-picker-dialog .bndz-opacity-slider .react-aria-Label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.bndz-fill-picker-dialog .bndz-opacity-slider .react-aria-SliderOutput {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #d1d5db;
+  font-weight: 600;
+}
+
+.bndz-opacity-track-inset {
+  grid-area: track;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.55);
+}
+
+.bndz-fill-picker-dialog .bndz-opacity-slider .react-aria-SliderTrack {
+  height: 10px !important;
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.bndz-fill-picker-dialog .bndz-opacity-slider .react-aria-ColorThumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 0.12s ease;
+  will-change: transform;
+}
+
+.bndz-fill-picker-dialog .bndz-opacity-slider .react-aria-ColorThumb[data-dragging] {
+  box-shadow:
+    0 0 0 2px #38bdf8,
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 3px 10px rgba(0, 0, 0, 0.55);
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorSlider {
+  gap: 6px;
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorSlider .react-aria-Label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorSlider .react-aria-SliderOutput {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #d1d5db;
+  font-weight: 600;
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorSlider[data-orientation="horizontal"] .react-aria-SliderTrack {
+  height: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorThumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorThumb[data-focus-visible] {
+  width: 18px;
+  height: 18px;
+  box-shadow:
+    0 0 0 2px #38bdf8,
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorField {
+  margin-top: 4px;
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorField .react-aria-Label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.bndz-fill-picker-dialog .react-aria-ColorField .react-aria-Input {
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.35);
+  color: #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  padding: 0 10px;
+}

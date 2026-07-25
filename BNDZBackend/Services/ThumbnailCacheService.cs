@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -32,7 +31,20 @@ public static class ThumbnailCacheService
 
         try
         {
+            // Product L1 + L2 (CAS/SQLite under %LocalAppData%/BNDZ/Cache).
+            var (casFiles, casBytes) = BndzMediaDiskCache.Instance.ClearAll();
+            filesRemoved += casFiles;
+            bytesFreed += casBytes;
+            BndzHostCaches.ClearAll(includeDisk: false);
+
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var bndzCache = Path.Combine(localAppData, "BNDZ", "Cache");
+            if (Directory.Exists(bndzCache))
+            {
+                foreach (var file in Directory.EnumerateFiles(bndzCache, "*", SearchOption.AllDirectories))
+                    TryDelete(file);
+            }
+
             var explorerDir = Path.Combine(localAppData, "Microsoft", "Windows", "Explorer");
             if (Directory.Exists(explorerDir))
             {
@@ -42,10 +54,10 @@ public static class ThumbnailCacheService
                     TryDelete(file);
             }
 
-            var bndzDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BNDZ64", "thumbcache");
-            if (Directory.Exists(bndzDir))
+            var legacyBndz = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BNDZ64", "thumbcache");
+            if (Directory.Exists(legacyBndz))
             {
-                foreach (var file in Directory.EnumerateFiles(bndzDir, "*", SearchOption.AllDirectories))
+                foreach (var file in Directory.EnumerateFiles(legacyBndz, "*", SearchOption.AllDirectories))
                     TryDelete(file);
             }
         }

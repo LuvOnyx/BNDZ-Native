@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
-import { ShellNativeIcon } from './ShellNativeIcon';
+import { ThumbnailIcon } from './ThumbnailIcon';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import { BndzNativeDialog } from './BndzNativeDialog';
 import { NativeDialogCheckbox } from './native/NativeDialogShell';
@@ -75,21 +75,35 @@ function FileConflictModal({
       ]}
     >
       <div className="space-y-3 -mt-1">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div className="bndz-native-dialog-panel flex items-center gap-2.5 px-3 py-2.5 min-w-0">
-            <ShellNativeIcon path={c.sourcePath || c.fileName} size={22} eager />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="bndz-native-dialog-panel flex items-start gap-3 px-3 py-3 min-w-0">
+            <div className="shrink-0 w-12 h-12 rounded-[10px] overflow-hidden bg-[#1e1e1e] border border-[#3a3a3a] flex items-center justify-center">
+              <ThumbnailIcon
+                entity={{ name: c.fileName, type: 'file' } as any}
+                isDir={false}
+                path={c.sourcePath || c.fileName}
+                size={48}
+              />
+            </div>
             <div className="min-w-0 flex-1">
               <div className="text-[10px] uppercase tracking-wide bndz-native-dialog-muted">Source</div>
-              <div className="text-[12px] font-medium truncate">{c.fileName}</div>
-              {c.sourcePath && <div className="text-[10px] bndz-native-dialog-muted truncate">{c.sourcePath}</div>}
+              <div className="text-[12px] font-medium truncate mt-0.5">{c.fileName}</div>
+              {c.sourcePath && <div className="text-[10px] bndz-native-dialog-muted truncate mt-0.5" title={c.sourcePath}>{c.sourcePath}</div>}
             </div>
           </div>
-          <div className="bndz-native-dialog-panel flex items-center gap-2.5 px-3 py-2.5 min-w-0">
-            <ShellNativeIcon path={c.destPath || c.fileName} size={22} eager />
+          <div className="bndz-native-dialog-panel flex items-start gap-3 px-3 py-3 min-w-0">
+            <div className="shrink-0 w-12 h-12 rounded-[10px] overflow-hidden bg-[#1e1e1e] border border-[#3a3a3a] flex items-center justify-center">
+              <ThumbnailIcon
+                entity={{ name: c.fileName, type: 'file' } as any}
+                isDir={false}
+                path={c.destPath || c.fileName}
+                size={48}
+              />
+            </div>
             <div className="min-w-0 flex-1">
               <div className="text-[10px] uppercase tracking-wide bndz-native-dialog-muted">Destination</div>
-              <div className="text-[12px] font-medium truncate">{c.fileName}</div>
-              <div className="text-[10px] bndz-native-dialog-muted truncate">{destFolder}</div>
+              <div className="text-[12px] font-medium truncate mt-0.5">{c.fileName}</div>
+              <div className="text-[10px] bndz-native-dialog-muted truncate mt-0.5" title={destFolder}>{destFolder}</div>
             </div>
           </div>
         </div>

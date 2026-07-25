@@ -73,6 +73,13 @@ export default function MetadataPlugin({
     const [fieldFilter, setFieldFilter] = useState('');
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [copyAllFormat, setCopyAllFormat] = useState<'tsv' | 'json' | null>(null);
+    const [editTitle, setEditTitle] = useState('');
+    const [editAlbum, setEditAlbum] = useState('');
+    const [editArtists, setEditArtists] = useState('');
+    const [editGenre, setEditGenre] = useState('');
+    const [editComment, setEditComment] = useState('');
+    const [savingTags, setSavingTags] = useState(false);
+    const [tagSaveMsg, setTagSaveMsg] = useState<string | null>(null);
 
     const path = primarySelectedPath
         ? toWindowsPath(primarySelectedPath)
@@ -103,6 +110,12 @@ export default function MetadataPlugin({
             if (!active) return;
             setMeta(details || {});
             setHashes(hashResult || {});
+            setEditTitle(details?.Title || '');
+            setEditAlbum(details?.Album || '');
+            setEditArtists(details?.Artists || details?.Artist || '');
+            setEditGenre(details?.Genre || '');
+            setEditComment(details?.Comment || '');
+            setTagSaveMsg(null);
             setLoading(false);
         }).catch(err => {
             if (active) {
@@ -139,6 +152,41 @@ export default function MetadataPlugin({
         const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(n) / Math.log(k));
         return parseFloat((n / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const canEditTags = entity?.type === 'file' && /\.(mp3|flac|m4a|aac|ogg|wav|wma|opus|aiff|ape|mp4|m4v|mkv|mov)$/i.test(path);
+
+    const saveMediaTags = async () => {
+        if (!path || !canEditTags) return;
+        setSavingTags(true);
+        setTagSaveMsg(null);
+        try {
+            const result = await IPC.writeMediaTags(path, {
+                Title: editTitle,
+                Album: editAlbum,
+                Artists: editArtists,
+                Genre: editGenre,
+                Comment: editComment,
+            });
+            if (result?.ok) {
+                setTagSaveMsg('Saved');
+                setMeta(prev => ({
+                    ...prev,
+                    Title: editTitle,
+                    Album: editAlbum,
+                    Artists: editArtists,
+                    Genre: editGenre,
+                    Comment: editComment,
+                }));
+            } else {
+                setTagSaveMsg(result?.error || 'Save failed');
+            }
+        } catch (err: any) {
+            setTagSaveMsg(err?.message || 'Save failed');
+        } finally {
+            setSavingTags(false);
+            window.setTimeout(() => setTagSaveMsg(null), 2200);
+        }
     };
 
     const openProperties = () => {
@@ -337,6 +385,33 @@ export default function MetadataPlugin({
                     {activeTab === 'media' && (
                         <PluginCard>
                             <PluginSectionTitle icon="picture_ui">Media & EXIF</PluginSectionTitle>
+                            {canEditTags && (
+                                <div className="mb-4 space-y-2 border-b border-[#3a3a3a] pb-4">
+                                    <div className="text-[11px] text-[#9aa3ad] mb-1">Editable tags</div>
+                                    {([
+                                        ['Title', editTitle, setEditTitle],
+                                        ['Album', editAlbum, setEditAlbum],
+                                        ['Artists', editArtists, setEditArtists],
+                                        ['Genre', editGenre, setEditGenre],
+                                        ['Comment', editComment, setEditComment],
+                                    ] as const).map(([label, value, setter]) => (
+                                        <label key={label} className="flex items-center gap-2 text-[11px]">
+                                            <span className="w-16 shrink-0 text-[#8b919a]">{label}</span>
+                                            <input
+                                                className={PLUGIN_INPUT_CLASS + ' flex-1 min-w-0'}
+                                                value={value}
+                                                onChange={e => setter(e.target.value)}
+                                            />
+                                        </label>
+                                    ))}
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <PluginToolbarButton icon="pencil_ui" onClick={() => void saveMediaTags()} disabled={savingTags}>
+                                            {savingTags ? 'Saving…' : 'Save tags'}
+                                        </PluginToolbarButton>
+                                        {tagSaveMsg && <span className="text-[11px] text-[#9aa3ad]">{tagSaveMsg}</span>}
+                                    </div>
+                                </div>
+                            )}
                             {grouped.media.length ? renderRows(grouped.media) : !loading && (
                                 <PluginEmptyState
                                     icon="picture_ui"

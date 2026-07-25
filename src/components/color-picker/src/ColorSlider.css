@@ -16,7 +16,8 @@
     color: var(--text-color);
   }
 
-  .react-aria-SliderTrack {
+  .react-aria-SliderTrack,
+  .bndz-opacity-track-inset {
     grid-area: track;
     border-radius: var(--color-picker-radius);
   }

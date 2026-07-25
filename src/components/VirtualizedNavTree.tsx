@@ -21,6 +21,7 @@ import type { ClipboardAction } from '../data/ClipboardContext';
 import { getClipboardMarkForEntity } from '../lib/clipboardVisual';
 import { panePathsEqual } from '../lib/pathUtils';
 import { toWindowsPath } from '../lib/pathUtils';
+import { resolveDropOperation } from '../lib/dropOperation';
 import { isPathUnderIndexedRoot } from '../lib/indexedRoots';
 import {
   flattenNavTree,
@@ -87,7 +88,17 @@ async function loadDirectoryChildren(
   config?: AppConfig,
 ): Promise<NavTreeSourceNode[]> {
   try {
-    let items = await IPC.getSubDirectories(path, showHidden);
+    const isShellish = /^\/?shell:/i.test(path || '') || path === '/' || path === '';
+    let items: any[];
+    if (isShellish) {
+      try {
+        items = await IPC.getDirContents(path);
+      } catch {
+        items = await IPC.getSubDirectories(path, showHidden);
+      }
+    } else {
+      items = await IPC.getSubDirectories(path, showHidden);
+    }
     let dirs = (items || []).filter((item: { type?: string; isDirectory?: boolean }) => item.type === 'directory' || item.isDirectory);
     if (skipInvisible) {
       dirs = dirs.filter((d: { name?: string }) => !(d.name || '').startsWith('.'));
@@ -168,7 +179,7 @@ function TreeRow({
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
   const treeRt = buildSettingsRuntime(config).tree;
   const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick && !treeRt.lockState;
-  const indentPx = row.depth * 14 + 6;
+  const indentPx = row.depth * 16 + 8;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -358,7 +369,6 @@ export function VirtualizedNavTree({
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState(280);
   const [dynamicState, setDynamicState] = useState<Record<string, DynamicTreeState>>({});
   const didRestoreTreeStateRef = useRef(false);
   const [dragKey, setDragKey] = useState<string | null>(null);
@@ -522,7 +532,16 @@ export function VirtualizedNavTree({
 
     const filePayload = readBndzFileDragData(e);
     if (filePayload && row.path && onFileDrop) {
-      const op = e.ctrlKey || e.altKey ? 'copy' : 'move';
+      const op = resolveDropOperation({
+        payloadCopy: !!filePayload.copy,
+        ctrlKey: e.ctrlKey || e.metaKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+        sourcePaths: (filePayload.paths || []).map(String),
+        destDir: row.path,
+        sameDriveDefault: config.selectConfig2,
+        crossDriveDefault: config.selectConfig3,
+      });
       onFileDrop(filePayload, row.path, op);
       setDragKey(null);
       setDropTargetKey(null);
@@ -536,7 +555,7 @@ export function VirtualizedNavTree({
     onTreeOrderChange(next);
     setDragKey(null);
     setDropTargetKey(null);
-  }, [dragKey, dropAfter, navTreeOrder, nodes, onTreeOrderChange, onFileDrop, clearExpandDragTimer]);
+  }, [dragKey, dropAfter, navTreeOrder, nodes, onTreeOrderChange, onFileDrop, clearExpandDragTimer, config.selectConfig2, config.selectConfig3]);
 
   const handleDragEnd = useCallback(() => {
     setDragKey(null);
@@ -544,16 +563,6 @@ export function VirtualizedNavTree({
     setFileDropTargetPath(null);
     clearExpandDragTimer();
   }, [clearExpandDragTimer]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setHeight(Math.max(160, entry.contentRect.height));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const flatRows = useMemo(
     () => flattenNavTree(nodes, {
@@ -726,12 +735,25 @@ export function VirtualizedNavTree({
   );
   };
 
+  useEffect(() => {
+    const onFocusTree = () => {
+      scrollRef.current?.focus({ preventScroll: true });
+      scrollRef.current?.scrollTo({ top: 0 });
+    };
+    window.addEventListener('bndz-focus-nav-tree', onFocusTree);
+    return () => window.removeEventListener('bndz-focus-nav-tree', onFocusTree);
+  }, []);
+
   return (
-    <div ref={containerRef} className="nav-tree-host flex-1 min-h-[240px] w-full flex flex-col">
+    <div ref={containerRef} className="nav-tree-host w-full">
       <div
         ref={scrollRef}
-        className="flex-1 min-h-[200px] overflow-y-auto styled-scrollbar nav-tree-scroll"
-        style={{ maxHeight: Math.max(height, 240) }}
+        className={
+          useVirtual
+            ? 'max-h-[min(50vh,520px)] overflow-y-auto overflow-x-hidden styled-scrollbar nav-tree-scroll'
+            : 'overflow-x-hidden nav-tree-scroll'
+        }
+        tabIndex={-1}
         onScroll={() => markIconQueueScrolling()}
         onContextMenu={e => {
           if ((e.target as HTMLElement).closest('.nav-tree-row')) return;
