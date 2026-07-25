@@ -529,6 +529,70 @@ public sealed class BndzFileIndexService : IDisposable
     public List<object> GetRecentFiles(int limit = 500) =>
         QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 ORDER BY modified DESC LIMIT $lim", limit);
 
+    /// <summary>Continuum rail rows with media_kind for Peek Orbit + thumb priority.</summary>
+    public List<object> GetContinuumFiles(int limit = 28)
+    {
+        var lim = Math.Max(1, Math.Min(limit, 64));
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT path,name,size,is_dir,modified,COALESCE(media_kind,'') FROM files
+            WHERE is_dir=0
+            ORDER BY
+              CASE WHEN media_kind IN ('image','video') THEN 0
+                   WHEN media_kind IN ('audio','document') THEN 1
+                   ELSE 2 END,
+              modified DESC
+            LIMIT $lim
+            """;
+        cmd.Parameters.AddWithValue("$lim", lim);
+        var results = new List<object>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var path = reader.GetString(0);
+            var name = reader.GetString(1);
+            var size = reader.GetInt64(2);
+            var isDir = reader.GetInt32(3) == 1;
+            var modified = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt64(4) : 0L;
+            var mediaKind = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
+            if (isDir)
+                results.Add(new { id = path, name, path, type = "directory", modified, mediaKind });
+            else
+                results.Add(new { id = path, name, path, type = "file", size, modified, mediaKind });
+        }
+        return results;
+    }
+
+    /// <summary>Per-folder media density for Place plates / Pulse.</summary>
+    public object GetLibraryPulse()
+    {
+        using var conn = OpenConnection();
+        long images = 0, videos = 0, audio = 0, documents = 0, large = 0;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT
+                  SUM(CASE WHEN media_kind='image' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN media_kind='video' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN media_kind='audio' THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN media_kind='document' OR lower(ext) IN ('pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md') THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN is_dir=0 AND size >= 104857600 THEN 1 ELSE 0 END)
+                FROM files
+                """;
+            using var r = cmd.ExecuteReader();
+            if (r.Read())
+            {
+                images = r.IsDBNull(0) ? 0 : Convert.ToInt64(r.GetValue(0));
+                videos = r.IsDBNull(1) ? 0 : Convert.ToInt64(r.GetValue(1));
+                audio = r.IsDBNull(2) ? 0 : Convert.ToInt64(r.GetValue(2));
+                documents = r.IsDBNull(3) ? 0 : Convert.ToInt64(r.GetValue(3));
+                large = r.IsDBNull(4) ? 0 : Convert.ToInt64(r.GetValue(4));
+            }
+        }
+        return new { images, videos, audio, documents, large };
+    }
+
     public List<object> GetMediaFiles(int limit = 1000) =>
         QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 AND media_kind IN ('image','video') ORDER BY modified DESC LIMIT $lim", limit);
 
@@ -617,6 +681,35 @@ public sealed class BndzFileIndexService : IDisposable
             folderCount = Convert.ToInt64(countCmd.ExecuteScalar());
         }
         return new { fileCount, folderCount, locations };
+    }
+
+    /// <summary>Same-folder siblings for Continuum Peek Orbit (media-first).</summary>
+    public List<object> GetOrbitSiblings(string panePath, int limit = 6)
+    {
+        var norm = NormalizePanePath(panePath ?? "").TrimEnd('/');
+        var slash = norm.LastIndexOf('/');
+        if (slash <= 0 || string.IsNullOrWhiteSpace(norm)) return [];
+        var dir = norm.Substring(0, slash);
+        var lim = Math.Max(1, Math.Min(limit, 12));
+
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT path,name,size,is_dir,modified FROM files
+            WHERE is_dir=0
+              AND path LIKE $prefix
+              AND path NOT LIKE $nested
+              AND path != $self
+            ORDER BY
+              CASE WHEN media_kind IN ('image','video') THEN 0 ELSE 1 END,
+              modified DESC
+            LIMIT $lim
+            """;
+        cmd.Parameters.AddWithValue("$prefix", dir + "/%");
+        cmd.Parameters.AddWithValue("$nested", dir + "/%/%");
+        cmd.Parameters.AddWithValue("$self", norm);
+        cmd.Parameters.AddWithValue("$lim", lim);
+        return ReadFileRows(cmd);
     }
 
     /// <summary>Apply a filesystem watcher event to keep the index fresh.</summary>

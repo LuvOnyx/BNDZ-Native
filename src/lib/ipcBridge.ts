@@ -1000,7 +1000,7 @@ export const IPC = {
     return Promise.resolve(null);
   },
 
-  getVirtualViewContents(view: 'recent' | 'media' | 'large', limit = 500): Promise<any[]> {
+  getVirtualViewContents(view: 'recent' | 'media' | 'audio' | 'documents' | 'large', limit = 500): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_virtualView`;
       return _nativeCall<{ items: any[] }>(
@@ -1043,6 +1043,56 @@ export const IPC = {
         .catch(err => ({ fileCount: 0, folderCount: 0, locations: [], error: String(err?.message || err) }));
     }
     return Promise.resolve({ fileCount: 0, folderCount: 0, locations: [] });
+  },
+
+  getHomeDeck(opts?: { continuumLimit?: number; orbitLimit?: number }): Promise<{
+    continuum: any[];
+    places: Array<{ name: string; path: string; icon?: string; letter?: string; hint?: string }>;
+    drives: any[];
+    index: { fileCount?: number; folderCount?: number; locations?: Array<{ path: string; lastIndexed: number }> };
+    library?: { images?: number; videos?: number; audio?: number; documents?: number; large?: number };
+    pulse: { activeCount: number; queuedCount: number; label: string; transferLabel?: string; queue?: any };
+    orbits: Record<string, any[]>;
+    generatedAt?: number;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_homeDeck`;
+      return _nativeCall('GET_HOME_DECK', 'HOME_DECK_RESULT', id, {
+        continuumLimit: opts?.continuumLimit ?? 28,
+        orbitLimit: opts?.orbitLimit ?? 6,
+      }, 20000)
+        .then((payload: any) => {
+          if (payload?.error) throw new Error(payload.error);
+          return {
+            continuum: Array.isArray(payload?.continuum) ? payload.continuum : [],
+            places: Array.isArray(payload?.places) ? payload.places : [],
+            drives: Array.isArray(payload?.drives) ? payload.drives : [],
+            index: payload?.index || { fileCount: 0, folderCount: 0, locations: [] },
+            library: payload?.library,
+            pulse: payload?.pulse || { activeCount: 0, queuedCount: 0, label: 'Idle' },
+            orbits: payload?.orbits && typeof payload.orbits === 'object' ? payload.orbits : {},
+            generatedAt: payload?.generatedAt,
+          };
+        })
+        .catch(err => ({
+          continuum: [],
+          places: [],
+          drives: [],
+          index: { fileCount: 0, folderCount: 0, locations: [] },
+          pulse: { activeCount: 0, queuedCount: 0, label: 'Idle' },
+          orbits: {},
+          error: String(err?.message || err),
+        }));
+    }
+    return Promise.resolve({
+      continuum: [],
+      places: [],
+      drives: [],
+      index: { fileCount: 0, folderCount: 0, locations: [] },
+      pulse: { activeCount: 0, queuedCount: 0, label: 'Idle' },
+      orbits: {},
+    });
   },
 
   reindexBndzDefaults(): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {

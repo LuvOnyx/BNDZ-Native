@@ -1,7 +1,7 @@
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
 import { getPaneTabLabel } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
-import { BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel } from './bndzVirtualViews';
+import { BNDZ_HOME, BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel } from './bndzVirtualViews';
 import { ENV_PATH_ALIASES, SPECIAL_FOLDER_PANE_PATHS } from './shellPaths';
 
 /** `C:` from `/C:` or `//C:` */
@@ -35,6 +35,7 @@ export function formatAddressBarPath(panePath: string): string {
   const p = normalizePanePath(panePath);
   if (p.startsWith('/vf/')) return `vf://${p.slice(4)}`;
   if (p === '/vf') return 'vf://';
+  if (p === BNDZ_HOME) return 'Home';
   if (p === BNDZ_VIEWS_ROOT) return 'Smart views';
   const bndzView = parseBndzVirtualView(p);
   if (bndzView) return bndzVirtualLabel(bndzView);
@@ -69,6 +70,15 @@ export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<st
     ];
   }
   if (p === '/' || p === '/this-pc') return [{ label: 'This PC', path: '/' }];
+  if (p === BNDZ_HOME) return [{ label: 'Home', path: BNDZ_HOME }];
+  if (p === BNDZ_VIEWS_ROOT) return [{ label: 'Smart views', path: BNDZ_VIEWS_ROOT }];
+  const bndzView = parseBndzVirtualView(p);
+  if (bndzView) {
+    return [
+      { label: 'Smart views', path: BNDZ_VIEWS_ROOT },
+      { label: bndzVirtualLabel(bndzView), path: p },
+    ];
+  }
   if (isRecycleBinPath(p)) return [{ label: 'Recycle Bin', path: RECYCLE_BIN_PATH }];
   if (p === '//' || p === '\\\\') return [{ label: 'Network', path: '//' }];
   if (p === '/shell:PortableDevices' || p.toLowerCase() === '/shell:portabledevices') {
@@ -170,10 +180,12 @@ export function parseUserPathToPane(input: string): string | null {
   if (/^this\s*pc$/i.test(raw)) return '/';
   if (/^recycle\s*bin$/i.test(raw)) return RECYCLE_BIN_PATH;
   if (/^network$/i.test(raw)) return '//';
+  if (/^home$/i.test(raw) || /^continuum$/i.test(raw) || /^bndz\s*home$/i.test(raw) || /^start$/i.test(raw)) return BNDZ_HOME;
   if (/^recent\s*files?$/i.test(raw)) return '/bndz/recent';
   if (/^photos?\s*&?\s*videos?$/i.test(raw) || /^media$/i.test(raw)) return '/bndz/media';
   if (/^large\s*files?$/i.test(raw)) return '/bndz/large';
   if (/^smart\s*views?$/i.test(raw)) return BNDZ_VIEWS_ROOT;
+  if (/^profile$/i.test(raw)) return '/shell:Profile';
   const special = SPECIAL_FOLDER_PANE_PATHS[raw.toLowerCase()];
   if (special) return special;
   const catalogPath = parseUserCatalogPath(raw);

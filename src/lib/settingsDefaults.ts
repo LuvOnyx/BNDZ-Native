@@ -276,7 +276,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   nativeContextMenu: false,
   nativeDragAndDropContextMenu: false,
   navigationCommandsInListContextMenu: false,
-  newTabPath: '',
+  newTabPath: '/bndz/home',
   noNetworkBrowsingAtStartup: false,
   noProgressDialogOnDuplications: false,
   noProgressDialogOnIntraVolumeMoves: false,

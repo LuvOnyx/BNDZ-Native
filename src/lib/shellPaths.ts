@@ -29,7 +29,10 @@ export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
   pictures: '/shell:My Pictures',
   music: '/shell:My Music',
   videos: '/shell:My Video',
-  home: '/shell:Profile',
+  home: '/bndz/home',
+  continuum: '/bndz/home',
+  'bndz home': '/bndz/home',
+  start: '/bndz/home',
   profile: '/shell:Profile',
   gallery: '/shell:PicturesLibrary',
   libraries: '/shell:Libraries',
@@ -41,6 +44,7 @@ export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
   'recent files': '/bndz/recent',
   media: '/bndz/media',
   'large files': '/bndz/large',
+  'smart views': '/bndz',
 };
 
 /** Bare aliases → Windows env vars (expanded via host before navigation). */

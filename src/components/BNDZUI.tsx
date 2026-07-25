@@ -122,6 +122,7 @@ import SizeView from '../spacedrive/port/SizeView';
 import FindingTabToolbar from './FindingTabToolbar';
 import BndzMediaView from './views/BndzMediaView';
 import BndzHubView from './views/BndzHubView';
+import BndzHomeView from './views/BndzHomeView';
 import BndzRecentsView from './views/BndzRecentsView';
 import BndzQuickPreview from './preview/BndzQuickPreview';
 import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
@@ -129,7 +130,8 @@ import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT, BNDZ_HOME } from '../lib/bndzVirtualViews';
+import { pushGhostTrail, getGhostTrail } from '../lib/ghostTrail';
 import {
   GOOGLE_DRIVE_HUB_PATH,
   groupCloudProvidersForNav,
@@ -1179,7 +1181,7 @@ export default function BNDZUI() {
   const [panes, setPanes] = useState<PaneState[]>([
      { 
        id: 'pane1', 
-       tabs: [{ id: 't1', path: '/', history: ['/'], historyIndex: 0, selectedItems: [], viewMode: undefined }],
+       tabs: [{ id: 't1', path: BNDZ_HOME, history: [BNDZ_HOME], historyIndex: 0, selectedItems: [], viewMode: undefined }],
        activeTabIndex: 0,
        sortColumn: ((config.listSortColumn as SortColumnId) || 'name'),
        sortDirection: config.listSortDirection === 'desc' ? 'desc' : 'asc',
@@ -1341,7 +1343,7 @@ export default function BNDZUI() {
         if (isBndzVirtualPath(path)) {
           const view = parseBndzVirtualView(path);
           if (!view) {
-            // Hub root `/bndz` — no listing fetch; hub UI is rendered from path alone.
+            // Hub `/bndz` and Continuum Home `/bndz/home` — custom surfaces, no listing fetch.
             setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
             return;
           }
@@ -3172,9 +3174,19 @@ export default function BNDZUI() {
   const treeData = useMemo(() => {
     const raw: NavTreeBuildNode[] = [
       {
-        treeKey: 'home',
+        treeKey: 'continuum-home',
         draggable: true,
         label: 'Home',
+        path: BNDZ_HOME,
+        icon: 'home',
+        iconColor: '#7eb8e8',
+        useShellIcon: false,
+        onClick: () => setCurrentPath(BNDZ_HOME),
+      },
+      {
+        treeKey: 'profile',
+        draggable: true,
+        label: 'Profile',
         path: homeTreePath,
         iconPath: KNOWN_FOLDER_SHELL.Home,
         icon: 'home',
@@ -4441,6 +4453,7 @@ export default function BNDZUI() {
       navHistoryTimerRef.current = setTimeout(() => {
         updateConfig({ navigationHistory: recordNavVisit(config.navigationHistory, norm) });
       }, 500);
+      pushGhostTrail(norm, getPaneTabLabel(norm));
       if (norm !== '/' && !norm.startsWith('/vf/') && !norm.startsWith('/shell:') && !norm.includes('>')) {
         const prev = (config.recentFiles as string[] | undefined) || [];
         const next = [norm, ...prev.filter(p => p !== norm)].slice(0, 15);
@@ -5024,7 +5037,7 @@ export default function BNDZUI() {
       return;
     }
     if (isBndzVirtualPath(norm)) {
-      if (norm === BNDZ_VIEWS_ROOT) setCurrentPath('/', paneId);
+      if (isBndzHomePath(norm) || norm === BNDZ_VIEWS_ROOT) setCurrentPath('/', paneId);
       else setCurrentPath(BNDZ_VIEWS_ROOT, paneId);
       setSelectedItems([], paneId);
       return;
@@ -6929,13 +6942,62 @@ export default function BNDZUI() {
                <span className="text-[11px]">Searching{globalSearchEngine === 'indexed' ? ' local cache' : config.enableEverythingSearch !== false ? ' with Everything' : ''}…</span>
              </div>
           )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzHomePath(normPanePath) && (
+            <BndzHomeView
+              onNavigate={p => setCurrentPath(p, pane.id)}
+              onOpenPath={(p, meta) => {
+                const panePathNorm = normalizePanePath(toPanePath(p));
+                const isDir = meta?.type === 'directory'
+                  || isBndzVirtualPath(panePathNorm)
+                  || /^\/[A-Za-z]:$/.test(panePathNorm)
+                  || panePathNorm === '/'
+                  || panePathNorm === '//';
+                if (isDir || meta?.type === 'directory') {
+                  setCurrentPath(panePathNorm, pane.id);
+                  return;
+                }
+                if (meta?.type === 'file') {
+                  void IPC.executeContextMenuVerb(toWindowsPath(panePathNorm), 'open');
+                  return;
+                }
+                // Untyped (Focus Stage / omnibox): prefer navigate for folder-like leaves, else shell-open.
+                const leaf = panePathNorm.split('/').pop() || '';
+                if (!leaf.includes('.')) {
+                  setCurrentPath(panePathNorm, pane.id);
+                  return;
+                }
+                void IPC.executeContextMenuVerb(toWindowsPath(panePathNorm), 'open');
+              }}
+              onOpenInNewTab={p => addTab(pane.id, normalizePanePath(toPanePath(p)))}
+              onOpenOpposite={p => openFolderInOppositePane(normalizePanePath(toPanePath(p)), pane.id)}
+              onRevealFolder={p => setCurrentPath(normalizePanePath(toPanePath(p)), pane.id)}
+              onIndexInvite={() => {
+                void IPC.reindexBndzDefaults().then(r => {
+                  if (r?.ok) setToastMessage('Indexing default libraries…');
+                  else setToastMessage(r?.error || 'Could not start indexing.', 'warning');
+                });
+              }}
+              focusStage={(() => {
+                if (clipboard.items.length > 0) {
+                  const cp = clipboard.items[0];
+                  const name = String(cp).split(/[/\\]/).pop() || 'Clipboard item';
+                  return { path: toPanePath(cp), name, kind: 'clipboard' as const };
+                }
+                const trail = getGhostTrail()[0];
+                if (trail && !isBndzHomePath(trail.path)) {
+                  return { path: trail.path, name: trail.name, kind: 'focus' as const };
+                }
+                return null;
+              })()}
+            />
+          )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && normPanePath === BNDZ_VIEWS_ROOT && (
             <BndzHubView
               onNavigate={p => setCurrentPath(p, pane.id)}
               onRefresh={() => void refetchPath(BNDZ_VIEWS_ROOT)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
             <MillerColumnsView
               rootPath={isThisPc ? '/' : panePath}
               selectedPath={panePath}
@@ -6946,7 +7008,7 @@ export default function BNDZUI() {
               onPrefetchPath={(p) => void prefetchPathQuiet(p)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'size' && normPanePath !== BNDZ_VIEWS_ROOT && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'size' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
             (() => {
               const sizeItems = (contents || []).map((ent: any) => {
                 const p = buildEntityPath(ent);
@@ -6983,7 +7045,7 @@ export default function BNDZUI() {
               );
             })()
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'media' && normPanePath !== BNDZ_VIEWS_ROOT && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'media' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
             <BndzMediaView
               items={contents || []}
               fetchError={virtualViewErrors[normPanePath]}
@@ -7000,7 +7062,7 @@ export default function BNDZUI() {
               onIndexBuilt={() => void refetchPath(normPanePath)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
             <BndzRecentsView
               items={contents || []}
               fetchError={virtualViewErrors[normPanePath]}
@@ -7017,7 +7079,7 @@ export default function BNDZUI() {
               onIndexBuilt={() => void refetchPath(normPanePath)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode !== 'columns' && computedViewMode !== 'size' && computedViewMode !== 'media' && computedViewMode !== 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode !== 'columns' && computedViewMode !== 'size' && computedViewMode !== 'media' && computedViewMode !== 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
             <>
             {(() => {
               const stickyOn = config.stickyGroupHeaders !== false;
@@ -8227,8 +8289,11 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => enterFocusedOrSelectedFolder())}>Down (Enter Folder)</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => focusAddressBar())}>Breadcrumb / Address Bar</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(BNDZ_HOME))}>
                        <Icons8Icon id="home" size={14} /> Home
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
+                       <Icons8Icon id="home" size={14} /> Profile
                     </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/'))}>
                        <Icons8Icon id="this_pc" size={14} /> This PC
@@ -8782,7 +8847,7 @@ export default function BNDZUI() {
                            case 'nav_back': goBack(activePaneId); break;
                            case 'nav_forward': goForward(activePaneId); break;
                            case 'nav_up': goUp(activePaneId); break;
-                           case 'go_home': setCurrentPath(homeTreePath); break;
+                           case 'go_home': setCurrentPath(BNDZ_HOME); break;
                           case 'refresh': {
                               IPC.getSystemDrives().then(setDrives);
                               IPC.getCloudProviders().then(setCloudProviders);

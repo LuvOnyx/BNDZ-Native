@@ -1,6 +1,7 @@
 /** BNDZ-native smart views — backed by local file cache, not external engines. */
 
 export const BNDZ_VIEWS_ROOT = '/bndz';
+export const BNDZ_HOME = '/bndz/home';
 export const BNDZ_RECENT = '/bndz/recent';
 export const BNDZ_MEDIA = '/bndz/media';
 export const BNDZ_AUDIO = '/bndz/audio';
@@ -12,6 +13,11 @@ export type BndzVirtualView = 'recent' | 'media' | 'audio' | 'documents' | 'larg
 export function isBndzVirtualPath(path: string): boolean {
   const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
   return n === BNDZ_VIEWS_ROOT || n.startsWith(`${BNDZ_VIEWS_ROOT}/`);
+}
+
+export function isBndzHomePath(path: string): boolean {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  return n === BNDZ_HOME;
 }
 
 export function parseBndzVirtualView(path: string): BndzVirtualView | null {

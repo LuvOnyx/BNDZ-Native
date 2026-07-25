@@ -199,6 +199,9 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.xCloseAction = merged.minimizeToTrayOnXClose ? 'tray' : 'ask';
     }
     if (typeof merged.permanentStartupPath !== 'string') merged.permanentStartupPath = '';
+    if (typeof merged.newTabPath !== 'string' || !String(merged.newTabPath).trim()) {
+        merged.newTabPath = '/bndz/home';
+    }
     if (typeof merged.startupWindowState !== 'string' || !merged.startupWindowState || merged.startupWindowState === 'false') {
         merged.startupWindowState = 'Normal';
     }

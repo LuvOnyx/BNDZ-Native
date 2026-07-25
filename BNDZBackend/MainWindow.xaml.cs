@@ -3382,6 +3382,124 @@ namespace BNDZ
                         }
                     });
                 }
+                else if (type == "GET_HOME_DECK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    int continuumLimit = 28;
+                    int orbitLimit = 6;
+                    if (root.TryGetProperty("payload", out var homePayload))
+                    {
+                        if (homePayload.TryGetProperty("continuumLimit", out var clEl) && clEl.ValueKind == JsonValueKind.Number)
+                            continuumLimit = clEl.GetInt32();
+                        if (homePayload.TryGetProperty("orbitLimit", out var olEl) && olEl.ValueKind == JsonValueKind.Number)
+                            orbitLimit = olEl.GetInt32();
+                    }
+
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var svc = BndzFileIndexService.Instance;
+                            var recent = svc.GetContinuumFiles(Math.Clamp(continuumLimit, 8, 64));
+                            var status = svc.GetIndexStatus();
+                            var library = svc.GetLibraryPulse();
+                            var queue = _fileTransferQueue.GetQueueState();
+                            var drives = _cloudStorageService.GetAnnotatedDrives();
+
+                            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).Replace("\\", "/");
+                            var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures).Replace("\\", "/");
+                            var galleryPath = pictures;
+                            var gallerySub = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Gallery");
+                            if (Directory.Exists(gallerySub))
+                                galleryPath = gallerySub.Replace("\\", "/");
+
+                            static string ToPaneFs(string win) =>
+                                "/" + win.Replace("\\", "/").TrimStart('/');
+
+                            var places = new List<object>
+                            {
+                                new { name = "Profile",  path = ToPaneFs(userProfile), icon = "home", letter = "R", hint = "User profile" },
+                                new { name = "Desktop",  path = ToPaneFs(Environment.GetFolderPath(Environment.SpecialFolder.Desktop)), icon = "desktop", letter = "D", hint = "Desktop" },
+                                new { name = "Documents", path = ToPaneFs(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)), icon = "documents", letter = "O", hint = "Documents" },
+                                new { name = "Downloads", path = ToPaneFs(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")), icon = "downloads", letter = "W", hint = "Downloads" },
+                                new { name = "Pictures", path = ToPaneFs(pictures), icon = "pictures", letter = "P", hint = "Pictures" },
+                                new { name = "Music",    path = ToPaneFs(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)), icon = "music", letter = "M", hint = "Music" },
+                                new { name = "Videos",   path = ToPaneFs(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)), icon = "videos", letter = "V", hint = "Videos" },
+                                new { name = "Gallery",  path = ToPaneFs(galleryPath), icon = "gallery", letter = "G", hint = "Gallery" },
+                            };
+
+                            var orbits = new Dictionary<string, object[]>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var item in recent.Take(14))
+                            {
+                                var itemPath = item.GetType().GetProperty("path")?.GetValue(item) as string;
+                                if (string.IsNullOrWhiteSpace(itemPath) || orbits.ContainsKey(itemPath)) continue;
+                                orbits[itemPath] = svc.GetOrbitSiblings(itemPath, Math.Clamp(orbitLimit, 4, 8)).ToArray();
+                            }
+
+                            var activeCount = _fileTransferQueue.ActiveCount;
+                            var queuedCount = Math.Max(0, _fileTransferQueue.QueuedCount);
+                            string? transferLabel = null;
+                            try
+                            {
+                                var qJson = JsonSerializer.Serialize(queue);
+                                using var qDoc = JsonDocument.Parse(qJson);
+                                if (qDoc.RootElement.TryGetProperty("jobs", out var jobs) && jobs.ValueKind == JsonValueKind.Array)
+                                {
+                                    foreach (var job in jobs.EnumerateArray())
+                                    {
+                                        var st = job.TryGetProperty("status", out var stEl) ? stEl.GetString() ?? "" : "";
+                                        if (st.Equals("running", StringComparison.OrdinalIgnoreCase)
+                                            || st.Equals("active", StringComparison.OrdinalIgnoreCase)
+                                            || st.Equals("copying", StringComparison.OrdinalIgnoreCase)
+                                            || st.Equals("moving", StringComparison.OrdinalIgnoreCase)
+                                            || st.Equals("paused", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            transferLabel = job.TryGetProperty("label", out var lb) ? lb.GetString() : null;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+
+                            var pulseLabel = activeCount > 0
+                                ? (string.IsNullOrWhiteSpace(transferLabel)
+                                    ? $"{activeCount} transfer{(activeCount == 1 ? "" : "s")} active"
+                                    : transferLabel!)
+                                : queuedCount > 0
+                                    ? $"{queuedCount} queued"
+                                    : "Idle";
+
+                            var payload = new
+                            {
+                                continuum = recent,
+                                places,
+                                drives,
+                                index = status,
+                                library,
+                                pulse = new
+                                {
+                                    activeCount,
+                                    queuedCount,
+                                    label = pulseLabel,
+                                    transferLabel,
+                                    queue,
+                                },
+                                orbits,
+                                generatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                            };
+                            var response = new { type = "HOME_DECK_RESULT", id = idProp, payload };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new { type = "HOME_DECK_RESULT", id = idProp, payload = new { error = ex.Message } };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                    });
+                }
                 else if (type == "REINDEX_BNDZ_DEFAULTS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
