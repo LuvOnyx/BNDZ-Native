@@ -70,6 +70,8 @@ export interface AppConfig {
     pinnedFavorites?: Array<{ name: string, path: string, icon: string, label?: string }>;
     /** Default Rapid access paths the user chose to hide (Desktop, Documents, etc.) */
     hiddenRapidAccess?: string[];
+    /** Persisted display order for Rapid Access rows (known-folder keys + custom paths). */
+    rapidAccessOrder?: string[];
     sidebarOrder?: string[];
     navTreeOrder?: string[];
     installedPlugins?: string[];

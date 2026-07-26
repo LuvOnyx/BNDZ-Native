@@ -1,4 +1,5 @@
 import { IPC } from './ipcBridge';
+import { flushBndzMeta, writeBndzMetaDebounced } from './bndzMetaStore';
 
 export type CanvasItem = {
   id: string;
@@ -55,9 +56,17 @@ export async function loadSpatialCanvas(): Promise<SpatialCanvasDoc> {
   return cache;
 }
 
-export async function saveSpatialCanvas(doc: SpatialCanvasDoc): Promise<void> {
+export async function saveSpatialCanvas(doc: SpatialCanvasDoc, delayMs = 400): Promise<boolean> {
   const next = { ...doc, updatedAt: Date.now() };
   cache = next;
-  if (!IPC.isNative) return;
-  await IPC.setBndzMeta(META_KEY, JSON.stringify(next));
+  if (!IPC.isNative) return true;
+  await writeBndzMetaDebounced(META_KEY, JSON.stringify(next), delayMs);
+  return true;
+}
+
+export async function saveSpatialCanvasNow(doc: SpatialCanvasDoc): Promise<boolean> {
+  const next = { ...doc, updatedAt: Date.now() };
+  cache = next;
+  if (!IPC.isNative) return true;
+  return flushBndzMeta(META_KEY, JSON.stringify(next));
 }

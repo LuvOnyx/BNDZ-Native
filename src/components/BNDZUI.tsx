@@ -38,6 +38,7 @@ import {
   hitTestNavTreeAtPoint,
   hitTestNewTabZoneAtPoint,
   hitTestTabAtPoint,
+  hitTestListBodyAtPoint,
   beginFileDragSession,
   endFileDragSession,
   stashOleDragSession,
@@ -47,6 +48,11 @@ import {
   isInternalFileDragChromeAtPoint,
   DEFAULT_TAB_HOVER_DELAY_MS,
 } from '../lib/fileDragSession';
+import {
+  POINTER_FILE_DRAG_MOVE,
+  type PointerFileDragMoveDetail,
+} from '../lib/pointerFileDragBridge';
+import { IPC, RenameOperation } from '../lib/ipcBridge';
 import { requestMediaHandoff } from '../lib/mediaPlaybackBridge';
 import { isAudioExt } from '../lib/mediaTypes';
 import ClampedFixedMenu from './ClampedFixedMenu';
@@ -80,6 +86,7 @@ import BottomPluginPanel from './BottomPluginPanel';
 import { LeftSidebar } from './LeftSidebar';
 import { ThumbnailIcon } from './ThumbnailIcon';
 import { ShellNativeIcon } from './ShellNativeIcon';
+import { CloudNavIcon } from './CloudNavIcon';
 import ToolbarConfigurator, { resolveToolbarItem } from './ToolbarConfigurator';
 import { createEntityTooltipHandlers } from '../lib/entityTooltip';
 import {
@@ -168,7 +175,11 @@ import {
   resolveEntityWindowsPath,
 } from '../lib/clipboardVisual';
 import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath, panePathsEqual } from '../lib/pathUtils';
-import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites, collapseKnownFolderShadowPath } from '../lib/rapidAccessDefaults';
+import { isMeshPath } from '../lib/meshPaths';
+import { canonicalDropPath, resolveDropRoute } from '../lib/fsPathRouting';
+import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
+import { formatTransferProgressLine } from '../lib/fileTransferQueue';
+import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites, collapseKnownFolderShadowPath, orderRapidAccessItems, knownFolderDedupeKey } from '../lib/rapidAccessDefaults';
 import { hasBndzFileDrag, readBndzFileDragData } from '../lib/bndzDrag';
 import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, resolveEntityPanePath, isShellKnownFolderRoot, shellKnownFolderParent, resolveShellKnownFolderToFs, resolveShellPropertiesPath } from '../lib/shellPaths';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
@@ -180,6 +191,8 @@ import { listCatalogs } from '../lib/catalog';
 import { dispatchCustomEvent } from '../lib/customEventActions';
 import { dispatchMouseItemBinding, resolveMouseBindingKey } from '../lib/mouseBindings';
 import { applyNavTreeOrder, mergeNavTreeOrder, type NavTreeBuildNode } from '../lib/navTreeOrder';
+import { buildMeshPath, MESH_ROOT } from '../lib/meshPaths';
+import { normalizeMeshHost, type MeshHost } from '../lib/meshTypes';
 import { runMenubarAction } from '../lib/menubarUtils';
 import {
   evaluateColorFilter,
@@ -1102,9 +1115,13 @@ export default function BNDZUI() {
   marqueeOpsRef.current.scheduleSelectionChrome = scheduleSelectionChrome;
   marqueeOpsRef.current.scheduleQuickActionsBar = scheduleQuickActionsBar;
   const internalDragRef = useRef(false);
+  const [pointerFileDragActive, setPointerFileDragActive] = useState(false);
+  pointerFileDragActiveRef.current = pointerFileDragActive;
   const dropModifierRef = useRef({ copy: false });
+  /** Last HTML5 drag-over target — fallback when native drop coordinates miss. */
+  const htmlDropTargetRef = useRef<{ paneId: string; tabPath: string } | null>(null);
+  const pointerFileDragActiveRef = useRef(false);
   const xferMetaRef = useRef(new Map<string, { op: 'copy' | 'move' | 'delete'; label: string; selectParentPath?: string }>());
-  const [listDragOperation, setListDragOperation] = useState<'copy' | 'move' | null>(null);
   const [listDragGhost, setListDragGhost] = useState<ListDragGhostState | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [editingAddressBarPaneId, setEditingAddressBarPaneId] = useState<string | null>(null);
@@ -1692,7 +1709,7 @@ export default function BNDZUI() {
   const columnResizeActiveRef = useRef(false);
   const [columnPicker, setColumnPicker] = useState<{ x: number; y: number } | null>(null);
   const [renamingFavoritePath, setRenamingFavoritePath] = useState<string | null>(null);
-  const [favoriteDrag, setFavoriteDrag] = useState<{ sourcePath: string; overPath: string | null } | null>(null);
+  const [favoriteDrag, setFavoriteDrag] = useState<{ sourcePath: string; overPath: string | null; insertAfter?: boolean } | null>(null);
   const [breadcrumbDropTarget, setBreadcrumbDropTarget] = useState<string | null>(null);
   const [navTreeFileDropTarget, setNavTreeFileDropTarget] = useState<string | null>(null);
   const nativeOleDragRef = useRef(false);
@@ -2516,7 +2533,7 @@ export default function BNDZUI() {
   useEffect(() => {
     if (!IPC.isNative) return;
     const completed = new Set<string>();
-    const refreshCategories = new Set(['fs', 'recycle', 'archive', 'folder-sync']);
+    const refreshCategories = new Set(['fs', 'recycle', 'archive', 'folder-sync', 'mesh']);
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const unsub = IPC.onFileTransferQueueChanged(state => {
       let shouldRefresh = false;
@@ -2543,8 +2560,10 @@ export default function BNDZUI() {
               });
             } else if (job.status === 'completed') {
               const doneVerb = action === 'delete' || meta?.op === 'delete' ? 'Deleted'
-                : action === 'move' || meta?.op === 'move' ? 'Move complete'
-                : action === 'copy' || meta?.op === 'copy' ? 'Copy complete'
+                : action === 'move' || meta?.op === 'move' || action === 'mesh-move' ? 'Move complete'
+                : action === 'copy' || meta?.op === 'copy' || action === 'mesh-copy' ? 'Copy complete'
+                : action === 'mesh-upload' ? 'Upload complete'
+                : action === 'mesh-download' ? 'Download complete'
                 : job.operationId.startsWith('archive-') ? 'Archive created'
                 : job.operationId.startsWith('extract-') ? 'Extraction complete'
                 : 'Transfer complete';
@@ -2566,6 +2585,36 @@ export default function BNDZUI() {
       if (refreshTimer) clearTimeout(refreshTimer);
     };
   }, [refreshPathsForPanes, config.selectParentOfMovedFolder]);
+
+  // Live speed/ETA in progress toasts (optional — Configuration → Background processing).
+  useEffect(() => {
+    if (!IPC.isNative || !fileOpsRt.showTransferSpeedEta) return;
+    const unsub = IPC.onFileTransferQueueChanged(state => {
+      for (const job of state.jobs) {
+        if (job.status !== 'running' && job.status !== 'queued') continue;
+        const meta = xferMetaRef.current.get(job.operationId);
+        if (!meta) continue;
+        const progressLine = formatTransferProgressLine(job);
+        if (!progressLine) continue;
+        const action = (job.action || meta.op || '').toLowerCase();
+        const verb = action === 'mesh-upload' ? 'Uploading'
+          : action === 'mesh-download' ? 'Downloading'
+          : action.includes('mesh') ? 'Transferring'
+          : meta.op === 'move' ? 'Moving'
+          : meta.op === 'copy' ? 'Copying'
+          : 'Transferring';
+        pushToast({
+          id: `xfer-${job.operationId}`,
+          kind: 'progress',
+          title: `${verb}…`,
+          message: `${meta.label} · ${progressLine}`,
+          progress: job.progress ?? undefined,
+          sticky: true,
+        });
+      }
+    });
+    return () => unsub();
+  }, [fileOpsRt.showTransferSpeedEta]);
 
   useEffect(() => {
     if (config.showTopMenubar === false) return;
@@ -3038,6 +3087,8 @@ export default function BNDZUI() {
 
   const [thisPcExpanded, setThisPcExpanded] = useState(true);
   const [networkExpanded, setNetworkExpanded] = useState(false);
+  const [meshExpanded, setMeshExpanded] = useState(false);
+  const [meshHosts, setMeshHosts] = useState<MeshHost[]>([]);
   const [linuxExpanded, setLinuxExpanded] = useState(false);
   const [librariesExpanded, setLibrariesExpanded] = useState(true);
   const [destinationPicker, setDestinationPicker] = useState<{ mode: 'copy' | 'move'; sources: string[] } | null>(null);
@@ -3045,7 +3096,102 @@ export default function BNDZUI() {
   const [newTabDropPaneId, setNewTabDropPaneId] = useState<string | null>(null);
   const tabFileDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabFileDragHoverRef = useRef<{ paneId: string; tabIndex: number } | null>(null);
+  const [favoriteReorderGhost, setFavoriteReorderGhost] = useState<{ x: number; y: number; label: string } | null>(null);
+  const favoriteDragLiveRef = useRef<{ sourcePath: string; overPath: string | null; insertAfter: boolean } | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+
+  const beginFavoriteReorder = React.useCallback((qaPath: string, label: string, e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+    favoriteDragLiveRef.current = { sourcePath: qaPath, overPath: null, insertAfter: false };
+
+    const findDropTarget = (clientY: number) => {
+      const rows = Array.from(document.querySelectorAll('[data-favorite-path]'));
+      for (const row of rows) {
+        const el = row as HTMLElement;
+        const path = el.getAttribute('data-favorite-path');
+        if (!path || path === qaPath) continue;
+        const rect = el.getBoundingClientRect();
+        if (clientY >= rect.top - 4 && clientY <= rect.bottom + 4) {
+          return { overPath: path, insertAfter: clientY > rect.top + rect.height / 2 };
+        }
+      }
+      return { overPath: null as string | null, insertAfter: false };
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragging) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+        dragging = true;
+      }
+      const target = findDropTarget(ev.clientY);
+      favoriteDragLiveRef.current = { sourcePath: qaPath, ...target };
+      setFavoriteDrag({ sourcePath: qaPath, ...target });
+      setFavoriteReorderGhost({ x: ev.clientX, y: ev.clientY, label });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setFavoriteReorderGhost(null);
+      const live = favoriteDragLiveRef.current;
+      favoriteDragLiveRef.current = null;
+      setFavoriteDrag(null);
+      if (!dragging || !live?.overPath || live.sourcePath === live.overPath) return;
+      const items = [...rapidAccessItemsRef.current];
+      const fromIdx = items.findIndex(i => normalizePanePath(i.path) === live.sourcePath);
+      const toIdx = items.findIndex(i => normalizePanePath(i.path) === live.overPath);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const reordered = [...items];
+      const [moved] = reordered.splice(fromIdx, 1);
+      let insertAt = toIdx;
+      if (fromIdx < toIdx) insertAt -= 1;
+      if (live.insertAfter) insertAt += 1;
+      reordered.splice(Math.max(0, Math.min(insertAt, reordered.length)), 0, moved);
+      const rapidAccessOrder = reordered.map(i =>
+        knownFolderDedupeKey(i.path, shortcuts) || normalizePanePath(i.path).replace(/\\/g, '/').toLowerCase(),
+      );
+      const pinPaths = reordered.filter(i => !i.isDefault).map(i => normalizePanePath(i.path));
+      const pinned = [...(config.pinnedFavorites || [])];
+      const sortedPins = pinPaths
+        .map(p => pinned.find((pf: { path?: string }) => normalizePanePath(pf.path || '') === p))
+        .filter(Boolean) as typeof pinned;
+      const remainingPins = pinned.filter((pf: { path?: string }) =>
+        !pinPaths.includes(normalizePanePath(pf.path || '')),
+      );
+      updateConfig({
+        rapidAccessOrder,
+        pinnedFavorites: dedupePinnedFavorites([...sortedPins, ...remainingPins], shortcuts),
+      });
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [config.pinnedFavorites, shortcuts, updateConfig]);
+
+  useEffect(() => {
+    if (!IPC.isNative) return;
+    IPC.meshListHosts().then(list => {
+      setMeshHosts((list as Record<string, unknown>[]).map(normalizeMeshHost));
+    }).catch(() => {});
+    return IPC.onMeshHostsChanged((list) => {
+      setMeshHosts((list as Record<string, unknown>[]).map(normalizeMeshHost));
+    });
+  }, []);
+
+  useEffect(() => {
+    const onOpenConfig = (e: Event) => {
+      const tab = (e as CustomEvent).detail?.tab;
+      if (tab) setConfigInitialTab(tab);
+      setIsConfigDialogOpen(true);
+    };
+    window.addEventListener('bndz-open-configuration', onOpenConfig);
+    return () => window.removeEventListener('bndz-open-configuration', onOpenConfig);
+  }, []);
 
   const homeShortcut = shortcuts.find(s => s.name === 'Home');
   const galleryShortcut = shortcuts.find(s => s.name === 'Gallery');
@@ -3173,8 +3319,11 @@ export default function BNDZUI() {
       iconPath: p.iconPath,
       isDefault: false,
     }));
-    return mergeRapidAccessItems(pins, defaults, shortcuts);
-  }, [config.pinnedFavorites, config.hiddenRapidAccess, config.selectConfig10, shortcuts, windowsUsername, galleryShortcut]);
+    return orderRapidAccessItems(mergeRapidAccessItems(pins, defaults, shortcuts), config.rapidAccessOrder, shortcuts);
+  }, [config.pinnedFavorites, config.hiddenRapidAccess, config.selectConfig10, config.rapidAccessOrder, shortcuts, windowsUsername, galleryShortcut]);
+
+  const rapidAccessItemsRef = useRef(rapidAccessItems);
+  rapidAccessItemsRef.current = rapidAccessItems;
 
   // Once system shortcuts load, rewrite open tabs still on /shell:Desktop etc. to real FS paths.
   useEffect(() => {
@@ -3361,6 +3510,28 @@ export default function BNDZUI() {
           iconColor: '#0078d4',
         })),
       },
+      ...(config.meshShowInNavTree !== false && meshHosts.some(h => h.showInNavTree !== false) ? [{
+        treeKey: 'remote-mesh',
+        draggable: true,
+        label: 'Remote Mesh',
+        path: MESH_ROOT,
+        icon: 'cloud_ui',
+        iconColor: '#38bdf8',
+        useShellIcon: false,
+        expanded: meshExpanded,
+        selected: currentPath === MESH_ROOT || currentPath.startsWith(`${MESH_ROOT}/`),
+        onClick: () => guardedSetCurrentPath(MESH_ROOT),
+        onToggle: () => setMeshExpanded(!meshExpanded),
+        childrenItems: meshHosts
+          .filter(h => h.showInNavTree !== false)
+          .map(h => ({
+            label: h.alias,
+            path: buildMeshPath(h.id, h.remoteRootPath || '/'),
+            icon: h.provider === 1 ? 'cloud_ui' : 'server_ui',
+            iconColor: h.state === 2 ? '#34d399' : '#38bdf8',
+            useShellIcon: false,
+          })),
+      } as NavTreeBuildNode] : []),
       {
         treeKey: 'recycle-bin',
         draggable: true,
@@ -3383,6 +3554,7 @@ export default function BNDZUI() {
     networkOnlyNodes, networkExpanded, homeTreePath, wslLinuxPath,
     wslRootNode, wslDistroNodes,
     linuxExpanded, librariesExpanded, smartViewsExpanded, config.navTreeOrder,
+    config.meshShowInNavTree, meshHosts, meshExpanded,
   ]);
 
   useEffect(() => {
@@ -3638,46 +3810,70 @@ export default function BNDZUI() {
   const executeInternalDrop = (
     op: 'copy' | 'move',
     sourcePaths: string[],
-    destWin: string,
+    destPath: string,
     sourcePath?: string,
   ) => {
     void (async () => {
       const rt = buildSettingsRuntime(config);
-      if (rt.shell.confirmMove && op === 'move') {
-        const labelPreview = sourcePaths.length === 1
-          ? (sourcePaths[0].split(/[/\\]/).pop() || 'item')
-          : `${sourcePaths.length} items`;
+      const canonSources = sourcePaths.map(canonicalDropPath).filter(Boolean);
+      const destCanon = canonicalDropPath(destPath);
+      const route = resolveDropRoute(op, canonSources, destCanon);
+
+      if (rt.shell.confirmMove && op === 'move' && route.kind === 'local') {
+        const labelPreview = canonSources.length === 1
+          ? (canonSources[0].split(/[/\\]/).pop() || 'item')
+          : `${canonSources.length} items`;
         const approved = await confirm({
-          title: `Move ${sourcePaths.length === 1 ? 'Item' : 'Items'}`,
-          message: `Move ${labelPreview} to ${destWin}?`,
+          title: `Move ${canonSources.length === 1 ? 'Item' : 'Items'}`,
+          message: `Move ${labelPreview} to ${destCanon}?`,
           type: 'warning',
           confirmLabel: 'Move',
         });
         if (!approved) return;
       }
+
       const opId = `drop-int-${Date.now()}`;
-      const label = sourcePaths.length === 1
-        ? (sourcePaths[0].split(/[/\\]/).pop() || 'item')
-        : `${sourcePaths.length} items`;
+      const label = canonSources.length === 1
+        ? (canonSources[0].split(/[/\\]/).pop() || 'item')
+        : `${canonSources.length} items`;
+      const meshOp = route.kind === 'mesh-replicate' || route.kind === 'mesh-relay'
+        ? ((route as { move?: boolean }).move ? 'move' : 'copy')
+        : route.kind === 'mesh-upload' || route.kind === 'mesh-download' ? op : op;
       xferMetaRef.current.set(opId, {
-        op,
+        op: meshOp,
         label,
         selectParentPath: op === 'move' && config.selectParentOfMovedFolder && sourcePath
           ? normalizePanePath(sourcePath)
           : undefined,
       });
+      const verb = route.kind === 'mesh-upload' ? 'Uploading'
+        : route.kind === 'mesh-download' ? 'Downloading'
+        : route.kind === 'mesh-relay' ? 'Relaying'
+        : route.kind === 'mesh-replicate' ? (meshOp === 'move' ? 'Moving' : 'Copying')
+        : op === 'copy' ? 'Copying' : 'Moving';
       pushToast({
         id: `xfer-${opId}`,
         kind: 'progress',
-        title: op === 'copy' ? 'Copying…' : 'Moving…',
+        title: `${verb}…`,
         message: label,
         sticky: true,
       });
+
+      if (route.kind !== 'local') {
+        const result = await executeMeshTransfer({ operationId: opId, route, sourcePaths: canonSources });
+        if (!result.ok) {
+          dismissToast(`xfer-${opId}`);
+          pushToast({ kind: 'error', title: `${verb} failed`, message: result.error || label });
+        }
+        return;
+      }
+
+      const destWin = toWindowsPath(destCanon);
       const { IPC } = await import('../lib/ipcBridge');
-      IPC.executeFsOperation(opId, op, sourcePaths.map(toWindowsPath), destWin, false, label, 'high');
+      IPC.executeFsOperation(opId, op, canonSources.map(toWindowsPath), destWin, false, label, 'high');
       if (!IPC.isNative && op === 'move' && sourcePath) {
         let newFs = fileSystem;
-        for (const sp of sourcePaths) {
+        for (const sp of canonSources) {
           const name = sp.split(/[/\\]/).pop() || '';
           newFs = updateFileSystem(newFs, sourcePath, (dir) => {
             const key = Object.keys(dir.children).find(k => dir.children[k].name === name);
@@ -4415,12 +4611,10 @@ export default function BNDZUI() {
     const targetPane = panesRef.current.find(p => p.id === paneId);
     if (!targetPane || tabIndex < 0 || tabIndex >= targetPane.tabs.length) return;
     if (targetPane.tabs[tabIndex]?.locked) return;
-    const prev = tabFileDragHoverRef.current;
-    const alreadyActive =
-      (paneId === activeId || paneId === sourcePaneId)
-      && (panesRef.current.find(p => p.id === paneId)?.activeTabIndex === tabIndex);
-    if (prev?.paneId === paneId && prev?.tabIndex === tabIndex && alreadyActive) {
+    const currentIndex = targetPane.activeTabIndex;
+    if (currentIndex === tabIndex && paneId === activeId) {
       setTabFileDropTarget({ paneId, tabIndex });
+      tabFileDragHoverRef.current = { paneId, tabIndex };
       return;
     }
     clearTabFileDragTimer();
@@ -4428,7 +4622,11 @@ export default function BNDZUI() {
     flushSync(() => {
       setTabFileDropTarget({ paneId, tabIndex });
       setActivePaneId(paneId);
-      setPanes(prevPanes => prevPanes.map(p => p.id === paneId ? { ...p, activeTabIndex: tabIndex } : p));
+      setPanes(prevPanes => {
+        const next = prevPanes.map(p => p.id === paneId ? { ...p, activeTabIndex: tabIndex } : p);
+        panesRef.current = next;
+        return next;
+      });
     });
     const targetPath = targetPane.tabs[tabIndex]?.path;
     if (targetPath) {
@@ -4439,8 +4637,50 @@ export default function BNDZUI() {
     }
   }, [config.alsoAutoSelectTabsInTheInactivePane, config.autoSelectTabsOnDragOver, refetchPath]);
 
-  /** HTML5 drag-over tabs: delayed switch (Explorer-style). */
+  const resolveTabHoverAtPoint = React.useCallback((clientX: number, clientY: number) => {
+    const newTabPaneId = hitTestNewTabZoneAtPoint(clientX, clientY);
+    if (newTabPaneId) {
+      setNewTabDropPaneId(newTabPaneId);
+      setTabFileDropTarget(null);
+      return true;
+    }
+    setNewTabDropPaneId(null);
+    const tabHit = hitTestTabAtPoint(clientX, clientY);
+    if (!tabHit?.tabId) {
+      setTabFileDropTarget(null);
+      return false;
+    }
+    let matched = false;
+    for (const p of panesRef.current) {
+      const idx = p.tabs.findIndex(t => t.id === tabHit.tabId);
+      if (idx >= 0) {
+        activateTabForFileDragImmediate(p.id, idx);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched && tabHit.paneId && tabHit.tabIndex >= 0) {
+      activateTabForFileDragImmediate(tabHit.paneId, tabHit.tabIndex);
+      matched = true;
+    }
+    return matched;
+  }, [activateTabForFileDragImmediate]);
+
+  useEffect(() => {
+    const onPointerDragMove = (e: Event) => {
+      const { clientX, clientY } = (e as CustomEvent<PointerFileDragMoveDetail>).detail;
+      resolveTabHoverAtPoint(clientX, clientY);
+    };
+    window.addEventListener(POINTER_FILE_DRAG_MOVE, onPointerDragMove);
+    return () => window.removeEventListener(POINTER_FILE_DRAG_MOVE, onPointerDragMove);
+  }, [resolveTabHoverAtPoint]);
+
+  /** HTML5 drag-over tabs: delayed switch (Explorer-style). Pointer session uses immediate switch. */
   const scheduleTabSwitchOnFileDrag = (paneId: string, tabIndex: number) => {
+    if (getFileDragSession() || pointerFileDragActiveRef.current) {
+      activateTabForFileDragImmediate(paneId, tabIndex);
+      return;
+    }
     if (config.autoSelectTabsOnDragOver === false) return;
     const sourcePaneId = getFileDragSession()?.sourcePaneId ?? activePaneIdRef.current;
     const activeId = activePaneIdRef.current;
@@ -4459,8 +4699,14 @@ export default function BNDZUI() {
     const delay = config.delayBeforeADraggedOverTabIsAutoSelected ?? DEFAULT_TAB_HOVER_DELAY_MS;
     const applySwitch = () => {
       tabFileDragTimerRef.current = null;
-      setActivePaneId(paneId);
-      setPanes(prevPanes => prevPanes.map(p => p.id === paneId ? { ...p, activeTabIndex: tabIndex } : p));
+      flushSync(() => {
+        setActivePaneId(paneId);
+        setPanes(prevPanes => {
+          const next = prevPanes.map(p => p.id === paneId ? { ...p, activeTabIndex: tabIndex } : p);
+          panesRef.current = next;
+          return next;
+        });
+      });
     };
     if (delay <= 0) {
       applySwitch();
@@ -4576,16 +4822,34 @@ export default function BNDZUI() {
       const activePath = activePane?.tabs[activePane.activeTabIndex]?.path || '/';
 
       const clientX = typeof detail.webViewX === 'number' ? detail.webViewX
-        : (typeof detail.screenX === 'number' ? detail.screenX : window.innerWidth / 2);
+        : window.innerWidth / 2;
       const clientY = typeof detail.webViewY === 'number' ? detail.webViewY
-        : (typeof detail.screenY === 'number' ? detail.screenY : window.innerHeight / 2);
+        : window.innerHeight / 2;
 
       const navTreePath = hitTestNavTreeAtPoint(clientX, clientY);
       const breadcrumbPath = navTreePath ? null : hitTestBreadcrumbAtPoint(clientX, clientY);
       const tabHit = hitTestTabAtPoint(clientX, clientY);
-      const hover = tabHit?.paneId
+      const listBody = hitTestListBodyAtPoint(clientX, clientY);
+      const listPaneId = listBody?.getAttribute('data-list-pane-id') || null;
+      let hover = tabHit?.paneId
         ? { paneId: tabHit.paneId, tabIndex: tabHit.tabIndex }
         : null;
+      if (!hover && listPaneId) {
+        const listPane = panesSnap.find(p => p.id === listPaneId);
+        if (listPane) hover = { paneId: listPane.id, tabIndex: listPane.activeTabIndex };
+      }
+      if (hover) {
+        flushSync(() => {
+          setActivePaneId(hover!.paneId);
+          setPanes(prevPanes => {
+            const next = prevPanes.map(p =>
+              p.id === hover!.paneId ? { ...p, activeTabIndex: hover!.tabIndex } : p,
+            );
+            panesRef.current = next;
+            return next;
+          });
+        });
+      }
 
       const getContents = (tabPath: string) =>
         pathContentsCacheRef.current[normalizePanePath(tabPath)] ?? undefined;
@@ -4610,12 +4874,31 @@ export default function BNDZUI() {
           id: resolution.folderEnt.id,
         });
       }
+      const htmlTarget = htmlDropTargetRef.current;
+      if ((isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') && htmlTarget) {
+        destPath = htmlTarget.tabPath;
+        if (!hover) {
+          const targetPane = panesSnap.find(p => p.id === htmlTarget.paneId);
+          if (targetPane) {
+            flushSync(() => {
+              setActivePaneId(htmlTarget.paneId);
+              setPanes(prevPanes => {
+                const next = prevPanes.map(p =>
+                  p.id === htmlTarget.paneId ? { ...p, activeTabIndex: targetPane.activeTabIndex } : p,
+                );
+                panesRef.current = next;
+                return next;
+              });
+            });
+          }
+        }
+      }
       if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
         setToastMessage('Open a real folder to drop files here.');
         return;
       }
 
-      const destWin = toWindowsPath(destPath);
+      const destCanon = canonicalDropPath(destPath);
       // Only honor OLE session for BNDZ-originated re-entry. Stale stash must never
       // turn Explorer/desktop drops into moves (or steal op from preferredEffect).
       const fromBndzOle = !!detail.fromBndzOle;
@@ -4625,10 +4908,57 @@ export default function BNDZUI() {
       let op: 'copy' | 'move' = 'copy';
       if (oleSession?.op === 'move' || oleSession?.op === 'copy') op = oleSession.op;
       else if (preferred === 'move') op = 'move';
-      executeInternalDropRef.current(op, paths.map(p => toWindowsPath(p)), destWin, oleSession?.sourceTabPath);
+      executeInternalDropRef.current(op, paths.map(p => toWindowsPath(p)), destCanon, oleSession?.sourceTabPath);
     };
     window.addEventListener('bndz-external-drop', onExternalDrop);
-    return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
+
+    const onArchiveDrop = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const paths = (detail.paths as string[] | undefined)?.filter(Boolean);
+      if (!paths?.length) return;
+
+      const clientX = typeof detail.clientX === 'number' ? detail.clientX : window.innerWidth / 2;
+      const clientY = typeof detail.clientY === 'number' ? detail.clientY : window.innerHeight / 2;
+      const panesSnap = panesRef.current;
+      const activeId = activePaneIdRef.current;
+      const activePane = panesSnap.find(p => p.id === activeId) || panesSnap[0];
+      const activePath = activePane?.tabs[activePane.activeTabIndex]?.path || '/';
+      const tabHit = hitTestTabAtPoint(clientX, clientY);
+      const hover = tabHit?.paneId ? { paneId: tabHit.paneId, tabIndex: tabHit.tabIndex } : null;
+      const getContents = (tabPath: string) =>
+        pathContentsCacheRef.current[normalizePanePath(tabPath)] ?? undefined;
+      const resolution = resolveFileDropDestination(
+        clientX,
+        clientY,
+        hover,
+        panesSnap,
+        activeId,
+        activePath,
+        getContents,
+        null,
+        null,
+      );
+      let destPath = resolution.tabPath;
+      if (resolution.folderEnt) {
+        destPath = joinPanePath(resolution.tabPath, {
+          name: resolution.folderEnt.name || resolution.folderEnt.id,
+          path: (resolution.folderEnt as { path?: string }).path,
+          id: resolution.folderEnt.id,
+        });
+      }
+      if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
+        setToastMessage('Open a real folder to drop archive items here.');
+        return;
+      }
+      const op = detail.op === 'move' ? 'move' : 'copy';
+      executeInternalDropRef.current(op, paths.map(toWindowsPath), canonicalDropPath(destPath));
+    };
+    window.addEventListener('bndz-archive-drop', onArchiveDrop);
+
+    return () => {
+      window.removeEventListener('bndz-external-drop', onExternalDrop);
+      window.removeEventListener('bndz-archive-drop', onArchiveDrop);
+    };
   }, [bottomPluginTab]);
 
   useEffect(() => {
@@ -5238,7 +5568,7 @@ export default function BNDZUI() {
       if (!match) return;
 
       const listEl = document.querySelector(
-        `[data-list-body][data-pane-id="${activePaneId}"]`,
+        `[data-list-body][data-list-pane-id="${activePaneId}"]`,
       ) as HTMLElement | null;
       listEl?.focus({ preventScroll: true });
 
@@ -5774,6 +6104,10 @@ export default function BNDZUI() {
       const copy = e.ctrlKey || e.altKey;
       dropModifierRef.current.copy = copy;
       e.dataTransfer.dropEffect = copy ? 'copy' : 'move';
+      const tabPath = normalizePanePath(currentTab.path);
+      if (!isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+        htmlDropTargetRef.current = { paneId: pane.id, tabPath };
+      }
     };
 
     const visibleListColumns = getVisibleListColumns(config, { isGlobalSearch: isGlobal, folderPath: normalizePanePath(currentTab.path) });
@@ -5929,7 +6263,7 @@ export default function BNDZUI() {
       } else {
         paths = [joinPanePath(panePath, anchorEntity)];
       }
-      return paths.map(p => toWindowsPath(p));
+      return paths.map(p => canonicalDropPath(p));
     };
 
     const handleDrop = (e: React.DragEvent, dropTargetIdOverride?: string | null, destPanePathOverride?: string) => {
@@ -5949,7 +6283,7 @@ export default function BNDZUI() {
             destPath = joinPanePath(destPath, targetEntity);
           }
         }
-        const destWin = toWindowsPath(destPath);
+        const destCanon = canonicalDropPath(destPath);
         const dataStr = e.dataTransfer.getData('application/bndz-file');
         let payloadCopy = false;
         let sourcePathsHint: string[] = [];
@@ -5957,7 +6291,7 @@ export default function BNDZUI() {
           try {
             const parsed = JSON.parse(dataStr);
             payloadCopy = !!parsed.copy;
-            if (Array.isArray(parsed?.paths)) sourcePathsHint = parsed.paths.map((p: string) => toWindowsPath(p));
+            if (Array.isArray(parsed?.paths)) sourcePathsHint = parsed.paths.map((p: string) => canonicalDropPath(p));
           } catch { /* ignore */ }
         }
         const op = resolveDropOperation({
@@ -5967,7 +6301,7 @@ export default function BNDZUI() {
           altKey: e.altKey,
           shiftKey: e.shiftKey,
           sourcePaths: sourcePathsHint,
-          destDir: destWin,
+          destDir: destCanon,
           sameDriveDefault: config.selectConfig2,
           crossDriveDefault: config.selectConfig3,
         });
@@ -5987,7 +6321,7 @@ export default function BNDZUI() {
             });
             if (!approved) return;
           }
-          executeInternalDrop(op, sourcePaths, destWin, sourcePath);
+          executeInternalDrop(op, sourcePaths, destCanon, sourcePath);
         };
 
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -6024,10 +6358,10 @@ export default function BNDZUI() {
 
         if (!dataStr) return;
         const data = JSON.parse(dataStr);
-        const sourcePaths: string[] = (data.paths || []).map((p: string) => toWindowsPath(p)).filter(Boolean);
+        const sourcePaths: string[] = (data.paths || []).map((p: string) => canonicalDropPath(p)).filter(Boolean);
         if (!sourcePaths.length) return;
 
-        const destNorm = toWindowsPath(destPath);
+        const destNorm = canonicalDropPath(destPath);
         if (isDropIntoDraggedSource(sourcePaths, destNorm)) return;
         if (isSameDropLocation(sourcePaths, destNorm) && op !== 'copy') return;
 
@@ -6145,6 +6479,8 @@ export default function BNDZUI() {
             else setTabFileDropTarget({ paneId: pane.id, tabIndex: idx });
           }}
           dropModifierCopy={(copy) => { dropModifierRef.current.copy = copy; }}
+          suspendTabReorder={pointerFileDragActive}
+          onPointerFileDragOverTab={(idx) => activateTabForFileDragImmediate(pane.id, idx)}
         />
         
         {/* Breadcrumb Row */}
@@ -6454,7 +6790,7 @@ export default function BNDZUI() {
         {/* List Items */}
         <div 
            ref={(node) => { paneScrollElsRef.current[pane.id] = node; }}
-           data-pane-id={pane.id}
+           data-list-pane-id={pane.id}
            data-list-body
            tabIndex={-1}
            className={`flex-1 min-h-0 overflow-y-auto focus:outline-none relative bndz-scrollbar bndz-file-list-scroll cursor-default ${
@@ -6590,6 +6926,7 @@ export default function BNDZUI() {
                 wasSelected ? DRAG_DELAY_SELECTED : DRAG_DELAY_DEFAULT,
               );
               let oleDragStarted = false;
+              let outsideChromeStreak = 0;
               let keyModBound = false;
 
               const syncDragModifiers = (e: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }) => {
@@ -6597,12 +6934,12 @@ export default function BNDZUI() {
                 dropModifierRef.current.copy = copy;
                 if (listGestureRef.current?.mode === 'drag') {
                   listGestureRef.current.copyDrag = copy;
-                  setListDragOperation(copy ? 'copy' : 'move');
+                  const dropHint = copy ? 'Drop to copy' : 'Drop to move';
                   const session = getFileDragSession();
                   if (session && session.op !== (copy ? 'copy' : 'move')) {
                     beginFileDragSession({ ...session, op: copy ? 'copy' : 'move' });
                   }
-                  setListDragGhost(g => (g ? { ...g, copy } : g));
+                  setListDragGhost(g => (g ? { ...g, copy, dropHint } : g));
                 }
               };
 
@@ -6636,36 +6973,9 @@ export default function BNDZUI() {
                 pathContentsCacheRef.current[normalizePanePath(tabPath)]
                 ?? safeGetDirContents(fileSystem, tabPath);
 
-              const resolveTabHoverAtPoint = (clientX: number, clientY: number) => {
-                const newTabPaneId = hitTestNewTabZoneAtPoint(clientX, clientY);
-                if (newTabPaneId) {
-                  setNewTabDropPaneId(newTabPaneId);
-                  setTabFileDropTarget(null);
-                  return true;
-                }
-                setNewTabDropPaneId(null);
-                const tabHit = hitTestTabAtPoint(clientX, clientY);
-                if (!tabHit?.tabId) {
-                  // Leaving the tab strip — clear hover highlight but keep last hover
-                  // destination until another tab is targeted (so list drop still works).
-                  setTabFileDropTarget(null);
-                  return false;
-                }
-                let matched = false;
-                for (const p of panesRef.current) {
-                  const idx = p.tabs.findIndex(t => t.id === tabHit.tabId);
-                  if (idx >= 0) {
-                    activateTabForFileDragImmediate(p.id, idx);
-                    matched = true;
-                    break;
-                  }
-                }
-                // Fallback: attributes from hit-test when id lookup races a remount.
-                if (!matched && tabHit.paneId && tabHit.tabIndex >= 0) {
-                  activateTabForFileDragImmediate(tabHit.paneId, tabHit.tabIndex);
-                  matched = true;
-                }
-                return matched;
+              const resolveHoverAtDropPoint = (clientX: number, clientY: number) => {
+                resolveTabHoverAtPoint(clientX, clientY);
+                return tabFileDragHoverRef.current;
               };
 
               const resolveBreadcrumbHoverAtPoint = (clientX: number, clientY: number): string | null => {
@@ -6762,7 +7072,8 @@ export default function BNDZUI() {
                   listGestureRef.current.copyDrag = copyDrag;
                   dropModifierRef.current.copy = copyDrag;
                   internalDragRef.current = true;
-                  setListDragOperation(copyDrag ? 'copy' : 'move');
+                  setPointerFileDragActive(true);
+                  tabFileDragHoverRef.current = null;
                   const anchorEnt = contents?.find((c: any) => c.id === entityId);
                   const dragPaths = buildDragPaths(entityId, dragSelection);
                   beginFileDragSession({
@@ -6779,15 +7090,18 @@ export default function BNDZUI() {
                     copy: copyDrag,
                     isDirectory: anchorEnt?.type === 'directory',
                     previewPath: dragPaths[0] ? toWindowsPath(dragPaths[0]) : undefined,
+                    dropHint: copyDrag ? 'Drop to copy' : 'Drop to move',
                   });
                   ghostThrottler = createRafPointerThrottler((x, y) => {
                     updateListDragGhost({ clientX: x, clientY: y } as PointerEvent);
                   });
                   bindKeyModifiers();
-                  // Capture on the stable pane root so switching tabs mid-drag does not
-                  // drop pointer capture when the list body reflows.
-                  const captureHost = (listEl.closest('[data-pane-id]') as HTMLElement | null) || listEl;
-                  try { captureHost.setPointerCapture(capturePointerId); } catch { /* ignore */ }
+                  // Do NOT setPointerCapture during file drag — WebView2 poisons
+                  // elementsFromPoint and breaks tab-hover hit testing. Window listeners suffice.
+                }
+
+                if (listGestureRef.current.mode === 'pending' && hasMetDragThreshold()) {
+                  resolveTabHoverAtPoint(ev.clientX, ev.clientY);
                 }
 
                 if (listGestureRef.current.mode === 'drag') {
@@ -6813,22 +7127,42 @@ export default function BNDZUI() {
                   } else setDragTargetHighlight(null);
                   ghostThrottler?.(ev.clientX, ev.clientY);
 
-                  if (!oleDragStarted && getFileDragSession()) {
-                    const overInternalChrome = isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY);
-                    if (!overInternalChrome) {
-                      const dragPaths = buildDragPaths(entityId, listGestureRef.current.dragSelection);
-                      if (dragPaths.length) {
+                  const overInternalChrome = isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY);
+                  if (overInternalChrome) {
+                    outsideChromeStreak = 0;
+                  } else {
+                    outsideChromeStreak++;
+                  }
+
+                  if (!oleDragStarted && getFileDragSession() && outsideChromeStreak >= 3) {
+                    const dragPaths = buildDragPaths(entityId, listGestureRef.current.dragSelection);
+                    if (dragPaths.length) {
+                      const meshPaths = dragPaths.filter(isMeshPath);
+                      const localPaths = dragPaths.filter(p => !isMeshPath(p)).map(toWindowsPath);
+
+                      const startOleDrag = (outPaths: string[]) => {
+                        if (!outPaths.length || oleDragStarted) return;
                         oleDragStarted = true;
                         nativeOleDragRef.current = true;
                         internalDragRef.current = false;
+                        setPointerFileDragActive(false);
+                        tabFileDragHoverRef.current = null;
                         stashOleDragSession(getFileDragSession());
-                        setListDragOperation(null);
                         setListDragGhost(null);
                         unbindKeyModifiers();
                         listGestureRef.current = null;
                         dragScrollLoop.stop();
                         window.removeEventListener('pointermove', onMove);
-                        IPC.startDrag(dragPaths);
+                        IPC.startDrag(outPaths);
+                      };
+
+                      if (meshPaths.length) {
+                        void (async () => {
+                          const hydrated = meshPaths.length ? await hydrateMeshPathsForDrag(meshPaths) : [];
+                          startOleDrag([...localPaths, ...hydrated]);
+                        })();
+                      } else {
+                        startOleDrag(localPaths);
                       }
                     }
                   }
@@ -6842,26 +7176,25 @@ export default function BNDZUI() {
                 window.removeEventListener('pointermove', onMove);
                 window.removeEventListener('pointerup', onUp);
                 unbindKeyModifiers();
-                try { listEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
 
                 const gesture = listGestureRef.current;
 
                 if (gesture?.mode === 'drag' && !oleDragStarted) {
-                  const newTabZone = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-new-tab-zone]');
-                  if (newTabZone) {
-                    const targetPaneId = newTabZone.getAttribute('data-new-tab-zone');
-                    const dragPaths = buildDragPaths(entityId, gesture.dragSelection);
+                  const newTabPaneId = hitTestNewTabZoneAtPoint(ev.clientX, ev.clientY);
+                  if (newTabPaneId) {
+                    const targetPaneId = newTabPaneId;
                     const draggedDirs = gesture.dragSelection
                       .map(id => contents?.find((c: any) => c.id === id))
                       .filter((ent: any) => ent?.type === 'directory');
                     const openPath = draggedDirs.length > 0
                       ? joinPanePath(panePath, draggedDirs[0])
                       : (panesRef.current.find(p => p.id === targetPaneId)?.tabs[panesRef.current.find(p => p.id === targetPaneId)!.activeTabIndex]?.path ?? panePath);
-                    if (targetPaneId) addTab(targetPaneId, openPath);
+                    addTab(targetPaneId, openPath);
                     setDragTargetHighlight(null);
                     suppressRowClickRef.current = true;
                     internalDragRef.current = false;
-                    setListDragOperation(null);
+                    setPointerFileDragActive(false);
+                    tabFileDragHoverRef.current = null;
                     setListDragGhost(null);
                     clearTabFileDragTimer();
                     setTabFileDropTarget(null);
@@ -6873,7 +7206,7 @@ export default function BNDZUI() {
                   }
                   const navTreeTarget = hitTestNavTreeAtPoint(ev.clientX, ev.clientY);
                   const breadcrumbTarget = navTreeTarget ? null : resolveBreadcrumbHoverAtPoint(ev.clientX, ev.clientY);
-                  const hover = tabFileDragHoverRef.current;
+                  const hover = resolveHoverAtDropPoint(ev.clientX, ev.clientY);
                   if (hover) {
                     clearTabFileDragTimer();
                     flushSync(() => {
@@ -6915,15 +7248,15 @@ export default function BNDZUI() {
                   if (dragPaths.length) {
                     const destPath = navTreeTarget || breadcrumbTarget
                       || (dropEnt?.name ? joinPanePath(dropResolution.tabPath, dropEnt as { name: string; path?: string; id?: string }) : dropResolution.tabPath);
-                    const destWin = toWindowsPath(destPath);
+                    const destCanon = canonicalDropPath(destPath);
                     const op = resolveDropOperation({
                       payloadCopy: gesture.copyDrag,
                       dropModifierCopy: dropModifierRef.current.copy,
                       ctrlKey: ev.ctrlKey || ev.metaKey,
                       altKey: ev.altKey,
                       shiftKey: ev.shiftKey,
-                      sourcePaths: dragPaths.map(toWindowsPath),
-                      destDir: destWin,
+                      sourcePaths: dragPaths,
+                      destDir: destCanon,
                       sameDriveDefault: config.selectConfig2,
                       crossDriveDefault: config.selectConfig3,
                     });
@@ -6938,20 +7271,26 @@ export default function BNDZUI() {
                     const pointerTravelPx = Math.hypot(ev.clientX - startX, ev.clientY - startY);
                     if (shouldCommitInternalFileDrop({
                       sourcePaths: dragPaths,
-                      destDir: destWin,
+                      destDir: destCanon,
                       op,
                       hasForeignTarget,
                       pointerTravelPx,
                     })) {
-                      executeInternalDrop(op, dragPaths, destWin, panePath);
+                      executeInternalDrop(op, dragPaths, destCanon, panePath);
                     }
                   }
                   setDragTargetHighlight(null);
                   suppressRowClickRef.current = true;
                   internalDragRef.current = false;
-                  setListDragOperation(null);
+                  setPointerFileDragActive(false);
+                  tabFileDragHoverRef.current = null;
                   setListDragGhost(null);
                   clearTabFileDragTimer();
+                  setTabFileDropTarget(null);
+                  setNewTabDropPaneId(null);
+                  setBreadcrumbDropTarget(null);
+                  setNavTreeFileDropTarget(null);
+                  endFileDragSession();
                 } else if (gesture?.mode === 'pending' && !hasMetDragThreshold() && !oleDragStarted) {
                   clearDragSession();
                   suppressRowClickRef.current = true;
@@ -6969,7 +7308,8 @@ export default function BNDZUI() {
 
                 listGestureRef.current = null;
                 if (!oleDragStarted) nativeOleDragRef.current = false;
-                setListDragOperation(null);
+                setPointerFileDragActive(false);
+                tabFileDragHoverRef.current = null;
                 setListDragGhost(null);
                 setBreadcrumbDropTarget(null);
                 setNavTreeFileDropTarget(null);
@@ -9319,34 +9659,26 @@ export default function BNDZUI() {
                            const qaPath = normalizePanePath(s.path);
                            const iconFetch = s.iconPath || qaPath;
                            const isRenaming = !s.isDefault && renamingFavoritePath && normalizePanePath(renamingFavoritePath) === qaPath;
-                           const isFavoriteDropTarget = !s.isDefault && favoriteDrag?.overPath === qaPath && favoriteDrag.sourcePath !== qaPath;
+                           const isFavoriteDropTarget = favoriteDrag?.overPath === qaPath && favoriteDrag.sourcePath !== qaPath;
+                           const dropBefore = isFavoriteDropTarget && !favoriteDrag?.insertAfter;
+                           const dropAfter = isFavoriteDropTarget && !!favoriteDrag?.insertAfter;
                            return (
                               <div 
                                  key={qaPath}
-                                 draggable={!s.isDefault}
-                                 className={`sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-amber-400/70 transition-all rounded-r-sm mx-1 ${favoriteDrag?.sourcePath === qaPath ? 'opacity-40' : ''} ${isFavoriteDropTarget ? 'ring-1 ring-inset ring-amber-400/60' : ''}`}
+                                 data-favorite-path={qaPath}
+                                 data-favorite-default={s.isDefault ? 'true' : 'false'}
+                                 className={`sidebar-pin-row group/pin relative flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-amber-400/70 transition-all rounded-r-sm mx-1 ${favoriteDrag?.sourcePath === qaPath ? 'opacity-40' : ''} ${isFavoriteDropTarget ? 'bg-amber-400/10' : ''}`}
                                  onClick={() => { if (!isRenaming) guardedSetCurrentPath(collapseKnownFolderShadowPath(s.path, shortcuts)); }}
                                  onDoubleClick={() => { if (!s.isDefault) setRenamingFavoritePath(qaPath); }}
                                  onContextMenu={(e) => {
                                    handleContextMenuRequest(e, s.path, s.path, true, s.name, undefined, 'sidebar-item');
                                  }}
-                                 onDragStart={e => {
-                                   if (s.isDefault) { e.preventDefault(); return; }
-                                   e.dataTransfer.effectAllowed = 'move';
-                                   e.dataTransfer.setData('text/plain', qaPath);
-                                   setFavoriteDrag({ sourcePath: qaPath, overPath: null });
-                                 }}
                                  onDragOver={e => {
                                    const isFileDrag = hasBndzFileDrag(e) || (e.dataTransfer.types.includes('Files'));
                                    if (isFileDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return; }
-                                   if (!favoriteDrag || s.isDefault) return;
-                                   e.preventDefault();
-                                   if (favoriteDrag.overPath !== qaPath) setFavoriteDrag(prev => prev ? { ...prev, overPath: qaPath } : prev);
                                  }}
                                  onDrop={e => {
                                    e.preventDefault();
-                                   // Dropping files onto a favorite moves/copies them into that folder —
-                                   // previously unsupported; only reordering existed.
                                    const bndzPayload = readBndzFileDragData(e);
                                    if (bndzPayload?.paths?.length) {
                                      const op = (e.ctrlKey || e.altKey) ? 'copy' : 'move';
@@ -9360,22 +9692,20 @@ export default function BNDZUI() {
                                      setFavoriteDrag(null);
                                      return;
                                    }
-                                   if (!favoriteDrag || s.isDefault || favoriteDrag.sourcePath === qaPath) { setFavoriteDrag(null); return; }
-                                   const pinned = [...(config.pinnedFavorites || [])];
-                                   const fromIdx = pinned.findIndex((p: any) => normalizePanePath(p.path) === favoriteDrag.sourcePath);
-                                   const toIdx = pinned.findIndex((p: any) => normalizePanePath(p.path) === qaPath);
-                                   if (fromIdx >= 0 && toIdx >= 0) {
-                                     const [moved] = pinned.splice(fromIdx, 1);
-                                     pinned.splice(toIdx, 0, moved);
-                                     updateConfig({ pinnedFavorites: pinned });
-                                   }
-                                   setFavoriteDrag(null);
                                  }}
-                                 onDragEnd={() => setFavoriteDrag(null)}
                               >
+                                 {dropBefore && <span className="absolute left-2 right-2 top-0 h-[2px] bg-amber-400/80 rounded-full pointer-events-none" />}
+                                 {dropAfter && <span className="absolute left-2 right-2 bottom-0 h-[2px] bg-amber-400/80 rounded-full pointer-events-none" />}
+                                 <div
+                                   className="shrink-0 opacity-30 group-hover/pin:opacity-60 hover:!opacity-90 cursor-grab active:cursor-grabbing p-0.5 rounded"
+                                   title="Drag to reorder"
+                                   onPointerDown={e => beginFavoriteReorder(qaPath, s.name, e)}
+                                 >
+                                   <DragHandleGlyph size={10} />
+                                 </div>
                                  <ShellNativeIcon
                                     path={iconFetch}
-                                    isDir={shellIconIsDirectory(iconFetch)}
+                                    isDir={iconFetch.toLowerCase().includes('/shell:') || shellIconIsDirectory(iconFetch)}
                                     size={14}
                                     eager
                                  />
@@ -9431,10 +9761,10 @@ export default function BNDZUI() {
                           }}
                           onContextMenu={(e) => item.path && handleContextMenuRequest(e, item.path, item.path, true, item.label, undefined, 'sidebar-item')}
                         >
-                          <ShellNativeIcon
+                          <CloudNavIcon
                             path={item.shellIconPath || item.path}
+                            fallbackIcon={item.icon || 'cloud_drive'}
                             size={14}
-                            eager
                           />
                           <span className="text-[11px] font-medium truncate flex-1">{item.label}</span>
                           {item.syncStatus && item.syncStatus !== 'available' && (
@@ -9477,8 +9807,8 @@ export default function BNDZUI() {
                       disallowDragFromTree={settingsRt.mouse.disallowDragFromTree}
                       clipboard={clipboard}
                       onFileDrop={async (payload, destPath, op) => {
-                        const destWin = toWindowsPath(destPath);
-                        const sourcePaths = payload.paths.map(p => toWindowsPath(p));
+                        const destCanon = canonicalDropPath(destPath);
+                        const sourcePaths = payload.paths.map(p => canonicalDropPath(p));
                         const shellRt = settingsRt.shell;
                         if (shellRt.confirmDrag) {
                           const label = sourcePaths.length === 1
@@ -9493,7 +9823,7 @@ export default function BNDZUI() {
                           });
                           if (!approved) return;
                         }
-                        executeInternalDrop(op, sourcePaths, destWin, payload.sourcePath);
+                        executeInternalDrop(op, sourcePaths, destCanon, payload.sourcePath);
                       }}
                     />
                   }
@@ -10316,20 +10646,21 @@ export default function BNDZUI() {
           </div>
         </div>
       )}
-      {listDragOperation && (
-        <div className="fixed inset-x-0 bottom-4 z-[70] pointer-events-none flex justify-center px-4">
-          <div className="bndz-glass-chip px-3 py-1.5 text-[11px] font-medium text-white/90 flex items-center gap-2">
-            {listDragOperation === 'copy' ? (
-              <Icons8Icon id="copy" size={13} className="shrink-0" />
-            ) : (
-              <Icons8Icon id="move_ui" size={13} className="shrink-0" />
-            )}
-            <span>{listDragOperation === 'copy' ? 'Copy here' : 'Move here'}</span>
-            <span className="text-white/40 font-normal">· hold Ctrl to copy</span>
+      {listDragGhost && <ListDragGhost ghost={listDragGhost} />}
+      {favoriteReorderGhost && (
+        <div
+          className="fixed z-[300] pointer-events-none"
+          style={{ left: favoriteReorderGhost.x + 12, top: favoriteReorderGhost.y + 8 }}
+        >
+          <div
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--bndz-radius-md)] border border-[#454545] shadow-lg"
+            style={{ background: 'rgba(37, 37, 38, 0.96)' }}
+          >
+            <Icons8Icon id="explorer" size={14} />
+            <div className="text-[11px] font-semibold text-white/95 truncate max-w-[180px]">{favoriteReorderGhost.label}</div>
           </div>
         </div>
       )}
-      {listDragGhost && <ListDragGhost ghost={listDragGhost} />}
       <FloatingTooltipHost />
     </div>
   );

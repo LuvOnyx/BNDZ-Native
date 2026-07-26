@@ -139,6 +139,9 @@ export const IPC = {
   _folderSizeListeners: [] as Array<(progress: any) => void>,
   _duplicateProgressListeners: [] as Array<(progress: any) => void>,
   _folderSyncProgressListeners: [] as Array<(progress: any) => void>,
+  _meshSyncProgressListeners: [] as Array<(progress: any) => void>,
+  _meshTerminalOutputListeners: [] as Array<(payload: { sessionId: string; data: string }) => void>,
+  _meshHostsChangedListeners: [] as Array<(hosts: any[]) => void>,
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
   _openPathListeners: [] as Array<(path: string) => void>,
   _pendingOpenPaths: [] as string[],
@@ -174,6 +177,14 @@ export const IPC = {
           this._duplicateProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'FOLDER_SYNC_PROGRESS') {
           this._folderSyncProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'MESH_SYNC_PROGRESS') {
+          this._meshSyncProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'MESH_TERMINAL_OUTPUT') {
+          this._meshTerminalOutputListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'MESH_HOSTS_CHANGED') {
+          const hosts = Array.isArray(data.payload) ? data.payload : [];
+          this._meshHostsChangedListeners.forEach(cb => cb(hosts));
+          window.dispatchEvent(new CustomEvent('bndz-mesh-hosts-changed', { detail: { hosts } }));
         } else if (data.type === 'GLOBAL_HOTKEY') {
           const id = data.payload?.id ?? '';
           window.dispatchEvent(new CustomEvent('bndz-global-hotkey', { detail: { id } }));
@@ -295,6 +306,30 @@ export const IPC = {
     };
   },
 
+  onMeshSyncProgress(callback: (progress: { ruleId: string; status: string; percent: number; currentFile?: string; message?: string }) => void) {
+    this.init();
+    this._meshSyncProgressListeners.push(callback);
+    return () => {
+      this._meshSyncProgressListeners = this._meshSyncProgressListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onMeshTerminalOutput(callback: (payload: { sessionId: string; data: string }) => void) {
+    this.init();
+    this._meshTerminalOutputListeners.push(callback);
+    return () => {
+      this._meshTerminalOutputListeners = this._meshTerminalOutputListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onMeshHostsChanged(callback: (hosts: any[]) => void) {
+    this.init();
+    this._meshHostsChangedListeners.push(callback);
+    return () => {
+      this._meshHostsChangedListeners = this._meshHostsChangedListeners.filter(cb => cb !== callback);
+    };
+  },
+
   onCloseRequest(callback: (payload?: { source?: string }) => void) {
     this.init();
     this._closeRequestListeners.push(callback);
@@ -409,6 +444,115 @@ export const IPC = {
       return _nativeCall<any>('FOLDER_SYNC_PREVIEW', 'FOLDER_SYNC_PREVIEW_RESULT', id, { jobId }, 120000).then(r => r || {});
     }
     return Promise.resolve({ summary: 'Preview requires the native host.', wouldCopy: [], wouldUpdate: [], wouldSkip: [], extraInDest: [] });
+  },
+
+  meshListHosts(): Promise<any[]> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_meshHosts`;
+    return _nativeCall<any>('MESH_LIST_HOSTS', 'MESH_LIST_HOSTS_RESULT', id, {}, 15000).then(r => {
+      if (Array.isArray(r)) return r;
+      if (r && Array.isArray(r.hosts)) return r.hosts;
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return [];
+    });
+  },
+
+  meshImportSshConfig(): Promise<{ imported: number; hosts: any[] }> {
+    if (!this.isNative) return Promise.resolve({ imported: 0, hosts: [] });
+    const id = `${Date.now()}_meshImport`;
+    return _nativeCall<any>('MESH_IMPORT_SSH_CONFIG', 'MESH_IMPORT_SSH_CONFIG_RESULT', id, {}, 30000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return r || { imported: 0, hosts: [] };
+    });
+  },
+
+  meshUpsertHost(host: Record<string, unknown>): Promise<any> {
+    if (!this.isNative) return Promise.resolve(host);
+    const id = `${Date.now()}_meshUpsert`;
+    return _nativeCall<any>('MESH_UPSERT_HOST', 'MESH_UPSERT_HOST_RESULT', id, host, 30000).then(r => {
+      if (r?.error) return Promise.reject(new Error(String(r.error)));
+      return r;
+    });
+  },
+
+  meshDeleteHost(hostId: string): Promise<void> {
+    if (!this.isNative) return Promise.resolve();
+    const id = `${Date.now()}_meshDel`;
+    return _nativeCall<any>('MESH_DELETE_HOST', 'MESH_DELETE_HOST_RESULT', id, { hostId }, 15000).then(() => {});
+  },
+
+  meshConnect(hostId: string): Promise<any> {
+    if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
+    const id = `${Date.now()}_meshConn`;
+    return _nativeCall<any>('MESH_CONNECT', 'MESH_CONNECT_RESULT', id, { hostId }, 60000);
+  },
+
+  meshDisconnect(hostId: string): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({ type: 'MESH_DISCONNECT', payload: { hostId } });
+  },
+
+  meshGetSyncRules(): Promise<any[]> {
+    if (!this.isNative) return Promise.resolve([]);
+    const id = `${Date.now()}_meshRules`;
+    return _nativeCall<any[]>('MESH_SYNC_GET_RULES', 'MESH_SYNC_GET_RULES_RESULT', id, {}, 15000).then(r => r || []);
+  },
+
+  meshSaveSyncRules(rules: any[]): Promise<void> {
+    if (!this.isNative) return Promise.resolve();
+    const id = `${Date.now()}_meshSaveRules`;
+    return _nativeCall<any>('MESH_SYNC_SAVE_RULES', 'MESH_SYNC_SAVE_RULES_RESULT', id, rules, 15000).then(() => {});
+  },
+
+  meshRunSync(ruleId: string): Promise<any> {
+    if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
+    const id = `${Date.now()}_meshRun`;
+    return _nativeCall<any>('MESH_SYNC_RUN', 'MESH_SYNC_RUN_RESULT', id, { ruleId }, 600000);
+  },
+
+  meshTerminalOpen(opts: { hostId?: string; cwd?: string; local?: boolean }): Promise<any> {
+    if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
+    const id = `${Date.now()}_meshTerm`;
+    return _nativeCall<any>('MESH_TERMINAL_OPEN', 'MESH_TERMINAL_OPEN_RESULT', id, opts, 60000);
+  },
+
+  meshTerminalInput(sessionId: string, data: string): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({ type: 'MESH_TERMINAL_INPUT', payload: { sessionId, data } });
+  },
+
+  meshTerminalClose(sessionId: string): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({ type: 'MESH_TERMINAL_CLOSE', payload: { sessionId } });
+  },
+
+  meshTransfer(payload: {
+    operationId: string;
+    direction: 'upload' | 'download' | 'replicate' | 'relay';
+    hostId?: string;
+    srcHostId?: string;
+    destHostId?: string;
+    localPaths?: string[];
+    meshPaths?: string[];
+    localDestDir?: string;
+    remoteDestDir?: string;
+    move?: boolean;
+  }): Promise<{ ok: boolean; error?: string; operationId?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshXfer`;
+    return _nativeCall<any>('MESH_TRANSFER', 'MESH_TRANSFER_RESULT', id, payload, 3600000).then(r => {
+      if (r?.error) return { ok: false, error: String(r.error), operationId: r.operationId };
+      return { ok: r?.ok !== false, operationId: r?.operationId ?? payload.operationId };
+    });
+  },
+
+  meshHydratePaths(paths: string[]): Promise<{ paths: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ paths: [] });
+    const id = `${Date.now()}_meshHydrate`;
+    return _nativeCall<any>('MESH_HYDRATE_PATHS', 'MESH_HYDRATE_PATHS_RESULT', id, { paths }, 600000).then(r => {
+      if (r?.error) return { paths: [], error: String(r.error) };
+      return { paths: Array.isArray(r?.paths) ? r.paths : [] };
+    });
   },
 
   scanFolderSizes(paths: string[], forceRescan = false): Promise<{
@@ -922,7 +1066,7 @@ export const IPC = {
       return _nativeCall<any[]>('GET_CLOUD_PROVIDERS', 'CLOUD_PROVIDERS_RESULT', id);
     }
     return Promise.resolve([
-      { name: 'OneDrive', path: 'C:\\Users\\' + (window as any).__bndzUser || 'User' + '\\OneDrive', icon: '☁️' }
+      { name: 'OneDrive', path: `C:\\Users\\${(window as any).__bndzUser || 'User'}\\OneDrive`, icon: '☁️' }
     ]);
   },
 
@@ -1365,8 +1509,18 @@ export const IPC = {
   getDirContents(path: string): Promise<any[]> {
     if (this.isNative) {
       const norm = normalizePanePath(path);
+      const isMesh = norm === '/mesh' || norm.startsWith('/mesh/');
+      const timeoutMs = isMesh ? 90000 : 60000;
       return dedupeInFlight(`dir:${norm}`, () =>
-        _nativeCall<any[]>('GET_DIR_CONTENTS', 'DIR_CONTENTS_RESULT', '', { path: norm }, 60000),
+        _nativeCall<any>('GET_DIR_CONTENTS', 'DIR_CONTENTS_RESULT', '', { path: norm }, timeoutMs).then(payload => {
+          if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            const err = (payload as { error?: string }).error;
+            if (err) throw new Error(err);
+            const items = (payload as { items?: unknown[] }).items;
+            if (Array.isArray(items)) return items;
+          }
+          return Array.isArray(payload) ? payload : [];
+        }),
       );
     }
     // Web backend route
@@ -2050,8 +2204,12 @@ export const IPC = {
   setBndzMeta(key: string, value: string): Promise<boolean> {
     if (this.isNative) {
       const id = `${Date.now()}_setMeta`;
-      return _nativeCall<{ ok?: boolean }>('SET_BNDZ_META', 'BNDZ_META_SET_RESULT', id, { key, value }, 10000)
-        .then(r => !!r?.ok);
+      return _nativeCall<{ ok?: boolean }>('SET_BNDZ_META', 'BNDZ_META_SET_RESULT', id, { key, value }, 30000)
+        .then(r => !!r?.ok)
+        .catch(err => {
+          console.warn(`[IPC] setBndzMeta(${key}) failed:`, err);
+          return false;
+        });
     }
     localStorage.setItem(`bndz_meta_${key}`, value);
     return Promise.resolve(true);

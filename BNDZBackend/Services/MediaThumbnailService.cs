@@ -113,16 +113,37 @@ public static class MediaThumbnailService
         return "";
     }
 
-    /// <summary>Same as <see cref="ExtractBase64"/> but never blocks the IPC thread past <paramref name="timeoutMs"/>.</summary>
-    public static string ExtractBase64Bounded(string filePath, int pixelSize, int timeoutMs = 6000)
+    /// <summary>Same as <see cref="ExtractBase64"/> but never blocks past <paramref name="timeoutMs"/>.</summary>
+    public static string ExtractBase64Bounded(string filePath, int pixelSize, int timeoutMs = 4000)
     {
+        // Use a dedicated thread — Task.Run+Wait on the thread pool caused starvation when many
+        // GET_THUMBNAIL handlers each nested another queued extract (IPC timeouts at 12s).
+        var waitMs = Math.Clamp(timeoutMs, 500, 30_000);
+        string? result = null;
+        Exception? fault = null;
+        var worker = new Thread(() =>
+        {
+            try { result = ExtractBase64(filePath, pixelSize); }
+            catch (Exception ex) { fault = ex; }
+        })
+        {
+            IsBackground = true,
+            Name = "BndzThumbExtract",
+        };
         try
         {
-            var task = Task.Run(() => ExtractBase64(filePath, pixelSize));
-            if (task.Wait(Math.Clamp(timeoutMs, 500, 30_000)))
-                return task.Result ?? "";
-            System.Diagnostics.Debug.WriteLine($"[MediaThumb] extract timeout {timeoutMs}ms: {filePath}");
-            return "";
+            worker.Start();
+            if (!worker.Join(waitMs))
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaThumb] extract timeout {waitMs}ms: {filePath}");
+                return "";
+            }
+            if (fault != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MediaThumb] extract failed: {filePath} — {fault.Message}");
+                return "";
+            }
+            return result ?? "";
         }
         catch
         {

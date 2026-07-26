@@ -1,5 +1,7 @@
 using System.IO;
 
+using BNDZ.Services.Mesh;
+
 namespace BNDZ.Services;
 
 public class FileManagementService
@@ -50,12 +52,17 @@ public class FileManagementService
     }
 
     /// <summary>Typed fast path used by SharedBuffer IPC — no JSON round-trip.</summary>
-    public async Task<List<DirListingSharedBuffer.DirEntryDto>> GetDirEntriesAsync(string path)
+    public async Task<List<DirListingSharedBuffer.DirEntryDto>> GetDirEntriesAsync(string path, CancellationToken ct = default)
     {
         if (RecycleBinService.IsRecycleBinPath(path))
         {
             var raw = await RecycleBinService.GetContentsAsync().ConfigureAwait(false);
             return MapToDtos(raw);
+        }
+
+        if (Mesh.MeshPath.IsMeshPath(path))
+        {
+            return await BndzMeshOrchestratorHolder.Instance.ListPaneAsync(path, ct).ConfigureAwait(false);
         }
 
         var shellPath = ShellPathResolver.ResolveForShell(path);

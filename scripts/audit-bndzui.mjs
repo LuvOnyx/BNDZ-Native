@@ -79,6 +79,14 @@ while ((em = effectRe.exec(src)) !== null) {
 }
 
 let failed = false;
+const criticalSymbols = ['IPC'];
+for (const sym of criticalSymbols) {
+  const used = new RegExp(`\\b${sym}\\.`).test(src);
+  if (used && !importNames.has(sym)) {
+    failed = true;
+    console.error(`Missing import for ${sym} (referenced in BNDZUI.tsx)`);
+  }
+}
 if (missingJsx.length) {
   failed = true;
   console.error('Missing imports for JSX components:');

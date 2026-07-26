@@ -12,6 +12,7 @@ import FolderSyncPlugin, { FolderSyncPluginDef } from '../components/plugins/Fol
 import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPlugin';
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
 import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
+import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
 import { useAppConfig } from './configContext';
 
 export type PluginManifest = {
@@ -146,6 +147,14 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: ComparePlugin,
+    },
+    {
+        ...MeshPluginDef,
+        description: 'Zero-config SSH/SFTP mesh — remote browsing, live deploy mirrors, and integrated terminal. Power-user optional plugin.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: MeshPlugin,
     },
 ];
 

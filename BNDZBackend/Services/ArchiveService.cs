@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -15,6 +16,8 @@ namespace BNDZ.Services;
 
 public sealed class ArchiveService
 {
+    private readonly ConcurrentDictionary<string, string> _tempExtractCache = new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "cab", "iso", "jar", "war"
@@ -383,6 +386,13 @@ public sealed class ArchiveService
     {
         archivePath = NormalizePath(archivePath);
         entryPath = entryPath.Replace('\\', '/').TrimStart('/');
+        var cacheKey = $"{archivePath}|{entryPath}";
+        if (_tempExtractCache.TryGetValue(cacheKey, out var cached)
+            && (File.Exists(cached) || Directory.Exists(cached)))
+        {
+            return cached;
+        }
+
         var tempDir = Path.Combine(Path.GetTempPath(), "BNDZ", "archive-extract", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         ExtractEntry(archivePath, entryPath, tempDir);
@@ -390,14 +400,22 @@ public sealed class ArchiveService
         if (string.IsNullOrEmpty(fileName))
             fileName = entryPath.TrimEnd('/').Split('/').LastOrDefault() ?? "item";
         var candidate = Path.Combine(tempDir, fileName);
+        string result;
         if (File.Exists(candidate) || Directory.Exists(candidate))
-            return candidate;
-        // SharpCompress may preserve subpaths — find first extracted item
-        var files = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories);
-        if (files.Length > 0) return files[0];
-        var dirs = Directory.GetDirectories(tempDir, "*", SearchOption.AllDirectories);
-        if (dirs.Length > 0) return dirs[0];
-        return tempDir;
+            result = candidate;
+        else
+        {
+            // SharpCompress may preserve subpaths — find first extracted item
+            var files = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories);
+            if (files.Length > 0) result = files[0];
+            else
+            {
+                var dirs = Directory.GetDirectories(tempDir, "*", SearchOption.AllDirectories);
+                result = dirs.Length > 0 ? dirs[0] : tempDir;
+            }
+        }
+        _tempExtractCache[cacheKey] = result;
+        return result;
     }
 
     public void AddFilesToArchive(string archivePath, IEnumerable<string> sourcePaths, IEnumerable<string>? entryNames = null)

@@ -28,6 +28,7 @@ import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
 import { SelectionFilmstrip } from './SelectionFilmstrip';
 import BndzLensStage from './preview/BndzLensStage';
+import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IPC } from '../lib/ipcBridge';
 
 type PreviewTab = 'preview' | 'details' | 'media';
@@ -111,15 +112,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         const shellIsDir = entityShellIsDirectory(entity, path);
         const cachedFolder = pathContentsCache?.[folderBrowsePath || ''];
 
-        import('../lib/nativeIconService').then(({ requestNativeIcon }) => {
+        import('../lib/nativeIconService').then(({ requestNativeIcon, PREVIEW_THUMB_PX, LIST_THUMB_PX }) => {
            const useThumb = !shellIsDir && !isDriveEntity && config.enableNativeThumbnails !== false;
            if (useThumb) {
-             requestNativeIcon(path, shellIsDir, 'thumbnail').then(data => {
+             requestNativeIcon(path, shellIsDir, 'thumbnail', PREVIEW_THUMB_PX, 2500).then(data => {
                if (!active || !data) return;
                setThumbnailNative(data.replace(/^data:image\/[^;]+;base64,/, ''));
              });
            }
-           requestNativeIcon(path, shellIsDir, 'shell').then(data => {
+           requestNativeIcon(path, shellIsDir, 'shell', LIST_THUMB_PX, 1500).then(data => {
              if (active && data) setShellIcon(data);
            });
         });
@@ -338,44 +339,23 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   useEffect(() => {
     if (!path || isDir || !isSvg || !previewAllowed) {
-      const stale = svgBlobUrlRef.current;
       svgBlobUrlRef.current = null;
-      if (stale) URL.revokeObjectURL(stale);
       setSvgPreviewUrl(null);
       return;
     }
     let active = true;
-    (async () => {
-      try {
-        const { IPC } = await import('../lib/ipcBridge');
-        if (IPC.isNative) {
-          const result = await IPC.readTextFile(toWindowsPath(path));
-          if (!active) return;
-          if (result.content) {
-            const blob = new Blob([result.content], { type: 'image/svg+xml' });
-            const objectUrl = URL.createObjectURL(blob);
-            const stale = svgBlobUrlRef.current;
-            svgBlobUrlRef.current = objectUrl;
-            setSvgPreviewUrl(objectUrl);
-            if (stale) URL.revokeObjectURL(stale);
-            return;
-          }
-        }
-        // Never fall back to bndz-stream for SVG — custom-scheme 404s blank the hero.
-        if (active) setSvgPreviewUrl(null);
-      } catch {
-        if (active) setSvgPreviewUrl(null);
-      }
-    })();
+    void resolveSvgInlineThumb(toWindowsPath(path)).then(url => {
+      if (!active) return;
+      svgBlobUrlRef.current = url;
+      setSvgPreviewUrl(url);
+    });
     return () => {
       active = false;
     };
   }, [path, isDir, isSvg, previewAllowed, virtualUrl]);
 
   useEffect(() => () => {
-    const stale = svgBlobUrlRef.current;
     svgBlobUrlRef.current = null;
-    if (stale) URL.revokeObjectURL(stale);
   }, []);
 
   if (!entity) {

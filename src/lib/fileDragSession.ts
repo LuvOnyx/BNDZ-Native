@@ -6,8 +6,50 @@
 export type TabHoverTarget = { paneId: string; tabIndex: number; tabId: string };
 export type ListFolderTarget = { id: string; type?: string; name?: string };
 
-/** Hit-test a tab strip row at screen coordinates (tolerant of small gaps / icon-only hits). */
-export function hitTestTabAtPoint(clientX: number, clientY: number): TabHoverTarget | null {
+function elementsAtPoint(clientX: number, clientY: number): Element[] {
+  if (typeof document.elementsFromPoint === 'function') {
+    return document.elementsFromPoint(clientX, clientY);
+  }
+  const hit = document.elementFromPoint(clientX, clientY);
+  return hit ? [hit] : [];
+}
+
+/** Walk the hit stack for the first element matching a selector (or closest). */
+export function hitTestClosestAtPoint(
+  clientX: number,
+  clientY: number,
+  selector: string,
+  probes?: Array<[number, number]>,
+): HTMLElement | null {
+  const points = probes ?? [
+    [clientX, clientY],
+    [clientX, clientY - 6],
+    [clientX, clientY + 6],
+    [clientX - 8, clientY],
+    [clientX + 8, clientY],
+  ];
+  for (const [x, y] of points) {
+    for (const el of elementsAtPoint(x, y)) {
+      const match = el.closest(selector) as HTMLElement | null;
+      if (match) return match;
+    }
+  }
+  return null;
+}
+
+function resolveTabFromElement(tabEl: HTMLElement | null): TabHoverTarget | null {
+  if (!tabEl) return null;
+  const tabId = tabEl.getAttribute('data-tab-id');
+  if (!tabId) return null;
+  const paneEl = tabEl.closest('[data-pane-id]') as HTMLElement | null;
+  const paneId = paneEl?.getAttribute('data-pane-id') || '';
+  const tabIndex = parseInt(tabEl.getAttribute('data-tab-index') || '-1', 10);
+  if (!paneId || tabIndex < 0) return { paneId: '', tabIndex: 0, tabId };
+  return { paneId, tabIndex, tabId };
+}
+
+/** Rect hit-test fallback when WebView2 hit stacks omit tab chrome under pointer capture. */
+function hitTestTabByRect(clientX: number, clientY: number): TabHoverTarget | null {
   const probes: Array<[number, number]> = [
     [clientX, clientY],
     [clientX, clientY - 6],
@@ -15,51 +57,79 @@ export function hitTestTabAtPoint(clientX: number, clientY: number): TabHoverTar
     [clientX - 8, clientY],
     [clientX + 8, clientY],
   ];
-
-  const resolveFromEl = (hit: Element | null): TabHoverTarget | null => {
-    if (!hit) return null;
-    const tabEl = hit.closest('[data-tab-id]') as HTMLElement | null;
-    const tabId = tabEl?.getAttribute('data-tab-id');
-    if (!tabId) return null;
-    const paneEl = tabEl?.closest('[data-pane-id]') as HTMLElement | null;
-    const paneId = paneEl?.getAttribute('data-pane-id') || '';
-    const tabIndex = parseInt(tabEl?.getAttribute('data-tab-index') || '-1', 10);
-    if (!paneId || tabIndex < 0) return { paneId: '', tabIndex: 0, tabId };
-    return { paneId, tabIndex, tabId };
-  };
-
+  const tabs = document.querySelectorAll<HTMLElement>('.bndz-chrome-tabstrip [data-tab-id], [data-tab-id]');
   for (const [x, y] of probes) {
-    // Prefer deep stack so overlays / icons don't hide the tab chrome.
-    const stack = typeof document.elementsFromPoint === 'function'
-      ? document.elementsFromPoint(x, y)
-      : [document.elementFromPoint(x, y)].filter(Boolean) as Element[];
-    for (const el of stack) {
-      const hit = resolveFromEl(el);
-      if (hit) return hit;
+    for (const tabEl of tabs) {
+      const rect = tabEl.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        const hit = resolveTabFromElement(tabEl);
+        if (hit) return hit;
+      }
     }
   }
   return null;
 }
 
+/** Hit-test a tab strip row at screen coordinates (tolerant of small gaps / icon-only hits). */
+export function hitTestTabAtPoint(clientX: number, clientY: number): TabHoverTarget | null {
+  // Rect first — WebView2 pointer capture poisons elementsFromPoint for tab chrome.
+  const fromRect = hitTestTabByRect(clientX, clientY);
+  if (fromRect) return fromRect;
+  const tabEl = hitTestClosestAtPoint(clientX, clientY, '[data-tab-id]');
+  return resolveTabFromElement(tabEl);
+}
+
 /** Hit-test the "+" new-tab drop zone. Returns pane id or null. */
 export function hitTestNewTabZoneAtPoint(clientX: number, clientY: number): string | null {
-  const hit = document.elementFromPoint(clientX, clientY);
-  const el = hit?.closest('[data-new-tab-zone]') as HTMLElement | null;
+  const el = hitTestClosestAtPoint(clientX, clientY, '[data-new-tab-zone]');
   return el?.getAttribute('data-new-tab-zone') || null;
 }
 
 /** Hit-test a breadcrumb segment; returns normalized path or null. */
 export function hitTestBreadcrumbAtPoint(clientX: number, clientY: number): string | null {
-  const hit = document.elementFromPoint(clientX, clientY);
-  const crumbEl = hit?.closest('[data-breadcrumb-path]') as HTMLElement | null;
+  const crumbEl = hitTestClosestAtPoint(clientX, clientY, '[data-breadcrumb-path]')
+    ?? hitTestSelectorByRect(clientX, clientY, '[data-breadcrumb-path]');
   return crumbEl?.getAttribute('data-breadcrumb-path') || null;
 }
 
 /** Hit-test a nav-tree folder row; returns folder path or null. */
 export function hitTestNavTreeAtPoint(clientX: number, clientY: number): string | null {
-  const hit = document.elementFromPoint(clientX, clientY);
-  const row = hit?.closest('[data-nav-path]') as HTMLElement | null;
+  const row = hitTestClosestAtPoint(clientX, clientY, '[data-nav-path]')
+    ?? hitTestSelectorByRect(clientX, clientY, '[data-nav-path]');
   return row?.getAttribute('data-nav-path') || null;
+}
+
+const HIT_PROBES = (clientX: number, clientY: number): Array<[number, number]> => [
+  [clientX, clientY],
+  [clientX, clientY - 6],
+  [clientX, clientY + 6],
+  [clientX - 8, clientY],
+  [clientX + 8, clientY],
+];
+
+/** Rect hit-test when WebView2 poisons elementsFromPoint during pointer drags. */
+function hitTestSelectorByRect(
+  clientX: number,
+  clientY: number,
+  selector: string,
+): HTMLElement | null {
+  const probes = HIT_PROBES(clientX, clientY);
+  const nodes = document.querySelectorAll<HTMLElement>(selector);
+  for (const [x, y] of probes) {
+    for (const node of nodes) {
+      const rect = node.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return node;
+      }
+    }
+  }
+  return null;
+}
+
+/** True when pointer is over any list body (active or inactive pane). */
+export function hitTestListBodyAtPoint(clientX: number, clientY: number): HTMLElement | null {
+  return hitTestClosestAtPoint(clientX, clientY, '[data-list-body]')
+    ?? hitTestSelectorByRect(clientX, clientY, '[data-list-body]');
 }
 
 /** Hit-test a list folder row during internal drag. */
@@ -68,8 +138,8 @@ export function hitTestListFolderAtPoint<T extends ListFolderTarget>(
   clientY: number,
   contents: T[] | undefined,
 ): T | null {
-  const hit = document.elementFromPoint(clientX, clientY);
-  const dropRow = hit?.closest('.fs-item-wrapper') as HTMLElement | null;
+  const dropRow = hitTestClosestAtPoint(clientX, clientY, '.fs-item-wrapper')
+    ?? hitTestSelectorByRect(clientX, clientY, '.fs-item-wrapper');
   const dropId = dropRow?.getAttribute('data-id');
   if (!dropId) return null;
   const dropEnt = contents?.find(c => c.id === dropId);
@@ -123,29 +193,44 @@ export function consumeOleDragSession(): FileDragSessionState | null {
   return s;
 }
 
+const INTERNAL_DRAG_CHROME_SELECTORS = [
+  '[data-pane-id]',
+  '[data-tab-id]',
+  '[data-tabstrip]',
+  '[data-new-tab-zone]',
+  '[data-breadcrumb-path]',
+  '[data-nav-path]',
+  '[data-list-body]',
+  '.fs-list-header',
+  '.bndz-chrome-tabstrip',
+  '.bndz-chrome-toolbar',
+  '.bndz-chrome-omnibar',
+  '.bndz-chrome-sidebar',
+  '.bndz-chrome-menubar',
+  '.bndz-chrome-workspace',
+  '.bndz-chrome-bottom',
+  '.bndz-chrome-preview',
+  '.bndz-chrome-statusbar',
+  '.bndz-archive-root',
+  '.sidebar-pin-row',
+];
+
 /** True when the pointer is over in-app chrome that accepts internal file drops (not desktop OLE). */
 export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number): boolean {
-  const hit = document.elementFromPoint(clientX, clientY);
-  if (!hit) return false;
-  return !!(
-    hit.closest('[data-pane-id]')
-    || hit.closest('[data-tab-id]')
-    || hit.closest('[data-tabstrip]')
-    || hit.closest('[data-new-tab-zone]')
-    || hit.closest('[data-breadcrumb-path]')
-    || hit.closest('[data-nav-path]')
-    || hit.closest('[data-list-body]')
-    || hit.closest('.fs-list-header')
-    || hit.closest('.bndz-chrome-tabstrip')
-    || hit.closest('.bndz-chrome-toolbar')
-    || hit.closest('.bndz-chrome-omnibar')
-    || hit.closest('.bndz-chrome-sidebar')
-    || hit.closest('.bndz-chrome-menubar')
-    || hit.closest('.bndz-chrome-workspace')
-    || hit.closest('.bndz-chrome-bottom')
-    || hit.closest('.bndz-chrome-preview')
-    || hit.closest('.bndz-chrome-statusbar')
-  );
+  for (const el of elementsAtPoint(clientX, clientY)) {
+    for (const selector of INTERNAL_DRAG_CHROME_SELECTORS) {
+      if (el.closest(selector)) return true;
+    }
+  }
+  // Rect fallbacks — WebView2 pointer drags often return empty/poisoned hit stacks.
+  if (hitTestTabByRect(clientX, clientY)) return true;
+  if (hitTestListBodyAtPoint(clientX, clientY)) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-nav-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-breadcrumb-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-archive-root')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-sidebar')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-tabstrip]')) return true;
+  return false;
 }
 
 /** Default tab auto-switch delay (ms) — short hover before switching. */

@@ -101,7 +101,7 @@ function Section({
               onDoubleClick={() => onNavigate?.(p.includes('.') ? parentOf(p) : p)}
             >
               <span className="bndz-lens-tile-thumb">
-                <ShellNativeIcon path={p} size={48} preferThumbnail eager />
+                <ShellNativeIcon path={p} size={48} preferThumbnail />
               </span>
               <span className="bndz-lens-tile-name">{name}</span>
               {item.size != null && item.size > 0 && (

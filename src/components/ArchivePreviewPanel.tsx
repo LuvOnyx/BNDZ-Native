@@ -14,6 +14,15 @@ import {
   type ArchiveTreeNode,
 } from '../lib/archiveTypes';
 import { isQueuedIpcResult } from '../lib/transferIpc';
+import { dispatchPointerFileDragMove } from '../lib/pointerFileDragBridge';
+import {
+  beginFileDragSession,
+  endFileDragSession,
+  hitTestListBodyAtPoint,
+  isInternalFileDragChromeAtPoint,
+  stashOleDragSession,
+} from '../lib/fileDragSession';
+import { prefetchArchiveEntryTemp, resolveArchiveEntryTempPaths } from '../lib/archiveExtractCache';
 
 interface ArchivePreviewPanelProps {
   path: string;
@@ -23,6 +32,19 @@ interface ArchivePreviewPanelProps {
 }
 
 const DRAG_THRESHOLD_PX = 6;
+
+type ArchiveDragState = {
+  entry: ArchiveEntry;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  paths?: string[];
+  preparing?: boolean;
+  active?: boolean;
+  label: string;
+  count: number;
+};
 
 function FormatGlyph({ format, size = 22 }: { format: string; size?: number }) {
   const fmt = format.toLowerCase();
@@ -125,7 +147,13 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const [sortAsc, setSortAsc] = useState(true);
   const [showTree, setShowTree] = useState(false);
 
-  const dragRef = useRef<{ entry: ArchiveEntry; x: number; y: number; active: boolean } | null>(null);
+  const dragRef = useRef<ArchiveDragState | null>(null);
+  const [archiveDragGhost, setArchiveDragGhost] = useState<{
+    x: number;
+    y: number;
+    label: string;
+    count: number;
+  } | null>(null);
 
   const winPath = toWindowsPath(path);
   const fmt = format.toLowerCase();
@@ -294,48 +322,184 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     loadPreview(entry);
   };
 
+  const prepareArchiveDragPaths = async (targets: ArchiveEntry[]): Promise<string[]> =>
+    resolveArchiveEntryTempPaths(winPath, targets.map(t => t.path));
+
+  const commitArchiveInternalDrop = (paths: string[], clientX: number, clientY: number) => {
+    endFileDragSession();
+    setArchiveDragGhost(null);
+    window.dispatchEvent(new CustomEvent('bndz-archive-drop', {
+      detail: { paths, clientX, clientY, op: 'copy' },
+    }));
+    setStatus(`Dropping ${paths.length} item(s) into folder…`);
+  };
+
   const dragEntriesOut = async (targets: ArchiveEntry[]) => {
-    if (!isNative || !targets.length) return;
-    setBusy(`Preparing ${targets.length} item(s)…`);
+    if (!targets.length) return;
     try {
-      const { IPC } = await import('../lib/ipcBridge');
-      const paths: string[] = [];
-      for (const entry of targets) {
-        const result = await IPC.archiveExtractEntryToTemp(winPath, entry.path);
-        if (result.success && result.path) paths.push(result.path);
+      const paths = await prepareArchiveDragPaths(targets);
+      if (!paths.length) {
+        setStatus('Could not extract for drag.');
+        return;
       }
-      if (paths.length) {
+      void import('../lib/ipcBridge').then(({ IPC }) => {
         IPC.startDrag(paths);
         setStatus(`Dragging ${paths.length} item(s) — drop on desktop or folder.`);
-      } else {
-        setStatus('Could not extract for drag.');
-      }
-    } finally {
-      setBusy(null);
+      });
+    } catch {
+      setStatus('Could not extract for drag.');
     }
   };
 
   const handleEntryMouseDown = (entry: ArchiveEntry, e: React.MouseEvent) => {
     if (!isNative || e.button !== 0) return;
-    dragRef.current = { entry, x: e.clientX, y: e.clientY, active: false };
+    const dragTargets = selectedPaths.has(entry.path)
+      ? folderItems.filter(i => selectedPaths.has(i.path))
+      : [entry];
+    for (const target of dragTargets) {
+      void prefetchArchiveEntryTemp(winPath, target.path);
+    }
+    dragRef.current = {
+      entry,
+      startX: e.clientX,
+      startY: e.clientY,
+      x: e.clientX,
+      y: e.clientY,
+      label: entry.name,
+      count: dragTargets.length,
+    };
+
+    let oleDragStarted = false;
+    let outsideChromeStreak = 0;
+    let pathsPromise: Promise<string[]> | null = null;
+
+    const onMove = (ev: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || oleDragStarted) return;
+      drag.x = ev.clientX;
+      drag.y = ev.clientY;
+
+      if (!drag.active && !drag.preparing) {
+        const dx = ev.clientX - drag.startX;
+        const dy = ev.clientY - drag.startY;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+        drag.preparing = true;
+        const targets = selectedPaths.has(drag.entry.path)
+          ? folderItems.filter(i => selectedPaths.has(i.path))
+          : [drag.entry];
+        drag.count = targets.length;
+        drag.label = targets.length === 1 ? targets[0].name : `${targets[0].name} +${targets.length - 1}`;
+        setArchiveDragGhost({
+          x: drag.x,
+          y: drag.y,
+          label: drag.label,
+          count: drag.count,
+        });
+        pathsPromise = prepareArchiveDragPaths(targets);
+        void pathsPromise.then(paths => {
+          const live = dragRef.current;
+          if (!live || live.entry.path !== drag.entry.path) return;
+          if (!paths.length) {
+            setStatus('Could not extract for drag.');
+            dragRef.current = null;
+            setArchiveDragGhost(null);
+            return;
+          }
+          live.paths = paths;
+          live.preparing = false;
+          live.active = true;
+          beginFileDragSession({
+            paths,
+            op: 'copy',
+            sourcePaneId: 'archive-preview',
+            sourceTabPath: winPath,
+          });
+        }).catch(() => {
+          setStatus('Could not extract for drag.');
+          dragRef.current = null;
+          setArchiveDragGhost(null);
+        });
+      }
+
+      if (drag.preparing || drag.active) {
+        setArchiveDragGhost({
+          x: ev.clientX,
+          y: ev.clientY,
+          label: drag.label,
+          count: drag.count,
+        });
+        dispatchPointerFileDragMove(ev.clientX, ev.clientY);
+      }
+
+      if (!drag.paths?.length) return;
+
+      if (isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY)) {
+        outsideChromeStreak = 0;
+        return;
+      }
+
+      outsideChromeStreak++;
+      if (outsideChromeStreak < 2) return;
+
+      oleDragStarted = true;
+      stashOleDragSession({
+        paths: drag.paths,
+        op: 'copy',
+        sourcePaneId: 'archive-preview',
+        sourceTabPath: winPath,
+      });
+      setArchiveDragGhost(null);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      dragRef.current = null;
+      void import('../lib/ipcBridge').then(({ IPC }) => {
+        IPC.startDrag(drag.paths!);
+        setStatus(`Dragging ${drag.paths!.length} item(s) — drop on desktop or folder.`);
+      });
+    };
+
+    const onUp = async (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (oleDragStarted) {
+        dragRef.current = null;
+        setArchiveDragGhost(null);
+        endFileDragSession();
+        return;
+      }
+
+      const drag = dragRef.current;
+      dragRef.current = null;
+      setArchiveDragGhost(null);
+
+      let paths = drag?.paths;
+      if (!paths?.length && pathsPromise) {
+        paths = (await pathsPromise) || undefined;
+      }
+      if (!paths?.length) {
+        endFileDragSession();
+        return;
+      }
+
+      if (hitTestListBodyAtPoint(ev.clientX, ev.clientY)
+        || isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY)) {
+        commitArchiveInternalDrop(paths, ev.clientX, ev.clientY);
+        return;
+      }
+
+      endFileDragSession();
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
-  const handleEntryMouseMove = (e: React.MouseEvent) => {
-    const drag = dragRef.current;
-    if (!drag || drag.active) return;
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
-    drag.active = true;
-    dragRef.current = null;
-    const dragTargets = selectedPaths.has(drag.entry.path)
-      ? folderItems.filter(i => selectedPaths.has(i.path))
-      : [drag.entry];
-    void dragEntriesOut(dragTargets);
+  const handleEntryMouseMove = () => {
+    /* pointer session on window handles archive drag */
   };
 
   const handleEntryMouseUp = () => {
-    dragRef.current = null;
+    /* pointer session on window handles archive drag */
   };
 
   const extractSelected = async () => {
@@ -602,6 +766,31 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
           </div>
         </aside>
       )}
+      {archiveDragGhost && <ArchiveDragGhostOverlay ghost={archiveDragGhost} />}
+    </div>
+  );
+}
+
+function ArchiveDragGhostOverlay({ ghost }: {
+  ghost: { x: number; y: number; label: string; count: number };
+}) {
+  return (
+    <div
+      className="fixed z-[300] pointer-events-none"
+      style={{ left: ghost.x + 12, top: ghost.y + 8 }}
+    >
+      <div
+        className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--bndz-radius-md)] border border-[#454545] shadow-lg"
+        style={{ background: 'rgba(37, 37, 38, 0.96)' }}
+      >
+        <Icons8Icon id="compress" size={16} />
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold text-white/95 truncate max-w-[200px]">{ghost.label}</div>
+          <div className="text-[9px] text-white/45 uppercase tracking-wide">
+            Extract · {ghost.count > 1 ? `${ghost.count} items` : 'Copy'}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

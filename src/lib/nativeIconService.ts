@@ -69,12 +69,15 @@ function lookupBatchIcon(batch: Record<string, string | null> | undefined, ...ke
   return null;
 }
 
-function commitCache(key: string, data: string | null, typeKey?: string | null) {
+function commitCache(key: string, data: string | null, typeKey?: string | null, kind: IconRequestKind = 'shell') {
   const existing = cache.get(key);
   if (existing?.data && !data) return;
   if (data) {
     cache.set(key, { data, status: 'ready' });
     if (typeKey && typeKey.startsWith('.')) typeGlyphCache.set(typeKey, data);
+  } else if (kind === 'shell') {
+    // Transient shell misses (queue saturation / IPC timeout) must not poison for 10 minutes.
+    cache.delete(key);
   } else {
     cache.set(key, { data: null, status: 'error', errorAt: Date.now() });
   }
@@ -141,8 +144,8 @@ export function requestNativeIcon(
 
   const cached = cache.get(key);
   if (cached?.status === 'ready' && cached.data) return Promise.resolve(cached.data);
-  // Negative CAS — do not re-storm IPC for known failures until TTL / cache buster.
-  if (isNegativeFresh(cached)) return Promise.resolve(null);
+  // Negative CAS — thumbnails only; shell icons retry on next visible row.
+  if (kind !== 'shell' && isNegativeFresh(cached)) return Promise.resolve(null);
 
   if (typeKey?.startsWith('.')) {
     const glyph = typeGlyphCache.get(typeKey);
@@ -159,7 +162,7 @@ export function requestNativeIcon(
     const typeInflight = inflight.get(`type:${typeKey}`);
     if (typeInflight) {
       const shared = typeInflight.then(data => {
-        commitCache(key, data, typeKey);
+        commitCache(key, data, typeKey, kind);
         return data;
       });
       inflight.set(key, shared);
@@ -170,14 +173,14 @@ export function requestNativeIcon(
   if (!cached?.data) cache.set(key, { data: cached?.data ?? null, status: 'loading' });
 
   // Priority: thumbnails > shell; boost for viewport-near rows (higher = sooner).
-  const priority = (kind === 'thumbnail' ? 1000 : 0) + Math.max(0, Math.min(999, priorityBoost | 0));
+  const priority = (kind === 'thumbnail' ? 1000 : 250) + Math.max(0, Math.min(749, priorityBoost | 0));
   const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority)
     .then(data => {
-      commitCache(key, data, typeKey);
+      commitCache(key, data, typeKey, kind);
       return data;
     })
     .catch(() => {
-      commitCache(key, null);
+      commitCache(key, null, typeKey, kind);
       return null;
     })
     .finally(() => {

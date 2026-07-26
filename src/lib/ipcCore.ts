@@ -17,6 +17,15 @@ type PendingHandler = {
 const pending = new Map<string, PendingHandler>();
 let listenerInstalled = false;
 
+function rejectPending(id: string | undefined, err: Error) {
+  if (!id) return;
+  const handler = pending.get(id);
+  if (!handler) return;
+  pending.delete(id);
+  clearTimeout(handler.timer);
+  handler.reject(err);
+}
+
 function resolvePending(id: string | undefined, type: string | undefined, payload: unknown) {
   if (!id || !type) return;
   const handler = pending.get(id);
@@ -53,6 +62,7 @@ function ensureGlobalListener() {
 
   // Zero-copy SharedBuffer path for massive directory listings (and future bulk payloads).
   webview.addEventListener('sharedbufferreceived', (e: any) => {
+    let pendingId: string | undefined;
     try {
       let meta: any = e.additionalData;
       if (typeof meta === 'string') {
@@ -64,6 +74,7 @@ function ensureGlobalListener() {
       }
       meta ??= {};
       const id = meta.id as string | undefined;
+      pendingId = id;
       const type = meta.type as string | undefined;
       const format = meta.format as string | undefined;
       const buffer: ArrayBuffer | undefined = e.getBuffer?.();
@@ -76,9 +87,16 @@ function ensureGlobalListener() {
 
       let payload: unknown;
       if (format === 'bnd1') {
-        payload = decodeBnd1DirListing(buffer);
+        try {
+          payload = decodeBnd1DirListing(buffer);
+        } catch (decodeErr) {
+          try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+          rejectPending(id, decodeErr instanceof Error ? decodeErr : new Error(String(decodeErr)));
+          return;
+        }
       } else {
         try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+        rejectPending(id, new Error(`Unsupported SharedBuffer format: ${format ?? 'unknown'}`));
         return;
       }
 
@@ -95,6 +113,7 @@ function ensureGlobalListener() {
       resolvePending(id, type, payload);
     } catch (err) {
       console.warn('[IPC] SharedBuffer decode failed', err);
+      if (pendingId) rejectPending(pendingId, err instanceof Error ? err : new Error(String(err)));
     }
   });
 

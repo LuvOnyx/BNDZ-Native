@@ -14,6 +14,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using BNDZ.Services;
+using BNDZ.Services.Mesh;
 using BNDZ.Utilities;
 using Microsoft.Web.WebView2.Core;
 
@@ -55,6 +56,8 @@ namespace BNDZ
         private readonly BndzCatalogStore _catalogStore = new();
         private readonly BndzTagSidecarStore _tagSidecarStore = new();
         private readonly BndzActionLogService _actionLogService = new();
+        private readonly BndzMeshOrchestrator _meshOrchestrator = BndzMeshOrchestratorHolder.Instance;
+        private readonly MeshTransferService _meshTransferService;
 
         private ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
         private ConcurrentQueue<object> _fseventBuffer = new();
@@ -84,6 +87,7 @@ namespace BNDZ
             _iconStudioService = new IconStudioService();
             _fileOperationService = new FileOperationService();
             _fileOperationService.SetActionLog(_actionLogService);
+            _meshTransferService = new MeshTransferService(_meshOrchestrator, _fileTransferQueue);
             _settingsManager = new SettingsManager();
             _globalHotkeys = new GlobalHotkeyService();
             _globalHotkeys.HotkeyPressed += OnGlobalHotkeyPressed;
@@ -121,6 +125,24 @@ namespace BNDZ
                     catch { }
                 });
             });
+            _meshOrchestrator.Sync.SetProgressCallback(p =>
+            {
+                var evt = new { type = "MESH_SYNC_PROGRESS", payload = p };
+                PostToUi(() =>
+                {
+                    try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)); }
+                    catch { }
+                });
+            });
+            _meshOrchestrator.Terminal.OnOutput += (sessionId, data) =>
+            {
+                var evt = new { type = "MESH_TERMINAL_OUTPUT", payload = new { sessionId, data } };
+                PostToUi(() =>
+                {
+                    try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)); }
+                    catch { }
+                });
+            };
             BndzFileIndexService.Instance.ProgressCallback = p =>
             {
                 var evt = new
@@ -284,6 +306,28 @@ namespace BNDZ
         public void SetPendingStartupAction(string action) => _pendingStartupAction = action;
 
         private void PostToUi(Action action) => UiThread.Marshal(Dispatcher, action);
+
+        private static readonly JsonSerializerOptions MeshJsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        private void PostMeshIpcResult(string? id, string resultType, object payload)
+        {
+            var response = new { type = resultType, id, payload };
+            PostToUi(() =>
+            {
+                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, MeshJsonOpts)); }
+                catch { }
+            });
+        }
+
+        private void BroadcastMeshHostsChanged()
+        {
+            var evt = new { type = "MESH_HOSTS_CHANGED", payload = _meshOrchestrator.ListHosts() };
+            PostToUi(() =>
+            {
+                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt, MeshJsonOpts)); }
+                catch { }
+            });
+        }
 
         private Task PostToUiAsync(Action action) => UiThread.MarshalAsync(Dispatcher, action);
 
@@ -652,6 +696,30 @@ namespace BNDZ
             });
         }
 
+        private void PostThumbnailResult(string? id, string? payload)
+        {
+            var response = new { type = "THUMBNAIL_RESULT", id, payload };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+            PostToUi(() =>
+            {
+                try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
+                catch { }
+            });
+        }
+
+        private void PostExtendedMetadataResult(string? id, object? payload)
+        {
+            var response = new { type = "EXTENDED_METADATA_RESULT", id, payload };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+            PostToUi(() =>
+            {
+                try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
+                catch { }
+            });
+        }
+
         private static object DirEntryToLegacy(DirListingSharedBuffer.DirEntryDto e) => new
         {
             id = e.Id,
@@ -673,6 +741,18 @@ namespace BNDZ
         {
             var legacy = entries.Select(DirEntryToLegacy).ToList();
             var response = new { type = "DIR_CONTENTS_RESULT", id, payload = legacy };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+        }
+
+        private void PostDirContentsError(string? id, string path, string error)
+        {
+            var response = new
+            {
+                type = "DIR_CONTENTS_RESULT",
+                id,
+                payload = new { error, path = path.Replace('\\', '/'), items = Array.Empty<object>() },
+            };
             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
         }
@@ -1117,19 +1197,29 @@ namespace BNDZ
                     if (paths.Count == 0) return;
                     var pathArray = paths.ToArray();
 
-                    PostToUi(() => {
+                    // DoDragDrop must run synchronously while the mouse button is still down.
+                    void RunOleDrag()
+                    {
                         try
                         {
                             _bndzOleDragActive = true;
                             var dataObject = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, pathArray);
                             System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[START_DRAG] {ex.Message}");
+                        }
                         finally
                         {
                             _bndzOleDragActive = false;
                         }
-                    });
+                    }
+
+                    if (Dispatcher.CheckAccess())
+                        RunOleDrag();
+                    else
+                        Dispatcher.Invoke(RunOleDrag);
                 }
                 else if (type == "CLEAR_THUMBNAIL_CACHE")
                 {
@@ -1364,48 +1454,57 @@ namespace BNDZ
 
                     _ = Task.Run(async () =>
                     {
-                        var entries = await _fileService.GetDirEntriesAsync(path).ConfigureAwait(false);
-                        var pageSize = DirListingSharedBuffer.FirstPaintPageSize;
-                        var useProgressive = entries.Count > pageSize;
-
-                        await PostToUiAsync(() =>
+                        try
                         {
-                            var env = _webViewEnvironment;
-                            var wv = MainWebView.CoreWebView2;
-                            if (env == null || wv == null)
-                            {
-                                PostDirContentsJson(idProp, entries);
-                                return;
-                            }
+                            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                            var entries = await _fileService.GetDirEntriesAsync(path, cts.Token).ConfigureAwait(false);
+                            var pageSize = DirListingSharedBuffer.FirstPaintPageSize;
+                            var useProgressive = entries.Count > pageSize;
 
-                            if (useProgressive)
+                            await PostToUiAsync(() =>
                             {
-                                // First paint: no tag sidecar yet — dirs/files show instantly.
-                                var page = entries.GetRange(0, pageSize);
-                                if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, page, path, partial: true))
-                                    PostDirContentsJson(idProp, page);
-                            }
-                            else
-                            {
-                                DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
-                                if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, entries, path, partial: false))
+                                var env = _webViewEnvironment;
+                                var wv = MainWebView.CoreWebView2;
+                                if (env == null || wv == null)
+                                {
                                     PostDirContentsJson(idProp, entries);
-                            }
-                        }).ConfigureAwait(false);
+                                    return;
+                                }
 
-                        if (!useProgressive) return;
+                                if (useProgressive)
+                                {
+                                    // First paint: no tag sidecar yet — dirs/files show instantly.
+                                    var page = entries.GetRange(0, pageSize);
+                                    if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, page, path, partial: true))
+                                        PostDirContentsJson(idProp, page);
+                                }
+                                else
+                                {
+                                    DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
+                                    if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, entries, path, partial: false))
+                                        PostDirContentsJson(idProp, entries);
+                                }
+                            }).ConfigureAwait(false);
 
-                        // Full list + tags as append — UI already interactive on first page.
-                        DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
-                        await PostToUiAsync(() =>
+                            if (!useProgressive) return;
+
+                            // Full list + tags as append — UI already interactive on first page.
+                            DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
+                            await PostToUiAsync(() =>
+                            {
+                                var env = _webViewEnvironment;
+                                var wv = MainWebView.CoreWebView2;
+                                if (env != null && wv != null
+                                    && DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_APPEND", idProp, entries, path, partial: false))
+                                    return;
+                                PostDirContentsJsonAppend(idProp, path, entries);
+                            }).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
                         {
-                            var env = _webViewEnvironment;
-                            var wv = MainWebView.CoreWebView2;
-                            if (env != null && wv != null
-                                && DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_APPEND", idProp, entries, path, partial: false))
-                                return;
-                            PostDirContentsJsonAppend(idProp, path, entries);
-                        }).ConfigureAwait(false);
+                            System.Diagnostics.Debug.WriteLine($"[GET_DIR_CONTENTS] {path}: {ex.Message}");
+                            await PostToUiAsync(() => PostDirContentsError(idProp, path, ex.Message)).ConfigureAwait(false);
+                        }
                     });
                 }
                 else if (type == "GET_SUB_DIRECTORIES")
@@ -1711,6 +1810,236 @@ namespace BNDZ
                     var response = new { type = "FOLDER_SYNC_PREVIEW_RESULT", id = idProp, payload = preview };
                     MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
                 }
+                else if (type == "MESH_LIST_HOSTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var hosts = _meshOrchestrator.ListHosts();
+                        PostMeshIpcResult(idProp, "MESH_LIST_HOSTS_RESULT", hosts);
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_LIST_HOSTS_RESULT", new { error = ex.Message, hosts = Array.Empty<MeshHostRecord>() });
+                    }
+                }
+                else if (type == "MESH_IMPORT_SSH_CONFIG")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var count = _meshOrchestrator.ImportSshConfig();
+                            BroadcastMeshHostsChanged();
+                            PostMeshIpcResult(idProp, "MESH_IMPORT_SSH_CONFIG_RESULT", new { imported = count, hosts = _meshOrchestrator.ListHosts() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_IMPORT_SSH_CONFIG_RESULT", new { imported = 0, hosts = _meshOrchestrator.ListHosts(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_UPSERT_HOST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var hostJson = root.GetProperty("payload").GetRawText();
+                        var host = JsonSerializer.Deserialize<MeshHostRecord>(hostJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                            ?? throw new InvalidOperationException("Invalid host payload");
+                        if (!string.IsNullOrEmpty(host.PasswordPlain))
+                            host.ProtectedSecret = MeshCredentialVault.Protect(host.PasswordPlain);
+                        host.PasswordPlain = null;
+                        var saved = _meshOrchestrator.UpsertHost(host);
+                        BroadcastMeshHostsChanged();
+                        PostMeshIpcResult(idProp, "MESH_UPSERT_HOST_RESULT", saved);
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_UPSERT_HOST_RESULT", new { error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_DELETE_HOST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var hostId = root.GetProperty("payload").GetProperty("hostId").GetString() ?? "";
+                        _meshOrchestrator.DeleteHost(hostId);
+                        BroadcastMeshHostsChanged();
+                        PostMeshIpcResult(idProp, "MESH_DELETE_HOST_RESULT", new { ok = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_DELETE_HOST_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_CONNECT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var hostId = root.GetProperty("payload").GetProperty("hostId").GetString() ?? "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _meshOrchestrator.ConnectAsync(hostId).ConfigureAwait(false);
+                            BroadcastMeshHostsChanged();
+                            var connected = _meshOrchestrator.GetHost(hostId);
+                            if (connected != null)
+                                PostMeshIpcResult(idProp, "MESH_CONNECT_RESULT", connected);
+                            else
+                                PostMeshIpcResult(idProp, "MESH_CONNECT_RESULT", new { error = "Host not found after connect", id = hostId });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_CONNECT_RESULT", new { error = ex.Message, id = hostId });
+                        }
+                    });
+                }
+                else if (type == "MESH_DISCONNECT")
+                {
+                    var hostId = root.GetProperty("payload").GetProperty("hostId").GetString() ?? "";
+                    _meshOrchestrator.Disconnect(hostId);
+                }
+                else if (type == "MESH_SYNC_GET_RULES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var rules = _meshOrchestrator.Sync.GetRules();
+                    var response = new { type = "MESH_SYNC_GET_RULES_RESULT", id = idProp, payload = rules };
+                    MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                }
+                else if (type == "MESH_SYNC_SAVE_RULES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var rulesJson = root.GetProperty("payload").GetRawText();
+                    try
+                    {
+                        var rules = JsonSerializer.Deserialize<List<MeshSyncRuleRecord>>(rulesJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<MeshSyncRuleRecord>();
+                        _meshOrchestrator.Sync.SaveRules(rules);
+                        PostMeshIpcResult(idProp, "MESH_SYNC_SAVE_RULES_RESULT", new { ok = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "MESH_SYNC_SAVE_RULES_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "MESH_SYNC_RUN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ruleId = root.GetProperty("payload").GetProperty("ruleId").GetString() ?? "";
+                    _ = Task.Run(async () =>
+                    {
+                        var result = await _meshOrchestrator.Sync.RunRuleAsync(ruleId).ConfigureAwait(false);
+                        var response = new { type = "MESH_SYNC_RUN_RESULT", id = idProp, payload = result };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })));
+                    });
+                }
+                else if (type == "MESH_TERMINAL_OPEN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var hostId = payload.TryGetProperty("hostId", out var hEl) ? hEl.GetString() : null;
+                    var cwd = payload.TryGetProperty("cwd", out var cEl) ? cEl.GetString() : null;
+                    var local = payload.TryGetProperty("local", out var lEl) && lEl.GetBoolean();
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var session = local || string.IsNullOrEmpty(hostId)
+                                ? _meshOrchestrator.Terminal.OpenLocal(cwd)
+                                : _meshOrchestrator.Terminal.OpenSsh(hostId!, cwd);
+                            PostMeshIpcResult(idProp, "MESH_TERMINAL_OPEN_RESULT", session);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_TERMINAL_OPEN_RESULT", new { error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_TERMINAL_INPUT")
+                {
+                    var payload = root.GetProperty("payload");
+                    var sessionId = payload.GetProperty("sessionId").GetString() ?? "";
+                    var data = payload.GetProperty("data").GetString() ?? "";
+                    _meshOrchestrator.Terminal.SendInput(sessionId, data);
+                }
+                else if (type == "MESH_TERMINAL_CLOSE")
+                {
+                    var sessionId = root.GetProperty("payload").GetProperty("sessionId").GetString() ?? "";
+                    _meshOrchestrator.Terminal.Close(sessionId);
+                }
+                else if (type == "MESH_TRANSFER")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var operationId = payload.TryGetProperty("operationId", out var opEl) ? opEl.GetString() ?? Guid.NewGuid().ToString("N") : Guid.NewGuid().ToString("N");
+                    var direction = payload.TryGetProperty("direction", out var dirEl) ? dirEl.GetString() ?? "upload" : "upload";
+                    var hostId = payload.TryGetProperty("hostId", out var hidEl) ? hidEl.GetString() ?? "" : "";
+                    var srcHostId = payload.TryGetProperty("srcHostId", out var shEl) ? shEl.GetString() ?? "" : "";
+                    var destHostId = payload.TryGetProperty("destHostId", out var dhEl) ? dhEl.GetString() ?? "" : "";
+                    var remoteDestDir = payload.TryGetProperty("remoteDestDir", out var rddEl) ? rddEl.GetString() ?? "/" : "/";
+                    var localDestDir = payload.TryGetProperty("localDestDir", out var lddEl) ? lddEl.GetString() ?? "" : "";
+                    var move = payload.TryGetProperty("move", out var mvEl) && mvEl.GetBoolean();
+                    var localPaths = payload.TryGetProperty("localPaths", out var lpEl) && lpEl.ValueKind == JsonValueKind.Array
+                        ? lpEl.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList()
+                        : new List<string>();
+                    var meshPaths = payload.TryGetProperty("meshPaths", out var mpEl) && mpEl.ValueKind == JsonValueKind.Array
+                        ? mpEl.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList()
+                        : new List<string>();
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            switch (direction.ToLowerInvariant())
+                            {
+                                case "upload":
+                                    await _meshTransferService.UploadAsync(operationId, hostId, localPaths, remoteDestDir).ConfigureAwait(false);
+                                    break;
+                                case "download":
+                                    await _meshTransferService.DownloadAsync(operationId, hostId, meshPaths, localDestDir).ConfigureAwait(false);
+                                    break;
+                                case "replicate":
+                                    await _meshTransferService.ReplicateRemoteAsync(operationId, hostId, meshPaths, remoteDestDir, move).ConfigureAwait(false);
+                                    break;
+                                case "relay":
+                                    await _meshTransferService.RelayAsync(operationId, srcHostId, destHostId, meshPaths, remoteDestDir, move).ConfigureAwait(false);
+                                    break;
+                                default:
+                                    throw new InvalidOperationException($"Unknown mesh transfer direction: {direction}");
+                            }
+                            PostMeshIpcResult(idProp, "MESH_TRANSFER_RESULT", new { ok = true, operationId });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_TRANSFER_RESULT", new { ok = false, operationId, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MESH_HYDRATE_PATHS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var paths = root.GetProperty("payload").TryGetProperty("paths", out var pEl) && pEl.ValueKind == JsonValueKind.Array
+                        ? pEl.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList()
+                        : new List<string>();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var localPaths = new List<string>();
+                            foreach (var panePath in paths)
+                            {
+                                localPaths.Add(await _meshOrchestrator.HydrateToCacheAsync(panePath).ConfigureAwait(false));
+                            }
+                            PostMeshIpcResult(idProp, "MESH_HYDRATE_PATHS_RESULT", new { paths = localPaths });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MESH_HYDRATE_PATHS_RESULT", new { error = ex.Message, paths = Array.Empty<string>() });
+                        }
+                    });
+                }
                 else if (type == "AI_BATCH_RENAME")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -1896,22 +2225,31 @@ namespace BNDZ
                     if (payload.TryGetProperty("size", out var sizeEl) && sizeEl.ValueKind == JsonValueKind.Number)
                         thumbSize = sizeEl.GetInt32();
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var pathCopy = path;
+                    var sizeCopy = thumbSize;
 
-                    _ = Task.Run(() => 
+                    _ = Task.Run(async () =>
                     {
-                        var nativeSvc = _nativeShellService;
-                        string? base64 = BndzHostCaches.ResolveThumbnailBase64(
-                            path,
-                            thumbSize,
-                            () => nativeSvc.GetNativeThumbnailBase64(path, thumbSize) ?? "");
-
-                        var response = new { type = "THUMBNAIL_RESULT", id = idProp, payload = string.IsNullOrEmpty(base64) ? null : base64 };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-
-                        PostToUi(() => {
-                            MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
-                        });
+                        var ran = await BndzIpcWorkQueue.TryRunThumbnailAsync(() =>
+                        {
+                            string? base64 = null;
+                            try
+                            {
+                                var nativeSvc = _nativeShellService;
+                                base64 = BndzHostCaches.ResolveThumbnailBase64(
+                                    pathCopy,
+                                    sizeCopy,
+                                    () => nativeSvc.GetNativeThumbnailBase64(pathCopy, sizeCopy) ?? "");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"GET_THUMBNAIL failed for {pathCopy}: {ex.Message}");
+                            }
+                            PostThumbnailResult(idProp, string.IsNullOrEmpty(base64) ? null : base64);
+                            return Task.CompletedTask;
+                        }).ConfigureAwait(false);
+                        if (!ran)
+                            PostThumbnailResult(idProp, null);
                     });
                 }
                 else if (type == "GET_THUMBNAILS_BATCH")
@@ -1942,40 +2280,52 @@ namespace BNDZ
                     }
                     catch { }
 
-                    _ = Task.Run(() =>
+                    var pathsCopy = paths;
+                    var sizeCopy = thumbSize;
+
+                    _ = Task.Run(async () =>
                     {
-                        var nativeSvc = _nativeShellService;
-                        // Parallel extract with bounded concurrency — fills CAS for list warm.
-                        Parallel.ForEach(
-                            paths,
-                            new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 2, 8) },
-                            path =>
+                        var ran = await BndzIpcWorkQueue.TryRunThumbnailAsync(() =>
+                        {
+                            var nativeSvc = _nativeShellService;
+                            foreach (var path in pathsCopy)
                             {
                                 try
                                 {
                                     var b64 = BndzHostCaches.ResolveThumbnailBase64(
                                         path,
-                                        thumbSize,
-                                        () => nativeSvc.GetNativeThumbnailBase64(path, thumbSize) ?? "");
-                                    lock (results)
-                                    {
-                                        results[path] = string.IsNullOrEmpty(b64) ? null : b64;
-                                    }
+                                        sizeCopy,
+                                        () => nativeSvc.GetNativeThumbnailBase64(path, sizeCopy) ?? "");
+                                    results[path] = string.IsNullOrEmpty(b64) ? null : b64;
                                 }
                                 catch
                                 {
-                                    lock (results) { results[path] = null; }
+                                    results[path] = null;
                                 }
-                            });
+                            }
 
-                        var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                        PostToUi(() =>
+                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                            PostToUi(() =>
+                            {
+                                try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
+                                catch { }
+                            });
+                            return Task.CompletedTask;
+                        }, waitMs: 8000).ConfigureAwait(false);
+
+                        if (!ran)
                         {
-                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
-                            catch { }
-                        });
+                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                            PostToUi(() =>
+                            {
+                                try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
+                                catch { }
+                            });
+                        }
                     });
                 }
                 else if (type == "GET_EXTENDED_METADATA")
@@ -1986,20 +2336,24 @@ namespace BNDZ
                     path = path.Replace("/", "\\");
                     if (path.EndsWith(":") && path.Length == 2) path += "\\";
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var pathCopy = path;
 
-                    _ = Task.Run(() => 
+                    _ = BndzIpcWorkQueue.RunMetadataAsync(() =>
                     {
-                        var nativeSvc = new NativeShellService();
-                        var meta = nativeSvc.GetExtendedMetadata(path);
-                        EnrichMetadataWithAcl(path, meta);
-
-                        var response = new { type = "EXTENDED_METADATA_RESULT", id = idProp, payload = meta };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-
-                        PostToUi(() => {
-                            MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
-                        });
+                        Dictionary<string, string> meta;
+                        try
+                        {
+                            var nativeSvc = new NativeShellService();
+                            meta = nativeSvc.GetExtendedMetadata(pathCopy);
+                            EnrichMetadataWithAcl(pathCopy, meta);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"GET_EXTENDED_METADATA failed for {pathCopy}: {ex.Message}");
+                            meta = new Dictionary<string, string> { ["error"] = ex.Message };
+                        }
+                        PostExtendedMetadataResult(idProp, meta);
+                        return Task.CompletedTask;
                     });
                 }
                 else if (type == "WRITE_MEDIA_TAGS")
@@ -2036,7 +2390,8 @@ namespace BNDZ
                 else if (type == "GET_MEDIA_BLOB")
                 {
                     var payload = root.GetProperty("payload");
-                    string path = NormalizeFsPath(payload.GetProperty("path").GetString() ?? "");
+                    string rawPath = payload.GetProperty("path").GetString() ?? "";
+                    string path = MeshPath.IsMeshPath(rawPath) ? rawPath : NormalizeFsPath(rawPath);
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     long maxBytes = payload.TryGetProperty("maxBytes", out var maxEl) ? maxEl.GetInt64() : 48L * 1024 * 1024;
 
@@ -2045,6 +2400,10 @@ namespace BNDZ
                         object resultPayload;
                         try
                         {
+                            if (MeshPath.IsMeshPath(path))
+                            {
+                                path = _meshOrchestrator.HydrateToCacheAsync(path).GetAwaiter().GetResult();
+                            }
                             if (!File.Exists(path))
                             {
                                 resultPayload = new { error = "File not found", mime = LocalStreamService.GetContentType(path) };
@@ -2604,22 +2963,29 @@ namespace BNDZ
                         isDirectory = payload.TryGetProperty("isDirectory", out var dirElem) && dirElem.GetBoolean();
                     } catch { }
 
-                    _ = Task.Run(() => 
-                    {
-                        string? extractedBase64 = null;
-                        try
-                        {
-                            extractedBase64 = BndzHostCaches.ResolveIconBase64(
-                                path,
-                                isDirectory,
-                                () => _nativeShellService.GetNativeShellIconBase64(path, isDirectory) ?? "");
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Failed to get shell icon for {path}: {ex.Message}");
-                        }
+                    var pathCopy = path;
+                    var isDirCopy = isDirectory;
 
-                        PostIconResult(idProp, string.IsNullOrEmpty(extractedBase64) ? null : extractedBase64);
+                    _ = Task.Run(async () =>
+                    {
+                        await BndzIpcWorkQueue.RunShellIconAsync(() =>
+                        {
+                            string? extractedBase64 = null;
+                            try
+                            {
+                                extractedBase64 = BndzHostCaches.ResolveIconBase64(
+                                    pathCopy,
+                                    isDirCopy,
+                                    () => _nativeShellService.GetNativeShellIconBase64(pathCopy, isDirCopy) ?? "");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Failed to get shell icon for {pathCopy}: {ex.Message}");
+                            }
+
+                            PostIconResult(idProp, string.IsNullOrEmpty(extractedBase64) ? null : extractedBase64);
+                            return Task.CompletedTask;
+                        }).ConfigureAwait(false);
                     });
                 }
                 else if (type == "GET_SHELL_ICONS_BATCH")
@@ -3661,19 +4027,24 @@ namespace BNDZ
                         if (metaPayload.TryGetProperty("key", out var mkEl)) metaKey = mkEl.GetString() ?? "";
                         if (metaPayload.TryGetProperty("value", out var mvEl)) metaValue = mvEl.GetString() ?? "";
                     }
-                    try
+                    var keyCopy = metaKey;
+                    var valueCopy = metaValue;
+                    _ = Task.Run(() =>
                     {
-                        BndzFileIndexService.Instance.SetMeta(metaKey, metaValue);
-                        var response = new { type = "BNDZ_META_SET_RESULT", id = idProp, payload = new { ok = true } };
+                        object resultPayload;
+                        try
+                        {
+                            BndzFileIndexService.Instance.SetMeta(keyCopy, valueCopy);
+                            resultPayload = new { ok = true };
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { ok = false, error = ex.Message };
+                        }
+                        var response = new { type = "BNDZ_META_SET_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
-                    }
-                    catch (Exception ex)
-                    {
-                        var response = new { type = "BNDZ_META_SET_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
-                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
-                    }
+                    });
                 }
                 else if (type == "TRIM_AUDIO_FILE")
                 {

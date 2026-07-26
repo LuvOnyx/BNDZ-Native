@@ -114,10 +114,13 @@ export function buildRapidAccessDefaults(
     const path = collapseKnownFolderShadowPath(toPanePath(raw), shortcuts);
     const hideKey = knownFolderDedupeKey(path, shortcuts) || normPath(path);
     if (hidden.has(hideKey)) continue;
+    const iconShell = shellKey || iconMap[name];
     defaults.push({
       name,
       path,
-      iconPath: shellKey || iconMap[name],
+      iconPath: iconShell
+        ? (String(iconShell).startsWith('/') ? String(iconShell) : `/${String(iconShell)}`)
+        : undefined,
       isDefault: true,
     });
   }
@@ -126,10 +129,13 @@ export function buildRapidAccessDefaults(
     const gPath = collapseKnownFolderShadowPath(toPanePath(galleryPath), shortcuts);
     const hideKey = knownFolderDedupeKey(gPath, shortcuts) || normPath(gPath);
     if (!hidden.has(hideKey)) {
+      const galleryIcon = iconMap.Gallery || KNOWN_FOLDER_SHELL.Gallery;
       defaults.push({
         name: 'Gallery',
         path: gPath,
-        iconPath: iconMap.Gallery || KNOWN_FOLDER_SHELL.Gallery,
+        iconPath: galleryIcon
+          ? (String(galleryIcon).startsWith('/') ? String(galleryIcon) : `/${String(galleryIcon)}`)
+          : undefined,
         isDefault: true,
       });
     }
@@ -167,6 +173,23 @@ export function mergeRapidAccessItems(
   }
   for (const d of defaults) push(d);
   return out;
+}
+
+/** Apply persisted Rapid Access order (known-folder keys + custom paths). */
+export function orderRapidAccessItems(
+  items: RapidAccessItem[],
+  order: string[] | undefined,
+  shortcuts: Array<{ name?: string; path?: string }> = [],
+): RapidAccessItem[] {
+  if (!order?.length) return items;
+  const keyOf = (item: RapidAccessItem) =>
+    knownFolderDedupeKey(item.path, shortcuts) || normPath(item.path);
+  const rank = new Map(order.map((k, i) => [k.toLowerCase(), i]));
+  return [...items].sort((a, b) => {
+    const ra = rank.get(keyOf(a).toLowerCase()) ?? 9999;
+    const rb = rank.get(keyOf(b).toLowerCase()) ?? 9999;
+    return ra - rb;
+  });
 }
 
 export type PinnedFavorite = { name: string; path: string; icon: string; iconPath?: string; label?: string };

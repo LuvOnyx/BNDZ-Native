@@ -103,6 +103,16 @@ export function canonicalizeCloudProviders(providers: CloudProvider[]): CloudPro
   return [...byKey.values()];
 }
 
+function cloudProviderNavIcon(p: CloudProvider): string {
+  const icon = (p.icon || '').toLowerCase();
+  const name = (p.name || '').toLowerCase();
+  if (icon === 'gdrive' || icon === 'googledrive' || name.includes('google drive')) return 'gdrive';
+  if (icon === 'onedrive' || name.includes('onedrive')) return 'cloud_drive';
+  if (icon === 'dropbox' || name.includes('dropbox')) return 'cloud_ui';
+  if (icon === 'icloud' || name.includes('icloud')) return 'cloud_ui';
+  return 'cloud_drive';
+}
+
 function deriveAccountLabel(p: CloudProvider): string {
   if (p.accountLabel) return p.accountLabel;
   const win = toWindowsPath(p.path);
@@ -181,7 +191,7 @@ export function groupCloudProvidersForNav(
     navItems.push({
       label: p.name,
       path: panePath,
-      icon: 'cloud_ui',
+      icon: cloudProviderNavIcon(p),
       iconColor: p.syncStatus === 'online-only' ? '#fbbf24' : '#0078d4',
       syncStatus: p.syncStatus,
       shellIconPath: panePath,

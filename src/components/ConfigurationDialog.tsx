@@ -20,6 +20,7 @@ import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { searchJumpSettings, flashJumpSettingTarget, type JumpSettingEntry } from '../lib/jumpToSettingIndex';
 import { mergeUserCommands } from '../lib/userCommands';
 import BndzIndexManagerPanel from './settings/BndzIndexManagerPanel';
+import WorkspaceToolsTabContent from './settings/WorkspaceToolsTabContent';
 import CustomColumnsTabContent from './settings/CustomColumnsTabContent';
 import FieldPickerDialog from './settings/FieldPickerDialog';
 import {
@@ -386,7 +387,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
   const categories = [
     { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Startup & Exit", "Keyboard Shortcuts", "Controls & More", "Safety Belts, Network"] },
-    { name: "Automation", items: ["Custom Event Actions", "User Commands"] },
+    { name: "Automation", items: ["Workspace Tools", "Custom Event Actions", "User Commands"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
     { name: "File Operations", items: ["File Operations", "Undo & Action Log"] },
@@ -877,6 +878,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     </div>
                  </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="Workspace Tools" className="m-0 border-0 p-0 outline-none flex flex-col h-full min-h-0">
+              <WorkspaceToolsTabContent
+                openBottomPlugin={openBottomPluginFromConfig}
+                localConfig={localConfig}
+                updateLocalConfig={updateLocalConfig}
+              />
             </TabsContent>
 
             <TabsContent value="Custom Event Actions" className="m-0 border-0 p-0 outline-none">
@@ -1425,6 +1434,16 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                    />
                    <p className="text-[11px] text-gray-500 mt-1 max-w-[560px]">
                      Docked bar above the status line showing copy, move, and sync progress with destination paths. Uncheck to hide it entirely.
+                   </p>
+                 </div>
+                 <div className="mt-3">
+                   <Checkbox
+                     label={<span>Show transfer <span className="underline decoration-1 underline-offset-[3px]">s</span>peed &amp; ETA in toasts</span>}
+                     checked={localConfig.showTransferSpeedEta ?? true}
+                     onChange={e => updateLocalConfig({ showTransferSpeedEta: e.target.checked })}
+                   />
+                   <p className="text-[11px] text-gray-500 mt-1 max-w-[560px]">
+                     When enabled, progress toasts and the transfer panel show live throughput and time remaining for uploads, downloads, and mesh transfers.
                    </p>
                  </div>
                  <div className="mt-3">

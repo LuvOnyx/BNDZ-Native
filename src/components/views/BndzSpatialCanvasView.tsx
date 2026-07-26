@@ -3,11 +3,11 @@ import { Icons8Icon } from '../Icons8Icon';
 import { ShellNativeIcon } from '../ShellNativeIcon';
 import { readBndzFileDragData, hasBndzFileDrag } from '../../lib/bndzDrag';
 import {
-  loadSpatialCanvas, saveSpatialCanvas, type CanvasItem, type SpatialCanvasDoc,
+  loadSpatialCanvas, saveSpatialCanvas, saveSpatialCanvasNow, type CanvasItem, type SpatialCanvasDoc,
 } from '../../lib/spatialCanvasStore';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { toPanePath } from '../../lib/shellPaths';
-import { IPC } from '../../lib/ipcBridge';
+import { useAppConfig } from '../../data/configContext';
 
 type Props = {
   onNavigate: (path: string) => void;
@@ -20,15 +20,26 @@ function newItem(path: string, x: number, y: number): CanvasItem {
 }
 
 export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props) {
+  const { config } = useAppConfig();
+  const autoSave = config.spatialCanvasAutoSave !== false;
+  const saveDelayMs = typeof config.spatialCanvasAutoSaveDelayMs === 'number'
+    ? config.spatialCanvasAutoSaveDelayMs
+    : 400;
+  const wheelZoom = config.spatialCanvasWheelZoom !== false;
+  const minZoom = typeof config.spatialCanvasMinZoom === 'number' ? config.spatialCanvasMinZoom : 0.35;
+  const maxZoom = typeof config.spatialCanvasMaxZoom === 'number' ? config.spatialCanvasMaxZoom : 2.5;
+
   const [doc, setDoc] = useState<SpatialCanvasDoc | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  const docRef = useRef<SpatialCanvasDoc | null>(null);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const itemDrag = useRef({ id: '', ox: 0, oy: 0, startX: 0, startY: 0 });
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  docRef.current = doc;
 
   useEffect(() => {
     let active = true;
@@ -38,18 +49,37 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
 
   const queueSave = useCallback((next: SpatialCanvasDoc) => {
     setDoc(next);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { void saveSpatialCanvas(next); }, 400);
-  }, []);
+    if (!autoSave) return;
+    void saveSpatialCanvas(next, saveDelayMs).then(ok => {
+      if (!ok) setStatus('Save failed — try Save button');
+    });
+  }, [autoSave, saveDelayMs]);
 
   const screenToBoard = useCallback((clientX: number, clientY: number) => {
     const el = boardRef.current;
-    if (!el || !doc) return { x: 0, y: 0 };
+    const d = docRef.current;
+    if (!el || !d) return { x: 0, y: 0 };
     const rect = el.getBoundingClientRect();
-    const x = (clientX - rect.left - doc.panX) / doc.zoom;
-    const y = (clientY - rect.top - doc.panY) / doc.zoom;
+    const x = (clientX - rect.left - d.panX) / d.zoom;
+    const y = (clientY - rect.top - d.panY) / d.zoom;
     return { x, y };
-  }, [doc]);
+  }, []);
+
+  // Non-passive wheel listener — React onWheel cannot preventDefault in WebView2.
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el || !wheelZoom) return;
+    const onWheel = (e: WheelEvent) => {
+      const d = docRef.current;
+      if (!d) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.92 : 1.08;
+      const nextZoom = Math.min(maxZoom, Math.max(minZoom, d.zoom * delta));
+      queueSave({ ...d, zoom: nextZoom });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [wheelZoom, minZoom, maxZoom, queueSave, doc !== null]);
 
   const addPaths = useCallback((paths: string[], at?: { x: number; y: number }) => {
     if (!doc || !paths.length) return;
@@ -63,14 +93,6 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     queueSave({ ...doc, items });
     setStatus(`Added ${paths.length} item${paths.length === 1 ? '' : 's'} to board`);
   }, [doc, queueSave, screenToBoard]);
-
-  const onWheel = (e: React.WheelEvent) => {
-    if (!doc) return;
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.92 : 1.08;
-    const nextZoom = Math.min(2.5, Math.max(0.35, doc.zoom * delta));
-    queueSave({ ...doc, zoom: nextZoom });
-  };
 
   const onBoardPointerDown = (e: React.PointerEvent) => {
     if (!doc) return;
@@ -157,14 +179,19 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           {status && <span className="text-[10px] text-[#7eb8e8] max-w-[200px] truncate">{status}</span>}
           <button type="button" className="bndz-lens-chip" onClick={() => queueSave({ ...doc, items: [], panX: 0, panY: 0, zoom: 1 })}>Clear</button>
           <button type="button" className="bndz-lens-chip" disabled={!selectedId} onClick={removeSelected}>Remove</button>
-          <button type="button" className="bndz-lens-chip" onClick={() => void saveSpatialCanvas(doc).then(() => setStatus('Saved'))}>Save</button>
+          <button
+            type="button"
+            className="bndz-lens-chip"
+            onClick={() => void saveSpatialCanvasNow(doc).then(ok => setStatus(ok ? 'Saved' : 'Save failed'))}
+          >
+            Save
+          </button>
         </div>
       </header>
 
       <div
         ref={boardRef}
         className="bndz-spatial-board flex-1 min-h-0 relative overflow-hidden cursor-grab active:cursor-grabbing"
-        onWheel={onWheel}
         onPointerDown={onBoardPointerDown}
         onPointerMove={onBoardPointerMove}
         onPointerUp={onBoardPointerUp}
@@ -197,9 +224,8 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
               }}
               onDoubleClick={() => {
-                const pane = toPanePath(item.path);
                 if (onOpenPath) onOpenPath(item.path);
-                else onNavigate(pane);
+                else onNavigate(toPanePath(item.path));
               }}
             >
               <div className="bndz-spatial-card-icon">

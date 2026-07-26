@@ -11,6 +11,8 @@ export type ListDragGhostState = {
   isDirectory?: boolean;
   /** Windows path for shell icon preview */
   previewPath?: string;
+  /** Drop hint shown under the operation label */
+  dropHint?: string;
 };
 
 type Props = {
@@ -46,6 +48,9 @@ export default function ListDragGhost({ ghost }: Props) {
           <div className="text-[9px] text-white/45 uppercase tracking-wide">
             {ghost.copy ? 'Copy' : 'Move'}{ghost.count > 1 ? ` · ${ghost.count} items` : ''}
           </div>
+          {ghost.dropHint ? (
+            <div className="text-[9px] text-white/35 normal-case tracking-normal mt-0.5">{ghost.dropHint}</div>
+          ) : null}
         </div>
       </div>
     </div>

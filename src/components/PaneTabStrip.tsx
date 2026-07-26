@@ -80,6 +80,10 @@ export type PaneTabStripProps = {
   setNewTabDropActive?: (active: boolean) => void;
   setTabFileDropTargetIndex?: (index: number | null) => void;
   dropModifierCopy?: (copy: boolean) => void;
+  /** Disable tab reorder while an internal pointer file-drag is active. */
+  suspendTabReorder?: boolean;
+  /** Pointer file-drag hover over a tab (immediate tab switch). */
+  onPointerFileDragOverTab?: (index: number) => void;
 };
 
 function SortablePaneTab({
@@ -94,6 +98,7 @@ function SortablePaneTab({
   showXClose,
   tabFontSize,
   isFileDropHover,
+  suspendTabReorder,
   onActivate,
   onClose,
   onContextMenu,
@@ -113,6 +118,7 @@ function SortablePaneTab({
   showXClose: boolean;
   tabFontSize?: number;
   isFileDropHover: boolean;
+  suspendTabReorder?: boolean;
   onActivate: () => void;
   onClose: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -123,7 +129,7 @@ function SortablePaneTab({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
-    disabled: !!tab.locked,
+    disabled: !!tab.locked || !!suspendTabReorder,
   });
   const pressRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
@@ -256,10 +262,14 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     setNewTabDropActive,
     setTabFileDropTargetIndex,
     dropModifierCopy,
+    suspendTabReorder,
+    onPointerFileDragOverTab,
   } = props;
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: suspendTabReorder ? 99999 : 6 },
+    }),
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const ids = useMemo(() => tabs.map(t => t.id), [tabs]);
@@ -294,6 +304,13 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',
       }}
+      onPointerMove={(e) => {
+        if (!suspendTabReorder) return;
+        const tabEl = (e.target as HTMLElement).closest('[data-tab-id]') as HTMLElement | null;
+        if (!tabEl) return;
+        const idx = parseInt(tabEl.getAttribute('data-tab-index') || '-1', 10);
+        if (idx >= 0) onPointerFileDragOverTab?.(idx);
+      }}
     >
       <DndContext
         sensors={sensors}
@@ -327,6 +344,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
                 showXClose={showXClose}
                 tabFontSize={tabFontSize}
                 isFileDropHover={tabFileDropTargetIndex === idx}
+                suspendTabReorder={suspendTabReorder}
                 onActivate={() => onActivate(idx)}
                 onClose={e => onClose(idx, e)}
                 onContextMenu={e => onContextMenu(idx, e)}

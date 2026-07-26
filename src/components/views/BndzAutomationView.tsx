@@ -6,10 +6,11 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Icons8Icon } from '../Icons8Icon';
 import {
-  loadAutomationGraph, saveAutomationGraph, runAutomationGraph,
+  loadAutomationGraph, saveAutomationGraph, saveAutomationGraphNow, runAutomationGraph,
   type AutomationNodeType, type AutomationGraph,
 } from '../../lib/automationStore';
 import { IPC } from '../../lib/ipcBridge';
+import { useAppConfig } from '../../data/configContext';
 
 type NodeData = {
   label: string;
@@ -82,6 +83,14 @@ function flowToGraph(name: string, nodes: Node<NodeData>[], edges: Edge[]): Auto
 }
 
 export default function BndzAutomationView() {
+  const { config } = useAppConfig();
+  const autoSave = config.automationAutoSave !== false;
+  const saveDelayMs = typeof config.automationAutoSaveDelayMs === 'number'
+    ? config.automationAutoSaveDelayMs
+    : 800;
+  const panOnScroll = config.automationPanOnScroll !== false;
+  const zoomOnScroll = config.automationZoomOnScroll !== false;
+
   const [graphName, setGraphName] = useState('File pipeline');
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -100,6 +109,14 @@ export default function BndzAutomationView() {
   }, [setNodes, setEdges]);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
+
+  useEffect(() => {
+    if (!autoSave || nodes.length === 0) return;
+    const g = flowToGraph(graphName, nodes, edges);
+    void saveAutomationGraph(g, saveDelayMs).then(ok => {
+      if (!ok) setStatus('Auto-save failed');
+    });
+  }, [autoSave, saveDelayMs, graphName, nodes, edges]);
 
   const onConnect = useCallback((conn: Connection) => {
     setEdges(eds => addEdge({ ...conn, animated: true }, eds));
@@ -131,8 +148,8 @@ export default function BndzAutomationView() {
 
   const save = async () => {
     const g = flowToGraph(graphName, nodes, edges);
-    await saveAutomationGraph(g);
-    setStatus('Pipeline saved');
+    const ok = await saveAutomationGraphNow(g);
+    setStatus(ok ? 'Pipeline saved' : 'Save failed');
   };
 
   const run = async () => {
@@ -203,8 +220,8 @@ export default function BndzAutomationView() {
             elementsSelectable
             panOnDrag={[1, 2]}
             selectionOnDrag={false}
-            panOnScroll
-            zoomOnScroll
+            panOnScroll={panOnScroll}
+            zoomOnScroll={zoomOnScroll}
             onSelectionChange={({ nodes: sel }) => setSelectedNodeId(sel[0]?.id || null)}
             className="bndz-automation-flow"
           >

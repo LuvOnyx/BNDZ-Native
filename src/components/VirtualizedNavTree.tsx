@@ -422,7 +422,7 @@ export function VirtualizedNavTree({
 
   // Auto-optimize: collapse branches that are not ancestors of the current path.
   useEffect(() => {
-    if (!config.autoOptimizeTree || !currentPath) return;
+    if (!config.autoOptimizeTree || !currentPath || rt.tree.lockState) return;
     setDynamicState(prev => {
       let changed = false;
       const next = { ...prev };
@@ -439,7 +439,7 @@ export function VirtualizedNavTree({
       }
       return changed ? next : prev;
     });
-  }, [currentPath, config.autoOptimizeTree]);
+  }, [currentPath, config.autoOptimizeTree, rt.tree.lockState]);
 
   const clearExpandDragTimer = useCallback(() => {
     if (expandDragTimerRef.current) {
@@ -447,6 +447,12 @@ export function VirtualizedNavTree({
       expandDragTimerRef.current = null;
     }
   }, []);
+
+  // When tree expansion is locked, stop browse-driven auto-expansion from fighting the frozen state.
+  useEffect(() => {
+    if (!rt.tree.lockState) return;
+    clearExpandDragTimer();
+  }, [rt.tree.lockState, clearExpandDragTimer]);
 
   useEffect(() => () => {
     clearExpandDragTimer();

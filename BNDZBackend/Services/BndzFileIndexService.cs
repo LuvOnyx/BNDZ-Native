@@ -35,6 +35,7 @@ public sealed class BndzFileIndexService : IDisposable
     private readonly string _dbPath;
     private readonly object _schemaGate = new();
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly SemaphoreSlim _metaLock = new(1, 1);
     private volatile bool _schemaReady;
     private int _indexing;
 
@@ -968,7 +969,7 @@ public sealed class BndzFileIndexService : IDisposable
     public void SetMeta(string key, string value)
     {
         if (string.IsNullOrWhiteSpace(key)) return;
-        _writeLock.Wait();
+        _metaLock.Wait();
         try
         {
             using var conn = OpenConnection();
@@ -984,7 +985,7 @@ public sealed class BndzFileIndexService : IDisposable
         }
         finally
         {
-            _writeLock.Release();
+            _metaLock.Release();
         }
     }
 

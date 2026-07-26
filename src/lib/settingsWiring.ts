@@ -146,6 +146,7 @@ export function buildFileOpsRuntime(config: AppConfig) {
     rememberActionLog: readSettingBool(config, 'rememberTheLoggedActionsBetweenSessions', false),
     persistActionLogOnExit: readSettingBool(config, 'evenOnExitWithoutSaving', false),
     showTransferPanel: readSettingBool(config, 'showTransferQueuePanel', true),
+    showTransferSpeedEta: readSettingBool(config, 'showTransferSpeedEta', true),
   };
 }
 

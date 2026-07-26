@@ -5,8 +5,8 @@ let scrolling = false;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 const SCROLL_IDLE_MS = 120;
 
-const MAX_CONCURRENT = 16;
-const MAX_CONCURRENT_WHILE_SCROLLING = 6;
+const MAX_CONCURRENT = 6;
+const MAX_CONCURRENT_WHILE_SCROLLING = 3;
 let active = 0;
 
 type Queued = { run: () => void; priority: number };
