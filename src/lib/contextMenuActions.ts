@@ -130,7 +130,7 @@ function filterOneNativeItem(item: NativeContextMenuItem): NativeContextMenuItem
     return { ...item, children: kids };
   }
   // Live IContextMenu extensions — always keep (even without classic verbs).
-  if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId > 0)) {
+  if (item.kind === 'shell' || (typeof item.commandId === 'number' && item.commandId >= 0)) {
     const v = nativeItemKey(item);
     // Skip exact duplicates of BNDZ built-ins (leaf verbs only; cascades stay).
     if (v && BUILT_IN_CONTEXT_VERBS.has(v)) return null;
@@ -182,7 +182,7 @@ export function takeShellCascadeByLabel(
 
 /** Resolve the verb string to send to the host for a supplemental native item. */
 export function resolveNativeItemVerb(item: NativeContextMenuItem): string {
-  if (item.kind === 'shell' && typeof item.commandId === 'number' && item.commandId > 0) {
+  if (item.kind === 'shell' && typeof item.commandId === 'number' && item.commandId >= 0) {
     return `shellcmd:${item.commandId}`;
   }
   if (item.verb?.startsWith('shellcmd:')) return item.verb;

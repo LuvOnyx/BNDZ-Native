@@ -85,6 +85,7 @@ public static class LicenseService
         "GET_TAGS_CONFIG",
         "GET_CLOUD_PROVIDERS",
         "GET_NETWORK_LOCATIONS",
+        "BNDZ_UI_READY",
     };
 
     private static string AppDataDir => Path.Combine(

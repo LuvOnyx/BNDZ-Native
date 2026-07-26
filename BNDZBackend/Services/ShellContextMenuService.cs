@@ -165,7 +165,7 @@ public sealed class ShellContextMenuService
             IconBase64 = e.IconBase64,
             IsPrimary = e.IsPrimary,
             Kind = e.Kind,
-            CommandId = e.CommandId > 0 ? e.CommandId : null,
+            CommandId = e.CommandId >= 0 ? e.CommandId : null,
             Children = children,
         };
     }

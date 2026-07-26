@@ -46,6 +46,15 @@ export default defineConfig(() => {
             if (id.includes('node_modules/lucide-react')) {
               return 'icons';
             }
+            if (id.includes('node_modules/monaco-editor') || id.includes('node_modules/@monaco-editor')) {
+              return 'monaco';
+            }
+            if (id.includes('node_modules/wavesurfer')) {
+              return 'wavesurfer';
+            }
+            if (id.includes('node_modules/@xyflow')) {
+              return 'xyflow';
+            }
           },
         },
       },

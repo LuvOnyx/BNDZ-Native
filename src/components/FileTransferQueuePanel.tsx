@@ -113,6 +113,12 @@ function JobRow({
           )}
           <span className="text-[11px] font-medium text-gray-100 truncate">{job.label}</span>
           <span className="bndz-transfer-chip shrink-0">{formatTransferAction(job.action)}</span>
+          {job.verifyStatus === 'verified' && (
+            <span className="bndz-transfer-chip bndz-transfer-chip--verified shrink-0" title="SHA-256 verified">Verified</span>
+          )}
+          {job.verifyStatus === 'failed' && (
+            <span className="bndz-transfer-chip bndz-transfer-chip--verify-fail shrink-0" title={job.error || 'Hash mismatch'}>Verify failed</span>
+          )}
           {job.category && job.category !== 'fs' && (
             <span className="bndz-transfer-chip shrink-0">{formatTransferCategory(job.category)}</span>
           )}

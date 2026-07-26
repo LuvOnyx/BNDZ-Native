@@ -13,7 +13,8 @@ namespace BNDZ.Services;
 
 public class FileOperationService
 {
-    private const long MaxVerifyHashBytes = 256L * 1024 * 1024;
+    /// <summary>Post-copy integrity is always streaming SHA-256 (no size skip).</summary>
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct SHFILEOPSTRUCT
     {
@@ -445,7 +446,7 @@ public class FileOperationService
             if (!srcInfo.Exists || !dstInfo.Exists) return false;
             if (srcInfo.Length != dstInfo.Length) return false;
             if (srcInfo.Length == 0) return true;
-            if (srcInfo.Length > MaxVerifyHashBytes) return true;
+            // Always SHA-256 stream verify — large files included (no silent skip).
 
             static async Task<byte[]> HashFileAsync(string path)
             {

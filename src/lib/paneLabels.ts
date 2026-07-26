@@ -1,4 +1,4 @@
-import { BNDZ_HOME, BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel } from './bndzVirtualViews';
+import { BNDZ_HOME, BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel } from './bndzVirtualViews';
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH } from './pathUtils';
 
 /** Human-readable tab / breadcrumb label for a pane path */
@@ -11,6 +11,8 @@ export function getPaneTabLabel(path: string): string {
   if (p === BNDZ_VIEWS_ROOT) return 'Smart views';
   const bndzView = parseBndzVirtualView(p);
   if (bndzView) return bndzVirtualLabel(bndzView);
+  const workspace = parseBndzWorkspaceView(p);
+  if (workspace) return bndzWorkspaceLabel(workspace);
   if (/^\/[A-Za-z]:$/.test(p)) return p.slice(1);
   const lower = p.toLowerCase();
   if (lower === '/shell:desktop') return 'Desktop';

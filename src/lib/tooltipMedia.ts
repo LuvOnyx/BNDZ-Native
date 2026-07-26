@@ -1,6 +1,7 @@
 /** Media preview resolution for premium floating tooltips. */
 import { IPC } from './ipcBridge';
 import { toVirtualStreamUrl } from './pathUtils';
+import { resolveSvgInlineThumb } from './svgInlineThumb';
 import type { TooltipMedia } from '../components/HoverTooltip';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'tif', 'tiff', 'heic', 'heif']);
@@ -39,12 +40,22 @@ export async function resolveTooltipMedia(
       if (b64) {
         return { kind: 'image', src: `data:image/png;base64,${b64}`, alt: winPath.split(/[/\\]/).pop() };
       }
-    } catch { /* fall through to stream */ }
-    return { kind: 'image', src: toVirtualStreamUrl(winPath), alt: winPath.split(/[/\\]/).pop() };
+    } catch { /* no CAS — skip stream fallback (missing files 404 spam) */ }
+    return null;
   }
 
   if (kind === 'svg') {
-    return { kind: 'svg', src: toVirtualStreamUrl(winPath), alt: winPath.split(/[/\\]/).pop() };
+    try {
+      const b64 = await IPC.getNativeThumbnailBase64(winPath);
+      if (b64) {
+        return { kind: 'image', src: `data:image/png;base64,${b64}`, alt: winPath.split(/[/\\]/).pop() };
+      }
+    } catch { /* fall through to inline */ }
+    const inline = await resolveSvgInlineThumb(winPath);
+    if (inline) {
+      return { kind: 'svg', src: inline, alt: winPath.split(/[/\\]/).pop() };
+    }
+    return null;
   }
 
   if (kind === 'audio') {

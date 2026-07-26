@@ -11,6 +11,8 @@ export type DuplicateGroup = {
   hash?: string;
   size?: number;
   paths?: string[];
+  /** Unix seconds last-write, parallel to paths when provided by host. */
+  modified?: number[];
 };
 
 type KeepRule = 'first' | 'newest' | 'largest';
@@ -28,24 +30,31 @@ function formatSize(n: number): string {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function pickKeepIndex(paths: string[], rule: KeepRule, groupSize: number): number {
+function pickKeepIndex(paths: string[], rule: KeepRule, groupSize: number, modified?: number[]): number {
   if (paths.length <= 1) return 0;
   if (rule === 'first') return 0;
   if (rule === 'largest') {
-    // Group size is shared; prefer shortest path as proxy for "canonical" when sizes equal.
+    // All paths share group size; prefer shortest absolute path as canonical root copy.
     let best = 0;
     for (let i = 1; i < paths.length; i++) {
       if (paths[i].length < paths[best].length) best = i;
     }
     return best;
   }
-  // newest — best-effort via path mtime not available here; prefer deepest (often newer copy) then last.
+  // newest — real mtime from host when available
+  if (modified && modified.length === paths.length) {
+    let best = 0;
+    for (let i = 1; i < modified.length; i++) {
+      if ((modified[i] || 0) > (modified[best] || 0)) best = i;
+    }
+    return best;
+  }
   return paths.length - 1;
 }
 
-function victimsForGroup(paths: string[], rule: KeepRule, groupSize: number): string[] {
+function victimsForGroup(paths: string[], rule: KeepRule, groupSize: number, modified?: number[]): string[] {
   if (paths.length <= 1) return [];
-  const keep = pickKeepIndex(paths, rule, groupSize);
+  const keep = pickKeepIndex(paths, rule, groupSize, modified);
   return paths.filter((_, i) => i !== keep);
 }
 
@@ -97,7 +106,7 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
             onChange={e => setKeepRule(e.target.value as KeepRule)}
             className="bg-[#1e1e22] border border-[#52525b] rounded-[8px] text-[10px] text-gray-200 px-1.5 py-0.5 outline-none"
           >
-            <option value="newest">newest</option>
+            <option value="newest">newest (mtime)</option>
             <option value="largest">shortest path</option>
             <option value="first">first listed</option>
           </select>
@@ -107,7 +116,8 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
             type="button"
             className="text-[10px] text-red-300 hover:text-red-200 px-2.5 py-1 rounded-[8px] border border-red-900/50 hover:border-red-700"
             onClick={() => {
-              const victims = groups.flatMap(g => victimsForGroup(g.paths || [], keepRule, g.size || 0));
+              const victims = groups.flatMap(g =>
+                victimsForGroup(g.paths || [], keepRule, g.size || 0, g.modified));
               deleteVictims(
                 victims,
                 'Delete Duplicate Files',
@@ -123,7 +133,9 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
         {groups.map((g, gi) => {
           const paths = g.paths || [];
           const copies = paths.length;
-          const keepIdx = pickKeepIndex(paths, keepRule, g.size || 0);
+          const keepIdx = pickKeepIndex(paths, keepRule, g.size || 0, g.modified);
+          const keepPath = paths[keepIdx];
+          const other = paths.find((_, i) => i !== keepIdx) || paths[0];
           return (
             <div
               key={g.hash || gi}
@@ -147,7 +159,7 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                     type="button"
                     className="text-[10px] text-red-300 hover:text-red-200 px-2 py-0.5 rounded-[8px] border border-red-900/50"
                     onClick={() => {
-                      const victims = victimsForGroup(paths, keepRule, g.size || 0);
+                      const victims = victimsForGroup(paths, keepRule, g.size || 0, g.modified);
                       deleteVictims(victims, 'Delete Duplicates', `Delete ${victims.length} duplicate(s)?`);
                     }}
                   >
@@ -155,6 +167,28 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                   </button>
                 )}
               </div>
+              {copies >= 2 && (
+                <div className="flex gap-2 px-2.5 py-2 border-b border-[#333338] bg-black/15">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <div className="w-14 h-14 rounded-[10px] overflow-hidden bg-black/30 ring-1 ring-emerald-500/30 flex items-center justify-center shrink-0">
+                      <ShellNativeIcon path={keepPath} size={52} preferThumbnail eager />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[9px] uppercase tracking-wide text-emerald-400/90">Keep</div>
+                      <div className="text-[10px] text-gray-300 font-mono truncate" title={keepPath}>{keepPath}</div>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-2 opacity-80">
+                    <div className="w-14 h-14 rounded-[10px] overflow-hidden bg-black/30 ring-1 ring-white/5 flex items-center justify-center shrink-0">
+                      <ShellNativeIcon path={other} size={52} preferThumbnail eager />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[9px] uppercase tracking-wide text-gray-500">Duplicate</div>
+                      <div className="text-[10px] text-gray-400 font-mono truncate" title={other}>{other}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="divide-y divide-[#333338]">
                 {paths.map((p, pi) => (
                   <div key={p} className="flex items-center gap-2 px-2 py-1.5 group hover:bg-[#2a2a2e]">
@@ -177,34 +211,6 @@ export default function RedundancyGroupsView({ groups, onReveal, wastedBytes = 0
                         {p}
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-white"
-                      onClick={() => void navigator.clipboard.writeText(p)}
-                      title="Copy path"
-                    >
-                      <Icons8Icon id="copy" size={11} />
-                    </button>
-                    {pi !== keepIdx && (
-                      <button
-                        type="button"
-                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400"
-                        onClick={() => {
-                          void requestNativeConfirm({
-                            title: 'Delete Duplicate',
-                            message: `Delete "${p.split(/[/\\]/).pop()}"?`,
-                            destructive: true,
-                            confirmLabel: 'Delete',
-                          }).then(ok => {
-                            if (!ok) return;
-                            void IPC.executeContextMenuVerb(p, 'delete');
-                          });
-                        }}
-                        title="Delete duplicate"
-                      >
-                        <Icons8Icon id="delete" size={11} />
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>

@@ -80,6 +80,17 @@ public sealed class BndzFileIndexService : IDisposable
                   path TEXT PRIMARY KEY,
                   last_indexed INTEGER NOT NULL DEFAULT 0
                 );
+                CREATE TABLE IF NOT EXISTS meta_kv (
+                  key TEXT PRIMARY KEY,
+                  value TEXT NOT NULL,
+                  updated INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS path_stats (
+                  path TEXT PRIMARY KEY,
+                  open_count INTEGER NOT NULL DEFAULT 0,
+                  last_open INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_path_stats_open ON path_stats(open_count DESC, last_open DESC);
                 CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
                   name,
                   path,
@@ -93,8 +104,22 @@ public sealed class BndzFileIndexService : IDisposable
                 """;
             cmd.ExecuteNonQuery();
             EnsureFtsBackfill(conn);
+            EnsureMetaKv(conn);
             _schemaReady = true;
         }
+    }
+
+    private static void EnsureMetaKv(SqliteConnection conn)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS meta_kv (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL,
+              updated INTEGER NOT NULL DEFAULT 0
+            );
+            """;
+        cmd.ExecuteNonQuery();
     }
 
     private static void EnsureFtsBackfill(SqliteConnection conn)
@@ -564,6 +589,74 @@ public sealed class BndzFileIndexService : IDisposable
         return results;
     }
 
+    /// <summary>Cheap fingerprint — skip expensive continuum/orbit rebuild when unchanged.</summary>
+    public string GetContinuumFingerprint()
+    {
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*), COALESCE(MAX(modified),0) FROM files WHERE is_dir=0";
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return "0:0";
+        var count = r.IsDBNull(0) ? 0L : Convert.ToInt64(r.GetValue(0));
+        var maxMod = r.IsDBNull(1) ? 0L : Convert.ToInt64(r.GetValue(1));
+        return $"{count}:{maxMod}";
+    }
+
+    public void RecordPathOpen(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        var norm = path.Replace('\\', '/');
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _writeLock.Wait();
+        try
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO path_stats(path, open_count, last_open) VALUES($p, 1, $t)
+                ON CONFLICT(path) DO UPDATE SET
+                  open_count = open_count + 1,
+                  last_open = excluded.last_open
+                """;
+            cmd.Parameters.AddWithValue("$p", norm);
+            cmd.Parameters.AddWithValue("$t", now);
+            cmd.ExecuteNonQuery();
+        }
+        finally { _writeLock.Release(); }
+    }
+
+    public List<object> GetMostOpenedFiles(int limit = 12)
+    {
+        var lim = Math.Clamp(limit, 1, 32);
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT f.path, f.name, f.size, f.is_dir, f.modified, COALESCE(f.media_kind,''), COALESCE(s.open_count,0)
+            FROM path_stats s
+            INNER JOIN files f ON f.path = s.path
+            ORDER BY s.open_count DESC, s.last_open DESC
+            LIMIT $lim
+            """;
+        cmd.Parameters.AddWithValue("$lim", lim);
+        var results = new List<object>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var p = reader.GetString(0);
+            var name = reader.GetString(1);
+            var size = reader.GetInt64(2);
+            var isDir = reader.GetInt32(3) == 1;
+            var modified = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt64(4) : 0L;
+            var mediaKind = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
+            var opens = reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetInt64(6) : 0L;
+            if (isDir)
+                results.Add(new { id = p, name, path = p, type = "directory", modified, mediaKind, openCount = opens });
+            else
+                results.Add(new { id = p, name, path = p, type = "file", size, modified, mediaKind, openCount = opens });
+        }
+        return results;
+    }
+
     /// <summary>Per-folder media density for Place plates / Pulse.</summary>
     public object GetLibraryPulse()
     {
@@ -712,6 +805,49 @@ public sealed class BndzFileIndexService : IDisposable
         return ReadFileRows(cmd);
     }
 
+    /// <summary>Index peers with identical byte size (candidate content twins).</summary>
+    public List<object> FindSameSize(string panePath, long size, int limit = 36)
+    {
+        if (size <= 0) return [];
+        var norm = NormalizePanePath(panePath ?? "").TrimEnd('/');
+        var lim = Math.Max(1, Math.Min(limit, 64));
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT path,name,size,is_dir,modified FROM files
+            WHERE is_dir=0 AND size=$size AND path != $self
+            ORDER BY modified DESC
+            LIMIT $lim
+            """;
+        cmd.Parameters.AddWithValue("$size", size);
+        cmd.Parameters.AddWithValue("$self", norm);
+        cmd.Parameters.AddWithValue("$lim", lim);
+        return ReadFileRows(cmd);
+    }
+
+    /// <summary>Same media_kind peers near the focus size (visual / library neighbors).</summary>
+    public List<object> FindMediaPeers(string panePath, string mediaKind, long size, int limit = 12)
+    {
+        if (string.IsNullOrWhiteSpace(mediaKind)) return [];
+        var norm = NormalizePanePath(panePath ?? "").TrimEnd('/');
+        var lim = Math.Max(1, Math.Min(limit, 24));
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT path,name,size,is_dir,modified FROM files
+            WHERE is_dir=0
+              AND media_kind=$kind
+              AND path != $self
+            ORDER BY ABS(size - $size) ASC, modified DESC
+            LIMIT $lim
+            """;
+        cmd.Parameters.AddWithValue("$kind", mediaKind);
+        cmd.Parameters.AddWithValue("$self", norm);
+        cmd.Parameters.AddWithValue("$size", Math.Max(0, size));
+        cmd.Parameters.AddWithValue("$lim", lim);
+        return ReadFileRows(cmd);
+    }
+
     /// <summary>Apply a filesystem watcher event to keep the index fresh.</summary>
     public void ApplyFsEvent(string eventType, string dirPane, string? name, string? oldName = null)
     {
@@ -810,6 +946,40 @@ public sealed class BndzFileIndexService : IDisposable
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "DELETE FROM files WHERE path=$p";
             cmd.Parameters.AddWithValue("$p", NormalizePanePath(panePath));
+            cmd.ExecuteNonQuery();
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    public string? TryGetMeta(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return null;
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT value FROM meta_kv WHERE key=$k LIMIT 1";
+        cmd.Parameters.AddWithValue("$k", key);
+        var v = cmd.ExecuteScalar();
+        return v as string;
+    }
+
+    public void SetMeta(string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+        _writeLock.Wait();
+        try
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO meta_kv(key, value, updated) VALUES($k, $v, $u)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated=excluded.updated
+                """;
+            cmd.Parameters.AddWithValue("$k", key);
+            cmd.Parameters.AddWithValue("$v", value ?? "");
+            cmd.Parameters.AddWithValue("$u", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             cmd.ExecuteNonQuery();
         }
         finally

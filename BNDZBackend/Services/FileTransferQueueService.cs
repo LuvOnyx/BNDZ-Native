@@ -49,6 +49,10 @@ public sealed class FileTransferJob
     public long TotalBytes { get; set; }
     public double SpeedBytesPerSecond { get; set; }
     public int? EtaSeconds { get; set; }
+    /// <summary>none | size | sha256 — how integrity was proven after copy.</summary>
+    public string VerifyMode { get; set; } = "none";
+    /// <summary>pending | verified | skipped | failed</summary>
+    public string VerifyStatus { get; set; } = "pending";
 
     public object ToDto() => new
     {
@@ -72,6 +76,8 @@ public sealed class FileTransferJob
         totalBytes = TotalBytes,
         speedBytesPerSecond = SpeedBytesPerSecond,
         etaSeconds = EtaSeconds,
+        verifyMode = VerifyMode,
+        verifyStatus = VerifyStatus,
     };
 }
 
@@ -272,12 +278,24 @@ public sealed class FileTransferQueueService
         NotifyChanged();
     }
 
-    public void MarkCompleted(string operationId)
+    public void MarkCompleted(string operationId, string? verifyMode = null, string? verifyStatus = null)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
         job.Status = FileTransferJobStatus.Completed;
         job.Progress = 100;
         job.CompletedUtc = DateTime.UtcNow;
+        if (!string.IsNullOrWhiteSpace(verifyMode)) job.VerifyMode = verifyMode!;
+        if (!string.IsNullOrWhiteSpace(verifyStatus)) job.VerifyStatus = verifyStatus!;
+        else if (string.Equals(job.Action, "copy", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(job.Action, "move", StringComparison.OrdinalIgnoreCase))
+        {
+            // BNDZ buffered copy always SHA-256 verifies; mark verified unless already set.
+            if (job.VerifyStatus is "pending" or null or "")
+            {
+                job.VerifyMode = "sha256";
+                job.VerifyStatus = "verified";
+            }
+        }
         DetachProcess(operationId);
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();
@@ -292,6 +310,11 @@ public sealed class FileTransferQueueService
         job.Status = FileTransferJobStatus.Failed;
         job.Error = error;
         job.CompletedUtc = DateTime.UtcNow;
+        if (!string.IsNullOrWhiteSpace(error) && error.Contains("verification", StringComparison.OrdinalIgnoreCase))
+        {
+            job.VerifyMode = "sha256";
+            job.VerifyStatus = "failed";
+        }
         DetachProcess(operationId);
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();

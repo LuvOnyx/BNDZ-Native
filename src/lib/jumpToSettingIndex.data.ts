@@ -1824,7 +1824,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls remember permanent variables"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Show Top Menu Bar",
     "key": "showTopMenuBar",
     "keywords": [
@@ -1839,7 +1839,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls show top menu bar"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Enable submenus",
     "key": "enableSubmenus",
     "keywords": [
@@ -1852,7 +1852,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls enable submenus"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Native context menu",
     "key": "nativeContextMenu",
     "keywords": [
@@ -1870,7 +1870,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls native context menu"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Hold Ctrl to invert the above selection",
     "key": "holdCtrlToInvertTheAboveSelection",
     "keywords": [
@@ -1891,7 +1891,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls hold ctrl to invert the above selection"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Custom items in the context menu",
     "key": "customItemsInTheContextMenu",
     "keywords": [
@@ -1912,7 +1912,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls custom items in the context menu"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Hide shell extensions from shell context menu",
     "key": "hideShellExtensionsFromShellContextMenu",
     "keywords": [
@@ -1937,7 +1937,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls hide shell extensions from shell context menu"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Native drag and drop context menu",
     "key": "nativeDragAndDropContextMenu",
     "keywords": [
@@ -1959,7 +1959,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls native drag and drop context menu"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Navigation commands in List context menu",
     "key": "navigationCommandsInListContextMenu",
     "keywords": [
@@ -1983,7 +1983,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls navigation commands in list context menu"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Find Files commands in List context menu",
     "key": "findFilesCommandsInListContextMenu",
     "keywords": [
@@ -2012,7 +2012,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls find files commands in list context menu"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Hold Ctrl to show cell context menu",
     "key": "holdCtrlToShowCellContextMenu",
     "keywords": [
@@ -2034,7 +2034,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls hold ctrl to show cell context menu"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Use localized search and filter patterns",
     "key": "useLocalizedSearchAndFilterPatterns",
     "keywords": [
@@ -2054,7 +2054,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls use localized search and filter patterns"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Single-click to open an item",
     "key": "singleClickToOpenAnItem",
     "keywords": [
@@ -2071,7 +2071,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls single click to open an item"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "On the icon only",
     "key": "onTheIconOnly",
     "keywords": [
@@ -2089,7 +2089,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls on the icon only"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Folders only",
     "key": "foldersOnly",
     "keywords": [
@@ -2102,7 +2102,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls folders only"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Point to select",
     "key": "pointToSelect",
     "keywords": [
@@ -2119,7 +2119,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls point to select"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "To the icon only",
     "key": "toTheIconOnly",
     "keywords": [
@@ -2137,7 +2137,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls to the icon only"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Full name column select",
     "key": "fullNameColumnSelect",
     "keywords": [
@@ -2155,7 +2155,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls full name column select"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Allow dragging from a background window",
     "key": "allowDraggingFromABackgroundWindow",
     "keywords": [
@@ -2175,7 +2175,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls allow dragging from a background window"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Shift+Wheel scrolls horizontally",
     "key": "shiftWheelScrollsHorizontally",
     "keywords": [
@@ -2191,7 +2191,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls shift wheel scrolls horizontally"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Ctrl+Wheel scrolls through the list views",
     "key": "ctrlWheelScrollsThroughTheListViews",
     "keywords": [
@@ -2213,7 +2213,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls ctrl wheel scrolls through the list views"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Highlight hovered items",
     "key": "highlightHoveredItems",
     "keywords": [
@@ -2240,7 +2240,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls highlight hovered items"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Show tooltips",
     "key": "showTooltips",
     "keywords": [
@@ -2260,7 +2260,7 @@ export const JUMP_SETTING_INDEX: Array<{
     "description": "Controls show tooltips"
   },
   {
-    "tab": "Menus, Mouse, Usability",
+    "tab": "Menus & Context",
     "label": "Show verbatim tooltips",
     "key": "showVerbatimTooltips",
     "keywords": [

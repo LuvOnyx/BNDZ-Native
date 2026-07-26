@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, lazy, Suspense, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icons8Icon } from '../Icons8Icon';
 import { CloseGlyph } from '../ChromeGlyphs';
@@ -8,7 +8,7 @@ import { isImageExt, isVideoExt, isAudioExt } from '../../lib/mediaTypes';
 import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../../lib/textFileTypes';
 import { isArchiveExt } from '../../lib/archiveTypes';
 import { IPC } from '../../lib/ipcBridge';
-import MediaPreviewPlayer from '../MediaPreviewPlayer';
+import MediaPreviewPlayer, { type MediaPreviewPlayerHandle } from '../MediaPreviewPlayer';
 import ImageZoomPreview from '../ImageZoomPreview';
 import PdfPreviewPanel from '../PdfPreviewPanel';
 import TextPreviewEditor from '../TextPreviewEditor';
@@ -16,8 +16,11 @@ import MarkdownPreviewPanel from '../MarkdownPreviewPanel';
 import ArchivePreviewPanel from '../ArchivePreviewPanel';
 import PreviewMetadataStrip, { curatedPreviewFacts } from './PreviewMetadataStrip';
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
+import { requestMediaResume } from '../../lib/mediaPlaybackBridge';
 
 const DocxPreviewPanel = lazy(() => import('../DocxPreviewPanel'));
+const AudioWaveformEditor = lazy(() => import('./AudioWaveformEditor'));
+const ImageMicroEditor = lazy(() => import('./ImageMicroEditor'));
 
 type QuickItem = {
   entity: FSEntity;
@@ -41,6 +44,8 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
   const [extMeta, setExtMeta] = useState<Record<string, string> | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const mediaPlayerRef = useRef<MediaPreviewPlayerHandle>(null);
 
   useEffect(() => {
     if (!open || !current?.path || !IPC.isNative) {
@@ -91,6 +96,20 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const isArchive = !isDir && isArchiveExt(ext);
   const isEditableText = isTextRaw || isCode || isMarkdown;
   const virtualUrl = current?.path ? toVirtualStreamUrl(current.path) : '';
+  const canEditMedia = isImage || isAudio;
+
+  useEffect(() => {
+    setEditMode(false);
+  }, [current?.path, open]);
+
+  const handleClose = useCallback(() => {
+    if (isAudio && current?.path && !editMode) {
+      mediaPlayerRef.current?.stashPlayback();
+      requestMediaResume(current.path);
+    }
+    setEditMode(false);
+    onClose();
+  }, [isAudio, current?.path, editMode, onClose]);
 
   useEffect(() => {
     setFileContent(null);
@@ -114,10 +133,11 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       const mediaFocused = (e.target as HTMLElement)?.closest?.('video, audio');
       if (e.code === 'Escape') {
         e.preventDefault();
-        onClose();
+        if (editMode) setEditMode(false);
+        else handleClose();
       } else if (e.code === 'Space' && !e.repeat && !mediaFocused) {
         e.preventDefault();
-        onClose();
+        handleClose();
       } else if (e.code === 'ArrowLeft' && hasPrev) {
         e.preventDefault();
         onIndexChange(index - 1);
@@ -128,7 +148,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, onIndexChange, index, hasPrev, hasNext]);
+  }, [open, handleClose, onIndexChange, index, hasPrev, hasNext, editMode]);
 
   const runVerb = (verb: string) => {
     if (!current?.path) return;
@@ -152,16 +172,32 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     : isDir ? 'Folder' : isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isPdf ? 'PDF' : isArchive ? 'Archive' : isDocx ? 'Word' : ext ? ext.toUpperCase() : 'File';
 
   const renderPreview = () => {
+    if (editMode && isImage) {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500"><Icons8Icon id="loading" size={20} spin /></div>}>
+          <ImageMicroEditor path={current.path} title={current.entity.name} />
+        </Suspense>
+      );
+    }
+    if (editMode && isAudio) {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500"><Icons8Icon id="loading" size={20} spin /></div>}>
+          <AudioWaveformEditor path={current.path} title={current.entity.name} />
+        </Suspense>
+      );
+    }
     if (isImage) return <ImageZoomPreview src={virtualUrl} alt={current.entity.name} filePath={current.path} />;
     if (isVideo || isAudio) {
       return (
         <MediaPreviewPlayer
+          ref={mediaPlayerRef}
           type={isVideo ? 'video' : 'audio'}
           src={virtualUrl}
           filePath={current.path}
           extension={ext}
           title={current.entity.name}
           autoplay={isVideo}
+          preferBlob={isAudio}
         />
       );
     }
@@ -203,7 +239,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
           <button
             type="button"
             className="bndz-preview-action-btn px-3 py-1.5"
-            onClick={() => { onNavigate?.(current.path); onClose(); }}
+            onClick={() => { onNavigate?.(current.path); handleClose(); }}
           >
             Open folder
           </button>
@@ -230,10 +266,10 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.12 }}
-          onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+          onMouseDown={e => { if (e.target === e.currentTarget) handleClose(); }}
         >
           <motion.div
-            className={`bndz-quick-preview-panel ${(isVideo || isAudio || isImage) ? 'bndz-quick-preview-panel--media' : ''}`}
+            className={`bndz-quick-preview-panel ${(isVideo || isAudio || isImage) ? 'bndz-quick-preview-panel--media' : ''} ${editMode ? 'bndz-quick-preview-panel--edit' : ''}`}
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
@@ -254,6 +290,20 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
                 <span className="bndz-quick-preview-hint">Space / Esc to close</span>
               </div>
               <div className="bndz-quick-preview-toolbar-cluster">
+                {canEditMedia && (
+                  <button
+                    type="button"
+                    className={`bndz-quick-preview-edit ${editMode ? 'bndz-quick-preview-edit--active' : ''}`}
+                    onClick={() => {
+                      if (!editMode && isAudio) mediaPlayerRef.current?.stashPlayback();
+                      setEditMode(v => !v);
+                    }}
+                    title={editMode ? 'Back to preview' : 'Edit — audio tools / image tools'}
+                  >
+                    <Icons8Icon id="pencil_ui" size={14} />
+                    {editMode ? 'Preview' : 'Edit'}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="bndz-quick-preview-nav"
@@ -262,7 +312,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
                 >
                   <Icons8Icon id="external_link" size={14} />
                 </button>
-                <button type="button" className="bndz-quick-preview-nav bndz-quick-preview-nav--close" onClick={onClose} title="Close (Esc)">
+                <button type="button" className="bndz-quick-preview-nav bndz-quick-preview-nav--close" onClick={handleClose} title="Close (Esc)">
                   <CloseGlyph size={14} />
                 </button>
               </div>

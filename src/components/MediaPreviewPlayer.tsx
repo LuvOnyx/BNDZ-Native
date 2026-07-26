@@ -1,7 +1,18 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import MediaSeekBar from './MediaSeekBar';
-import { toWindowsPath } from '../lib/pathUtils';
+import { toWindowsPath, normalizePanePath } from '../lib/pathUtils';
+import {
+  consumeMediaHandoff,
+  onMediaHandoffRequest,
+  onMediaHandoffResume,
+  publishMediaHandoff,
+  type MediaHandoff,
+} from '../lib/mediaPlaybackBridge';
+
+export type MediaPreviewPlayerHandle = {
+  stashPlayback: () => MediaHandoff | null;
+};
 
 interface MediaPreviewPlayerProps {
   src: string;
@@ -18,6 +29,10 @@ interface MediaPreviewPlayerProps {
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+function sameMediaPath(a: string, b: string): boolean {
+  return normalizePanePath(a).toLowerCase() === normalizePanePath(b).toLowerCase();
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
   const h = Math.floor(seconds / 3600);
@@ -27,9 +42,9 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function MediaPreviewPlayer({
+const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlayerProps>(function MediaPreviewPlayer({
   src, type, title, poster, filePath, extension = '', autoplay = false, preferBlob = false, onOpenFloating,
-}: MediaPreviewPlayerProps) {
+}, ref) {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const blobUrlRef = useRef<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -43,6 +58,7 @@ export default function MediaPreviewPlayer({
   const [resolvedSrc, setResolvedSrc] = useState(() => (isNativeHost && type === 'audio' ? '' : src));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [triedBlob, setTriedBlob] = useState(false);
+  const handoffAppliedRef = useRef(false);
 
   const syncState = useCallback(() => {
     const el = mediaRef.current;
@@ -54,6 +70,66 @@ export default function MediaPreviewPlayer({
     setMuted(el.muted);
     setPlaybackRate(el.playbackRate);
   }, []);
+
+  const stashPlayback = useCallback((): MediaHandoff | null => {
+    const el = mediaRef.current;
+    if (!el || !filePath) return null;
+    const handoff: MediaHandoff = {
+      path: filePath,
+      currentTime: el.currentTime,
+      playing: !el.paused && !el.ended,
+      volume: el.volume,
+      muted: el.muted,
+      playbackRate: el.playbackRate,
+    };
+    publishMediaHandoff(handoff);
+    if (!el.paused) el.pause();
+    return handoff;
+  }, [filePath]);
+
+  const applyHandoff = useCallback(() => {
+    if (!filePath || handoffAppliedRef.current) return false;
+    const handoff = consumeMediaHandoff(filePath);
+    const el = mediaRef.current;
+    if (!handoff || !el) return false;
+    handoffAppliedRef.current = true;
+    const apply = () => {
+      if (!Number.isFinite(handoff.currentTime)) return;
+      try {
+        el.currentTime = handoff.currentTime;
+      } catch { /* seek may fail before metadata */ }
+      el.volume = handoff.volume;
+      el.muted = handoff.muted;
+      el.playbackRate = handoff.playbackRate;
+      syncState();
+      if (handoff.playing) void el.play().catch(() => {});
+    };
+    if (el.readyState >= 1) apply();
+    else {
+      const onMeta = () => { apply(); el.removeEventListener('loadedmetadata', onMeta); };
+      el.addEventListener('loadedmetadata', onMeta);
+    }
+    return true;
+  }, [filePath, syncState]);
+
+  useImperativeHandle(ref, () => ({ stashPlayback }), [stashPlayback]);
+
+  useEffect(() => {
+    if (!filePath) return;
+    return onMediaHandoffRequest(requestedPath => {
+      if (!filePath || !sameMediaPath(requestedPath, filePath)) return;
+      stashPlayback();
+    });
+  }, [filePath, stashPlayback]);
+
+  useEffect(() => {
+    if (!filePath) return;
+    return onMediaHandoffResume(resumePath => {
+      if (!filePath || !sameMediaPath(resumePath, filePath)) return;
+      handoffAppliedRef.current = false;
+      applyHandoff();
+    });
+  }, [filePath, applyHandoff]);
 
   useEffect(() => {
     return () => {
@@ -98,6 +174,7 @@ export default function MediaPreviewPlayer({
     setBuffering(true);
     setLoadError(null);
     setTriedBlob(false);
+    handoffAppliedRef.current = false;
     setResolvedSrc(isNativeHost && (preferBlob || type === 'audio') ? '' : src);
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current);
@@ -229,13 +306,16 @@ export default function MediaPreviewPlayer({
       syncState();
       setBuffering(false);
       setLoadError(null);
-      tryAutoplay();
+      if (!applyHandoff()) tryAutoplay();
     },
     onPlay: () => setPlaying(true),
     onPause: () => setPlaying(false),
     onEnded: () => setPlaying(false),
     onWaiting: () => setBuffering(true),
-    onCanPlay: () => { setBuffering(false); tryAutoplay(); },
+    onCanPlay: () => {
+      setBuffering(false);
+      if (!applyHandoff()) tryAutoplay();
+    },
     onError: handleMediaError,
   };
 
@@ -347,7 +427,10 @@ export default function MediaPreviewPlayer({
                 <span className="bndz-image-preview-sep" aria-hidden />
                 <button
                   type="button"
-                  onClick={onOpenFloating}
+                  onClick={() => {
+                    if (filePath) stashPlayback();
+                    onOpenFloating?.();
+                  }}
                   disabled={!!loadError}
                   className="bndz-media-transport-btn bndz-media-transport-btn--accent"
                   title="Open floating preview (Space)"
@@ -361,4 +444,6 @@ export default function MediaPreviewPlayer({
       </div>
     </div>
   );
-}
+});
+
+export default MediaPreviewPlayer;

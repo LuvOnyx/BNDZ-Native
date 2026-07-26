@@ -23,6 +23,8 @@ public sealed class DuplicateGroup
     public string Hash { get; set; } = "";
     public long Size { get; set; }
     public List<string> Paths { get; set; } = new();
+    /// <summary>Unix seconds last-write, parallel to Paths (for keep-newest).</summary>
+    public List<long> Modified { get; set; } = new();
 }
 
 public sealed class DuplicateScanResult
@@ -122,10 +124,13 @@ public sealed class DuplicateFinderService
                         string hash = await ComputeSha256Async(path, ct).ConfigureAwait(false);
                         if (!hashGroups.TryGetValue(hash, out var group))
                         {
-                            group = new DuplicateGroup { Hash = hash, Size = kv.Key, Paths = new List<string>() };
+                            group = new DuplicateGroup { Hash = hash, Size = kv.Key, Paths = new List<string>(), Modified = new List<long>() };
                             hashGroups[hash] = group;
                         }
                         group.Paths.Add(path);
+                        long mod = 0;
+                        try { mod = new DateTimeOffset(File.GetLastWriteTimeUtc(path)).ToUnixTimeSeconds(); } catch { }
+                        group.Modified.Add(mod);
                     }
                     catch { /* skip */ }
                 }

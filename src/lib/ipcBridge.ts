@@ -69,6 +69,8 @@ export interface FileTransferJobDto {
   speedBytesPerSecond?: number;
   etaSeconds?: number | null;
   destinationPath?: string;
+  verifyMode?: 'none' | 'size' | 'sha256' | string;
+  verifyStatus?: 'pending' | 'verified' | 'skipped' | 'failed' | string;
 }
 
 export interface FileTransferQueueState {
@@ -139,6 +141,7 @@ export const IPC = {
   _folderSyncProgressListeners: [] as Array<(progress: any) => void>,
   _closeRequestListeners: [] as Array<(payload?: { source?: string }) => void>,
   _openPathListeners: [] as Array<(path: string) => void>,
+  _pendingOpenPaths: [] as string[],
   _actionLogListeners: [] as Array<(state: { canUndo: boolean; canRedo: boolean; lastActionUtc?: string }) => void>,
   _fileTransferQueueListeners: [] as Array<(state: FileTransferQueueState) => void>,
   _startupActionListeners: [] as Array<(action: string) => void>,
@@ -179,7 +182,7 @@ export const IPC = {
           this._closeRequestListeners.forEach(cb => cb({ source }));
         } else if (data.type === 'BNDZ_OPEN_PATH') {
           const path = data.payload?.path ?? '';
-          this._openPathListeners.forEach(cb => cb(path));
+          if (path) this._dispatchOpenPath(path);
         } else if (data.type === 'ACTION_LOG_CHANGED') {
           const payload = data.payload ?? {};
           this._actionLogListeners.forEach(cb => cb({
@@ -303,9 +306,28 @@ export const IPC = {
   onOpenPath(callback: (path: string) => void) {
     this.init();
     this._openPathListeners.push(callback);
+    if (this._pendingOpenPaths.length) {
+      const pending = [...this._pendingOpenPaths];
+      this._pendingOpenPaths = [];
+      for (const p of pending) callback(p);
+    }
     return () => {
       this._openPathListeners = this._openPathListeners.filter(cb => cb !== callback);
     };
+  },
+
+  _dispatchOpenPath(path: string) {
+    if (!path) return;
+    if (!this._openPathListeners.length) {
+      this._pendingOpenPaths.push(path);
+      return;
+    }
+    this._openPathListeners.forEach(cb => cb(path));
+  },
+
+  notifyUiReady() {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({ type: 'BNDZ_UI_READY' });
   },
 
   requestClose(source: 'x' | 'menu' | 'tray' | 'exit-without-saving' | 'restart-without-saving' | 'restart' = 'x'): void {
@@ -1045,7 +1067,7 @@ export const IPC = {
     return Promise.resolve({ fileCount: 0, folderCount: 0, locations: [] });
   },
 
-  getHomeDeck(opts?: { continuumLimit?: number; orbitLimit?: number }): Promise<{
+  getHomeDeck(opts?: { continuumLimit?: number; orbitLimit?: number; sinceFingerprint?: string; pulseOnly?: boolean }): Promise<{
     continuum: any[];
     places: Array<{ name: string; path: string; icon?: string; letter?: string; hint?: string }>;
     drives: any[];
@@ -1053,6 +1075,10 @@ export const IPC = {
     library?: { images?: number; videos?: number; audio?: number; documents?: number; large?: number };
     pulse: { activeCount: number; queuedCount: number; label: string; transferLabel?: string; queue?: any };
     orbits: Record<string, any[]>;
+    mostOpened?: any[];
+    continuumFingerprint?: string;
+    unchanged?: boolean;
+    pulseOnly?: boolean;
     generatedAt?: number;
     error?: string;
   }> {
@@ -1061,6 +1087,8 @@ export const IPC = {
       return _nativeCall('GET_HOME_DECK', 'HOME_DECK_RESULT', id, {
         continuumLimit: opts?.continuumLimit ?? 28,
         orbitLimit: opts?.orbitLimit ?? 6,
+        sinceFingerprint: opts?.sinceFingerprint,
+        pulseOnly: !!opts?.pulseOnly,
       }, 20000)
         .then((payload: any) => {
           if (payload?.error) throw new Error(payload.error);
@@ -1072,6 +1100,10 @@ export const IPC = {
             library: payload?.library,
             pulse: payload?.pulse || { activeCount: 0, queuedCount: 0, label: 'Idle' },
             orbits: payload?.orbits && typeof payload.orbits === 'object' ? payload.orbits : {},
+            mostOpened: Array.isArray(payload?.mostOpened) ? payload.mostOpened : undefined,
+            continuumFingerprint: payload?.continuumFingerprint,
+            unchanged: !!payload?.unchanged,
+            pulseOnly: !!payload?.pulseOnly,
             generatedAt: payload?.generatedAt,
           };
         })
@@ -1093,6 +1125,57 @@ export const IPC = {
       pulse: { activeCount: 0, queuedCount: 0, label: 'Idle' },
       orbits: {},
     });
+  },
+
+  getLensStage(path: string): Promise<{
+    focus?: any;
+    sha256?: string | null;
+    twins?: any[];
+    orbit?: any[];
+    sameSize?: any[];
+    mediaPeers?: any[];
+    facts?: any;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_lensStage`;
+      return _nativeCall('GET_LENS_STAGE', 'LENS_STAGE_RESULT', id, { path }, 120000)
+        .then((payload: any) => {
+          if (payload?.error) throw new Error(payload.error);
+          return {
+            focus: payload?.focus ?? null,
+            sha256: payload?.sha256 ?? null,
+            twins: Array.isArray(payload?.twins) ? payload.twins : [],
+            orbit: Array.isArray(payload?.orbit) ? payload.orbit : [],
+            sameSize: Array.isArray(payload?.sameSize) ? payload.sameSize : [],
+            mediaPeers: Array.isArray(payload?.mediaPeers) ? payload.mediaPeers : [],
+            facts: payload?.facts || {},
+          };
+        })
+        .catch(err => ({
+          twins: [],
+          orbit: [],
+          sameSize: [],
+          mediaPeers: [],
+          facts: {},
+          error: String(err?.message || err),
+        }));
+    }
+    return Promise.resolve({ twins: [], orbit: [], sameSize: [], mediaPeers: [], facts: {} });
+  },
+
+  openPathInNewWindow(path: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_newWindow`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'OPEN_PATH_IN_NEW_WINDOW',
+        'OPEN_PATH_IN_NEW_WINDOW_RESULT',
+        id,
+        { path },
+        15000,
+      ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+    }
+    return Promise.resolve({ ok: false, error: 'Requires native host.' });
   },
 
   reindexBndzDefaults(): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
@@ -1953,5 +2036,57 @@ export const IPC = {
       ).catch(err => ({ ok: false, error: String(err?.message || err) }));
     }
     return Promise.resolve({ ok: false, error: 'Legal documents are included with the installed app.' });
+  },
+
+  getBndzMeta(key: string): Promise<string | null> {
+    if (this.isNative) {
+      const id = `${Date.now()}_getMeta`;
+      return _nativeCall<{ value?: string | null }>('GET_BNDZ_META', 'BNDZ_META_RESULT', id, { key }, 10000)
+        .then(r => r?.value ?? null);
+    }
+    return Promise.resolve(localStorage.getItem(`bndz_meta_${key}`));
+  },
+
+  setBndzMeta(key: string, value: string): Promise<boolean> {
+    if (this.isNative) {
+      const id = `${Date.now()}_setMeta`;
+      return _nativeCall<{ ok?: boolean }>('SET_BNDZ_META', 'BNDZ_META_SET_RESULT', id, { key, value }, 10000)
+        .then(r => !!r?.ok);
+    }
+    localStorage.setItem(`bndz_meta_${key}`, value);
+    return Promise.resolve(true);
+  },
+
+  trimAudioFile(path: string, startSec: number, endSec: number): Promise<{ ok: boolean; path?: string; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_trimAudio`;
+      return _nativeCall<{ ok: boolean; path?: string; error?: string }>(
+        'TRIM_AUDIO_FILE', 'TRIM_AUDIO_RESULT', id, { path, startSec, endSec }, 120000,
+      );
+    }
+    return Promise.resolve({ ok: false, error: 'Native host required.' });
+  },
+
+  recordPathOpen(path: string): void {
+    if (!this.isNative || !path) return;
+    (window as any).chrome.webview.postMessage({ type: 'RECORD_PATH_OPEN', payload: { path } });
+  },
+
+  ensureFfmpegTools(): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_ffmpegBootstrap`;
+      return _nativeCall<{ ok: boolean; error?: string }>('ENSURE_FFMPEG_TOOLS', 'FFMPEG_TOOLS_RESULT', id, {}, 180000);
+    }
+    return Promise.resolve({ ok: false, error: 'Native host required.' });
+  },
+
+  runAutomationGraph(graph: unknown): Promise<{ ok: boolean; log: string[]; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_automation`;
+      return _nativeCall<{ ok: boolean; log?: string[]; error?: string }>(
+        'RUN_AUTOMATION_GRAPH', 'AUTOMATION_RUN_RESULT', id, graph, 600000,
+      ).then(r => ({ ok: !!r?.ok, log: r?.log || [], error: r?.error }));
+    }
+    return Promise.resolve({ ok: false, log: [], error: 'Native host required.' });
   },
 };

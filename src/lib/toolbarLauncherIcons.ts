@@ -1,5 +1,5 @@
 /** Bump when PNG/SVG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '18';
+export const LAUNCHER_ICON_REV = '19';
 
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
@@ -197,6 +197,36 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   mini_tree: 'mini_tree.png',
   scissors_ui: 'scissors_ui.png',
   panel_bottom_ui: 'panel_bottom_ui.png',
+  // New launcher SVGs (emblems / media)
+  bluetooth: 'bluetooth.svg',
+  emblem_added: 'emblem-added.svg',
+  emblem_checked: 'emblem-checked.svg',
+  emblem_documents: 'emblem-documents.svg',
+  emblem_downloads: 'emblem-downloads.svg',
+  emblem_shared: 'emblem-shared.svg',
+  emblem_symbolic_link: 'emblem-symbolic-link.svg',
+  emblem_synchronizing: 'emblem-synchronizing.svg',
+  emblem_unlocked: 'emblem-unlocked.svg',
+  media_playback_playing: 'media-playback-playing.svg',
+  media_playback_paused: 'media-playback-paused.svg',
+  media_playback_stop: 'media-playback-stop.svg',
+  media_record: 'media-record.svg',
+  media_repeat_none: 'media-repeat-none.svg',
+  media_repeat_single: 'media-repeat-single.svg',
+  media_seek_backward: 'media-seek-backward.svg',
+  media_seek_forward: 'media-seek-forward.svg',
+  media_skip_backward: 'media-skip-backward.svg',
+  media_skip_forward: 'media-skip-forward.svg',
+  // Ui/ chrome assets (public/Ui/)
+  ui_plugin: 'Ui/plugin.svg',
+  ui_color: 'Ui/color.svg',
+  ui_icons: 'Ui/icons.svg',
+  ui_keyboard: 'Ui/keybinds-keyboard.svg',
+  ui_featured: 'Ui/applications-featured.svg',
+  ui_image_loading: 'Ui/image-loading.svg',
+  ui_image_missing: 'Ui/image-missing.svg',
+  ui_preview_folder: 'Ui/preview-Big Folder.svg',
+  ui_preview_folder_alt: 'Ui/preview-Big Folder-1.svg',
 };
 
 /** Custom assets that must not be overwritten by the Icons8 downloader. */
@@ -236,10 +266,19 @@ export const UI_GLYPH_IDS = new Set([
   'columns_ui', 'scissors_ui', 'panel_bottom_ui', 'mini_tree', 'tag_manager', 'favorites',
   'accept', 'decline',
   'toggle_dual_pane', 'toggle_bottom', 'home', 'share',
+  'bluetooth', 'emblem_added', 'emblem_checked', 'emblem_documents', 'emblem_downloads',
+  'emblem_shared', 'emblem_symbolic_link', 'emblem_synchronizing', 'emblem_unlocked',
+  'media_playback_playing', 'media_playback_paused', 'media_playback_stop', 'media_record',
+  'media_repeat_none', 'media_repeat_single', 'media_seek_backward', 'media_seek_forward',
+  'media_skip_backward', 'media_skip_forward',
+  'ui_plugin', 'ui_color', 'ui_icons', 'ui_keyboard', 'ui_featured',
+  'ui_image_loading', 'ui_image_missing', 'ui_preview_folder', 'ui_preview_folder_alt',
 ]);
 
 export function launcherIconUrl(id: string): string | undefined {
   const base = id.startsWith('tag__') ? 'tag_manager' : id;
   const file = TOOLBAR_LAUNCHER_ICONS[base];
-  return file ? `/launcher-icons/${file}?v=${LAUNCHER_ICON_REV}` : undefined;
+  if (!file) return undefined;
+  if (file.startsWith('Ui/')) return `/${file}?v=${LAUNCHER_ICON_REV}`;
+  return `/launcher-icons/${file}?v=${LAUNCHER_ICON_REV}`;
 }

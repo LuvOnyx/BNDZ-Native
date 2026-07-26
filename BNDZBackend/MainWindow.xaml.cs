@@ -315,19 +315,21 @@ namespace BNDZ
             catch { }
         }
 
+        private void FlushPendingStartupAction()
+        {
+            if (string.IsNullOrWhiteSpace(_pendingStartupAction)) return;
+            var action = _pendingStartupAction;
+            _pendingStartupAction = null;
+            try
+            {
+                MainWebView.CoreWebView2?.PostWebMessageAsJson(
+                    JsonSerializer.Serialize(new { type = "BNDZ_STARTUP_ACTION", payload = action }));
+            }
+            catch { }
+        }
+
         private void FlushPendingOpenPath()
         {
-            if (!string.IsNullOrWhiteSpace(_pendingStartupAction))
-            {
-                var action = _pendingStartupAction;
-                _pendingStartupAction = null;
-                try
-                {
-                    MainWebView.CoreWebView2?.PostWebMessageAsJson(
-                        JsonSerializer.Serialize(new { type = "BNDZ_STARTUP_ACTION", payload = action }));
-                }
-                catch { }
-            }
             if (string.IsNullOrWhiteSpace(_pendingOpenPath)) return;
             var path = _pendingOpenPath;
             _pendingOpenPath = null;
@@ -808,7 +810,13 @@ namespace BNDZ
                 additionalBrowserArguments: "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion --disable-frame-rate-limit --ignore-gpu-blocklist",
                 customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme });
 
-            var webEnv = await CoreWebView2Environment.CreateAsync(null, null, webEnvOptions);
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var profileDir = App.IsStageWindow
+                ? Path.Combine(localAppData, "BNDZ", "WebView2", $"Stage-{Process.GetCurrentProcess().Id}")
+                : Path.Combine(localAppData, "BNDZ", "WebView2", "Main");
+            Directory.CreateDirectory(profileDir);
+
+            var webEnv = await CoreWebView2Environment.CreateAsync(null, profileDir, webEnvOptions);
             _webViewEnvironment = webEnv;
             await MainWebView.EnsureCoreWebView2Async(webEnv);
 
@@ -896,7 +904,7 @@ namespace BNDZ
 
             // Navigate to the React frontend served from the virtual host, bypassing cache
             MainWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?t={DateTime.Now.Ticks}");
-            MainWebView.CoreWebView2.NavigationCompleted += (_, _) => FlushPendingOpenPath();
+            MainWebView.CoreWebView2.NavigationCompleted += (_, _) => FlushPendingStartupAction();
             }
             catch (Exception ex)
             {
@@ -970,6 +978,10 @@ namespace BNDZ
                     return;
                 }
 
+                else if (type == "BNDZ_UI_READY")
+                {
+                    PostToUi(FlushPendingOpenPath);
+                }
                 else if (type == "EXECUTE_BATCH_RENAME")
                 {
                     var payload = root.GetProperty("payload");
@@ -1537,18 +1549,7 @@ namespace BNDZ
                         object? payloadObj = null;
                         try {
                             payloadObj = _shellContextMenuService.GetContextMenuItems(path)
-                                .Select(i => i.Separator
-                                    ? (object)new { separator = true }
-                                    : new {
-                                        id = i.Id,
-                                        label = i.Label,
-                                        icon = i.Icon,
-                                        iconBase64 = i.IconBase64,
-                                        verb = i.Verb,
-                                        isPrimary = i.IsPrimary,
-                                        kind = i.Kind,
-                                        commandId = i.CommandId,
-                                    })
+                                .Select(MapContextMenuItemDto)
                                 .ToList();
                         } catch (Exception ex) {
                             System.Diagnostics.Debug.WriteLine($"Failed GET_CONTEXT_MENU_ITEMS: {ex.Message}");
@@ -2111,6 +2112,74 @@ namespace BNDZ
                             MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
                         });
                     });
+                }
+                else if (type == "GET_LENS_STAGE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string lensPath = "";
+                    if (root.TryGetProperty("payload", out var lensPayload) && lensPayload.TryGetProperty("path", out var lpEl))
+                        lensPath = lpEl.GetString() ?? "";
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var stage = await BndzLensService.Instance.BuildLensStageAsync(lensPath).ConfigureAwait(false);
+                            var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = stage };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new { type = "LENS_STAGE_RESULT", id = idProp, payload = new { error = ex.Message } };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        }
+                    });
+                }
+                else if (type == "OPEN_PATH_IN_NEW_WINDOW")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string openPath = "";
+                    if (root.TryGetProperty("payload", out var openPayload) && openPayload.TryGetProperty("path", out var opEl))
+                        openPath = opEl.GetString() ?? "";
+                    var winPath = NormalizeFsPath(openPath);
+                    var ok = false;
+                    var error = (string?)null;
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(winPath))
+                            error = "Missing path.";
+                        else
+                        {
+                            // Stage Workspaces: always spawn a new process for a true second stage.
+                            var exe = Environment.ProcessPath
+                                ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                            if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe))
+                            {
+                                error = "Could not resolve BNDZ executable for a Stage window.";
+                            }
+                            else
+                            {
+                                var args = $"--stage-window --open-path \"{winPath.Replace("\"", "\\\"")}\"";
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = exe,
+                                    Arguments = args,
+                                    WorkingDirectory = Path.GetDirectoryName(exe) ?? "",
+                                    UseShellExecute = true,
+                                });
+                                ok = true;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        error = ex.Message;
+                    }
+                    var response = new { type = "OPEN_PATH_IN_NEW_WINDOW_RESULT", id = idProp, payload = new { ok, error } };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
                 else if (type == "GET_ARCHIVE_CONTENTS")
                 {
@@ -3387,12 +3456,18 @@ namespace BNDZ
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     int continuumLimit = 28;
                     int orbitLimit = 6;
+                    string? sinceFingerprint = null;
+                    bool pulseOnly = false;
                     if (root.TryGetProperty("payload", out var homePayload))
                     {
                         if (homePayload.TryGetProperty("continuumLimit", out var clEl) && clEl.ValueKind == JsonValueKind.Number)
                             continuumLimit = clEl.GetInt32();
                         if (homePayload.TryGetProperty("orbitLimit", out var olEl) && olEl.ValueKind == JsonValueKind.Number)
                             orbitLimit = olEl.GetInt32();
+                        if (homePayload.TryGetProperty("sinceFingerprint", out var fpEl))
+                            sinceFingerprint = fpEl.GetString();
+                        if (homePayload.TryGetProperty("pulseOnly", out var poEl) && (poEl.ValueKind == JsonValueKind.True || poEl.ValueKind == JsonValueKind.False))
+                            pulseOnly = poEl.GetBoolean();
                     }
 
                     _ = Task.Run(() =>
@@ -3400,9 +3475,9 @@ namespace BNDZ
                         try
                         {
                             var svc = BndzFileIndexService.Instance;
-                            var recent = svc.GetContinuumFiles(Math.Clamp(continuumLimit, 8, 64));
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            var fingerprint = svc.GetContinuumFingerprint();
                             var status = svc.GetIndexStatus();
-                            var library = svc.GetLibraryPulse();
                             var queue = _fileTransferQueue.GetQueueState();
                             var drives = _cloudStorageService.GetAnnotatedDrives();
 
@@ -3418,7 +3493,7 @@ namespace BNDZ
 
                             var places = new List<object>
                             {
-                                new { name = "Profile",  path = ToPaneFs(userProfile), icon = "home", letter = "R", hint = "User profile" },
+                                new { name = Environment.UserName,  path = ToPaneFs(userProfile), icon = "home", letter = string.IsNullOrEmpty(Environment.UserName) ? "U" : Environment.UserName[0].ToString().ToUpperInvariant(), hint = "User profile" },
                                 new { name = "Desktop",  path = ToPaneFs(Environment.GetFolderPath(Environment.SpecialFolder.Desktop)), icon = "desktop", letter = "D", hint = "Desktop" },
                                 new { name = "Documents", path = ToPaneFs(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)), icon = "documents", letter = "O", hint = "Documents" },
                                 new { name = "Downloads", path = ToPaneFs(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")), icon = "downloads", letter = "W", hint = "Downloads" },
@@ -3427,14 +3502,6 @@ namespace BNDZ
                                 new { name = "Videos",   path = ToPaneFs(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)), icon = "videos", letter = "V", hint = "Videos" },
                                 new { name = "Gallery",  path = ToPaneFs(galleryPath), icon = "gallery", letter = "G", hint = "Gallery" },
                             };
-
-                            var orbits = new Dictionary<string, object[]>(StringComparer.OrdinalIgnoreCase);
-                            foreach (var item in recent.Take(14))
-                            {
-                                var itemPath = item.GetType().GetProperty("path")?.GetValue(item) as string;
-                                if (string.IsNullOrWhiteSpace(itemPath) || orbits.ContainsKey(itemPath)) continue;
-                                orbits[itemPath] = svc.GetOrbitSiblings(itemPath, Math.Clamp(orbitLimit, 4, 8)).ToArray();
-                            }
 
                             var activeCount = _fileTransferQueue.ActiveCount;
                             var queuedCount = Math.Max(0, _fileTransferQueue.QueuedCount);
@@ -3470,6 +3537,46 @@ namespace BNDZ
                                     ? $"{queuedCount} queued"
                                     : "Idle";
 
+                            var bodyUnchanged = !string.IsNullOrEmpty(sinceFingerprint)
+                                && string.Equals(sinceFingerprint, fingerprint, StringComparison.Ordinal);
+
+                            if (pulseOnly || bodyUnchanged)
+                            {
+                                var partial = new
+                                {
+                                    unchanged = bodyUnchanged,
+                                    pulseOnly,
+                                    continuumFingerprint = fingerprint,
+                                    places,
+                                    drives,
+                                    index = status,
+                                    pulse = new
+                                    {
+                                        activeCount,
+                                        queuedCount,
+                                        label = pulseLabel,
+                                        transferLabel,
+                                        queue,
+                                    },
+                                    generatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                                };
+                                var partialResponse = new { type = "HOME_DECK_RESULT", id = idProp, payload = partial };
+                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(partialResponse, jsonOptions)));
+                                return;
+                            }
+
+                            var recent = svc.GetContinuumFiles(Math.Clamp(continuumLimit, 8, 64));
+                            var library = svc.GetLibraryPulse();
+                            var mostOpened = svc.GetMostOpenedFiles(12);
+
+                            var orbitMap = new Dictionary<string, object[]>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var item in recent.Take(14))
+                            {
+                                var itemPath = item.GetType().GetProperty("path")?.GetValue(item) as string;
+                                if (string.IsNullOrWhiteSpace(itemPath) || orbitMap.ContainsKey(itemPath)) continue;
+                                orbitMap[itemPath] = svc.GetOrbitSiblings(itemPath, Math.Clamp(orbitLimit, 4, 8)).ToArray();
+                            }
+
                             var payload = new
                             {
                                 continuum = recent,
@@ -3477,6 +3584,8 @@ namespace BNDZ
                                 drives,
                                 index = status,
                                 library,
+                                mostOpened,
+                                continuumFingerprint = fingerprint,
                                 pulse = new
                                 {
                                     activeCount,
@@ -3485,11 +3594,10 @@ namespace BNDZ
                                     transferLabel,
                                     queue,
                                 },
-                                orbits,
+                                orbits = orbitMap,
                                 generatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                             };
                             var response = new { type = "HOME_DECK_RESULT", id = idProp, payload };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                             PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                         }
                         catch (Exception ex)
@@ -3498,6 +3606,113 @@ namespace BNDZ
                             var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                             PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                         }
+                    });
+                }
+                else if (type == "ENSURE_FFMPEG_TOOLS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        var (ok, error) = await BndzAudioTrimService.EnsureFfmpegAsync().ConfigureAwait(false);
+                        var response = new { type = "FFMPEG_TOOLS_RESULT", id = idProp, payload = new { ok, error } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "RECORD_PATH_OPEN")
+                {
+                    string openPath = "";
+                    if (root.TryGetProperty("payload", out var openPayload) && openPayload.TryGetProperty("path", out var opEl))
+                        openPath = NormalizeFsPath(opEl.GetString() ?? "");
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(openPath))
+                            BndzFileIndexService.Instance.RecordPathOpen(openPath);
+                    }
+                    catch { /* best effort */ }
+                }
+                else if (type == "GET_BNDZ_META")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string metaKey = "";
+                    if (root.TryGetProperty("payload", out var metaPayload) && metaPayload.TryGetProperty("key", out var mkEl))
+                        metaKey = mkEl.GetString() ?? "";
+                    try
+                    {
+                        var value = BndzFileIndexService.Instance.TryGetMeta(metaKey);
+                        var response = new { type = "BNDZ_META_RESULT", id = idProp, payload = new { value } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "BNDZ_META_RESULT", id = idProp, payload = new { error = ex.Message } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                }
+                else if (type == "SET_BNDZ_META")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string metaKey = "";
+                    string metaValue = "";
+                    if (root.TryGetProperty("payload", out var metaPayload))
+                    {
+                        if (metaPayload.TryGetProperty("key", out var mkEl)) metaKey = mkEl.GetString() ?? "";
+                        if (metaPayload.TryGetProperty("value", out var mvEl)) metaValue = mvEl.GetString() ?? "";
+                    }
+                    try
+                    {
+                        BndzFileIndexService.Instance.SetMeta(metaKey, metaValue);
+                        var response = new { type = "BNDZ_META_SET_RESULT", id = idProp, payload = new { ok = true } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "BNDZ_META_SET_RESULT", id = idProp, payload = new { ok = false, error = ex.Message } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    }
+                }
+                else if (type == "TRIM_AUDIO_FILE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string audioPath = "";
+                    double startSec = 0;
+                    double endSec = 0;
+                    if (root.TryGetProperty("payload", out var trimPayload))
+                    {
+                        if (trimPayload.TryGetProperty("path", out var pEl)) audioPath = NormalizeFsPath(pEl.GetString() ?? "");
+                        if (trimPayload.TryGetProperty("startSec", out var sEl) && sEl.TryGetDouble(out var s)) startSec = s;
+                        if (trimPayload.TryGetProperty("endSec", out var eEl) && eEl.TryGetDouble(out var endVal)) endSec = endVal;
+                    }
+                    _ = Task.Run(async () =>
+                    {
+                        var (ok, outPath, error) = await BndzAudioTrimService.TrimAsync(audioPath, startSec, endSec).ConfigureAwait(false);
+                        var response = new { type = "TRIM_AUDIO_RESULT", id = idProp, payload = new { ok, path = outPath, error } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "RUN_AUTOMATION_GRAPH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    JsonElement graphEl = default;
+                    if (root.TryGetProperty("payload", out var graphPayload))
+                        graphEl = graphPayload.Clone();
+                    _ = Task.Run(() =>
+                    {
+                        var runner = new BndzAutomationRunnerService();
+                        var result = runner.Run(graphEl);
+                        var response = new
+                        {
+                            type = "AUTOMATION_RUN_RESULT",
+                            id = idProp,
+                            payload = new { ok = result.Ok, log = result.Log, error = result.Error },
+                        };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
                 else if (type == "REINDEX_BNDZ_DEFAULTS")
@@ -5212,6 +5427,23 @@ namespace BNDZ
                 meta["ACL Rules"] = string.Join("\n", rules);
             }
             catch { }
+        }
+
+        private static object MapContextMenuItemDto(ShellContextMenuService.MenuItemDto item)
+        {
+            if (item.Separator) return new { separator = true };
+            return new
+            {
+                id = item.Id,
+                label = item.Label,
+                icon = item.Icon,
+                iconBase64 = item.IconBase64,
+                verb = item.Verb,
+                isPrimary = item.IsPrimary,
+                kind = item.Kind,
+                commandId = item.CommandId,
+                children = item.Children?.Select(MapContextMenuItemDto).ToList(),
+            };
         }
 
 

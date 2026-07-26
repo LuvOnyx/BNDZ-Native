@@ -4,7 +4,8 @@ import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import RedundancyGroupsView from '../../spacedrive/port/RedundancyGroupsView';
 
-type DupGroup = { hash?: string; size?: number; paths?: string[] };
+type DupGroup = { hash?: string; size?: number; paths?: string[]; modified?: number[] };
+
 
 type Props = {
   folderPath: string;

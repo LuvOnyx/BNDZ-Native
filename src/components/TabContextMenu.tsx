@@ -18,6 +18,7 @@ interface TabContextMenuProps {
   onCloseRight?: () => void;
   onCloseAll: () => void;
   onDuplicate: () => void;
+  onTearOff?: () => void;
   onSetColor: (color: string) => void;
   onRefresh?: () => void;
   showRefresh?: boolean;
@@ -42,6 +43,7 @@ export function TabContextMenu({
   onCloseRight,
   onCloseAll,
   onDuplicate,
+  onTearOff,
   onSetColor,
   onRefresh,
   showRefresh,
@@ -89,6 +91,12 @@ export function TabContextMenu({
           <Icons8Icon id="copy" size={14} className="shrink-0 opacity-80" />
           Duplicate Tab
         </button>
+        {onTearOff && (
+          <button type="button" className={itemClass} onMouseDown={act(onTearOff)}>
+            <Icons8Icon id="external_link" size={14} className="shrink-0 opacity-80" />
+            Tear Off to New Stage
+          </button>
+        )}
         {showRefresh && onRefresh && (
           <button type="button" className={itemClass} onMouseDown={act(onRefresh)}>
             <Icons8Icon id="refresh" size={14} className="shrink-0 opacity-80" />

@@ -363,4 +363,8 @@ export function applyIconCacheBuster(buster: number | undefined) {
   if (!buster || buster === lastAppliedCacheBuster) return;
   lastAppliedCacheBuster = buster;
   clearIconCache();
+  // Host ThumbNegatives + disk CAS — FE buster alone cannot un-poison failed SVG thumbs.
+  void import('./ipcBridge').then(({ IPC }) => {
+    if (IPC.isNative) void IPC.clearIconCache?.();
+  });
 }

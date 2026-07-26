@@ -10,6 +10,8 @@ import { Icons8Icon } from './Icons8Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
+const MonacoMicroEditor = lazy(() => import('./preview/MonacoMicroEditor'));
+const AudioWaveformEditor = lazy(() => import('./preview/AudioWaveformEditor'));
 import ImageZoomPreview from './ImageZoomPreview';
 import PdfPreviewPanel from './PdfPreviewPanel';
 import MarkdownPreviewPanel from './MarkdownPreviewPanel';
@@ -25,6 +27,8 @@ import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
 import { SelectionFilmstrip } from './SelectionFilmstrip';
+import BndzLensStage from './preview/BndzLensStage';
+import { IPC } from '../lib/ipcBridge';
 
 type PreviewTab = 'preview' | 'details' | 'media';
 
@@ -41,9 +45,10 @@ interface RightPreviewPanelProps {
   /** Multi-select filmstrip paths (Windows or pane). */
   selectionPaths?: string[];
   onSelectPath?: (path: string) => void;
+  onToast?: (message: string, tone?: 'info' | 'warning') => void;
 }
 
-export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview, selectionPaths, onSelectPath }: RightPreviewPanelProps) {
+export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview, selectionPaths, onSelectPath, onToast }: RightPreviewPanelProps) {
   const { config } = useAppConfig();
   const [thumbnailNative, setThumbnailNative] = useState<string | null>(null);
   const [shellIcon, setShellIcon] = useState<string | null>(null);
@@ -63,6 +68,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const [htmlView, setHtmlView] = useState<'render' | 'source'>('render');
   const [mdView, setMdView] = useState<'render' | 'source'>('render');
   const svgBlobUrlRef = useRef<string | null>(null);
+  const showLensStage = config.showLensStage !== false;
+  const [lensCollapsed, setLensCollapsed] = useState(() => config.lensCollapsedByDefault === true);
+
+  useEffect(() => {
+    setLensCollapsed(config.lensCollapsedByDefault === true);
+  }, [config.lensCollapsedByDefault]);
 
   useEffect(() => {
     setBrowsePath(path ?? null);
@@ -350,9 +361,10 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             return;
           }
         }
-        if (active) setSvgPreviewUrl(virtualUrl);
+        // Never fall back to bndz-stream for SVG — custom-scheme 404s blank the hero.
+        if (active) setSvgPreviewUrl(null);
       } catch {
-        if (active) setSvgPreviewUrl(virtualUrl);
+        if (active) setSvgPreviewUrl(null);
       }
     })();
     return () => {
@@ -502,6 +514,23 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       if (isArchive && path) {
           return <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} />;
       }
+      if (isAudio && previewRt.audioVideoEnabled && path) {
+        return (
+          <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform…</div>}>
+            <AudioWaveformEditor path={path} title={entity.name} />
+          </Suspense>
+        );
+      }
+
+      if (isVideo && previewRt.audioVideoEnabled) {
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center">
+            <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
+            <p>Playback and transport controls are on the Media tab.</p>
+          </div>
+        );
+      }
+
       if ((isAudio || isVideo) && !previewRt.audioVideoEnabled) {
           return (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-4 text-center">
@@ -511,21 +540,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
       }
 
-      if ((isAudio || isVideo) && previewRt.audioVideoEnabled && path) {
-          return (
-            <MediaPreviewPlayer
-              {...mediaPlayerProps}
-              type={isVideo ? 'video' : 'audio'}
-            />
-          );
-      }
-
       if (isSvg && previewAllowed) {
-          const src = svgPreviewUrl || virtualUrl;
+          const src = svgPreviewUrl;
           if (!src) {
             return (
               <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
-                <div className="text-xs text-gray-500 animate-pulse">Loading SVG…</div>
+                <div className="text-xs text-gray-500 animate-pulse">{svgPreviewUrl === null ? 'Loading SVG…' : 'SVG unavailable'}</div>
               </div>
             );
           }
@@ -533,7 +553,6 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             <ImageZoomPreview
               src={src}
               alt={entity.name}
-              fallbackSrc={virtualUrl && virtualUrl !== src ? virtualUrl : undefined}
               filePath={path}
               onOpenFloating={onOpenFloatingPreview}
             />
@@ -541,8 +560,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isImage && previewAllowed) {
-          // Prefer real file stream. Never use shell type glyphs as image preview —
-          // they load successfully and block blob/thumb fallbacks.
+          // Stream for full-res; CAS thumb as fallback if stream misses (never shell glyphs).
           const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
               : null;
@@ -657,6 +675,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               return <div className="p-4 text-xs text-red-400 font-mono border border-red-500/20 bg-red-500/5 m-2 rounded">{contentError}</div>;
           }
           if (fileContent != null && path) {
+              if (isCode) {
+                return (
+                  <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading editor…</div>}>
+                    <MonacoMicroEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} />
+                  </Suspense>
+                );
+              }
               return (
                 <TextPreviewEditor
                   path={path}
@@ -761,8 +786,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   };
 
   const tabs: { id: PreviewTab; label: string; show: boolean }[] = [
-    { id: 'preview', label: isArchive || isTorrent ? 'Contents' : 'Preview', show: true },
     { id: 'media', label: 'Media', show: isAudio || isVideo },
+    { id: 'preview', label: isArchive || isTorrent ? 'Contents' : 'Workspace', show: true },
     { id: 'details', label: 'Details', show: true },
   ];
 
@@ -974,6 +999,24 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
            activePath={path || (entity as any)?.path}
            onSelect={onSelectPath}
          />
+       )}
+       {!isDir && path && !isBndzVirtualPath(path) && showLensStage && (
+         <div className={`bndz-lens-dock shrink-0 border-t border-white/[0.06] overflow-y-auto bndz-scrollbar${lensCollapsed ? ' is-collapsed' : ''}`}>
+           <BndzLensStage
+             path={path}
+             isDir={false}
+             collapsed={lensCollapsed}
+             onToggleCollapsed={() => setLensCollapsed(c => !c)}
+             onNavigate={onNavigate}
+             onOpen={p => { void IPC.executeContextMenuVerb(toWindowsPath(p), 'open'); }}
+             onOpenInNewWindow={p => {
+               void IPC.openPathInNewWindow(p).then(r => {
+                 if (!r.ok) onToast?.(r.error || 'Could not open Stage window.', 'warning');
+                 else onToast?.('Opened in a new Stage window.');
+               });
+             }}
+           />
+         </div>
        )}
     </div>
   );

@@ -136,12 +136,18 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     if ('enableSubmenus' in raw) merged.enableContextSubmenus = !!raw.enableSubmenus;
     // BNDZ custom menu is always primary. Legacy native flags only control shell-verb
     // merge into that menu — never switch to Explorer launch.
+    merged.useCustomContextMenu = true;
     if ('useNativeOSContextMenu' in raw && !('useCustomContextMenu' in raw))
         merged.useCustomContextMenu = true;
     if ('nativeContextMenu' in raw && !('useNativeOSContextMenu' in raw)) {
         merged.useNativeOSContextMenu = !!raw.nativeContextMenu;
         merged.useCustomContextMenu = true;
     }
+    // Bust stale empty SVG/HEIC thumbnail CAS after Svg.Skia + stream-fallback removal.
+    if ((merged.iconCacheBuster ?? 0) < 20) merged.iconCacheBuster = 20;
+    if (merged.showLensStage === undefined) merged.showLensStage = true;
+    if (merged.lensCollapsedByDefault === undefined) merged.lensCollapsedByDefault = false;
+    if (merged.permanentHomeTab === undefined) merged.permanentHomeTab = false;
     if ('keepFoldersOnTop' in raw || 'sortFoldersApart' in raw) {
         merged.sortFoldersFirst = !!(raw.keepFoldersOnTop ?? raw.sortFoldersApart ?? merged.sortFoldersFirst);
     }
@@ -267,6 +273,8 @@ export const defaultConfig: AppConfig = normalizeConfig({
     bottomPanelDefaultPlugin: 'properties',
     bottomPanelRememberTab: true,
     bottomPanelLastTab: 'properties',
+    configurationRememberTab: true,
+    configurationLastTab: 'Menus & Context',
     bottomPanelShowTabIcons: true,
     bottomPanelLazyUnmount: true,
     alwaysOnTop: false,

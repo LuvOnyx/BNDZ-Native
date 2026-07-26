@@ -16,6 +16,8 @@ namespace BNDZ
     {
         public static ServiceProvider ServiceProvider { get; private set; } = null!;
         private static Mutex? _instanceMutex;
+        /// <summary>Second process launched via --stage-window (tear-off / Lens Stage).</summary>
+        public static bool IsStageWindow { get; private set; }
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
@@ -136,6 +138,8 @@ namespace BNDZ
                 return;
             }
 
+            IsStageWindow = HasArg(e.Args, "--stage-window");
+
             var serviceCollection = new ServiceCollection();
             ConfigureServices(serviceCollection);
             ServiceProvider = serviceCollection.BuildServiceProvider();
@@ -155,12 +159,13 @@ namespace BNDZ
 
         /// <summary>
         /// Honor "Allow multiple instances". When disabled, activate the existing process instead.
+        /// Stage Workspaces (--stage-window) always opens a second process so tear-off is real.
         /// </summary>
         private static bool TryAcquireSingleInstance(string[] args)
         {
             try
             {
-                if (ReadAllowMultipleInstances())
+                if (HasArg(args, "--stage-window") || ReadAllowMultipleInstances())
                     return true;
 
                 const string name = @"Local\BNDZ-FileManager-SingleInstance";

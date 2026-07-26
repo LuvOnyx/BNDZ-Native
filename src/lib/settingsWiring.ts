@@ -106,10 +106,9 @@ export function buildSearchRuntime(config: AppConfig) {
 
 /** Shell integration */
 export function buildShellRuntime(config: AppConfig) {
-  const useNativeOs = readSettingBool(config, 'useNativeOSContextMenu');
-  const useCustom = readSettingBool(config, 'useCustomContextMenu', true) && !useNativeOs;
   return {
-    useCustomContextMenu: useCustom,
+    useCustomContextMenu: true,
+    mergeNativeShellVerbs: readSettingBool(config, 'useNativeOSContextMenu') || readSettingBool(config, 'nativeContextMenu'),
     enableSubmenus: readSettingBool(config, 'enableContextSubmenus'),
     injectGlobalMenu: readSettingBool(config, 'injectGlobalContextMenu'),
     isDefaultManager: readSettingBool(config, 'isDefaultFileManager') || readSettingBool(config, 'bndzIsDefaultFileManager'),

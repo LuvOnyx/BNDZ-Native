@@ -4,6 +4,7 @@ import { useAppConfig } from '../data/configContext';
 import { shouldFetchNativeShellIcon } from '../lib/settingsRuntime';
 import { applyIconCacheBuster, LIST_THUMB_PX } from '../lib/nativeIconService';
 import { useNativeIcon, useNativeIconFetch } from '../lib/useNativeIcon';
+import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IconPlaceholder } from './IconPlaceholder';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'jfif', 'heic', 'avif']);
@@ -35,6 +36,7 @@ export function ShellNativeIcon({
 }: ShellNativeIconProps) {
   const { config } = useAppConfig();
   const [visible, setVisible] = useState(eager);
+  const [svgInline, setSvgInline] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const ext = path ? extFromPath(path) : '';
@@ -51,6 +53,10 @@ export function ShellNativeIcon({
   useEffect(() => {
     applyIconCacheBuster(config.iconCacheBuster);
   }, [config.iconCacheBuster]);
+
+  useEffect(() => {
+    setSvgInline(null);
+  }, [path]);
 
   useEffect(() => {
     if (eager) {
@@ -75,7 +81,21 @@ export function ShellNativeIcon({
 
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumb);
-  const src = (useThumb && thumbSrc) || shellSrc;
+
+  // SVG: CAS PNG first; if empty, inline blob: (never bndz-stream — custom scheme 404s poison previews).
+  useEffect(() => {
+    if (!visible || !path || dirFlag || ext !== 'svg' || thumbSrc) {
+      setSvgInline(null);
+      return;
+    }
+    let active = true;
+    void resolveSvgInlineThumb(path).then(url => {
+      if (active) setSvgInline(url);
+    });
+    return () => { active = false; };
+  }, [visible, path, dirFlag, ext, thumbSrc]);
+
+  const src = (useThumb && thumbSrc) || svgInline || shellSrc;
   const heroScale = hero ? 1.06 : 1;
 
   return (

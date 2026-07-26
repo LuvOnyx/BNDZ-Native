@@ -11,6 +11,7 @@ import {
 import { applyIconCacheBuster, LIST_THUMB_PX, requestNativeIcon } from '../lib/nativeIconService';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { useNativeIcon } from '../lib/useNativeIcon';
+import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IconPlaceholder } from './IconPlaceholder';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif', 'avif']);
@@ -56,6 +57,7 @@ export function ThumbnailIcon({
   ));
   const dirFlag = entityShellIsDirectory(entity, path);
   const [iconifyUrl, setIconifyUrl] = useState<string | null>(null);
+  const [svgInline, setSvgInline] = useState<string | null>(null);
   const [nativeFailed, setNativeFailed] = useState(false);
   const [thumbBroken, setThumbBroken] = useState(false);
   const [shellBroken, setShellBroken] = useState(false);
@@ -76,6 +78,7 @@ export function ThumbnailIcon({
 
   useEffect(() => {
     setIconifyUrl(null);
+    setSvgInline(null);
     setNativeFailed(false);
     setThumbBroken(false);
     setShellBroken(false);
@@ -125,10 +128,23 @@ export function ThumbnailIcon({
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
   const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail);
 
+  // SVG: CAS PNG first; else inline blob: — never bndz-stream (404s poison previews).
+  useEffect(() => {
+    if (!isVisible || !path || dirFlag || ext !== 'svg' || (thumbSrc && !thumbBroken)) {
+      setSvgInline(null);
+      return;
+    }
+    let active = true;
+    void resolveSvgInlineThumb(path).then(url => {
+      if (active) setSvgInline(url);
+    });
+    return () => { active = false; };
+  }, [isVisible, path, dirFlag, ext, thumbSrc, thumbBroken]);
+
   const usableThumb = useThumbnail && thumbSrc && !thumbBroken ? thumbSrc : null;
   const usableShell = shellSrc && !shellBroken ? shellSrc : null;
-  // Gold priority: small CAS thumb → shell glyph → iconify. Never full-file stream in list.
-  const nativeSrc = usableThumb || usableShell || entity.iconBase64 || null;
+  // Gold priority: CAS thumb → SVG blob → shell glyph → iconify. Never full-file stream in list.
+  const nativeSrc = usableThumb || svgInline || usableShell || entity.iconBase64 || null;
 
   useEffect(() => {
     if (nativeSrc) {

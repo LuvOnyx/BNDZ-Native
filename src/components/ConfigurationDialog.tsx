@@ -313,10 +313,19 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     );
   };
 
-  const [activeTab, setActiveTab] = useState(initialTab || "Shell Integration");
+  const [activeTab, setActiveTabState] = useState(
+    initialTab || (globalConfig as any).configurationLastTab || 'Menus & Context',
+  );
+
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabState(tab);
+    if ((globalConfig as any).configurationRememberTab !== false) {
+      updateGlobalConfig({ configurationLastTab: tab } as any);
+    }
+  }, [globalConfig, updateGlobalConfig]);
 
   useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
+    if (initialTab) setActiveTabState(initialTab);
   }, [initialTab]);
   const [navFilter, setNavFilter] = useState('');
   const [showConditionalFormattingDialog, setShowConditionalFormattingDialog] = useState(false);
@@ -371,17 +380,20 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     Preview: <Icons8Icon id="eye_ui" size={13} className="opacity-70" />,
     'Tabs and Panes': <Icons8Icon id="table_ui" size={13} className="opacity-70" />,
     Other: <Icons8Icon id="puzzle_ui" size={13} className="opacity-70" />,
+    Automation: <Icons8Icon id="zap_ui" size={13} className="opacity-70" />,
+    'Shell & Access': <Icons8Icon id="globe_ui" size={13} className="opacity-70" />,
   };
 
   const categories = [
-    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "Keyboard Shortcuts"] },
+    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Startup & Exit", "Keyboard Shortcuts", "Controls & More", "Safety Belts, Network"] },
+    { name: "Automation", items: ["Custom Event Actions", "User Commands"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
     { name: "File Operations", items: ["File Operations", "Undo & Action Log"] },
     { name: "Find and Filter", items: ["Find Files & Branch View", "Filters & Type Ahead Find"] },
     { name: "Preview", items: ["Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up"] },
     { name: "Tabs and Panes", items: ["Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel"] },
-    { name: "Other", items: ["Shell Integration", "Rapid access", "Features"] }
+    { name: "Shell & Access", items: ["Shell Integration", "Rapid access", "Features"] }
   ];
 
   const jumpResults = searchJumpSettings(jumpQuery, categories.flatMap(c => c.items));
@@ -402,7 +414,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     setShowJumpDialog(false);
     setJumpQuery('');
     setJumpSelectedIndex(0);
-  }, []);
+  }, [setActiveTab]);
 
   // Ctrl+F / Cmd+F opens Jump to Setting while Configuration is open.
   useEffect(() => {
@@ -441,23 +453,27 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
   const categoryAccent: Record<string, string> = {
     General: 'from-[#0078d4]/18 to-transparent border-[#0078d4]/30',
+    Automation: 'from-orange-500/22 to-transparent border-orange-500/30',
     'Colors and Styles': 'from-violet-500/22 to-transparent border-violet-500/30',
     Information: 'from-emerald-500/22 to-transparent border-emerald-500/30',
     'File Operations': 'from-amber-500/22 to-transparent border-amber-500/30',
     'Find and Filter': 'from-cyan-500/22 to-transparent border-cyan-500/30',
     Preview: 'from-pink-500/22 to-transparent border-pink-500/30',
     'Tabs and Panes': 'from-indigo-500/22 to-transparent border-indigo-500/30',
+    'Shell & Access': 'from-slate-500/22 to-transparent border-slate-500/35',
     Other: 'from-slate-500/22 to-transparent border-slate-500/35',
   };
 
   const categoryTabActive: Record<string, string> = {
     General: 'data-active:bg-[#094771]/45 data-active:text-[#cce4f7] data-active:border-[#0078d4]/45 data-active:font-medium',
+    Automation: 'data-active:bg-orange-600/25 data-active:text-orange-100 data-active:border-orange-500/45 data-active:font-medium',
     'Colors and Styles': 'data-active:bg-violet-600/25 data-active:text-violet-100 data-active:border-violet-500/45 data-active:font-medium',
     Information: 'data-active:bg-emerald-600/25 data-active:text-emerald-100 data-active:border-emerald-500/45 data-active:font-medium',
     'File Operations': 'data-active:bg-amber-600/25 data-active:text-amber-100 data-active:border-amber-500/45 data-active:font-medium',
     'Find and Filter': 'data-active:bg-cyan-600/25 data-active:text-cyan-100 data-active:border-cyan-500/45 data-active:font-medium',
     Preview: 'data-active:bg-pink-600/25 data-active:text-pink-100 data-active:border-pink-500/45 data-active:font-medium',
     'Tabs and Panes': 'data-active:bg-indigo-600/25 data-active:text-indigo-100 data-active:border-indigo-500/45 data-active:font-medium',
+    'Shell & Access': 'data-active:bg-slate-600/25 data-active:text-slate-100 data-active:border-slate-500/45 data-active:font-medium',
     Other: 'data-active:bg-slate-600/25 data-active:text-slate-100 data-active:border-slate-500/45 data-active:font-medium',
   };
 
@@ -765,8 +781,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
             </TabsContent>
 
-            <TabsContent value="Menus, Mouse, Usability" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Menus, Mouse, Usability</h1>
+            <TabsContent value="Menus & Context" className="m-0 border-0 p-0 outline-none">
+              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Menus & Context</h1>
               
               <SectionHeader title="Main Menus" />
               <div className="ml-2 mb-4 space-y-[6px]">
@@ -776,7 +792,16 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
               <SectionHeader title="Context Menus" />
               <div className="ml-2 mb-4 space-y-[6px]">
-                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">N</span>ative context menu</span>} checked={localConfig.nativeContextMenu ?? localConfig.useNativeOSContextMenu ?? false} onChange={e => updateLocalConfig({ nativeContextMenu: e.target.checked, useNativeOSContextMenu: e.target.checked })} />
+                 <Checkbox
+                   label={<span>Merge <span className="underline decoration-1 underline-offset-[3px]">N</span>ative Windows shell verbs into the BNDZ menu</span>}
+                   checked={localConfig.nativeContextMenu ?? localConfig.useNativeOSContextMenu ?? false}
+                   onChange={e => updateLocalConfig({
+                     nativeContextMenu: e.target.checked,
+                     useNativeOSContextMenu: e.target.checked,
+                     useCustomContextMenu: true,
+                   })}
+                 />
+                 <p className="text-[#a0a0a0] text-[11px] ml-1 mb-2">Right-click always opens the BNDZ menu with icons. Shell verbs appear as an additive section when enabled.</p>
                  <div className="ml-[20px]">
                     <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">H</span>old Ctrl to invert the above selection</span>} checked={localConfig.holdCtrlToInvertTheAboveSelection ?? false} onChange={e => updateLocalConfig({ holdCtrlToInvertTheAboveSelection: e.target.checked })} />
                  </div>
@@ -1694,14 +1719,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <div className="ml-[10px] mb-[24px]">
                  <Checkbox 
                      label={<span>Include <span className="font-bold underline decoration-1 underline-offset-[3px]">N</span>ative shell verbs in BNDZ menu</span>} 
-                     checked={localConfig.useNativeOSContextMenu ?? localConfig.nativeContextMenu ?? true} 
+                     checked={localConfig.useNativeOSContextMenu ?? localConfig.nativeContextMenu ?? false} 
                      onChange={e => updateLocalConfig({
                        useNativeOSContextMenu: e.target.checked,
                        nativeContextMenu: e.target.checked,
                        useCustomContextMenu: true,
                      })} 
                  />
-                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu. When enabled, live Windows shell verbs are merged into it.</p>
+                 <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu with icons. Enable only if you want Windows shell extensions merged in.</p>
               </div>
 
               <SectionHeader title="Default File Manager" />
@@ -1788,6 +1813,19 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
 
             <TabsContent value="Preview" className="m-0 border-0 p-0 outline-none">
               <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Preview</h1>
+
+              <div className="flex gap-[42px] mb-4 mt-[10px] ml-2">
+                  <span className="text-[12px] text-[#e0e0e0] w-[140px]">Lens Stage:</span>
+                  <div className="flex flex-col gap-[6px]">
+                     <Checkbox label={<span>Show Lens Stage under the preview panel</span>} checked={localConfig.showLensStage !== false} onChange={e => updateLocalConfig({ showLensStage: e.target.checked })} />
+                     <div className="ml-[20px]">
+                        <Checkbox label={<span>Start collapsed (preview uses full height)</span>} checked={localConfig.lensCollapsedByDefault === true} onChange={e => updateLocalConfig({ lensCollapsedByDefault: e.target.checked })} disabled={localConfig.showLensStage === false} />
+                     </div>
+                     <p className="text-[11px] text-[#888] max-w-[420px] leading-snug">
+                        Lens shows content twins, folder orbit, and media peers. Hide it entirely here, or use the subtle Hide control on the Lens strip while browsing.
+                     </p>
+                  </div>
+              </div>
               
               <div className="flex gap-[42px] mb-4 mt-[10px] ml-2">
                   <span className="text-[12px] text-[#e0e0e0] w-[140px]">Audio/Video preview:</span>
@@ -2198,9 +2236,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">New tab <span className="underline decoration-1 underline-offset-[3px]">p</span>ath:</span>
                     <div className="flex items-center gap-2 flex-1">
                        <input type="text" className="bg-[#1e1e1e] border border-[#666] text-white text-[12px] px-2 flex-1 h-6 outline-none" value={localConfig.newTabPath || ""} onChange={e => updateLocalConfig({newTabPath: e.target.value})} />
+                       <ActionBtn label="Home" className="w-[48px] h-6 min-h-[24px]" onClick={() => updateLocalConfig({ newTabPath: '/bndz/home' })} />
                        <ActionBtn label="..." className="w-[30px] h-6 min-h-[24px]" onClick={() => void browseFolderInto('newTabPath', 'Select default new tab folder')} />
                     </div>
                  </div>
+                 <Checkbox label={<span>Keep Continuum Home as a permanent locked tab</span>} checked={localConfig.permanentHomeTab === true} onChange={e => updateLocalConfig({ permanentHomeTab: e.target.checked })} />
+                 <p className="text-[11px] text-[#888] ml-[20px] mb-2 max-w-[520px] leading-snug">
+                    Home (`/bndz/home`) stays pinned and locked in every pane. New tabs still follow the path above.
+                 </p>
                  <div className="flex items-center gap-[42px] mb-[6px]">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Open <span className="underline decoration-1 underline-offset-[3px]">n</span>ew tab</span>
                     <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm flex-1 outline-none" value={localConfig.openNewTab || "Next to the current tab"} onChange={e => updateLocalConfig({openNewTab: e.target.value})}><option>Next to the current tab</option><option>At the end</option></select>
@@ -2845,7 +2888,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                 <ContextMenuConfiguratorTab />
             </TabsContent>
 
-            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus, Mouse, Usability", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts"].includes(item)).map(item => (
+            {categories.flatMap(c => c.items).filter(item => !["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Custom Event Actions", "User Commands", "Safety Belts, Network", "Controls & More", "Startup & Exit", "File Operations", "Shell Integration", "Features", "Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu", "Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data", "Undo & Action Log", "Find Files & Branch View", "Filters & Type Ahead Find", "Preview", "Previewed Formats", "Thumbnails", "Mouse Down Blow Up", "Tabs", "Dual Pane", "Plugin Rack", "Bottom Panel", "Rapid access", "Keyboard Shortcuts"].includes(item)).map(item => (
                <TabsContent key={item} value={item} className="m-0 border-0 p-0 outline-none">
                   <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">{item}</h1>
                   <p className="text-[#a0a0a0] text-[13px]">Configuration options for this section are disabled in the current preview.</p>

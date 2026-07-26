@@ -47,7 +47,8 @@ import {
   isInternalFileDragChromeAtPoint,
   DEFAULT_TAB_HOVER_DELAY_MS,
 } from '../lib/fileDragSession';
-import { IPC, RenameOperation } from '../lib/ipcBridge';
+import { requestMediaHandoff } from '../lib/mediaPlaybackBridge';
+import { isAudioExt } from '../lib/mediaTypes';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { executeUndoWithTimeout, executeRedoWithTimeout } from '../lib/undoRedo';
 import { isQueuedIpcResult } from '../lib/transferIpc';
@@ -123,6 +124,8 @@ import FindingTabToolbar from './FindingTabToolbar';
 import BndzMediaView from './views/BndzMediaView';
 import BndzHubView from './views/BndzHubView';
 import BndzHomeView from './views/BndzHomeView';
+import BndzSpatialCanvasView from './views/BndzSpatialCanvasView';
+import BndzAutomationView from './views/BndzAutomationView';
 import BndzRecentsView from './views/BndzRecentsView';
 import BndzQuickPreview from './preview/BndzQuickPreview';
 import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
@@ -130,7 +133,7 @@ import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, isBndzHomePath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT, BNDZ_HOME } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzWorkspacePath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION } from '../lib/bndzVirtualViews';
 import { pushGhostTrail, getGhostTrail } from '../lib/ghostTrail';
 import {
   GOOGLE_DRIVE_HUB_PATH,
@@ -988,6 +991,10 @@ export default function BNDZUI() {
   const [isToolbarConfigOpen, setIsToolbarConfigOpen] = useState(false);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [configInitialTab, setConfigInitialTab] = useState<string | undefined>(undefined);
+  const [homeQuickPreview, setHomeQuickPreview] = useState<{
+    items: Array<{ entity: any; path: string }>;
+    index: number;
+  } | null>(null);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
@@ -1342,8 +1349,8 @@ export default function BNDZUI() {
 
         if (isBndzVirtualPath(path)) {
           const view = parseBndzVirtualView(path);
-          if (!view) {
-            // Hub `/bndz` and Continuum Home `/bndz/home` — custom surfaces, no listing fetch.
+          if (!view || isBndzWorkspacePath(path)) {
+            // Hub `/bndz`, Continuum Home `/bndz/home`, canvas, automation — custom surfaces.
             setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
             return;
           }
@@ -1895,6 +1902,39 @@ export default function BNDZUI() {
     setPanes(prev => prev.map(p => ({ ...p, sortColumn: c, sortDirection: d })));
   }, [config.listSortColumn, config.listSortDirection, config.restoreLastTabsetOnStartup, config.lastActiveTabsetId]);
 
+  // Permanent Continuum Home tab — locked Home in every pane when enabled.
+  useEffect(() => {
+    if (config.permanentHomeTab !== true) return;
+    setPanes(prev => {
+      let changed = false;
+      const next = prev.map(pane => {
+        const homeIx = pane.tabs.findIndex(t => isBndzHomePath(t.path));
+        if (homeIx >= 0) {
+          if (pane.tabs[homeIx].locked) return pane;
+          changed = true;
+          const tabs = pane.tabs.map((t, i) => (i === homeIx ? { ...t, locked: true } : t));
+          return { ...pane, tabs };
+        }
+        changed = true;
+        const homeTab = {
+          id: `home_${pane.id}_${Date.now()}`,
+          path: BNDZ_HOME,
+          history: [BNDZ_HOME],
+          historyIndex: 0,
+          selectedItems: [] as string[],
+          locked: true,
+          viewMode: undefined as undefined,
+        };
+        return {
+          ...pane,
+          tabs: [homeTab, ...pane.tabs],
+          activeTabIndex: pane.activeTabIndex + 1,
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, [config.permanentHomeTab]);
+
   // Permanent startup path (overrides default This PC / last tabset when set)
   const appliedStartupPathRef = useRef(false);
   useEffect(() => {
@@ -2000,8 +2040,7 @@ export default function BNDZUI() {
          const tab = activePane?.tabs[activePane.activeTabIndex];
          if (tab && (tab.selectedItems.length > 0 || focusedItemId)) {
             e.preventDefault();
-            setQuickPreviewIndex(quickPreviewStartIndex);
-            setQuickPreviewOpen(true);
+            openQuickPreview();
          }
       }
       // FilePilot inspector toggle (rebindable, default Ctrl+I)
@@ -2215,9 +2254,8 @@ export default function BNDZUI() {
               : targetPath);
       const winPath = toWindowsPath(menuItemPath);
 
-      // Always use the BNDZ context menu. Native shell verbs are merged in below.
-      // Do NOT call IPC.showNativeContextMenu — the backend stub opens Explorer (/select),
-      // which made right-click feel like "opening" folders.
+      // Always use the BNDZ context menu. Native shell verbs are merged only when enabled.
+      // Do NOT call IPC.showNativeContextMenu — the backend stub is a no-op / must not open Explorer.
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
@@ -2234,6 +2272,10 @@ export default function BNDZUI() {
       // Skip native shell verb fetch for virtual locations — they produce empty/separator-only menus.
       if (isVirtualLocation) return;
 
+      // Pure BNDZ menu (icons + product verbs) unless user opted into merging shell verbs.
+      const mergeShellVerbs = !!(config.useNativeOSContextMenu || config.nativeContextMenu);
+      if (!mergeShellVerbs) return;
+
       void import('../lib/nativeContextMenuCache').then(({ getCachedNativeContextMenu, setCachedNativeContextMenu }) => {
         if (requestId !== contextMenuRequestRef.current) return;
         const cachedNative = getCachedNativeContextMenu(winPath) as any[] | null;
@@ -2244,8 +2286,7 @@ export default function BNDZUI() {
         }
       });
 
-      // Always fetch live shell extensions for the supplemental block (IContextMenu).
-      // Custom BNDZ menu remains primary; builtins are filtered client-side.
+      // Fetch live shell extensions for the supplemental block (IContextMenu).
       const runFetch = () => {
         void (async () => {
           try {
@@ -3186,7 +3227,7 @@ export default function BNDZUI() {
       {
         treeKey: 'profile',
         draggable: true,
-        label: 'Profile',
+        label: (windowsUsername && windowsUsername !== 'Public') ? windowsUsername : 'Profile',
         path: homeTreePath,
         iconPath: KNOWN_FOLDER_SHELL.Home,
         icon: 'home',
@@ -3233,6 +3274,26 @@ export default function BNDZUI() {
             : view === 'documents' ? '#60a5fa'
             : '#a78bfa',
         })),
+      },
+      {
+        treeKey: 'spatial-canvas',
+        draggable: true,
+        label: 'Spatial Canvas',
+        path: BNDZ_CANVAS,
+        icon: 'view_grid',
+        iconColor: '#c4a35a',
+        useShellIcon: false,
+        onClick: () => setCurrentPath(BNDZ_CANVAS),
+      },
+      {
+        treeKey: 'automation',
+        draggable: true,
+        label: 'Automation',
+        path: BNDZ_AUTOMATION,
+        icon: 'zap_ui',
+        iconColor: '#fbbf24',
+        useShellIcon: false,
+        onClick: () => setCurrentPath(BNDZ_AUTOMATION),
       },
       {
         treeKey: 'this-pc',
@@ -4347,7 +4408,7 @@ export default function BNDZUI() {
     const sourcePaneId = getFileDragSession()?.sourcePaneId ?? activePaneIdRef.current;
     const activeId = activePaneIdRef.current;
     if (
-      !config.alsoAutoSelectTabsInTheInactivePane
+      config.alsoAutoSelectTabsInTheInactivePane === false
       && paneId !== sourcePaneId
       && paneId !== activeId
     ) return;
@@ -4380,11 +4441,11 @@ export default function BNDZUI() {
 
   /** HTML5 drag-over tabs: delayed switch (Explorer-style). */
   const scheduleTabSwitchOnFileDrag = (paneId: string, tabIndex: number) => {
-    if (!config.autoSelectTabsOnDragOver) return;
+    if (config.autoSelectTabsOnDragOver === false) return;
     const sourcePaneId = getFileDragSession()?.sourcePaneId ?? activePaneIdRef.current;
     const activeId = activePaneIdRef.current;
     if (
-      !config.alsoAutoSelectTabsInTheInactivePane
+      config.alsoAutoSelectTabsInTheInactivePane === false
       && paneId !== sourcePaneId
       && paneId !== activeId
     ) return;
@@ -4569,6 +4630,10 @@ export default function BNDZUI() {
     window.addEventListener('bndz-external-drop', onExternalDrop);
     return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
   }, [bottomPluginTab]);
+
+  useEffect(() => {
+    void import('../lib/ipcBridge').then(({ IPC }) => IPC.notifyUiReady());
+  }, []);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
@@ -5565,7 +5630,9 @@ export default function BNDZUI() {
         }
       } else {
         import('../lib/ipcBridge').then(({ IPC }) => {
-          IPC.executeContextMenuVerb(toWindowsPath(buildEntityPath(entity)), 'open');
+          const winPath = toWindowsPath(buildEntityPath(entity));
+          IPC.recordPathOpen(winPath);
+          IPC.executeContextMenuVerb(winPath, 'open');
         });
       }
     };
@@ -6421,6 +6488,8 @@ export default function BNDZUI() {
            }}
            onPointerDownCapture={(e) => {
               if (e.button !== 0) return;
+              if (isBndzHomePath(normPanePath) || isBndzWorkspacePath(normPanePath) || normPanePath === BNDZ_VIEWS_ROOT) return;
+              if ((e.target as HTMLElement).closest('[data-bndz-surface], .react-flow, .bndz-automation, .bndz-spatial-canvas, .bndz-home')) return;
               if ((e.target as HTMLElement).closest('input, textarea, button, select, a')) return;
 
               const listEl = e.currentTarget as HTMLElement;
@@ -6945,6 +7014,7 @@ export default function BNDZUI() {
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzHomePath(normPanePath) && (
             <BndzHomeView
               onNavigate={p => setCurrentPath(p, pane.id)}
+              navigationHistory={config.navigationHistory || []}
               onOpenPath={(p, meta) => {
                 const panePathNorm = normalizePanePath(toPanePath(p));
                 const isDir = meta?.type === 'directory'
@@ -6977,6 +7047,22 @@ export default function BNDZUI() {
                   else setToastMessage(r?.error || 'Could not start indexing.', 'warning');
                 });
               }}
+              onQuickLook={(items, startIndex) => {
+                const mapped = items
+                  .filter(it => it.path)
+                  .map(it => ({
+                    entity: {
+                      id: it.path,
+                      name: it.name || it.path.split('/').pop() || 'File',
+                      type: it.type === 'directory' ? 'directory' : 'file',
+                      path: it.path,
+                    },
+                    path: toPanePath(it.path),
+                  }));
+                if (!mapped.length) return;
+                setHomeQuickPreview({ items: mapped, index: Math.max(0, Math.min(startIndex, mapped.length - 1)) });
+                setQuickPreviewOpen(true);
+              }}
               focusStage={(() => {
                 if (clipboard.items.length > 0) {
                   const cp = clipboard.items[0];
@@ -6991,13 +7077,25 @@ export default function BNDZUI() {
               })()}
             />
           )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzCanvasPath(normPanePath) && (
+            <BndzSpatialCanvasView
+              onNavigate={p => setCurrentPath(p, pane.id)}
+              onOpenPath={p => {
+                const panePathNorm = normalizePanePath(toPanePath(p));
+                void IPC.executeContextMenuVerb(toWindowsPath(panePathNorm), 'open');
+              }}
+            />
+          )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzAutomationPath(normPanePath) && (
+            <BndzAutomationView />
+          )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && normPanePath === BNDZ_VIEWS_ROOT && (
             <BndzHubView
               onNavigate={p => setCurrentPath(p, pane.id)}
               onRefresh={() => void refetchPath(BNDZ_VIEWS_ROOT)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
             <MillerColumnsView
               rootPath={isThisPc ? '/' : panePath}
               selectedPath={panePath}
@@ -7008,7 +7106,7 @@ export default function BNDZUI() {
               onPrefetchPath={(p) => void prefetchPathQuiet(p)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'size' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'size' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
             (() => {
               const sizeItems = (contents || []).map((ent: any) => {
                 const p = buildEntityPath(ent);
@@ -7045,7 +7143,7 @@ export default function BNDZUI() {
               );
             })()
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'media' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'media' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
             <BndzMediaView
               items={contents || []}
               fetchError={virtualViewErrors[normPanePath]}
@@ -7062,7 +7160,7 @@ export default function BNDZUI() {
               onIndexBuilt={() => void refetchPath(normPanePath)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
             <BndzRecentsView
               items={contents || []}
               fetchError={virtualViewErrors[normPanePath]}
@@ -7079,7 +7177,7 @@ export default function BNDZUI() {
               onIndexBuilt={() => void refetchPath(normPanePath)}
             />
           )}
-          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode !== 'columns' && computedViewMode !== 'size' && computedViewMode !== 'media' && computedViewMode !== 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && (
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode !== 'columns' && computedViewMode !== 'size' && computedViewMode !== 'media' && computedViewMode !== 'recents' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
             <>
             {(() => {
               const stickyOn = config.stickyGroupHeaders !== false;
@@ -7645,6 +7743,19 @@ export default function BNDZUI() {
     return idx >= 0 ? idx : 0;
   }, [currentTab.selectedItems, focusedItemId, activeContents]);
 
+  const openQuickPreview = React.useCallback((startIndex?: number) => {
+    const idx = startIndex ?? quickPreviewStartIndex;
+    const item = quickPreviewItems[idx];
+    if (item?.path) {
+      const name = item.entity?.name || '';
+      const dot = name.lastIndexOf('.');
+      const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+      if (isAudioExt(ext)) requestMediaHandoff(item.path);
+    }
+    setQuickPreviewIndex(idx);
+    setQuickPreviewOpen(true);
+  }, [quickPreviewItems, quickPreviewStartIndex]);
+
   const bottomSelectionTargets = useMemo(() => {
     const paths: string[] = [];
     const types: string[] = [];
@@ -7913,8 +8024,7 @@ export default function BNDZUI() {
                         setToastMessage('Select or focus an item first.');
                         return;
                       }
-                      setQuickPreviewIndex(quickPreviewStartIndex);
-                      setQuickPreviewOpen(true);
+                      openQuickPreview();
                     })}><Icons8Icon id="eye_ui" size={14} /> Floating Preview <span className="ml-auto text-[10px] text-gray-500">Space</span></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => runShellVerbOnSelection('share'))}><Icons8Icon id="share" size={14} /> Share…</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
@@ -8293,8 +8403,15 @@ export default function BNDZUI() {
                        <Icons8Icon id="home" size={14} /> Home
                     </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(homeTreePath))}>
-                       <Icons8Icon id="home" size={14} /> Profile
+                       <Icons8Icon id="home" size={14} /> {(windowsUsername && windowsUsername !== 'Public') ? windowsUsername : 'Profile'}
                     </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(BNDZ_CANVAS))}>
+                       <Icons8Icon id="view_grid" size={14} /> Spatial Canvas
+                    </div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath(BNDZ_AUTOMATION))}>
+                       <Icons8Icon id="zap_ui" size={14} /> Automation
+                    </div>
+                    <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/'))}>
                        <Icons8Icon id="this_pc" size={14} /> This PC
                     </div>
@@ -9119,10 +9236,7 @@ export default function BNDZUI() {
           placement="dock"
           count={activeTab.selectedItems.length}
           actions={buildDefaultQuickActions({
-            onQuickLook: () => {
-              setQuickPreviewIndex(quickPreviewStartIndex);
-              setQuickPreviewOpen(true);
-            },
+            onQuickLook: () => openQuickPreview(),
             onCopy: () => {
               const selectedEntities = activeContents?.filter((x: any) => activeTab.selectedItems.includes(x.id)) || [];
               if (selectedEntities.length) {
@@ -9582,6 +9696,7 @@ export default function BNDZUI() {
                      path={previewPath}
                      pathContentsCache={pathContentsCache}
                      onNavigate={p => setCurrentPath(p)}
+                     onToast={(msg, tone) => setToastMessage(msg, tone)}
                      selectionPaths={(currentTab.selectedItems || []).map(id => {
                        const ent = (pathContentsCache[currentTab.path] || pathContentsCache[normalizePanePath(currentTab.path)] || [])
                          .find((x: any) => x.id === id);
@@ -9597,8 +9712,7 @@ export default function BNDZUI() {
                          setToastMessage('Select or focus an item first.');
                          return;
                        }
-                       setQuickPreviewIndex(quickPreviewStartIndex);
-                       setQuickPreviewOpen(true);
+                       openQuickPreview();
                      }}
                   />
                </div>
@@ -9873,7 +9987,7 @@ export default function BNDZUI() {
       {isConfigDialogOpen && (
         <Suspense fallback={null}>
           <ConfigurationDialog
-            initialTab={configInitialTab}
+            initialTab={configInitialTab || (config as any).configurationLastTab || 'Menus & Context'}
             onClose={() => { setConfigInitialTab(undefined); setIsConfigDialogOpen(false); }}
           />
         </Suspense>
@@ -9968,6 +10082,14 @@ export default function BNDZUI() {
             onCloseRight={() => closeTabsToRight(tabContextMenu.paneId, tabContextMenu.tabIndex)}
             onCloseAll={() => closeAllTabs(tabContextMenu.paneId)}
             onDuplicate={() => duplicateTab(tabContextMenu.paneId, tabContextMenu.tabIndex)}
+            onTearOff={() => {
+              const p = tab.path;
+              setTabContextMenu(null);
+              void IPC.openPathInNewWindow(p).then(r => {
+                if (!r.ok) setToastMessage(r.error || 'Could not open Stage window.', 'warning');
+                else setToastMessage('Opened in a new Stage window.');
+              });
+            }}
             onSetColor={(color) => setTabColor(tabContextMenu.paneId, tabContextMenu.tabIndex, color)}
             onCloseMenu={() => setTabContextMenu(null)}
           />
@@ -10149,11 +10271,22 @@ export default function BNDZUI() {
 
       <TutorialOverlay forceShow={showTutorial} onClose={() => setShowTutorial(false)} />
       <BndzQuickPreview
-        open={quickPreviewOpen && quickPreviewItems.length > 0}
-        items={quickPreviewItems}
-        index={Math.min(quickPreviewIndex, Math.max(0, quickPreviewItems.length - 1))}
-        onClose={() => setQuickPreviewOpen(false)}
-        onIndexChange={setQuickPreviewIndex}
+        open={quickPreviewOpen && ((homeQuickPreview?.items.length ?? 0) > 0 || quickPreviewItems.length > 0)}
+        items={homeQuickPreview?.items?.length ? homeQuickPreview.items : quickPreviewItems}
+        index={homeQuickPreview?.items?.length
+          ? Math.min(homeQuickPreview.index, Math.max(0, homeQuickPreview.items.length - 1))
+          : Math.min(quickPreviewIndex, Math.max(0, quickPreviewItems.length - 1))}
+        onClose={() => {
+          setQuickPreviewOpen(false);
+          setHomeQuickPreview(null);
+        }}
+        onIndexChange={ix => {
+          if (homeQuickPreview?.items?.length) {
+            setHomeQuickPreview(prev => prev ? { ...prev, index: ix } : prev);
+          } else {
+            setQuickPreviewIndex(ix);
+          }
+        }}
         onNavigate={p => setCurrentPath(p)}
       />
       <CommandPalette 

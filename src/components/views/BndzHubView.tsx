@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { BNDZ_AUDIO, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RECENT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
+import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RECENT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
 import BndzIndexEmptyState from './BndzIndexEmptyState';
 
@@ -48,6 +48,23 @@ const VIEWS = [
   },
 ] as const;
 
+const WORKSPACES = [
+  {
+    path: BNDZ_CANVAS,
+    icon: 'view_grid',
+    accent: '#c4a35a',
+    title: 'Spatial Canvas',
+    desc: 'Freeform 2D board — organize files from many folders without moving them on disk',
+  },
+  {
+    path: BNDZ_AUTOMATION,
+    icon: 'zap_ui',
+    accent: '#fbbf24',
+    title: 'Automation',
+    desc: 'Visual pipelines for watch, filter, copy, and rsync deploy blocks',
+  },
+] as const;
+
 export default function BndzHubView({ onNavigate, onRefresh }: Props) {
   const [status, setStatus] = useState<IndexStatus | null>(null);
 
@@ -60,13 +77,38 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
 
   const indexed = (status?.fileCount ?? 0) > 0;
 
+  const workspaceSection = (
+    <>
+      <div className="px-1 pt-1 pb-2 text-[10px] uppercase tracking-wider text-gray-500">Workspaces</div>
+      {WORKSPACES.map(v => (
+        <button
+          key={v.path}
+          type="button"
+          onClick={() => onNavigate(v.path)}
+          className="bndz-smart-hub-row group w-full flex items-center gap-3 text-left"
+          style={{ ['--hub-accent' as string]: v.accent }}
+        >
+          <span className="bndz-smart-hub-icon" aria-hidden><Icons8Icon id={v.icon} size={18} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12px] font-medium text-[#e8eaed] group-hover:text-white">{v.title}</span>
+            <span className="block text-[10px] text-[#8b919a] mt-0.5 leading-snug">{v.desc}</span>
+          </span>
+          <Icons8Icon id="chevron_right" size={14} className="opacity-40 group-hover:opacity-80 shrink-0" />
+        </button>
+      ))}
+    </>
+  );
+
   if (!indexed) {
     return (
-      <BndzIndexEmptyState
-        title="Smart Views"
-        hint="Index Desktop, Documents, Downloads, Pictures, Music, and Videos to unlock Recent, Media, and Large file views."
-        onIndexed={onRefresh}
-      />
+      <div className="bndz-smart-hub flex flex-col h-full min-h-0">
+        <div className="px-3 pt-3">{workspaceSection}</div>
+        <BndzIndexEmptyState
+          title="Smart Views"
+          hint="Index Desktop, Documents, Downloads, Pictures, Music, and Videos to unlock Recent, Media, and Large file views."
+          onIndexed={onRefresh}
+        />
+      </div>
     );
   }
 
@@ -88,6 +130,8 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
       </header>
 
       <div className="flex-1 overflow-y-auto bndz-scrollbar px-3 pb-4 pt-1 space-y-1.5">
+        {workspaceSection}
+        <div className="px-1 pt-3 pb-2 text-[10px] uppercase tracking-wider text-gray-500">Indexed views</div>
         {VIEWS.map(v => {
           const viewKey = v.path.split('/').pop() as 'recent' | 'media' | 'audio' | 'documents' | 'large';
           return (

@@ -32,7 +32,8 @@ public static class MediaThumbnailService
 
     private static readonly HashSet<string> ShellPreferExts = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".svg", ".heic", ".heif", ".avif", ".psd", ".ai", ".eps",
+        // SVG is handled by Svg.Skia before shell — keep here only as soft GetImage fallback.
+        ".heic", ".heif", ".avif", ".psd", ".ai", ".eps",
         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
     };
 
@@ -58,7 +59,13 @@ public static class MediaThumbnailService
 
         var ext = Path.GetExtension(filePath);
 
-        // 1) Fast Skia stills (png/jpg/webp/…) — EXIF-oriented.
+        // 1) Fast Skia stills (png/jpg/webp/…) + Svg.Skia for vectors — EXIF-oriented.
+        if (ext.Equals(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            var svg = SkiaThumbnailService.TryEncodeSvgBase64(filePath, size);
+            if (!string.IsNullOrEmpty(svg))
+                return svg;
+        }
         var skia = SkiaThumbnailService.TryEncodeThumbnailBase64(filePath, size);
         if (!string.IsNullOrEmpty(skia))
             return skia;

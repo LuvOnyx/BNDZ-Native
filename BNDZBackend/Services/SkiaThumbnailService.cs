@@ -1,12 +1,14 @@
 using System;
 using System.IO;
 using SkiaSharp;
+using Svg.Skia;
 
 namespace BNDZ.Services;
 
 /// <summary>
 /// Fast image thumbnails via SkiaSharp when the path is a decodeable still image.
 /// Honors EXIF/orientation via <see cref="SKCodec.EncodedOrigin"/>.
+/// SVG is rasterized via Svg.Skia (Windows has no default SVG thumbnail provider).
 /// </summary>
 public static class SkiaThumbnailService
 {
@@ -20,6 +22,8 @@ public static class SkiaThumbnailService
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
         var ext = Path.GetExtension(path);
+        if (ext.Equals(".svg", StringComparison.OrdinalIgnoreCase))
+            return true;
         foreach (var e in ImageExts)
         {
             if (ext.Equals(e, StringComparison.OrdinalIgnoreCase))
@@ -28,12 +32,22 @@ public static class SkiaThumbnailService
         return false;
     }
 
+    public static bool IsSvg(string path) =>
+        !string.IsNullOrWhiteSpace(path)
+        && Path.GetExtension(path).Equals(".svg", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Returns raw base64 PNG (no data: prefix), or empty on failure.</summary>
     public static string TryEncodeThumbnailBase64(string filePath, int pixelSize)
     {
         try
         {
-            if (!IsLikelyImage(filePath) || !File.Exists(filePath))
+            if (!File.Exists(filePath))
+                return "";
+
+            if (IsSvg(filePath))
+                return TryEncodeSvgBase64(filePath, pixelSize);
+
+            if (!IsLikelyImage(filePath))
                 return "";
 
             var size = Math.Clamp(pixelSize <= 0 ? 256 : pixelSize, 16, 1024);
@@ -70,6 +84,51 @@ public static class SkiaThumbnailService
         }
     }
 
+    /// <summary>Rasterize SVG → PNG thumbnail (fits inside pixelSize box).</summary>
+    public static string TryEncodeSvgBase64(string filePath, int pixelSize)
+    {
+        try
+        {
+            if (!File.Exists(filePath)) return "";
+            var size = Math.Clamp(pixelSize <= 0 ? 128 : pixelSize, 16, 1024);
+
+            using var svg = new SKSvg();
+            if (svg.Load(filePath) is not { } picture)
+                return "";
+
+            var cull = picture.CullRect;
+            var srcW = cull.Width > 1 ? cull.Width : size;
+            var srcH = cull.Height > 1 ? cull.Height : size;
+            var scale = Math.Min(size / srcW, size / srcH);
+            if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale)) scale = 1f;
+            if (scale > 4f) scale = 4f; // tiny icons → crisp upscale cap
+            var tw = Math.Max(1, (int)Math.Ceiling(srcW * scale));
+            var th = Math.Max(1, (int)Math.Ceiling(srcH * scale));
+            tw = Math.Min(tw, size);
+            th = Math.Min(th, size);
+
+            var info = new SKImageInfo(tw, th, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info);
+            if (surface == null) return "";
+            var canvas = surface.Canvas;
+            canvas.Clear(SKColors.Transparent);
+            canvas.Scale(scale);
+            canvas.Translate(-cull.Left, -cull.Top);
+            canvas.DrawPicture(picture);
+            canvas.Flush();
+
+            using var image = surface.Snapshot();
+            using var data = image.Encode(SKEncodedImageFormat.Png, 92);
+            if (data == null) return "";
+            return Convert.ToBase64String(data.ToArray());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SkiaSvg] {ex.Message}");
+            return "";
+        }
+    }
+
     /// <summary>2×2 collage of images inside a folder for list/grid folder thumbs.</summary>
     public static string TryEncodeFolderCollageBase64(string folderPath, int pixelSize)
     {
@@ -87,7 +146,7 @@ public static class SkiaThumbnailService
             {
                 scanned++;
                 if (scanned > maxScan) break;
-                if (!IsLikelyImage(file)) continue;
+                if (!IsLikelyImage(file) && !IsSvg(file)) continue;
                 images.Add(file);
                 if (images.Count >= 4) break;
             }

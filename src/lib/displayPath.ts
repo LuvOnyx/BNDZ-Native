@@ -1,7 +1,7 @@
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
 import { getPaneTabLabel } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
-import { BNDZ_HOME, BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel } from './bndzVirtualViews';
+import { BNDZ_HOME, BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel } from './bndzVirtualViews';
 import { ENV_PATH_ALIASES, SPECIAL_FOLDER_PANE_PATHS } from './shellPaths';
 
 /** `C:` from `/C:` or `//C:` */
@@ -39,6 +39,8 @@ export function formatAddressBarPath(panePath: string): string {
   if (p === BNDZ_VIEWS_ROOT) return 'Smart views';
   const bndzView = parseBndzVirtualView(p);
   if (bndzView) return bndzVirtualLabel(bndzView);
+  const workspace = parseBndzWorkspaceView(p);
+  if (workspace) return bndzWorkspaceLabel(workspace);
   if (p === '/') return 'This PC';
   if (isRecycleBinPath(p)) return 'Recycle Bin';
   if (p === '//' || p === '\\\\') return 'Network';
@@ -77,6 +79,13 @@ export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<st
     return [
       { label: 'Smart views', path: BNDZ_VIEWS_ROOT },
       { label: bndzVirtualLabel(bndzView), path: p },
+    ];
+  }
+  const workspace = parseBndzWorkspaceView(p);
+  if (workspace) {
+    return [
+      { label: 'Smart views', path: BNDZ_VIEWS_ROOT },
+      { label: bndzWorkspaceLabel(workspace), path: p },
     ];
   }
   if (isRecycleBinPath(p)) return [{ label: 'Recycle Bin', path: RECYCLE_BIN_PATH }];

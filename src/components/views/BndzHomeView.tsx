@@ -3,7 +3,11 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ShellNativeIcon } from '../ShellNativeIcon';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
-import { BNDZ_HOME, BNDZ_RECENT, BNDZ_VIEWS_ROOT } from '../../lib/bndzVirtualViews';
+import { BNDZ_HOME, BNDZ_RECENT, BNDZ_VIEWS_ROOT, BNDZ_CANVAS, BNDZ_AUTOMATION } from '../../lib/bndzVirtualViews';
+import {
+  getHomeDeckCache, setHomeDeckCache, isHomeDeckBodyFresh, isHomeDeckPulseFresh,
+} from '../../lib/homeDeckCache';
+import type { NavVisit } from '../../lib/navigationHistory';
 import { resolveUserPathToPane, formatAddressBarPath } from '../../lib/displayPath';
 import { toPanePath } from '../../lib/shellPaths';
 import { getGhostTrail, subscribeGhostTrail, type GhostTrailEntry } from '../../lib/ghostTrail';
@@ -17,6 +21,7 @@ type ContinuumItem = {
   size?: number;
   mediaKind?: string;
   modified?: number;
+  openCount?: number;
 };
 
 type PlacePlate = {
@@ -51,7 +56,10 @@ type Props = {
   onOpenOpposite?: (path: string) => void;
   onRevealFolder?: (path: string) => void;
   onIndexInvite?: () => void;
+  /** Space / Quick Look for Continuum focus (sibling strip + focused rail item). */
+  onQuickLook?: (items: Array<{ path: string; name: string; type?: string }>, startIndex: number) => void;
   focusStage?: FocusStage;
+  navigationHistory?: NavVisit[];
 };
 
 function placeLetter(name: string, explicit?: string): string {
@@ -77,6 +85,14 @@ function formatBytes(n: number): string {
   return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)}${u[i]}`;
 }
 
+function accessBadge(openCount?: number, navHits?: number): string | null {
+  if ((openCount ?? 0) >= 10) return 'Hot';
+  if ((openCount ?? 0) >= 4) return 'Often';
+  if ((navHits ?? 0) >= 6) return 'Frequent';
+  if ((navHits ?? 0) >= 3) return 'Regular';
+  return null;
+}
+
 function mediaAccent(kind?: string): string {
   switch (kind) {
     case 'image': return '#7eb8e8';
@@ -94,7 +110,9 @@ export default function BndzHomeView({
   onOpenOpposite,
   onRevealFolder,
   onIndexInvite,
+  onQuickLook,
   focusStage,
+  navigationHistory = [],
 }: Props) {
   const reduceMotion = useReducedMotion();
   const omniboxRef = useRef<HTMLInputElement>(null);
@@ -109,71 +127,118 @@ export default function BndzHomeView({
   const [pulseWarmth, setPulseWarmth] = useState(0);
   const [fileCount, setFileCount] = useState(0);
   const [library, setLibrary] = useState<{ images?: number; videos?: number; audio?: number; documents?: number }>({});
-  const [orbitPath, setOrbitPath] = useState<string | null>(null);
   const [spatialArmed, setSpatialArmed] = useState(false);
   const [ghost, setGhost] = useState<GhostTrailEntry[]>(() => getGhostTrail());
   const [railFocus, setRailFocus] = useState(0);
-  const orbitLeaveTimer = useRef<number | null>(null);
 
-  const refreshDeck = useCallback(() => {
+  const [mostOpened, setMostOpened] = useState<ContinuumItem[]>([]);
+  const [deckSyncing, setDeckSyncing] = useState(false);
+  const fingerprintRef = useRef<string | undefined>(undefined);
+
+  const applyDeck = useCallback((deck: any, mergeBody = true) => {
+    if (mergeBody) {
+      if (deck.continuum) setContinuum(deck.continuum || []);
+      if (deck.orbits) setOrbits(deck.orbits || {});
+      if (deck.library) setLibrary(deck.library || {});
+      if (deck.mostOpened) setMostOpened(deck.mostOpened || []);
+      if (deck.continuumFingerprint) fingerprintRef.current = deck.continuumFingerprint;
+    }
+    setFileCount(deck.index?.fileCount ?? 0);
+    const warmth = Math.min(1,
+      ((deck.pulse?.activeCount || 0) * 0.38)
+      + ((deck.pulse?.queuedCount || 0) * 0.12)
+      + Math.min(0.42, (deck.index?.fileCount || 0) / 90000));
+    setPulseWarmth(warmth);
+    setPulseLabel(deck.pulse?.label || 'Idle');
+
+    const placeRows: PlacePlate[] = (deck.places || []).map((p: any) => ({
+      name: p.name,
+      path: toPanePath(p.path),
+      icon: p.icon,
+      letter: p.letter,
+      hint: p.hint,
+      kind: 'place' as const,
+    }));
+    const driveRows: PlacePlate[] = (deck.drives || [])
+      .filter((d: any) => !d?.isCloudVolume)
+      .slice(0, 8)
+      .map((d: any) => {
+        const name = String(d.name || d.label || 'Drive');
+        const letter = (name.match(/[A-Za-z]/)?.[0] || 'C').toUpperCase();
+        const total = Number(d.totalSpace) || 0;
+        const free = Number(d.freeSpace) || 0;
+        const freeRatio = total > 0 ? free / total : undefined;
+        return {
+          name: d.label ? `${letter}: · ${d.label}` : `${letter}:`,
+          path: toPanePath(name.startsWith('/') ? name : `/${name}`),
+          letter,
+          kind: 'drive' as const,
+          freeRatio,
+          freeLabel: total > 0 ? `${formatBytes(free)} free` : undefined,
+          hint: d.label || `${letter}:`,
+        };
+      });
+    setPlaces([...placeRows, ...driveRows]);
+    setHomeDeckCache(deck);
+  }, []);
+
+  const refreshDeck = useCallback((force = false) => {
     if (!IPC.isNative) {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    IPC.getHomeDeck({ continuumLimit: 32, orbitLimit: 6 }).then(deck => {
-      setContinuum(deck.continuum || []);
-      setOrbits(deck.orbits || {});
-      setFileCount(deck.index?.fileCount ?? 0);
-      setLibrary(deck.library || {});
-      const warmth = Math.min(1,
-        ((deck.pulse?.activeCount || 0) * 0.38)
-        + ((deck.pulse?.queuedCount || 0) * 0.12)
-        + Math.min(0.42, (deck.index?.fileCount || 0) / 90000));
-      setPulseWarmth(warmth);
-      setPulseLabel(deck.pulse?.label || 'Idle');
 
-      const placeRows: PlacePlate[] = (deck.places || []).map(p => ({
-        name: p.name,
-        path: toPanePath(p.path),
-        icon: p.icon,
-        letter: p.letter,
-        hint: p.hint,
-        kind: 'place' as const,
-      }));
-      const driveRows: PlacePlate[] = (deck.drives || [])
-        .filter((d: any) => !d?.isCloudVolume)
-        .slice(0, 8)
-        .map((d: any) => {
-          const name = String(d.name || d.label || 'Drive');
-          const letter = (name.match(/[A-Za-z]/)?.[0] || 'C').toUpperCase();
-          const total = Number(d.totalSpace) || 0;
-          const free = Number(d.freeSpace) || 0;
-          const freeRatio = total > 0 ? free / total : undefined;
-          return {
-            name: d.label ? `${letter}: · ${d.label}` : `${letter}:`,
-            path: toPanePath(name.startsWith('/') ? name : `/${name}`),
-            letter,
-            kind: 'drive' as const,
-            freeRatio,
-            freeLabel: total > 0 ? `${formatBytes(free)} free` : undefined,
-            hint: d.label || `${letter}:`,
-          };
-        });
-      setPlaces([...placeRows, ...driveRows]);
-    }).finally(() => setLoading(false));
-  }, []);
+    const cached = getHomeDeckCache();
+    if (cached && !force) {
+      applyDeck(cached, true);
+      setLoading(false);
+    } else if (force && !cached) {
+      setLoading(true);
+    }
+
+    const sinceFp = force ? undefined : (fingerprintRef.current || cached?.continuumFingerprint);
+    const pulseOnly = !force && !!cached && isHomeDeckBodyFresh() && !isHomeDeckPulseFresh();
+
+    if (!force && cached && isHomeDeckBodyFresh()) {
+      setDeckSyncing(false);
+      IPC.getHomeDeck({ continuumLimit: 32, orbitLimit: 6, sinceFingerprint: sinceFp, pulseOnly: true }).then(deck => {
+        if (deck.unchanged) applyDeck({ ...cached, ...deck, continuum: cached.continuum, orbits: cached.orbits, library: cached.library, mostOpened: cached.mostOpened }, false);
+        else applyDeck({ ...cached, ...deck }, true);
+      }).finally(() => setLoading(false));
+      return;
+    }
+
+    if (!cached || force) setDeckSyncing(true);
+    IPC.getHomeDeck({
+      continuumLimit: 32,
+      orbitLimit: 6,
+      sinceFingerprint: force ? undefined : sinceFp,
+    }).then(deck => {
+      if (deck.unchanged && cached) {
+        applyDeck({ ...cached, ...deck, continuum: cached.continuum, orbits: cached.orbits, library: cached.library, mostOpened: cached.mostOpened }, false);
+      } else {
+        applyDeck(deck, true);
+      }
+    }).finally(() => {
+      setLoading(false);
+      setDeckSyncing(false);
+    });
+  }, [applyDeck]);
 
   useEffect(() => {
-    refreshDeck();
-    const unsubQ = IPC.onFileTransferQueueChanged(() => refreshDeck());
+    const cached = getHomeDeckCache();
+    if (cached) {
+      applyDeck(cached, true);
+      setLoading(false);
+    }
+    refreshDeck(!cached);
+    const unsubQ = IPC.onFileTransferQueueChanged(() => refreshDeck(false));
     const unsubG = subscribeGhostTrail(() => setGhost(getGhostTrail()));
     return () => {
       unsubQ();
       unsubG();
-      if (orbitLeaveTimer.current) window.clearTimeout(orbitLeaveTimer.current);
     };
-  }, [refreshDeck]);
+  }, [refreshDeck, applyDeck]);
 
   const suggestions = useMemo((): OmniSuggestion[] => {
     const q = omnibox.trim().toLowerCase();
@@ -236,6 +301,27 @@ export default function BndzHomeView({
         omniboxRef.current?.select();
         return;
       }
+      if (e.code === 'Space' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !(e as any).isComposing) {
+        const t = e.target as HTMLElement | null;
+        const tag = (t?.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || t?.isContentEditable) return;
+        const focusItem = continuum[railFocus];
+        if (!focusItem || !onQuickLook) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const focusPath = toPanePath(focusItem.path || focusItem.id || '');
+        const siblings = orbits[focusPath] || orbits[toPanePath(focusPath)] || [];
+        const pack = [
+          { path: focusPath, name: focusItem.name || focusPath.split('/').pop() || 'File', type: focusItem.type },
+          ...siblings.map(s => ({
+            path: toPanePath(s.path || s.id || ''),
+            name: s.name || '',
+            type: s.type,
+          })).filter(s => s.path && s.path !== focusPath),
+        ];
+        onQuickLook(pack, 0);
+        return;
+      }
       if (spatialArmed && !e.ctrlKey && !e.metaKey && /^[a-z]$/i.test(e.key)) {
         const letter = e.key.toUpperCase();
         const hit = places.find(p => placeLetter(p.name, p.letter) === letter);
@@ -256,12 +342,35 @@ export default function BndzHomeView({
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-  }, [spatialArmed, places, onNavigate]);
+  }, [spatialArmed, places, onNavigate, continuum, railFocus, orbits, onQuickLook]);
 
-  const orbitItems = useMemo(() => {
-    if (!orbitPath) return [];
-    return orbits[orbitPath] || orbits[toPanePath(orbitPath)] || [];
-  }, [orbitPath, orbits]);
+  const peekItems = useMemo(() => {
+    const focus = continuum[railFocus];
+    if (!focus) return [] as ContinuumItem[];
+    const path = toPanePath(focus.path || focus.id || '');
+    const sibs = orbits[path] || orbits[toPanePath(path)] || [];
+    return sibs;
+  }, [continuum, railFocus, orbits]);
+
+  const navHitMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const v of navigationHistory) {
+      const key = toPanePath(v.path).toLowerCase();
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [navigationHistory]);
+
+  const frequentFromNav = useMemo(() => {
+    const counts = new Map<string, { path: string; label: string; hits: number }>();
+    for (const v of navigationHistory) {
+      const path = toPanePath(v.path);
+      const key = path.toLowerCase();
+      const prev = counts.get(key);
+      counts.set(key, { path, label: v.label || path.split('/').pop() || path, hits: (prev?.hits || 0) + 1 });
+    }
+    return [...counts.values()].sort((a, b) => b.hits - a.hits).slice(0, 8);
+  }, [navigationHistory]);
 
   const commitSuggestion = (s: OmniSuggestion) => {
     if (s.kind === 'continuum') onOpenPath(s.path, { type: 'file' });
@@ -290,19 +399,6 @@ export default function BndzHomeView({
     }
   };
 
-  const showOrbit = (path: string) => {
-    if (orbitLeaveTimer.current) {
-      window.clearTimeout(orbitLeaveTimer.current);
-      orbitLeaveTimer.current = null;
-    }
-    setOrbitPath(path);
-  };
-
-  const hideOrbitSoon = () => {
-    if (orbitLeaveTimer.current) window.clearTimeout(orbitLeaveTimer.current);
-    orbitLeaveTimer.current = window.setTimeout(() => setOrbitPath(null), 220);
-  };
-
   const openContinuum = (item: ContinuumItem, e?: React.MouseEvent) => {
     const path = toPanePath(item.path || item.id || '');
     if (!path) return;
@@ -327,6 +423,7 @@ export default function BndzHomeView({
   return (
     <div
       className="bndz-home"
+      data-bndz-surface
       data-spatial={spatialArmed ? '1' : '0'}
       style={{ ['--home-pulse' as string]: String(pulseWarmth) }}
     >
@@ -420,6 +517,62 @@ export default function BndzHomeView({
           </AnimatePresence>
         </section>
 
+        <section className="bndz-home-workspaces" aria-label="Workspaces">
+          <div className="bndz-home-section-label">
+            <span>Workspaces</span>
+            <span className="bndz-home-muted">Zero-launch tools · no external setup</span>
+          </div>
+          <div className="bndz-home-workspace-row">
+            <button type="button" className="bndz-home-workspace-card is-canvas" onClick={() => onNavigate(BNDZ_CANVAS)}>
+              <span className="bndz-home-workspace-icon"><Icons8Icon id="view_grid" size={22} /></span>
+              <span className="bndz-home-workspace-body">
+                <span className="bndz-home-workspace-title">Spatial Canvas</span>
+                <span className="bndz-home-workspace-desc">Freeform board across folders — references only</span>
+              </span>
+              <span className="bndz-home-badge">New</span>
+            </button>
+            <button type="button" className="bndz-home-workspace-card is-automation" onClick={() => onNavigate(BNDZ_AUTOMATION)}>
+              <span className="bndz-home-workspace-icon"><Icons8Icon id="zap_ui" size={22} /></span>
+              <span className="bndz-home-workspace-body">
+                <span className="bndz-home-workspace-title">Automation</span>
+                <span className="bndz-home-workspace-desc">Visual pipelines · SCP &amp; robocopy built in</span>
+              </span>
+              <span className="bndz-home-badge is-gold">Pipeline</span>
+            </button>
+          </div>
+        </section>
+
+        {(mostOpened.length > 0 || frequentFromNav.length > 0) && (
+          <section className="bndz-home-frequent" aria-label="Most accessed">
+            <div className="bndz-home-section-label">
+              <span>Most accessed</span>
+              <span className="bndz-home-muted">Opens + navigation heat</span>
+            </div>
+            <div className="bndz-home-frequent-row">
+              {(mostOpened.length ? mostOpened : frequentFromNav.map(f => ({ path: f.path, name: f.label, openCount: f.hits }))).slice(0, 8).map((item, i) => {
+                const path = toPanePath((item as any).path || '');
+                const name = (item as any).name || path.split('/').pop() || 'Item';
+                const opens = (item as any).openCount as number | undefined;
+                const navHits = navHitMap.get(path.toLowerCase()) || 0;
+                const badge = accessBadge(opens, navHits);
+                return (
+                  <button
+                    key={path + i}
+                    type="button"
+                    className="bndz-home-frequent-chip"
+                    title={formatAddressBarPath(path)}
+                    onClick={() => onOpenPath(path, { type: 'file' })}
+                  >
+                    <ShellNativeIcon path={path} size={22} preferThumbnail eager />
+                    <span className="bndz-home-frequent-name">{name}</span>
+                    {badge && <span className={`bndz-home-badge is-${badge.toLowerCase()}`}>{badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {stage && (
           <section className="bndz-home-focus" aria-label="Focus stage">
             <motion.div
@@ -453,7 +606,7 @@ export default function BndzHomeView({
           <div className="bndz-home-section-label">
             <span>Continuum</span>
             <span className="bndz-home-muted">
-              {loading ? 'Syncing deck…' : 'Hover for Peek Orbit · ← → snap'}
+              {loading ? 'Loading Continuum…' : deckSyncing ? 'Refreshing pulse…' : '← → snap · Space Quick Look · click opens'}
             </span>
           </div>
           <div
@@ -485,17 +638,18 @@ export default function BndzHomeView({
                 const path = toPanePath(item.path || item.id || '');
                 const name = item.name || path.split('/').pop() || 'File';
                 const accent = mediaAccent(item.mediaKind);
+                const navHits = navHitMap.get(path.toLowerCase()) || 0;
+                const badge = accessBadge(item.openCount, navHits);
                 return (
                   <button
                     key={path + i}
                     type="button"
                     data-rail-ix={i}
-                    className={`bndz-home-rail-item${orbitPath === path ? ' is-orbit' : ''}${railFocus === i ? ' is-focus' : ''}`}
+                    className={`bndz-home-rail-item${railFocus === i ? ' is-focus' : ''}`}
                     style={{ ['--rail-accent' as string]: accent }}
                     title={formatAddressBarPath(path)}
-                    onMouseEnter={() => { showOrbit(path); setRailFocus(i); }}
-                    onMouseLeave={hideOrbitSoon}
-                    onFocus={() => { showOrbit(path); setRailFocus(i); }}
+                    onMouseEnter={() => setRailFocus(i)}
+                    onFocus={() => setRailFocus(i)}
                     onClick={e => openContinuum(item, e)}
                     onAuxClick={e => {
                       if (e.button === 1) {
@@ -508,53 +662,65 @@ export default function BndzHomeView({
                       <ShellNativeIcon path={path} size={76} preferThumbnail eager />
                     </span>
                     <span className="bndz-home-rail-name">{name}</span>
+                    {badge && <span className={`bndz-home-badge is-${badge.toLowerCase()}`}>{badge}</span>}
                     {item.mediaKind && <span className="bndz-home-rail-kind">{item.mediaKind}</span>}
                   </button>
                 );
               })}
             </motion.div>
-
-            <AnimatePresence>
-              {orbitPath && orbitItems.length > 0 && (
-                <motion.div
-                  className="bndz-home-orbit"
-                  initial={reduceMotion ? false : { opacity: 0, scale: 0.88 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.94 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-                  onMouseEnter={() => showOrbit(orbitPath)}
-                  onMouseLeave={hideOrbitSoon}
-                >
-                  <div className="bndz-home-orbit-ring" aria-hidden />
-                  {orbitItems.slice(0, 6).map((sib, i) => {
-                    const sp = toPanePath(sib.path || sib.id || '');
-                    const sn = sib.name || sp.split('/').pop() || '';
-                    const n = Math.min(6, orbitItems.length);
-                    const angle = (-90 + (i * 360) / n) * (Math.PI / 180);
-                    const r = 86;
-                    const x = Math.cos(angle) * r;
-                    const y = Math.sin(angle) * r;
-                    return (
-                      <motion.button
-                        key={sp + i}
-                        type="button"
-                        className="bndz-home-orbit-node"
-                        style={{ ['--ox' as string]: `${x}px`, ['--oy' as string]: `${y}px` }}
-                        title={sn}
-                        initial={reduceMotion ? false : { opacity: 0, scale: 0.6 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: i * 0.035, type: 'spring', stiffness: 420, damping: 24 }}
-                        onClick={() => onOpenPath(sp, { type: sib.type === 'directory' ? 'directory' : 'file' })}
-                      >
-                        <ShellNativeIcon path={sp} size={42} preferThumbnail eager />
-                        <span className="bndz-home-orbit-caption">{sn}</span>
-                      </motion.button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
+
+          {(continuum[railFocus] || peekItems.length > 0) && (
+            <div className="bndz-home-peek" aria-label="Folder peek">
+              <div className="bndz-home-peek-head">
+                <span>Folder peek</span>
+                <span className="bndz-home-muted">
+                  {peekItems.length > 0
+                    ? `${peekItems.length} neighbor${peekItems.length === 1 ? '' : 's'} · same folder`
+                    : 'Open folder · Space for Quick Look'}
+                </span>
+              </div>
+              <div className="bndz-home-peek-rail">
+                {continuum[railFocus] && (
+                  <button
+                    type="button"
+                    className="bndz-home-peek-tile is-folder"
+                    title="Open containing folder"
+                    onClick={() => {
+                      const p = toPanePath(continuum[railFocus].path || continuum[railFocus].id || '');
+                      onRevealFolder?.(parentPane(p));
+                    }}
+                  >
+                    <span className="bndz-home-peek-thumb">
+                      <Icons8Icon id="folder_open_ui" size={28} />
+                    </span>
+                    <span className="bndz-home-peek-name">Folder</span>
+                  </button>
+                )}
+                {peekItems.map((sib, i) => {
+                  const sp = toPanePath(sib.path || sib.id || '');
+                  const sn = sib.name || sp.split('/').pop() || '';
+                  return (
+                    <button
+                      key={sp + i}
+                      type="button"
+                      className="bndz-home-peek-tile"
+                      title={formatAddressBarPath(sp)}
+                      onClick={() => onOpenPath(sp, { type: sib.type === 'directory' ? 'directory' : 'file' })}
+                    >
+                      <span className="bndz-home-peek-thumb">
+                        <ShellNativeIcon path={sp} size={40} preferThumbnail eager />
+                      </span>
+                      <span className="bndz-home-peek-name">{sn}</span>
+                    </button>
+                  );
+                })}
+                {peekItems.length === 0 && continuum[railFocus] && (
+                  <span className="bndz-home-peek-empty">No indexed neighbors yet — Space still Quick Looks this file.</span>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="bndz-home-places" aria-label="Places">
