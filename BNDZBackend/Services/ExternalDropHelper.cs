@@ -15,6 +15,30 @@ internal static class ExternalDropHelper
     private const string FileGroupDescriptorW = "FileGroupDescriptorW";
     private const string FileContents = "FileContents";
 
+    /// <summary>True during DragOver when payload is likely Explorer/desktop files (before CF_HDROP materializes).</summary>
+    public static bool IsLikelyExternalFileDrag(System.Windows.IDataObject? data)
+    {
+        if (data == null) return false;
+        try
+        {
+            if (data.GetDataPresent(WpfDataFormats.FileDrop, autoConvert: true)) return true;
+            if (data.GetDataPresent(WpfDataFormats.FileDrop, autoConvert: false)) return true;
+            if (data.GetDataPresent("FileGroupDescriptorW", autoConvert: false)) return true;
+            if (data.GetDataPresent("FileNameW", autoConvert: true)) return true;
+            if (data.GetDataPresent("FileName", autoConvert: true)) return true;
+            if (data.GetDataPresent("Shell IDList Array", autoConvert: false)) return true;
+            foreach (var fmt in data.GetFormats(autoConvert: false))
+            {
+                if (string.IsNullOrWhiteSpace(fmt)) continue;
+                var f = fmt.ToUpperInvariant();
+                if (f.Contains("FILE") || f.Contains("SHELL IDLIST") || f.Contains("FILEDESCRIPTOR"))
+                    return true;
+            }
+        }
+        catch { /* best-effort */ }
+        return false;
+    }
+
     public static string[] ExtractPaths(System.Windows.IDataObject? data)
     {
         if (data == null) return Array.Empty<string>();
@@ -51,7 +75,7 @@ internal static class ExternalDropHelper
         }
 
         if (paths.Count > 0)
-            return DedupExisting(paths);
+            return DedupPaths(paths, requireExists: false);
 
         // Single-file shell formats
         foreach (var format in new[] { "FileNameW", "FileName" })
@@ -75,14 +99,14 @@ internal static class ExternalDropHelper
         }
 
         if (paths.Count > 0)
-            return DedupExisting(paths);
+            return DedupPaths(paths, requireExists: false);
 
         // Virtual file drops (some archives): FileGroupDescriptorW + FileContents → temp files
         try
         {
             var virtualPaths = MaterializeVirtualFiles(data);
             if (virtualPaths.Count > 0)
-                return DedupExisting(virtualPaths);
+                return DedupPaths(virtualPaths, requireExists: true);
         }
         catch (Exception ex)
         {
@@ -90,6 +114,20 @@ internal static class ExternalDropHelper
         }
 
         return Array.Empty<string>();
+    }
+
+    /// <summary>Formats present on the OLE payload — for drop-failure diagnostics.</summary>
+    public static string[] GetAvailableFormats(System.Windows.IDataObject? data)
+    {
+        if (data == null) return Array.Empty<string>();
+        try
+        {
+            return data.GetFormats(autoConvert: false) ?? Array.Empty<string>();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
     }
 
     private static List<string> MaterializeVirtualFiles(System.Windows.IDataObject data)
@@ -174,10 +212,19 @@ internal static class ExternalDropHelper
         return result;
     }
 
-    private static string[] DedupExisting(IEnumerable<string> paths) =>
+    private static string[] DedupPaths(IEnumerable<string> paths, bool requireExists) =>
         paths
             .Select(p => p.Trim().Trim('"'))
-            .Where(p => p.Length > 0 && (File.Exists(p) || Directory.Exists(p)))
+            .Where(p => p.Length > 0 && IsPlausiblePath(p) && (!requireExists || File.Exists(p) || Directory.Exists(p)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    private static bool IsPlausiblePath(string p)
+    {
+        if (p.Length < 2) return false;
+        // Drive-rooted Windows paths and UNC shares
+        if (p.Length >= 3 && char.IsLetter(p[0]) && p[1] == ':' && (p[2] == '\\' || p[2] == '/')) return true;
+        if (p.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+        return File.Exists(p) || Directory.Exists(p);
+    }
 }

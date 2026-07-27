@@ -11,6 +11,6 @@
         ResizeMode="CanResize"
         Background="{StaticResource WindowBackgroundBrush}">
     <Grid>
-        <wv2:WebView2 x:Name="MainWebView" />
+        <wv2:WebView2 x:Name="MainWebView" AllowExternalDrop="False" />
     </Grid>
 </Window>

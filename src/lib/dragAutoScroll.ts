@@ -44,20 +44,27 @@ export function createDragAutoScrollLoop(
   opts?: DragAutoScrollOptions,
 ): { start: () => void; stop: () => void } {
   let raf = 0;
+  let active = false;
   const tick = () => {
     raf = 0;
+    if (!active) return;
     const y = getClientY();
     const el = getScrollEl();
     if (y != null && el) autoScrollNearEdges(el, y, opts);
-    raf = requestAnimationFrame(tick);
+    if (active) raf = requestAnimationFrame(tick);
   };
   return {
     start: () => {
+      if (active) return;
+      active = true;
       if (!raf) raf = requestAnimationFrame(tick);
     },
     stop: () => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = 0;
+      active = false;
+      if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
     },
   };
 }

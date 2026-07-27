@@ -245,7 +245,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     if (isMarkdown) setMdView('render');
     if (isAudio || isVideo) setActiveTab('media');
     else setActiveTab('preview');
-  }, [entity?.id, isAudio, isVideo, isHtml]);
+    if (isArchive || isTorrent) setLensCollapsed(true);
+  }, [entity?.id, isAudio, isVideo, isHtml, isArchive, isTorrent]);
 
   const previewRt = buildSettingsRuntime(config).preview;
 
@@ -793,7 +794,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           </div>
        </div>
        
-       <div className={`bndz-preview-content flex-1 relative flex flex-col ${
+       <div className={`bndz-preview-content flex-1 relative flex flex-col min-h-0 ${
          isArchive || isTorrent ? 'overflow-hidden' : 'overflow-y-auto bndz-scrollbar'
        }`}>
           <AnimatePresence mode="wait">
@@ -961,14 +962,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                       {renderFolderDock()}
                     </div>
                   </div>
-                ) : (
+                ) : !isArchive && !isTorrent ? (
                 <div className="px-4 py-3 border-t border-white/[0.06] bg-[#252526] shrink-0">
                    <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
                    <p className="bndz-panel-section-title mt-1 text-[#7eb8e8]">
                       {isDrive ? (entity as any).typeDescription : `${ext.toUpperCase()} file`}
                    </p>
                 </div>
-                )
+                ) : null
                 )}
              </motion.div>
           </AnimatePresence>
@@ -980,7 +981,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
            onSelect={onSelectPath}
          />
        )}
-       {!isDir && path && !isBndzVirtualPath(path) && showLensStage && (
+       {!isDir && path && !isBndzVirtualPath(path) && showLensStage && !isArchive && !isTorrent && (
          <div className={`bndz-lens-dock shrink-0 border-t border-white/[0.06] overflow-y-auto bndz-scrollbar${lensCollapsed ? ' is-collapsed' : ''}`}>
            <BndzLensStage
              path={path}

@@ -66,7 +66,6 @@ export function preferFileDragOverMarquee(opts: {
 }): boolean {
   if (opts.shiftKey) return false;
   if (opts.wasSelected) return true;
-  // Unselected: clear sideways intent → marquee; otherwise prefer drag.
   const horizontalMarquee = opts.dx > 8 && opts.dx > opts.dy * 1.35;
   return !horizontalMarquee;
 }

@@ -2,6 +2,7 @@
 
 export const POINTER_FILE_DRAG_MOVE = 'bndz-pointer-file-drag-move';
 export const POINTER_FILE_DRAG_END = 'bndz-pointer-file-drag-end';
+export const POINTER_FILE_DRAG_ACTIVE = 'bndz-pointer-file-drag-active';
 
 export type PointerFileDragMoveDetail = {
   clientX: number;
@@ -23,4 +24,8 @@ export function dispatchPointerFileDragMove(clientX: number, clientY: number) {
 
 export function dispatchPointerFileDragEnd(detail: PointerFileDragEndDetail) {
   window.dispatchEvent(new CustomEvent(POINTER_FILE_DRAG_END, { detail }));
+}
+
+export function dispatchPointerFileDragActive(active: boolean) {
+  window.dispatchEvent(new CustomEvent(POINTER_FILE_DRAG_ACTIVE, { detail: { active } }));
 }

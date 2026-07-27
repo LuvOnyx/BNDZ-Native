@@ -14,14 +14,22 @@ import {
   type ArchiveTreeNode,
 } from '../lib/archiveTypes';
 import { isQueuedIpcResult } from '../lib/transferIpc';
-import { dispatchPointerFileDragMove } from '../lib/pointerFileDragBridge';
+import {
+  dispatchPointerFileDragMove,
+  dispatchPointerFileDragActive,
+  POINTER_FILE_DRAG_MOVE,
+} from '../lib/pointerFileDragBridge';
 import {
   beginFileDragSession,
   endFileDragSession,
+  hitTestArchiveRootAtPoint,
   hitTestListBodyAtPoint,
   isInternalFileDragChromeAtPoint,
   stashOleDragSession,
 } from '../lib/fileDragSession';
+import { setDragGhostPosition, armDragGhost } from '../lib/pointerDragGhost';
+import { IPC } from '../lib/ipcBridge';
+import DragGhostPortal from './DragGhostPortal';
 import { prefetchArchiveEntryTemp, resolveArchiveEntryTempPaths } from '../lib/archiveExtractCache';
 
 interface ArchivePreviewPanelProps {
@@ -31,7 +39,7 @@ interface ArchivePreviewPanelProps {
   onExtract?: () => void;
 }
 
-const DRAG_THRESHOLD_PX = 6;
+const DRAG_THRESHOLD_PX = 4;
 
 type ArchiveDragState = {
   entry: ArchiveEntry;
@@ -42,6 +50,7 @@ type ArchiveDragState = {
   paths?: string[];
   preparing?: boolean;
   active?: boolean;
+  overInternal?: boolean;
   label: string;
   count: number;
 };
@@ -148,11 +157,12 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const [showTree, setShowTree] = useState(false);
 
   const dragRef = useRef<ArchiveDragState | null>(null);
+  const archiveDragGhostElRef = useRef<HTMLDivElement | null>(null);
+  const suppressArchiveClickRef = useRef(false);
   const [archiveDragGhost, setArchiveDragGhost] = useState<{
-    x: number;
-    y: number;
     label: string;
     count: number;
+    preparing?: boolean;
   } | null>(null);
 
   const winPath = toWindowsPath(path);
@@ -160,6 +170,30 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   const canAddFiles = ['zip', 'rar', '7z'].includes(fmt);
   const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
   const fileName = path.split(/[/\\]/).pop() || 'Archive';
+
+  useEffect(() => {
+    const syncDragOver = (clientX: number, clientY: number) => {
+      const el = hitTestArchiveRootAtPoint(clientX, clientY);
+      setDragOver(!!el && el.getAttribute('data-archive-path') === winPath);
+    };
+    const onExternalHover = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : null;
+      const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : null;
+      if (clientX == null || clientY == null) return;
+      syncDragOver(clientX, clientY);
+    };
+    const onPointerMove = (e: Event) => {
+      const { clientX, clientY } = (e as CustomEvent<{ clientX: number; clientY: number }>).detail;
+      syncDragOver(clientX, clientY);
+    };
+    window.addEventListener('bndz-external-drag-hover', onExternalHover);
+    window.addEventListener(POINTER_FILE_DRAG_MOVE, onPointerMove);
+    return () => {
+      window.removeEventListener('bndz-external-drag-hover', onExternalHover);
+      window.removeEventListener(POINTER_FILE_DRAG_MOVE, onPointerMove);
+    };
+  }, [winPath]);
 
   const selectedList = useMemo(
     () => entries.filter(e => selectedPaths.has(e.path)),
@@ -192,6 +226,15 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   }, [winPath]);
 
   useEffect(() => { reload(); }, [reload]);
+
+  useEffect(() => {
+    const onReload = (e: Event) => {
+      const detailPath = (e as CustomEvent).detail?.path;
+      if (!detailPath || toWindowsPath(detailPath).toLowerCase() === winPath.toLowerCase()) reload();
+    };
+    window.addEventListener('bndz-archive-reload', onReload);
+    return () => window.removeEventListener('bndz-archive-reload', onReload);
+  }, [reload, winPath]);
 
   const folderTree = useMemo(() => buildArchiveFolderTree(entries), [entries]);
 
@@ -242,59 +285,6 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     setAnchorPath(entry.path);
   };
 
-  const extractPathsFromDrop = (e: React.DragEvent): string[] => {
-    const paths: string[] = [];
-    const files = Array.from(e.dataTransfer.files) as Array<File & { path?: string }>;
-    for (const file of files) {
-      if (file.path) paths.push(file.path);
-    }
-    const uriList = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-    if (uriList) {
-      uriList.split(/\r?\n/).forEach(line => {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) return;
-        const decoded = decodeURIComponent(trimmed.replace(/^file:\/\/\//i, '').replace(/\//g, '\\'));
-        if (decoded) paths.push(decoded);
-      });
-    }
-    return [...new Set(paths)];
-  };
-
-  const handleDropIn = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
-    if (!canAddFiles) {
-      setStatus('Add files: ZIP, 7z, or RAR (WinRAR required).');
-      return;
-    }
-    const sources = extractPathsFromDrop(e);
-    if (!sources.length) return;
-    setBusy('Adding to archive…');
-    setStatus(null);
-    try {
-      const { IPC } = await import('../lib/ipcBridge');
-      const prefix = currentFolder ? `${normalizeArchivePath(currentFolder)}/` : '';
-      const entryNames = sources.map(f => {
-        const base = f.split(/[/\\]/).pop() || 'file';
-        return prefix + base;
-      });
-      const result = await IPC.archiveAddFiles(winPath, sources, entryNames);
-      if (isQueuedIpcResult(result)) {
-        setStatus('Add to archive queued — see transfer panel.');
-        return;
-      }
-      if (result.success) {
-        setStatus(`Added ${sources.length} item(s).`);
-        reload();
-      } else {
-        setStatus(result.error || 'Failed to add files.');
-      }
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const loadPreview = (entry: ArchiveEntry) => {
     setPreviewUrl(null);
     const ext = entry.name.split('.').pop()?.toLowerCase() || '';
@@ -336,35 +326,31 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
 
   const dragEntriesOut = async (targets: ArchiveEntry[]) => {
     if (!targets.length) return;
-    try {
-      const paths = await prepareArchiveDragPaths(targets);
-      if (!paths.length) {
-        setStatus('Could not extract for drag.');
-        return;
-      }
-      void import('../lib/ipcBridge').then(({ IPC }) => {
-        IPC.startDrag(paths);
-        setStatus(`Dragging ${paths.length} item(s) — drop on desktop or folder.`);
-      });
-    } catch {
-      setStatus('Could not extract for drag.');
-    }
+    setStatus('Use drag on a row to extract to desktop or another folder.');
   };
 
-  const handleEntryMouseDown = (entry: ArchiveEntry, e: React.MouseEvent) => {
+  const handleEntryPointerDown = (entry: ArchiveEntry, e: React.PointerEvent) => {
     if (!isNative || e.button !== 0) return;
+    suppressArchiveClickRef.current = false;
     const dragTargets = selectedPaths.has(entry.path)
       ? folderItems.filter(i => selectedPaths.has(i.path))
       : [entry];
+    if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !selectedPaths.has(entry.path)) {
+      setSelectedPaths(new Set([entry.path]));
+      setAnchorPath(entry.path);
+    }
     for (const target of dragTargets) {
       void prefetchArchiveEntryTemp(winPath, target.path);
     }
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const capturePointerId = e.pointerId;
     dragRef.current = {
       entry,
-      startX: e.clientX,
-      startY: e.clientY,
-      x: e.clientX,
-      y: e.clientY,
+      startX,
+      startY,
+      x: startX,
+      y: startY,
       label: entry.name,
       count: dragTargets.length,
     };
@@ -373,7 +359,30 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
     let outsideChromeStreak = 0;
     let pathsPromise: Promise<string[]> | null = null;
 
+    const captureOpts = { capture: true } as const;
+
+    const cleanupListeners = (onMove: (ev: PointerEvent) => void, onUp: (ev: PointerEvent) => void) => {
+      document.removeEventListener('pointermove', onMove, captureOpts);
+      document.removeEventListener('pointerup', onUp, captureOpts);
+      document.removeEventListener('pointercancel', onUp, captureOpts);
+    };
+
+    const showArchiveGhost = (drag: ArchiveDragState, preparing: boolean) => {
+      armDragGhost(
+        setArchiveDragGhost,
+        {
+          label: drag.label,
+          count: drag.count,
+          preparing,
+        },
+        archiveDragGhostElRef.current,
+        drag.x,
+        drag.y,
+      );
+    };
+
     const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== capturePointerId) return;
       const drag = dragRef.current;
       if (!drag || oleDragStarted) return;
       drag.x = ev.clientX;
@@ -384,25 +393,27 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         const dy = ev.clientY - drag.startY;
         if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
         drag.preparing = true;
+        suppressArchiveClickRef.current = true;
+        ev.stopPropagation();
         const targets = selectedPaths.has(drag.entry.path)
           ? folderItems.filter(i => selectedPaths.has(i.path))
           : [drag.entry];
         drag.count = targets.length;
-        drag.label = targets.length === 1 ? targets[0].name : `${targets[0].name} +${targets.length - 1}`;
-        setArchiveDragGhost({
-          x: drag.x,
-          y: drag.y,
-          label: drag.label,
-          count: drag.count,
-        });
+        drag.label = targets.length === 1
+          ? targets[0].name
+          : `${targets[0].name} +${targets.length - 1}`;
+        showArchiveGhost(drag, false);
+        dispatchPointerFileDragActive(true);
         pathsPromise = prepareArchiveDragPaths(targets);
         void pathsPromise.then(paths => {
           const live = dragRef.current;
-          if (!live || live.entry.path !== drag.entry.path) return;
+          if (!live || live.entry.path !== drag.entry.path || oleDragStarted) return;
           if (!paths.length) {
             setStatus('Could not extract for drag.');
             dragRef.current = null;
             setArchiveDragGhost(null);
+            dispatchPointerFileDragActive(false);
+            endFileDragSession();
             return;
           }
           live.paths = paths;
@@ -414,20 +425,18 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
             sourcePaneId: 'archive-preview',
             sourceTabPath: winPath,
           });
+          showArchiveGhost(live, false);
         }).catch(() => {
           setStatus('Could not extract for drag.');
           dragRef.current = null;
           setArchiveDragGhost(null);
+          dispatchPointerFileDragActive(false);
+          endFileDragSession();
         });
       }
 
       if (drag.preparing || drag.active) {
-        setArchiveDragGhost({
-          x: ev.clientX,
-          y: ev.clientY,
-          label: drag.label,
-          count: drag.count,
-        });
+        setDragGhostPosition(archiveDragGhostElRef.current, ev.clientX, ev.clientY);
         dispatchPointerFileDragMove(ev.clientX, ev.clientY);
       }
 
@@ -449,18 +458,17 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         sourceTabPath: winPath,
       });
       setArchiveDragGhost(null);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      dispatchPointerFileDragActive(false);
+      cleanupListeners(onMove, onUp);
       dragRef.current = null;
-      void import('../lib/ipcBridge').then(({ IPC }) => {
-        IPC.startDrag(drag.paths!);
-        setStatus(`Dragging ${drag.paths!.length} item(s) — drop on desktop or folder.`);
-      });
+      IPC.startDrag(drag.paths);
+      setStatus(`Dragging ${drag.paths.length} item(s) — drop on desktop or folder.`);
     };
 
     const onUp = async (ev: PointerEvent) => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      if (ev.pointerId !== capturePointerId) return;
+      cleanupListeners(onMove, onUp);
+      dispatchPointerFileDragActive(false);
       if (oleDragStarted) {
         dragRef.current = null;
         setArchiveDragGhost(null);
@@ -481,6 +489,12 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
         return;
       }
 
+      const travelPx = Math.hypot(ev.clientX - drag!.startX, ev.clientY - drag!.startY);
+      if (travelPx < DRAG_THRESHOLD_PX) {
+        endFileDragSession();
+        return;
+      }
+
       if (hitTestListBodyAtPoint(ev.clientX, ev.clientY)
         || isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY)) {
         commitArchiveInternalDrop(paths, ev.clientX, ev.clientY);
@@ -490,8 +504,9 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
       endFileDragSession();
     };
 
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    document.addEventListener('pointermove', onMove, captureOpts);
+    document.addEventListener('pointerup', onUp, captureOpts);
+    document.addEventListener('pointercancel', onUp, captureOpts);
   };
 
   const handleEntryMouseMove = () => {
@@ -541,9 +556,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
   return (
     <div
       className={`bndz-archive-root ${dragOver ? 'bndz-archive-root--drop' : ''} ${inspectorOpen ? 'bndz-archive-root--inspector' : ''}`}
-      onDragOver={e => { if (canAddFiles) { e.preventDefault(); setDragOver(true); } }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={handleDropIn}
+      data-archive-path={winPath}
       onMouseMove={handleEntryMouseMove}
       onMouseUp={handleEntryMouseUp}
     >
@@ -676,9 +689,17 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
               <div
                 key={`${entry.path}-${i}`}
                 className={`bndz-archive-row ${isSel ? 'bndz-archive-row--selected' : ''}`}
-                onClick={e => { selectEntry(entry, e); if (!entry.isDirectory) loadPreview(entry); }}
+                onClick={e => {
+                  if (suppressArchiveClickRef.current) {
+                    suppressArchiveClickRef.current = false;
+                    e.stopPropagation();
+                    return;
+                  }
+                  selectEntry(entry, e);
+                  if (!entry.isDirectory) loadPreview(entry);
+                }}
                 onDoubleClick={() => openEntry(entry)}
-                onMouseDown={e => handleEntryMouseDown(entry, e)}
+                onPointerDown={e => handleEntryPointerDown(entry, e)}
               >
                 <div className="bndz-archive-col-name flex items-center gap-2 min-w-0">
                   {entryIcon(entry)}
@@ -766,31 +787,7 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
           </div>
         </aside>
       )}
-      {archiveDragGhost && <ArchiveDragGhostOverlay ghost={archiveDragGhost} />}
-    </div>
-  );
-}
-
-function ArchiveDragGhostOverlay({ ghost }: {
-  ghost: { x: number; y: number; label: string; count: number };
-}) {
-  return (
-    <div
-      className="fixed z-[300] pointer-events-none"
-      style={{ left: ghost.x + 12, top: ghost.y + 8 }}
-    >
-      <div
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--bndz-radius-md)] border border-[#454545] shadow-lg"
-        style={{ background: 'rgba(37, 37, 38, 0.96)' }}
-      >
-        <Icons8Icon id="compress" size={16} />
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold text-white/95 truncate max-w-[200px]">{ghost.label}</div>
-          <div className="text-[9px] text-white/45 uppercase tracking-wide">
-            Extract · {ghost.count > 1 ? `${ghost.count} items` : 'Copy'}
-          </div>
-        </div>
-      </div>
+      <DragGhostPortal ghost={archiveDragGhost} ghostRef={archiveDragGhostElRef} />
     </div>
   );
 }

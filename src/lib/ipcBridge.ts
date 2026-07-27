@@ -171,6 +171,10 @@ export const IPC = {
           this._drivesListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'EXTERNAL_FILES_DROPPED') {
           window.dispatchEvent(new CustomEvent('bndz-external-drop', { detail: data.payload }));
+        } else if (data.type === 'EXTERNAL_FILES_DROP_FAILED') {
+          window.dispatchEvent(new CustomEvent('bndz-external-drop-failed', { detail: data.payload }));
+        } else if (data.type === 'EXTERNAL_FILES_DRAG_HOVER') {
+          window.dispatchEvent(new CustomEvent('bndz-external-drag-hover', { detail: data.payload }));
         } else if (data.type === 'FOLDER_SIZE_PROGRESS') {
           this._folderSizeListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'DUPLICATE_SCAN_PROGRESS') {
@@ -362,7 +366,14 @@ export const IPC = {
 
   notifyUiReady() {
     if (!this.isNative) return;
-    (window as any).chrome.webview.postMessage({ type: 'BNDZ_UI_READY' });
+    (window as any).chrome.webview.postMessage({
+      type: 'BNDZ_UI_READY',
+      payload: {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+      },
+    });
   },
 
   requestClose(source: 'x' | 'menu' | 'tray' | 'exit-without-saving' | 'restart-without-saving' | 'restart' = 'x'): void {

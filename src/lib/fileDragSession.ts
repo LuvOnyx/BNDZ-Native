@@ -3,6 +3,9 @@
  * Used by BNDZUI pointer-drag session to resolve tabs, breadcrumbs, list folders, and nav tree targets.
  */
 
+import { isBndzVirtualPath } from './bndzVirtualViews';
+import { joinPanePath } from './pathUtils';
+
 export type TabHoverTarget = { paneId: string; tabIndex: number; tabId: string };
 export type ListFolderTarget = { id: string; type?: string; name?: string };
 
@@ -57,7 +60,7 @@ function hitTestTabByRect(clientX: number, clientY: number): TabHoverTarget | nu
     [clientX - 8, clientY],
     [clientX + 8, clientY],
   ];
-  const tabs = document.querySelectorAll<HTMLElement>('.bndz-chrome-tabstrip [data-tab-id], [data-tab-id]');
+  const tabs = document.querySelectorAll<HTMLElement>('.bndz-chrome-tabstrip [data-tab-id]');
   for (const [x, y] of probes) {
     for (const tabEl of tabs) {
       const rect = tabEl.getBoundingClientRect();
@@ -215,6 +218,17 @@ const INTERNAL_DRAG_CHROME_SELECTORS = [
   '.sidebar-pin-row',
 ];
 
+/** Archive preview surface at pointer (for drag-out / drop-in routing). */
+export function hitTestArchiveRootAtPoint(clientX: number, clientY: number): HTMLElement | null {
+  return hitTestClosestAtPoint(clientX, clientY, '.bndz-archive-root[data-archive-path]')
+    ?? hitTestSelectorByRect(clientX, clientY, '.bndz-archive-root[data-archive-path]');
+}
+
+/** True when pointer left the archive preview (OLE drag-out to Explorer/desktop). */
+export function isOutsideArchivePreviewAtPoint(clientX: number, clientY: number): boolean {
+  return !hitTestArchiveRootAtPoint(clientX, clientY);
+}
+
 /** True when the pointer is over in-app chrome that accepts internal file drops (not desktop OLE). */
 export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number): boolean {
   for (const el of elementsAtPoint(clientX, clientY)) {
@@ -231,6 +245,33 @@ export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number
   if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-sidebar')) return true;
   if (hitTestSelectorByRect(clientX, clientY, '[data-tabstrip]')) return true;
   return false;
+}
+
+/** True when archive drag should escalate to native OLE (desktop / Explorer), not in-app list. */
+export function shouldArchiveEscalateToOle(clientX: number, clientY: number): boolean {
+  if (isArchiveInternalDropTargetAtPoint(clientX, clientY)) return false;
+  return isOutsideArchivePreviewAtPoint(clientX, clientY)
+    && !isInternalFileDragChromeAtPoint(clientX, clientY);
+}
+
+/** True when pointer is over an in-app drop target for archive extract-and-copy. */
+export function isArchiveInternalDropTargetAtPoint(clientX: number, clientY: number): boolean {
+  // Still inside archive preview — not an FM list drop.
+  if (hitTestArchiveRootAtPoint(clientX, clientY)) return false;
+  if (hitTestListBodyAtPoint(clientX, clientY)) return true;
+  if (hitTestTabAtPoint(clientX, clientY)) return true;
+  if (hitTestNavTreeAtPoint(clientX, clientY)) return true;
+  if (hitTestBreadcrumbAtPoint(clientX, clientY)) return true;
+  // Extra rect fallbacks — WebView2 poisons elementsFromPoint during pointer drags.
+  if (hitTestSelectorByRect(clientX, clientY, '[data-list-body]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-nav-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-breadcrumb-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '[data-favorite-path]')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-tabstrip')) return true;
+  if (hitTestSelectorByRect(clientX, clientY, '.bndz-chrome-sidebar')) return true;
+  if (hitTestTabByRect(clientX, clientY)) return true;
+  return isInternalFileDragChromeAtPoint(clientX, clientY)
+    && !hitTestArchiveRootAtPoint(clientX, clientY);
 }
 
 /** Default tab auto-switch delay (ms) — short hover before switching. */
@@ -282,4 +323,97 @@ export function resolveFileDropDestination(
   const tabContents = getContentsForPath(tabPath);
   const folderEnt = hitTestListFolderAtPoint(clientX, clientY, tabContents ?? undefined) ?? null;
   return { paneId, tabIndex, tabPath, folderEnt };
+}
+
+/** Resolve native (Explorer/desktop) drop target from viewport coordinates. */
+export function resolveNativeFileDropTarget(
+  clientX: number,
+  clientY: number,
+  panes: PaneTabSnapshot[],
+  activePaneId: string,
+  getContentsForPath: (path: string) => ListFolderTarget[] | null | undefined,
+  htmlDropTarget: { paneId: string; tabPath: string } | null,
+): {
+  hover: { paneId: string; tabIndex: number } | null;
+  destPath: string;
+  folderEnt: ListFolderTarget | null;
+} {
+  const activePane = panes.find(p => p.id === activePaneId) ?? panes[0];
+  const activePath = activePane?.tabs[activePane.activeTabIndex]?.path ?? '/';
+
+  const listBody = hitTestListBodyAtPoint(clientX, clientY);
+  const listWins = !!listBody;
+
+  const navTreePath = listWins ? null : hitTestNavTreeAtPoint(clientX, clientY);
+  const breadcrumbPath = listWins ? null : (navTreePath ? null : hitTestBreadcrumbAtPoint(clientX, clientY));
+  const tabHit = hitTestTabAtPoint(clientX, clientY);
+
+  let hover: { paneId: string; tabIndex: number } | null = null;
+  if (listBody) {
+    const paneId = listBody.getAttribute('data-list-pane-id');
+    const pane = paneId ? panes.find(p => p.id === paneId) : null;
+    if (pane) {
+      let tabIndex = pane.activeTabIndex;
+      if (tabHit?.paneId === paneId && tabHit.tabIndex >= 0) tabIndex = tabHit.tabIndex;
+      hover = { paneId: pane.id, tabIndex };
+    }
+  }
+  if (!hover && tabHit?.paneId) {
+    hover = { paneId: tabHit.paneId, tabIndex: tabHit.tabIndex };
+  }
+
+  const resolution = resolveFileDropDestination(
+    clientX,
+    clientY,
+    hover,
+    panes,
+    activePaneId,
+    activePath,
+    getContentsForPath,
+    breadcrumbPath,
+    navTreePath,
+  );
+
+  let destPath = resolution.tabPath;
+  if (resolution.folderEnt) {
+    destPath = joinPanePath(resolution.tabPath, {
+      name: resolution.folderEnt.name || resolution.folderEnt.id || 'folder',
+      path: (resolution.folderEnt as { path?: string }).path,
+      id: resolution.folderEnt.id,
+    });
+  }
+
+  if ((isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') && htmlDropTarget?.tabPath) {
+    destPath = htmlDropTarget.tabPath;
+    if (!hover && htmlDropTarget.paneId) {
+      const pane = panes.find(p => p.id === htmlDropTarget.paneId);
+      if (pane) hover = { paneId: pane.id, tabIndex: pane.activeTabIndex };
+    }
+  }
+
+  if ((isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') && hover) {
+    const pane = panes.find(p => p.id === hover!.paneId);
+    const tabPath = pane?.tabs[hover!.tabIndex]?.path;
+    if (tabPath && !isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+      destPath = tabPath;
+    }
+  }
+
+  // Last resort: active pane folder when hit-test misses (WebView2 coord drift).
+  if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
+    const activePane = panes.find(p => p.id === activePaneId) ?? panes[0];
+    const tabPath = activePane?.tabs[activePane.activeTabIndex]?.path;
+    if (tabPath && !isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+      destPath = tabPath;
+      if (!hover && activePane) {
+        hover = { paneId: activePane.id, tabIndex: activePane.activeTabIndex };
+      }
+    }
+  }
+
+  return {
+    hover,
+    destPath,
+    folderEnt: resolution.folderEnt,
+  };
 }

@@ -21,7 +21,6 @@ import { ShellNativeIcon } from './ShellNativeIcon';
 import { tabAccentStyle } from '../lib/tabColors';
 import type { TabState } from './tabTypes';
 import { findingTabLabel, isFindingTab } from '../lib/findingTab';
-import { hasBndzFileDrag } from '../lib/bndzDrag';
 
 /** Keep reorder on the tab row — only X follows the pointer; kill Y/scale hard. */
 const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
@@ -69,10 +68,6 @@ export type PaneTabStripProps = {
   onContextMenu: (index: number, e: React.MouseEvent) => void;
   onMiddleClick: (index: number, e: React.MouseEvent) => void;
   onAddTab: () => void;
-  /** File / internal path drop onto a tab (navigate that tab). */
-  onFileDropOnTab: (index: number, e: React.DragEvent) => void;
-  /** File drop onto the + zone. */
-  onFileDropOnNewTab?: (e: React.DragEvent) => void;
   scheduleTabSwitchOnFileDrag?: (index: number) => void;
   clearTabFileDragTimer?: () => void;
   tabFileDropTargetIndex?: number | null;
@@ -103,9 +98,6 @@ function SortablePaneTab({
   onClose,
   onContextMenu,
   onMiddleClick,
-  onFileDragOver,
-  onFileDragLeave,
-  onFileDrop,
 }: {
   tab: TabState;
   index: number;
@@ -123,9 +115,6 @@ function SortablePaneTab({
   onClose: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onMiddleClick: (e: React.MouseEvent) => void;
-  onFileDragOver: (e: React.DragEvent) => void;
-  onFileDragLeave: (e: React.DragEvent) => void;
-  onFileDrop: (e: React.DragEvent) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
@@ -197,9 +186,6 @@ function SortablePaneTab({
         e.stopPropagation();
         onContextMenu(e);
       }}
-      onDragOver={onFileDragOver}
-      onDragLeave={onFileDragLeave}
-      onDrop={onFileDrop}
     >
       {showIconsTabs !== false && (
         <span className="mr-1.5 shrink-0 pointer-events-none">
@@ -252,10 +238,8 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     onClose,
     onContextMenu,
     onMiddleClick,
-    onAddTab,
-    onFileDropOnTab,
-    onFileDropOnNewTab,
-    scheduleTabSwitchOnFileDrag,
+  onAddTab,
+  scheduleTabSwitchOnFileDrag,
     clearTabFileDragTimer,
     tabFileDropTargetIndex,
     newTabDropActive,
@@ -289,9 +273,6 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
     onReorder(oldIndex, newIndex);
   };
-
-  const isFileDrag = (e: React.DragEvent) =>
-    hasBndzFileDrag(e) || (e.dataTransfer.files?.length ?? 0) > 0;
 
   return (
     <div
@@ -349,30 +330,6 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
                 onClose={e => onClose(idx, e)}
                 onContextMenu={e => onContextMenu(idx, e)}
                 onMiddleClick={e => onMiddleClick(idx, e)}
-                onFileDragOver={e => {
-                  if (!isFileDrag(e)) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const copy = e.ctrlKey || e.altKey;
-                  dropModifierCopy?.(copy);
-                  e.dataTransfer.dropEffect = copy ? 'copy' : 'move';
-                  setTabFileDropTargetIndex?.(idx);
-                  scheduleTabSwitchOnFileDrag?.(idx);
-                }}
-                onFileDragLeave={e => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                    if (tabFileDropTargetIndex === idx) setTabFileDropTargetIndex?.(null);
-                    clearTabFileDragTimer?.();
-                  }
-                }}
-                onFileDrop={e => {
-                  if (!isFileDrag(e)) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  clearTabFileDragTimer?.();
-                  setTabFileDropTargetIndex?.(null);
-                  onFileDropOnTab(idx, e);
-                }}
               />
             );
           })}
@@ -389,20 +346,6 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
           onClick={e => {
             e.stopPropagation();
             onAddTab();
-          }}
-          onDragOver={e => {
-            if (!isFileDrag(e)) return;
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'move';
-            setNewTabDropActive?.(true);
-          }}
-          onDragLeave={() => setNewTabDropActive?.(false)}
-          onDrop={e => {
-            e.preventDefault();
-            e.stopPropagation();
-            setNewTabDropActive?.(false);
-            onFileDropOnNewTab?.(e);
           }}
         >
           <span className="text-[14px] leading-tight">+</span>

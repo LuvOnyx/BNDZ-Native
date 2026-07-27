@@ -66,8 +66,10 @@ external/spacedrive/
 # Rust sidecars (stage via scripts/stage-rust-sidecars.ps1)
 BNDZBackend/Assets/RustSidecars/**/*.exe
 
-# Cursor IDE / temp
-.cursor/
+# Remote Mesh runtime cache + local icon backups (never commit)
+BNDZBackend/mesh/
+BNDZBackend/_icon-backup-prev/
+
 diff_bndzui.txt
 
 agent-transcripts/

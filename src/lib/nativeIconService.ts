@@ -315,7 +315,7 @@ export async function prefetchMediaThumbnailsForEntities(
   }
   if (!media.length) return;
 
-  const CHUNK = 24;
+  const CHUNK = 12;
   for (let i = 0; i < media.length; i += CHUNK) {
     const chunk = media.slice(i, i + CHUNK);
     if (IPC.isNative && typeof IPC.getNativeThumbnailsBatch === 'function') {

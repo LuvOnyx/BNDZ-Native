@@ -65,7 +65,7 @@ function IconStudioInner({
     const { config, updateConfig } = useAppConfig();
 
     return (
-        <div className={`${styles.container} flex-col`}>
+        <div className={`${styles.container} flex-col`} data-icon-studio>
             <div className={`${styles.workflowBar} shrink-0 flex items-center justify-between px-4 h-9 gap-3`}>
                 <div className="flex items-center gap-1 min-w-0">
                     {STEPS.map((step, i) => (

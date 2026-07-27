@@ -72,6 +72,9 @@ namespace BNDZ
         // private ConcurrentDictionary kept removed — use BndzHostCaches.Icons / Thumbnails.
 
         private CoreWebView2Environment? _webViewEnvironment;
+        /// <summary>JS innerWidth / WebView ActualWidth — corrects WPF→clientX drift at 125%+ DPI.</summary>
+        private double _webviewJsScaleX = 1.0;
+        private double _webviewJsScaleY = 1.0;
         private SystemTrayService? _trayService;
         private bool _allowClose;
         private string? _pendingOpenPath;
@@ -80,6 +83,8 @@ namespace BNDZ
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
             InitializeComponent();
+            // Must be set before EnsureCoreWebView2Async — default true lets Chromium swallow OLE drops.
+            MainWebView.AllowExternalDrop = false;
             _fileService = fileService;
             _aiService = aiService;
             _localAi = localAi;
@@ -551,10 +556,112 @@ namespace BNDZ
 
         private DateTime _lastExternalDropUtc = DateTime.MinValue;
         private string? _lastExternalDropFingerprint;
+        private double? _lastExternalDragWebViewX;
+        private double? _lastExternalDragWebViewY;
+
+        private bool IsValidWebViewCoord(double x, double y)
+        {
+            if (MainWebView.ActualWidth <= 0 || MainWebView.ActualHeight <= 0) return false;
+            return x >= 0 && y >= 0 && x <= MainWebView.ActualWidth && y <= MainWebView.ActualHeight;
+        }
+
+        private System.Windows.Point ResolveDropCoords(System.Windows.Point dropPt)
+        {
+            if (IsValidWebViewCoord(dropPt.X, dropPt.Y))
+                return dropPt;
+            if (_lastExternalDragWebViewX is double lx && _lastExternalDragWebViewY is double ly
+                && IsValidWebViewCoord(lx, ly))
+                return new System.Windows.Point(lx, ly);
+            return dropPt;
+        }
+
+        private string ResolveCoordSource(System.Windows.Point dropPt, System.Windows.Point resolved)
+        {
+            if (IsValidWebViewCoord(dropPt.X, dropPt.Y)) return "drop";
+            if (resolved.X == dropPt.X && resolved.Y == dropPt.Y) return "fallback";
+            return "lastHover";
+        }
+
+        private System.Windows.Point MapDropPointToWebView(System.Windows.DragEventArgs e)
+        {
+            var pt = e.GetPosition(MainWebView);
+            if (MainWebView.ActualWidth > 0 && MainWebView.ActualHeight > 0
+                && pt.X >= 0 && pt.Y >= 0
+                && pt.X <= MainWebView.ActualWidth && pt.Y <= MainWebView.ActualHeight)
+            {
+                return pt;
+            }
+            try
+            {
+                var windowPt = e.GetPosition(this);
+                var origin = MainWebView.TransformToAncestor(this).Transform(new System.Windows.Point(0, 0));
+                return new System.Windows.Point(windowPt.X - origin.X, windowPt.Y - origin.Y);
+            }
+            catch
+            {
+                return pt;
+            }
+        }
+
+        /// <summary>Map WPF drop coords to WebView2 JS clientX/clientY (ZoomFactor + viewport scale).</summary>
+        private System.Windows.Point MapDropPointToWebViewClient(System.Windows.DragEventArgs e)
+        {
+            var pt = MapDropPointToWebView(e);
+            try
+            {
+                var zoom = MainWebView.ZoomFactor;
+                if (zoom > 0.01 && Math.Abs(zoom - 1.0) > 0.001)
+                    pt = new System.Windows.Point(pt.X / zoom, pt.Y / zoom);
+            }
+            catch { /* best-effort */ }
+
+            if (Math.Abs(_webviewJsScaleX - 1.0) > 0.02 || Math.Abs(_webviewJsScaleY - 1.0) > 0.02)
+            {
+                pt = new System.Windows.Point(
+                    pt.X * _webviewJsScaleX,
+                    pt.Y * _webviewJsScaleY);
+            }
+            return pt;
+        }
+
+        private void UpdateWebViewJsViewportScale(double innerWidth, double innerHeight)
+        {
+            var aw = MainWebView.ActualWidth;
+            var ah = MainWebView.ActualHeight;
+            if (aw > 1 && ah > 1 && innerWidth > 1 && innerHeight > 1)
+            {
+                _webviewJsScaleX = innerWidth / aw;
+                _webviewJsScaleY = innerHeight / ah;
+                Debug.WriteLine($"[Drop] Viewport scale X={_webviewJsScaleX:F3} Y={_webviewJsScaleY:F3} (js {innerWidth}x{innerHeight}, wv {aw}x{ah})");
+            }
+        }
         /// <summary>True while BNDZ-initiated DoDragDrop is running (OLE re-entry into our window).</summary>
         private bool _bndzOleDragActive;
 
-        private void PostExternalFileDrop(string[] paths, double? webViewX = null, double? webViewY = null, string preferredEffect = "copy")
+        private void PostExternalFileDragHover(double webViewX, double webViewY)
+        {
+            var msg = new
+            {
+                type = "EXTERNAL_FILES_DRAG_HOVER",
+                payload = new { webViewX, webViewY },
+            };
+            var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(json));
+        }
+
+        private void PostExternalFileDropFailed(string[] formats, string reason)
+        {
+            var msg = new
+            {
+                type = "EXTERNAL_FILES_DROP_FAILED",
+                payload = new { formats, reason },
+            };
+            var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            PostToUi(() => MainWebView.CoreWebView2?.PostWebMessageAsJson(json));
+            Debug.WriteLine($"[Drop] Failed: {reason} formats=[{string.Join(", ", formats)}]");
+        }
+
+        private void PostExternalFileDrop(string[] paths, double? webViewX = null, double? webViewY = null, string preferredEffect = "copy", string coordSource = "drop")
         {
             if (paths == null || paths.Length == 0) return;
             var fingerprint = string.Join('|', paths);
@@ -575,6 +682,7 @@ namespace BNDZ
                     webViewY,
                     preferredEffect = effect,
                     fromBndzOle = _bndzOleDragActive,
+                    coordSource,
                 },
             };
             var json = JsonSerializer.Serialize(msg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
@@ -592,6 +700,8 @@ namespace BNDZ
                 try
                 {
                     MainWebView.AllowExternalDrop = false;
+                    if (MainWebView.AllowExternalDrop)
+                        Debug.WriteLine("[Drop] WARNING: AllowExternalDrop is still true after enforce.");
                 }
                 catch (Exception ex)
                 {
@@ -599,6 +709,8 @@ namespace BNDZ
                 }
             }
             EnforceHostOwnedDrops();
+            Loaded += (_, __) => EnforceHostOwnedDrops();
+            Activated += (_, __) => EnforceHostOwnedDrops();
 
             string ResolvePreferredDropEffect(System.Windows.DragEventArgs e)
             {
@@ -617,12 +729,7 @@ namespace BNDZ
 
             void AcceptFileDrag(System.Windows.DragEventArgs e)
             {
-                var canDrop = e.Data != null && (
-                    e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop, true)
-                    || e.Data.GetDataPresent("FileGroupDescriptorW", false)
-                    || e.Data.GetDataPresent("FileNameW", true)
-                    || e.Data.GetDataPresent("FileName", true));
-                if (!canDrop)
+                if (!ExternalDropHelper.IsLikelyExternalFileDrag(e.Data))
                 {
                     e.Effects = System.Windows.DragDropEffects.None;
                     e.Handled = true;
@@ -641,6 +748,10 @@ namespace BNDZ
                     ? System.Windows.DragDropEffects.Copy
                     : allowed;
                 e.Handled = true;
+                var pt = MapDropPointToWebViewClient(e);
+                _lastExternalDragWebViewX = pt.X;
+                _lastExternalDragWebViewY = pt.Y;
+                PostExternalFileDragHover(pt.X, pt.Y);
             }
 
             void OnDrop(object sender, System.Windows.DragEventArgs e)
@@ -653,19 +764,22 @@ namespace BNDZ
                     if (files.Length > 0)
                     {
                         var preferred = ResolvePreferredDropEffect(e);
-                        // Coordinates relative to the WebView viewport (matches document.elementFromPoint).
-                        var pt = e.GetPosition(MainWebView);
-                        PostExternalFileDrop(files, pt.X, pt.Y, preferred);
+                        var rawPt = MapDropPointToWebView(e);
+                        var pt = ResolveDropCoords(MapDropPointToWebViewClient(e));
+                        var coordSource = ResolveCoordSource(rawPt, pt);
+                        PostExternalFileDrop(files, pt.X, pt.Y, preferred, coordSource);
                         e.Handled = true;
                     }
                     else
                     {
-                        Debug.WriteLine("[Drop] No extractable paths in drop payload.");
+                        var formats = ExternalDropHelper.GetAvailableFormats(e.Data);
+                        PostExternalFileDropFailed(formats, "No extractable paths in drop payload.");
                     }
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"[Drop] {ex.Message}");
+                    PostExternalFileDropFailed(Array.Empty<string>(), ex.Message);
                 }
             }
 
@@ -682,6 +796,8 @@ namespace BNDZ
 
             // Re-assert after each navigation — some WebView2 builds reset AllowExternalDrop.
             MainWebView.CoreWebView2.NavigationCompleted += (_, __) => EnforceHostOwnedDrops();
+            MainWebView.CoreWebView2.DOMContentLoaded += (_, __) => EnforceHostOwnedDrops();
+            _ = Dispatcher.BeginInvoke(new Action(() => EnforceHostOwnedDrops()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         private void PostIconResult(string? id, string? payload)
@@ -898,6 +1014,7 @@ namespace BNDZ
 
             var webEnv = await CoreWebView2Environment.CreateAsync(null, profileDir, webEnvOptions);
             _webViewEnvironment = webEnv;
+            MainWebView.AllowExternalDrop = false;
             await MainWebView.EnsureCoreWebView2Async(webEnv);
 
             if (MainWebView.CoreWebView2 == null)
@@ -1060,6 +1177,19 @@ namespace BNDZ
 
                 else if (type == "BNDZ_UI_READY")
                 {
+                    try
+                    {
+                        if (root.TryGetProperty("payload", out var readyPayload)
+                            && readyPayload.ValueKind == JsonValueKind.Object)
+                        {
+                            if (readyPayload.TryGetProperty("innerWidth", out var iwEl)
+                                && readyPayload.TryGetProperty("innerHeight", out var ihEl))
+                            {
+                                UpdateWebViewJsViewportScale(iwEl.GetDouble(), ihEl.GetDouble());
+                            }
+                        }
+                    }
+                    catch { /* best-effort */ }
                     PostToUi(FlushPendingOpenPath);
                 }
                 else if (type == "EXECUTE_BATCH_RENAME")

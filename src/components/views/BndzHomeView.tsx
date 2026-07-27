@@ -737,6 +737,7 @@ export default function BndzHomeView({
                 <motion.button
                   key={place.path + place.name}
                   type="button"
+                  data-home-nav-path={place.path}
                   className={`bndz-home-place${place.kind === 'drive' ? ' is-drive' : ''}${spatialArmed ? ' is-spatial' : ''}`}
                   initial={reduceMotion ? false : { opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}

@@ -78,6 +78,17 @@ while ((em = effectRe.exec(src)) !== null) {
   }
 }
 
+/** Ref sync before const ref = useRef — runtime TDZ crash in production bundles */
+const refTdz = [];
+for (const m of src.matchAll(/^(\s*)(\w+Ref)\.current\s*=/gm)) {
+  const refName = m[2];
+  const useLine = src.slice(0, m.index).split(/\r?\n/).length + 1;
+  const decl = declLine.get(refName);
+  if (decl && decl > useLine) {
+    refTdz.push({ refName, useLine, declLine: decl });
+  }
+}
+
 let failed = false;
 const criticalSymbols = ['IPC'];
 for (const sym of criticalSymbols) {
@@ -99,8 +110,15 @@ if (tdzIssues.length) {
     console.error(`  - ${dep}: used in effect ~line ${effectLine}, declared line ${dl}`);
   }
 }
+if (refTdz.length) {
+  failed = true;
+  console.error('Ref sync before useRef declaration (runtime TDZ):');
+  for (const { refName, useLine, declLine: dl } of refTdz) {
+    console.error(`  - ${refName}: assigned line ${useLine}, declared line ${dl}`);
+  }
+}
 if (!failed) {
-  console.log('BNDZUI audit passed (imports + TDZ deps).');
+  console.log('BNDZUI audit passed (imports + TDZ deps + ref order).');
   process.exit(0);
 }
 process.exit(1);

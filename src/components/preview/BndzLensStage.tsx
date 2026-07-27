@@ -135,6 +135,7 @@ export default function BndzLensStage({
   const reduceMotion = useReducedMotion();
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState<LensStagePayload | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!path || isDir || !IPC.isNative || collapsed) {
@@ -143,6 +144,7 @@ export default function BndzLensStage({
     }
     let active = true;
     setLoading(true);
+    setStage(null);
     const t = window.setTimeout(() => {
       IPC.getLensStage(path).then(payload => {
         if (!active) return;
@@ -158,7 +160,7 @@ export default function BndzLensStage({
       active = false;
       window.clearTimeout(t);
     };
-  }, [path, isDir, collapsed]);
+  }, [path, isDir, collapsed, reloadKey]);
 
   if (!path || isDir) return null;
 
@@ -284,7 +286,18 @@ export default function BndzLensStage({
               onNavigate={onNavigate}
               accent="#a78bfa"
             />
-            {stage?.error && <div className="bndz-lens-error">{stage.error}</div>}
+            {stage?.error && (
+              <div className="bndz-lens-error flex items-center gap-2">
+                <span className="flex-1">{stage.error}</span>
+                <button
+                  type="button"
+                  className="text-[10px] px-2 py-0.5 rounded border border-white/15 hover:bg-white/5"
+                  onClick={() => setReloadKey(k => k + 1)}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

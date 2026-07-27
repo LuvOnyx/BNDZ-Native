@@ -21,7 +21,7 @@ export function gridTileMetrics(gridIconSize: number) {
     gap,
     padding,
     labelBlock,
-    marqueePad: 0,
+    marqueePad: Math.max(4, Math.round(gap * 0.5)),
     iconSlot,
   };
 }

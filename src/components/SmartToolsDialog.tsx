@@ -97,6 +97,24 @@ export default function SmartToolsDialog({
                 ))}
             </div>
 
+            <div className="bndz-smarttools-context flex items-center gap-2 px-4 py-2 border-b border-white/[0.06] bg-black/20 shrink-0 min-h-[36px]">
+                <Icons8Icon id="folder_ui" size={12} className="opacity-50 shrink-0" />
+                <span className="text-[10px] uppercase tracking-wide text-white/35 shrink-0">Context</span>
+                {currentPath && (
+                    <span className="text-[11px] text-sky-300/80 bndz-mono truncate max-w-[40%]" title={toWindowsPath(currentPath)}>
+                        {toWindowsPath(currentPath)}
+                    </span>
+                )}
+                {paths.length > 0 ? (
+                    <span className="text-[11px] text-emerald-300/90 truncate flex-1 min-w-0" title={paths.join('\n')}>
+                        {paths.length} selected · {paths.slice(0, 2).map(p => p.split(/[/\\]/).pop()).join(', ')}
+                        {paths.length > 2 ? ` +${paths.length - 2}` : ''}
+                    </span>
+                ) : (
+                    <span className="text-[11px] text-white/30 flex-1">No selection — pick files in the list first</span>
+                )}
+            </div>
+
             <div className="p-4 flex flex-col gap-3 overflow-y-auto flex-1 min-h-0 bg-black/15">
                         {tab === 'organize' && (
                             <div className="flex flex-col gap-2.5">

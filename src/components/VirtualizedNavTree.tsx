@@ -12,11 +12,19 @@ import { shouldShowTreeTooltip, bindFloatingTooltipHandlers } from '../lib/toolt
 import { markScrolling as markIconQueueScrolling } from '../lib/iconRequestQueue';
 import {
   BNDZ_TREE_REORDER_MIME,
-  hasBndzFileDrag,
-  readBndzFileDragData,
-  setBndzFileDragData,
   type BndzFileDragPayload,
 } from '../lib/bndzDrag';
+import {
+  beginFileDragSession,
+  endFileDragSession,
+  getFileDragSession,
+  hitTestNavTreeAtPoint,
+  isInternalFileDragChromeAtPoint,
+} from '../lib/fileDragSession';
+import {
+  dispatchPointerFileDragActive,
+  dispatchPointerFileDragMove,
+} from '../lib/pointerFileDragBridge';
 import type { ClipboardAction } from '../data/ClipboardContext';
 import { getClipboardMarkForEntity } from '../lib/clipboardVisual';
 import { panePathsEqual } from '../lib/pathUtils';
@@ -131,13 +139,12 @@ function TreeRow({
   isDragging,
   dropBefore,
   dropAfter,
-  onDragStart,
   onReorderDragStart,
   onDragOver,
   onDragEnd,
   onDrop,
-  onFileDragOver,
-  onFileDragLeave,
+  onFilePointerDown,
+  suppressTreeClickRef,
   fileDropTarget,
   tipHandlers,
   disallowDragFromTree,
@@ -159,13 +166,12 @@ function TreeRow({
   isDragging?: boolean;
   dropBefore?: boolean;
   dropAfter?: boolean;
-  onDragStart?: (e: React.DragEvent, row: FlatNavRow) => void;
   onReorderDragStart?: (e: React.DragEvent, row: FlatNavRow) => void;
   onDragOver?: (e: React.DragEvent, row: FlatNavRow) => void;
   onDragEnd?: () => void;
   onDrop?: (e: React.DragEvent, row: FlatNavRow) => void;
-  onFileDragOver?: (e: React.DragEvent, row: FlatNavRow) => void;
-  onFileDragLeave?: (row: FlatNavRow) => void;
+  onFilePointerDown?: (row: FlatNavRow, e: React.PointerEvent) => void;
+  suppressTreeClickRef?: React.MutableRefObject<boolean>;
   fileDropTarget?: string | null;
   tipHandlers?: ReturnType<typeof bindFloatingTooltipHandlers>;
   disallowDragFromTree?: boolean;
@@ -183,6 +189,10 @@ function TreeRow({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (suppressTreeClickRef?.current) {
+      suppressTreeClickRef.current = false;
+      return;
+    }
     if (row.isPlaceholder) return;
 
     if (expandOnSingleClick && row.hasChildren) {
@@ -230,22 +240,17 @@ function TreeRow({
       } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''} ${treeColorFilter?.className || ''} ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}`}
       style={{ paddingLeft: `${indentPx}px`, ...(treeColorFilter?.inlineStyle && !isSelected ? treeColorFilter.inlineStyle : {}) }}
       data-nav-path={row.path || undefined}
-      draggable={canDragFile && !row.isPlaceholder}
-      onDragStart={canDragFile ? e => {
-        e.stopPropagation();
-        onDragStart?.(e, row);
+      onPointerDown={canDragFile ? (e) => {
+        if (e.button !== 0) return;
+        onFilePointerDown?.(row, e);
       } : undefined}
       onDragOver={e => {
-        if (row.path) onFileDragOver?.(e, row);
         if (canReorder) onDragOver?.(e, row);
-      }}
-      onDragLeave={() => {
-        if (row.path) onFileDragLeave?.(row);
       }}
       onDrop={e => {
         onDrop?.(e, row);
       }}
-      onDragEnd={canDragFile ? onDragEnd : undefined}
+      onDragEnd={canReorder ? onDragEnd : undefined}
       onMouseEnter={tipHandlers?.onMouseEnter}
       onMouseMove={tipHandlers?.onMouseMove}
       onMouseLeave={tipHandlers?.onMouseLeave}
@@ -374,11 +379,11 @@ export function VirtualizedNavTree({
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [dropAfter, setDropAfter] = useState(false);
-  const [fileDropTargetPath, setFileDropTargetPath] = useState<string | null>(null);
-  const effectiveFileDropTarget = externalFileDropTarget ?? fileDropTargetPath;
+  const effectiveFileDropTarget = externalFileDropTarget;
   const treeLastClickRef = useRef<SlowClickStamp>(null);
   const treeRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressTreeClickRef = useRef(false);
 
   const rt = useMemo(() => buildSettingsRuntime(config), [config]);
 
@@ -458,28 +463,90 @@ export function VirtualizedNavTree({
     clearExpandDragTimer();
   }, [clearExpandDragTimer]);
 
-  const handleFileDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
-    if (!row.path) return;
+  const FILE_DRAG_THRESHOLD_PX = 6;
+
+  const handleFilePointerDown = useCallback((row: FlatNavRow, e: React.PointerEvent) => {
+    if (!row.path || disallowDragFromTree) return;
     const winPath = toWindowsPath(row.path);
-    setBndzFileDragData(e, {
-      sourcePaneId: 'tree',
-      sourcePath: row.path,
-      paths: [winPath],
-      fromTree: true,
-    });
-    if (e.altKey) {
-      e.preventDefault();
-      IPC.startDrag([winPath]);
-    }
-    e.dataTransfer.effectAllowed = 'copyMove';
-    const ghost = document.createElement('div');
-    ghost.className = 'nav-tree-drag-ghost';
-    ghost.textContent = row.label;
-    ghost.style.cssText = 'position:fixed;top:-1000px;padding:4px 10px;background:#1e3a5f;border:1px solid #0a84ff;border-radius:4px;color:#fff;font-size:12px;pointer-events:none;';
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 12, 16);
-    requestAnimationFrame(() => document.body.removeChild(ghost));
-  }, []);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const capturePointerId = e.pointerId;
+    let oleStarted = false;
+    let outsideChromeStreak = 0;
+    let sessionStarted = false;
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== capturePointerId || oleStarted) return;
+      if (!sessionStarted) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < FILE_DRAG_THRESHOLD_PX) return;
+        sessionStarted = true;
+        suppressTreeClickRef.current = true;
+        beginFileDragSession({
+          paths: [winPath],
+          op: ev.ctrlKey || ev.altKey ? 'copy' : 'move',
+          sourcePaneId: 'tree',
+          sourceTabPath: row.path!,
+        });
+        dispatchPointerFileDragActive(true);
+      }
+      dispatchPointerFileDragMove(ev.clientX, ev.clientY);
+      if (isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY)) {
+        outsideChromeStreak = 0;
+      } else {
+        outsideChromeStreak++;
+      }
+      if (outsideChromeStreak >= 1) {
+        oleStarted = true;
+        suppressTreeClickRef.current = true;
+        dispatchPointerFileDragActive(false);
+        endFileDragSession();
+        cleanup();
+        IPC.startDrag([winPath]);
+      }
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== capturePointerId) return;
+      cleanup();
+      if (oleStarted) return;
+      const session = getFileDragSession();
+      if (!session) {
+        dispatchPointerFileDragActive(false);
+        return;
+      }
+      const destPath = hitTestNavTreeAtPoint(ev.clientX, ev.clientY);
+      if (destPath && destPath !== row.path && onFileDrop) {
+        suppressTreeClickRef.current = true;
+        const op = resolveDropOperation({
+          payloadCopy: ev.ctrlKey || ev.altKey,
+          ctrlKey: ev.ctrlKey || ev.metaKey,
+          altKey: ev.altKey,
+          shiftKey: ev.shiftKey,
+          sourcePaths: session.paths,
+          destDir: destPath,
+          sameDriveDefault: config.selectConfig2,
+          crossDriveDefault: config.selectConfig3,
+        });
+        onFileDrop(
+          { paths: session.paths, sourcePath: row.path, fromTree: true },
+          destPath,
+          op,
+        );
+      }
+      endFileDragSession();
+      dispatchPointerFileDragActive(false);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, [config.selectConfig2, config.selectConfig3, disallowDragFromTree, onFileDrop]);
 
   const handleReorderDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
     if (!row.treeKey || !row.draggable) return;
@@ -496,11 +563,8 @@ export function VirtualizedNavTree({
     requestAnimationFrame(() => document.body.removeChild(ghost));
   }, []);
 
-  const handleDragStart = handleFileDragStart;
-
   const handleDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {
     if (!dragKey || !row.treeKey || dragKey === row.treeKey || row.depth !== 0) return;
-    if (hasBndzFileDrag(e)) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const after = e.clientY > rect.top + rect.height / 2;
@@ -510,49 +574,10 @@ export function VirtualizedNavTree({
 
   const toggleRowRef = useRef<(row: FlatNavRow) => void>(() => {});
 
-  const handleFileDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {
-    if (!row.path || !hasBndzFileDrag(e)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
-    setFileDropTargetPath(row.path);
-
-    if (config.expandTreeNodesOnDragOver && !config.lockTreeState && row.hasChildren && !row.isExpanded) {
-      clearExpandDragTimer();
-      expandDragTimerRef.current = setTimeout(() => {
-        toggleRowRef.current(row);
-      }, 650);
-    }
-  }, [config.expandTreeNodesOnDragOver, config.lockTreeState, clearExpandDragTimer]);
-
-  const handleFileDragLeave = useCallback((row: FlatNavRow) => {
-    if (fileDropTargetPath === row.path) setFileDropTargetPath(null);
-    clearExpandDragTimer();
-  }, [fileDropTargetPath, clearExpandDragTimer]);
-
   const handleDrop = useCallback((e: React.DragEvent, row: FlatNavRow) => {
     e.preventDefault();
     e.stopPropagation();
     clearExpandDragTimer();
-    setFileDropTargetPath(null);
-
-    const filePayload = readBndzFileDragData(e);
-    if (filePayload && row.path && onFileDrop) {
-      const op = resolveDropOperation({
-        payloadCopy: !!filePayload.copy,
-        ctrlKey: e.ctrlKey || e.metaKey,
-        altKey: e.altKey,
-        shiftKey: e.shiftKey,
-        sourcePaths: (filePayload.paths || []).map(String),
-        destDir: row.path,
-        sameDriveDefault: config.selectConfig2,
-        crossDriveDefault: config.selectConfig3,
-      });
-      onFileDrop(filePayload, row.path, op);
-      setDragKey(null);
-      setDropTargetKey(null);
-      return;
-    }
 
     const reorderKey = e.dataTransfer.getData(BNDZ_TREE_REORDER_MIME) || dragKey;
     if (!reorderKey || !row.treeKey || !onTreeOrderChange || row.depth !== 0) return;
@@ -561,12 +586,11 @@ export function VirtualizedNavTree({
     onTreeOrderChange(next);
     setDragKey(null);
     setDropTargetKey(null);
-  }, [dragKey, dropAfter, navTreeOrder, nodes, onTreeOrderChange, onFileDrop, clearExpandDragTimer, config.selectConfig2, config.selectConfig3]);
+  }, [dragKey, dropAfter, navTreeOrder, nodes, onTreeOrderChange, clearExpandDragTimer]);
 
   const handleDragEnd = useCallback(() => {
     setDragKey(null);
     setDropTargetKey(null);
-    setFileDropTargetPath(null);
     clearExpandDragTimer();
   }, [clearExpandDragTimer]);
 
@@ -667,6 +691,21 @@ export function VirtualizedNavTree({
 
   toggleRowRef.current = handleToggle;
 
+  // Expand tree nodes when file drag hovers (Explorer / internal pointer / archive).
+  useEffect(() => {
+    const onExpandDrag = (e: Event) => {
+      const path = (e as CustomEvent<{ path?: string }>).detail?.path;
+      if (!path || rt.tree.lockState || !config?.expandTreeNodesOnDragOver) return;
+      clearExpandDragTimer();
+      expandDragTimerRef.current = setTimeout(() => {
+        const row = flatRows.find(r => r.path && panePathsEqual(r.path, path));
+        if (row?.hasChildren) toggleRowRef.current(row);
+      }, 350);
+    };
+    window.addEventListener('bndz-tree-expand-drag', onExpandDrag);
+    return () => window.removeEventListener('bndz-tree-expand-drag', onExpandDrag);
+  }, [config?.expandTreeNodesOnDragOver, rt.tree.lockState, flatRows, clearExpandDragTimer]);
+
   const showTreeTips = shouldShowTreeTooltip(config);
 
   const useVirtual = flatRows.length >= VIRTUAL_THRESHOLD;
@@ -722,13 +761,12 @@ export function VirtualizedNavTree({
       isDragging={dragKey === row.treeKey}
       dropBefore={dropTargetKey === row.treeKey && !dropAfter}
       dropAfter={dropTargetKey === row.treeKey && dropAfter}
-      onDragStart={handleDragStart}
       onReorderDragStart={handleReorderDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDrop={handleDrop}
-      onFileDragOver={handleFileDragOver}
-      onFileDragLeave={handleFileDragLeave}
+      onFilePointerDown={handleFilePointerDown}
+      suppressTreeClickRef={suppressTreeClickRef}
       fileDropTarget={effectiveFileDropTarget}
       tipHandlers={tipHandlers}
       disallowDragFromTree={disallowDragFromTree}

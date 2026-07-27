@@ -6,24 +6,17 @@ type Props = {
   segments: BreadcrumbSeg[];
   dropTarget: string | null;
   onNavigate: (path: string, opts?: { newTab?: boolean }) => void;
-  onDragOverSeg: (e: React.DragEvent, path: string) => void;
-  onDragLeaveSeg: (e: React.DragEvent, path: string) => void;
-  onDropSeg: (e: React.DragEvent, path: string) => void;
-  hasBndzFileDrag: (e: React.DragEvent) => boolean;
 };
 
 /**
  * Gold breadcrumb — collapses middle segments into a soft "…" overflow menu
  * instead of silently clipping with overflow-x-hidden.
+ * File drag hover/drop uses pointer + native OLE (see fileDragHover.ts).
  */
 export function BreadcrumbTrail({
   segments,
   dropTarget,
   onNavigate,
-  onDragOverSeg,
-  onDragLeaveSeg,
-  onDropSeg,
-  hasBndzFileDrag,
 }: Props) {
   const railRef = useRef<HTMLDivElement>(null);
   const [maxVisible, setMaxVisible] = useState(segments.length);
@@ -34,7 +27,6 @@ export function BreadcrumbTrail({
     if (!el) return;
     const measure = () => {
       const width = el.clientWidth;
-      // ~88px per crumb average; always keep first + last when collapsing.
       const approx = Math.max(2, Math.floor(width / 92));
       setMaxVisible(Math.min(segments.length, approx));
     };
@@ -76,9 +68,6 @@ export function BreadcrumbTrail({
           e.stopPropagation();
           onNavigate(seg.path, { newTab: true });
         }}
-        onDragOver={(e) => onDragOverSeg(e, seg.path)}
-        onDragLeave={(e) => onDragLeaveSeg(e, seg.path)}
-        onDrop={(e) => onDropSeg(e, seg.path)}
         title="Click to navigate · Ctrl/middle-click new tab · Drop to move/copy"
         data-breadcrumb-path={seg.path}
       >

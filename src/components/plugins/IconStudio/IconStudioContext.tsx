@@ -350,8 +350,15 @@ export function IconStudioProvider({
     useEffect(() => {
         const onExternalDrop = async (e: Event) => {
             if (!nativeSyncEnabled) return;
-            const paths = (e as CustomEvent).detail?.paths as string[] | undefined;
+            const detail = (e as CustomEvent).detail || {};
+            const paths = detail.paths as string[] | undefined;
             if (!paths?.length) return;
+            const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : null;
+            const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : null;
+            if (clientX != null && clientY != null) {
+                const hit = document.elementFromPoint(clientX, clientY);
+                if (!hit?.closest('[data-icon-studio]') && !hit?.closest('.icon-studio')) return;
+            }
             const ok = await importRef.current(null, paths);
             if (!ok) {
                 const hasIcons = paths.some(p => ICON_EXT.test(p));

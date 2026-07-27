@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icons8Icon, DragHandleGlyph } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
@@ -45,7 +45,9 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
     const [stack, setStack] = useState<string[]>(loadStack);
     const [operating, setOperating] = useState(false);
     const [dragOver, setDragOver] = useState(false);
-    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [reorderIndex, setReorderIndex] = useState<number | null>(null);
+    const reorderFromRef = useRef<number | null>(null);
+    const reorderToRef = useRef<number | null>(null);
 
     useEffect(() => {
         localStorage.setItem(STACK_KEY, JSON.stringify(stack));
@@ -57,6 +59,15 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
         setStack(prev => [...new Set([...prev, ...normalized])]);
         pushToast({ kind: 'success', title: 'Added to stack', message: `${normalized.length} item(s) staged.` });
     }, []);
+
+    useEffect(() => {
+        const onStage = (e: Event) => {
+            const paths = (e as CustomEvent<{ paths?: string[] }>).detail?.paths;
+            if (paths?.length) addPaths(paths);
+        };
+        window.addEventListener('bndz-drop-stack-stage', onStage);
+        return () => window.removeEventListener('bndz-drop-stack-stage', onStage);
+    }, [addPaths]);
 
     const addSelected = () => {
         if (!selectedItems?.length) return;
@@ -76,28 +87,43 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
         });
     };
 
-    const extractDropPaths = (e: React.DragEvent): string[] => {
-        const paths: string[] = [];
-        const files = Array.from(e.dataTransfer.files) as Array<File & { path?: string }>;
-        for (const f of files) {
-            if (f.path) paths.push(f.path);
-        }
-        const uri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-        if (uri) {
-            uri.split(/\r?\n/).forEach(line => {
-                const t = line.trim();
-                if (!t || t.startsWith('#')) return;
-                paths.push(decodeURIComponent(t.replace(/^file:\/\/\//i, '').replace(/\//g, '\\')));
-            });
-        }
-        return [...new Set(paths.map(toWindowsPath))];
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
+    const beginReorder = (index: number, e: React.PointerEvent) => {
+        if (e.button !== 0) return;
         e.preventDefault();
-        setDragOver(false);
-        const paths = extractDropPaths(e);
-        if (paths.length) addPaths(paths);
+        reorderFromRef.current = index;
+        setReorderIndex(index);
+        const startY = e.clientY;
+        let dragging = false;
+
+        const onMove = (ev: PointerEvent) => {
+            if (!dragging && Math.hypot(ev.clientX - e.clientX, ev.clientY - startY) < 4) return;
+            dragging = true;
+            const rows = Array.from(document.querySelectorAll('[data-drop-stack-item]'));
+            let target = index;
+            for (let i = 0; i < rows.length; i++) {
+                const rect = rows[i].getBoundingClientRect();
+                if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
+                    target = i;
+                    break;
+                }
+            }
+            setReorderIndex(target);
+            reorderToRef.current = target;
+        };
+
+        const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            const from = reorderFromRef.current;
+            const to = reorderToRef.current ?? from;
+            reorderFromRef.current = null;
+            reorderToRef.current = null;
+            setReorderIndex(null);
+            if (from != null && dragging && to != null && from !== to) moveItem(from, to);
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
     };
 
     const executeBatch = async (action: 'copy' | 'move') => {
@@ -155,27 +181,22 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                             <PluginEmptyState icon="dropstack" title="Stack empty" description="Drop files in the zone on the right, or add the current selection." />
                         ) : stack.map((item, i) => {
                             const { leaf, parent } = splitPath(item);
-                            const isDragging = dragIndex === i;
+                            const isDragging = reorderIndex === i;
                             return (
                                 <div
                                     key={item}
-                                    draggable
-                                    onDragStart={() => setDragIndex(i)}
-                                    onDragOver={e => { e.preventDefault(); }}
-                                    onDrop={e => {
-                                        e.preventDefault();
-                                        if (dragIndex != null) moveItem(dragIndex, i);
-                                        setDragIndex(null);
-                                    }}
-                                    onDragEnd={() => setDragIndex(null)}
-                                    className={`flex items-center gap-2 rounded-lg px-2 py-2 group border transition-colors cursor-grab active:cursor-grabbing ${
+                                    data-drop-stack-item
+                                    className={`flex items-center gap-2 rounded-lg px-2 py-2 group border transition-colors ${
                                         isDragging
                                             ? 'border-violet-400/40 bg-violet-500/10 opacity-70'
                                             : 'bg-black/25 border-white/[0.07] hover:border-violet-400/25 hover:bg-white/[0.03]'
                                     }`}
                                     title={item}
                                 >
-                                    <div className="flex flex-col items-center gap-0.5 shrink-0 opacity-40 group-hover:opacity-80 transition-opacity">
+                                    <div
+                                      className="flex flex-col items-center gap-0.5 shrink-0 opacity-40 group-hover:opacity-80 transition-opacity cursor-grab active:cursor-grabbing"
+                                      onPointerDown={e => beginReorder(i, e)}
+                                    >
                                         <DragHandleGlyph size={11} className="text-violet-300/80" />
                                         <span className="text-[9px] tabular-nums bndz-panel-muted leading-none">{i + 1}</span>
                                     </div>
@@ -201,12 +222,12 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                 </PluginCard>
 
                 <div
+                    data-drop-stack-zone
                     className={`bndz-plugin-dropzone flex-1 flex flex-col justify-center items-center gap-4 px-6 transition-all ${
                         dragOver ? 'bndz-plugin-dropzone-active scale-[1.01]' : ''
                     }`}
-                    onDrop={handleDrop}
-                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true); }}
-                    onDragLeave={() => setDragOver(false)}
+                    onPointerEnter={() => setDragOver(true)}
+                    onPointerLeave={() => setDragOver(false)}
                 >
                     <div className={`rounded-2xl p-4 border border-dashed transition-colors ${
                         dragOver ? 'border-violet-400/50 bg-violet-500/10' : 'border-white/10 bg-white/[0.02]'
@@ -218,7 +239,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                             {dragOver ? 'Release to stage' : 'Drop files or folders here'}
                         </p>
                         <p className="text-xs bndz-panel-muted leading-relaxed">
-                            Stage from anywhere, reorder by drag, then copy or move the whole stash to the active pane.
+                            Stage from Explorer, the list, or archives — reorder by drag handle, then copy or move the whole stash.
                         </p>
                     </div>
                     <PluginCard className="!py-2.5 !px-3 max-w-md w-full space-y-1">
@@ -227,7 +248,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
                             {focusedPath || '— open a folder in the active pane —'}
                         </p>
                     </PluginCard>
-                    <p className="text-[10px] bndz-panel-muted">Persisted between sessions · drag rows to reorder</p>
+                    <p className="text-[10px] bndz-panel-muted">Persisted between sessions · pointer + OLE drops</p>
                 </div>
             </div>
             </div>
