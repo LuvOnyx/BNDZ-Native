@@ -4911,7 +4911,7 @@ export default function BNDZUI() {
     });
   }, [applyFileDragHoverAtPoint, addTab, bottomPluginTab]);
 
-  // AllowExternalDrop=false — host posts EXTERNAL_FILES_DROPPED → bndz-external-drop.
+  // Host: AllowExternalDrop=true (false during BNDZ OLE) — NavigationStarting + WPF drop → bndz-external-drop.
   useEffect(() => {
     const onExternalDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};

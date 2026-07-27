@@ -83,8 +83,8 @@ namespace BNDZ
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
             InitializeComponent();
-            // Must be set before EnsureCoreWebView2Async — default true lets Chromium swallow OLE drops.
-            MainWebView.AllowExternalDrop = false;
+            // Default true so Explorer shows copy cursor over WebView2; disabled during BNDZ OLE only.
+            MainWebView.AllowExternalDrop = true;
             _fileService = fileService;
             _aiService = aiService;
             _localAi = localAi;
@@ -559,6 +559,31 @@ namespace BNDZ
         private double? _lastExternalDragWebViewX;
         private double? _lastExternalDragWebViewY;
 
+        private void SyncAllowExternalDrop()
+        {
+            try
+            {
+                // Explorer/desktop drops need Chromium acceptance for copy cursor over WebView2.
+                // Disable only during BNDZ-initiated OLE so WPF can re-enter the host window.
+                MainWebView.AllowExternalDrop = !_bndzOleDragActive;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Drop] AllowExternalDrop: {ex.Message}");
+            }
+        }
+
+        private void PostNavigationFileDrop(string localPath)
+        {
+            if (string.IsNullOrWhiteSpace(localPath)) return;
+            var fallbackX = MainWebView.ActualWidth > 0 ? MainWebView.ActualWidth / 2 : 400;
+            var fallbackY = MainWebView.ActualHeight > 0 ? MainWebView.ActualHeight / 2 : 300;
+            var pt = ResolveDropCoords(new System.Windows.Point(
+                _lastExternalDragWebViewX ?? fallbackX,
+                _lastExternalDragWebViewY ?? fallbackY));
+            PostExternalFileDrop(new[] { localPath }, pt.X, pt.Y, "copy", "navigation");
+        }
+
         private bool IsValidWebViewCoord(double x, double y)
         {
             if (MainWebView.ActualWidth <= 0 || MainWebView.ActualHeight <= 0) return false;
@@ -695,19 +720,7 @@ namespace BNDZ
             MainWebView.AllowDrop = true;
             // Critical: when true (default), Chromium owns OLE drops and WPF Drop never fires —
             // React then sees File objects with no .path in WebView2. Force host-owned drops.
-            void EnforceHostOwnedDrops()
-            {
-                try
-                {
-                    MainWebView.AllowExternalDrop = false;
-                    if (MainWebView.AllowExternalDrop)
-                        Debug.WriteLine("[Drop] WARNING: AllowExternalDrop is still true after enforce.");
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[Drop] AllowExternalDrop: {ex.Message}");
-                }
-            }
+            void EnforceHostOwnedDrops() => SyncAllowExternalDrop();
             EnforceHostOwnedDrops();
             Loaded += (_, __) => EnforceHostOwnedDrops();
             Activated += (_, __) => EnforceHostOwnedDrops();
@@ -1014,8 +1027,9 @@ namespace BNDZ
 
             var webEnv = await CoreWebView2Environment.CreateAsync(null, profileDir, webEnvOptions);
             _webViewEnvironment = webEnv;
-            MainWebView.AllowExternalDrop = false;
+            MainWebView.AllowExternalDrop = true;
             await MainWebView.EnsureCoreWebView2Async(webEnv);
+            SyncAllowExternalDrop();
 
             if (MainWebView.CoreWebView2 == null)
                 throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
@@ -1067,13 +1081,7 @@ namespace BNDZ
                 e.Cancel = true;
                 try
                 {
-                    string localPath = new Uri(e.Uri).LocalPath;
-                    string ext = Path.GetExtension(localPath).ToLowerInvariant();
-                    if (ext is ".png" or ".ico" or ".jpg" or ".jpeg" or ".bmp" or ".webp" or ".gif")
-                    {
-                        var msg = new { type = "EXTERNAL_FILES_DROPPED", payload = new { paths = new[] { localPath } } };
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(msg));
-                    }
+                    PostNavigationFileDrop(new Uri(e.Uri).LocalPath);
                 }
                 catch { }
             };
@@ -1084,13 +1092,7 @@ namespace BNDZ
                 try
                 {
                     if (string.IsNullOrEmpty(e.Uri) || !e.Uri.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) return;
-                    string localPath = new Uri(e.Uri).LocalPath;
-                    string ext = Path.GetExtension(localPath).ToLowerInvariant();
-                    if (ext is ".png" or ".ico" or ".jpg" or ".jpeg" or ".bmp" or ".webp" or ".gif")
-                    {
-                        var msg = new { type = "EXTERNAL_FILES_DROPPED", payload = new { paths = new[] { localPath } } };
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(msg));
-                    }
+                    PostNavigationFileDrop(new Uri(e.Uri).LocalPath);
                 }
                 catch { }
             };
@@ -1156,6 +1158,26 @@ namespace BNDZ
 
                 string? type = typeProp.GetString();
                 if (string.IsNullOrEmpty(type)) return;
+
+                if (type == "EXTERNAL_DRAG_HOVER_REPORT")
+                {
+                    try
+                    {
+                        if (root.TryGetProperty("payload", out var hoverPayload)
+                            && hoverPayload.ValueKind == JsonValueKind.Object
+                            && hoverPayload.TryGetProperty("webViewX", out var hxEl)
+                            && hoverPayload.TryGetProperty("webViewY", out var hyEl))
+                        {
+                            var hx = hxEl.GetDouble();
+                            var hy = hyEl.GetDouble();
+                            _lastExternalDragWebViewX = hx;
+                            _lastExternalDragWebViewY = hy;
+                            PostExternalFileDragHover(hx, hy);
+                        }
+                    }
+                    catch { /* best-effort */ }
+                    return;
+                }
 
                 // Native license gate: when trial is expired / unlicensed, only allow license + bootstrap IPC.
                 if (!LicenseService.GetStatusCached().CanUseApp && !LicenseService.IsIpcAllowedWhenUnlicensed(type))
@@ -1333,6 +1355,7 @@ namespace BNDZ
                         try
                         {
                             _bndzOleDragActive = true;
+                            SyncAllowExternalDrop();
                             var dataObject = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, pathArray);
                             System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
                         }
@@ -1343,6 +1366,7 @@ namespace BNDZ
                         finally
                         {
                             _bndzOleDragActive = false;
+                            SyncAllowExternalDrop();
                         }
                     }
 
