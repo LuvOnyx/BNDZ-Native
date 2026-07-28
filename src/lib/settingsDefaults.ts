@@ -183,6 +183,8 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   enableSurroundSelection: false,
   enableTypeAheadFind: true,
   enableZoomByCtrlMouseWheel: false,
+  lockBrowserZoom: true,
+  interfaceScale: 100,
   encoding: false,
   evenOnExitWithoutSaving: false,
   excludeFileExtensionFromInitialSelection: false,

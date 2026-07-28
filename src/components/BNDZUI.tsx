@@ -15,12 +15,14 @@ import FileTransferQueuePanel from './FileTransferQueuePanel';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
 import { SizeBar, type SizeBarStyle } from './SizeBar';
 import IndexProgressChip from './IndexProgressChip';
+import ListPaneSkeleton from './ListPaneSkeleton';
 import DriveCard from './DriveCard';
 import { BreadcrumbTrail } from './BreadcrumbTrail';
 import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
-  preferFileDragOverMarquee, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT,
+  preferFileDragOverMarquee, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT, LIST_CLICK_DEFER_MS,
+  isWithinDoubleClickGuard,
 } from '../lib/dragController';
 import { resolveDropOperation } from '../lib/dropOperation';
 import {
@@ -38,6 +40,7 @@ import {
   hitTestNewTabZoneAtPoint,
   hitTestTabAtPoint,
   hitTestListBodyAtPoint,
+  hitTestWorkspaceSurfaceAtPoint,
   beginFileDragSession,
   endFileDragSession,
   stashOleDragSession,
@@ -83,6 +86,7 @@ import ContextMenuView from './ContextMenuView';
 import { filterSupplementalNativeItems, type ContextMenuSurface } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
 import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
+import { mergeDirEntryChunks } from '../lib/dirListingStream';
 import { markScrolling as markIconQueueScrolling } from '../lib/iconRequestQueue';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
 import BottomPluginPanel from './BottomPluginPanel';
@@ -144,6 +148,7 @@ import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/ta
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
 import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzWorkspacePath, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION } from '../lib/bndzVirtualViews';
+import { isWorkspacePointerTarget } from '../lib/workspace/workspaceFocus';
 import { pushGhostTrail, getGhostTrail } from '../lib/ghostTrail';
 import {
   GOOGLE_DRIVE_HUB_PATH,
@@ -188,6 +193,8 @@ import { registerFileDropBusContext } from '../lib/fileDropBus';
 import DropDebugOverlay from './DropDebugOverlay';
 import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, resolveEntityPanePath, isShellKnownFolderRoot, shellKnownFolderParent, resolveShellKnownFolderToFs, resolveShellPropertiesPath } from '../lib/shellPaths';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
+import { installUiZoomGuard } from '../lib/uiZoomGuard';
+import { getIndexStatusCached, invalidateIndexStatusCache } from '../lib/indexStatusCache';
 import { pushToast, dismissToast, type ToastKind } from './ToastHost';
 import { getPaneTabLabel } from '../lib/paneLabels';
 import { formatAddressBarPath, formatDriveLetter, formatDriveRootLabel, getBreadcrumbSegments, parseUserPathToPane, resolveUserPathToPane } from '../lib/displayPath';
@@ -248,7 +255,7 @@ import { TagGlyph } from './TagGlyph';
 import FolderColorIcon from './FolderColorIcon';
 import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
 
-const BNDZ_APP_ICON = '/bndz-light.png';
+const BNDZ_APP_ICON = '/BNDZ-Glass-folder.webp';
 
 const ToolbarButton = ({ iconId, launcherIcon, tagColor, onClick, className = '', title, disabled }: {
   iconId?: string;
@@ -755,8 +762,14 @@ export default function BNDZUI() {
     config.bottomFontFamily, config.statusFontFamily, config.chromeFontFamily,
     config.treeFontSize, config.listFontSize, config.tabsFontSize, config.previewFontSize,
     config.bottomFontSize, config.statusFontSize, config.chromeFontSize,
-    config.rowHeight,
+    config.rowHeight, config.interfaceScale, config.lockBrowserZoom,
   ]);
+
+  useEffect(() => {
+    return installUiZoomGuard(() => ({
+      lockBrowserZoom: config.lockBrowserZoom !== false,
+    }));
+  }, [config.lockBrowserZoom]);
 
   useEffect(() => {
     const onApplyListStyles = () => applySettingsRuntime(config);
@@ -840,6 +853,8 @@ export default function BNDZUI() {
   const uiRuntime = useMemo(() => buildSettingsRuntime(config).ui, [config]);
   const effectivePreviewOpen = uiRuntime.previewPanel && isPreviewPanelOpen && config.rightSidebarEnabled !== false;
   const effectiveBottomOpen = uiRuntime.bottomPanel && isBottomPanelOpen;
+  /** Updated after pane state — workspace tools hide the bottom plugin dock. */
+  const layoutBottomOpenRef = useRef(effectiveBottomOpen);
 
   const outerLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const innerLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -947,11 +962,11 @@ export default function BNDZUI() {
     if (!bottomImmersive && bottomRaw < BOTTOM_IMMERSIVE_TRIGGER) {
       lastDockedBottomPctRef.current = bottomRaw;
     }
-    if (!bottomImmersive && effectiveBottomOpen && bottomRaw >= BOTTOM_IMMERSIVE_TRIGGER) {
+    if (!bottomImmersive && layoutBottomOpenRef.current && bottomRaw >= BOTTOM_IMMERSIVE_TRIGGER) {
       enterBottomImmersive();
       return;
     }
-    const bottom = effectiveBottomOpen
+    const bottom = layoutBottomOpenRef.current
       ? (bottomImmersive ? (lastDockedBottomPctRef.current || DEFAULT_INNER_LAYOUT.bottom!) : bottomRaw)
       : (config.workspaceLayoutInner?.bottom ?? innerDefaultLayout.bottom);
     const nextInner = {
@@ -991,13 +1006,6 @@ export default function BNDZUI() {
       }).catch(() => {});
     });
   }, [config.checkForUpdatesAtStartup, config.updateCheckUrl]);
-
-  useEffect(() => {
-    const panel = bottomPanelRef.current;
-    if (!panel) return;
-    if (effectiveBottomOpen) panel.expand();
-    else panel.collapse();
-  }, [effectiveBottomOpen, bottomPanelRef]);
 
   useEffect(() => {
     const panel = previewPanelRef.current;
@@ -1184,7 +1192,7 @@ export default function BNDZUI() {
     });
   }, [config.addNewItemsAtTheEndOfTheList]);
 
-  // Progressive SharedBuffer append — replace first-paint page with full tagged listing.
+  // Progressive SharedBuffer append — replace streamed listing with full tagged list.
   useEffect(() => {
     const onAppend = (ev: Event) => {
       const detail = (ev as CustomEvent).detail as { path?: string; items?: any[] } | undefined;
@@ -1194,8 +1202,13 @@ export default function BNDZUI() {
       const path = normalizePanePath(rawPath);
       const normalized = normalizeDirEntries(detail.items);
       cachePathContents(path, normalized);
+      setStreamingPaths(prev => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
       void prefetchIconsForEntities(normalized, path);
-      void prefetchMediaThumbnailsForEntities(normalized, path, 96, {
+      void prefetchMediaThumbnailsForEntities(normalized, path, 64, {
         includeFolders: configRef.current.showFolderThumbnails === true,
       });
     };
@@ -1203,9 +1216,30 @@ export default function BNDZUI() {
     return () => window.removeEventListener('bndz-dir-append', onAppend as EventListener);
   }, [cachePathContents]);
 
+  // Mid-enumeration stream chunks — merge into live list while backend scans disk.
+  useEffect(() => {
+    const onStream = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as { path?: string; items?: any[] } | undefined;
+      if (!detail?.items?.length) return;
+      const rawPath = detail.path || '';
+      if (!rawPath) return;
+      const path = normalizePanePath(rawPath);
+      const chunk = normalizeDirEntries(detail.items);
+      setPathContentsCache(prev => {
+        const existing = prev[path] ?? [];
+        return setPathCacheEntry(prev, path, mergeDirEntryChunks(existing, chunk));
+      });
+      setStreamingPaths(prev => new Set(prev).add(path));
+    };
+    window.addEventListener('bndz-dir-stream', onStream as EventListener);
+    return () => window.removeEventListener('bndz-dir-stream', onStream as EventListener);
+  }, []);
+
   // loadingPaths tracks which paths are currently being fetched so we show a spinner
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
+  const [streamingPaths, setStreamingPaths] = useState<Set<string>>(new Set());
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
+  const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => void>(() => {});
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
   const [panes, setPanes] = useState<PaneState[]>([
@@ -1346,77 +1380,85 @@ export default function BNDZUI() {
     return () => window.removeEventListener('bndz-open-tag-assignment', onOpenTagAssignment);
   }, []);
 
-  useEffect(() => {
-    import('../lib/ipcBridge').then(({ IPC }) => {
-      panes.forEach(pane => {
-        const tab = pane.tabs[pane.activeTabIndex];
-        const path = normalizePanePath(tab?.path || '');
-        if (!path) return;
-        if (pathContentsCacheRef.current[path] !== undefined) return;
-        if (dirFetchInFlightRef.current.has(path)) return;
+  const beginDirFetch = React.useCallback((rawPath: string, opts?: { force?: boolean }): Promise<void> | undefined => {
+    const path = normalizePanePath(rawPath);
+    if (!path) return undefined;
+    if (!opts?.force && pathContentsCacheRef.current[path] !== undefined) return undefined;
+    if (!opts?.force && dirFetchInFlightRef.current.has(path)) return undefined;
 
-        if (isVirtualCatalogPath(path)) {
-          dirFetchInFlightRef.current.add(path);
-          setLoadingPaths(prev => new Set(prev).add(path));
-          IPC.getCatalogContents(path).then(data => {
-            const normalized = normalizeDirEntries(data);
-            setPathContentsCache(prev => setPathCacheEntry(prev, path, normalized));
-          }).catch(() => {
-            setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
-          }).finally(() => {
-            dirFetchInFlightRef.current.delete(path);
-            setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
-          });
-          return;
-        }
-
-        if (isBndzVirtualPath(path)) {
-          const view = parseBndzVirtualView(path);
-          if (!view || isBndzWorkspacePath(path)) {
-            // Hub `/bndz`, Continuum Home `/bndz/home`, canvas, automation — custom surfaces.
-            setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
-            return;
-          }
-          dirFetchInFlightRef.current.add(path);
-          setLoadingPaths(prev => new Set(prev).add(path));
-          IPC.getVirtualViewContents(view, config.globalSearchLimit || 500).then(items => {
-            setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-            setPathContentsCache(prev => setPathCacheEntry(prev, path, normalizeDirEntries(items || [])));
-          }).catch((err: unknown) => {
-            setVirtualViewErrors(prev => ({ ...prev, [path]: err instanceof Error ? err.message : 'Failed to load smart view.' }));
-            setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
-          }).finally(() => {
-            dirFetchInFlightRef.current.delete(path);
-            setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
-          });
-          return;
-        }
-
-        dirFetchInFlightRef.current.add(path);
-        setLoadingPaths(prev => new Set(prev).add(path));
-
-        IPC.getDirContents(path).then(data => {
-          const normalized = normalizeDirEntries(data);
-          setPathContentsCache(prev => setPathCacheEntry(prev, path, normalized));
-          setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-          void Promise.all([
-            prefetchIconsForEntities(normalized, path),
-            prefetchMediaThumbnailsForEntities(normalized, path, 96, {
-              includeFolders: configRef.current.showFolderThumbnails === true,
-            }),
-          ]);
-        }).catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : 'Could not load folder contents.';
-          setPathLoadErrors(prev => ({ ...prev, [path]: message }));
-          setPathContentsCache(prev => setPathCacheEntry(prev, path, prev[path] !== undefined ? prev[path] : []));
-        }).finally(() => {
-          dirFetchInFlightRef.current.delete(path);
-          setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
-        });
+    if (isVirtualCatalogPath(path)) {
+      dirFetchInFlightRef.current.add(path);
+      setLoadingPaths(prev => new Set(prev).add(path));
+      return IPC.getCatalogContents(path).then(data => {
+        cachePathContents(path, normalizeDirEntries(data));
+      }).catch(() => {
+        cachePathContents(path, []);
+      }).finally(() => {
+        dirFetchInFlightRef.current.delete(path);
+        setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
       });
+    }
+
+    if (isBndzVirtualPath(path)) {
+      const view = parseBndzVirtualView(path);
+      if (!view || isBndzWorkspacePath(path)) {
+        setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
+        return Promise.resolve();
+      }
+      dirFetchInFlightRef.current.add(path);
+      setLoadingPaths(prev => new Set(prev).add(path));
+      return IPC.getVirtualViewContents(view, configRef.current.globalSearchLimit || 500).then(items => {
+        setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
+        cachePathContents(path, normalizeDirEntries(items || []));
+      }).catch((err: unknown) => {
+        setVirtualViewErrors(prev => ({ ...prev, [path]: err instanceof Error ? err.message : 'Failed to load smart view.' }));
+        cachePathContents(path, []);
+      }).finally(() => {
+        dirFetchInFlightRef.current.delete(path);
+        setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+      });
+    }
+
+    dirFetchInFlightRef.current.add(path);
+    setLoadingPaths(prev => new Set(prev).add(path));
+    setStreamingPaths(prev => new Set(prev).add(path));
+    const loadStarted = performance.now();
+
+    return IPC.getDirContents(path).then(data => {
+      const normalized = normalizeDirEntries(data);
+      cachePathContents(path, normalized);
+      if (normalized.length === 0) {
+        setStreamingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+      }
+      setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
+      setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
+      void Promise.all([
+        prefetchIconsForEntities(normalized, path),
+        prefetchMediaThumbnailsForEntities(normalized, path, 96, {
+          includeFolders: configRef.current.showFolderThumbnails === true,
+        }),
+      ]);
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Could not load folder contents.';
+      setPathLoadErrors(prev => ({ ...prev, [path]: message }));
+      setPathContentsCache(prev => setPathCacheEntry(prev, path, prev[path] !== undefined ? prev[path] : []));
+      setStreamingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+    }).finally(() => {
+      dirFetchInFlightRef.current.delete(path);
+      setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+    });
+  }, [cachePathContents]);
+
+  beginDirFetchRef.current = beginDirFetch;
+
+  useEffect(() => {
+    panes.forEach(pane => {
+      const tab = pane.tabs[pane.activeTabIndex];
+      const path = normalizePanePath(tab?.path || '');
+      if (path) beginDirFetch(path);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePanePathsKey]);
+  }, [activePanePathsKey, beginDirFetch]);
 
   const refetchPath = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
@@ -1424,56 +1466,15 @@ export default function BNDZUI() {
     const inFlight = refetchInFlightRef.current[path];
     if (inFlight) return inFlight;
 
-    const loadPromise = (async () => {
-      const { IPC } = await import('../lib/ipcBridge');
-      const loadStarted = performance.now();
-      setLoadingPaths(prev => new Set(prev).add(path));
-      try {
-        let data: any[];
-        if (isVirtualCatalogPath(path)) {
-          data = await IPC.getCatalogContents(path);
-        } else if (isBndzVirtualPath(path)) {
-          const view = parseBndzVirtualView(path);
-          if (!view) {
-            cachePathContents(path, []);
-            setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-            return;
-          }
-          data = await IPC.getVirtualViewContents(view, config.globalSearchLimit || 500);
-          setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-        } else {
-          data = await IPC.getDirContents(path);
-        }
-        const normalized = normalizeDirEntries(data);
-        cachePathContents(path, normalized);
-        setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-        setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
-      } catch (err: unknown) {
-        if (isBndzVirtualPath(path)) {
-          setVirtualViewErrors(prev => ({
-            ...prev,
-            [path]: err instanceof Error ? err.message : 'Failed to load smart view.',
-          }));
-        } else if (!isVirtualCatalogPath(path)) {
-          setPathLoadErrors(prev => ({
-            ...prev,
-            [path]: err instanceof Error ? err.message : 'Failed to load folder.',
-          }));
-        }
-        cachePathContents(path, []);
-      } finally {
-        setLoadingPaths(prev => {
-          const next = new Set(prev);
-          next.delete(path);
-          return next;
-        });
-        delete refetchInFlightRef.current[path];
-      }
-    })();
-
+    const loadPromise = beginDirFetch(path, { force: true }) ?? Promise.resolve();
     refetchInFlightRef.current[path] = loadPromise;
+    try {
+      await loadPromise;
+    } finally {
+      delete refetchInFlightRef.current[path];
+    }
     return loadPromise;
-  }, [cachePathContents, config.globalSearchLimit]);
+  }, [beginDirFetch]);
 
   const commitRenameForEntity = React.useCallback(async (
     entity: any,
@@ -1630,7 +1631,7 @@ export default function BNDZUI() {
   const refreshIndexedRoots = React.useCallback(async () => {
     if (!IPC.isNative) return;
     try {
-      const status = await IPC.getIndexStatus();
+      const status = await getIndexStatusCached();
       setIndexedRoots((status.locations || []).map(loc => loc.path));
     } catch { /* ignore */ }
   }, []);
@@ -1640,6 +1641,7 @@ export default function BNDZUI() {
     if (!IPC.isNative) return;
     return IPC.onIndexProgress(p => {
       if (p.done) {
+        invalidateIndexStatusCache();
         if (p.error) {
           setIndexProgress({ ...p });
           window.setTimeout(() => setIndexProgress(null), 5000);
@@ -1659,7 +1661,10 @@ export default function BNDZUI() {
   }, []);
 
   useEffect(() => {
-    const onRootsChanged = () => { void refreshIndexedRoots(); };
+    const onRootsChanged = () => {
+      invalidateIndexStatusCache();
+      void refreshIndexedRoots();
+    };
     window.addEventListener('bndz-index-roots-changed', onRootsChanged);
     return () => window.removeEventListener('bndz-index-roots-changed', onRootsChanged);
   }, [refreshIndexedRoots]);
@@ -1712,6 +1717,7 @@ export default function BNDZUI() {
     listEl: HTMLElement;
   } | null>(null);
   const listGestureClickRef = useRef<((e: React.MouseEvent, id: string) => void) | null>(null);
+  const listClickDeferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const columnResizeActiveRef = useRef(false);
   const [columnPicker, setColumnPicker] = useState<{ x: number; y: number } | null>(null);
   const [renamingFavoritePath, setRenamingFavoritePath] = useState<string | null>(null);
@@ -2676,6 +2682,28 @@ export default function BNDZUI() {
     id: 'fallback', path: '/', history: ['/'], historyIndex: 0, selectedItems: [],
   };
   const currentPath = activeTab.path;
+
+  const workspaceToolActive = useMemo(
+    () => panes.some(pane => {
+      const tab = pane.tabs[pane.activeTabIndex];
+      const path = normalizePanePath(tab?.path || '');
+      return isBndzWorkspacePath(path);
+    }),
+    [panes],
+  );
+  const layoutBottomOpen = effectiveBottomOpen && !workspaceToolActive;
+  layoutBottomOpenRef.current = layoutBottomOpen;
+
+  useEffect(() => {
+    const panel = bottomPanelRef.current;
+    if (!panel) return;
+    if (layoutBottomOpen) panel.expand();
+    else panel.collapse();
+  }, [layoutBottomOpen, bottomPanelRef]);
+
+  useEffect(() => {
+    if (workspaceToolActive && bottomImmersive) exitBottomImmersive();
+  }, [workspaceToolActive, bottomImmersive, exitBottomImmersive]);
 
   const miniTreeNodes = useMemo(
     () => buildMiniTreeFromVisits(config.navigationHistory || []),
@@ -4816,6 +4844,7 @@ export default function BNDZUI() {
         }
       }
     }
+    beginDirFetchRef.current(norm);
   };
 
   useEffect(() => {
@@ -4918,6 +4947,15 @@ export default function BNDZUI() {
       const paths = (detail.paths as string[] | undefined)?.filter(Boolean);
       if (!paths?.length) return;
 
+      const clientX = typeof detail.webViewX === 'number' ? detail.webViewX
+        : typeof detail.clientX === 'number' ? detail.clientX
+        : window.innerWidth / 2;
+      const clientY = typeof detail.webViewY === 'number' ? detail.webViewY
+        : typeof detail.clientY === 'number' ? detail.clientY
+        : window.innerHeight / 2;
+
+      if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) return;
+
       if (bottomPluginTab === 'icon-studio') {
         const hit = typeof detail.webViewX === 'number' && typeof detail.webViewY === 'number'
           ? document.elementFromPoint(detail.webViewX, detail.webViewY)
@@ -4929,13 +4967,6 @@ export default function BNDZUI() {
       const activeId = activePaneIdRef.current;
       const activePane = panesSnap.find(p => p.id === activeId) || panesSnap[0];
       const activePath = activePane?.tabs[activePane.activeTabIndex]?.path || '/';
-
-      const clientX = typeof detail.webViewX === 'number' ? detail.webViewX
-        : typeof detail.clientX === 'number' ? detail.clientX
-        : window.innerWidth / 2;
-      const clientY = typeof detail.webViewY === 'number' ? detail.webViewY
-        : typeof detail.clientY === 'number' ? detail.clientY
-        : window.innerHeight / 2;
 
       const navTreePath = hitTestNavTreeAtPoint(clientX, clientY);
       const breadcrumbPath = navTreePath ? null : hitTestBreadcrumbAtPoint(clientX, clientY);
@@ -5040,6 +5071,7 @@ export default function BNDZUI() {
 
       const clientX = typeof detail.clientX === 'number' ? detail.clientX : window.innerWidth / 2;
       const clientY = typeof detail.clientY === 'number' ? detail.clientY : window.innerHeight / 2;
+      if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) return;
       const panesSnap = panesRef.current;
       const activeId = activePaneIdRef.current;
       const activePane = panesSnap.find(p => p.id === activeId) || panesSnap[0];
@@ -6214,6 +6246,10 @@ export default function BNDZUI() {
     };
 
     const handleEntityDoubleClicked = (entity: any) => {
+      if (listClickDeferTimerRef.current) {
+        clearTimeout(listClickDeferTimerRef.current);
+        listClickDeferTimerRef.current = null;
+      }
       clearSlowDoubleClickTimer(renameTimerRef);
       setActivePaneId(pane.id);
       setFocusedItemId(entity.id);
@@ -6781,7 +6817,7 @@ export default function BNDZUI() {
            tabIndex={-1}
            className={`flex-1 min-h-0 overflow-y-auto focus:outline-none relative bndz-scrollbar bndz-file-list-scroll cursor-default ${
              listGroupBy !== 'none' && computedViewMode === 'details' ? 'px-1 pb-1 pt-0' : 'p-1'
-           }`}
+           }${isBndzWorkspacePath(normPanePath) ? ' bndz-list-body--workspace' : ''}`}
            style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
            onScroll={e => handlePaneScroll(pane.id, e)}
            onContextMenu={(e) => {
@@ -6789,6 +6825,7 @@ export default function BNDZUI() {
              void handleContextMenuRequest(e, panePath, null, true, null, undefined, 'list-background');
            }}
            onClick={(e) => {
+              if (isBndzWorkspacePath(normPanePath)) return;
               if (e.defaultPrevented) return;
               if ((window as any)._marqueeDragOccurred) {
                   (window as any)._marqueeDragOccurred = false;
@@ -6803,6 +6840,7 @@ export default function BNDZUI() {
            }}
            onPointerDownCapture={(e) => {
               if (e.button !== 0) return;
+              if (isWorkspacePointerTarget(e.target)) return;
               if (isBndzHomePath(normPanePath) || isBndzWorkspacePath(normPanePath) || normPanePath === BNDZ_VIEWS_ROOT) return;
               if ((e.target as HTMLElement).closest('[data-bndz-surface], .react-flow, .bndz-automation, .bndz-spatial-canvas, .bndz-home')) return;
               if ((e.target as HTMLElement).closest('input, textarea, button, select, a')) return;
@@ -6882,7 +6920,9 @@ export default function BNDZUI() {
               const capturePointerId = e.pointerId;
               const altKey = e.altKey;
 
-              // Explorer-style: plain click arms the row immediately so drag doesn't lose to marquee.
+              markPointerDown();
+
+              // Select on press; plain click+drag arms immediately (threshold + delay separate click from drag).
               if (!wasSelected && !ctrlKey && !shiftKey) {
                 setSelectedItems([entityId], pane.id);
                 scheduleSelectionChrome([entityId], true);
@@ -6891,7 +6931,7 @@ export default function BNDZUI() {
                 selectionAnchorRef.current = { paneId: pane.id, itemId: entityId };
               }
 
-              const armedForDrag = wasSelected || (!ctrlKey && !shiftKey);
+              const armedForDrag = !ctrlKey && !shiftKey;
               listGestureRef.current = {
                 paneId: pane.id,
                 pointerId: capturePointerId,
@@ -6910,12 +6950,19 @@ export default function BNDZUI() {
                 listEl,
               };
 
-              beginDragSession(
-                capturePointerId,
-                startX,
-                startY,
-                armedForDrag ? DRAG_DELAY_SELECTED : DRAG_DELAY_DEFAULT,
-              );
+              if (isWithinDoubleClickGuard() && listClickDeferTimerRef.current) {
+                clearTimeout(listClickDeferTimerRef.current);
+                listClickDeferTimerRef.current = null;
+              }
+
+              if (armedForDrag) {
+                beginDragSession(
+                  capturePointerId,
+                  startX,
+                  startY,
+                  wasSelected ? DRAG_DELAY_SELECTED : DRAG_DELAY_DEFAULT,
+                );
+              }
               let oleDragStarted = false;
               let outsideChromeStreak = 0;
               let keyModBound = false;
@@ -7031,17 +7078,7 @@ export default function BNDZUI() {
                   }
 
                   const copyDrag = copyHeld;
-                  let dragSelection = listGestureRef.current.dragSelection;
-                  if (!wasSelected) {
-                    dragSelection = [entityId];
-                    listGestureRef.current.dragSelection = dragSelection;
-                    const ops = marqueeOpsRef.current;
-                    ops.setSelectedItems(dragSelection, pane.id);
-                    ops.scheduleSelectionChrome(dragSelection, true);
-                    ops.scheduleQuickActionsBar(true, true);
-                    setFocusedItemId(entityId);
-                    selectionAnchorRef.current = { paneId: pane.id, itemId: entityId };
-                  }
+                  const dragSelection = listGestureRef.current.dragSelection;
 
                   listGestureRef.current.mode = 'drag';
                   listGestureRef.current.copyDrag = copyDrag;
@@ -7231,6 +7268,36 @@ export default function BNDZUI() {
                     dropEnt = null;
                   }
                   const dragPaths = buildDragPaths(entityId, gesture.dragSelection);
+                  const workspaceHit = hitTestWorkspaceSurfaceAtPoint(ev.clientX, ev.clientY);
+                  if (workspaceHit && dragPaths.length) {
+                    if (workspaceHit.closest('.bndz-spatial-canvas')) {
+                      window.dispatchEvent(new CustomEvent('bndz-spatial-add', {
+                        detail: { paths: dragPaths, clientX: ev.clientX, clientY: ev.clientY },
+                      }));
+                    }
+                    setDragTargetHighlight(null);
+                    suppressRowClickRef.current = true;
+                    internalDragRef.current = false;
+                    clearFileDragChrome();
+                    setListDragGhost(null);
+                    endFileDragSession();
+                    listGestureRef.current = null;
+                    return;
+                  }
+                  const spatialBoard = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-spatial-board]');
+                  if (spatialBoard && dragPaths.length) {
+                    window.dispatchEvent(new CustomEvent('bndz-spatial-add', {
+                      detail: { paths: dragPaths, clientX: ev.clientX, clientY: ev.clientY },
+                    }));
+                    setDragTargetHighlight(null);
+                    suppressRowClickRef.current = true;
+                    internalDragRef.current = false;
+                    clearFileDragChrome();
+                    setListDragGhost(null);
+                    endFileDragSession();
+                    listGestureRef.current = null;
+                    return;
+                  }
                   if (dragPaths.length) {
                     const destPath = navTreeTarget || breadcrumbTarget
                       || (dropEnt?.name ? joinPanePath(dropResolution.tabPath, dropEnt as { name: string; path?: string; id?: string }) : dropResolution.tabPath);
@@ -7274,14 +7341,20 @@ export default function BNDZUI() {
                 } else if (gesture?.mode === 'pending' && !hasMetDragThreshold() && !oleDragStarted) {
                   clearDragSession();
                   suppressRowClickRef.current = true;
-                  handleEntityClicked({
+                  const clickEntityId = gesture.entityId;
+                  const clickEvent = {
                     ctrlKey: gesture.ctrlKey,
                     metaKey: gesture.ctrlKey,
                     shiftKey: gesture.shiftKey,
                     altKey: gesture.altKey,
                     stopPropagation: () => {},
                     preventDefault: () => {},
-                  } as React.MouseEvent, gesture.entityId);
+                  } as React.MouseEvent;
+                  if (listClickDeferTimerRef.current) clearTimeout(listClickDeferTimerRef.current);
+                  listClickDeferTimerRef.current = setTimeout(() => {
+                    listClickDeferTimerRef.current = null;
+                    handleEntityClicked(clickEvent, clickEntityId);
+                  }, LIST_CLICK_DEFER_MS);
                 } else if (gesture?.mode === 'pending') {
                   if (!hasMetDragThreshold()) clearDragSession();
                 }
@@ -7299,6 +7372,11 @@ export default function BNDZUI() {
               window.addEventListener('pointerup', onUp);
            }}
         >
+          {streamingPaths.has(normPanePath) && !isPaneLoading && (listRows?.length ?? 0) > 0 && (
+            <div className="bndz-dir-stream-bar shrink-0" role="progressbar" aria-label="Loading more items">
+              <span className="bndz-dir-stream-bar-glow" />
+            </div>
+          )}
           {loadingPaths.has(normPanePath) && !isPaneLoading && (listRows?.length ?? 0) > 0 && (
             <div className="sticky top-0 z-10 mx-2 mt-1 mb-1 flex items-center gap-2 rounded border border-sky-500/20 bg-sky-950/40 px-2.5 py-1 text-[10px] text-sky-200/90 pointer-events-none">
               <Icons8Icon id="loading" size={12} spin />
@@ -7321,10 +7399,10 @@ export default function BNDZUI() {
             </div>
           )}
           {isPaneLoading && (
-             <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500 min-h-[200px]">
-               <Icons8Icon id="loading" size={24} spin />
-               <span className="text-[11px]">Loading {panePath.split('/').pop() || panePath}...</span>
-             </div>
+             <ListPaneSkeleton
+               label={`Streaming ${panePath.split('/').pop() || panePath}…`}
+               rows={16}
+             />
           )}
           {!isPaneLoading && isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading)) && (
              <div className="flex flex-col items-center justify-center h-full gap-3 text-amber-400/80 min-h-[200px]">
@@ -7760,7 +7838,14 @@ export default function BNDZUI() {
                       markPointerDown();
                       handleEntityClicked(e, entity.id);
                     }}
-                    onDoubleClick={() => { clearDragSession(); handleEntityDoubleClicked(entity); }}
+                    onDoubleClick={() => {
+                      if (listClickDeferTimerRef.current) {
+                        clearTimeout(listClickDeferTimerRef.current);
+                        listClickDeferTimerRef.current = null;
+                      }
+                      clearDragSession();
+                      handleEntityDoubleClicked(entity);
+                    }}
                     onAuxClick={(e) => { if (e.button !== 1) return; e.preventDefault(); handleEntityMiddleClick(e, entity); }}
                     onMouseEnter={(e) => {
                       tipHandlers.onMouseEnter?.(e);
@@ -8107,7 +8192,11 @@ export default function BNDZUI() {
       className={`flex flex-col h-screen w-full font-sans text-[12px] select-none overflow-hidden ${
         config.compactToolbar ? 'bndz-compact-toolbar' : ''
       } ${config.denseMenubar ? 'bndz-dense-menubar' : ''} ${config.showPanelAccentBorders ? 'bndz-accent-borders' : ''}`}
-      onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
+      onContextMenu={e => {
+        if ((e.target as HTMLElement).closest('[data-bndz-workspace-surface], [data-bndz-workspace-menu]')) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       <LicenseBanner refreshKey={licenseEpoch} onRegister={() => setShowRegisterDialog(true)} />
       <TrialExpiredGate
@@ -8133,7 +8222,7 @@ export default function BNDZUI() {
         onDoubleClick={() => import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize'))}
       >
          <div className="flex items-center gap-2 pl-3 pr-3 border-r border-[#444] shrink-0">
-            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-9 h-9 rounded-[7px] object-cover object-center drop-shadow-md shrink-0 scale-[0.98]" draggable={false} />
+            <img src={BNDZ_APP_ICON} alt="BNDZ" className="w-12 h-12 rounded-[9px] object-cover object-center drop-shadow-md shrink-0" draggable={false} />
             <span className="text-[12px] font-bold tracking-widest text-gray-200 uppercase hidden sm:inline">BNDZ</span>
          </div>
          <div
@@ -9493,7 +9582,7 @@ export default function BNDZUI() {
          )}
          <div className="flex-1"></div>
          <ToolbarButton launcherIcon={launcherIconUrl('extension_hub')} title="Extension Hub (Plugin Marketplace)" onClick={() => setIsPluginStoreOpen(true)} />
-         <ToolbarButton launcherIcon={launcherIconUrl('toggle_bottom')} title={uiRuntime.bottomPanel ? "Toggle Bottom Plugin Panel" : "Bottom panel disabled in settings"} onClick={toggleBottomPanel} className={!uiRuntime.bottomPanel ? 'opacity-40 pointer-events-none' : ''} />
+         <ToolbarButton launcherIcon={launcherIconUrl('toggle_bottom')} title={workspaceToolActive ? 'Bottom panel hidden in workspace tools' : (uiRuntime.bottomPanel ? 'Toggle Bottom Plugin Panel' : 'Bottom panel disabled in settings')} onClick={toggleBottomPanel} className={!uiRuntime.bottomPanel || workspaceToolActive ? 'opacity-40 pointer-events-none' : ''} />
          <ToolbarButton launcherIcon={launcherIconUrl('toggle_preview')} title={uiRuntime.previewPanel ? "Toggle Right Side Preview Panel" : "Preview panel disabled in settings"} onClick={togglePreviewPanel} className={!uiRuntime.previewPanel ? 'opacity-40 pointer-events-none' : ''} />
          </div>
       </div>
@@ -9786,11 +9875,11 @@ export default function BNDZUI() {
                    id="workspace-inner"
                    groupRef={innerGroupRef}
                    direction="vertical"
-                   className="flex-1 min-h-0"
+                   className={`flex-1 min-h-0${workspaceToolActive ? ' bndz-workspace-inner--tools' : ''}`}
                    defaultLayout={innerDefaultLayout}
                    onLayout={(layout) => {
                      const bottom = Number((layout as Record<string, number>).bottom ?? 0);
-                     if (!bottomImmersive && effectiveBottomOpen && bottom >= BOTTOM_IMMERSIVE_TRIGGER) {
+                     if (!bottomImmersive && layoutBottomOpen && bottom >= BOTTOM_IMMERSIVE_TRIGGER) {
                        enterBottomImmersive();
                      }
                    }}
@@ -9869,7 +9958,7 @@ export default function BNDZUI() {
 
                   <ResizableHandle
                      direction="vertical"
-                     disabled={!effectiveBottomOpen || bottomImmersive}
+                     disabled={!layoutBottomOpen || bottomImmersive}
                      className={`bndz-resize-handle h-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-20 ${
                        bottomImmersive ? 'opacity-0 pointer-events-none' : ''
                      }`}
@@ -10055,7 +10144,7 @@ export default function BNDZUI() {
                Tag: {activeTagFilter} ×
              </button>
            )}
-           {isBottomPanelOpen && activeBottomPluginLabel && (
+           {layoutBottomOpen && activeBottomPluginLabel && (
              <span className="ml-2 text-[#888] hidden sm:inline">
                Plugin · {activeBottomPluginLabel}
              </span>

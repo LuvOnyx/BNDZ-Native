@@ -135,6 +135,12 @@ export function hitTestListBodyAtPoint(clientX: number, clientY: number): HTMLEl
     ?? hitTestSelectorByRect(clientX, clientY, '[data-list-body]');
 }
 
+/** Spatial Canvas / Automation — drops here must not fall through to the file list. */
+export function hitTestWorkspaceSurfaceAtPoint(clientX: number, clientY: number): HTMLElement | null {
+  return hitTestClosestAtPoint(clientX, clientY, '[data-bndz-workspace-surface]')
+    ?? hitTestSelectorByRect(clientX, clientY, '[data-bndz-workspace-surface]');
+}
+
 /** Hit-test a list folder row during internal drag. */
 export function hitTestListFolderAtPoint<T extends ListFolderTarget>(
   clientX: number,
@@ -204,6 +210,7 @@ const INTERNAL_DRAG_CHROME_SELECTORS = [
   '[data-breadcrumb-path]',
   '[data-nav-path]',
   '[data-list-body]',
+  '[data-bndz-workspace-surface]',
   '.fs-list-header',
   '.bndz-chrome-tabstrip',
   '.bndz-chrome-toolbar',

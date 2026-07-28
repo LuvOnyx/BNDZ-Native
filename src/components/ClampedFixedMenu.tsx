@@ -13,7 +13,7 @@ interface ClampedFixedMenuProps {
 
 /**
  * Portal + clamp for BNDZ context menus.
- * Always renders the React menu — flip upward and scroll internally; never swap to host WPF.
+ * Anchors at the cursor; flips above only when the menu would leave the viewport.
  */
 export default function ClampedFixedMenu({
   x, y, className = '', children, onMouseDown, onClick,
@@ -37,20 +37,24 @@ export default function ClampedFixedMenu({
     const rect = el.getBoundingClientRect();
     const availH = window.innerHeight - pad * 2;
     const availW = window.innerWidth - pad * 2;
+    const menuH = Math.min(rect.height, availH);
+    const menuW = Math.min(rect.width, availW);
 
     let left = x;
     let top = y;
-    if (left + rect.width > window.innerWidth - pad) {
-      left = Math.max(pad, window.innerWidth - Math.min(rect.width, availW) - pad);
-    }
-    if (top + rect.height > window.innerHeight - pad) {
-      top = Math.max(pad, y - Math.min(rect.height, availH));
-    }
-    if (top + rect.height > window.innerHeight - pad) {
-      top = Math.max(pad, window.innerHeight - Math.min(rect.height, availH) - pad);
+
+    if (left + menuW > window.innerWidth - pad) {
+      left = Math.max(pad, window.innerWidth - menuW - pad);
     }
     if (left < pad) left = pad;
+
+    // Prefer below cursor; flip above only when needed (avoid jumping to y=pad for tall menus).
+    if (top + menuH > window.innerHeight - pad) {
+      const above = y - menuH;
+      top = above >= pad ? above : Math.max(pad, window.innerHeight - menuH - pad);
+    }
     if (top < pad) top = pad;
+
     setPos({ left, top });
     setReady(true);
   }, [x, y, children]);

@@ -978,6 +978,15 @@ export function applySettingsRuntime(config: AppConfig): void {
   document.body.style.fontSize = `${rt.ui.fontSize}px`;
   document.body.style.fontFamily = rt.ui.fontFamily;
 
+  const scale = typeof config.interfaceScale === 'number'
+    ? Math.min(150, Math.max(80, config.interfaceScale))
+    : 100;
+  const scaleFactor = scale / 100;
+  root.style.setProperty('--bndz-interface-scale', String(scaleFactor));
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.zoom = scaleFactor === 1 ? '' : String(scaleFactor);
+  }
+
   applyAppearanceVariants(config, root);
   applyListStyleDataset(config, root);
 

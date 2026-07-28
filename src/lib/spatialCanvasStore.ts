@@ -1,5 +1,5 @@
 import { IPC } from './ipcBridge';
-import { flushBndzMeta, writeBndzMetaDebounced } from './bndzMetaStore';
+import { flushBndzMeta, readBndzMeta, writeBndzMetaDebounced } from './bndzMetaStore';
 
 export type CanvasItem = {
   id: string;
@@ -38,17 +38,42 @@ export function defaultCanvas(): SpatialCanvasDoc {
   };
 }
 
-export async function loadSpatialCanvas(): Promise<SpatialCanvasDoc> {
-  if (cache) return cache;
-  if (!IPC.isNative) {
-    cache = defaultCanvas();
-    return cache;
-  }
+function parseSpatialDoc(parsed: Partial<SpatialCanvasDoc>): SpatialCanvasDoc {
+  const base = defaultCanvas();
+  return {
+    ...base,
+    ...parsed,
+    items: Array.isArray(parsed.items) ? parsed.items : base.items,
+    panX: typeof parsed.panX === 'number' && Number.isFinite(parsed.panX) ? parsed.panX : base.panX,
+    panY: typeof parsed.panY === 'number' && Number.isFinite(parsed.panY) ? parsed.panY : base.panY,
+    zoom: typeof parsed.zoom === 'number' && Number.isFinite(parsed.zoom) ? parsed.zoom : base.zoom,
+    updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
+  };
+}
+
+/** Drop in-memory cache so the next load reads from disk / IPC. */
+export function invalidateSpatialCanvasCache(): void {
+  cache = null;
+}
+
+/** Keep module cache in sync after autosave / flush (avoids stale reload). */
+export function hydrateSpatialCanvasFromJson(json: string): SpatialCanvasDoc | null {
   try {
-    const raw = await IPC.getBndzMeta(META_KEY);
+    const parsed = JSON.parse(json) as Partial<SpatialCanvasDoc>;
+    const doc = parseSpatialDoc(parsed);
+    cache = doc;
+    return doc;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadSpatialCanvas(options?: { force?: boolean }): Promise<SpatialCanvasDoc> {
+  if (cache && !options?.force) return cache;
+  try {
+    const raw = await readBndzMeta(META_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as SpatialCanvasDoc;
-      cache = { ...defaultCanvas(), ...parsed, items: parsed.items || [] };
+      cache = parseSpatialDoc(JSON.parse(raw) as Partial<SpatialCanvasDoc>);
       return cache;
     }
   } catch { /* fresh board */ }

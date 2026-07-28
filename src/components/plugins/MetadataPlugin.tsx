@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
@@ -104,12 +105,13 @@ export default function MetadataPlugin({
         setError(null);
 
         Promise.all([
-            IPC.getExtendedMetadata(path),
+            getExtendedMetadataCached(path, { includeMd5: entity?.type === 'file', priority: 950 }),
             entity?.type === 'file' ? IPC.getAsyncHashes(path) : Promise.resolve({}),
-        ]).then(([details, hashResult]) => {
+        ]).then(([entry, hashResult]) => {
             if (!active) return;
-            setMeta(details || {});
-            setHashes(hashResult || {});
+            const details = entry.meta || {};
+            setMeta(details);
+            setHashes(hashResult?.md5 ? hashResult : (entry.md5 ? { md5: entry.md5 } : hashResult || {}));
             setEditTitle(details?.Title || '');
             setEditAlbum(details?.Album || '');
             setEditArtists(details?.Artists || details?.Artist || '');

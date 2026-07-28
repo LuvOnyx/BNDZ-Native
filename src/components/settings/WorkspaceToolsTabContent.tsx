@@ -7,8 +7,10 @@ import { Checkbox } from '../ui/checkbox';
 import {
   PluginToolbarButton, PluginCard, PluginFieldLabel, PluginEmptyState, PLUGIN_INPUT_CLASS,
 } from '../plugins/PluginPanelPrimitives';
-import { type MeshSyncRule, normalizeMeshHost } from '../../lib/meshTypes';
+import { type MeshSyncRule, normalizeMeshHost, MESH_STATE_LABEL, MESH_PROVIDER_LABEL } from '../../lib/meshTypes';
 import { buildMeshPath } from '../../lib/meshPaths';
+import { BNDZ_AUTOMATION, BNDZ_CANVAS } from '../../lib/bndzVirtualViews';
+import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
 
 type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation';
 
@@ -46,15 +48,50 @@ export default function WorkspaceToolsTabContent({
   const [rules, setRules] = useState<MeshSyncRule[]>([]);
   const [hosts, setHosts] = useState<ReturnType<typeof normalizeMeshHost>[]>([]);
   const [busy, setBusy] = useState(false);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
-  const refreshMirror = useCallback(async () => {
+  const refreshMesh = useCallback(async () => {
     const [r, h] = await Promise.all([IPC.meshGetSyncRules(), IPC.meshListHosts()]);
     setRules(r as MeshSyncRule[]);
     setHosts((h as Record<string, unknown>[]).map(normalizeMeshHost));
   }, []);
 
-  useEffect(() => { if (toolTab === 'live-mirror') void refreshMirror(); }, [toolTab, refreshMirror]);
+  useEffect(() => {
+    if (toolTab === 'live-mirror' || toolTab === 'remote-mesh') void refreshMesh();
+  }, [toolTab, refreshMesh]);
+
+  const meshStats = {
+    total: hosts.length,
+    online: hosts.filter(h => h.state === 2).length,
+    pinned: hosts.filter(h => h.showInNavTree).length,
+    rules: rules.filter(r => r.enabled).length,
+  };
+
+  const hostDotClass = (state: number) => {
+    if (state === 2) return 'is-online';
+    if (state === 1) return 'is-connecting';
+    if (state === 4) return 'is-error';
+    return 'is-offline';
+  };
+
+  const connectHost = async (hostId: string) => {
+    setConnectingId(hostId);
+    try {
+      await IPC.meshConnect(hostId);
+      await refreshMesh();
+      setStatus('Connected');
+    } catch {
+      setStatus('Connection failed');
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const browseHost = (host: ReturnType<typeof normalizeMeshHost>) => {
+    const root = host.remoteRootPath || '/';
+    window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: buildMeshPath(host.id, root) } }));
+  };
 
   const saveRules = async () => {
     setBusy(true);
@@ -113,6 +150,68 @@ export default function WorkspaceToolsTabContent({
       <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar pr-1">
         {toolTab === 'remote-mesh' && (
           <div className="space-y-5">
+            <div className="bndz-mesh-dashboard">
+              <div className="bndz-mesh-stat">
+                <div className="bndz-mesh-stat-value">{meshStats.total}</div>
+                <div className="bndz-mesh-stat-label">Hosts</div>
+              </div>
+              <div className="bndz-mesh-stat">
+                <div className="bndz-mesh-stat-value" style={{ color: meshStats.online ? '#4ade80' : undefined }}>{meshStats.online}</div>
+                <div className="bndz-mesh-stat-label">Online</div>
+              </div>
+              <div className="bndz-mesh-stat">
+                <div className="bndz-mesh-stat-value">{meshStats.pinned}</div>
+                <div className="bndz-mesh-stat-label">Pinned in tree</div>
+              </div>
+              <div className="bndz-mesh-stat">
+                <div className="bndz-mesh-stat-value">{meshStats.rules}</div>
+                <div className="bndz-mesh-stat-label">Active mirrors</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-2">
+              <PluginToolbarButton onClick={() => void refreshMesh()}>Refresh status</PluginToolbarButton>
+              <PluginToolbarButton onClick={() => openBottomPlugin?.('remote-mesh')}>Open plugin panel</PluginToolbarButton>
+              {hosts.length > 0 && (
+                <PluginToolbarButton
+                  disabled={!!connectingId}
+                  onClick={() => {
+                    const offline = hosts.find(h => h.state !== 2);
+                    if (offline) void connectHost(offline.id);
+                  }}
+                >
+                  Quick connect
+                </PluginToolbarButton>
+              )}
+            </div>
+
+            {hosts.length > 0 && (
+              <SettingsSection title="Host status">
+                {hosts.map(host => (
+                  <div key={host.id} className="bndz-mesh-host-card">
+                    <span className={`bndz-mesh-host-dot ${hostDotClass(host.state)}`} />
+                    <div className="bndz-mesh-host-body">
+                      <div className="bndz-mesh-host-name">{host.alias}</div>
+                      <div className="bndz-mesh-host-meta">
+                        {MESH_PROVIDER_LABEL[host.provider]} · {host.hostname || host.s3Bucket || '—'}
+                        {host.showInNavTree ? ' · pinned' : ''}
+                        {' · '}{MESH_STATE_LABEL[host.state] || 'Unknown'}
+                      </div>
+                    </div>
+                    <div className="bndz-mesh-host-actions">
+                      <PluginToolbarButton
+                        disabled={connectingId === host.id || host.state === 2}
+                        onClick={() => void connectHost(host.id)}
+                      >
+                        {connectingId === host.id ? '…' : host.state === 2 ? 'Online' : 'Connect'}
+                      </PluginToolbarButton>
+                      <PluginToolbarButton onClick={() => browseHost(host)}>Browse</PluginToolbarButton>
+                    </div>
+                  </div>
+                ))}
+              </SettingsSection>
+            )}
+
             <SettingsSection title="Folder tree integration">
               <Checkbox
                 label={<span>Show <strong>Remote Mesh</strong> section in the folder tree when hosts are pinned</span>}
@@ -192,6 +291,36 @@ export default function WorkspaceToolsTabContent({
 
         {toolTab === 'spatial-automation' && (
           <div className="space-y-5">
+            <div className="bndz-ws-tools-hero">
+              <div className="bndz-ws-tools-hero-title">Built-in workspaces</div>
+              <div className="bndz-ws-tools-hero-desc">
+                Zero-launch power tools wired into BNDZ — no external setup, no sidecars. Open a workspace below or jump in from Home.
+              </div>
+            </div>
+
+            <div className="bndz-ws-launch-grid">
+              <WorkspaceLaunchCard
+                title="Spatial Canvas"
+                desc="Freeform 2D board for file references across folders. Drop, annotate, arrange — nothing moves on disk."
+                icon="view_grid"
+                accent="#c48b4a"
+                badge="Orrery"
+                badgeVariant="default"
+                features={['Marquee select', 'Constellation board', 'Sticky notes']}
+                onClick={() => window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: BNDZ_CANVAS } }))}
+              />
+              <WorkspaceLaunchCard
+                title="Automation"
+                desc="Visual pipelines: watch folders, filter files, copy/move, and rsync deploy to remote hosts."
+                icon="zap_ui"
+                accent="#38bdf8"
+                badge="Circuit"
+                badgeVariant="new"
+                features={['Marquee select', 'Wire blocks', 'Run log']}
+                onClick={() => window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: BNDZ_AUTOMATION } }))}
+              />
+            </div>
+
             <SettingsSection title="Spatial Canvas">
               <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
                 Infinite board for file references — drag from any pane, pan with Alt+drag, zoom with scroll wheel.
@@ -215,7 +344,7 @@ export default function WorkspaceToolsTabContent({
               </div>
               <div className="mt-3">
                 <Checkbox
-                  label="Scroll wheel zoom"
+                  label="Scroll wheel pan & zoom (Ctrl+scroll to zoom)"
                   checked={localConfig.spatialCanvasWheelZoom !== false}
                   onChange={e => updateLocalConfig({ spatialCanvasWheelZoom: e.target.checked })}
                 />

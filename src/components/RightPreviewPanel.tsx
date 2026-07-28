@@ -124,12 +124,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              if (active && data) setShellIcon(data);
            });
         });
-        import('../lib/ipcBridge').then(({ IPC }) => {
+        import('../lib/extendedMetadataCache').then(({ getExtendedMetadataCached }) => {
            const winPath = toWindowsPath(path);
 
            if (IPC.isNative) {
-               IPC.getExtendedMetadata(winPath).then(details => {
-                   if (active) setExtendedDetails(details);
+               void getExtendedMetadataCached(winPath, { priority: 950 }).then(entry => {
+                   if (active) setExtendedDetails(entry.meta);
                }).catch(() => {
                    if (active) setExtendedDetails({});
                });

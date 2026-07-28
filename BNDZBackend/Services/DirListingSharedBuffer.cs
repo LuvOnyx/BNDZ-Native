@@ -258,7 +258,8 @@ public static class DirListingSharedBuffer
         }
     }
 
-    public const int FirstPaintPageSize = 180;
+    public const int FirstPaintPageSize = 64;
+    public const int StreamChunkSize = 160;
 
     public static byte[] Encode(IReadOnlyList<DirEntryDto> entries)
     {

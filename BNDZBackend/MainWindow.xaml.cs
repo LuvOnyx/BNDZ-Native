@@ -900,6 +900,110 @@ namespace BNDZ
             MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
         }
 
+        private void PostDirContentsJsonStream(string? id, string folderPath, List<DirListingSharedBuffer.DirEntryDto> entries)
+        {
+            var legacy = entries.Select(DirEntryToLegacy).ToList();
+            var response = new
+            {
+                type = "DIR_CONTENTS_STREAM",
+                id,
+                path = folderPath.Replace('\\', '/'),
+                payload = legacy,
+            };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+        }
+
+        private async Task PostDirListingPageAsync(string? idProp, string path, List<DirListingSharedBuffer.DirEntryDto> page, bool partial)
+        {
+            await PostToUiAsync(() =>
+            {
+                var env = _webViewEnvironment;
+                var wv = MainWebView.CoreWebView2;
+                if (env == null || wv == null)
+                {
+                    PostDirContentsJson(idProp, page);
+                    return;
+                }
+                if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, page, path, partial))
+                    PostDirContentsJson(idProp, page);
+            }).ConfigureAwait(false);
+        }
+
+        private async Task PostDirListingStreamAsync(string? idProp, string path, List<DirListingSharedBuffer.DirEntryDto> chunk)
+        {
+            await PostToUiAsync(() =>
+            {
+                var env = _webViewEnvironment;
+                var wv = MainWebView.CoreWebView2;
+                if (env == null || wv == null)
+                {
+                    PostDirContentsJsonStream(idProp, path, chunk);
+                    return;
+                }
+                if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_STREAM", idProp, chunk, path, partial: true))
+                    PostDirContentsJsonStream(idProp, path, chunk);
+            }).ConfigureAwait(false);
+        }
+
+        private async Task PostDirListingAppendAsync(string? idProp, string path, List<DirListingSharedBuffer.DirEntryDto> entries)
+        {
+            await PostToUiAsync(() =>
+            {
+                var env = _webViewEnvironment;
+                var wv = MainWebView.CoreWebView2;
+                if (env == null || wv == null)
+                {
+                    PostDirContentsJsonAppend(idProp, path, entries);
+                    return;
+                }
+                if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_APPEND", idProp, entries, path, partial: false))
+                    PostDirContentsJsonAppend(idProp, path, entries);
+            }).ConfigureAwait(false);
+        }
+
+        private async Task StreamDirContentsAsync(string path, string? idProp, CancellationToken ct)
+        {
+            var firstPaint = DirListingSharedBuffer.FirstPaintPageSize;
+            var streamChunk = DirListingSharedBuffer.StreamChunkSize;
+            var all = new List<DirListingSharedBuffer.DirEntryDto>();
+            var pending = new List<DirListingSharedBuffer.DirEntryDto>(firstPaint);
+            var firstPosted = false;
+
+            await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, ct).ConfigureAwait(false))
+            {
+                all.Add(entry);
+                pending.Add(entry);
+
+                if (!firstPosted && pending.Count >= firstPaint)
+                {
+                    firstPosted = true;
+                    await PostDirListingPageAsync(idProp, path, pending, partial: true).ConfigureAwait(false);
+                    pending = new List<DirListingSharedBuffer.DirEntryDto>(streamChunk);
+                }
+                else if (firstPosted && pending.Count >= streamChunk)
+                {
+                    await PostDirListingStreamAsync(idProp, path, pending).ConfigureAwait(false);
+                    pending = new List<DirListingSharedBuffer.DirEntryDto>(streamChunk);
+                }
+            }
+
+            if (!firstPosted)
+            {
+                await PostDirListingPageAsync(idProp, path, all, partial: false).ConfigureAwait(false);
+                DirListingSharedBuffer.EnrichWithTags(all, _tagSidecarStore);
+                if (all.Count > 0)
+                    await PostDirListingAppendAsync(idProp, path, all).ConfigureAwait(false);
+                return;
+            }
+
+            if (pending.Count > 0)
+                await PostDirListingStreamAsync(idProp, path, pending).ConfigureAwait(false);
+
+            DirListingSharedBuffer.EnrichWithTags(all, _tagSidecarStore);
+            await PostDirListingAppendAsync(idProp, path, all).ConfigureAwait(false);
+        }
+
         private void PushDrivesUpdate()
         {
             var drives = _cloudStorageService.GetAnnotatedDrives();
@@ -1037,6 +1141,12 @@ namespace BNDZ
             // Suppress Edge/WebView2 default context menus — BNDZ uses custom React menus only
             MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             MainWebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            MainWebView.ZoomFactor = 1.0;
+            MainWebView.ZoomFactorChanged += (_, _) =>
+            {
+                if (Math.Abs(MainWebView.ZoomFactor - 1.0) > 0.001)
+                    MainWebView.ZoomFactor = 1.0;
+            };
             MainWebView.CoreWebView2.ContextMenuRequested += (_, e) => e.Handled = true;
 
             string uiPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "ui");
@@ -1611,48 +1721,7 @@ namespace BNDZ
                         try
                         {
                             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-                            var entries = await _fileService.GetDirEntriesAsync(path, cts.Token).ConfigureAwait(false);
-                            var pageSize = DirListingSharedBuffer.FirstPaintPageSize;
-                            var useProgressive = entries.Count > pageSize;
-
-                            await PostToUiAsync(() =>
-                            {
-                                var env = _webViewEnvironment;
-                                var wv = MainWebView.CoreWebView2;
-                                if (env == null || wv == null)
-                                {
-                                    PostDirContentsJson(idProp, entries);
-                                    return;
-                                }
-
-                                if (useProgressive)
-                                {
-                                    // First paint: no tag sidecar yet — dirs/files show instantly.
-                                    var page = entries.GetRange(0, pageSize);
-                                    if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, page, path, partial: true))
-                                        PostDirContentsJson(idProp, page);
-                                }
-                                else
-                                {
-                                    DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
-                                    if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, entries, path, partial: false))
-                                        PostDirContentsJson(idProp, entries);
-                                }
-                            }).ConfigureAwait(false);
-
-                            if (!useProgressive) return;
-
-                            // Full list + tags as append — UI already interactive on first page.
-                            DirListingSharedBuffer.EnrichWithTags(entries, _tagSidecarStore);
-                            await PostToUiAsync(() =>
-                            {
-                                var env = _webViewEnvironment;
-                                var wv = MainWebView.CoreWebView2;
-                                if (env != null && wv != null
-                                    && DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_APPEND", idProp, entries, path, partial: false))
-                                    return;
-                                PostDirContentsJsonAppend(idProp, path, entries);
-                            }).ConfigureAwait(false);
+                            await StreamDirContentsAsync(path, idProp, cts.Token).ConfigureAwait(false);
                         }
                         catch (Exception ex)
                         {
@@ -2492,22 +2561,27 @@ namespace BNDZ
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var pathCopy = path;
 
-                    _ = BndzIpcWorkQueue.RunMetadataAsync(() =>
+                    _ = Task.Run(async () =>
                     {
-                        Dictionary<string, string> meta;
-                        try
+                        var ran = await BndzIpcWorkQueue.TryRunMetadataAsync(() =>
                         {
-                            var nativeSvc = new NativeShellService();
-                            meta = nativeSvc.GetExtendedMetadata(pathCopy);
-                            EnrichMetadataWithAcl(pathCopy, meta);
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"GET_EXTENDED_METADATA failed for {pathCopy}: {ex.Message}");
-                            meta = new Dictionary<string, string> { ["error"] = ex.Message };
-                        }
-                        PostExtendedMetadataResult(idProp, meta);
-                        return Task.CompletedTask;
+                            Dictionary<string, string> meta;
+                            try
+                            {
+                                var nativeSvc = new NativeShellService();
+                                meta = nativeSvc.GetExtendedMetadata(pathCopy);
+                                EnrichMetadataWithAcl(pathCopy, meta);
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"GET_EXTENDED_METADATA failed for {pathCopy}: {ex.Message}");
+                                meta = new Dictionary<string, string> { ["error"] = ex.Message };
+                            }
+                            PostExtendedMetadataResult(idProp, meta);
+                            return Task.CompletedTask;
+                        }, waitMs: 12000).ConfigureAwait(false);
+                        if (!ran)
+                            PostExtendedMetadataResult(idProp, new Dictionary<string, string> { ["_busy"] = "true" });
                     });
                 }
                 else if (type == "WRITE_MEDIA_TAGS")
@@ -4183,6 +4257,7 @@ namespace BNDZ
                     }
                     var keyCopy = metaKey;
                     var valueCopy = metaValue;
+
                     _ = Task.Run(() =>
                     {
                         object resultPayload;
@@ -4197,7 +4272,12 @@ namespace BNDZ
                         }
                         var response = new { type = "BNDZ_META_SET_RESULT", id = idProp, payload = resultPayload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
+                            catch { }
+                        });
                     });
                 }
                 else if (type == "TRIM_AUDIO_FILE")

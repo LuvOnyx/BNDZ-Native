@@ -4,6 +4,7 @@ import { ShellNativeIcon } from '../ShellNativeIcon';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { BNDZ_HOME, BNDZ_RECENT, BNDZ_VIEWS_ROOT, BNDZ_CANVAS, BNDZ_AUTOMATION } from '../../lib/bndzVirtualViews';
+import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
 import {
   getHomeDeckCache, setHomeDeckCache, isHomeDeckBodyFresh, isHomeDeckPulseFresh,
 } from '../../lib/homeDeckCache';
@@ -522,23 +523,29 @@ export default function BndzHomeView({
             <span>Workspaces</span>
             <span className="bndz-home-muted">Zero-launch tools · no external setup</span>
           </div>
-          <div className="bndz-home-workspace-row">
-            <button type="button" className="bndz-home-workspace-card is-canvas" onClick={() => onNavigate(BNDZ_CANVAS)}>
-              <span className="bndz-home-workspace-icon"><Icons8Icon id="view_grid" size={22} /></span>
-              <span className="bndz-home-workspace-body">
-                <span className="bndz-home-workspace-title">Spatial Canvas</span>
-                <span className="bndz-home-workspace-desc">Freeform board across folders — references only</span>
-              </span>
-              <span className="bndz-home-badge">New</span>
-            </button>
-            <button type="button" className="bndz-home-workspace-card is-automation" onClick={() => onNavigate(BNDZ_AUTOMATION)}>
-              <span className="bndz-home-workspace-icon"><Icons8Icon id="zap_ui" size={22} /></span>
-              <span className="bndz-home-workspace-body">
-                <span className="bndz-home-workspace-title">Automation</span>
-                <span className="bndz-home-workspace-desc">Visual pipelines · SCP &amp; robocopy built in</span>
-              </span>
-              <span className="bndz-home-badge is-gold">Pipeline</span>
-            </button>
+          <div className="bndz-ws-launch-grid">
+            <WorkspaceLaunchCard
+              title="Spatial Canvas"
+              desc="Premium freeform board — organize references across every folder without moving files on disk."
+              icon="view_grid"
+              accent="#c4a35a"
+              badge="Gold"
+              badgeVariant="gold"
+              features={['Drop from panes', 'Sticky notes', 'Pan & zoom']}
+              onClick={() => onNavigate(BNDZ_CANVAS)}
+              className="is-canvas"
+            />
+            <WorkspaceLaunchCard
+              title="Automation"
+              desc="Visual file pipelines with watch, filter, copy, move, and built-in rsync deploy blocks."
+              icon="zap_ui"
+              accent="#fbbf24"
+              badge="Pipeline"
+              badgeVariant="gold"
+              features={['Visual editor', 'Remote deploy', 'Auto-save']}
+              onClick={() => onNavigate(BNDZ_AUTOMATION)}
+              className="is-automation"
+            />
           </div>
         </section>
 

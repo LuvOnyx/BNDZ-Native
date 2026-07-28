@@ -5,8 +5,9 @@ let scrolling = false;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 const SCROLL_IDLE_MS = 120;
 
-const MAX_CONCURRENT = 4;
-const MAX_CONCURRENT_WHILE_SCROLLING = 2;
+const MAX_CONCURRENT = 3;
+const MAX_CONCURRENT_WHILE_SCROLLING = 1;
+const MAX_PENDING = 96;
 let active = 0;
 
 type Queued = { run: () => void; priority: number };
@@ -65,6 +66,11 @@ export function enqueueIconRequest<T>(fn: () => Promise<T>, priority = 0): Promi
           pump();
         });
     };
+    if (pending.length >= MAX_PENDING) {
+      pending.sort((a, b) => a.priority - b.priority);
+      pending.shift();
+    }
+
     pending.push({ run, priority });
     pump();
   });

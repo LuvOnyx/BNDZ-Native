@@ -172,7 +172,7 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                                         <PluginToolbarButton icon="pencil_ui" onClick={() => setEditing(f)} title="Edit" />
-                                        <PluginToolbarButton icon="delete" onClick={() => removeRule(f.id)} title="Remove" />
+                                        <PluginToolbarButton icon="trash_ui" onClick={() => removeRule(f.id)} title="Delete rule" />
                                     </div>
                                 </button>
                             );

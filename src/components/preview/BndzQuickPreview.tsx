@@ -7,6 +7,7 @@ import { toWindowsPath, toVirtualStreamUrl } from '../../lib/pathUtils';
 import { isImageExt, isVideoExt, isAudioExt } from '../../lib/mediaTypes';
 import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../../lib/textFileTypes';
 import { isArchiveExt } from '../../lib/archiveTypes';
+import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
 import { IPC } from '../../lib/ipcBridge';
 import MediaPreviewPlayer, { type MediaPreviewPlayerHandle } from '../MediaPreviewPlayer';
 import ImageZoomPreview from '../ImageZoomPreview';
@@ -67,8 +68,8 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       return;
     }
     let active = true;
-    IPC.getExtendedMetadata(toWindowsPath(current.path)).then(meta => {
-      if (active) setExtMeta(meta || null);
+    void getExtendedMetadataCached(toWindowsPath(current.path), { priority: 950 }).then(entry => {
+      if (active) setExtMeta(entry.meta || null);
     }).catch(() => { if (active) setExtMeta(null); });
     return () => { active = false; };
   }, [open, current?.path, current?.entity?.type]);

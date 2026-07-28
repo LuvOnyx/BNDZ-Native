@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 
 using BNDZ.Services.Mesh;
 
@@ -103,6 +104,58 @@ public class FileManagementService
 
             return results;
         }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Yields directory entries as they are discovered — enables sub-100ms first paint for large folders.
+    /// Shell/mesh/recycle paths buffer internally then yield (still faster than blocking the IPC thread).
+    /// </summary>
+    public async IAsyncEnumerable<DirListingSharedBuffer.DirEntryDto> EnumerateDirEntriesAsync(
+        string path,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (RecycleBinService.IsRecycleBinPath(path)
+            || Mesh.MeshPath.IsMeshPath(path)
+            || IsShellVirtualPath(path))
+        {
+            var buffered = await GetDirEntriesAsync(path, ct).ConfigureAwait(false);
+            foreach (var entry in buffered)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return entry;
+            }
+            yield break;
+        }
+
+        await Task.Yield();
+
+        var shellPath = ShellPathResolver.ResolveForShell(path);
+        var fsPath = !string.IsNullOrEmpty(shellPath) ? shellPath : ShellPathResolver.NormalizeIncoming(path);
+        if (!Directory.Exists(fsPath)) yield break;
+
+        var opts = new EnumerationOptions
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = false,
+            ReturnSpecialDirectories = false,
+            AttributesToSkip = 0,
+        };
+
+        foreach (var info in new DirectoryInfo(fsPath).EnumerateFileSystemInfos("*", opts))
+        {
+            ct.ThrowIfCancellationRequested();
+            var isDir = (info.Attributes & FileAttributes.Directory) == FileAttributes.Directory;
+            yield return DirListingSharedBuffer.FromFileSystemInfo(info, isDir);
+        }
+    }
+
+    private static bool IsShellVirtualPath(string path)
+    {
+        var shellPath = ShellPathResolver.ResolveForShell(path);
+        return !string.IsNullOrEmpty(shellPath) && (
+            ShellPathResolver.IsShellVirtualPath(shellPath)
+            || PortableDeviceService.IsPortableDevicePath(shellPath)
+            || PortableDeviceService.IsPortableDevicePath(path));
     }
 
     private static List<DirListingSharedBuffer.DirEntryDto> MapToDtos(List<object> raw)

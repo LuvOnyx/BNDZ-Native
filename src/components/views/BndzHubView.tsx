@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RECENT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
+import { getIndexStatusCached } from '../../lib/indexStatusCache';
+import { loadSpatialCanvas } from '../../lib/spatialCanvasStore';
+import { loadAutomationGraph } from '../../lib/automationStore';
 import BndzIndexEmptyState from './BndzIndexEmptyState';
+import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
 
 type IndexStatus = {
   fileCount?: number;
@@ -67,11 +71,15 @@ const WORKSPACES = [
 
 export default function BndzHubView({ onNavigate, onRefresh }: Props) {
   const [status, setStatus] = useState<IndexStatus | null>(null);
+  const [pinCount, setPinCount] = useState(0);
+  const [blockCount, setBlockCount] = useState(0);
 
   useEffect(() => {
     if (!IPC.isNative) return;
     let active = true;
-    IPC.getIndexStatus().then(s => { if (active) setStatus(s); }).catch(() => {});
+    getIndexStatusCached().then(s => { if (active) setStatus(s); }).catch(() => {});
+    void loadSpatialCanvas().then(d => { if (active) setPinCount(d.items.length); });
+    void loadAutomationGraph().then(g => { if (active) setBlockCount(g.nodes.length); });
     return () => { active = false; };
   }, []);
 
@@ -80,22 +88,22 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
   const workspaceSection = (
     <>
       <div className="px-1 pt-1 pb-2 text-[10px] uppercase tracking-wider text-gray-500">Workspaces</div>
-      {WORKSPACES.map(v => (
-        <button
-          key={v.path}
-          type="button"
-          onClick={() => onNavigate(v.path)}
-          className="bndz-smart-hub-row group w-full flex items-center gap-3 text-left"
-          style={{ ['--hub-accent' as string]: v.accent }}
-        >
-          <span className="bndz-smart-hub-icon" aria-hidden><Icons8Icon id={v.icon} size={18} /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[12px] font-medium text-[#e8eaed] group-hover:text-white">{v.title}</span>
-            <span className="block text-[10px] text-[#8b919a] mt-0.5 leading-snug">{v.desc}</span>
-          </span>
-          <Icons8Icon id="chevron_right" size={14} className="opacity-40 group-hover:opacity-80 shrink-0" />
-        </button>
-      ))}
+      <div className="space-y-2 mb-2">
+        {WORKSPACES.map(v => (
+          <WorkspaceLaunchCard
+            key={v.path}
+            title={v.title}
+            desc={v.desc}
+            icon={v.icon}
+            accent={v.accent}
+            badge={v.path === BNDZ_CANVAS
+              ? (pinCount ? `${pinCount} pins` : 'Gold')
+              : (blockCount ? `${blockCount} blocks` : 'Pipeline')}
+            badgeVariant="gold"
+            onClick={() => onNavigate(v.path)}
+          />
+        ))}
+      </div>
     </>
   );
 

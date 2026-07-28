@@ -226,11 +226,28 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
         </div>
       </SettingsSection>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-4">
+        <div>
+          <label className="text-[11px] text-gray-400 block mb-1">
+            Interface scale ({localConfig.interfaceScale ?? 100}%)
+          </label>
+          <input
+            type="range"
+            min={80}
+            max={150}
+            step={5}
+            className="w-full max-w-md"
+            value={localConfig.interfaceScale ?? 100}
+            onChange={e => patch({ interfaceScale: parseInt(e.target.value, 10) || 100 })}
+          />
+          <p className="text-[10px] text-gray-500 mt-1">
+            All UI scaling lives here — Ctrl+wheel zoom is disabled in the file manager.
+          </p>
+        </div>
         <Checkbox
-          label={<span>Ena<span className="underline decoration-1 underline-offset-[3px]">b</span>le zoom by Ctrl+mouse wheel</span>}
-          checked={localConfig.enableZoomByCtrlMouseWheel ?? false}
-          onChange={e => patch({ enableZoomByCtrlMouseWheel: e.target.checked })}
+          label="Lock browser zoom (recommended)"
+          checked={localConfig.lockBrowserZoom !== false}
+          onChange={e => patch({ lockBrowserZoom: e.target.checked })}
         />
       </div>
     </div>

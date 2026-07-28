@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
+import { getIndexStatusCached, invalidateIndexStatusCache } from '../../lib/indexStatusCache';
 import { toWindowsPath } from '../../lib/pathUtils';
 
 type IndexStatus = {
@@ -43,7 +44,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
     if (!IPC.isNative) return;
     setLoading(true);
     try {
-      const s = await IPC.getIndexStatus();
+      const s = await getIndexStatusCached(true);
       setStatus(s);
     } finally {
       setLoading(false);
@@ -57,6 +58,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
     return IPC.onIndexProgress(p => {
       setProgress(p);
       if (p.done) {
+        invalidateIndexStatusCache();
         setIndexing(false);
         void refresh();
       } else {

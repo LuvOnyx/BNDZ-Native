@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <rect width="20" height="20" fill="url(#a)" paint-order="stroke" rx="0"/>
+  <rect width="20" height="20" fill="url(#b)" rx="0" style="mix-blend-mode:overlay"/>
+  <defs>
+    <radialGradient id="b" cx="0" cy="0" r="1" gradientTransform="rotate(90 5 5)scale(20)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="a" gradientTransform="rotate(45)" gradientUnits="userSpaceOnUse" transform-origin="center center">
+      <stop stop-color="#F953C6"/>
+      <stop offset="1" stop-color="#B91D73"/>
+    </linearGradient>
+  </defs>
+</svg>

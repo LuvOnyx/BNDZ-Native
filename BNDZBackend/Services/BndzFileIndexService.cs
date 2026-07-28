@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -247,6 +248,7 @@ public sealed class BndzFileIndexService : IDisposable
             loc.Parameters.AddWithValue("$p", ToPanePath(root));
             loc.Parameters.AddWithValue("$t", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             loc.ExecuteNonQuery();
+            RefreshIndexStatsCache(conn);
             EmitProgress(root, batch, true, root);
         }
         catch (Exception ex)
@@ -766,15 +768,76 @@ public sealed class BndzFileIndexService : IDisposable
             while (r.Read())
                 locations.Add(new { path = r.GetString(0), lastIndexed = r.GetInt64(1) });
         }
+
+        if (TryReadIndexStats(conn, out var cachedFiles, out var cachedFolders))
+            return new { fileCount = cachedFiles, folderCount = cachedFolders, locations };
+
+        // Indexing holds _writeLock — never block status on COUNT(*) during a scan.
+        if (!_writeLock.Wait(0))
+        {
+            return new { fileCount = 0L, folderCount = 0L, locations };
+        }
+        try
+        {
+            RefreshIndexStatsCache(conn);
+            TryReadIndexStats(conn, out cachedFiles, out cachedFolders);
+            return new { fileCount = cachedFiles, folderCount = cachedFolders, locations };
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private static bool TryReadIndexStats(SqliteConnection conn, out long fileCount, out long folderCount)
+    {
+        fileCount = 0;
+        folderCount = 0;
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT value FROM meta_kv WHERE key='index_stats_v1' LIMIT 1";
+            var raw = cmd.ExecuteScalar() as string;
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+            using var doc = JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("fileCount", out var fc)) fileCount = fc.GetInt64();
+            if (root.TryGetProperty("folderCount", out var fdc)) folderCount = fdc.GetInt64();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void RefreshIndexStatsCache(SqliteConnection conn)
+    {
         long fileCount = 0, folderCount = 0;
         using (var countCmd = conn.CreateCommand())
         {
-            countCmd.CommandText = "SELECT COUNT(*) FROM files WHERE is_dir=0";
-            fileCount = Convert.ToInt64(countCmd.ExecuteScalar());
-            countCmd.CommandText = "SELECT COUNT(*) FROM files WHERE is_dir=1";
-            folderCount = Convert.ToInt64(countCmd.ExecuteScalar());
+            countCmd.CommandText = """
+                SELECT
+                  COALESCE(SUM(CASE WHEN is_dir=0 THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN is_dir=1 THEN 1 ELSE 0 END), 0)
+                FROM files
+                """;
+            using var r = countCmd.ExecuteReader();
+            if (r.Read())
+            {
+                fileCount = r.IsDBNull(0) ? 0 : r.GetInt64(0);
+                folderCount = r.IsDBNull(1) ? 0 : r.GetInt64(1);
+            }
         }
-        return new { fileCount, folderCount, locations };
+        var json = JsonSerializer.Serialize(new { fileCount, folderCount });
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO meta_kv(key, value, updated) VALUES('index_stats_v1', $v, $u)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated=excluded.updated
+            """;
+        cmd.Parameters.AddWithValue("$v", json);
+        cmd.Parameters.AddWithValue("$u", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        cmd.ExecuteNonQuery();
     }
 
     /// <summary>Same-folder siblings for Continuum Peek Orbit (media-first).</summary>

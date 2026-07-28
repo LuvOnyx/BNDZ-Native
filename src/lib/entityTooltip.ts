@@ -224,7 +224,7 @@ export function createEntityTooltipHandlers(
       }
       if (needsMeta || needsMedia) {
         try {
-          const entry = await getExtendedMetadataCached(path, { includeMd5: false });
+          const entry = await getExtendedMetadataCached(path, { includeMd5: false, priority: 920 });
           metadata = entry.meta;
         } catch {
           metadata = undefined;

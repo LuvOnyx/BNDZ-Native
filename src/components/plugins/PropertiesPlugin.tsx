@@ -114,11 +114,15 @@ export default function PropertiesPlugin({
         setError(null);
         let shouldUpdate = true;
 
-        import('../../lib/ipcBridge').then(({ IPC }) => {
+        Promise.all([
+          import('../../lib/ipcBridge'),
+          import('../../lib/extendedMetadataCache'),
+        ]).then(([{ IPC }, { getExtendedMetadataCached }]) => {
             if (!shouldUpdate) return;
 
             if (IPC.isNative) {
-                IPC.getExtendedMetadata(targetPath).then((details: any) => {
+                void getExtendedMetadataCached(targetPath, { priority: 950 }).then(entry => {
+                    const details = entry.meta || {};
                     if (!shouldUpdate) return;
                     const exactSize = details["File Size"] ? parseInt(details["File Size"], 10) : (entity?.type === 'file' ? (entity as any).size || 0 : 0);
                     setFileDetails({

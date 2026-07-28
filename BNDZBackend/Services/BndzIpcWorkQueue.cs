@@ -21,6 +21,10 @@ public static class BndzIpcWorkQueue
     public static Task RunThumbnailAsync(Func<Task> work, CancellationToken cancellationToken = default)
         => RunAsync(Thumbnails, work, cancellationToken);
 
+    /// <summary>Wait up to <paramref name="waitMs"/> for a metadata slot; returns false if saturated.</summary>
+    public static async Task<bool> TryRunMetadataAsync(Func<Task> work, int waitMs = 4000, CancellationToken cancellationToken = default)
+        => await TryRunAsync(Metadata, work, waitMs, cancellationToken).ConfigureAwait(false);
+
     public static Task RunMetadataAsync(Func<Task> work, CancellationToken cancellationToken = default)
         => RunAsync(Metadata, work, cancellationToken);
 

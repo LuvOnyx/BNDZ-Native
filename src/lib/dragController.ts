@@ -4,12 +4,14 @@
  */
 
 /** Movement before a list drag can arm (Explorer-like — reduces accidental drags). */
-const DRAG_THRESHOLD_PX = 14;
-const DOUBLE_CLICK_GUARD_MS = 400;
+const DRAG_THRESHOLD_PX = 10;
+const DOUBLE_CLICK_GUARD_MS = 280;
 /** Hold time before drag can start after threshold is met. */
-const DEFAULT_DRAG_DELAY_MS = 120;
+const DEFAULT_DRAG_DELAY_MS = 80;
 /** Faster arm when dragging an already-selected item (Explorer-like). */
-const SELECTED_DRAG_DELAY_MS = 40;
+const SELECTED_DRAG_DELAY_MS = 30;
+/** Defer synthetic click so native dblclick can win. */
+export const LIST_CLICK_DEFER_MS = 50;
 
 type DragSession = {
   pointerId: number;

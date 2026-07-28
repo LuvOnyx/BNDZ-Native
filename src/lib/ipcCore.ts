@@ -17,6 +17,15 @@ type PendingHandler = {
 const pending = new Map<string, PendingHandler>();
 let listenerInstalled = false;
 
+/** Optional host→UI push handlers (ipcBridge registers here). */
+type PushHandler = (data: { type: string; id?: string; payload?: unknown; [key: string]: unknown }) => void;
+const pushHandlers = new Set<PushHandler>();
+
+export function registerIpcPushHandler(handler: PushHandler): () => void {
+  pushHandlers.add(handler);
+  return () => pushHandlers.delete(handler);
+}
+
 function rejectPending(id: string | undefined, err: Error) {
   if (!id) return;
   const handler = pending.get(id);
@@ -35,6 +44,32 @@ function resolvePending(id: string | undefined, type: string | undefined, payloa
   handler.resolve(payload);
 }
 
+function ingestHostMessage(data: { type?: string; id?: string; payload?: unknown; [key: string]: unknown }) {
+  if (!data?.type) return;
+
+  if (data.type === 'DIR_CONTENTS_APPEND' && Array.isArray(data.payload)) {
+    window.dispatchEvent(new CustomEvent('bndz-dir-append', {
+      detail: { id: data.id, path: (data as { path?: string }).path || '', items: data.payload },
+    }));
+    return;
+  }
+
+  if (data.type === 'DIR_CONTENTS_STREAM' && Array.isArray(data.payload)) {
+    window.dispatchEvent(new CustomEvent('bndz-dir-stream', {
+      detail: { id: data.id, path: (data as { path?: string }).path || '', items: data.payload },
+    }));
+    return;
+  }
+
+  if (data.id) {
+    resolvePending(data.id, data.type, data.payload);
+  }
+
+  for (const handler of pushHandlers) {
+    try { handler(data); } catch { /* best-effort */ }
+  }
+}
+
 function ensureGlobalListener() {
   if (listenerInstalled || typeof window === 'undefined') return;
   const webview = (window as any).chrome?.webview;
@@ -49,15 +84,7 @@ function ensureGlobalListener() {
         return;
       }
     }
-    if (!data?.type) return;
-    if (data.type === 'DIR_CONTENTS_APPEND' && Array.isArray(data.payload)) {
-      window.dispatchEvent(new CustomEvent('bndz-dir-append', {
-        detail: { id: data.id, path: data.path || '', items: data.payload },
-      }));
-      return;
-    }
-    if (!data?.id) return;
-    resolvePending(data.id, data.type, data.payload);
+    ingestHostMessage(data);
   });
 
   // Zero-copy SharedBuffer path for massive directory listings (and future bulk payloads).
@@ -110,6 +137,14 @@ function ensureGlobalListener() {
         return;
       }
 
+      if (type === 'DIR_CONTENTS_STREAM') {
+        const path = (meta.path as string | undefined) || '';
+        window.dispatchEvent(new CustomEvent('bndz-dir-stream', {
+          detail: { id, path, items: payload },
+        }));
+        return;
+      }
+
       resolvePending(id, type, payload);
     } catch (err) {
       console.warn('[IPC] SharedBuffer decode failed', err);
@@ -147,9 +182,15 @@ export function nativeCall<T>(
       timer,
     });
 
-    webview.postMessage(
-      payload !== undefined ? { type, payload, id } : { type, id },
-    );
+    try {
+      webview.postMessage(
+        payload !== undefined ? { type, payload, id } : { type, id },
+      );
+    } catch (err) {
+      pending.delete(id);
+      clearTimeout(timer);
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   });
 }
 

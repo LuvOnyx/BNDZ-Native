@@ -44,7 +44,7 @@ const DEVICON_EXT: Record<string, string> = {
   yaml: 'devicon:yaml-plain',
   yml: 'devicon:yaml-plain',
   toml: 'devicon:toml-plain',
-  md: 'devicon:markdown-plain',
+  md: 'devicon:markdown',
 };
 
 export const ICONIFY_PATH_PREFIX = 'iconify:';

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "node scripts/audit-bndzui.mjs && node scripts/prebuild-icons.mjs && node scripts/copy-legal-docs.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/audit-bndzui.mjs && node scripts/audit-view-imports.mjs && node scripts/prebuild-icons.mjs && node scripts/copy-legal-docs.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:backend": "dotnet build BNDZBackend/BNDZ.csproj -c Release -p:EnableWindowsTargeting=true",
     "verify": "npm run lint && npm run test:unit && npm run build && npm run build:backend",
     "build:launcher": "npm run build:launcher --prefix packages/bndz-launcher",
@@ -31,7 +31,7 @@
     "audit:wiring": "node scripts/wiring-audit.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts && tsx scripts/test-drop-destination.ts"
+    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts && tsx scripts/test-drop-destination.ts && tsx scripts/test-workspace-engine.ts && tsx scripts/test-workspace-persistence.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

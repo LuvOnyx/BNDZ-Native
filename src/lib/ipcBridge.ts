@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { nativeCall, dedupeInFlight } from './ipcCore';
+import { nativeCall, dedupeInFlight, registerIpcPushHandler } from './ipcCore';
 import { normalizePanePath } from './pathUtils';
 import { EMPTY_LICENSE_STATUS, PENDING_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
 import { entityHasTag } from './tagUtils';
@@ -156,8 +156,7 @@ export const IPC = {
 
   init() {
     if (this.isNative && !this._initialized) {
-      (window as any).chrome.webview.addEventListener('message', (e: any) => {
-        const data = _parseWebViewMessage(e.data);
+      registerIpcPushHandler((data) => {
         if (!data?.type) return;
         if (data.type === 'FS_EVENT_BATCH') {
           this._listeners.forEach(cb => cb(data.payload));
@@ -1207,17 +1206,21 @@ export const IPC = {
 
   getIndexStatus(): Promise<{ fileCount: number; folderCount: number; locations: Array<{ path: string; lastIndexed: number }>; error?: string }> {
     if (this.isNative) {
-      const id = `${Date.now()}_indexStatus`;
-      return _nativeCall('GET_INDEX_STATUS', 'INDEX_STATUS_RESULT', id, {}, 15000)
-        .then((payload: any) => {
+      return dedupeInFlight('index-status', () =>
+        nativeCall<{ fileCount?: number; folderCount?: number; locations?: Array<{ path: string; lastIndexed: number }>; error?: string }>(
+          'GET_INDEX_STATUS',
+          'INDEX_STATUS_RESULT',
+          {},
+          30000,
+        ).then(payload => {
           if (payload?.error) throw new Error(payload.error);
           return {
             fileCount: payload?.fileCount ?? 0,
             folderCount: payload?.folderCount ?? 0,
             locations: payload?.locations ?? [],
           };
-        })
-        .catch(err => ({ fileCount: 0, folderCount: 0, locations: [], error: String(err?.message || err) }));
+        }),
+      ).catch(err => ({ fileCount: 0, folderCount: 0, locations: [], error: String(err?.message || err) }));
     }
     return Promise.resolve({ fileCount: 0, folderCount: 0, locations: [] });
   },
@@ -1646,15 +1649,14 @@ export const IPC = {
 
   getNativeThumbnailBase64(path: string, size = 256): Promise<string | null> {
     if (this.isNative) {
-      // Do NOT wrap in iconRequestQueue here — nativeIconService already queues.
-      // Nested enqueue caused a deadlock (outers held all slots waiting for inners).
-      // Host bounds extract (~6s); keep FE timeout tight so slots free fast on hang.
-      return _nativeCall<string | null>(
-        'GET_THUMBNAIL',
-        'THUMBNAIL_RESULT',
-        `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_thumb`,
-        { path, size },
-        12000,
+      const key = `${path.replace(/\//g, '\\').toLowerCase()}@${size}`;
+      return dedupeInFlight(`thumb:${key}`, () =>
+        nativeCall<string | null>(
+          'GET_THUMBNAIL',
+          'THUMBNAIL_RESULT',
+          { path, size },
+          18000,
+        ),
       );
     }
     return new Promise(resolve => setTimeout(() => resolve(null), 50));
@@ -1764,8 +1766,15 @@ export const IPC = {
 
   getExtendedMetadata(path: string): Promise<Record<string, string>> {
     if (this.isNative) {
-      const id = `${Date.now()}_extMeta`;
-      return _nativeCall<Record<string, string>>('GET_EXTENDED_METADATA', 'EXTENDED_METADATA_RESULT', id, { path });
+      const key = path.replace(/\//g, '\\').toLowerCase();
+      return dedupeInFlight(`extmeta:${key}`, () =>
+        nativeCall<Record<string, string>>(
+          'GET_EXTENDED_METADATA',
+          'EXTENDED_METADATA_RESULT',
+          { path },
+          30000,
+        ),
+      );
     }
     return new Promise(resolve =>
       setTimeout(() => resolve({ 'Audio Bitrate': '320 kbps', 'Dimensions': '1920x1080' }), 50)
@@ -2215,7 +2224,7 @@ export const IPC = {
   setBndzMeta(key: string, value: string): Promise<boolean> {
     if (this.isNative) {
       const id = `${Date.now()}_setMeta`;
-      return _nativeCall<{ ok?: boolean }>('SET_BNDZ_META', 'BNDZ_META_SET_RESULT', id, { key, value }, 30000)
+      return _nativeCall<{ ok?: boolean }>('SET_BNDZ_META', 'BNDZ_META_SET_RESULT', id, { key, value }, 60000)
         .then(r => !!r?.ok)
         .catch(err => {
           console.warn(`[IPC] setBndzMeta(${key}) failed:`, err);

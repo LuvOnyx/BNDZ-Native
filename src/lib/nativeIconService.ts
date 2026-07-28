@@ -315,17 +315,22 @@ export async function prefetchMediaThumbnailsForEntities(
   }
   if (!media.length) return;
 
-  const CHUNK = 12;
+  const CHUNK = 6;
   for (let i = 0; i < media.length; i += CHUNK) {
     const chunk = media.slice(i, i + CHUNK);
     if (IPC.isNative && typeof IPC.getNativeThumbnailsBatch === 'function') {
       try {
-        const batch = await IPC.getNativeThumbnailsBatch(chunk.map(c => c.path), LIST_THUMB_PX);
+        const batch = await enqueueIconRequest(
+          () => IPC.getNativeThumbnailsBatch(chunk.map(c => c.path), LIST_THUMB_PX),
+          750,
+        );
         applyBatchChunk(chunk, batch, 'thumbnail');
         continue;
       } catch { /* per-item */ }
     }
-    await Promise.all(chunk.map(r => requestNativeIcon(r.path, r.isDirectory, 'thumbnail', LIST_THUMB_PX)));
+    for (const r of chunk) {
+      await requestNativeIcon(r.path, r.isDirectory, 'thumbnail', LIST_THUMB_PX);
+    }
   }
 }
 
