@@ -9,6 +9,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import WorkspaceMenuPanel, { WorkspaceMenuItem, WorkspaceMenuSep } from '../workspace/WorkspaceMenuPanel';
 import {
   loadAutomationGraph, hydrateAutomationFromJson, invalidateAutomationCache,
+  resetAutomationGraphPersisted,
   saveAutomationGraphNow, runAutomationGraph, stableAutomationJson,
   defaultAutomationViewport,
   type AutomationNodeType, type AutomationGraph, type AutomationViewport,
@@ -18,10 +19,11 @@ import { useAppConfig } from '../../data/configContext';
 import { useWorkspaceContextMenu } from '../workspace/useWorkspaceContextMenu';
 import { useWorkspaceAutosave } from '../../lib/useWorkspaceAutosave';
 import { flushBndzMeta } from '../../lib/bndzMetaStore';
-import WorkspaceSplash, { useWorkspaceSplash } from '../workspace/WorkspaceSplash';
+import WorkspaceSplash, { useWorkspaceSplash, resetWorkspaceSplash } from '../workspace/WorkspaceSplash';
 import WorkspaceCommandBar from '../workspace/WorkspaceCommandBar';
 import AutomationViewportRestore from '../workspace/AutomationViewportRestore';
 import { focusWorkspaceSurface } from '../../lib/workspace/workspaceFocus';
+import { bindWorkspaceCursorGuard } from '../../lib/workspace/workspaceCursorGuard';
 import {
   lintAutomationGraph, dryRunGraph, type LintIssue, type DryRunStep,
 } from '../../lib/workspace/automationLint';
@@ -76,6 +78,11 @@ const NODE_DEFS: Record<AutomationNodeType, NodeDef> = {
       { key: 'extraArgs', label: 'Extra rsync args', placeholder: '-avz --delete' },
     ],
   },
+  ghostLinkTo: {
+    label: 'Ghost-Link offload', color: '#a78bfa', icon: 'emblem-symbolic-link', category: 'action',
+    desc: 'Move matched files to cold storage and symlink originals',
+    fields: [{ key: 'coldStorageRoot', label: 'Cold storage root', placeholder: 'D:\\ColdStorage' }],
+  },
   log: {
     label: 'Log', color: '#94a3b8', icon: 'notepad', category: 'utility',
     desc: 'Write a checkpoint message to the run log',
@@ -86,7 +93,7 @@ const NODE_DEFS: Record<AutomationNodeType, NodeDef> = {
 const PALETTE_GROUPS: Array<{ id: string; label: string; types: AutomationNodeType[] }> = [
   { id: 'triggers', label: 'Triggers', types: ['watchFolder'] },
   { id: 'filters', label: 'Filters', types: ['filterExtension', 'filterArchive'] },
-  { id: 'actions', label: 'Actions', types: ['copyTo', 'moveTo', 'rsyncDeploy'] },
+  { id: 'actions', label: 'Actions', types: ['copyTo', 'moveTo', 'rsyncDeploy', 'ghostLinkTo'] },
   { id: 'utility', label: 'Utility', types: ['log'] },
 ];
 
@@ -222,6 +229,8 @@ export default function BndzAutomationView() {
   const edgesRef = useRef(edges);
   const viewportRef = useRef<AutomationViewport>(defaultAutomationViewport());
   const viewportSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nodeDraggingRef = useRef(false);
+  const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   graphNameRef.current = graphName;
   nodesRef.current = nodes;
   edgesRef.current = edges;
@@ -229,7 +238,7 @@ export default function BndzAutomationView() {
   const splash = useWorkspaceSplash('automation', {
     isReady: graphReady,
     isEmpty: nodes.length === 0,
-    resetEmptyHintOnMount: true,
+    resetEmptyHintOnMount: false,
   });
 
   const fieldSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -290,11 +299,26 @@ export default function BndzAutomationView() {
     focusWorkspaceSurface(surfaceRef.current);
   }, []);
 
+  useEffect(() => {
+    if (!graphReady) return;
+    const el = surfaceRef.current;
+    if (!el) return;
+    return bindWorkspaceCursorGuard(el);
+  }, [graphReady]);
+
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
 
   useEffect(() => {
-    const graph = flowToGraph(graphName, nodes, edges, viewportRef.current);
-    setLintIssues(lintAutomationGraph(graph));
+    if (nodeDraggingRef.current) return;
+    if (lintTimer.current) clearTimeout(lintTimer.current);
+    lintTimer.current = setTimeout(() => {
+      lintTimer.current = null;
+      const graph = flowToGraph(graphName, nodes, edges, viewportRef.current);
+      setLintIssues(lintAutomationGraph(graph));
+    }, 350);
+    return () => {
+      if (lintTimer.current) clearTimeout(lintTimer.current);
+    };
   }, [graphName, nodes, edges]);
 
   const runDry = useCallback(() => {
@@ -366,6 +390,22 @@ export default function BndzAutomationView() {
     }
     if (selectedEdgeId) deleteEdge(selectedEdgeId);
   }, [selectedNodeId, selectedEdgeId, deleteNode, deleteEdge]);
+
+  const clearPipeline = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+    setGraphName('File pipeline');
+    setDryRunMode(false);
+    setDryRunSteps([]);
+    setStatus('Pipeline cleared');
+    resetWorkspaceSplash('automation');
+    splash.replay();
+    void resetAutomationGraphPersisted();
+    void flushAutosave(true);
+    closeMenu();
+  }, [setNodes, setEdges, splash, flushAutosave, closeMenu]);
 
   const duplicateNode = useCallback((id: string) => {
     const node = nodes.find(n => n.id === id);
@@ -587,6 +627,7 @@ export default function BndzAutomationView() {
           { id: 'deploy', label: 'Deploy template', iconSrc: '/launcher-icons/emblem-downloads.svg', onClick: () => loadTemplate('deploy') },
           { id: 'backup', label: 'Backup template', iconSrc: '/launcher-icons/emblem-documents.svg', onClick: () => loadTemplate('backup') },
           { id: 'save', label: 'Flush save', iconSrc: '/Ui/plugin.svg', onClick: () => void save() },
+          { id: 'clear', label: 'Clear pipeline', iconSrc: '/launcher-icons/trash_ui.png', disabled: nodes.length === 0 && edges.length === 0, onClick: clearPipeline },
           { id: 'intro', label: 'Intro', iconSrc: '/Ui/image-loading.svg', onClick: () => splash.replay() },
         ]}
       />
@@ -623,7 +664,10 @@ export default function BndzAutomationView() {
           ))}
         </aside>
 
-        <div className="flex-1 min-w-0 relative bndz-automation-canvas-wrap">
+        <div
+          className="flex-1 min-w-0 relative bndz-automation-canvas-wrap"
+          onContextMenu={e => e.stopPropagation()}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -635,7 +679,13 @@ export default function BndzAutomationView() {
             onNodeContextMenu={onNodeContextMenu}
             onEdgeContextMenu={onEdgeContextMenu}
             onPaneContextMenu={onPaneContextMenu}
-            onNodeDragStop={scheduleSave}
+            onNodeDragStart={() => { nodeDraggingRef.current = true; }}
+            onNodeDragStop={() => {
+              nodeDraggingRef.current = false;
+              scheduleSave();
+              const graph = flowToGraph(graphNameRef.current, nodesRef.current, edgesRef.current, viewportRef.current);
+              setLintIssues(lintAutomationGraph(graph));
+            }}
             nodeTypes={nodeTypes}
             nodesDraggable
             nodesConnectable
@@ -645,7 +695,7 @@ export default function BndzAutomationView() {
             deleteKeyCode={['Delete', 'Backspace']}
             selectionOnDrag
             selectionMode={SelectionMode.Partial}
-            panOnDrag={[1, 2]}
+            panOnDrag={[1]}
             panOnScroll={panOnScroll}
             zoomOnScroll={zoomOnScroll}
             zoomActivationKeyCode="Control"
@@ -770,17 +820,12 @@ export default function BndzAutomationView() {
 
       {menu?.kind === 'automation-canvas' && (
         <WorkspaceMenuPanel variant="automation" x={menu.x} y={menu.y}>
-          <WorkspaceMenuItem label="Add from pin path" icon="view_grid" onClick={() => {
-            void navigator.clipboard.readText().then(text => {
-              if (text) window.dispatchEvent(new CustomEvent('bndz-automation-add-from-pin', { detail: { paths: [text.trim()] } }));
-            });
-          }} />
-          <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Add watch folder" icon="folder_open_ui" onClick={() => addNode('watchFolder')} />
           <WorkspaceMenuItem label="Add copy to" icon="copy" onClick={() => addNode('copyTo')} />
           <WorkspaceMenuItem label="Add remote deploy" icon="cloud_ui" onClick={() => addNode('rsyncDeploy')} />
-          <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Add log block" icon="notepad" onClick={() => addNode('log')} />
+          <WorkspaceMenuSep />
+          <WorkspaceMenuItem label="Clear pipeline" icon="delete" danger disabled={nodes.length === 0 && edges.length === 0} onClick={clearPipeline} />
         </WorkspaceMenuPanel>
       )}
     </div>

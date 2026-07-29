@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
   closestCenter,
@@ -7,6 +8,7 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  type Modifier,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -18,6 +20,13 @@ import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import type { ContextToolId } from '../workstation/command-deck/contextToolRegistry';
+
+/** Keep tab reorder drags horizontal — no vertical pull on the tab strip. */
+const restrictTabDragToHorizontalAxis: Modifier = ({ transform }) => ({
+  ...transform,
+  y: 0,
+});
 
 function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; isActive: boolean; onClick: () => void; showIcons?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: plugin.id });
@@ -33,11 +42,18 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       style={style}
       type="button"
       onClick={onClick}
-      className={`bndz-bottom-tab flex items-center gap-1.5 shrink-0 max-w-[160px] ${
+      className={`bndz-bottom-tab relative flex items-center gap-1.5 shrink-0 max-w-[160px] ${
         isActive ? 'bndz-bottom-tab-active' : ''
       }`}
       title={plugin.name}
     >
+      {isActive && (
+        <motion.span
+          layoutId="bndz-bottom-tab-glow"
+          className="absolute inset-x-1 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#38bdf8]/20 via-[#99c9f0] to-[#38bdf8]/20"
+          transition={{ type: 'spring', stiffness: 520, damping: 36 }}
+        />
+      )}
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400 p-0.5 -ml-1" onClick={e => e.stopPropagation()}>
         <DragHandleGlyph size={10} />
       </span>
@@ -64,6 +80,7 @@ export default function BottomPluginPanel(props: any & {
   immersive?: boolean;
   onExitImmersive?: () => void;
   onEnterImmersive?: () => void;
+  onCommandDeckTool?: (id: ContextToolId) => void;
 }) {
   const {
     onOpenPluginStore,
@@ -75,6 +92,7 @@ export default function BottomPluginPanel(props: any & {
     immersive = false,
     onExitImmersive,
     onEnterImmersive,
+    onCommandDeckTool,
     ...pluginProps
   } = props;
   const { pluginRegistry, ensurePluginInstalled } = usePluginRegistry();
@@ -176,6 +194,29 @@ export default function BottomPluginPanel(props: any & {
     }
   };
 
+  const handleDeckTool = useCallback((id: ContextToolId) => {
+    if (onCommandDeckTool) {
+      onCommandDeckTool(id);
+      return;
+    }
+    const tabMap: Partial<Record<ContextToolId, string>> = {
+      properties: 'properties',
+      'batch-rename': 'batch-rename',
+      compare: 'find',
+      'storage-cleanup': 'storage-cleanup',
+      'index-folder': 'index',
+      waveform: 'metadata',
+      'media-tab': 'media',
+      histogram: 'preview',
+      loupe: 'preview',
+      'quick-look': 'preview',
+      'ghost-link': 'ghost-link',
+      'mesh-drop': 'mesh-drop',
+    };
+    const tab = tabMap[id];
+    if (tab) handleTabClick(tab);
+  }, [onCommandDeckTool, ensurePluginInstalled, config.bottomPanelRememberTab, updateConfig]);
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -251,9 +292,16 @@ export default function BottomPluginPanel(props: any & {
           </span>
         </div>
       )}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="bndz-bottom-tabstrip-host relative shrink-0 min-w-0">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        modifiers={[restrictTabDragToHorizontalAxis]}
+      >
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="bndz-bottom-tabstrip flex border-b border-white/[0.06] shrink-0 overflow-x-auto scrollbar-hidden items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
+          <div className="bndz-bottom-tabstrip flex min-w-0 border-b border-white/[0.06] shrink-0 items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
+            <div className="bndz-bottom-tabstrip-scroll flex flex-1 min-w-0 overflow-x-auto scrollbar-hidden items-stretch touch-pan-x">
             {primaryTabs.map((plugin: any) => (
               <SortableTab
                 key={plugin.id}
@@ -263,8 +311,9 @@ export default function BottomPluginPanel(props: any & {
                 onClick={() => handleTabClick(plugin.id)}
               />
             ))}
+            </div>
             {overflowTabs.length > 0 && (
-              <div ref={overflowRef} className="relative shrink-0 border-r border-white/[0.04]">
+              <div ref={overflowRef} className="relative shrink-0 border-l border-white/[0.04]">
                 <button
                   type="button"
                   onClick={() => setOverflowOpen(v => !v)}
@@ -292,7 +341,7 @@ export default function BottomPluginPanel(props: any & {
                 )}
               </div>
             )}
-            <div className="ml-auto flex items-center gap-1 px-2 shrink-0">
+            <div className="flex items-center gap-1 px-2 shrink-0 border-l border-white/[0.04]">
               {!immersive && onEnterImmersive && (
                 <button
                   type="button"
@@ -317,21 +366,33 @@ export default function BottomPluginPanel(props: any & {
           </div>
         </SortableContext>
       </DndContext>
+      </div>
 
       <div className="bndz-bottom-content flex-1 overflow-hidden relative min-h-0 bndz-scrollbar">
-        {orderedPlugins.map((plugin: any) => {
-          const shouldMount = lazyUnmount ? plugin.id === activeTab : true;
-          if (!shouldMount) return null;
+        <AnimatePresence mode="wait">
+          {activePlugin?.component && activeTab && (() => {
+            const ActiveComponent = activePlugin.component;
+            return (
+            <motion.div
+              key={activeTab}
+              className="absolute inset-0 z-10"
+              initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <ActiveComponent {...mergedPluginProps} isPluginTabActive immersive={immersive} />
+            </motion.div>
+            );
+          })()}
+        </AnimatePresence>
+        {!lazyUnmount && orderedPlugins.map((plugin: any) => {
+          if (plugin.id === activeTab) return null;
           const Component = plugin.component;
           if (!Component) return null;
-          const isActive = plugin.id === activeTab;
           return (
-            <div
-              key={plugin.id}
-              className={`absolute inset-0 ${isActive ? 'z-10' : 'z-0 pointer-events-none invisible'}`}
-              aria-hidden={!isActive}
-            >
-              <Component {...mergedPluginProps} isPluginTabActive={isActive} immersive={immersive} />
+            <div key={plugin.id} className="absolute inset-0 z-0 pointer-events-none invisible" aria-hidden>
+              <Component {...mergedPluginProps} isPluginTabActive={false} immersive={immersive} />
             </div>
           );
         })}

@@ -2,6 +2,7 @@ import type { Layout } from 'react-resizable-panels';
 
 export const OUTER_PANEL_IDS = ['sidebar', 'workspace', 'preview'] as const;
 export const INNER_PANEL_IDS = ['main', 'bottom'] as const;
+export const MAIN_ROW_PANEL_IDS = ['list', 'preview'] as const;
 
 export type OuterPanelId = (typeof OUTER_PANEL_IDS)[number];
 export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
@@ -10,16 +11,22 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 38;
+export const WORKSPACE_LAYOUT_VERSION = 43;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
- * Preview default ~50% narrower than v27 (12% vs 25%).
+ * Classic default (v38 / d216b26): slim preview, sidebar 17%, workspace 71%.
  */
 export const DEFAULT_OUTER_LAYOUT: Layout = {
     sidebar: 17,
     workspace: 71,
     preview: 12,
+};
+
+/** File list | preview split inside the workspace top row (above bottom plugins). */
+export const DEFAULT_MAIN_ROW_LAYOUT: Layout = {
+    list: 74,
+    preview: 26,
 };
 
 /** Bottom plugin panel start height — full heroes + usable content. */
@@ -70,6 +77,16 @@ export const MIN_SIDEBAR_SIZE = MIN_OUTER_LAYOUT.sidebar!;
 export const MAX_SIDEBAR_SIZE = MAX_OUTER_LAYOUT.sidebar!;
 export const MIN_PREVIEW_SIZE = MIN_OUTER_LAYOUT.preview!;
 export const MAX_PREVIEW_SIZE = MAX_OUTER_LAYOUT.preview!;
+
+export const MIN_MAIN_ROW_LAYOUT: Layout = {
+    list: 42,
+    preview: 16,
+};
+
+export const MAX_MAIN_ROW_LAYOUT: Layout = {
+    list: 84,
+    preview: 42,
+};
 
 /** Bare numbers on Panel size props are pixels in react-resizable-panels v4 — always use %. */
 export function panelPct(n: number): string {
@@ -262,6 +279,141 @@ export function getInnerDefaultLayout(raw: unknown): Layout {
         return layoutFromArray(INNER_PANEL_IDS, raw, DEFAULT_INNER_LAYOUT);
     }
     return { ...DEFAULT_INNER_LAYOUT };
+}
+
+export function normalizeMainRowLayout(raw: unknown): Layout {
+    const base = getMainRowDefaultLayout(raw);
+    let list = base.list ?? DEFAULT_MAIN_ROW_LAYOUT.list!;
+    let preview = base.preview ?? DEFAULT_MAIN_ROW_LAYOUT.preview!;
+    const sum = list + preview;
+    if (sum <= 0 || Math.abs(sum - 100) > 1) {
+        return { ...DEFAULT_MAIN_ROW_LAYOUT };
+    }
+    if (Math.abs(sum - 100) > 0.05) {
+        list = (list / sum) * 100;
+        preview = (preview / sum) * 100;
+    }
+    list = clamp(list, MIN_MAIN_ROW_LAYOUT.list!, MAX_MAIN_ROW_LAYOUT.list!);
+    preview = clamp(preview, MIN_MAIN_ROW_LAYOUT.preview!, MAX_MAIN_ROW_LAYOUT.preview!);
+    if (list + preview > 100) preview = Math.max(MIN_MAIN_ROW_LAYOUT.preview!, 100 - list);
+    return {
+        list: Math.round(list * 10) / 10,
+        preview: Math.round(preview * 10) / 10,
+    };
+}
+
+export function getMainRowDefaultLayout(raw: unknown): Layout {
+    if (isLayoutObject(raw)) {
+        const merged = layoutFromArray(
+            MAIN_ROW_PANEL_IDS,
+            MAIN_ROW_PANEL_IDS.map((id) => raw[id]),
+            DEFAULT_MAIN_ROW_LAYOUT,
+        );
+        return clampLayout(MAIN_ROW_PANEL_IDS, merged, MIN_MAIN_ROW_LAYOUT, DEFAULT_MAIN_ROW_LAYOUT);
+    }
+    if (Array.isArray(raw)) {
+        return layoutFromArray(MAIN_ROW_PANEL_IDS, raw, DEFAULT_MAIN_ROW_LAYOUT);
+    }
+    return { ...DEFAULT_MAIN_ROW_LAYOUT };
+}
+
+/** Live list|preview split when preview panel is toggled off. */
+export function computeVisibleMainRowLayout(saved: Layout, previewOpen: boolean): Layout {
+    const base = normalizeMainRowLayout(saved);
+    if (previewOpen) return base;
+    return { list: 100, preview: 0 };
+}
+
+/** Migrate v38 outer preview % into main-row preview width (docked layout only). */
+export function migrateLayoutV39(
+    outer: Layout | undefined,
+    mainRow: Layout | undefined,
+): { outer: Layout; mainRow: Layout } {
+    const oldPreview = typeof outer?.preview === 'number' && outer.preview > 0 ? outer.preview : 0;
+    const nextOuter = normalizeOuterLayout({
+        sidebar: outer?.sidebar,
+        workspace: (outer?.workspace ?? DEFAULT_OUTER_LAYOUT.workspace!) + oldPreview,
+        preview: 0,
+    });
+    const previewPct = oldPreview > 0
+        ? clamp(oldPreview, MIN_MAIN_ROW_LAYOUT.preview!, MAX_MAIN_ROW_LAYOUT.preview!)
+        : (mainRow?.preview ?? DEFAULT_MAIN_ROW_LAYOUT.preview!);
+    const nextMainRow = normalizeMainRowLayout({
+        list: 100 - previewPct,
+        preview: previewPct,
+        ...mainRow,
+    });
+    return { outer: nextOuter, mainRow: nextMainRow };
+}
+
+/**
+ * v40: classic outer preview is default again. Docked-in-workspace is opt-in via settings.
+ * Restores outer preview % from main-row when switching back from v39.
+ */
+export function migrateLayoutV40(
+    outer: Layout | undefined,
+    mainRow: Layout | undefined,
+    previewDockedInWorkspace: boolean,
+): { outer: Layout; mainRow: Layout } {
+    if (previewDockedInWorkspace) {
+        const fromV39 = migrateLayoutV39(outer, mainRow);
+        return fromV39;
+    }
+
+    const outerPreview = typeof outer?.preview === 'number' && outer.preview > 0
+        ? outer.preview
+        : DEFAULT_OUTER_LAYOUT.preview!;
+
+    let sidebar = typeof outer?.sidebar === 'number' ? outer.sidebar : DEFAULT_OUTER_LAYOUT.sidebar!;
+    sidebar = clamp(sidebar, MIN_SIDEBAR_SIZE, MAX_SIDEBAR_SIZE);
+    let preview = clamp(outerPreview, MIN_PREVIEW_SIZE, MAX_PREVIEW_SIZE);
+    let workspace = 100 - sidebar - preview;
+    if (workspace < MIN_OUTER_LAYOUT.workspace!) {
+        const deficit = MIN_OUTER_LAYOUT.workspace! - workspace;
+        preview = Math.max(MIN_PREVIEW_SIZE, preview - deficit);
+        workspace = 100 - sidebar - preview;
+    }
+
+    const nextOuter = normalizeOuterLayout({ sidebar, workspace, preview });
+    const nextMainRow = normalizeMainRowLayout({ list: 100, preview: 0 });
+    return { outer: nextOuter, mainRow: nextMainRow };
+}
+
+/**
+ * v41: repair classic outer preview width after v39/v40 docked bleed (preview ~40% instead of ~25%).
+ */
+export function migrateLayoutV41(
+    outer: Layout | undefined,
+    mainRow: Layout | undefined,
+    previewDockedInWorkspace: boolean,
+): { outer: Layout; mainRow: Layout } {
+    if (previewDockedInWorkspace) {
+        return migrateLayoutV39(outer, mainRow);
+    }
+    const nextOuter = normalizeOuterLayout(outer);
+    const nextMainRow = normalizeMainRowLayout({ list: 100, preview: 0 });
+    return { outer: nextOuter, mainRow: nextMainRow };
+}
+
+/**
+ * v43: restore canonical classic split (17/71/12) from v38 / d216b26.
+ */
+export function migrateLayoutV43(
+    outer: Layout | undefined,
+    mainRow: Layout | undefined,
+    previewDockedInWorkspace: boolean,
+): { outer: Layout; mainRow: Layout } {
+    if (previewDockedInWorkspace) {
+        return migrateLayoutV39(outer, mainRow);
+    }
+    const savedPreview = typeof outer?.preview === 'number' ? outer.preview : 0;
+    const savedWorkspace = typeof outer?.workspace === 'number' ? outer.workspace : 0;
+    const needsReset = savedPreview <= 0 || savedPreview >= 28 || savedWorkspace >= 80;
+    const nextOuter = needsReset
+        ? normalizeOuterLayout({ ...DEFAULT_OUTER_LAYOUT })
+        : normalizeOuterLayout(outer);
+    const nextMainRow = normalizeMainRowLayout({ list: 100, preview: 0 });
+    return { outer: nextOuter, mainRow: nextMainRow };
 }
 
 export function getDualPaneDefaultLayout(raw: unknown): Layout {

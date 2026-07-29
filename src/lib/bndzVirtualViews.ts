@@ -9,6 +9,7 @@ export const BNDZ_DOCUMENTS = '/bndz/documents';
 export const BNDZ_LARGE = '/bndz/large';
 export const BNDZ_CANVAS = '/bndz/canvas';
 export const BNDZ_AUTOMATION = '/bndz/automation';
+export const BNDZ_RAM_ROOT = '/bndz/ram';
 
 export type BndzVirtualView = 'recent' | 'media' | 'audio' | 'documents' | 'large';
 export type BndzWorkspaceView = 'canvas' | 'automation';
@@ -16,6 +17,22 @@ export type BndzWorkspaceView = 'canvas' | 'automation';
 export function isBndzVirtualPath(path: string): boolean {
   const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
   return n === BNDZ_VIEWS_ROOT || n.startsWith(`${BNDZ_VIEWS_ROOT}/`);
+}
+
+export function isBndzRamPath(path: string): boolean {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '');
+  return n === BNDZ_RAM_ROOT || n.startsWith(`${BNDZ_RAM_ROOT}/`);
+}
+
+export function parseBndzRamZoneId(path: string): string | null {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!n.startsWith(`${BNDZ_RAM_ROOT}/`)) return null;
+  const zoneId = n.slice(BNDZ_RAM_ROOT.length + 1).split('/')[0];
+  return zoneId || null;
+}
+
+export function bndzRamVirtualPath(zoneId: string): string {
+  return `${BNDZ_RAM_ROOT}/${zoneId}`;
 }
 
 export function isBndzHomePath(path: string): boolean {

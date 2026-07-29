@@ -13,6 +13,9 @@ import TextPreviewEditor from './TextPreviewEditor';
 const MonacoMicroEditor = lazy(() => import('./preview/MonacoMicroEditor'));
 const AudioWaveformEditor = lazy(() => import('./preview/AudioWaveformEditor'));
 import ImageZoomPreview from './ImageZoomPreview';
+import InspectionViewportRouter from '../workstation/inspection/InspectionViewportRouter';
+import type { InspectionShaderMode } from '../workstation/inspection/InspectionViewportRouter';
+import { probeWebGL } from '../workstation/webglProbe';
 import PdfPreviewPanel from './PdfPreviewPanel';
 import MarkdownPreviewPanel from './MarkdownPreviewPanel';
 import HtmlPreviewPanel from './HtmlPreviewPanel';
@@ -50,7 +53,7 @@ interface RightPreviewPanelProps {
 }
 
 export default function RightPreviewPanel({ entity, path, pathContentsCache, onNavigate, onOpenFloatingPreview, selectionPaths, onSelectPath, onToast }: RightPreviewPanelProps) {
-  const { config } = useAppConfig();
+  const { config, updateConfig } = useAppConfig();
   const [thumbnailNative, setThumbnailNative] = useState<string | null>(null);
   const [shellIcon, setShellIcon] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -63,6 +66,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
   const [extendedDetails, setExtendedDetails] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<PreviewTab>('preview');
+
+  useEffect(() => {
+    const onPreviewTab = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: PreviewTab }>).detail?.tab;
+      if (tab === 'preview' || tab === 'details' || tab === 'media') setActiveTab(tab);
+    };
+    window.addEventListener('bndz-preview-tab', onPreviewTab);
+    return () => window.removeEventListener('bndz-preview-tab', onPreviewTab);
+  }, []);
   const [fileHashes, setFileHashes] = useState<{ md5?: string; sha256?: string } | null>(null);
   const [catalogs, setCatalogs] = useState<CatalogEntry[]>([]);
   const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
@@ -531,11 +543,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             );
           }
           return (
-            <ImageZoomPreview
+            <InspectionViewportRouter
               src={src}
               alt={entity.name}
               filePath={path}
               onOpenFloating={onOpenFloatingPreview}
+              gpuEnabled={config.gpuInspection !== false && probeWebGL()}
+              shaderMode={(config.inspectionShaderMode as InspectionShaderMode) || 'passthrough'}
             />
           );
       }
@@ -548,12 +562,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           const primarySrc = virtualUrl || thumbData || '';
           const fallbackSrc = thumbData || undefined;
           return (
-              <ImageZoomPreview
+              <InspectionViewportRouter
                   src={primarySrc}
                   alt={entity.name}
                   fallbackSrc={fallbackSrc}
                   filePath={path}
                   onOpenFloating={onOpenFloatingPreview}
+                  gpuEnabled={config.gpuInspection !== false && probeWebGL()}
+                  shaderMode={(config.inspectionShaderMode as InspectionShaderMode) || 'passthrough'}
               />
           );
       }
@@ -772,10 +788,18 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     { id: 'details', label: 'Details', show: true },
   ];
 
+  const shaderMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
+  const gpuInspectionOn = config.gpuInspection !== false && probeWebGL();
+  const inspectionModes: { id: InspectionShaderMode; label: string }[] = [
+    { id: 'passthrough', label: 'Standard' },
+    { id: 'histogram', label: 'Histogram' },
+    { id: 'loupe', label: 'Loupe' },
+  ];
+
   return (
     <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 overflow-hidden">
        <div className="bndz-preview-tabstrip px-2 py-1 flex justify-between items-center z-10 shrink-0 select-none gap-2">
-          <div className="flex gap-0.5">
+          <div className="flex gap-0.5 items-center min-w-0">
              {tabs.filter(t => t.show).map(t => (
                 <button
                   key={t.id}
@@ -786,6 +810,21 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   {t.label}
                 </button>
              ))}
+             {isImage && gpuInspectionOn && activeTab === 'preview' && (
+               <div className="bndz-inspection-mode-strip flex items-center gap-0.5 ml-2 pl-2 border-l border-white/10">
+                 {inspectionModes.map(mode => (
+                   <button
+                     key={mode.id}
+                     type="button"
+                     title={`${mode.label} view`}
+                     onClick={() => updateConfig({ inspectionShaderMode: mode.id })}
+                     className={`bndz-inspection-mode-btn${shaderMode === mode.id ? ' is-active' : ''}`}
+                   >
+                     {mode.label}
+                   </button>
+                 ))}
+               </div>
+             )}
           </div>
           <div className="flex gap-0.5">
              <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" /></button>

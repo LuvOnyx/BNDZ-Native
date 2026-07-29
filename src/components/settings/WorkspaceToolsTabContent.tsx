@@ -12,10 +12,13 @@ import { buildMeshPath } from '../../lib/meshPaths';
 import { BNDZ_AUTOMATION, BNDZ_CANVAS } from '../../lib/bndzVirtualViews';
 import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
 
-type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation';
+type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation' | 'mesh-drop' | 'ghost-link' | 'ram-staging';
 
 const TOOL_TABS: { id: ToolTab; label: string; icon: string; desc: string }[] = [
   { id: 'remote-mesh', label: 'Remote Mesh', icon: 'cloud_ui', desc: 'SSH/SFTP hosts & S3 buckets' },
+  { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared', desc: 'P2P WebRTC transfer settings' },
+  { id: 'ghost-link', label: 'Ghost-Link', icon: 'emblem-symbolic-link', desc: 'Cold storage symlink rules' },
+  { id: 'ram-staging', label: 'RAM Staging', icon: 'hard_drive_ui', desc: 'ImDisk and staging zones' },
   { id: 'live-mirror', label: 'Live Mirror', icon: 'sync_folders', desc: 'Push local folders on save' },
   { id: 'folder-sync', label: 'Folder Sync', icon: 'sync', desc: 'Bidirectional folder jobs' },
   { id: 'spatial-automation', label: 'Spatial & Automation', icon: 'view_grid', desc: 'Canvas and pipeline workspaces' },
@@ -24,11 +27,27 @@ const TOOL_TABS: { id: ToolTab; label: string; icon: string; desc: string }[] = 
 type WorkspaceConfig = {
   meshShowInNavTree?: boolean;
   meshAutoConnectOnBrowse?: boolean;
+  meshDropStunServers?: string;
+  meshDropTurnUrl?: string;
+  meshDropTurnUsername?: string;
+  meshDropTurnCredential?: string;
+  meshDropLanDiscovery?: boolean;
+  meshDropWebLinkBase?: string;
+  meshDropSignalingRelayUrl?: string;
+  ghostLinkColdStorageRoot?: string;
+  ramStagingPreferImDisk?: boolean;
+  ramStagingShowInSidebar?: boolean;
   spatialCanvasAutoSave?: boolean;
   spatialCanvasAutoSaveDelayMs?: number;
   spatialCanvasWheelZoom?: boolean;
   spatialCanvasMinZoom?: number;
   spatialCanvasMaxZoom?: number;
+  spatialCanvasV2?: boolean;
+  commandDeck?: boolean;
+  gpuInspection?: boolean;
+  inspectionShaderMode?: 'passthrough' | 'histogram' | 'loupe';
+  fluidDragStacks?: boolean;
+  showQuickActionsBar?: boolean;
   automationAutoSave?: boolean;
   automationAutoSaveDelayMs?: number;
   automationPanOnScroll?: boolean;
@@ -241,6 +260,96 @@ export default function WorkspaceToolsTabContent({
           </div>
         )}
 
+        {toolTab === 'mesh-drop' && (
+          <div className="space-y-4">
+            <SettingsSection title="WebRTC signaling">
+              <PluginFieldLabel>STUN servers (semicolon-separated)</PluginFieldLabel>
+              <input
+                className={PLUGIN_INPUT_CLASS}
+                value={localConfig.meshDropStunServers || ''}
+                placeholder="stun:stun.l.google.com:19302"
+                onChange={e => updateLocalConfig({ meshDropStunServers: e.target.value })}
+              />
+              <PluginFieldLabel className="mt-3">TURN URL (optional)</PluginFieldLabel>
+              <input
+                className={PLUGIN_INPUT_CLASS}
+                value={localConfig.meshDropTurnUrl || ''}
+                placeholder="turn:your-server:3478"
+                onChange={e => updateLocalConfig({ meshDropTurnUrl: e.target.value })}
+              />
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div>
+                  <PluginFieldLabel>TURN username</PluginFieldLabel>
+                  <input className={PLUGIN_INPUT_CLASS} value={localConfig.meshDropTurnUsername || ''} onChange={e => updateLocalConfig({ meshDropTurnUsername: e.target.value })} />
+                </div>
+                <div>
+                  <PluginFieldLabel>TURN credential</PluginFieldLabel>
+                  <input className={PLUGIN_INPUT_CLASS} type="password" value={localConfig.meshDropTurnCredential || ''} onChange={e => updateLocalConfig({ meshDropTurnCredential: e.target.value })} />
+                </div>
+              </div>
+              <Checkbox
+                className="mt-3"
+                label="Enable LAN mDNS discovery (_bndz-meshdrop._tcp)"
+                checked={localConfig.meshDropLanDiscovery !== false}
+                onChange={e => updateLocalConfig({ meshDropLanDiscovery: e.target.checked })}
+              />
+              <PluginFieldLabel className="mt-3">Web share link base</PluginFieldLabel>
+              <input
+                className={PLUGIN_INPUT_CLASS}
+                value={localConfig.meshDropWebLinkBase || ''}
+                placeholder="https://bndz.app/mesh-drop"
+                onChange={e => updateLocalConfig({ meshDropWebLinkBase: e.target.value })}
+              />
+              <p className="text-[11px] text-gray-500 mt-1">Collaborators open this URL in a browser or BNDZ to paste the embedded Mesh Code.</p>
+              <PluginFieldLabel className="mt-3">Signaling relay URL (optional)</PluginFieldLabel>
+              <input
+                className={PLUGIN_INPUT_CLASS}
+                value={localConfig.meshDropSignalingRelayUrl || ''}
+                placeholder="https://relay.example.com"
+                onChange={e => updateLocalConfig({ meshDropSignalingRelayUrl: e.target.value })}
+              />
+              <p className="text-[11px] text-gray-500 mt-1">When set, Mesh Drop can auto-exchange answer codes via your relay — no manual paste round-trip. Deploy <code className="text-gray-400">services/bndz-mesh-relay</code> to Cloudflare Workers and paste the worker URL here.</p>
+            </SettingsSection>
+          </div>
+        )}
+
+        {toolTab === 'ghost-link' && (
+          <div className="space-y-4">
+            <SettingsSection title="Cold storage">
+              <PluginFieldLabel>Default cold storage root</PluginFieldLabel>
+              <input
+                className={PLUGIN_INPUT_CLASS}
+                value={localConfig.ghostLinkColdStorageRoot || ''}
+                placeholder="D:\\ColdStorage"
+                onChange={e => updateLocalConfig({ ghostLinkColdStorageRoot: e.target.value })}
+              />
+              <p className="text-[11px] text-gray-500 mt-2">Used by context-menu offload and automation Ghost-Link blocks.</p>
+              <div className="mt-3">
+                <PluginToolbarButton onClick={() => openBottomPlugin?.('ghost-link')}>Open Ghost-Link plugin</PluginToolbarButton>
+              </div>
+            </SettingsSection>
+          </div>
+        )}
+
+        {toolTab === 'ram-staging' && (
+          <div className="space-y-4">
+            <SettingsSection title="Staging zones">
+              <Checkbox
+                label="Prefer ImDisk RAM volumes when available"
+                checked={localConfig.ramStagingPreferImDisk !== false}
+                onChange={e => updateLocalConfig({ ramStagingPreferImDisk: e.target.checked })}
+              />
+              <Checkbox
+                className="mt-2"
+                label="Show RAM Staging in sidebar"
+                checked={localConfig.ramStagingShowInSidebar !== false}
+                onChange={e => updateLocalConfig({ ramStagingShowInSidebar: e.target.checked })}
+              />
+              <p className="text-[11px] text-gray-500 mt-2">Without ImDisk, BNDZ uses fast NVMe staging with an honest label — never fake RAM.</p>
+            </SettingsSection>
+          </div>
+        )}
+
         {toolTab === 'live-mirror' && (
           <div className="space-y-4">
             <SettingsSection title="Deploy-on-save mirrors">
@@ -374,6 +483,59 @@ export default function WorkspaceToolsTabContent({
                     onChange={e => updateLocalConfig({ spatialCanvasMaxZoom: parseFloat(e.target.value) || 2.5 })}
                   />
                 </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="Workstation visual systems">
+              <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
+                Premium selection chrome, GPU inspection shaders, fluid drag stacks, and spatial canvas v2 wires — tuned for native workstation feel.
+              </p>
+              <Checkbox
+                label="Context Command Deck (selection tool morph bar)"
+                checked={localConfig.commandDeck !== false}
+                onChange={e => updateLocalConfig({ commandDeck: e.target.checked })}
+              />
+              <div className="mt-2">
+                <Checkbox
+                  label="Quick Actions Bar (multi-select copy/cut/paste strip below omnibar)"
+                  checked={localConfig.showQuickActionsBar !== false}
+                  onChange={e => updateLocalConfig({ showQuickActionsBar: e.target.checked })}
+                />
+              </div>
+              <div className="mt-2">
+                <Checkbox
+                  label="Fluid drag stacks (thumbnail fan while dragging files)"
+                  checked={localConfig.fluidDragStacks !== false}
+                  onChange={e => updateLocalConfig({ fluidDragStacks: e.target.checked })}
+                />
+              </div>
+              <div className="mt-2">
+                <Checkbox
+                  label="Spatial Canvas v2 (spring board, bezier wires, pip thumbnails)"
+                  checked={localConfig.spatialCanvasV2 !== false}
+                  onChange={e => updateLocalConfig({ spatialCanvasV2: e.target.checked })}
+                />
+              </div>
+              <div className="mt-2">
+                <Checkbox
+                  label="GPU inspection shaders (histogram / loupe in preview)"
+                  checked={localConfig.gpuInspection !== false}
+                  onChange={e => updateLocalConfig({ gpuInspection: e.target.checked })}
+                />
+              </div>
+              <div className="mt-3 max-w-xs">
+                <PluginFieldLabel>Default image inspection mode</PluginFieldLabel>
+                <select
+                  className={PLUGIN_INPUT_CLASS}
+                  value={localConfig.inspectionShaderMode || 'passthrough'}
+                  onChange={e => updateLocalConfig({
+                    inspectionShaderMode: e.target.value as 'passthrough' | 'histogram' | 'loupe',
+                  })}
+                >
+                  <option value="passthrough">Standard (ImageZoom)</option>
+                  <option value="histogram">Histogram overlay</option>
+                  <option value="loupe">Loupe magnifier</option>
+                </select>
               </div>
             </SettingsSection>
 

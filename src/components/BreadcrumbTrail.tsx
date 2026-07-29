@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 export type BreadcrumbSeg = { path: string; label: string };
 
@@ -8,9 +8,26 @@ type Props = {
   onNavigate: (path: string, opts?: { newTab?: boolean }) => void;
 };
 
+/** Rough px width for a segment label + separator — conservative so we keep paths visible. */
+function estimateSegWidth(label: string): number {
+  return Math.min(220, Math.max(28, label.length * 6.5 + 10)) + 14;
+}
+
+function countSegmentsThatFit(segments: BreadcrumbSeg[], availablePx: number): number {
+  if (segments.length <= 2 || availablePx < 48) return segments.length;
+  let used = 0;
+  let fit = 0;
+  for (const seg of segments) {
+    const next = estimateSegWidth(seg.label);
+    if (fit > 0 && used + next > availablePx) break;
+    used += next;
+    fit += 1;
+  }
+  return Math.max(2, Math.min(segments.length, fit));
+}
+
 /**
- * Gold breadcrumb — collapses middle segments into a soft "…" overflow menu
- * instead of silently clipping with overflow-x-hidden.
+ * Breadcrumb rail — only collapses middle segments when the row is genuinely tight.
  * File drag hover/drop uses pointer + native OLE (see fileDragHover.ts).
  */
 export function BreadcrumbTrail({
@@ -23,22 +40,29 @@ export function BreadcrumbTrail({
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
+    setMenuOpen(false);
+  }, [segments]);
+
+  useLayoutEffect(() => {
     const el = railRef.current;
     if (!el) return;
-    const measure = () => {
+
+    const sync = () => {
       const width = el.clientWidth;
-      const approx = Math.max(2, Math.floor(width / 92));
-      setMaxVisible(Math.min(segments.length, approx));
+      if (width < 8) return;
+      const fit = countSegmentsThatFit(segments, width);
+      setMaxVisible((prev) => (prev === fit ? prev : fit));
     };
-    measure();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+
+    sync();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(sync) : null;
     ro?.observe(el);
-    window.addEventListener('resize', measure);
+    window.addEventListener('resize', sync);
     return () => {
       ro?.disconnect();
-      window.removeEventListener('resize', measure);
+      window.removeEventListener('resize', sync);
     };
-  }, [segments.length]);
+  }, [segments]);
 
   const { head, mid, tail } = useMemo(() => {
     if (segments.length <= maxVisible || segments.length <= 2) {
@@ -77,7 +101,7 @@ export function BreadcrumbTrail({
   );
 
   return (
-    <div ref={railRef} className="relative flex items-center min-w-0 flex-1 overflow-visible">
+    <div ref={railRef} className="relative flex items-center min-w-0 w-full flex-nowrap overflow-visible">
       {head.map((seg, i) => renderSeg(seg, i > 0))}
       {mid.length > 0 && (
         <>

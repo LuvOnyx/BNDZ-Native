@@ -7,7 +7,7 @@ import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/file
 import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib/hoverBoxConfig';
 import { DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES, type TreeListItemType } from '../lib/treeListItemFilter';
 import type { CustomEventAction } from '../lib/customEventActions';
-import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, DEFAULT_DUAL_PANE_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
+import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, DEFAULT_DUAL_PANE_LAYOUT, DEFAULT_MAIN_ROW_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
 
 export interface VisualFilter {
     id: string;
@@ -267,9 +267,12 @@ export const defaultConfig: AppConfig = normalizeConfig({
     activeToolbarProfileIndex: 0,
     workspaceLayoutOuter: { ...DEFAULT_OUTER_LAYOUT },
     workspaceLayoutInner: { ...DEFAULT_INNER_LAYOUT },
+    workspaceLayoutMainRow: { ...DEFAULT_MAIN_ROW_LAYOUT },
     workspaceLayoutPanes: { ...DEFAULT_DUAL_PANE_LAYOUT },
     workspaceLayoutVersion: WORKSPACE_LAYOUT_VERSION,
     previewPanelOpen: true,
+    /** When true, preview sits above the bottom plugin panel (inside workspace). Default false = classic full-height outer preview. */
+    previewDockedInWorkspace: false,
     bottomPanelOpen: true,
     bottomPluginTabOrder: [],
     bottomPanelDefaultPlugin: 'properties',

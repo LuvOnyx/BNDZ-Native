@@ -17,6 +17,7 @@ type IndexStatus = {
 type Props = {
   onNavigate: (path: string) => void;
   onRefresh?: () => void;
+  onOpenMeshDrop?: () => void;
 };
 
 const VIEWS = [
@@ -69,7 +70,7 @@ const WORKSPACES = [
   },
 ] as const;
 
-export default function BndzHubView({ onNavigate, onRefresh }: Props) {
+export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop }: Props) {
   const [status, setStatus] = useState<IndexStatus | null>(null);
   const [pinCount, setPinCount] = useState(0);
   const [blockCount, setBlockCount] = useState(0);
@@ -104,6 +105,20 @@ export default function BndzHubView({ onNavigate, onRefresh }: Props) {
           />
         ))}
       </div>
+      {onOpenMeshDrop && (
+        <div className="px-1 pt-3 pb-2">
+          <div className="px-1 pb-2 text-[10px] uppercase tracking-wider text-gray-500">Power transfer</div>
+          <WorkspaceLaunchCard
+            title="Mesh Drop"
+            desc="Zero-trust P2P file streaming — one-time pairing codes, no cloud middleman"
+            icon="emblem-shared"
+            accent="#22d3ee"
+            badge="P2P"
+            badgeVariant="gold"
+            onClick={onOpenMeshDrop}
+          />
+        </div>
+      )}
     </>
   );
 

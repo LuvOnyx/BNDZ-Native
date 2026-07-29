@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
+import MeshDropSessionPanel from './meshdrop/MeshDropSessionPanel';
 import type { FileTransferJobDto, FileTransferQueueState } from '../lib/ipcBridge';
 import {
   formatTransferAction,
@@ -385,6 +386,7 @@ export default function FileTransferQueuePanel({ className = '', enabled = true 
       </div>
       {expanded && (
         <div className="max-h-[220px] overflow-y-auto bndz-scrollbar px-3 py-1.5">
+          <MeshDropSessionPanel />
           {jobs.map(job => (
             <JobRow
               key={job.operationId}

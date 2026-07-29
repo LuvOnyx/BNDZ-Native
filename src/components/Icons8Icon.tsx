@@ -27,6 +27,16 @@ interface Icons8IconProps {
  * Exceptions: tag_manager / tag__ use a tintable tag mask; favorites uses the bookmark glyph.
  */
 export function Icons8Icon({ id, size = 16, className = '', disabled, spin, title, color }: Icons8IconProps) {
+  if (!id) {
+    return (
+      <span
+        className={`inline-block rounded-full bg-white/20 ${className}`}
+        style={{ width: Math.max(4, size * 0.3), height: Math.max(4, size * 0.3) }}
+        title={title}
+        aria-hidden
+      />
+    );
+  }
   if (id === 'tag_manager' || id.startsWith('tag__')) {
     return (
       <TagGlyph

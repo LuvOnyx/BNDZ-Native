@@ -8,6 +8,7 @@ export type AutomationNodeType =
   | 'copyTo'
   | 'moveTo'
   | 'rsyncDeploy'
+  | 'ghostLinkTo'
   | 'log';
 
 export type AutomationNode = {
@@ -111,6 +112,15 @@ export async function saveAutomationGraph(graph: AutomationGraph, delayMs = 1200
   if (!IPC.isNative) return true;
   await writeBndzMetaDebounced(META_KEY, JSON.stringify(next), delayMs);
   return true;
+}
+
+/** Immediate persist of an empty automation graph — clears stale local cache. */
+export async function resetAutomationGraphPersisted(): Promise<AutomationGraph> {
+  const empty = defaultAutomationGraph();
+  cache = empty;
+  try { localStorage.removeItem(`bndz_meta_${META_KEY}`); } catch { /* */ }
+  if (IPC.isNative) await flushBndzMeta(META_KEY, JSON.stringify(empty));
+  return empty;
 }
 
 export async function saveAutomationGraphNow(graph: AutomationGraph): Promise<boolean> {

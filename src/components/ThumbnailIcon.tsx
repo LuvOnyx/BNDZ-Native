@@ -65,6 +65,7 @@ export function ThumbnailIcon({
   const containerRef = useRef<HTMLDivElement>(null);
   const showFilm = isVideo && config.showFilmStripOverlayOnVideoThumbnails === true;
   const showTypeBadge = useThumbnail && config.showFileIconOnThumbnail === true;
+  const isGhostLink = !!(entity as any).isGhostLink;
 
   useEffect(() => {
     if (config.iconCacheBuster) {
@@ -232,6 +233,9 @@ export function ThumbnailIcon({
             pointerEvents: 'none',
           }}
         />
+      )}
+      {isGhostLink && size >= 14 && (
+        <span className="bndz-ghostlink-emblem absolute -right-0.5 -bottom-0.5 text-[9px] leading-none pointer-events-none" title="Ghost link">👻</span>
       )}
     </div>
   );

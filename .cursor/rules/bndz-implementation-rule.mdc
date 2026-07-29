@@ -1,0 +1,56 @@
+---
+description: BNDZ implementation rule — native host, META upgrades, mandatory FE+BE builds, top-tier FM quality
+alwaysApply: true
+---
+
+# BNDZ Implementation Rule
+
+Apply on **every** feature, bugfix, upgrade, and UI pass. BNDZ is a next-gen Windows file manager (C# `BNDZBackend` + WebView2/React `src/`) competing with File Pilot and XYplorer.
+
+## 0. Mandatory fresh builds after every implementation (non-negotiable)
+
+After finishing code changes in a turn — **before** telling the user it’s ready to test — always run a fresh frontend **and** backend build:
+
+```bash
+npm run build
+dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
+```
+
+- Do this even for “small” UI/CSS-only fixes. WebView2 loads built assets; unbuilt `src/` changes are invisible.
+- If the frontend build fails, fix it and rebuild. Same for backend.
+- Do **not** claim ready / ask the user to test until both builds succeed in that turn.
+- Skip only when the turn was purely docs/rules/questions with **zero** product code or asset changes.
+
+```text
+❌ BAD: ship React/CSS edits and say “refresh / try it” without npm run build + Debug backend
+✅ GOOD: implement → npm run build → dotnet Debug build → then tell user to relaunch/test
+```
+
+## 1. Native host — never sidecars for product features
+
+- Wire user-visible work into **BNDZ FM surfaces**: list, preview, search, Smart Tools, bottom plugins, tabs, toolbar.
+- Backend = native C# services (`BndzFileIndexService`, `AiAssistantService`, `DuplicateFinderService`, shell/metadata/archive services, IPC in `MainWindow.xaml.cs`). Frontend bridge: `src/lib/ipcBridge.ts`.
+- `external/spacedrive` and `external/spacebot` are **UX/reference only** — copy patterns into BNDZ components; rebrand to BNDZ language.
+- **Forbidden as “done”**: `src/engines/` HTTP bridges, sidecar admin UI, iframe embeds, vendor dumps, “daemon started / cargo built / binary staged” as integration complete.
+
+```text
+❌ BAD: iframe Spacedrive / engine HTTP proxy / “sidecar is running”
+✅ GOOD: React list/preview/search UI → IPC → BNDZBackend service
+```
+
+## 2. META methods — deepen real systems, don’t wrap basics
+
+When upgrading or adding capability:
+
+- Prefer **NuGet / proven .NET libs** (Vanara shell, MetadataExtractor, TagLibSharp, SharpCompress, WebView2, BitFaster, RecyclableMemoryStream, CsWin32, etc.) wired into existing services.
+- Replace thin/hand-rolled paths with package-backed implementations that show up in **list columns, tips, preview, Metadata Inspector, search**.
+- Bump packages carefully; avoid major breaks overnight (SkiaSharp 3/4, Vanara 5, LLamaSharp majors) unless explicitly scoped.
+- Fix root causes (path shape, drop ownership, cache pooling)—**no bandaids**.
+
+## 3. Quality bar — #1 app, not “web app chrome”
+
+- Top-tier UI and backend only; soft squircles / rounded corners over pill clusters; snappy native-feeling menus and list interaction.
+- Preserve listview interaction fixes (drag, virtualized marquee, Ctrl+marquee) in `BNDZUI.tsx` / `dragController.ts` when touching nearby code.
+- Do not reframe the bottom plugin panel as a “dock.”
+- Answer direct questions; don’t change the plan unprompted.
+- Commit / package installer **only when asked**. User tests after planned phases are complete—not mid-pass.

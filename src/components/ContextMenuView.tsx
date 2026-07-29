@@ -26,10 +26,11 @@ import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
-import type { ClipboardAction } from '../data/ClipboardContext';
 import type { SortColumnId } from '../lib/listColumns';
 import type { ListGroupBy } from '../lib/listGrouping';
 import { LIST_GROUP_BY_OPTIONS } from '../lib/listGrouping';
+import { IPC } from '../lib/ipcBridge';
+import type { ClipboardAction } from '../data/ClipboardContext';
 import {
   classifyContextItemKind,
   openLocationForApp,
@@ -57,6 +58,9 @@ interface ContextMenuViewProps {
   activePaneId: string;
   addTab: (paneId: string, path: string) => void;
   onOpenBatchRename?: () => void;
+  onOpenMeshDrop?: (paths: string[]) => void;
+  onGhostLinkOffload?: (paths: string[]) => void | Promise<void>;
+  onGhostLinkRestore?: (path: string) => void | Promise<void>;
   setIsSmartToolsOpen: (v: boolean) => void;
   setToastMessage: (msg: string) => void;
   setInlineRename: (v: { path: string; entityId: string; currentName: string } | null) => void;
@@ -93,7 +97,7 @@ interface ContextMenuViewProps {
 
 function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
-  onOpenBatchRename, setIsSmartToolsOpen, setToastMessage, setInlineRename,
+  onOpenBatchRename, onOpenMeshDrop, onGhostLinkOffload, onGhostLinkRestore, setIsSmartToolsOpen, setToastMessage, setInlineRename,
   setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
@@ -1068,6 +1072,29 @@ function ContextMenuView({
           label="Smart Rename"
           iconVerb="sparkles"
           onClick={() => { onOpenBatchRename?.(); onClose(); }}
+        />
+      )}
+
+      {!isBackground && targetPaths.length > 0 && IPC.isNative && (
+        <>
+          <ContextMenuItem
+            label="Mesh Drop…"
+            iconVerb="emblem-shared"
+            onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
+          />
+          <ContextMenuItem
+            label="Ghost-Link offload…"
+            iconVerb="emblem-symbolic-link"
+            onClick={() => { void onGhostLinkOffload?.(targetPaths); onClose(); }}
+          />
+        </>
+      )}
+
+      {!isBackground && menu.isGhostLink && menu.entityId && (
+        <ContextMenuItem
+          label="Restore ghost link"
+          iconVerb="refresh"
+          onClick={() => { void onGhostLinkRestore?.(fullEntityPath()); onClose(); }}
         />
       )}
 

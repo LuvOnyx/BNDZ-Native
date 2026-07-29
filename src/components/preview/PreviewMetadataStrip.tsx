@@ -28,8 +28,13 @@ function formatSize(bytes: number) {
 
 function formatModified(value: Props['modified']) {
   if (value == null) return '—';
-  if (typeof value === 'number') return formatFsDate(new Date(value * 1000).toISOString());
-  if (value instanceof Date) return formatFsDate(value.toISOString());
+  if (typeof value === 'number') {
+    const d = new Date(value * 1000);
+    return Number.isNaN(d.getTime()) ? '—' : formatFsDate(d);
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '—' : formatFsDate(value);
+  }
   return formatFsDate(String(value));
 }
 

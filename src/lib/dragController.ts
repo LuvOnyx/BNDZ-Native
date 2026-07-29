@@ -68,7 +68,8 @@ export function preferFileDragOverMarquee(opts: {
 }): boolean {
   if (opts.shiftKey) return false;
   if (opts.wasSelected) return true;
-  const horizontalMarquee = opts.dx > 8 && opts.dx > opts.dy * 1.35;
+  // Unselected row that was selected on press should still prefer drag over marquee.
+  const horizontalMarquee = opts.dx > 12 && opts.dx > opts.dy * 1.55;
   return !horizontalMarquee;
 }
 

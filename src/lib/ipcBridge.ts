@@ -138,6 +138,7 @@ export const IPC = {
   _drivesListeners: [] as Array<(drives: any[]) => void>,
   _folderSizeListeners: [] as Array<(progress: any) => void>,
   _duplicateProgressListeners: [] as Array<(progress: any) => void>,
+  _storageCleanupProgressListeners: [] as Array<(progress: { percent: number; phase: string; currentPath: string }) => void>,
   _folderSyncProgressListeners: [] as Array<(progress: any) => void>,
   _meshSyncProgressListeners: [] as Array<(progress: any) => void>,
   _meshTerminalOutputListeners: [] as Array<(payload: { sessionId: string; data: string }) => void>,
@@ -178,6 +179,8 @@ export const IPC = {
           this._folderSizeListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'DUPLICATE_SCAN_PROGRESS') {
           this._duplicateProgressListeners.forEach(cb => cb(data.payload));
+        } else if (data.type === 'STORAGE_CLEANUP_SCAN_PROGRESS') {
+          this._storageCleanupProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'FOLDER_SYNC_PROGRESS') {
           this._folderSyncProgressListeners.forEach(cb => cb(data.payload));
         } else if (data.type === 'MESH_SYNC_PROGRESS') {
@@ -188,6 +191,12 @@ export const IPC = {
           const hosts = Array.isArray(data.payload) ? data.payload : [];
           this._meshHostsChangedListeners.forEach(cb => cb(hosts));
           window.dispatchEvent(new CustomEvent('bndz-mesh-hosts-changed', { detail: { hosts } }));
+        } else if (data.type === 'MESH_DROP_SESSION_CHANGED') {
+          window.dispatchEvent(new CustomEvent('bndz-mesh-drop-session', { detail: data.payload }));
+        } else if (data.type === 'GHOST_LINK_PROGRESS') {
+          window.dispatchEvent(new CustomEvent('bndz-ghost-link-progress', { detail: data.payload }));
+        } else if (data.type === 'RAM_STAGING_ZONE_CHANGED') {
+          window.dispatchEvent(new CustomEvent('bndz-ram-zone-changed', { detail: data.payload }));
         } else if (data.type === 'GLOBAL_HOTKEY') {
           const id = data.payload?.id ?? '';
           window.dispatchEvent(new CustomEvent('bndz-global-hotkey', { detail: { id } }));
@@ -298,6 +307,14 @@ export const IPC = {
     this._duplicateProgressListeners.push(callback);
     return () => {
       this._duplicateProgressListeners = this._duplicateProgressListeners.filter(cb => cb !== callback);
+    };
+  },
+
+  onStorageCleanupScanProgress(callback: (progress: { percent: number; phase: string; currentPath: string }) => void) {
+    this.init();
+    this._storageCleanupProgressListeners.push(callback);
+    return () => {
+      this._storageCleanupProgressListeners = this._storageCleanupProgressListeners.filter(cb => cb !== callback);
     };
   },
 
@@ -565,6 +582,219 @@ export const IPC = {
     });
   },
 
+  meshDropCreateOffer(paths: string[], label?: string): Promise<{ ok: boolean; sessionId?: string; meshCode?: string; session?: unknown; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshDropOffer`;
+    return _nativeCall<any>('MESH_DROP_CREATE_OFFER', 'MESH_DROP_CREATE_OFFER_RESULT', id, { paths, label }, 120000).then(r => ({
+      ok: r?.ok !== false,
+      sessionId: r?.sessionId,
+      meshCode: r?.meshCode,
+      session: r?.session,
+      error: r?.error,
+    }));
+  },
+
+  meshDropAcceptOffer(meshCode: string, destDir: string): Promise<{ ok: boolean; sessionId?: string; answerCode?: string; session?: unknown; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshDropAccept`;
+    return _nativeCall<any>('MESH_DROP_ACCEPT_OFFER', 'MESH_DROP_ACCEPT_OFFER_RESULT', id, { meshCode, destDir }, 120000).then(r => ({
+      ok: r?.ok !== false,
+      sessionId: r?.sessionId,
+      answerCode: r?.answerCode,
+      session: r?.session,
+      error: r?.error,
+    }));
+  },
+
+  meshDropConnect(sessionId: string, answerCode: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshDropConnect`;
+    return _nativeCall<any>('MESH_DROP_CONNECT', 'MESH_DROP_CONNECT_RESULT', id, { sessionId, answerCode }, 60000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  meshDropSend(sessionId: string, operationId?: string): Promise<{ ok: boolean; operationId?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshDropSend`;
+    const opId = operationId ?? `${Date.now()}_mdop`;
+    return _nativeCall<any>('MESH_DROP_SEND', 'MESH_DROP_SEND_RESULT', id, { sessionId, operationId: opId }, 3600000).then(r => ({
+      ok: r?.ok !== false,
+      operationId: r?.operationId ?? opId,
+      error: r?.error,
+    }));
+  },
+
+  meshDropCancel(sessionId: string): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({ type: 'MESH_DROP_CANCEL', payload: { sessionId } });
+  },
+
+  meshDropListSessions(): Promise<{ sessions: unknown[] }> {
+    if (!this.isNative) return Promise.resolve({ sessions: [] });
+    const id = `${Date.now()}_meshDropList`;
+    return _nativeCall<any>('MESH_DROP_LIST_SESSIONS', 'MESH_DROP_LIST_SESSIONS_RESULT', id, {}, 15000).then(r => ({
+      sessions: Array.isArray(r?.sessions) ? r.sessions : [],
+    }));
+  },
+
+  meshDropDiscoverLan(): Promise<{ peers: unknown[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ peers: [] });
+    const id = `${Date.now()}_meshDropLan`;
+    return _nativeCall<any>('MESH_DROP_DISCOVER_LAN', 'MESH_DROP_DISCOVER_LAN_RESULT', id, {}, 10000).then(r => ({
+      peers: Array.isArray(r?.peers) ? r.peers : [],
+      error: r?.error,
+    }));
+  },
+
+  meshDropFetchLanOffer(address: string, port: number): Promise<{ ok: boolean; meshCode?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshDropLanOffer`;
+    return _nativeCall<any>('MESH_DROP_FETCH_LAN_OFFER', 'MESH_DROP_FETCH_LAN_OFFER_RESULT', id, { address, port }, 15000).then(r => ({
+      ok: r?.ok === true,
+      meshCode: r?.meshCode,
+      error: r?.error,
+    }));
+  },
+
+  meshDropRelayCreate(relayUrl: string, meshCode: string, label?: string): Promise<{ ok: boolean; room?: { roomId: string; joinUrl: string; pollUrl: string }; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_meshDropRelay`;
+    return _nativeCall<any>('MESH_DROP_RELAY_CREATE', 'MESH_DROP_RELAY_CREATE_RESULT', id, { relayUrl, meshCode, label }, 30000).then(r => ({
+      ok: r?.ok === true,
+      room: r?.room,
+      error: r?.error,
+    }));
+  },
+
+  meshDropRelayPoll(pollUrl: string): Promise<{ ok: boolean; answer?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_meshDropRelayPoll`;
+    return _nativeCall<any>('MESH_DROP_RELAY_POLL', 'MESH_DROP_RELAY_POLL_RESULT', id, { pollUrl }, 15000).then(r => ({
+      ok: r?.ok === true,
+      answer: r?.answer,
+      error: r?.error,
+    }));
+  },
+
+  meshDropRelaySubmitAnswer(relayUrl: string, roomId: string, answerCode: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_meshDropRelayAns`;
+    return _nativeCall<any>('MESH_DROP_RELAY_SUBMIT_ANSWER', 'MESH_DROP_RELAY_SUBMIT_ANSWER_RESULT', id, { relayUrl, roomId, answerCode }, 15000).then(r => ({
+      ok: r?.ok === true,
+      error: r?.error,
+    }));
+  },
+
+  meshDropRelayResolveOffer(relayUrl: string, roomId: string): Promise<{ ok: boolean; meshCode?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_meshDropRelayRes`;
+    return _nativeCall<any>('MESH_DROP_RELAY_RESOLVE_OFFER', 'MESH_DROP_RELAY_RESOLVE_OFFER_RESULT', id, { relayUrl, roomId }, 15000).then(r => ({
+      ok: r?.ok === true,
+      meshCode: r?.meshCode,
+      error: r?.error,
+    }));
+  },
+
+  ghostLinkGetRules(): Promise<{ rules: unknown[] }> {
+    if (!this.isNative) return Promise.resolve({ rules: [] });
+    const id = `${Date.now()}_ghostRules`;
+    return _nativeCall<any>('GHOST_LINK_GET_RULES', 'GHOST_LINK_GET_RULES_RESULT', id, {}, 15000).then(r => ({
+      rules: Array.isArray(r?.rules) ? r.rules : [],
+    }));
+  },
+
+  ghostLinkSaveRules(rules: unknown[]): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_ghostSave`;
+    return _nativeCall<any>('GHOST_LINK_SAVE_RULES', 'GHOST_LINK_SAVE_RULES_RESULT', id, rules, 15000).then(() => ({ ok: true }));
+  },
+
+  ghostLinkRunScan(ruleId?: string): Promise<{ ok: boolean; count?: number; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ghostScan`;
+    return _nativeCall<any>('GHOST_LINK_RUN_SCAN', 'GHOST_LINK_RUN_SCAN_RESULT', id, { ruleId }, 3600000).then(r => ({
+      ok: r?.ok !== false,
+      count: r?.count,
+      error: r?.error,
+    }));
+  },
+
+  ghostLinkOffloadPaths(paths: string[], coldStorageRoot: string): Promise<{ ok: boolean; reclaimed?: number; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ghostOffload`;
+    return _nativeCall<any>('GHOST_LINK_OFFLOAD_PATHS', 'GHOST_LINK_OFFLOAD_PATHS_RESULT', id, { paths, coldStorageRoot }, 3600000).then(r => ({
+      ok: r?.ok !== false,
+      reclaimed: r?.reclaimed,
+      error: r?.error,
+    }));
+  },
+
+  ghostLinkRestore(path: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ghostRestore`;
+    return _nativeCall<any>('GHOST_LINK_RESTORE', 'GHOST_LINK_RESTORE_RESULT', id, { path }, 120000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  ghostLinkGetStats(): Promise<{ stats: unknown; ghosts: unknown[] }> {
+    if (!this.isNative) return Promise.resolve({ stats: {}, ghosts: [] });
+    const id = `${Date.now()}_ghostStats`;
+    return _nativeCall<any>('GHOST_LINK_GET_STATS', 'GHOST_LINK_GET_STATS_RESULT', id, {}, 15000).then(r => ({
+      stats: r?.stats ?? {},
+      ghosts: Array.isArray(r?.ghosts) ? r.ghosts : [],
+    }));
+  },
+
+  ramStagingListZones(): Promise<{ zones: unknown[]; status: unknown }> {
+    if (!this.isNative) return Promise.resolve({ zones: [], status: {} });
+    const id = `${Date.now()}_ramList`;
+    return _nativeCall<any>('RAM_STAGING_LIST_ZONES', 'RAM_STAGING_LIST_ZONES_RESULT', id, {}, 15000).then(r => ({
+      zones: Array.isArray(r?.zones) ? r.zones : [],
+      status: r?.status ?? {},
+    }));
+  },
+
+  ramStagingCreateZone(name: string, sizeBudgetMb: number, preferRam = true): Promise<{ ok: boolean; zone?: unknown; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ramCreate`;
+    return _nativeCall<any>('RAM_STAGING_CREATE_ZONE', 'RAM_STAGING_CREATE_ZONE_RESULT', id, { name, sizeBudgetMb, preferRam }, 120000).then(r => ({
+      ok: r?.ok !== false,
+      zone: r?.zone,
+      error: r?.error,
+    }));
+  },
+
+  ramStagingDeleteZone(zoneId: string, flushFirst = true): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ramDelete`;
+    return _nativeCall<any>('RAM_STAGING_DELETE_ZONE', 'RAM_STAGING_DELETE_ZONE_RESULT', id, { zoneId, flushFirst }, 3600000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  ramStagingStagePaths(zoneId: string, paths: string[]): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ramStage`;
+    return _nativeCall<any>('RAM_STAGING_STAGE_PATHS', 'RAM_STAGING_STAGE_PATHS_RESULT', id, { zoneId, paths }, 3600000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  ramStagingFlushZone(zoneId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ramFlush`;
+    return _nativeCall<any>('RAM_STAGING_FLUSH_ZONE', 'RAM_STAGING_FLUSH_ZONE_RESULT', id, { zoneId }, 3600000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
   scanFolderSizes(paths: string[], forceRescan = false): Promise<{
     sizes: Record<string, number>;
     cancelled?: boolean;
@@ -631,6 +861,110 @@ export const IPC = {
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({ type: 'CANCEL_DUPLICATE_SCAN' });
     }
+  },
+
+  scanStorageCleanup(options?: {
+    categoryIds?: string[];
+    largeFileMinBytes?: number;
+    largeFileLimit?: number;
+  }): Promise<{
+    categories: Array<{
+      id: string;
+      name: string;
+      description: string;
+      risk: 'safe' | 'moderate' | 'advanced';
+      totalBytes: number;
+      itemCount: number;
+      items: Array<{
+        id: string;
+        path: string;
+        name: string;
+        size: number;
+        isDirectory: boolean;
+        detail?: string;
+        defaultSelected: boolean;
+      }>;
+    }>;
+    totalBytes?: number;
+    cancelled?: boolean;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_cleanup`;
+      return _nativeCall<any>('STORAGE_CLEANUP_SCAN', 'STORAGE_CLEANUP_SCAN_RESULT', id, {
+        categoryIds: options?.categoryIds,
+        largeFileMinBytes: options?.largeFileMinBytes,
+        largeFileLimit: options?.largeFileLimit,
+      }, 900000).then(r => ({
+        categories: r?.categories ?? r?.Categories ?? [],
+        totalBytes: r?.totalBytes ?? r?.TotalBytes,
+        cancelled: r?.cancelled ?? r?.Cancelled,
+        error: r?.error,
+      }));
+    }
+    return Promise.resolve({ categories: [], error: 'Native only' });
+  },
+
+  cancelStorageCleanupScan(): void {
+    if (this.isNative) {
+      (window as any).chrome.webview.postMessage({ type: 'CANCEL_STORAGE_CLEANUP_SCAN' });
+    }
+  },
+
+  executeStorageCleanup(items: Array<{ categoryId: string; path: string; isDirectory: boolean; size: number }>): Promise<{
+    processedCount: number;
+    freedBytes: number;
+    errors: string[];
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_cleanexec`;
+      return _nativeCall<any>('STORAGE_CLEANUP_EXECUTE', 'STORAGE_CLEANUP_EXECUTE_RESULT', id, { items }, 600000).then(r => ({
+        processedCount: r?.processedCount ?? r?.ProcessedCount ?? 0,
+        freedBytes: r?.freedBytes ?? r?.FreedBytes ?? 0,
+        errors: r?.errors ?? r?.Errors ?? [],
+      }));
+    }
+    return Promise.resolve({ processedCount: 0, freedBytes: 0, errors: ['Native only'] });
+  },
+
+  listInstalledApps(includeSystemComponents = false): Promise<{
+    apps: Array<{
+      id: string;
+      name: string;
+      publisher?: string;
+      version?: string;
+      installDate?: string;
+      estimatedSizeBytes: number;
+      installLocation?: string;
+      canUninstall: boolean;
+      isSystemComponent: boolean;
+      isStoreApp: boolean;
+      source: string;
+    }>;
+    totalCount: number;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_apps`;
+      return _nativeCall<any>('LIST_INSTALLED_APPS', 'LIST_INSTALLED_APPS_RESULT', id, { includeSystemComponents }, 120000).then(r => ({
+        apps: r?.apps ?? r?.Apps ?? [],
+        totalCount: r?.totalCount ?? r?.TotalCount ?? 0,
+        error: r?.error,
+      }));
+    }
+    return Promise.resolve({ apps: [], totalCount: 0, error: 'Native only' });
+  },
+
+  uninstallApp(appId: string, quiet = false): Promise<{ success: boolean; error?: string; launchedCommand?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_uninst`;
+      return _nativeCall<any>('UNINSTALL_APP', 'UNINSTALL_APP_RESULT', id, { appId, quiet }, 60000).then(r => ({
+        success: !!(r?.success ?? r?.Success),
+        error: r?.error ?? r?.Error,
+        launchedCommand: r?.launchedCommand ?? r?.LaunchedCommand,
+      }));
+    }
+    return Promise.resolve({ success: false, error: 'Native only' });
   },
 
   archiveAddFiles(archivePath: string, files: string[], entryNames?: string[]): Promise<{ success: boolean; error?: string }> {

@@ -8,7 +8,8 @@ export type DropRoute =
   | { kind: 'mesh-upload'; hostId: string; remoteDestDir: string }
   | { kind: 'mesh-download'; hostId: string; localDestDir: string }
   | { kind: 'mesh-replicate'; hostId: string; remoteDestDir: string; move: boolean }
-  | { kind: 'mesh-relay'; srcHostId: string; destHostId: string; remoteDestDir: string; move: boolean };
+  | { kind: 'mesh-relay'; srcHostId: string; destHostId: string; remoteDestDir: string; move: boolean }
+  | { kind: 'mesh-drop-send'; paths: string[] };
 
 /** Preserve mesh pane paths; normalize local paths to Windows shape. */
 export function canonicalDropPath(path: string): string {
@@ -36,7 +37,11 @@ export function resolveDropRoute(
   op: 'copy' | 'move',
   sourcePaths: string[],
   destPath: string,
+  meshDropInbox?: boolean,
 ): DropRoute {
+  if (meshDropInbox && sourcePaths.length > 0 && !sourcePaths.some(isMeshPath)) {
+    return { kind: 'mesh-drop-send', paths: sourcePaths.map(canonicalDropPath) };
+  }
   const destCanon = canonicalDropPath(destPath);
   const srcMesh = sourcePaths.some(isMeshPath);
   const destMesh = isMeshPath(destCanon);

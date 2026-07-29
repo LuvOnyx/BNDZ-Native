@@ -8,6 +8,7 @@
     "dev": "tsx server.ts",
     "build": "node scripts/audit-bndzui.mjs && node scripts/audit-view-imports.mjs && node scripts/prebuild-icons.mjs && node scripts/copy-legal-docs.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:backend": "dotnet build BNDZBackend/BNDZ.csproj -c Release -p:EnableWindowsTargeting=true",
+    "dev:backend": "dotnet run --project BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true",
     "verify": "npm run lint && npm run test:unit && npm run build && npm run build:backend",
     "build:launcher": "npm run build:launcher --prefix packages/bndz-launcher",
     "package": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 -SelfContained",
@@ -31,7 +32,7 @@
     "audit:wiring": "node scripts/wiring-audit.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts && tsx scripts/test-drop-destination.ts && tsx scripts/test-workspace-engine.ts && tsx scripts/test-workspace-persistence.ts"
+    "test:unit": "tsx scripts/test-interaction.mjs && tsx scripts/test-storage-organize.mjs && tsx scripts/test-index-finding.mjs && tsx scripts/test-context-menu-dismiss.mjs && tsx scripts/test-tag-utils.mjs && tsx scripts/test-panel-typography.mjs && tsx scripts/test-plugin-registry.mjs && tsx scripts/test-metadata-columns.mjs && tsx scripts/test-tooltip-settings.mjs && tsx scripts/test-slow-double-click-rename.mjs && tsx scripts/test-html-preview.ts && tsx scripts/test-type-ahead-find.ts && tsx scripts/test-shell-paths.ts && tsx scripts/test-list-row-hit-targets.ts && tsx scripts/test-drop-destination.ts && tsx scripts/test-workspace-engine.ts && tsx scripts/test-workspace-persistence.ts && tsx scripts/test-mesh-drop-signaling.ts && tsx scripts/test-ghost-link-rules.ts && tsx scripts/test-ram-staging-paths.ts && tsx scripts/test-selection-signature.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -51,8 +52,13 @@
     "@google/genai": "^2.4.0",
     "@leeoniya/ufuzzy": "^1.0.19",
     "@monaco-editor/react": "^4.7.0",
+    "@react-spring/web": "^10.1.2",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-virtual": "^3.14.2",
+    "@types/qrcode": "^1.5.6",
+    "@use-gesture/react": "^10.3.1",
     "@vitejs/plugin-react": "^5.0.4",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
@@ -69,6 +75,7 @@
     "monaco-editor": "^0.56.0",
     "motion": "^12.23.24",
     "pdfjs-dist": "^6.1.200",
+    "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-aria-components": "^1.18.0",
     "react-dom": "^19.0.1",
@@ -79,6 +86,7 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
+    "three": "^0.185.1",
     "vite": "^6.2.3",
     "wavesurfer.js": "^7.12.11"
   },

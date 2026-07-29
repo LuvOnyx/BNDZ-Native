@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using Microsoft.IO;
@@ -54,7 +55,12 @@ public static class DirListingSharedBuffer
         public string? Comment { get; set; }
         public List<string>? Tags { get; set; }
         public bool IsShellItem { get; set; }
+        public string? LinkType { get; set; }
+        public string? LinkTarget { get; set; }
+        public bool IsGhostLink { get; set; }
     }
+
+    private const string LinkMetaPrefix = "BNDZLINK:";
 
     public static byte AttrBitsFrom(FileAttributes attributes)
     {
@@ -210,6 +216,43 @@ public static class DirListingSharedBuffer
         }
     }
 
+    public static void EnrichWithReparseLinks(List<DirEntryDto> entries, Func<string, bool>? isGhostLink = null)
+    {
+        foreach (var e in entries)
+        {
+            if ((e.AttrBits & AttrReparse) == 0) continue;
+            var lookup = !string.IsNullOrEmpty(e.Path) ? e.Path : e.Id;
+            if (string.IsNullOrEmpty(lookup)) continue;
+
+            e.LinkType = LinkService.GetReparseKind(lookup);
+            try
+            {
+                if (File.Exists(lookup))
+                    e.LinkTarget = File.ResolveLinkTarget(lookup, true)?.FullName?.Replace('\\', '/');
+                else if (Directory.Exists(lookup))
+                    e.LinkTarget = Directory.ResolveLinkTarget(lookup, true)?.FullName?.Replace('\\', '/');
+            }
+            catch { /* best-effort */ }
+
+            if (isGhostLink != null && isGhostLink(lookup))
+                e.IsGhostLink = true;
+        }
+    }
+
+    private static string PackComment(DirEntryDto e)
+    {
+        var userComment = e.Comment ?? "";
+        if (string.IsNullOrEmpty(e.LinkType) && !e.IsGhostLink) return userComment;
+        var meta = JsonSerializer.Serialize(new Dictionary<string, object?>
+        {
+            ["linkType"] = e.LinkType,
+            ["linkTarget"] = e.LinkTarget,
+            ["isGhostLink"] = e.IsGhostLink,
+        });
+        var packed = LinkMetaPrefix + meta;
+        return string.IsNullOrEmpty(userComment) ? packed : $"{userComment}\n{packed}";
+    }
+
     /// <summary>
     /// Posts directory listing via SharedBuffer. Returns false if SharedBuffer is unavailable
     /// (caller should fall back to JSON).
@@ -284,7 +327,7 @@ public static class DirListingSharedBuffer
             var path = Encoding.UTF8.GetBytes(e.Path ?? "");
             var ext = Encoding.UTF8.GetBytes(e.Extension ?? "");
             var label = Encoding.UTF8.GetBytes(e.Label ?? "");
-            var comment = Encoding.UTF8.GetBytes(e.Comment ?? "");
+            var comment = Encoding.UTF8.GetBytes(PackComment(e));
             var tags = e.Tags ?? (IReadOnlyList<string>)Array.Empty<string>();
 
             var attr = e.AttrBits;

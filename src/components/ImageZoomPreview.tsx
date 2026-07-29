@@ -12,17 +12,32 @@ interface ImageZoomPreviewProps {
   onOpenFloating?: () => void;
 }
 
+function measureContainScale(
+  imgW: number,
+  imgH: number,
+  boxW: number,
+  boxH: number,
+  padding = 20,
+): number {
+  if (!imgW || !imgH || !boxW || !boxH) return 1;
+  const sx = (boxW - padding) / imgW;
+  const sy = (boxH - padding) / imgH;
+  return Math.min(sx, sy, 24);
+}
+
 export default function ImageZoomPreview({
   src, alt, fallbackSrc, filePath, onError, onOpenFloating,
 }: ImageZoomPreviewProps) {
-  const [scale, setScale] = useState(1);
   const [displayScale, setDisplayScale] = useState(1);
   const [imgSrc, setImgSrc] = useState(src);
   const [isDragging, setIsDragging] = useState(false);
   const blobTriedRef = useRef(false);
   const blobUrlRef = useRef<string | null>(null);
+  const baseFitScaleRef = useRef(1);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const transformRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef({ x: 0, y: 0 });
   const scaleRef = useRef(1);
@@ -37,6 +52,10 @@ export default function ImageZoomPreview({
       blobUrlRef.current = null;
     }
     setImgSrc(src);
+    offsetRef.current = { x: 0, y: 0 };
+    baseFitScaleRef.current = 1;
+    scaleRef.current = 1;
+    setDisplayScale(1);
   }, [src, filePath]);
 
   useEffect(() => () => {
@@ -82,12 +101,32 @@ export default function ImageZoomPreview({
   }, [applyTransform]);
 
   const setScaleImmediate = useCallback((next: number) => {
-    const clamped = Math.min(5, Math.max(0.25, next));
+    const clamped = Math.min(24, Math.max(0.1, next));
     scaleRef.current = clamped;
-    setScale(clamped);
     setDisplayScale(clamped);
     scheduleTransform();
   }, [scheduleTransform]);
+
+  const measureFitScale = useCallback(() => {
+    const img = imgRef.current;
+    const stage = stageRef.current;
+    if (!img?.naturalWidth || !stage) return 1;
+    return measureContainScale(
+      img.naturalWidth,
+      img.naturalHeight,
+      stage.clientWidth,
+      stage.clientHeight,
+    );
+  }, []);
+
+  const fitToContainer = useCallback((preserveZoom = false) => {
+    const fit = measureFitScale();
+    baseFitScaleRef.current = fit;
+    if (!preserveZoom) {
+      offsetRef.current = { x: 0, y: 0 };
+      setScaleImmediate(fit);
+    }
+  }, [measureFitScale, setScaleImmediate]);
 
   const zoomIn = () => setScaleImmediate(scaleRef.current + 0.25);
   const zoomOut = () => setScaleImmediate(scaleRef.current - 0.25);
@@ -95,10 +134,9 @@ export default function ImageZoomPreview({
     offsetRef.current = { x: 0, y: 0 };
     setScaleImmediate(1);
   };
-  const fit = () => setScaleImmediate(1);
+  const fit = () => fitToContainer(false);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
-    // Pan at any zoom level (including fit/1×) — grab-to-reposition should always work.
     if (e.button !== 0) return;
     draggingRef.current = true;
     setIsDragging(true);
@@ -139,9 +177,15 @@ export default function ImageZoomPreview({
   }, []);
 
   useEffect(() => {
-    scaleRef.current = scale;
-    scheduleTransform();
-  }, [scale, scheduleTransform]);
+    const stage = stageRef.current;
+    if (!stage) return;
+    const ro = new ResizeObserver(() => {
+      const nearFit = Math.abs(scaleRef.current - baseFitScaleRef.current) < 0.08;
+      if (nearFit) fitToContainer(false);
+    });
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [fitToContainer, imgSrc]);
 
   return (
     <div
@@ -152,6 +196,7 @@ export default function ImageZoomPreview({
       onMouseLeave={endDrag}
     >
       <div
+        ref={stageRef}
         className={`bndz-image-preview-stage ${isDragging ? 'is-dragging' : ''}`}
         onMouseDown={onMouseDown}
       >
@@ -161,10 +206,12 @@ export default function ImageZoomPreview({
           style={{ transform: 'translate3d(0px, 0px, 0) scale(1)' }}
         >
           <img
+            ref={imgRef}
             src={imgSrc}
             alt={alt}
             draggable={false}
             className="bndz-image-preview-img"
+            onLoad={() => fitToContainer(false)}
             onError={(e) => {
               void tryBlobFallback().then((ok) => {
                 if (ok) return;
@@ -189,10 +236,10 @@ export default function ImageZoomPreview({
           <button type="button" onClick={zoomIn} className="bndz-media-transport-btn" title="Zoom in">
             <Icons8Icon id="zoom_in_ui" size={14} />
           </button>
-          <button type="button" onClick={fit} className="bndz-media-transport-btn" title="Fit">
+          <button type="button" onClick={fit} className="bndz-media-transport-btn" title="Fit to panel">
             <Icons8Icon id="maximize_ui" size={14} />
           </button>
-          <button type="button" onClick={reset} className="bndz-media-transport-btn" title="Reset">
+          <button type="button" onClick={reset} className="bndz-media-transport-btn" title="Actual size (100%)">
             <Icons8Icon id="reset_ui" size={14} />
           </button>
           {onOpenFloating && (

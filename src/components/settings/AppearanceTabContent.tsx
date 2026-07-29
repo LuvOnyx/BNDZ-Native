@@ -1,6 +1,11 @@
 import React from 'react';
 import { SettingsTabHeader, SettingsSection } from './SettingsPrimitives';
 import {
+  migrateLayoutV39,
+  migrateLayoutV40,
+  migrateLayoutV43,
+} from '../../lib/workspaceLayout';
+import {
   SELECTION_STYLE_OPTIONS,
   SURFACE_STYLE_OPTIONS,
   CORNER_RADIUS_OPTIONS,
@@ -170,6 +175,41 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           options={CORNER_RADIUS_OPTIONS}
           onChange={v => patch({ appearanceCornerRadius: v })}
         />
+      </SettingsSection>
+
+      <SettingsSection title="Workspace layout">
+        <label className="flex items-start gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-[#0078d4] mt-0.5"
+            checked={localConfig.previewDockedInWorkspace === true}
+            onChange={e => {
+              const docked = e.target.checked;
+              const migrated = docked
+                ? migrateLayoutV39(
+                  localConfig.workspaceLayoutOuter as Record<string, number>,
+                  localConfig.workspaceLayoutMainRow as Record<string, number>,
+                )
+                : migrateLayoutV43(
+                  localConfig.workspaceLayoutOuter as Record<string, number>,
+                  localConfig.workspaceLayoutMainRow as Record<string, number>,
+                  false,
+                );
+              patch({
+                previewDockedInWorkspace: docked,
+                workspaceLayoutOuter: migrated.outer,
+                workspaceLayoutMainRow: migrated.mainRow,
+              });
+            }}
+          />
+          <span className="text-[12px] text-white/90 leading-snug">
+            Dock preview above bottom plugin panel
+            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+              Off (default): classic layout — preview is full-height on the right; bottom plugins span only under the file list.
+              On: preview shares the list row and sits above the plugin dock.
+            </span>
+          </span>
+        </label>
       </SettingsSection>
 
       <SettingsSection title="Layout density">

@@ -1,0 +1,8 @@
+{
+  "name": "bndz-mesh-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "vars": {
+    "RELAY_TTL_SECONDS": "3600"
+  }
+}

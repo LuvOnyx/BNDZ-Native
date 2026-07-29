@@ -124,7 +124,11 @@ export default function BndzRecentsView({
             )}
             {entity.modified != null && (
               <span className="text-[10px] text-gray-600 shrink-0 hidden sm:inline">
-                {formatFsDate(new Date(entity.modified * 1000).toISOString())}
+                {formatFsDate(
+                  typeof entity.modified === 'number'
+                    ? new Date(entity.modified * 1000)
+                    : entity.modified,
+                )}
               </span>
             )}
           </div>

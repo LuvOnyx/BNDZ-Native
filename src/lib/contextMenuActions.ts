@@ -17,6 +17,7 @@ export interface ContextMenuState {
   entityName: string | null;
   entityExtension?: string | null;
   isDirectory: boolean;
+  isGhostLink?: boolean;
   surface?: ContextMenuSurface;
   nativeContextItems?: any[];
   selectedPaths?: string[];

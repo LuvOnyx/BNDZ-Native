@@ -33,8 +33,11 @@ function ticksToIso(utcTicks: bigint | number): string {
   // .NET DateTime ticks are 100ns since 0001-01-01; JS epoch is 1970-01-01.
   // Ticks at Unix epoch = 621355968000000000
   const ticks = typeof utcTicks === 'bigint' ? utcTicks : BigInt(utcTicks);
+  if (ticks <= 0n) return '';
   const unixMs = Number((ticks - 621355968000000000n) / 10000n);
-  return new Date(unixMs).toISOString();
+  if (!Number.isFinite(unixMs)) return '';
+  const d = new Date(unixMs);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
 }
 
 function readUtf8(view: DataView, offset: number, len: number, decoder: TextDecoder): { text: string; next: number } {
@@ -98,7 +101,22 @@ export function decodeBnd1DirListing(buffer: ArrayBuffer): any[] {
     };
     if (attrBits & ATTR_SHELL) item.isShellItem = true;
     if (label) item.label = label;
-    if (comment) item.comment = comment;
+    if (comment) {
+      const linkIdx = comment.indexOf('BNDZLINK:');
+      if (linkIdx >= 0) {
+        const userComment = linkIdx > 0 ? comment.slice(0, linkIdx).trim() : '';
+        const metaRaw = comment.slice(linkIdx + 'BNDZLINK:'.length).trim();
+        try {
+          const meta = JSON.parse(metaRaw);
+          if (meta.linkType) item.linkType = meta.linkType;
+          if (meta.linkTarget) item.linkTarget = meta.linkTarget;
+          if (meta.isGhostLink) item.isGhostLink = true;
+        } catch { /* ignore */ }
+        if (userComment) item.comment = userComment;
+      } else {
+        item.comment = comment;
+      }
+    }
     if (tags.length) item.tags = tags;
     items[i] = item;
   }

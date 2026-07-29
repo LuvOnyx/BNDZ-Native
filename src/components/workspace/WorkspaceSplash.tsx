@@ -27,6 +27,13 @@ export type WorkspaceSplashOptions = {
   resetEmptyHintOnMount?: boolean;
 };
 
+export function resetWorkspaceSplash(workspaceId: string) {
+  try {
+    localStorage.removeItem(STORAGE_PREFIX + workspaceId);
+    sessionStorage.removeItem(EMPTY_HINT_PREFIX + workspaceId);
+  } catch { /* */ }
+}
+
 export function useWorkspaceSplash(workspaceId: string, opts?: WorkspaceSplashOptions) {
   const isReady = opts?.isReady ?? true;
   const isEmpty = opts?.isEmpty ?? false;

@@ -17,6 +17,8 @@ import {
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
 import StorageCleanupWizard, { type StorageWizardMode } from './StorageCleanupWizard';
+import StorageAdvancedScanWizard from './StorageAdvancedScanWizard';
+import InstalledAppsPanel from './InstalledAppsPanel';
 import {
   ORGANIZE_BUCKETS,
   bucketForFile,
@@ -35,11 +37,12 @@ export const StorageCleanupPluginDef = {
   installOnFirstUse: true,
 };
 
-type TabId = 'overview' | 'duplicates' | 'organize';
+type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize';
 
 export default function StorageCleanupPlugin({ currentPath, pathContentsCache, folderSizeMap, pluginLaunch }: any) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [wizardMode, setWizardMode] = useState<StorageWizardMode | null>(null);
+  const [advancedWizardOpen, setAdvancedWizardOpen] = useState(false);
   const [wizardFolderPath, setWizardFolderPath] = useState<string | undefined>(undefined);
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<Date | null>(null);

@@ -56,18 +56,21 @@ export default function QuickActionsBar({
                 {count} selected
               </span>
               <div className="h-4 w-px bg-[#555] shrink-0" />
-              {actions.map(a => (
-                <button
+              {actions.map((a, i) => (
+                <motion.button
                   key={a.id}
                   type="button"
                   disabled={a.disabled}
                   title={a.label}
                   onClick={a.onClick}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.028, duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                   className={`flex items-center gap-1.5 px-2 py-1 rounded-[var(--bndz-radius-sm)] text-[11px] font-medium text-gray-400 border border-transparent transition-all disabled:opacity-30 disabled:pointer-events-none ${accentClass[a.accent || 'sky']}`}
                 >
                   <Icons8Icon id={a.icon} size={13} disabled={a.disabled} />
                   <span className="hidden sm:inline">{a.label}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>

@@ -6,6 +6,13 @@ namespace BNDZ.Services;
 
 public sealed class BndzAutomationRunnerService
 {
+    private readonly GhostLink.GhostLinkService? _ghostLink;
+
+    public BndzAutomationRunnerService(GhostLink.GhostLinkService? ghostLink = null)
+    {
+        _ghostLink = ghostLink;
+    }
+
     private static readonly HashSet<string> DefaultArchiveExts = new(StringComparer.OrdinalIgnoreCase)
     {
         "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz",
@@ -49,6 +56,9 @@ public sealed class BndzAutomationRunnerService
                         break;
                     case "rsyncDeploy":
                         RsyncDeploy(files, node, log);
+                        break;
+                    case "ghostLinkTo":
+                        GhostLinkOffload(files, node, log);
                         break;
                     case "log":
                         log.Add($"  · {GetField(node, "message", "Checkpoint")}");
@@ -144,6 +154,36 @@ public sealed class BndzAutomationRunnerService
             count++;
         }
         log.Add($"  · {(move ? "Moved" : "Copied")} {count} file(s) → {dest}");
+    }
+
+    private void GhostLinkOffload(List<string> files, AutomationNode node, List<string> log)
+    {
+        var cold = GetField(node, "coldStorageRoot");
+        if (string.IsNullOrWhiteSpace(cold))
+        {
+            log.Add("  ! Ghost-Link cold storage root missing.");
+            return;
+        }
+        if (_ghostLink == null)
+        {
+            log.Add("  ! Ghost-Link service unavailable.");
+            return;
+        }
+        var targets = files.Where(File.Exists).ToList();
+        if (targets.Count == 0)
+        {
+            log.Add("  ! No files to offload.");
+            return;
+        }
+        try
+        {
+            var reclaimed = _ghostLink.OffloadPathsAsync(targets, cold).GetAwaiter().GetResult();
+            log.Add($"  · Ghost-Link offloaded {targets.Count} file(s), reclaimed {reclaimed} bytes");
+        }
+        catch (Exception ex)
+        {
+            log.Add($"  ! Ghost-Link offload failed: {ex.Message}");
+        }
     }
 
     private static void RsyncDeploy(List<string> files, AutomationNode node, List<string> log)

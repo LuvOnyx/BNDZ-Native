@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
+using System.Reflection;
 using System.Security.Principal;
 using System.Text.Json;
 using System.Threading;
@@ -95,29 +95,22 @@ namespace BNDZ
                 PersistAlwaysRunElevated(true);
 
             // Opt-in: Windows UAC Allow/Cancel on every launch when setting is confirmed.
-            if (ReadAlwaysRunElevatedSetting() && !IsProcessElevated() && !HasArg(e.Args, "--elevated"))
+            // Debug builds skip relaunch so `dotnet run` from a terminal works without UAC handoff.
+#if DEBUG
+            const bool skipElevationRelaunch = true;
+#else
+            const bool skipElevationRelaunch = false;
+#endif
+            if (!skipElevationRelaunch
+                && !HasArg(e.Args, "--skip-elevation")
+                && ReadAlwaysRunElevatedSetting()
+                && !IsProcessElevated()
+                && !HasArg(e.Args, "--elevated"))
             {
                 try
                 {
-                    var exe = Process.GetCurrentProcess().MainModule?.FileName;
-                    if (!string.IsNullOrEmpty(exe))
+                    if (TryRelaunchElevated(e.Args))
                     {
-                        var passthrough = string.Join(" ",
-                            e.Args
-                                .Where(a => !string.Equals(a, "--elevated", StringComparison.OrdinalIgnoreCase)
-                                    && !string.Equals(a, "--enable-always-elevated", StringComparison.OrdinalIgnoreCase)
-                                    && !string.Equals(a, "--skip-elevation", StringComparison.OrdinalIgnoreCase))
-                                .Select(QuoteArg));
-                        var args = string.IsNullOrWhiteSpace(passthrough)
-                            ? "--elevated"
-                            : $"{passthrough} --elevated";
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = exe,
-                            Arguments = args,
-                            Verb = "runas",
-                            UseShellExecute = true,
-                        });
                         Current.Shutdown();
                         return;
                     }
@@ -172,10 +165,13 @@ namespace BNDZ
                 _instanceMutex = new Mutex(true, name, out var createdNew);
                 if (createdNew) return true;
 
-                // Hand off open-path to the running instance when possible.
-                var openPath = ResolveOpenPath(args);
-                if (!string.IsNullOrWhiteSpace(openPath))
-                    BndzFileManagerIpcService.TrySendOpenPathToRunningInstance(openPath);
+                // Activate the running instance (tray/minimized) even when no --open-path was passed.
+                BndzFileManagerIpcService.TrySendOpenPathToRunningInstance(ResolveOpenPath(args));
+                try
+                {
+                    Console.WriteLine("BNDZ is already running — brought the existing window to the front.");
+                }
+                catch { }
 
                 return false;
             }
@@ -201,6 +197,51 @@ namespace BNDZ
 
         private static bool HasArg(string[] args, string flag) =>
             args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>
+        /// Resolve a stable EXE for UAC relaunch — never re-elevate via dotnet.exe host.
+        /// </summary>
+        private static bool TryRelaunchElevated(string[] args)
+        {
+            var passthrough = string.Join(" ",
+                args
+                    .Where(a => !string.Equals(a, "--elevated", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(a, "--enable-always-elevated", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(a, "--skip-elevation", StringComparison.OrdinalIgnoreCase))
+                    .Select(QuoteArg));
+            var relaunchArgs = string.IsNullOrWhiteSpace(passthrough)
+                ? "--elevated"
+                : $"{passthrough} --elevated";
+
+            var exe = ResolveAppExecutablePath();
+            if (string.IsNullOrEmpty(exe)) return false;
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = relaunchArgs,
+                Verb = "runas",
+                UseShellExecute = true,
+                WorkingDirectory = AppContext.BaseDirectory,
+            });
+            return true;
+        }
+
+        private static string? ResolveAppExecutablePath()
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(processPath)
+                && !processPath.EndsWith("dotnet.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                return processPath;
+            }
+
+            var asmName = Assembly.GetExecutingAssembly().GetName().Name ?? "BNDZ";
+            var exeCandidate = Path.Combine(AppContext.BaseDirectory, asmName + ".exe");
+            if (File.Exists(exeCandidate)) return exeCandidate;
+
+            return processPath;
+        }
 
         private static string QuoteArg(string arg)
         {

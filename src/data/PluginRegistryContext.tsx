@@ -13,6 +13,7 @@ import CatalogPlugin, { CatalogPluginDef } from '../components/plugins/CatalogPl
 import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/ActionLogPlugin';
 import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
 import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
+import GhostLinkPlugin, { GhostLinkPluginDef } from '../components/plugins/GhostLinkPlugin';
 import { useAppConfig } from './configContext';
 
 export type PluginManifest = {
@@ -41,6 +42,7 @@ export const DEFAULT_INSTALLED_PLUGINS = [
     'catalog',
     'action-log',
     'compare',
+    'ghost-link',
 ];
 
 /** Advanced plugins installed on first use */
@@ -155,6 +157,14 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: MeshPlugin,
+    },
+    {
+        ...GhostLinkPluginDef,
+        description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: GhostLinkPlugin,
     },
 ];
 

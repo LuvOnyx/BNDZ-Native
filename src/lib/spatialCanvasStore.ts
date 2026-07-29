@@ -89,6 +89,15 @@ export async function saveSpatialCanvas(doc: SpatialCanvasDoc, delayMs = 400): P
   return true;
 }
 
+/** Immediate persist of an empty spatial board — clears stale local cache. */
+export async function resetSpatialCanvasPersisted(): Promise<SpatialCanvasDoc> {
+  const empty = defaultCanvas();
+  cache = empty;
+  try { localStorage.removeItem(`bndz_meta_${META_KEY}`); } catch { /* */ }
+  if (IPC.isNative) await flushBndzMeta(META_KEY, JSON.stringify(empty));
+  return empty;
+}
+
 export async function saveSpatialCanvasNow(doc: SpatialCanvasDoc): Promise<boolean> {
   const next = { ...doc, updatedAt: Date.now() };
   cache = next;

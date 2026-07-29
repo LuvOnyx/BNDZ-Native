@@ -4,64 +4,117 @@
  * - skill-icons: application brands ([skill-icons set](https://icon-sets.iconify.design/skill-icons/))
  */
 
-/** Devicon — code & markup types where a branded glyph adds clarity over generic shell icons */
+/** Devicon / logos — verified against api.iconify.design (no `-plain` suffixes; those 404). */
 const DEVICON_EXT: Record<string, string> = {
-  js: 'devicon:javascript-plain',
-  mjs: 'devicon:javascript-plain',
-  cjs: 'devicon:javascript-plain',
-  jsx: 'devicon:react-original',
-  ts: 'devicon:typescript-plain',
-  tsx: 'devicon:react-original',
-  html: 'devicon:html5-plain',
-  htm: 'devicon:html5-plain',
-  css: 'devicon:css3-plain',
-  scss: 'devicon:sass-original',
-  sass: 'devicon:sass-original',
-  less: 'devicon:less-plain-wordmark',
-  json: 'devicon:json-plain',
-  jsonc: 'devicon:json-plain',
-  xml: 'devicon:xml-plain',
-  svg: 'devicon:html5-plain',
-  py: 'devicon:python-plain',
-  rb: 'devicon:ruby-plain',
-  go: 'devicon:go-original-wordmark',
-  rs: 'devicon:rust-plain',
-  java: 'devicon:java-plain',
-  kt: 'devicon:kotlin-plain',
-  cs: 'devicon:csharp-plain',
-  cpp: 'devicon:cplusplus-plain',
-  cc: 'devicon:cplusplus-plain',
-  cxx: 'devicon:cplusplus-plain',
-  c: 'devicon:c-plain',
-  h: 'devicon:c-plain',
-  hpp: 'devicon:cplusplus-plain',
-  php: 'devicon:php-plain',
-  sql: 'devicon:mysql-plain',
-  vue: 'devicon:vuejs-plain',
-  svelte: 'devicon:svelte-plain',
-  wasm: 'devicon:webassembly-plain',
-  dockerfile: 'devicon:docker-plain',
-  yaml: 'devicon:yaml-plain',
-  yml: 'devicon:yaml-plain',
-  toml: 'devicon:toml-plain',
+  js: 'devicon:javascript',
+  mjs: 'devicon:javascript',
+  cjs: 'devicon:javascript',
+  jsx: 'devicon:react',
+  ts: 'devicon:typescript',
+  tsx: 'devicon:react',
+  html: 'devicon:html5',
+  htm: 'devicon:html5',
+  c: 'devicon:c',
+  h: 'devicon:c',
+  hpp: 'devicon:cplusplus',
+  cs: 'devicon:csharp',
+  cpp: 'devicon:cplusplus',
+  cc: 'devicon:cplusplus',
+  cxx: 'devicon:cplusplus',
+  css: 'devicon:css3',
+  scss: 'devicon:sass',
+  sass: 'devicon:sass',
+  less: 'simple-icons:less',
+  json: 'logos:json',
+  jsonc: 'logos:json',
+  xml: 'devicon:xml',
+  svg: 'devicon:html5',
+  py: 'devicon:python',
+  rb: 'devicon:ruby',
+  go: 'devicon:go',
+  rs: 'devicon:rust',
+  java: 'devicon:java',
+  kt: 'devicon:kotlin',
+  php: 'devicon:php',
+  sql: 'devicon:mysql',
+  vue: 'devicon:vuejs',
+  svelte: 'devicon:svelte',
+  wasm: 'logos:webassembly',
+  dockerfile: 'devicon:docker',
+  yaml: 'devicon:yaml',
+  yml: 'devicon:yaml',
+  toml: 'simple-icons:toml',
   md: 'devicon:markdown',
 };
 
 export const ICONIFY_PATH_PREFIX = 'iconify:';
 
-/** Known Iconify id renames / fallbacks when primary id 404s */
+/** Legacy Iconify ids (saved icons / old builds) → working replacements, tried before network. */
 const ICONIFY_ALIASES: Record<string, string[]> = {
+  'devicon:javascript-plain': ['devicon:javascript'],
+  'devicon:typescript-plain': ['devicon:typescript'],
   'devicon:html5-plain': ['devicon:html5', 'logos:html-5'],
-  'devicon:less-plain-wordmark': ['devicon:less', 'logos:less'],
-  'devicon:go-original-wordmark': ['devicon:go', 'logos:go'],
+  'devicon:css3-plain': ['devicon:css3'],
+  'devicon:c-plain': ['devicon:c'],
   'devicon:cplusplus-plain': ['devicon:cplusplus', 'logos:c-plusplus'],
-  'devicon:webassembly-plain': ['devicon:wasm', 'logos:webassembly-icon'],
+  'devicon:csharp-plain': ['devicon:csharp'],
+  'devicon:python-plain': ['devicon:python'],
+  'devicon:ruby-plain': ['devicon:ruby'],
+  'devicon:go-original-wordmark': ['devicon:go', 'logos:go'],
+  'devicon:rust-plain': ['devicon:rust'],
+  'devicon:java-plain': ['devicon:java'],
+  'devicon:kotlin-plain': ['devicon:kotlin'],
+  'devicon:php-plain': ['devicon:php'],
+  'devicon:mysql-plain': ['devicon:mysql'],
+  'devicon:vuejs-plain': ['devicon:vuejs'],
+  'devicon:svelte-plain': ['devicon:svelte'],
+  'devicon:docker-plain': ['devicon:docker'],
+  'devicon:react-original': ['devicon:react'],
+  'devicon:sass-original': ['devicon:sass'],
+  'devicon:less-plain-wordmark': ['simple-icons:less'],
+  'devicon:webassembly-plain': ['logos:webassembly', 'devicon:wasm'],
   'devicon:markdown-plain': ['devicon:markdown', 'logos:markdown'],
-  'devicon:json-plain': ['devicon:json', 'logos:json'],
-  'devicon:xml-plain': ['devicon:xml', 'logos:xml'],
+  'devicon:json-plain': ['logos:json'],
+  'devicon:xml-plain': ['devicon:xml'],
   'devicon:yaml-plain': ['devicon:yaml', 'logos:yaml'],
-  'devicon:toml-plain': ['devicon:toml'],
+  'devicon:toml-plain': ['simple-icons:toml'],
 };
+
+const DEPRECATED_ICON_SUFFIX =
+  /-(?:plain(?:-wordmark)?|original(?:-wordmark)?|wordmark)$/;
+
+function canonicalizeIconifyId(iconId: string): string {
+  if (!iconId.startsWith('devicon:')) return iconId;
+  const name = iconId.slice('devicon:'.length);
+  if (!DEPRECATED_ICON_SUFFIX.test(name)) return iconId;
+  return `devicon:${name.replace(DEPRECATED_ICON_SUFFIX, '')}`;
+}
+
+function resolveIconifyFetchCandidates(iconId: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (id: string | undefined | null) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push(id);
+  };
+
+  for (const alias of ICONIFY_ALIASES[iconId] ?? []) add(alias);
+
+  const canonical = canonicalizeIconifyId(iconId);
+  if (canonical !== iconId) add(canonical);
+
+  if (iconId.startsWith('skill-icons:') && !iconId.endsWith('-dark') && !iconId.endsWith('-light')) {
+    const base = iconId.replace('skill-icons:', '');
+    add(`skill-icons:${base}-dark`);
+    add(`skill-icons:${base}-light`);
+  }
+
+  const bareName = iconId.includes(':') ? iconId.split(':')[1]! : iconId;
+  if (!DEPRECATED_ICON_SUFFIX.test(bareName)) add(iconId);
+
+  return out;
+}
 
 export function toIconifyLibraryPath(iconId: string): string {
   return `${ICONIFY_PATH_PREFIX}${iconId}`;
@@ -261,18 +314,7 @@ export async function fetchIconifySvg(iconId: string): Promise<string | null> {
   if (pending) return pending;
 
   const promise = (async () => {
-    const idsToTry: string[] = [iconId];
-    const aliases = ICONIFY_ALIASES[iconId];
-    if (aliases) idsToTry.push(...aliases);
-    if (iconId.startsWith('skill-icons:') && !iconId.endsWith('-dark') && !iconId.endsWith('-light')) {
-      const base = iconId.replace('skill-icons:', '');
-      idsToTry.unshift(`skill-icons:${base}-dark`, `skill-icons:${base}-light`);
-    }
-    if (iconId.startsWith('devicon:') && iconId.includes('-plain')) {
-      idsToTry.push(iconId.replace('-plain', '').replace('-wordmark', ''));
-    }
-
-    const unique = [...new Set(idsToTry)];
+    const unique = resolveIconifyFetchCandidates(iconId);
     for (const id of unique) {
       if (svgCache.has(id)) {
         const hit = svgCache.get(id)!;

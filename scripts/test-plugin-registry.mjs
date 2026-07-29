@@ -30,6 +30,8 @@ const defFiles = {
   CatalogPluginDef: 'CatalogPlugin.tsx',
   ActionLogPluginDef: 'ActionLogPlugin.tsx',
   ComparePluginDef: 'ComparePlugin.tsx',
+  MeshPluginDef: 'MeshPlugin.tsx',
+  GhostLinkPluginDef: 'GhostLinkPlugin.tsx',
 };
 
 function readDefId(defName) {
@@ -70,6 +72,8 @@ const componentPaths = {
   CatalogPlugin: 'CatalogPlugin.tsx',
   ActionLogPlugin: 'ActionLogPlugin.tsx',
   ComparePlugin: 'ComparePlugin.tsx',
+  MeshPlugin: 'MeshPlugin.tsx',
+  GhostLinkPlugin: 'GhostLinkPlugin.tsx',
 };
 
 for (const comp of components) {
