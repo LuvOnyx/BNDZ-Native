@@ -5,9 +5,12 @@ import SpatialCanvasCard from '../workspace/SpatialCanvasCard';
 import SpatialSpringBoard from '../../workstation/spatial/SpatialSpringBoard';
 import { readBndzFileDragData, hasBndzFileDrag } from '../../lib/bndzDrag';
 import { getFileDragSession } from '../../lib/fileDragSession';
+import { endInternalFileDragUi } from '../../lib/fileDragUiCleanup';
+import { readClipboardText } from '../../lib/clipboardSafe';
 import {
   loadSpatialCanvas, hydrateSpatialCanvasFromJson, invalidateSpatialCanvasCache,
   resetSpatialCanvasPersisted,
+  listSpatialBoards, switchSpatialBoard, createSpatialBoard, deleteSpatialBoard, renameSpatialBoard,
   type CanvasItem, type SpatialCanvasDoc,
 } from '../../lib/spatialCanvasStore';
 import { toWindowsPath } from '../../lib/pathUtils';
@@ -22,17 +25,24 @@ import ConstellationMinimap, { type ConstellationMinimapHandle } from '../worksp
 import WorkspaceCommandPalette, { type PaletteCommand } from '../workspace/WorkspaceCommandPalette';
 import {
   computeClusters, computeRelations, exportConstellationJson, parseConstellationImport,
-  saveSnapshot, snapPosition, magneticOffset,
+  saveSnapshot, snapPosition, magneticOffset, visibleItems,
+  loadSnapshots, hydrateSnapshotsFromMeta, restoreSnapshotJson, deleteSnapshot, type SnapshotEntry,
 } from '../../lib/workspace/spatialCanvasUtils';
-import { setWorkspaceClipboard } from '../../lib/workspace/workspaceClipboard';
+import { applyMomentum } from '../../workstation/spatial/spatialPhysics';
+import { setWorkspaceClipboard, getWorkspaceClipboard } from '../../lib/workspace/workspaceClipboard';
+import { dispatchAutomationFromPin } from '../../lib/workspace/automationPendingSeed';
 import { useWorkspaceAutosave } from '../../lib/useWorkspaceAutosave';
-import { flushBndzMeta } from '../../lib/bndzMetaStore';
 import { WorkspaceInteractionEngine } from '../../lib/workspace/WorkspaceInteractionEngine';
 import {
   focusWorkspaceSurface, shouldHandleWorkspaceKeys,
 } from '../../lib/workspace/workspaceFocus';
-import { bindWorkspaceCursorGuard } from '../../lib/workspace/workspaceCursorGuard';
+import {
+  bindWorkspaceCursorGuard,
+  clearChromeDragCursor,
+  resetWorkspacePointerChrome,
+} from '../../lib/workspace/workspaceCursorGuard';
 import { invalidateSpatialVisual } from '../../lib/workspace/spatialVisualBus';
+import { createSpatialCanvasHistory } from '../../lib/workspace/spatialCanvasHistory';
 
 const MIN_MARQUEE_PX = 4;
 
@@ -94,6 +104,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const [showMinimap, setShowMinimap] = useState(true);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [snapshots, setSnapshots] = useState<SnapshotEntry[]>(() => loadSnapshots());
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const [boardList, setBoardList] = useState<Array<{ id: string; name: string; pinCount: number; active: boolean }>>([]);
+  const [showBoardPicker, setShowBoardPicker] = useState(false);
   const [tagMap, setTagMap] = useState<Map<string, string[]>>(new Map());
   const [boardSize, setBoardSize] = useState({ w: 800, h: 600 });
   const minimapRef = useRef<ConstellationMinimapHandle>(null);
@@ -111,6 +125,8 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   );
   const interacting = useRef(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const panSamplesRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
+  const panMomentumRafRef = useRef(0);
   const itemDrag = useRef({
     id: '', ox: 0, oy: 0,
     originX: 0, originY: 0,
@@ -124,6 +140,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const dragRafRef = useRef(0);
   const rafRef = useRef(0);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef(createSpatialCanvasHistory());
   const { menu, closeMenu, onContextMenu } = useWorkspaceContextMenu(surfaceRef);
   const splash = useWorkspaceSplash('spatial-canvas', {
     isReady: doc !== null,
@@ -139,7 +156,8 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       const parsed = JSON.parse(snap) as SpatialCanvasDoc;
       const payload: SpatialCanvasDoc = { ...parsed, updatedAt: Date.now() };
       hydrateSpatialCanvasFromJson(JSON.stringify(payload));
-      return flushBndzMeta('spatial_canvas_v1', JSON.stringify(payload));
+      const { saveSpatialCanvasNow } = await import('../../lib/spatialCanvasStore');
+      return saveSpatialCanvasNow(payload);
     },
     saveDelayMs,
     autoSave,
@@ -147,8 +165,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
 
   const { schedule: scheduleSave, seed: seedAutosave, flush: flushAutosave } = autosave;
 
-  const commitDoc = useCallback((next: SpatialCanvasDoc, save = true) => {
-    const prevItems = docRef.current?.items.length ?? 0;
+  const commitDoc = useCallback((next: SpatialCanvasDoc, save = true, recordHistory = true) => {
+    const prev = docRef.current;
+    const prevItems = prev?.items.length ?? 0;
+    if (recordHistory && save && prev && stableDocJson(prev) !== stableDocJson(next)) {
+      historyRef.current.pushBefore(prev);
+    }
     docRef.current = next;
     setDoc(next);
     engine.setTransform(next.panX, next.panY, next.zoom, true);
@@ -237,24 +259,30 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   useEffect(() => {
     if (!doc?.items.length || !IPC.isNative) return;
     let active = true;
-    const run = () => {
-      void Promise.all(
-        doc.items.slice(0, 64).map(it =>
-          IPC.getTagSidecar(it.path).then(sc => [it.path, sc?.tags?.filter(Boolean) ?? []] as const),
-        ),
-      ).then(rows => {
+    const batchSize = 32;
+    const items = doc.items;
+    const run = async () => {
+      const map = new Map<string, string[]>();
+      for (let i = 0; i < items.length; i += batchSize) {
         if (!active) return;
-        setTagMap(new Map(rows));
-      });
+        const chunk = items.slice(i, i + batchSize);
+        const rows = await Promise.all(
+          chunk.map(it =>
+            IPC.getTagSidecar(it.path).then(sc => [it.path, sc?.tags?.filter(Boolean) ?? []] as const),
+          ),
+        );
+        rows.forEach(([path, tags]) => map.set(path, tags));
+        if (active) setTagMap(new Map(map));
+      }
     };
     const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
-    const id = typeof ric === 'function' ? ric(run, { timeout: 2000 }) : window.setTimeout(run, 400);
+    const id = typeof ric === 'function' ? ric(() => void run(), { timeout: 3000 }) : window.setTimeout(() => void run(), 400);
     return () => {
       active = false;
       if (typeof ric === 'function') window.cancelIdleCallback?.(id as number);
       else clearTimeout(id);
     };
-  }, [doc?.items.length, doc?.updatedAt]);
+  }, [doc?.items, doc?.updatedAt]);
 
   const clusters = useMemo(
     () => (doc ? computeClusters(doc.items, CARD_W, CARD_H) : []),
@@ -265,18 +293,88 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     [doc, showRelations, tagMap],
   );
 
+  const renderedItems = useMemo(() => {
+    if (!doc) return [];
+    const t = engine.getTransform();
+    return visibleItems(doc.items, {
+      panX: t.panX,
+      panY: t.panY,
+      zoom: t.zoom,
+      w: boardSize.w,
+      h: boardSize.h,
+    }, CARD_W, CARD_H);
+  }, [doc, boardSize, displayZoom, engine]);
+
+  useEffect(() => {
+    let active = true;
+    void hydrateSnapshotsFromMeta().then(list => {
+      if (active) setSnapshots(list);
+    });
+    return () => { active = false; };
+  }, []);
+
   useEffect(() => {
     let active = true;
     invalidateSpatialCanvasCache();
-    loadSpatialCanvas({ force: true }).then(d => {
+    Promise.all([loadSpatialCanvas({ force: true }), listSpatialBoards()]).then(([d, boards]) => {
       if (!active) return;
       docRef.current = d;
       setDoc(d);
+      setBoardList(boards);
       engine.setTransform(d.panX, d.panY, d.zoom, true);
       seedAutosave(stableDocJson(d));
     });
     return () => { active = false; };
   }, [engine, seedAutosave]);
+
+  const refreshBoards = useCallback(async () => {
+    setBoardList(await listSpatialBoards());
+  }, []);
+
+  const switchBoard = useCallback(async (boardId: string) => {
+    await flushAutosave(true);
+    const d = await switchSpatialBoard(boardId);
+    historyRef.current = createSpatialCanvasHistory();
+    docRef.current = d;
+    setDoc(d);
+    engine.setTransform(d.panX, d.panY, d.zoom, true);
+    seedAutosave(stableDocJson(d));
+    setSelectedIds([]);
+    setShowBoardPicker(false);
+    await refreshBoards();
+    setStatus(`Switched to ${d.name}`);
+  }, [engine, flushAutosave, seedAutosave, refreshBoards]);
+
+  const newBoard = useCallback(async () => {
+    await flushAutosave(true);
+    const d = await createSpatialBoard();
+    historyRef.current = createSpatialCanvasHistory();
+    docRef.current = d;
+    setDoc(d);
+    engine.setTransform(0, 0, 1, true);
+    seedAutosave(stableDocJson(d));
+    setSelectedIds([]);
+    setShowBoardPicker(false);
+    await refreshBoards();
+    setStatus(`Created ${d.name}`);
+  }, [engine, flushAutosave, seedAutosave, refreshBoards]);
+
+  const removeBoard = useCallback(async (boardId: string) => {
+    try {
+      await flushAutosave(true);
+      const d = await deleteSpatialBoard(boardId);
+      historyRef.current = createSpatialCanvasHistory();
+      docRef.current = d;
+      setDoc(d);
+      engine.setTransform(d.panX, d.panY, d.zoom, true);
+      seedAutosave(stableDocJson(d));
+      setSelectedIds([]);
+      await refreshBoards();
+      setStatus(`Deleted board · now on ${d.name}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not delete board');
+    }
+  }, [engine, flushAutosave, seedAutosave, refreshBoards]);
 
   useLayoutEffect(() => {
     return () => {
@@ -408,6 +506,8 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       if (!session?.paths?.length) return;
       if (!hitBoardAt(ev.clientX, ev.clientY)) return;
       addPaths(session.paths, resolveDropPoint(ev.clientX, ev.clientY));
+      // Board stopPropagation blocks BNDZUI bubble cleanup — tear down ghost/fluid here.
+      endInternalFileDragUi('spatial-pin');
     };
     window.addEventListener('bndz-external-drop', onExternalDrop);
     window.addEventListener('bndz-spatial-add', onSpatialAdd);
@@ -558,31 +658,179 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const d = docRef.current;
     if (!d) return;
     const json = exportConstellationJson(d);
-    saveSnapshot(d.name || 'Snapshot', json);
+    setSnapshots(saveSnapshot(d.name || 'Snapshot', json));
     setStatus('Snapshot saved');
+    setShowSnapshots(true);
   }, []);
+
+  const restoreSnapshot = useCallback((id: string) => {
+    const json = restoreSnapshotJson(id);
+    if (!json) return;
+    const parsed = parseConstellationImport(json);
+    const d = docRef.current;
+    if (!parsed || !d) return;
+    commitDoc({
+      ...d,
+      name: parsed.name ?? d.name,
+      items: parsed.items.map(it => ({ ...it, id: it.id || `${Date.now()}_${Math.random().toString(36).slice(2, 6)}` })),
+      panX: parsed.panX ?? d.panX,
+      panY: parsed.panY ?? d.panY,
+      zoom: parsed.zoom ?? d.zoom,
+    });
+    setStatus('Snapshot restored');
+  }, [commitDoc]);
+
+  const focusCluster = useCallback((clusterId: string) => {
+    const c = clusters.find(cl => cl.id === clusterId);
+    const d = docRef.current;
+    const el = boardRef.current;
+    if (!c || !d || !el) return;
+    setSelectedIds(c.itemIds);
+    const zoom = Math.min(maxZoom, Math.max(minZoom, 1.1));
+    const px = el.clientWidth / 2 - c.cx * zoom;
+    const py = el.clientHeight / 2 - c.cy * zoom;
+    engine.setTransform(px, py, zoom, true);
+    commitTransform();
+    setStatus(`Focused cluster: ${c.label}`);
+  }, [clusters, engine, minZoom, maxZoom, commitTransform]);
+
+  const pastePins = useCallback((paths?: string[]) => {
+    const clipPaths = paths ?? (() => {
+      const clip = getWorkspaceClipboard();
+      return clip?.kind === 'spatial-pins' ? clip.paths : [];
+    })();
+    if (!clipPaths.length) return;
+    const d = docRef.current;
+    if (!d) return;
+    const existing = new Set(d.items.map(it => it.path));
+    const t = engine.getTransform();
+    const cx = (-t.panX + boardSize.w / 2) / t.zoom;
+    const cy = (-t.panY + boardSize.h / 2) / t.zoom;
+    const added = clipPaths
+      .filter(p => p && !existing.has(p))
+      .map((path, i) => newItem(path, cx + (i % 4) * (CARD_W + 16), cy + Math.floor(i / 4) * (CARD_H + 16)));
+    if (!added.length) return;
+    commitDoc({ ...d, items: [...d.items, ...added] });
+    setSelectedIds(added.map(it => it.id));
+    setStatus(`Pasted ${added.length} pin${added.length === 1 ? '' : 's'}`);
+  }, [engine, boardSize, commitDoc]);
+
+  const copySelectedPaths = useCallback(() => {
+    const d = docRef.current;
+    if (!d) return;
+    const paths = d.items.filter(it => selectedSet.has(it.id)).map(it => it.path);
+    if (!paths.length) return;
+    setWorkspaceClipboard({ kind: 'spatial-pins', paths });
+    void navigator.clipboard.writeText(paths.join('\n'));
+    setStatus(`Copied ${paths.length} path${paths.length === 1 ? '' : 's'}`);
+  }, [selectedSet]);
+
+  const cutSelectedPins = useCallback(() => {
+    if (!selectedIds.length) return;
+    copySelectedPaths();
+    removeItems(selectedIds);
+    setStatus(`Cut ${selectedIds.length} pin${selectedIds.length === 1 ? '' : 's'}`);
+  }, [selectedIds, copySelectedPaths, removeItems]);
+
+  const duplicateSelectedPins = useCallback(() => {
+    const d = docRef.current;
+    if (!d || !selectedIds.length) return;
+    const sel = new Set(selectedIds);
+    const clones = d.items
+      .filter(it => sel.has(it.id))
+      .map((it, i) => newItem(it.path, it.x + 24 + (i % 3) * 12, it.y + 24 + Math.floor(i / 3) * 12));
+    if (!clones.length) return;
+    commitDoc({ ...d, items: [...d.items, ...clones] });
+    setSelectedIds(clones.map(it => it.id));
+    setStatus(`Duplicated ${clones.length} pin${clones.length === 1 ? '' : 's'}`);
+  }, [selectedIds, commitDoc]);
+
+  const nudgeSelectedPins = useCallback((dx: number, dy: number) => {
+    const d = docRef.current;
+    if (!d || !selectedIds.length) return;
+    const sel = new Set(selectedIds);
+    const items = d.items.map(it => {
+      if (!sel.has(it.id)) return it;
+      const snapped = snapPosition(it.x + dx, it.y + dy, 24, snapEnabled);
+      return { ...it, x: snapped.x, y: snapped.y };
+    });
+    commitDoc({ ...d, items });
+  }, [selectedIds, commitDoc, snapEnabled]);
+
+  const fitSelection = useCallback(() => {
+    const d = docRef.current;
+    if (!d || !selectedIds.length || !boardRef.current) return;
+    const sel = new Set(selectedIds);
+    const picked = d.items.filter(it => sel.has(it.id));
+    if (!picked.length) return;
+    const rect = boardRef.current.getBoundingClientRect();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    picked.forEach(it => {
+      minX = Math.min(minX, it.x);
+      minY = Math.min(minY, it.y);
+      maxX = Math.max(maxX, it.x + CARD_W);
+      maxY = Math.max(maxY, it.y + CARD_H);
+    });
+    const pad = 56;
+    const bw = maxX - minX + pad * 2;
+    const bh = maxY - minY + pad * 2;
+    const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
+    const panX = (rect.width - bw * zoom) / 2 - minX * zoom + pad * zoom;
+    const panY = (rect.height - bh * zoom) / 2 - minY * zoom + pad * zoom;
+    commitDoc({ ...d, panX, panY, zoom });
+    setStatus(`Framed ${picked.length} selected pin${picked.length === 1 ? '' : 's'}`);
+  }, [selectedIds, commitDoc, minZoom, maxZoom]);
+
+  const sendSelectionToAutomation = useCallback(() => {
+    const d = docRef.current;
+    if (!d) return;
+    const paths = d.items.filter(it => selectedSet.has(it.id)).map(it => it.path);
+    if (!paths.length) return;
+    setWorkspaceClipboard({ kind: 'spatial-pins', paths });
+    dispatchAutomationFromPin(paths, { navigate: true });
+    setStatus(`Sent ${paths.length} pin${paths.length === 1 ? '' : 's'} to automation`);
+  }, [selectedSet]);
+
+  const undoDoc = useCallback(() => {
+    const d = docRef.current;
+    if (!d) return;
+    const prev = historyRef.current.undo(d);
+    if (!prev) return;
+    commitDoc(prev, true, false);
+    setSelectedIds([]);
+    setStatus('Undo');
+  }, [commitDoc]);
+
+  const redoDoc = useCallback(() => {
+    const d = docRef.current;
+    if (!d) return;
+    const next = historyRef.current.redo(d);
+    if (!next) return;
+    commitDoc(next, true, false);
+    setSelectedIds([]);
+    setStatus('Redo');
+  }, [commitDoc]);
 
   const paletteCommands = useMemo<PaletteCommand[]>(() => [
     { id: 'zin', label: 'Zoom in', group: 'View', shortcut: 'Ctrl++', onRun: () => zoomBy(1.15) },
     { id: 'zout', label: 'Zoom out', group: 'View', shortcut: 'Ctrl+-', onRun: () => zoomBy(0.87) },
     { id: 'fit', label: 'Fit all pins', group: 'View', onRun: fitBoard },
+    { id: 'fit-sel', label: 'Frame selection', group: 'View', shortcut: 'Ctrl+Shift+F', onRun: fitSelection },
     { id: 'grid', label: 'Arrange grid', group: 'Layout', onRun: arrangeGrid },
     { id: 'relations', label: showRelations ? 'Hide relation lines' : 'Show relation lines', group: 'View', onRun: () => setShowRelations(v => !v) },
     { id: 'snap', label: snapEnabled ? 'Disable snap' : 'Enable snap', group: 'Layout', onRun: () => setSnapEnabled(v => !v) },
     { id: 'export', label: 'Export constellation', group: 'File', onRun: exportBoard },
     { id: 'import', label: 'Import constellation', group: 'File', onRun: importBoard },
     { id: 'snapshot', label: 'Save snapshot', group: 'File', onRun: snapshotBoard },
-    { id: 'copy', label: 'Copy selected paths', group: 'Edit', onRun: () => {
-      const d = docRef.current;
-      if (!d) return;
-      const paths = d.items.filter(it => selectedSet.has(it.id)).map(it => it.path);
-      if (paths.length) {
-        setWorkspaceClipboard({ kind: 'spatial-pins', paths });
-        void navigator.clipboard.writeText(paths.join('\n'));
-        setStatus(`Copied ${paths.length} path${paths.length === 1 ? '' : 's'}`);
-      }
-    }},
-  ], [zoomBy, fitBoard, arrangeGrid, showRelations, snapEnabled, exportBoard, importBoard, snapshotBoard, selectedSet]);
+    { id: 'snapshots', label: 'Snapshot history', group: 'File', onRun: () => { setSnapshots(loadSnapshots()); setShowSnapshots(true); } },
+    { id: 'undo', label: 'Undo', group: 'Edit', shortcut: 'Ctrl+Z', onRun: undoDoc },
+    { id: 'redo', label: 'Redo', group: 'Edit', shortcut: 'Ctrl+Shift+Z', onRun: redoDoc },
+    { id: 'cut', label: 'Cut selected pins', group: 'Edit', shortcut: 'Ctrl+X', onRun: cutSelectedPins },
+    { id: 'dup', label: 'Duplicate selected pins', group: 'Edit', shortcut: 'Ctrl+D', onRun: duplicateSelectedPins },
+    { id: 'paste', label: 'Paste pins', group: 'Edit', shortcut: 'Ctrl+V', onRun: () => pastePins() },
+    { id: 'copy', label: 'Copy selected paths', group: 'Edit', shortcut: 'Ctrl+C', onRun: copySelectedPaths },
+    { id: 'automation', label: 'Send selection to automation', group: 'Workflow', shortcut: 'Ctrl+Shift+A', onRun: sendSelectionToAutomation },
+  ], [zoomBy, fitBoard, fitSelection, arrangeGrid, showRelations, snapEnabled, exportBoard, importBoard, snapshotBoard, undoDoc, redoDoc, cutSelectedPins, duplicateSelectedPins, pastePins, copySelectedPaths, sendSelectionToAutomation]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -621,6 +869,52 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         setSelectedIds(d.items.map(it => it.id));
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undoDoc();
+      } else if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
+        e.preventDefault();
+        redoDoc();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+        if (!selectedIds.length) return;
+        e.preventDefault();
+        cutSelectedPins();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        if (!selectedIds.length) return;
+        e.preventDefault();
+        duplicateSelectedPins();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        sendSelectionToAutomation();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        fitSelection();
+      } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedIds.length) {
+        e.preventDefault();
+        const step = e.shiftKey ? 1 : 24;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        nudgeSelectedPins(dx, dy);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        if (!selectedIds.length) return;
+        e.preventDefault();
+        copySelectedPaths();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        const clip = getWorkspaceClipboard();
+        if (clip?.kind === 'spatial-pins' && clip.paths.length) {
+          pastePins(clip.paths);
+          return;
+        }
+        void readClipboardText().then(text => {
+          const paths = text.split(/\r?\n/).map(s => s.trim()).filter(p => p.length > 2);
+          if (!paths.length) return;
+          setWorkspaceClipboard({ kind: 'spatial-pins', paths });
+          pastePins(paths);
+        });
+      } else if (e.key === 'Escape' && selectedIds.length) {
+        e.preventDefault();
+        setSelectedIds([]);
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -632,7 +926,19 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [selectedIds, removeSelected, zoomBy, commitTransform, isWorkspaceActive, engine]);
+  }, [selectedIds, removeSelected, zoomBy, commitTransform, isWorkspaceActive, engine, pastePins, copySelectedPaths, undoDoc, redoDoc, cutSelectedPins, duplicateSelectedPins, nudgeSelectedPins, fitSelection, sendSelectionToAutomation]);
+
+  useEffect(() => {
+    const onDocChanged = () => {
+      void loadSpatialCanvas({ force: true }).then(next => {
+        setDoc(next);
+        docRef.current = next;
+        invalidateSpatialVisual();
+      });
+    };
+    window.addEventListener('bndz-spatial-doc-changed', onDocChanged);
+    return () => window.removeEventListener('bndz-spatial-doc-changed', onDocChanged);
+  }, []);
 
   const updateMarqueeDom = useCallback((m: { x1: number; y1: number; x2: number; y2: number }) => {
     const el = marqueeElRef.current;
@@ -676,7 +982,35 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     if (panningRef.current) {
       panningRef.current = false;
       setPanning(false);
-      commitTransform();
+      const samples = panSamplesRef.current;
+      const t = engine.getTransform();
+      const boosted = applyMomentum(samples, { x: t.panX, y: t.panY });
+      panSamplesRef.current = [];
+      if (panMomentumRafRef.current) cancelAnimationFrame(panMomentumRafRef.current);
+      const dx = boosted.x - t.panX;
+      const dy = boosted.y - t.panY;
+      if (Math.hypot(dx, dy) > 2) {
+        let vx = dx * 0.35;
+        let vy = dy * 0.35;
+        let px = t.panX;
+        let py = t.panY;
+        const tick = () => {
+          vx *= 0.88;
+          vy *= 0.88;
+          px += vx;
+          py += vy;
+          applyLiveTransform(px, py, engine.getTransform().zoom);
+          if (Math.hypot(vx, vy) > 0.35) {
+            panMomentumRafRef.current = requestAnimationFrame(tick);
+          } else {
+            panMomentumRafRef.current = 0;
+            commitTransform();
+          }
+        };
+        panMomentumRafRef.current = requestAnimationFrame(tick);
+      } else {
+        commitTransform();
+      }
     }
 
     if (marqueeRef.current.active) {
@@ -718,7 +1052,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     }
 
     interacting.current = false;
-  }, [commitTransform, hideMarquee, commitDoc, snapEnabled]);
+  }, [commitTransform, hideMarquee, commitDoc, snapEnabled, applyLiveTransform, engine]);
 
   const applyDragOffset = useCallback(() => {
     const { dx, dy } = dragOffsetRef.current;
@@ -791,8 +1125,13 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       interacting.current = true;
       panningRef.current = true;
       setPanning(true);
+      if (panMomentumRafRef.current) {
+        cancelAnimationFrame(panMomentumRafRef.current);
+        panMomentumRafRef.current = 0;
+      }
       const t = engine.getTransform();
       panStart.current = { x: e.clientX, y: e.clientY, panX: t.panX, panY: t.panY };
+      panSamplesRef.current = [{ x: t.panX, y: t.panY, t: performance.now() }];
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } else if (e.button === 0 && onEmptyBoard) {
       interacting.current = true;
@@ -815,7 +1154,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     if (panning) {
       const dx = e.clientX - panStart.current.x;
       const dy = e.clientY - panStart.current.y;
-      applyLiveTransform(panStart.current.panX + dx, panStart.current.panY + dy, engine.getTransform().zoom);
+      const nextX = panStart.current.panX + dx;
+      const nextY = panStart.current.panY + dy;
+      applyLiveTransform(nextX, nextY, engine.getTransform().zoom);
+      const samples = panSamplesRef.current;
+      samples.push({ x: nextX, y: nextY, t: performance.now() });
+      if (samples.length > 6) samples.shift();
       return;
     }
     if (marqueeRef.current.active) {
@@ -859,14 +1203,22 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   }, [panning]);
 
   useEffect(() => {
+    // Clear splitter col-resize immediately — don't wait for doc hydrate / pointerenter.
+    resetWorkspacePointerChrome();
+    return () => resetWorkspacePointerChrome();
+  }, []);
+
+  useEffect(() => {
     if (!doc) return;
     const el = surfaceRef.current;
     const board = boardRef.current;
+    resetWorkspacePointerChrome();
     const unbindSurface = el ? bindWorkspaceCursorGuard(el) : undefined;
     const unbindBoard = board ? bindWorkspaceCursorGuard(board) : undefined;
     return () => {
       unbindSurface?.();
       unbindBoard?.();
+      clearChromeDragCursor();
     };
   }, [doc]);
 
@@ -887,14 +1239,24 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const pt = screenToBoard(e.clientX, e.clientY);
     const payload = readBndzFileDragData(e);
-    if (payload?.paths?.length) { addPaths(payload.paths, pt); return; }
-    const plain = e.dataTransfer.getData('text/plain');
-    if (plain) {
-      const paths = plain.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      if (paths.length) addPaths(paths, pt);
+    let pinned = false;
+    if (payload?.paths?.length) {
+      addPaths(payload.paths, pt);
+      pinned = true;
+    } else {
+      const plain = e.dataTransfer.getData('text/plain');
+      if (plain) {
+        const paths = plain.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        if (paths.length) {
+          addPaths(paths, pt);
+          pinned = true;
+        }
+      }
     }
+    if (pinned) endInternalFileDragUi('spatial-html-drop');
   };
 
   const menuItem = doc?.items.find(it => it.id === menu?.targetId) ?? null;
@@ -942,11 +1304,62 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           <span className="bndz-ws-chrome-sigil bndz-ws-chrome-sigil--spatial" aria-hidden>
             <img src="/Ui/applications-featured.svg" alt="" className="bndz-ws-sigil-img" />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 relative">
             <div className="flex items-center gap-2">
-              <h1 className="bndz-ws-chrome-title">Spatial Canvas</h1>
-              <span className="bndz-ws-pill bndz-ws-pill--spatial">Constellation</span>
+              <input
+                className="bndz-ws-pipeline-name"
+                value={doc.name}
+                onChange={e => commitDoc({ ...doc, name: e.target.value })}
+                onBlur={() => {
+                  const name = doc.name.trim() || 'Untitled board';
+                  if (name !== doc.name) commitDoc({ ...doc, name });
+                  void renameSpatialBoard(doc.id, name).then(() => void refreshBoards());
+                }}
+                spellCheck={false}
+                aria-label="Board name"
+              />
+              <button
+                type="button"
+                className="bndz-ws-pill bndz-ws-pill--spatial"
+                onClick={() => { void refreshBoards(); setShowBoardPicker(v => !v); }}
+                title="Switch board"
+              >
+                Boards{boardList.length > 1 ? ` (${boardList.length})` : ''}
+              </button>
             </div>
+            {showBoardPicker && (
+              <div className="bndz-spatial-board-picker absolute z-40 mt-1 min-w-[220px] rounded-lg border border-white/10 bg-[#1a1d24] shadow-xl p-2">
+                {boardList.map(b => (
+                  <div key={b.id} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className={`flex-1 text-left px-2 py-1.5 rounded text-[11px] ${b.active ? 'bg-amber-500/20 text-amber-100' : 'text-gray-300 hover:bg-white/5'}`}
+                      onClick={() => void switchBoard(b.id)}
+                    >
+                      {b.name}
+                      <span className="text-gray-500 ml-1">· {b.pinCount}</span>
+                    </button>
+                    {boardList.length > 1 && (
+                      <button
+                        type="button"
+                        className="px-1.5 py-1 text-[10px] text-red-300/80 hover:text-red-200"
+                        title="Delete board"
+                        onClick={() => void removeBoard(b.id)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="w-full mt-1 px-2 py-1.5 rounded text-[11px] text-amber-200/90 hover:bg-amber-500/10 text-left"
+                  onClick={() => void newBoard()}
+                >
+                  + New board
+                </button>
+              </div>
+            )}
             <p className="bndz-ws-chrome-desc">
               {doc.items.length} pin{doc.items.length === 1 ? '' : 's'}
               {selectedIds.length > 0 ? ` · ${selectedIds.length} selected` : ''}
@@ -956,6 +1369,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         </div>
         <div className="bndz-ws-chrome-actions shrink-0">
           {status && <span className="bndz-ws-status">{status}</span>}
+          <button type="button" className="bndz-ws-chip" onClick={() => { setSnapshots(loadSnapshots()); setShowSnapshots(v => !v); }}>
+            Snapshots{snapshots.length ? ` (${snapshots.length})` : ''}
+          </button>
         </div>
       </header>
 
@@ -993,7 +1409,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
             ref={boardRef}
             data-spatial-board
             className={`bndz-spatial-board flex-1 min-h-0 relative overflow-hidden${panning ? ' is-panning' : ''}`}
-            style={{ touchAction: 'none', cursor: panning ? 'grabbing' : 'default' }}
+            style={{ touchAction: 'none', cursor: 'default' }}
             onPointerEnter={() => {
               if (boardRef.current && !panning) boardRef.current.style.cursor = 'default';
             }}
@@ -1001,9 +1417,13 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
             onPointerMove={onBoardPointerMove}
             onPointerUp={onBoardPointerUp}
             onPointerCancel={onBoardPointerUp}
-            onPointerLeave={(e) => {
-              if (panningRef.current) finishPointerGesture();
-              else onBoardPointerUp(e);
+            onPointerLeave={() => {
+              // Never end card-drag / marquee on leave — pointer capture owns the gesture.
+              // Only clear a stray splitter cursor if we aren't mid-interaction.
+              if (!interacting.current && !draggingRef.current && !panningRef.current && !marqueeRef.current.active) {
+                clearChromeDragCursor();
+                if (boardRef.current) boardRef.current.style.cursor = 'default';
+              }
             }}
             onContextMenu={e => { e.stopPropagation(); onContextMenu(e, 'spatial-board'); }}
             onDragOver={e => { if (hasBndzFileDrag(e) || e.dataTransfer.types.includes('text/plain')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
@@ -1014,16 +1434,23 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
             <div ref={marqueeElRef} className="bndz-spatial-marquee" style={{ display: 'none' }} />
             <div ref={transformLayerRef} className="bndz-spatial-layer absolute origin-top-left pointer-events-none">
               {clusters.map(c => (
-                <div
+                <button
                   key={c.id}
-                  className="bndz-spatial-cluster-halo pointer-events-none"
+                  type="button"
+                  className="bndz-spatial-cluster-halo pointer-events-auto"
                   style={{ left: c.cx - 40, top: c.cy - 40, width: 80, height: 80 }}
-                  title={`${c.label} (${c.itemIds.length})`}
+                  title={`${c.label} (${c.itemIds.length}) — click to focus`}
+                  onClick={() => focusCluster(c.id)}
                 />
               ))}
+              {doc.items.length > renderedItems.length && (
+                <div className="bndz-spatial-virtual-badge pointer-events-none" aria-hidden>
+                  {renderedItems.length}/{doc.items.length} visible
+                </div>
+              )}
               {spatialV2 ? (
                 <SpatialSpringBoard
-                  items={doc.items}
+                  items={renderedItems}
                   relations={showRelations ? relations : []}
                   selectedSet={selectedSet}
                   draggingId={draggingId}
@@ -1062,7 +1489,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                   })}
                 </svg>
               )}
-              {doc.items.map(item => (
+              {renderedItems.map(item => (
                 <SpatialCanvasCard
                   key={item.id}
                   item={item}
@@ -1085,11 +1512,33 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
               )}
             </div>
             {doc.items.length === 0 && (
-              <div className="bndz-spatial-empty absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none">
-                <div className="bndz-spatial-empty-orbit" aria-hidden />
-                <img src="/Ui/preview-Big Folder.svg" alt="" className="w-16 h-16 opacity-40 mb-4" />
-                <p className="text-sm text-gray-300 font-medium">Drop files onto the constellation</p>
-                <p className="text-[11px] text-gray-500 mt-1.5 max-w-[300px]">Pins are references only — originals stay on disk. Tag and annotate in the inspector.</p>
+              <div className="bndz-spatial-empty absolute inset-0 flex flex-col items-center justify-center text-center p-8 z-10">
+                <div className="bndz-spatial-empty-orbit pointer-events-none" aria-hidden />
+                <img src="/Ui/preview-Big Folder.svg" alt="" className="w-16 h-16 opacity-40 mb-4 pointer-events-none" />
+                <p className="text-sm text-gray-200 font-semibold">Build a project board</p>
+                <p className="text-[11px] text-gray-500 mt-1.5 max-w-[340px] pointer-events-none">
+                  Pins are references only — originals stay on disk. Drop files here or pin common folders to start.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 mt-5 max-w-[420px]">
+                  {[
+                    { label: 'Pin Downloads', path: '/shell:Downloads' },
+                    { label: 'Pin Desktop', path: '/shell:Desktop' },
+                    { label: 'Pin Pictures', path: '/shell:My Pictures' },
+                    { label: 'Pin Documents', path: '/shell:Personal' },
+                  ].map(btn => (
+                    <button
+                      key={btn.path}
+                      type="button"
+                      className="bndz-spatial-empty-cta"
+                      onClick={() => {
+                        addPaths([btn.path], { x: 120 + Math.random() * 80, y: 100 + Math.random() * 60 });
+                      }}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-600 mt-4 pointer-events-none">Or drag folders from any pane · right-click → Pin to Spatial Canvas</p>
               </div>
             )}
             {showMinimap && doc.items.length > 0 && (
@@ -1127,6 +1576,33 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           onRemoveTag={removeTagFromPath}
           onBatchAddTag={batchAddTags}
         />
+
+        {showSnapshots && (
+          <aside className="bndz-spatial-snapshots shrink-0 overflow-y-auto bndz-scrollbar">
+            <div className="bndz-spatial-snapshots-head">
+              <span className="bndz-spatial-snapshots-title">Snapshot history</span>
+              <button type="button" className="bndz-lens-chip" onClick={() => setShowSnapshots(false)}>Close</button>
+            </div>
+            {snapshots.length === 0 ? (
+              <p className="bndz-spatial-snapshots-empty">No snapshots yet. Save one from the command palette or Snapshots button.</p>
+            ) : (
+              <ul className="bndz-spatial-snapshots-list">
+                {snapshots.map(s => (
+                  <li key={s.id} className="bndz-spatial-snapshots-item">
+                    <div className="bndz-spatial-snapshots-meta">
+                      <span className="bndz-spatial-snapshots-name">{s.name}</span>
+                      <span className="bndz-spatial-snapshots-date">{new Date(s.at).toLocaleString()}</span>
+                    </div>
+                    <div className="bndz-spatial-snapshots-actions">
+                      <button type="button" className="bndz-lens-chip" onClick={() => restoreSnapshot(s.id)}>Restore</button>
+                      <button type="button" className="bndz-lens-chip bndz-lens-chip--danger" onClick={() => setSnapshots(deleteSnapshot(s.id))}>Delete</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
+        )}
       </div>
 
       <WorkspaceCommandPalette
@@ -1143,10 +1619,19 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Copy path to automation" icon="copy" onClick={() => {
             setWorkspaceClipboard({ kind: 'spatial-pins', paths: [menuItem.path] });
-            window.dispatchEvent(new CustomEvent('bndz-automation-add-from-pin', { detail: { paths: [menuItem.path] } }));
+            dispatchAutomationFromPin([menuItem.path], { navigate: true });
             closeMenu();
           }} />
+          {selectedIds.length > 1 && (
+            <WorkspaceMenuItem
+              label={`Send ${selectedIds.length} pins to automation`}
+              icon="zap_ui"
+              onClick={() => { sendSelectionToAutomation(); closeMenu(); }}
+            />
+          )}
           <WorkspaceMenuSep />
+          <WorkspaceMenuItem label="Duplicate" icon="copy" onClick={() => { duplicateSelectedPins(); closeMenu(); }} disabled={!selectedIds.includes(menuItem.id)} />
+          <WorkspaceMenuItem label="Cut" icon="copy" onClick={() => { cutSelectedPins(); closeMenu(); }} disabled={!selectedIds.includes(menuItem.id)} />
           <WorkspaceMenuItem label="Edit note" icon="notepad" onClick={() => { setEditingNoteId(menuItem.id); closeMenu(); }} />
           <WorkspaceMenuItem label="Remove from board" icon="delete" danger onClick={() => removeItem(menuItem.id)} />
           {selectedIds.length > 1 && (

@@ -9,6 +9,7 @@ import {
   publishMediaHandoff,
   type MediaHandoff,
 } from '../lib/mediaPlaybackBridge';
+import { audioPlaybackSession } from '../lib/audioPlaybackSession';
 
 export type MediaPreviewPlayerHandle = {
   stashPlayback: () => MediaHandoff | null;
@@ -57,10 +58,25 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
   const isNativeHost = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
   const [resolvedSrc, setResolvedSrc] = useState(() => (isNativeHost && type === 'audio' ? '' : src));
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [triedBlob, setTriedBlob] = useState(false);
+  const triedBlobRef = useRef(false);
   const handoffAppliedRef = useRef(false);
+  const loadedPathRef = useRef<string | null>(null);
+  const isAudio = type === 'audio';
 
-  const syncState = useCallback(() => {
+  const syncFromSession = useCallback(() => {
+    const snap = audioPlaybackSession.getSnapshot();
+    setCurrent(snap.currentTime);
+    setDuration(snap.duration);
+    setPlaying(snap.playing);
+    setVolume(snap.volume);
+    setMuted(snap.muted);
+    setPlaybackRate(snap.playbackRate);
+    setBuffering(snap.buffering);
+    setLoadError(snap.error);
+    if (snap.resolvedSrc) setResolvedSrc(snap.resolvedSrc);
+  }, []);
+
+  const syncVideoState = useCallback(() => {
     const el = mediaRef.current;
     if (!el) return;
     setCurrent(el.currentTime);
@@ -72,8 +88,24 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
   }, []);
 
   const stashPlayback = useCallback((): MediaHandoff | null => {
+    if (!filePath) return null;
+    if (isAudio) {
+      const snap = audioPlaybackSession.getSnapshot();
+      if (!audioPlaybackSession.samePath(filePath)) return null;
+      const handoff: MediaHandoff = {
+        path: filePath,
+        currentTime: snap.currentTime,
+        playing: snap.playing,
+        volume: snap.volume,
+        muted: snap.muted,
+        playbackRate: snap.playbackRate,
+      };
+      publishMediaHandoff(handoff);
+      // Shared session keeps decoding — UI handoff only, no pause gap.
+      return handoff;
+    }
     const el = mediaRef.current;
-    if (!el || !filePath) return null;
+    if (!el) return null;
     const handoff: MediaHandoff = {
       path: filePath,
       currentTime: el.currentTime,
@@ -85,9 +117,9 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     publishMediaHandoff(handoff);
     if (!el.paused) el.pause();
     return handoff;
-  }, [filePath]);
+  }, [filePath, isAudio]);
 
-  const applyHandoff = useCallback(() => {
+  const applyHandoffVideo = useCallback(() => {
     if (!filePath || handoffAppliedRef.current) return false;
     const handoff = consumeMediaHandoff(filePath);
     const el = mediaRef.current;
@@ -101,7 +133,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
       el.volume = handoff.volume;
       el.muted = handoff.muted;
       el.playbackRate = handoff.playbackRate;
-      syncState();
+      syncVideoState();
       if (handoff.playing) void el.play().catch(() => {});
     };
     if (el.readyState >= 1) apply();
@@ -110,42 +142,185 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
       el.addEventListener('loadedmetadata', onMeta);
     }
     return true;
-  }, [filePath, syncState]);
+  }, [filePath, syncVideoState]);
 
   useImperativeHandle(ref, () => ({ stashPlayback }), [stashPlayback]);
 
   useEffect(() => {
-    if (!filePath) return;
+    if (!filePath || isAudio) return;
     return onMediaHandoffRequest(requestedPath => {
       if (!filePath || !sameMediaPath(requestedPath, filePath)) return;
       stashPlayback();
     });
-  }, [filePath, stashPlayback]);
+  }, [filePath, stashPlayback, isAudio]);
 
   useEffect(() => {
-    if (!filePath) return;
+    if (!filePath || isAudio) return;
     return onMediaHandoffResume(resumePath => {
       if (!filePath || !sameMediaPath(resumePath, filePath)) return;
       handoffAppliedRef.current = false;
-      applyHandoff();
+      applyHandoffVideo();
     });
-  }, [filePath, applyHandoff]);
+  }, [filePath, applyHandoffVideo, isAudio]);
+
+  // Shared audio session — bind UI; never tear down decoder on remount / Quick Look.
+  useEffect(() => {
+    if (!isAudio || !filePath) return;
+    syncFromSession();
+    return audioPlaybackSession.subscribe(syncFromSession);
+  }, [isAudio, filePath, syncFromSession]);
 
   useEffect(() => {
+    if (!isAudio || !filePath) return;
+
+    let cancelled = false;
+    const pathUnchanged = loadedPathRef.current && sameMediaPath(loadedPathRef.current, filePath)
+      && audioPlaybackSession.samePath(filePath);
+
+    if (pathUnchanged) {
+      syncFromSession();
+      return;
+    }
+
+    triedBlobRef.current = false;
+    handoffAppliedRef.current = false;
+    setLoadError(null);
+    setBuffering(true);
+
+    const loadBlob = async (): Promise<string | null> => {
+      try {
+        const { IPC } = await import('../lib/ipcBridge');
+        const winPath = toWindowsPath(filePath);
+        const result = await IPC.getMediaBlob(winPath);
+        if (!result.base64 || !result.mime) {
+          if (!cancelled) setLoadError(result.error || 'Could not load media file.');
+          return null;
+        }
+        const binary = atob(result.base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: result.mime });
+        const url = URL.createObjectURL(blob);
+        audioPlaybackSession.markBlobUrl(url);
+        return url;
+      } catch (err: any) {
+        if (!cancelled) setLoadError(err?.message || 'Media load failed.');
+        return null;
+      }
+    };
+
+    const init = async () => {
+      const isNative = !!(window as any).chrome?.webview;
+      let nextSrc = src;
+      if (isNative) {
+        triedBlobRef.current = true;
+        const blobSrc = await loadBlob();
+        if (cancelled) return;
+        if (blobSrc) nextSrc = blobSrc;
+      }
+      if (cancelled) return;
+      const reloaded = audioPlaybackSession.load(filePath, nextSrc);
+      loadedPathRef.current = filePath;
+      syncFromSession();
+      if (reloaded && autoplay) audioPlaybackSession.play();
+      // Resume intent from handoff without pause gap (session already playing).
+      const handoff = consumeMediaHandoff(filePath);
+      if (handoff) {
+        handoffAppliedRef.current = true;
+        audioPlaybackSession.setVolume(handoff.volume);
+        audioPlaybackSession.setMuted(handoff.muted);
+        audioPlaybackSession.setPlaybackRate(handoff.playbackRate);
+        if (Number.isFinite(handoff.currentTime) && Math.abs(handoff.currentTime - audioPlaybackSession.getSnapshot().currentTime) > 0.35) {
+          audioPlaybackSession.seek(handoff.currentTime);
+        }
+        if (handoff.playing) audioPlaybackSession.play();
+      } else if (!reloaded && autoplay && !audioPlaybackSession.getSnapshot().playing) {
+        audioPlaybackSession.play();
+      }
+    };
+    void init();
+    return () => { cancelled = true; };
+  }, [isAudio, filePath, src, preferBlob, autoplay, syncFromSession]);
+
+  // Video path — per-instance element (needs visible surface).
+  useEffect(() => {
+    if (isAudio) return;
+    setPlaying(false);
+    setCurrent(0);
+    setDuration(0);
+    setBuffering(true);
+    setLoadError(null);
+    triedBlobRef.current = false;
+    handoffAppliedRef.current = false;
+    setResolvedSrc(isNativeHost && preferBlob ? '' : src);
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+
+    let cancelled = false;
+    const loadViaBlob = async (): Promise<boolean> => {
+      if (!filePath) return false;
+      try {
+        const { IPC } = await import('../lib/ipcBridge');
+        const winPath = toWindowsPath(filePath);
+        const result = await IPC.getMediaBlob(winPath);
+        if (result.base64 && result.mime) {
+          const binary = atob(result.base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const blob = new Blob([bytes], { type: result.mime });
+          const url = URL.createObjectURL(blob);
+          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = url;
+          if (!cancelled) {
+            setResolvedSrc(url);
+            setLoadError(null);
+            setBuffering(true);
+          }
+          return true;
+        }
+        if (!cancelled && !triedBlobRef.current) setLoadError(result.error || 'Could not load media file.');
+        return false;
+      } catch (err: any) {
+        if (!cancelled && !triedBlobRef.current) setLoadError(err?.message || 'Media load failed.');
+        return false;
+      }
+    };
+
+    const init = async () => {
+      const isNative = !!(window as any).chrome?.webview;
+      if (isNative && filePath && preferBlob) {
+        triedBlobRef.current = true;
+        const ok = await loadViaBlob();
+        if (cancelled) return;
+        if (ok) return;
+      }
+      if (!cancelled) setResolvedSrc(src);
+    };
+    void init();
     return () => {
+      cancelled = true;
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = null;
       }
     };
-  }, []);
+  }, [isAudio, src, extension, filePath, preferBlob, isNativeHost]);
 
-  const loadViaBlob = useCallback(async (): Promise<boolean> => {
-    if (!filePath) return false;
+  useEffect(() => {
+    if (isAudio) return;
+    const el = mediaRef.current;
+    if (!el || !resolvedSrc) return;
+    el.load();
+  }, [resolvedSrc, isAudio]);
+
+  const tryBlobFallback = useCallback(async () => {
+    if (isAudio || triedBlobRef.current || !filePath) return;
+    triedBlobRef.current = true;
     try {
       const { IPC } = await import('../lib/ipcBridge');
-      const winPath = toWindowsPath(filePath);
-      const result = await IPC.getMediaBlob(winPath);
+      const result = await IPC.getMediaBlob(toWindowsPath(filePath));
       if (result.base64 && result.mime) {
         const binary = atob(result.base64);
         const bytes = new Uint8Array(binary.length);
@@ -157,59 +332,12 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
         setResolvedSrc(url);
         setLoadError(null);
         setBuffering(true);
-        return true;
       }
-      if (!triedBlob) setLoadError(result.error || 'Could not load media file.');
-      return false;
-    } catch (err: any) {
-      if (!triedBlob) setLoadError(err?.message || 'Media load failed.');
-      return false;
-    }
-  }, [filePath, triedBlob]);
-
-  useEffect(() => {
-    setPlaying(false);
-    setCurrent(0);
-    setDuration(0);
-    setBuffering(true);
-    setLoadError(null);
-    setTriedBlob(false);
-    handoffAppliedRef.current = false;
-    setResolvedSrc(isNativeHost && (preferBlob || type === 'audio') ? '' : src);
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
-    }
-
-    let cancelled = false;
-    const init = async () => {
-      const isNative = !!(window as any).chrome?.webview;
-      if (isNative && filePath && (preferBlob || type === 'audio')) {
-        setTriedBlob(true);
-        const ok = await loadViaBlob();
-        if (cancelled) return;
-        if (ok) return;
-      }
-      if (!cancelled) setResolvedSrc(src);
-    };
-    void init();
-    return () => { cancelled = true; };
-  }, [src, extension, filePath, preferBlob, type, loadViaBlob, isNativeHost]);
-
-  useEffect(() => {
-    const el = mediaRef.current;
-    if (!el || !resolvedSrc) return;
-    el.load();
-  }, [resolvedSrc]);
-
-  const tryBlobFallback = useCallback(async () => {
-    if (triedBlob || !filePath) return;
-    setTriedBlob(true);
-    await loadViaBlob();
-  }, [filePath, triedBlob, loadViaBlob]);
+    } catch { /* keep existing error */ }
+  }, [filePath, isAudio]);
 
   const handleMediaError = () => {
-    if (!triedBlob && filePath) {
+    if (!isAudio && !triedBlobRef.current && filePath) {
       void tryBlobFallback();
       return;
     }
@@ -218,25 +346,41 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
   };
 
   const togglePlay = useCallback(() => {
+    if (loadError) return;
+    if (isAudio) {
+      audioPlaybackSession.toggle();
+      return;
+    }
     const el = mediaRef.current;
-    if (!el || loadError) return;
+    if (!el) return;
     if (el.paused || el.ended) {
       void el.play().catch(() => handleMediaError());
     } else {
       el.pause();
     }
-  }, [loadError]);
+  }, [loadError, isAudio]);
 
   const seek = useCallback((t: number) => {
+    if (isAudio) {
+      audioPlaybackSession.seek(t);
+      return;
+    }
     const el = mediaRef.current;
     if (!el || !Number.isFinite(t)) return;
     el.currentTime = Math.max(0, Math.min(t, el.duration || t));
     setCurrent(el.currentTime);
-  }, []);
+  }, [isAudio]);
 
-  const skip = useCallback((delta: number) => seek((mediaRef.current?.currentTime || 0) + delta), [seek]);
+  const skip = useCallback((delta: number) => {
+    if (isAudio) audioPlaybackSession.skip(delta);
+    else seek((mediaRef.current?.currentTime || 0) + delta);
+  }, [seek, isAudio]);
 
   const setVol = (v: number) => {
+    if (isAudio) {
+      audioPlaybackSession.setVolume(v);
+      return;
+    }
     const el = mediaRef.current;
     if (!el) return;
     const clamped = Math.max(0, Math.min(1, v));
@@ -247,17 +391,25 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
   };
 
   const toggleMute = useCallback(() => {
+    if (isAudio) {
+      audioPlaybackSession.toggleMute();
+      return;
+    }
     const el = mediaRef.current;
     if (!el) return;
     el.muted = !el.muted;
     setMuted(el.muted);
-  }, []);
+  }, [isAudio]);
 
   const cycleRate = () => {
-    const el = mediaRef.current;
-    if (!el) return;
     const idx = RATES.indexOf(playbackRate);
     const next = RATES[(idx + 1) % RATES.length];
+    if (isAudio) {
+      audioPlaybackSession.setPlaybackRate(next);
+      return;
+    }
+    const el = mediaRef.current;
+    if (!el) return;
     el.playbackRate = next;
     setPlaybackRate(next);
   };
@@ -278,10 +430,10 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     } catch { /* unsupported */ }
   };
 
+  // Space opens Quick Look at the app level — never steal it for play/pause here.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
       if (e.code === 'ArrowLeft') { e.preventDefault(); skip(-5); }
       if (e.code === 'ArrowRight') { e.preventDefault(); skip(5); }
       if (e.code === 'KeyF' && type === 'video') { e.preventDefault(); toggleFullscreen(); }
@@ -289,24 +441,24 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [type, togglePlay, skip, toggleFullscreen, toggleMute]);
+  }, [type, skip, toggleFullscreen, toggleMute]);
 
   const tryAutoplay = useCallback(() => {
-    if (!autoplay) return;
+    if (!autoplay || isAudio) return;
     const el = mediaRef.current;
     if (!el || loadError) return;
     void el.play().catch(() => { /* user gesture may be required */ });
-  }, [autoplay, loadError]);
+  }, [autoplay, loadError, isAudio]);
 
   const mediaProps = {
     src: resolvedSrc,
     preload: 'auto' as const,
-    onTimeUpdate: syncState,
+    onTimeUpdate: syncVideoState,
     onLoadedMetadata: () => {
-      syncState();
+      syncVideoState();
       setBuffering(false);
       setLoadError(null);
-      if (!applyHandoff()) tryAutoplay();
+      if (!applyHandoffVideo()) tryAutoplay();
     },
     onPlay: () => setPlaying(true),
     onPause: () => setPlaying(false),
@@ -314,7 +466,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     onWaiting: () => setBuffering(true),
     onCanPlay: () => {
       setBuffering(false);
-      if (!applyHandoff()) tryAutoplay();
+      if (!applyHandoffVideo()) tryAutoplay();
     },
     onError: handleMediaError,
   };
@@ -349,15 +501,12 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
             {...mediaProps}
           />
         ) : (
-          <>
-            <audio key={resolvedSrc} ref={mediaRef as React.RefObject<HTMLAudioElement>} className="hidden" {...mediaProps} />
-            <div className="bndz-media-audio-art">
-              <div className="bndz-media-audio-icon">
-                <Icons8Icon id="music_ui" size={40} />
-              </div>
-              {title && <p className="bndz-media-audio-title">{title}</p>}
+          <div className="bndz-media-audio-art">
+            <div className={`bndz-media-audio-icon${playing ? ' is-playing' : ''}`}>
+              <Icons8Icon id="music_ui" size={40} />
             </div>
-          </>
+            {title && <p className="bndz-media-audio-title">{title}</p>}
+          </div>
         )}
 
         {buffering && !loadError && (
@@ -428,7 +577,8 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
                 <button
                   type="button"
                   onClick={() => {
-                    if (filePath) stashPlayback();
+                    // Audio uses shared session — no pause. Video still stashes.
+                    if (filePath && type === 'video') stashPlayback();
                     onOpenFloating?.();
                   }}
                   disabled={!!loadError}

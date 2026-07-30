@@ -96,32 +96,91 @@ export function exportConstellationJson(doc: { name: string; items: CanvasItem[]
   }, null, 2);
 }
 
-export function parseConstellationImport(raw: string): { items: CanvasItem[]; panX?: number; panY?: number; zoom?: number } | null {
+export function parseConstellationImport(raw: string): { items: CanvasItem[]; panX?: number; panY?: number; zoom?: number; name?: string } | null {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (parsed.format && parsed.format !== 'bndz-constellation-v1') return null;
     if (!Array.isArray(parsed.items)) return null;
+    const seen = new Set<string>();
+    const items = (parsed.items as CanvasItem[]).filter(it => {
+      if (!it?.path || seen.has(it.path)) return false;
+      seen.add(it.path);
+      return true;
+    });
     return {
-      items: parsed.items as CanvasItem[],
+      items,
       panX: typeof parsed.panX === 'number' ? parsed.panX : undefined,
       panY: typeof parsed.panY === 'number' ? parsed.panY : undefined,
       zoom: typeof parsed.zoom === 'number' ? parsed.zoom : undefined,
+      name: typeof parsed.name === 'string' ? parsed.name : undefined,
     };
   } catch {
     return null;
   }
 }
 
-export type SnapshotEntry = { id: string; name: string; at: number; json: string };
+export type SnapshotEntry = { id: string; name: string; at: number; json: string; updatedAt?: number };
 
 const SNAPSHOT_KEY = 'spatial_snapshots_v1';
+const SNAPSHOT_META_KEY = 'spatial_snapshots_v1';
 
-export function loadSnapshots(): SnapshotEntry[] {
+type SnapshotStore = { entries: SnapshotEntry[]; updatedAt: number };
+
+function readLocalSnapshots(): SnapshotEntry[] {
   try {
     const raw = localStorage.getItem(SNAPSHOT_KEY);
     return raw ? JSON.parse(raw) as SnapshotEntry[] : [];
   } catch {
     return [];
   }
+}
+
+function writeLocalSnapshots(list: SnapshotEntry[]) {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(list));
+  } catch { /* */ }
+}
+
+/** Sync read for UI mount — local cache; native meta is merged async via hydrateSnapshotsFromMeta. */
+export function loadSnapshots(): SnapshotEntry[] {
+  return readLocalSnapshots();
+}
+
+export async function hydrateSnapshotsFromMeta(): Promise<SnapshotEntry[]> {
+  const local = readLocalSnapshots();
+  try {
+    const { readBndzMeta, flushBndzMeta } = await import('../bndzMetaStore');
+    const remoteRaw = await readBndzMeta(SNAPSHOT_META_KEY);
+    if (!remoteRaw) {
+      if (local.length) {
+        const store: SnapshotStore = { entries: local, updatedAt: Date.now() };
+        await flushBndzMeta(SNAPSHOT_META_KEY, JSON.stringify(store));
+      }
+      return local;
+    }
+    const parsed = JSON.parse(remoteRaw) as SnapshotStore | SnapshotEntry[];
+    const remote = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.entries) ? parsed.entries : []);
+    const remoteAt = !Array.isArray(parsed) && typeof parsed?.updatedAt === 'number' ? parsed.updatedAt : 0;
+    const localAt = local.reduce((m, e) => Math.max(m, e.at || 0), 0);
+    const preferRemote = remoteAt >= localAt && remote.length >= local.length;
+    const winner = preferRemote ? remote : local;
+    writeLocalSnapshots(winner);
+    if (!preferRemote && local.length) {
+      await flushBndzMeta(SNAPSHOT_META_KEY, JSON.stringify({ entries: local, updatedAt: Date.now() } satisfies SnapshotStore));
+    }
+    return winner;
+  } catch {
+    return local;
+  }
+}
+
+async function persistSnapshots(list: SnapshotEntry[]): Promise<SnapshotEntry[]> {
+  writeLocalSnapshots(list);
+  try {
+    const { flushBndzMeta } = await import('../bndzMetaStore');
+    await flushBndzMeta(SNAPSHOT_META_KEY, JSON.stringify({ entries: list, updatedAt: Date.now() } satisfies SnapshotStore));
+  } catch { /* */ }
+  return list;
 }
 
 export function saveSnapshot(name: string, json: string): SnapshotEntry[] {
@@ -133,8 +192,21 @@ export function saveSnapshot(name: string, json: string): SnapshotEntry[] {
     json,
   };
   const next = [entry, ...list].slice(0, 20);
-  localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(next));
+  writeLocalSnapshots(next);
+  void persistSnapshots(next);
   return next;
+}
+
+export function deleteSnapshot(id: string): SnapshotEntry[] {
+  const next = loadSnapshots().filter(s => s.id !== id);
+  writeLocalSnapshots(next);
+  void persistSnapshots(next);
+  return next;
+}
+
+export function restoreSnapshotJson(id: string): string | null {
+  const entry = loadSnapshots().find(s => s.id === id);
+  return entry?.json ?? null;
 }
 
 export function snapPosition(

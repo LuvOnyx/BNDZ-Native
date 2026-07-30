@@ -21,7 +21,7 @@ import { BreadcrumbTrail } from './BreadcrumbTrail';
 import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
-  preferFileDragOverMarquee, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT, LIST_CLICK_DEFER_MS,
+  preferFileDragOverMarquee, canStartDragFromList, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT, LIST_CLICK_DEFER_MS,
   isWithinDoubleClickGuard,
 } from '../lib/dragController';
 import { resolveDropOperation } from '../lib/dropOperation';
@@ -74,8 +74,9 @@ import {
   type PointerFileDragMoveDetail,
 } from '../lib/pointerFileDragBridge';
 import { IPC, RenameOperation } from '../lib/ipcBridge';
+import { syncMeshDropConfig } from '../lib/meshDropConfigSync';
 import { requestMediaHandoff } from '../lib/mediaPlaybackBridge';
-import { isAudioExt } from '../lib/mediaTypes';
+import { isVideoExt } from '../lib/mediaTypes';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { executeUndoWithTimeout, executeRedoWithTimeout } from '../lib/undoRedo';
 import { isQueuedIpcResult } from '../lib/transferIpc';
@@ -99,12 +100,11 @@ import AddressAutocompleteDropdown from './AddressAutocompleteDropdown';
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
 import MeshDropDialog from './meshdrop/MeshDropDialog';
-import RamStagingSidebar from './ram/RamStagingSidebar';
 import { filterSupplementalNativeItems, type ContextMenuSurface } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
-import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths } from '../lib/nativeIconService';
+import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals } from '../lib/nativeIconService';
 import { mergeDirEntryChunks } from '../lib/dirListingStream';
-import { markScrolling as markIconQueueScrolling } from '../lib/iconRequestQueue';
+import { markScrolling as markIconQueueScrolling, getIconQueueDepth } from '../lib/iconRequestQueue';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
 import BottomPluginPanel from './BottomPluginPanel';
 import { LeftSidebar } from './LeftSidebar';
@@ -164,7 +164,9 @@ import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzWorkspacePath, isBndzRamPath, parseBndzRamZoneId, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzWorkspacePath, isBndzRamPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_RAM_ROOT } from '../lib/bndzVirtualViews';
+import { invalidateRamZoneMountCache, remapRamListingEntries, refreshRamZoneMounts, resolvePanePathForFs, resolveRamStagingFsPath, resolveRamZoneMountPath, entityFsPath } from '../lib/ramStagingPaths';
+import { EmblemIcon } from './EmblemIcon';
 import { isWorkspacePointerTarget } from '../lib/workspace/workspaceFocus';
 import { bindGlobalChromeCursorReset, bindGlobalSpatialCursorGuard } from '../lib/workspace/workspaceCursorGuard';
 import { pushGhostTrail, getGhostTrail } from '../lib/ghostTrail';
@@ -202,7 +204,7 @@ import {
 } from '../lib/clipboardVisual';
 import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath, panePathsEqual } from '../lib/pathUtils';
 import { isMeshPath } from '../lib/meshPaths';
-import { canonicalDropPath, resolveDropRoute } from '../lib/fsPathRouting';
+import { canonicalDropPath, resolveDropRoute, MESH_DROP_INBOX_DEST } from '../lib/fsPathRouting';
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
 import { formatTransferProgressLine } from '../lib/fileTransferQueue';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites, collapseKnownFolderShadowPath, orderRapidAccessItems, knownFolderDedupeKey } from '../lib/rapidAccessDefaults';
@@ -664,6 +666,9 @@ export default function BNDZUI() {
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [smartViewsExpanded, setSmartViewsExpanded] = useState(true);
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
+  const quickPreviewOpenRef = useRef(false);
+  const openQuickPreviewRef = useRef<((startIndex?: number) => void) | null>(null);
+  useEffect(() => { quickPreviewOpenRef.current = quickPreviewOpen; }, [quickPreviewOpen]);
   const [quickPreviewIndex, setQuickPreviewIndex] = useState(0);
   const [fileSystem, setFileSystem] = useState<VirtualDirectory>(() => createInitialFileSystem());
   const [isSyncMode, setIsSyncMode] = useState(false);
@@ -695,13 +700,13 @@ export default function BNDZUI() {
   useEffect(() => {
     let unsubDrives: (() => void) | undefined;
     import('../lib/ipcBridge').then(({ IPC }) => {
-      IPC.getSystemDrives().then(setDrives);
-      IPC.getCloudProviders().then(setCloudProviders);
+      IPC.getSystemDrives().then(d => setDrives(Array.isArray(d) ? d : []));
+      IPC.getCloudProviders().then(p => setCloudProviders(Array.isArray(p) ? p : []));
       IPC.getSystemShortcuts().then(setShortcuts);
       IPC.getNetworkLocations().then(setNetworkNodes);
       IPC.getTagsConfig().then(setAvailableTags);
       unsubDrives = IPC.onDrivesChanged((newDrives) => {
-          setDrives(newDrives);
+          setDrives(Array.isArray(newDrives) ? newDrives : []);
       });
     });
     return () => { if (unsubDrives) unsubDrives(); };
@@ -1053,6 +1058,18 @@ export default function BNDZUI() {
     return () => window.removeEventListener('keydown', onKey);
   }, [bottomImmersive, exitBottomImmersive]);
 
+  const resetBottomPanelLayout = React.useCallback(() => {
+    if (bottomImmersive) return;
+    const targetMain = innerDefaultLayout.main!;
+    const targetBottom = innerDefaultLayout.bottom!;
+    lastDockedBottomPctRef.current = targetBottom;
+    try {
+      innerGroupRef.current?.setLayout({ main: targetMain, bottom: targetBottom });
+    } catch { /* ignore */ }
+    updateConfig({ workspaceLayoutInner: { main: targetMain, bottom: targetBottom } });
+    bottomPanelRef.current?.expand();
+  }, [bottomImmersive, innerDefaultLayout, innerGroupRef, updateConfig, bottomPanelRef]);
+
   const saveInnerLayout = (layout: Record<string, number>) => {
     const bottomRaw = layout.bottom ?? innerDefaultLayout.bottom ?? 22;
     if (!bottomImmersive && bottomRaw < BOTTOM_IMMERSIVE_TRIGGER) {
@@ -1102,6 +1119,16 @@ export default function BNDZUI() {
       }).catch(() => {});
     });
   }, [config.checkForUpdatesAtStartup, config.updateCheckUrl]);
+
+  useEffect(() => {
+    syncMeshDropConfig(config);
+  }, [
+    config.meshDropStunServers,
+    config.meshDropLanDiscovery,
+    config.meshDropTurnUrl,
+    config.meshDropTurnUsername,
+    config.meshDropTurnCredential,
+  ]);
 
   useEffect(() => {
     const panel = previewPanelRef.current;
@@ -1235,6 +1262,7 @@ export default function BNDZUI() {
   const xferMetaRef = useRef(new Map<string, { op: 'copy' | 'move' | 'delete'; label: string; selectParentPath?: string }>());
   const [listDragGhost, setListDragGhost] = useState<ListDragGhostMeta | null>(null);
   const clearListDragGhost = React.useCallback(() => {
+    fluidDragGenRef.current += 1;
     setListDragGhost(null);
     setMotionDragPhase('snapping');
     setFluidDragSnapTension(1);
@@ -1244,7 +1272,16 @@ export default function BNDZUI() {
       clearSnapZones();
     }, 140);
   }, []);
+  useEffect(() => {
+    const onEndFileDrag = () => {
+      clearListDragGhost();
+      endFileDragSession();
+    };
+    window.addEventListener('bndz-end-file-drag', onEndFileDrag);
+    return () => window.removeEventListener('bndz-end-file-drag', onEndFileDrag);
+  }, [clearListDragGhost]);
   const listDragGhostElRef = useRef<HTMLDivElement | null>(null);
+  const fluidDragGenRef = useRef(0);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [editingAddressBarPaneId, setEditingAddressBarPaneId] = useState<string | null>(null);
   const [addressBarInput, setAddressBarInput] = useState<string>('');
@@ -1315,14 +1352,16 @@ export default function BNDZUI() {
         next.delete(path);
         return next;
       });
-      void prefetchIconsForEntities(normalized, path);
-      void prefetchMediaThumbnailsForEntities(normalized, path, 64, {
+      void prefetchIconsForEntities(normalized, path, 'shell', 160);
+      void prefetchMediaThumbnailsForEntities(normalized, path, 128, {
         includeFolders: configRef.current.showFolderThumbnails === true,
       });
     };
     window.addEventListener('bndz-dir-append', onAppend as EventListener);
     return () => window.removeEventListener('bndz-dir-append', onAppend as EventListener);
   }, [cachePathContents]);
+
+  const streamPrefetchTimersRef = useRef<Map<string, number>>(new Map());
 
   // Mid-enumeration stream chunks — merge into live list while backend scans disk.
   useEffect(() => {
@@ -1338,9 +1377,23 @@ export default function BNDZUI() {
         return setPathCacheEntry(prev, path, mergeDirEntryChunks(existing, chunk));
       });
       setStreamingPaths(prev => new Set(prev).add(path));
+      const prevTimer = streamPrefetchTimersRef.current.get(path);
+      if (prevTimer) window.clearTimeout(prevTimer);
+      streamPrefetchTimersRef.current.set(path, window.setTimeout(() => {
+        streamPrefetchTimersRef.current.delete(path);
+        const cfg = configRef.current;
+        void prefetchIconsForEntities(chunk, path, 'shell', 64);
+        void prefetchMediaThumbnailsForEntities(chunk, path, 48, {
+          includeFolders: cfg.showFolderThumbnails === true,
+        });
+      }, 250));
     };
     window.addEventListener('bndz-dir-stream', onStream as EventListener);
-    return () => window.removeEventListener('bndz-dir-stream', onStream as EventListener);
+    return () => {
+      window.removeEventListener('bndz-dir-stream', onStream as EventListener);
+      streamPrefetchTimersRef.current.forEach(t => window.clearTimeout(t));
+      streamPrefetchTimersRef.current.clear();
+    };
   }, []);
 
   // loadingPaths tracks which paths are currently being fetched so we show a spinner
@@ -1498,7 +1551,11 @@ export default function BNDZUI() {
       dirFetchInFlightRef.current.add(path);
       setLoadingPaths(prev => new Set(prev).add(path));
       return IPC.getCatalogContents(path).then(data => {
-        cachePathContents(path, normalizeDirEntries(data));
+        const normalized = normalizeDirEntries(data);
+        cachePathContents(path, normalized);
+        prefetchListingVisuals(normalized, path, {
+          includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+        });
       }).catch(() => {
         cachePathContents(path, []);
       }).finally(() => {
@@ -1511,6 +1568,27 @@ export default function BNDZUI() {
       const view = parseBndzVirtualView(path);
       if (!view || isBndzWorkspacePath(path)) {
         if (isBndzRamPath(path)) {
+          const normRam = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+          if (normRam === BNDZ_RAM_ROOT) {
+            dirFetchInFlightRef.current.add(path);
+            setLoadingPaths(prev => new Set(prev).add(path));
+            return IPC.ramStagingListZones().then(r => {
+              const zones = (r.zones as Array<{ id: string; name: string; kind?: string; sizeBudgetMb?: number; usedBytes?: number; isDirty?: boolean }>) ?? [];
+              const entries = zones.map(z => ({
+                id: bndzRamVirtualPath(z.id),
+                name: z.name,
+                type: 'directory',
+                path: bndzRamVirtualPath(z.id),
+                size: z.usedBytes ?? 0,
+                typeDescription: z.kind === 'ramdisk' ? 'RAM staging zone' : 'Fast staging zone',
+                tags: z.isDirty ? ['dirty'] : [],
+              }));
+              cachePathContents(path, entries);
+            }).catch(() => cachePathContents(path, [])).finally(() => {
+              dirFetchInFlightRef.current.delete(path);
+              setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+            });
+          }
           const zoneId = parseBndzRamZoneId(path);
           if (!zoneId) {
             setPathContentsCache(prev => setPathCacheEntry(prev, path, []));
@@ -1518,15 +1596,36 @@ export default function BNDZUI() {
           }
           dirFetchInFlightRef.current.add(path);
           setLoadingPaths(prev => new Set(prev).add(path));
-          return IPC.ramStagingListZones().then(async (r) => {
-            const zones = (r.zones as Array<{ id: string; mountPath?: string }>) ?? [];
-            const zone = zones.find(z => z.id === zoneId);
-            if (!zone?.mountPath) {
+          return resolveRamStagingFsPath(path).then(async (resolved) => {
+            let fsRoot = resolved;
+            if (!fsRoot) {
+              invalidateRamZoneMountCache();
+              fsRoot = await resolveRamStagingFsPath(path);
+            }
+            if (!fsRoot) {
               cachePathContents(path, []);
               return;
             }
-            const data = await IPC.getDirContents(zone.mountPath);
-            cachePathContents(path, normalizeDirEntries(data));
+            // Remap must use the zone mount root so subfolder listings keep correct virtual paths.
+            await refreshRamZoneMounts();
+            let zoneMount = await resolveRamZoneMountPath(zoneId);
+            if (!zoneMount) {
+              invalidateRamZoneMountCache();
+              zoneMount = await resolveRamZoneMountPath(zoneId);
+            }
+            if (!zoneMount) {
+              cachePathContents(path, []);
+              return;
+            }
+            const data = await IPC.getDirContents(fsRoot);
+            const normalized = normalizeDirEntries(data) as Array<Record<string, unknown>>;
+            const remapped = remapRamListingEntries(zoneId, zoneMount, normalized);
+            cachePathContents(path, remapped);
+            prefetchListingVisuals(remapped as any[], path, {
+              includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+            });
+            // Watch the real mount so paste/drop refreshes the virtual listing.
+            try { IPC.watchDirectory(fsRoot); } catch { /* */ }
           }).catch(() => {
             cachePathContents(path, []);
           }).finally(() => {
@@ -1541,7 +1640,11 @@ export default function BNDZUI() {
       setLoadingPaths(prev => new Set(prev).add(path));
       return IPC.getVirtualViewContents(view, configRef.current.globalSearchLimit || 500).then(items => {
         setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
-        cachePathContents(path, normalizeDirEntries(items || []));
+        const normalized = normalizeDirEntries(items || []);
+        cachePathContents(path, normalized);
+        prefetchListingVisuals(normalized, path, {
+          includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+        });
       }).catch((err: unknown) => {
         setVirtualViewErrors(prev => ({ ...prev, [path]: err instanceof Error ? err.message : 'Failed to load smart view.' }));
         cachePathContents(path, []);
@@ -1564,12 +1667,9 @@ export default function BNDZUI() {
       }
       setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
       setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
-      void Promise.all([
-        prefetchIconsForEntities(normalized, path),
-        prefetchMediaThumbnailsForEntities(normalized, path, 96, {
-          includeFolders: configRef.current.showFolderThumbnails === true,
-        }),
-      ]);
+      prefetchListingVisuals(normalized, path, {
+        includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+      });
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not load folder contents.';
       setPathLoadErrors(prev => ({ ...prev, [path]: message }));
@@ -1732,6 +1832,11 @@ export default function BNDZUI() {
       if (findingSearchGenRef.current[tabId] !== gen) return;
 
       const normalizedItems = normalizeSearchResults(items);
+      const activePane = panes.find(p => p.id === paneId);
+      const tabPath = activePane?.tabs.find(t => t.id === tabId)?.path || '/';
+      prefetchListingVisuals(normalizedItems, tabPath, {
+        includeFolderThumbs: config.showFolderThumbnails === true,
+      });
       setPanes(prev => prev.map(p => {
         if (p.id !== paneId) return p;
         return {
@@ -1995,7 +2100,16 @@ export default function BNDZUI() {
          setGlobalSearchEngine(null);
          setIsGlobalSearchLoading(false);
      }
-  }, [filterText, config.enableGlobalSearchPrefix, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent, config.globalSearchLimit, panes, activePaneId, indexedSearchScope]);
+  }, [filterText, config.enableGlobalSearchPrefix, config.enableEverythingSearch, config.enableBndzIndexedSearch, config.enableSmartBooleanQueryParsing, config.searchFileContent, config.globalSearchLimit, config.showFolderThumbnails, panes, activePaneId, indexedSearchScope]);
+
+  useEffect(() => {
+    if (!globalSearchResults?.length) return;
+    const activePane = panes.find(p => p.id === activePaneId) || panes[0];
+    const tabPath = activePane?.tabs[activePane.activeTabIndex]?.path || '/';
+    prefetchListingVisuals(globalSearchResults, tabPath, {
+      includeFolderThumbs: config.showFolderThumbnails === true,
+    });
+  }, [globalSearchResults, activePaneId, panes, config.showFolderThumbnails]);
 
   // Restore last tabset on startup (XYplorer tabsets++)
   useEffect(() => {
@@ -2197,13 +2311,15 @@ export default function BNDZUI() {
          e.preventDefault();
          omniFilterRef.current?.focus();
       }
-      // Quick Look overlay (Space) — skip while IME is composing
+      // Quick Look overlay (Space) — skip while open/IME; audio keeps playing via shared session
       if (!isInput && e.code === 'Space' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && !(e as any).isComposing) {
+         if (quickPreviewOpenRef.current) return;
          const activePane = panes.find(p => p.id === activePaneId);
          const tab = activePane?.tabs[activePane.activeTabIndex];
          if (tab && (tab.selectedItems.length > 0 || focusedItemId)) {
             e.preventDefault();
-            openQuickPreview();
+            e.stopPropagation();
+            openQuickPreviewRef.current?.();
          }
       }
       // FilePilot inspector toggle (rebindable, default Ctrl+I)
@@ -2366,9 +2482,19 @@ export default function BNDZUI() {
          const activePane = panes.find(p => p.id === activePaneId);
          const tab = activePane?.tabs[activePane.activeTabIndex];
          if (tab?.path) {
-           import('../lib/ipcBridge').then(({ IPC }) =>
-             IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(tab.path, 'New folder'), '', false, 'New folder'),
-           );
+           void (async () => {
+             const { createItemInPane } = await import('../lib/ramStagingPaths');
+             const r = await createItemInPane(tab.path, 'New folder', 'dir');
+             if (!r.ok) {
+               pushToast({ kind: 'error', title: 'New folder failed', message: r.error || 'Unknown error' });
+               return;
+             }
+             if (isBndzRamPath(tab.path)) {
+               window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: tab.path } }));
+             } else {
+               void refetchPath(tab.path);
+             }
+           })();
          }
       }
     };
@@ -2671,8 +2797,8 @@ export default function BNDZUI() {
 
   const refreshWorkspace = () => {
     import('../lib/ipcBridge').then(({ IPC }) => {
-      IPC.getSystemDrives().then(setDrives);
-      IPC.getCloudProviders().then(setCloudProviders);
+      IPC.getSystemDrives().then(d => setDrives(Array.isArray(d) ? d : []));
+      IPC.getCloudProviders().then(p => setCloudProviders(Array.isArray(p) ? p : []));
       refreshPathsForPanes();
       IPC.refreshWorkspace().catch(() => {});
     });
@@ -3069,16 +3195,48 @@ export default function BNDZUI() {
     if (config.showCachedFolderSizesOnly) return;
     if (config.autoSyncFolderSizes === false && !config.alwaysShowFolderSizes) return;
     if (!currentDirCount) return;
-    const timer = window.setTimeout(() => scanCurrentFolderSizes(false), 400);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const timer = window.setTimeout(() => {
+      const tryScan = () => {
+        if (cancelled) return;
+        if (getIconQueueDepth() > 6) {
+          retryTimer = window.setTimeout(tryScan, 600);
+          return;
+        }
+        scanCurrentFolderSizes(false);
+      };
+      tryScan();
+    }, 1200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [currentPath, currentDirCount, config.alwaysShowFolderSizes, config.autoSyncFolderSizes, config.showCachedFolderSizesOnly, scanCurrentFolderSizes]);
 
   useEffect(() => {
     if (!config.cacheFolderSizes) return;
     if (config.alwaysShowFolderSizes && !config.showCachedFolderSizesOnly) return;
     if (!currentDirCount) return;
-    const timer = window.setTimeout(() => scanCurrentFolderSizes(false), 800);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const timer = window.setTimeout(() => {
+      const tryScan = () => {
+        if (cancelled) return;
+        if (getIconQueueDepth() > 6) {
+          retryTimer = window.setTimeout(tryScan, 600);
+          return;
+        }
+        scanCurrentFolderSizes(false);
+      };
+      tryScan();
+    }, 1600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [currentPath, currentDirCount, config.cacheFolderSizes, config.alwaysShowFolderSizes, config.showCachedFolderSizesOnly, scanCurrentFolderSizes]);
 
   // --- External File System Watcher ---
@@ -3093,6 +3251,21 @@ export default function BNDZUI() {
           for (const ev of events) {
             const panePath = watcherDirToPanePath(ev.dir || '');
             if (panePath) touched.add(panePath);
+            // RAM staging: host watches the real mount — map back to open /bndz/ram tabs.
+            const winDir = (ev.dir || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+            for (const pane of panesRef.current) {
+              for (const tab of pane.tabs) {
+                if (!isBndzRamPath(tab.path)) continue;
+                touched.add(normalizePanePath(tab.path));
+                void resolveRamStagingFsPath(tab.path).then(fs => {
+                  if (!fs) return;
+                  const mount = fs.replace(/\\+$/, '').toLowerCase();
+                  if (winDir === mount || winDir.startsWith(mount + '\\')) {
+                    invalidatePath(normalizePanePath(tab.path));
+                  }
+                });
+              }
+            }
           }
           touched.forEach(p => invalidatePath(p));
         }
@@ -3132,15 +3305,20 @@ export default function BNDZUI() {
 
   // Monitor paths when panes change to fire native FileSystemWatcher
   useEffect(() => {
-    import('../lib/ipcBridge').then(({ IPC }) => {
-       panes.forEach(p => {
-          p.tabs.forEach(t => {
-            const path = normalizePanePath(t.path);
-            if (path && path !== '/' && path !== '/this-pc') {
-               IPC.watchDirectory(path);
-            }
-          });
-       });
+    import('../lib/ipcBridge').then(async ({ IPC }) => {
+      for (const p of panes) {
+        for (const t of p.tabs) {
+          const path = normalizePanePath(t.path);
+          if (!path || path === '/' || path === '/this-pc') continue;
+          if (isBndzRamPath(path)) {
+            const fs = await resolveRamStagingFsPath(path);
+            if (fs) IPC.watchDirectory(fs);
+            continue;
+          }
+          if (isBndzVirtualPath(path)) continue;
+          IPC.watchDirectory(path);
+        }
+      }
     });
   }, [panes]);
 
@@ -3943,6 +4121,7 @@ export default function BNDZUI() {
       .map(id => dir.find((x: any) => x.id === id))
       .filter(Boolean)
       .map((ent: any) => {
+        if (ent.fsPath) return ent.fsPath;
         if (ent.path) return normalizePanePath(ent.path);
         return joinPanePath(tab.path, ent);
       });
@@ -3992,8 +4171,11 @@ export default function BNDZUI() {
       message: label,
       sticky: true,
     });
-    const winSources = sources.map(s => toWindowsPath(s));
-    const winDest = toWindowsPath(dest).replace(/\\$/, '');
+    const winSources = await Promise.all(sources.map(async s => {
+      if (isBndzRamPath(s)) return (await resolvePanePathForFs(s)) || toWindowsPath(s);
+      return toWindowsPath(s);
+    }));
+    const winDest = (await resolvePanePathForFs(dest)).replace(/\\$/, '');
     void IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high').then(res => {
       if (!isQueuedIpcResult(res)) refreshWorkspace();
     });
@@ -4010,6 +4192,7 @@ export default function BNDZUI() {
       const canonSources = sourcePaths.map(canonicalDropPath).filter(Boolean);
       const destCanon = canonicalDropPath(destPath);
       const route = resolveDropRoute(op, canonSources, destCanon);
+      const isMeshDropSend = route.kind === 'mesh-drop-send';
 
       if (rt.shell.confirmMove && op === 'move' && route.kind === 'local') {
         const labelPreview = canonSources.length === 1
@@ -4042,27 +4225,69 @@ export default function BNDZUI() {
         : route.kind === 'mesh-download' ? 'Downloading'
         : route.kind === 'mesh-relay' ? 'Relaying'
         : route.kind === 'mesh-replicate' ? (meshOp === 'move' ? 'Moving' : 'Copying')
+        : isMeshDropSend ? 'Mesh Drop'
         : op === 'copy' ? 'Copying' : 'Moving';
-      pushToast({
-        id: `xfer-${opId}`,
-        kind: 'progress',
-        title: `${verb}…`,
-        message: label,
-        sticky: true,
-      });
+      if (!isMeshDropSend) {
+        pushToast({
+          id: `xfer-${opId}`,
+          kind: 'progress',
+          title: `${verb}…`,
+          message: label,
+          sticky: true,
+        });
+      } else {
+        // Mesh Drop opens the pairing dialog — no fake progress toast.
+        dismissToast(`xfer-${opId}`);
+      }
 
       if (route.kind !== 'local') {
         const result = await executeMeshTransfer({ operationId: opId, route, sourcePaths: canonSources });
         if (!result.ok) {
           dismissToast(`xfer-${opId}`);
           pushToast({ kind: 'error', title: `${verb} failed`, message: result.error || label });
+        } else if (isMeshDropSend) {
+          pushToast({ kind: 'info', title: 'Mesh Drop', message: 'Pairing dialog opened — share the Mesh Code with your peer.' });
         }
         return;
       }
 
-      const destWin = toWindowsPath(destCanon);
+      // Drop onto RAM zone root → stage API (preserves folder trees into the mount).
       const { IPC } = await import('../lib/ipcBridge');
-      IPC.executeFsOperation(opId, op, canonSources.map(toWindowsPath), destWin, false, label, 'high');
+      const ramZoneId = parseBndzRamZoneId(destCanon);
+      const ramZoneRoot = ramZoneId ? bndzRamVirtualPath(ramZoneId) : null;
+      if (ramZoneId && ramZoneRoot && normalizePanePath(destCanon) === ramZoneRoot) {
+        const winSources = await Promise.all(canonSources.map(async s => {
+          if (isBndzRamPath(s)) return (await resolvePanePathForFs(s)) || toWindowsPath(s);
+          return toWindowsPath(s);
+        }));
+        try {
+          const r = await IPC.ramStagingStagePaths(ramZoneId, winSources);
+          dismissToast(`xfer-${opId}`);
+          if ((r as { ok?: boolean }).ok === false) {
+            throw new Error((r as { error?: string }).error || 'Stage failed');
+          }
+          pushToast({ kind: 'success', title: op === 'move' ? 'Moved to RAM' : 'Copied to RAM', message: label });
+          invalidateRamZoneMountCache();
+          window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: ramZoneRoot } }));
+        } catch (e) {
+          dismissToast(`xfer-${opId}`);
+          pushToast({ kind: 'error', title: 'RAM staging failed', message: e instanceof Error ? e.message : String(e) });
+        }
+        return;
+      }
+
+      const destWin = await resolvePanePathForFs(destCanon);
+      const resolvedSources = await Promise.all(canonSources.map(async s => {
+        if (isBndzRamPath(s)) return (await resolvePanePathForFs(s)) || toWindowsPath(s);
+        return toWindowsPath(s);
+      }));
+      IPC.executeFsOperation(opId, op, resolvedSources, destWin, false, label, 'high');
+      if (isBndzRamPath(destCanon) || isBndzRamPath(currentPath)) {
+        window.setTimeout(() => {
+          invalidateRamZoneMountCache();
+          void refetchPath(isBndzRamPath(destCanon) ? destCanon : currentPath);
+        }, 200);
+      }
       if (!IPC.isNative && op === 'move' && sourcePath) {
         let newFs = fileSystem;
         for (const sp of canonSources) {
@@ -4346,7 +4571,7 @@ export default function BNDZUI() {
 
   const pasteTextAsItems = async () => {
     try {
-      const text = await navigator.clipboard.readText();
+      const text = await (await import('../lib/clipboardSafe')).readClipboardText();
       const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       if (!lines.length) { setToastMessage('Clipboard has no text.'); return; }
       const { IPC } = await import('../lib/ipcBridge');
@@ -4365,7 +4590,7 @@ export default function BNDZUI() {
 
   const pasteTextIntoNewFile = async () => {
     try {
-      const text = await navigator.clipboard.readText();
+      const text = await (await import('../lib/clipboardSafe')).readClipboardText();
       const name = (prompt('New file name:', 'Clipboard.txt') || '').trim();
       if (!name) return;
       const path = `${toWindowsPath(currentTab.path)}\\${name}`;
@@ -4380,7 +4605,12 @@ export default function BNDZUI() {
 
   const pasteImageIntoNewPng = async () => {
     try {
-      const items = await navigator.clipboard.read();
+      const clip = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+      if (!clip || typeof clip.read !== 'function') {
+        setToastMessage('Clipboard image API unavailable.', 'warning');
+        return;
+      }
+      const items = await clip.read();
       const imgItem = items.find(i => i.types.includes('image/png') || i.types.includes('image/jpeg'));
       if (!imgItem) { setToastMessage('Clipboard has no image.'); return; }
       const type = imgItem.types.includes('image/png') ? 'image/png' : 'image/jpeg';
@@ -4950,11 +5180,6 @@ export default function BNDZUI() {
   const setCurrentPath = (path: string, paneId: string = activePaneId, updateHistory: boolean = true) => {
     const norm = resolveShellKnownFolderToFs(normalizePanePath(path), shortcuts);
     const bndzView = parseBndzVirtualView(norm);
-    const linkedViewMode: TabState['viewMode'] | undefined =
-      bndzView === 'recent' ? 'recents' :
-      bndzView === 'media' ? 'media' :
-      bndzView === 'large' ? 'size' :
-      undefined;
     setPanes(prev => prev.map(p => {
       if (p.id === paneId) {
         const newTabs = [...p.tabs];
@@ -4972,15 +5197,15 @@ export default function BNDZUI() {
           history: newHistory,
           historyIndex: newHistoryIndex,
           selectedItems: [],
-          // Smart-view paths own their view mode (hub clears it); real folders keep prior mode.
-          viewMode: isBndzVirtualPath(norm)
-            ? linkedViewMode
-            : (linkedViewMode ?? tab.viewMode),
+          // View bar is sole authority — smart views filter content, never force layout.
+          viewMode: tab.viewMode,
         };
         return {
           ...p,
           tabs: newTabs,
-          ...(bndzView === 'large' ? { sortColumn: 'size' as const, sortDirection: 'desc' as const } : {}),
+          ...(bndzView === 'large'
+            ? { sortColumn: 'size' as const, sortDirection: 'desc' as const }
+            : {}),
         };
       }
       return p;
@@ -5007,6 +5232,14 @@ export default function BNDZUI() {
       const path = (e as CustomEvent).detail?.path;
       if (path) setCurrentPath(path);
     };
+    const onRefreshPath = (e: Event) => {
+      const path = (e as CustomEvent).detail?.path;
+      if (!path) return;
+      const norm = normalizePanePath(path);
+      if (isBndzRamPath(norm)) invalidateRamZoneMountCache();
+      invalidatePath(norm);
+      void refetchPath(norm);
+    };
     const onOpenPlugin = (e: Event) => {
       const d = (e as CustomEvent).detail || {};
       if (d.id) {
@@ -5019,15 +5252,46 @@ export default function BNDZUI() {
       }
     };
     window.addEventListener('bndz-navigate', onNavigate);
+    window.addEventListener('bndz-refresh-path', onRefreshPath);
     window.addEventListener('bndz-open-bottom-plugin', onOpenPlugin);
     const onOpenTagManager = () => setIsTagManagerOpen(true);
     window.addEventListener('bndz-open-tag-manager', onOpenTagManager);
+    const onRamZoneChanged = () => {
+      invalidateRamZoneMountCache();
+      // Refresh any open RAM virtual tabs so browse isn't stuck empty after create/eject.
+      for (const pane of panes) {
+        for (const tab of pane.tabs || []) {
+          if (isBndzRamPath(tab.path)) {
+            invalidatePath(normalizePanePath(tab.path));
+            void refetchPath(normalizePanePath(tab.path));
+          }
+        }
+      }
+      if (isBndzRamPath(currentPath)) {
+        invalidatePath(normalizePanePath(currentPath));
+        void refetchPath(normalizePanePath(currentPath));
+      }
+    };
+    window.addEventListener('bndz-ram-zone-changed', onRamZoneChanged);
     return () => {
       window.removeEventListener('bndz-navigate', onNavigate);
+      window.removeEventListener('bndz-refresh-path', onRefreshPath);
       window.removeEventListener('bndz-open-bottom-plugin', onOpenPlugin);
       window.removeEventListener('bndz-open-tag-manager', onOpenTagManager);
+      window.removeEventListener('bndz-ram-zone-changed', onRamZoneChanged);
     };
-  }, [activePaneId]);
+  }, [activePaneId, panes, currentPath]);
+
+  useEffect(() => {
+    const onMeshDropSend = (e: Event) => {
+      const paths = ((e as CustomEvent).detail?.paths as string[] | undefined)?.filter(Boolean);
+      if (!paths?.length) return;
+      setMeshDropPaths(paths);
+      setShowMeshDropDialog(true);
+    };
+    window.addEventListener('bndz-mesh-drop-send', onMeshDropSend);
+    return () => window.removeEventListener('bndz-mesh-drop-send', onMeshDropSend);
+  }, []);
 
   // Native OLE drag-hover: warm drop targets (list / tree / breadcrumb / tabs) — no HTML5.
   useEffect(() => {
@@ -5172,7 +5436,7 @@ export default function BNDZUI() {
         });
       }
       const htmlTarget = htmlDropTargetRef.current;
-      if ((isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') && htmlTarget) {
+      if ((!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') && htmlTarget) {
         destPath = htmlTarget.tabPath;
         if (!hover) {
           const targetPane = panesSnap.find(p => p.id === htmlTarget.paneId);
@@ -5191,13 +5455,13 @@ export default function BNDZUI() {
         }
       }
       // Fallback: OLE landed in our window — use active real folder when hit-test misses (DPI drift).
-      if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
+      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
         const tabPath = normalizePanePath(activePane?.tabs[activePane.activeTabIndex]?.path || '');
-        if (tabPath && !isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+        if (tabPath && isFsDropTargetPath(tabPath)) {
           destPath = tabPath;
         }
       }
-      if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
+      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
         setToastMessage('Open a real folder to drop files here.');
         return;
       }
@@ -5260,13 +5524,13 @@ export default function BNDZUI() {
           id: resolution.folderEnt.id,
         });
       }
-      if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
+      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
         const tabPath = normalizePanePath(activePane?.tabs[activePane.activeTabIndex]?.path || '');
-        if (tabPath && !isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+        if (tabPath && isFsDropTargetPath(tabPath)) {
           destPath = tabPath;
         }
       }
-      if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
+      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
         setToastMessage('Open a real folder to drop archive items here.');
         return;
       }
@@ -5624,8 +5888,8 @@ export default function BNDZUI() {
   const refreshNavigationTree = () => {
     setTreeRefreshNonce(n => n + 1);
     import('../lib/ipcBridge').then(({ IPC }) => {
-      IPC.getSystemDrives().then(setDrives);
-      IPC.getCloudProviders().then(setCloudProviders);
+      IPC.getSystemDrives().then(d => setDrives(Array.isArray(d) ? d : []));
+      IPC.getCloudProviders().then(p => setCloudProviders(Array.isArray(p) ? p : []));
     });
   };
 
@@ -5707,7 +5971,7 @@ export default function BNDZUI() {
     const isThisPc = normPanePath === '/' || normPanePath === '/this-pc';
     const isLibraries = normPanePath.toLowerCase() === '/shell:libraries';
     let contents: any[] = isThisPc
-      ? drives.map(d => ({
+      ? (Array.isArray(drives) ? drives : []).map(d => ({
           id: `drive-${d.name.replace(/^\/+/, '/')}`,
           name: formatDriveLetter(d.name),
           label: d.label,
@@ -5760,6 +6024,15 @@ export default function BNDZUI() {
       return;
     }
     if (isBndzVirtualPath(norm)) {
+      if (isBndzRamPath(norm)) {
+        if (norm === BNDZ_RAM_ROOT) setCurrentPath(BNDZ_VIEWS_ROOT, paneId);
+        else {
+          const parent = norm.substring(0, norm.lastIndexOf('/')) || BNDZ_RAM_ROOT;
+          setCurrentPath(parent, paneId);
+        }
+        setSelectedItems([], paneId);
+        return;
+      }
       if (isBndzHomePath(norm) || norm === BNDZ_VIEWS_ROOT) setCurrentPath('/', paneId);
       else setCurrentPath(BNDZ_VIEWS_ROOT, paneId);
       setSelectedItems([], paneId);
@@ -6091,8 +6364,6 @@ export default function BNDZUI() {
             type: "directory",
             path: normalizedName,
             size: d.totalSpace,
-            modified: '1970-01-01T00:00:00.000Z',
-            created: '1970-01-01T00:00:00.000Z',
             tags: [],
             typeDescription: `${d.label || letter} Drive (${d.format || d.fileSystem || 'Local'})`,
             driveInfo: d
@@ -6581,10 +6852,15 @@ export default function BNDZUI() {
         paths = selection.map((sid: string) => {
           const se = contents?.find((c: any) => c.id === sid);
           if (!se) return null;
+          if (se.fsPath) return String(se.fsPath);
           return isGlobal && se.path ? se.path : joinPanePath(panePath, se);
         }).filter(Boolean) as string[];
       } else {
-        paths = [joinPanePath(panePath, anchorEntity)];
+        paths = [
+          (anchorEntity as any).fsPath
+            ? String((anchorEntity as any).fsPath)
+            : joinPanePath(panePath, anchorEntity),
+        ];
       }
       return paths.map(p => canonicalDropPath(p));
     };
@@ -7100,6 +7376,7 @@ export default function BNDZUI() {
               markPointerDown();
 
               // Select on press; plain click+drag arms immediately (threshold + delay separate click from drag).
+              // Ctrl arms copy-drag (Explorer-like). Shift stays for additive marquee.
               if (!wasSelected && !ctrlKey && !shiftKey) {
                 setSelectedItems([entityId], pane.id);
                 scheduleSelectionChrome([entityId], true);
@@ -7108,7 +7385,7 @@ export default function BNDZUI() {
                 selectionAnchorRef.current = { paneId: pane.id, itemId: entityId };
               }
 
-              const armedForDrag = !ctrlKey && !shiftKey;
+              const armedForDrag = !shiftKey;
               listGestureRef.current = {
                 paneId: pane.id,
                 pointerId: capturePointerId,
@@ -7121,7 +7398,7 @@ export default function BNDZUI() {
                 altKey,
                 moved: false,
                 mode: 'pending',
-                copyDrag: false,
+                copyDrag: !!ctrlKey,
                 dragSelection: armedForDrag
                   ? (wasSelected ? [...currentTab.selectedItems] : [entityId])
                   : [entityId],
@@ -7133,7 +7410,7 @@ export default function BNDZUI() {
                 listClickDeferTimerRef.current = null;
               }
 
-              if (armedForDrag) {
+              if (armedForDrag && canStartDragFromList(mouseRt.disallowDragFromList)) {
                 beginDragSession(
                   capturePointerId,
                   startX,
@@ -7192,7 +7469,17 @@ export default function BNDZUI() {
 
               const resolveHoverAtDropPoint = (clientX: number, clientY: number) => {
                 resolveTabHoverAtPoint(clientX, clientY);
-                return tabFileDragHoverRef.current;
+                let hover = tabFileDragHoverRef.current;
+                if (!hover) {
+                  const listBody = hitTestListBodyAtPoint(clientX, clientY);
+                  const listPaneId = listBody?.getAttribute('data-list-pane-id');
+                  const listPane = listPaneId ? panesRef.current.find(p => p.id === listPaneId) : null;
+                  if (listPane) {
+                    hover = { paneId: listPane.id, tabIndex: listPane.activeTabIndex };
+                    tabFileDragHoverRef.current = hover;
+                  }
+                }
+                return hover;
               };
 
               const resolveBreadcrumbHoverAtPoint = (clientX: number, clientY: number): string | null => {
@@ -7233,6 +7520,7 @@ export default function BNDZUI() {
                   const preferDrag = preferFileDragOverMarquee({
                     wasSelected: g.wasSelected || g.selectedOnPress,
                     shiftKey: g.shiftKey,
+                    ctrlKey: g.ctrlKey,
                     dx,
                     dy,
                   });
@@ -7285,18 +7573,17 @@ export default function BNDZUI() {
                     const dragItems = buildFluidDragItems(entityId, dragSelection);
                     fluidDragBridgeSetPointer(listDragGhostElRef.current, ev.clientX, ev.clientY);
                     setMotionDragPhase('arming');
-                    void prefetchFluidDragThumbs(dragItems, 10).then(() => {
-                      armFluidDrag({
-                        label: anchorEnt?.name || 'Item',
-                        count: dragSelection.length,
-                        copy: copyDrag,
-                        isDirectory: anchorEnt?.type === 'directory',
-                        dropHint: copyDrag ? 'Drop to copy' : 'Drop to move',
-                        paths: dragPaths,
-                        items: dragItems,
-                      }, { x: ev.clientX, y: ev.clientY });
-                      setMotionDragPhase('dragging');
-                    });
+                    armFluidDrag({
+                      label: anchorEnt?.name || 'Item',
+                      count: dragSelection.length,
+                      copy: copyDrag,
+                      isDirectory: anchorEnt?.type === 'directory',
+                      dropHint: copyDrag ? 'Drop to copy' : 'Drop to move',
+                      paths: dragPaths,
+                      items: dragItems,
+                    }, { x: ev.clientX, y: ev.clientY });
+                    setMotionDragPhase('dragging');
+                    void prefetchFluidDragThumbs(dragItems, 10);
                   } else {
                     armDragGhost(setListDragGhost, {
                       label: anchorEnt?.name || 'Item',
@@ -7434,6 +7721,10 @@ export default function BNDZUI() {
                   }
                   const navTreeTarget = hitTestNavTreeAtPoint(ev.clientX, ev.clientY);
                   const breadcrumbTarget = navTreeTarget ? null : resolveBreadcrumbHoverAtPoint(ev.clientX, ev.clientY);
+                  const favoriteEl = document.elementsFromPoint(ev.clientX, ev.clientY)
+                    .map(el => (el as HTMLElement).closest('[data-favorite-path]'))
+                    .find(Boolean) as HTMLElement | null;
+                  const favoritePath = favoriteEl?.getAttribute('data-favorite-path') || null;
                   const hover = resolveHoverAtDropPoint(ev.clientX, ev.clientY);
                   if (hover) {
                     clearTabFileDragTimer();
@@ -7455,6 +7746,15 @@ export default function BNDZUI() {
                     breadcrumbTarget,
                     navTreeTarget,
                   );
+                  // Dual-pane list-body parity with OLE: prefer hovered list folder path.
+                  const htmlTarget = htmlDropTargetRef.current;
+                  let resolvedTabPath = dropResolution.tabPath;
+                  if (htmlTarget?.tabPath && hover?.paneId === htmlTarget.paneId) {
+                    const listBody = hitTestListBodyAtPoint(ev.clientX, ev.clientY);
+                    if (listBody && htmlTarget.paneId !== pane.id) {
+                      resolvedTabPath = htmlTarget.tabPath;
+                    }
+                  }
                   if (hover || dropResolution.paneId !== pane.id || dropResolution.tabIndex !== (panesRef.current.find(p => p.id === pane.id)?.activeTabIndex ?? 0)) {
                     flushSync(() => {
                       setActivePaneId(dropResolution.paneId);
@@ -7463,9 +7763,9 @@ export default function BNDZUI() {
                       ));
                     });
                   }
-                  const targetContents = contentsForPanePath(dropResolution.tabPath);
+                  const targetContents = contentsForPanePath(resolvedTabPath);
                   let dropEnt = dropResolution.folderEnt;
-                  if (!dropEnt && !breadcrumbTarget && !navTreeTarget) {
+                  if (!dropEnt && !breadcrumbTarget && !navTreeTarget && !favoritePath) {
                     dropEnt = hitTestListFolderAtPoint(ev.clientX, ev.clientY, targetContents ?? undefined);
                   }
                   // Never treat a dragged folder as its own drop target (move-into-self).
@@ -7503,9 +7803,52 @@ export default function BNDZUI() {
                     listGestureRef.current = null;
                     return;
                   }
+                  const meshDropInbox = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-mesh-drop-inbox]');
+                  if (meshDropInbox && dragPaths.length) {
+                    executeInternalDrop('copy', dragPaths, MESH_DROP_INBOX_DEST, panePath);
+                    setDragTargetHighlight(null);
+                    suppressRowClickRef.current = true;
+                    internalDragRef.current = false;
+                    clearFileDragChrome();
+                    clearListDragGhost();
+                    endFileDragSession();
+                    listGestureRef.current = null;
+                    return;
+                  }
+                  if (favoritePath && dragPaths.length) {
+                    const destCanon = canonicalDropPath(favoritePath);
+                    const op = resolveDropOperation({
+                      payloadCopy: gesture.copyDrag,
+                      dropModifierCopy: dropModifierRef.current.copy,
+                      ctrlKey: ev.ctrlKey || ev.metaKey,
+                      altKey: ev.altKey,
+                      shiftKey: ev.shiftKey,
+                      sourcePaths: dragPaths,
+                      destDir: destCanon,
+                      sameDriveDefault: config.selectConfig2,
+                      crossDriveDefault: config.selectConfig3,
+                    });
+                    if (shouldCommitInternalFileDrop({
+                      sourcePaths: dragPaths,
+                      destDir: destCanon,
+                      op,
+                      hasForeignTarget: true,
+                      pointerTravelPx: Math.hypot(ev.clientX - startX, ev.clientY - startY),
+                    })) {
+                      executeInternalDrop(op, dragPaths, destCanon, panePath);
+                    }
+                    setDragTargetHighlight(null);
+                    suppressRowClickRef.current = true;
+                    internalDragRef.current = false;
+                    clearFileDragChrome();
+                    clearListDragGhost();
+                    endFileDragSession();
+                    listGestureRef.current = null;
+                    return;
+                  }
                   if (dragPaths.length) {
                     const destPath = navTreeTarget || breadcrumbTarget
-                      || (dropEnt?.name ? joinPanePath(dropResolution.tabPath, dropEnt as { name: string; path?: string; id?: string }) : dropResolution.tabPath);
+                      || (dropEnt?.name ? joinPanePath(resolvedTabPath, dropEnt as { name: string; path?: string; id?: string }) : resolvedTabPath);
                     const destCanon = canonicalDropPath(destPath);
                     const op = resolveDropOperation({
                       payloadCopy: gesture.copyDrag,
@@ -7523,8 +7866,9 @@ export default function BNDZUI() {
                       || breadcrumbTarget
                       || hover
                       || dropEnt
+                      || favoritePath
                       || dropResolution.paneId !== pane.id
-                      || dropResolution.tabPath !== panePath
+                      || resolvedTabPath !== panePath
                     );
                     const pointerTravelPx = Math.hypot(ev.clientX - startX, ev.clientY - startY);
                     if (shouldCommitInternalFileDrop({
@@ -7698,6 +8042,8 @@ export default function BNDZUI() {
               onNavigate={p => setCurrentPath(p, pane.id)}
               onRefresh={() => void refetchPath(BNDZ_VIEWS_ROOT)}
               onOpenMeshDrop={() => { setMeshDropPaths([]); setShowMeshDropDialog(true); }}
+              onOpenGhostLink={() => openBottomPlugin('ghost-link')}
+              onOpenRamStaging={() => openBottomPlugin('ram-staging')}
             />
           )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && computedViewMode === 'columns' && normPanePath !== BNDZ_VIEWS_ROOT && !isBndzHomePath(normPanePath) && !isBndzWorkspacePath(normPanePath) && (
@@ -8171,7 +8517,9 @@ export default function BNDZUI() {
                                  <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
                                )}
                                {(entity as any).isGhostLink && (
-                                 <span className="bndz-ghostlink-emblem text-[10px] mr-1 shrink-0" title={(entity as any).linkTarget || 'Ghost link'}>👻</span>
+                                 <span className="bndz-ghostlink-emblem inline-flex items-center mr-1 shrink-0" title={(entity as any).linkTarget || 'Ghost link'}>
+                                   <EmblemIcon id="emblem-symbolic-link" size={12} />
+                                 </span>
                                )}
                                {filterResult?.badgeColor && (
                                    <div className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
@@ -8344,11 +8692,14 @@ export default function BNDZUI() {
       const name = item.entity?.name || '';
       const dot = name.lastIndexOf('.');
       const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
-      if (isAudioExt(ext)) requestMediaHandoff(item.path);
+      // Video still pauses/stashes into the floating player. Audio uses a shared
+      // decoder — leave it playing so Space pop-out never glitches playback.
+      if (isVideoExt(ext)) requestMediaHandoff(item.path);
     }
     setQuickPreviewIndex(idx);
     setQuickPreviewOpen(true);
   }, [quickPreviewItems, quickPreviewStartIndex]);
+  openQuickPreviewRef.current = openQuickPreview;
 
   const bottomSelectionTargets = useMemo(() => {
     const paths: string[] = [];
@@ -8356,10 +8707,12 @@ export default function BNDZUI() {
     for (const id of currentTab.selectedItems || []) {
       const ent = getResolvedEntity(id);
       let path: string;
-      if (ent?.path) path = toWindowsPath(ent.path);
+      if (ent?.fsPath) path = String(ent.fsPath).replace(/\//g, '\\');
+      else if (ent) path = entityFsPath(ent, currentTab.path);
       else if (/^[A-Za-z]:/.test(id) || id.startsWith('//') || id.startsWith('\\\\') || id.startsWith('/')) path = toWindowsPath(id);
-      else if (ent) path = toWindowsPath(joinPanePath(currentTab.path, ent));
       else path = toWindowsPath(id);
+      // Never feed mangled /bndz/ram virtual paths into FS/clipboard ops
+      if (!path || path.toLowerCase().startsWith('bndz\\')) path = ent?.fsPath ? String(ent.fsPath).replace(/\//g, '\\') : path;
       paths.push(path);
       types.push(
         ent?.type === 'directory' ? 'folder'
@@ -8440,6 +8793,9 @@ export default function BNDZUI() {
         break;
       case 'ghost-link':
         openBottomPlugin('ghost-link');
+        break;
+      case 'ram-staging':
+        openBottomPlugin('ram-staging');
         break;
       default:
         break;
@@ -8799,7 +9155,7 @@ export default function BNDZUI() {
                       if (!ents.length) { setToastMessage('Select item(s) first.'); return; }
                       const names = ents.map((e: any) => e.name).join('\n');
                       try {
-                        const prev = await navigator.clipboard.readText().catch(() => '');
+                        const prev = await (await import('../lib/clipboardSafe')).readClipboardText();
                         await navigator.clipboard.writeText(prev ? `${prev}\n${names}` : names);
                         setToastMessage('Appended names to clipboard.');
                       } catch {
@@ -9209,8 +9565,8 @@ export default function BNDZUI() {
                             const contents = pathContentsCache[currentTab.path] || [];
                             if (contents.length) {
                               const { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities } = await import('../lib/nativeIconService');
-                              await prefetchIconsForEntities(contents, currentTab.path);
-                              await prefetchMediaThumbnailsForEntities(contents, currentTab.path, 96, {
+                              await prefetchIconsForEntities(contents, currentTab.path, 'shell', 160);
+                              await prefetchMediaThumbnailsForEntities(contents, currentTab.path, 192, {
                                 includeFolders: config.showFolderThumbnails === true,
                               });
                             }
@@ -9650,8 +10006,8 @@ export default function BNDZUI() {
                            case 'nav_up': goUp(activePaneId); break;
                            case 'go_home': setCurrentPath(BNDZ_HOME); break;
                           case 'refresh': {
-                              IPC.getSystemDrives().then(setDrives);
-                              IPC.getCloudProviders().then(setCloudProviders);
+                              IPC.getSystemDrives().then(d => setDrives(Array.isArray(d) ? d : []));
+                              IPC.getCloudProviders().then(p => setCloudProviders(Array.isArray(p) ? p : []));
                               refreshPathsForPanes();
                               IPC.refreshWorkspace().catch(() => {});
                               break;
@@ -10071,12 +10427,12 @@ export default function BNDZUI() {
                   }
                   cloudProvidersContent={
                     cloudDriveItems.length > 0 ? (
-                      cloudDriveItems.map((item: { label: string; path?: string; syncStatus?: string; leaf?: boolean; icon?: string; shellIconPath?: string }) => (
+                      cloudDriveItems.map((item: { label: string; path?: string; syncStatus?: string; leaf?: boolean; icon?: string; shellIconPath?: string }, idx: number) => (
                         <div
-                          key={item.path || item.label}
+                          key={`${item.path || item.label}-${idx}`}
                           role="button"
                           tabIndex={0}
-                          className="sidebar-pin-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-[#0078d4]/55 transition-all rounded-r-sm mx-1"
+                          className="sidebar-pin-row relative flex items-center gap-2.5 px-3 py-1.5 cursor-pointer text-[#ccc] hover:text-white border-l-2 border-transparent hover:border-[#0078d4]/55 transition-all rounded-r-sm mx-1"
                           onClick={() => item.path && guardedSetCurrentPath(item.path)}
                           onKeyDown={(e) => {
                             if ((e.key === 'Enter' || e.key === ' ') && item.path) {
@@ -10108,19 +10464,6 @@ export default function BNDZUI() {
                         <p className="text-[10px] text-gray-500 leading-relaxed">No cloud drives detected</p>
                       </div>
                     )
-                  }
-                  ramStagingContent={
-                    IPC.isNative && config.ramStagingShowInSidebar !== false ? (
-                      <RamStagingSidebar
-                        onNavigate={(mountPath) => {
-                          void IPC.ramStagingListZones().then((r) => {
-                            const zones = (r.zones as Array<{ id: string; mountPath?: string }>) ?? [];
-                            const zone = zones.find(z => z.mountPath === mountPath);
-                            guardedSetCurrentPath(zone ? bndzRamVirtualPath(zone.id) : mountPath);
-                          });
-                        }}
-                      />
-                    ) : null
                   }
                   miniTreeContent={
                     config.showMiniTree !== false ? (
@@ -10363,7 +10706,12 @@ export default function BNDZUI() {
                      className={`bndz-resize-handle h-1 bg-[#282830] transition-colors hover:bg-[#555] cursor-row-resize shrink-0 z-20 ${
                        bottomImmersive ? 'opacity-0 pointer-events-none' : ''
                      }`}
-                     title="Drag up past the limit to open Immersive plugin mode"
+                     title="Drag to resize · Double-click to reset default height"
+                     onDoubleClick={(e) => {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       resetBottomPanelLayout();
+                     }}
                   />
                   {/* Bottom Plugin Panel — always mounted; collapsed via panelRef when hidden */}
                   <ResizablePanel
@@ -10949,6 +11297,9 @@ export default function BNDZUI() {
             const r = await ipc.ghostLinkRestore(path);
             setToastMessage(r.ok ? 'Ghost link restored.' : (r.error || 'Restore failed.'), r.ok ? 'success' : 'warning');
             void refetchPath(currentPath);
+          }}
+          onStageToRam={(paths) => {
+            openBottomPlugin('ram-staging', { paths });
           }}
           setIsSmartToolsOpen={setIsSmartToolsOpen}
           setToastMessage={setToastMessage}

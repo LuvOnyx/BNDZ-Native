@@ -838,7 +838,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
        }`}>
           <AnimatePresence mode="wait">
              <motion.div 
-                key={`${entity.id}-${activeTab}`}
+                key={isAudio || isVideo ? `media-${path || entity.id}-${activeTab}` : `${entity.id}-${activeTab}`}
                 initial={{ opacity: 0, y: animDuration > 0 ? 10 : 0 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}
@@ -846,10 +846,10 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 className={`flex flex-col flex-1 ${isArchive || isTorrent ? 'min-h-0 h-full' : ''}`}
              >
                 {(activeTab === 'preview' || activeTab === 'media') && (
-                <div className={`bndz-preview-stage w-full relative group flex flex-col min-h-0 ${
+                <div className={`bndz-preview-stage w-full relative group flex flex-col min-h-0 flex-1 ${
                   isArchive || isTorrent
-                    ? 'flex-1 border-0'
-                    : 'shrink-0 border-b border-white/[0.06] flex-1'
+                    ? 'border-0'
+                    : 'border-b border-white/[0.06]'
                 }`}>
                     {activeTab === 'preview' && (isArchive || isTorrent) ? (
                       isTorrent && path ? <TorrentPreviewPanel path={path} /> : path ? <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} /> : null
@@ -928,10 +928,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                                   </>
                                )}
                                <div className="text-gray-500">Created:</div>
-                               <div className="text-gray-300">{formatFsDate((entity as any).created)}</div>
+                               <div className="text-gray-300">{formatFsDate((entity as any).created || extendedDetails?.Created)}</div>
 
                                <div className="text-gray-500">Modified:</div>
-                               <div className="text-gray-300">{formatFsDate(entity.modified)}</div>
+                               <div className="text-gray-300">{formatFsDate(entity.modified || extendedDetails?.Modified)}</div>
+
+                               {extendedDetails?.Accessed && (
+                                 <>
+                                   <div className="text-gray-500">Accessed:</div>
+                                   <div className="text-gray-300">{formatFsDate(extendedDetails.Accessed)}</div>
+                                 </>
+                               )}
                            </>
                        )}
                     </motion.div>

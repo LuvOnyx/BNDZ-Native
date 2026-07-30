@@ -18,6 +18,7 @@ import ArchivePreviewPanel from '../ArchivePreviewPanel';
 import PreviewMetadataStrip, { curatedPreviewFacts } from './PreviewMetadataStrip';
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
 import { requestMediaResume } from '../../lib/mediaPlaybackBridge';
+import { audioPlaybackSession } from '../../lib/audioPlaybackSession';
 
 const DocxPreviewPanel = lazy(() => import('../DocxPreviewPanel'));
 const AudioWaveformEditor = lazy(() => import('./AudioWaveformEditor'));
@@ -104,13 +105,20 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   }, [current?.path, open]);
 
   const handleClose = useCallback(() => {
-    if (isAudio && current?.path && !editMode) {
-      mediaPlayerRef.current?.stashPlayback();
-      requestMediaResume(current.path);
+    // Audio uses a shared decoder — leave it playing when Quick Look closes.
+    // Video still handoffs timeline back to the docked panel player.
+    if (!editMode && current?.path) {
+      if (isVideo) {
+        mediaPlayerRef.current?.stashPlayback();
+        requestMediaResume(current.path);
+      } else if (isAudio) {
+        // Soft UI release only; keep session timeline/play state.
+        audioPlaybackSession.releaseUi();
+      }
     }
     setEditMode(false);
     onClose();
-  }, [isAudio, current?.path, editMode, onClose]);
+  }, [isAudio, isVideo, current?.path, editMode, onClose]);
 
   useEffect(() => {
     setFileContent(null);

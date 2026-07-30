@@ -4,12 +4,12 @@
  */
 
 /** Movement before a list drag can arm (Explorer-like — reduces accidental drags). */
-const DRAG_THRESHOLD_PX = 10;
+const DRAG_THRESHOLD_PX = 7;
 const DOUBLE_CLICK_GUARD_MS = 280;
 /** Hold time before drag can start after threshold is met. */
-const DEFAULT_DRAG_DELAY_MS = 80;
+const DEFAULT_DRAG_DELAY_MS = 45;
 /** Faster arm when dragging an already-selected item (Explorer-like). */
-const SELECTED_DRAG_DELAY_MS = 30;
+const SELECTED_DRAG_DELAY_MS = 18;
 /** Defer synthetic click so native dblclick can win. */
 export const LIST_CLICK_DEFER_MS = 50;
 
@@ -58,15 +58,18 @@ export function canStartDragFromList(disallowDrag?: boolean): boolean {
 
 /**
  * Prefer file drag over stealing into marquee from a select-cell pending gesture.
- * Shift always allows marquee. Already-selected rows never lose to horizontal flicks.
+ * Shift always allows marquee. Ctrl prefers copy-drag. Already-selected rows never
+ * lose to horizontal flicks.
  */
 export function preferFileDragOverMarquee(opts: {
   wasSelected: boolean;
   shiftKey: boolean;
+  ctrlKey?: boolean;
   dx: number;
   dy: number;
 }): boolean {
   if (opts.shiftKey) return false;
+  if (opts.ctrlKey) return true;
   if (opts.wasSelected) return true;
   // Unselected row that was selected on press should still prefer drag over marquee.
   const horizontalMarquee = opts.dx > 12 && opts.dx > opts.dy * 1.55;

@@ -1,5 +1,6 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
+import './workstation/inspection/threeCompat';
 import './lib/bndzFontPack';
 import { IPC } from './lib/ipcBridge';
 import App from './App.tsx';
@@ -7,6 +8,11 @@ import './index.css';
 
 // Eager init — external OLE drops must not race the lazy FS-event listener registration.
 IPC.init();
+
+// Re-arm live automation watchers/schedules without requiring the Automation view.
+void import('./lib/automationStore').then(({ restoreArmedAutomationsOnBoot }) => {
+  void restoreArmedAutomationsOnBoot();
+});
 
 /** Explorer drags over WebView2: host opens AllowExternalDrop gate; page reports hover coords. */
 function installExternalOleDragBridge() {
