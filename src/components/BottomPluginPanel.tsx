@@ -50,7 +50,7 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       {isActive && (
         <motion.span
           layoutId="bndz-bottom-tab-glow"
-          className="absolute inset-x-1 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#38bdf8]/20 via-[#99c9f0] to-[#38bdf8]/20"
+          className="absolute inset-x-2 bottom-0 h-[2px] rounded-sm bg-[#99c9f0]/85"
           transition={{ type: 'spring', stiffness: 520, damping: 36 }}
         />
       )}
@@ -212,6 +212,7 @@ export default function BottomPluginPanel(props: any & {
       'quick-look': 'preview',
       'ghost-link': 'ghost-link',
       'mesh-drop': 'mesh-drop',
+      'ram-staging': 'ram-staging',
     };
     const tab = tabMap[id];
     if (tab) handleTabClick(tab);
@@ -244,7 +245,7 @@ export default function BottomPluginPanel(props: any & {
     if (launchContext && activeTab) onLaunchContextConsumed?.();
   }, [activeTab, launchContext, onLaunchContextConsumed]);
 
-  const visibleTabCount = 13;
+  const visibleTabCount = 16;
   const primaryTabs = orderedPlugins.slice(0, visibleTabCount);
   const overflowTabs = orderedPlugins.slice(visibleTabCount);
 
@@ -368,14 +369,14 @@ export default function BottomPluginPanel(props: any & {
       </DndContext>
       </div>
 
-      <div className="bndz-bottom-content flex-1 overflow-hidden relative min-h-0 bndz-scrollbar">
+      <div className="bndz-bottom-content flex-1 min-h-0 overflow-hidden relative flex flex-col">
         <AnimatePresence mode="wait">
           {activePlugin?.component && activeTab && (() => {
             const ActiveComponent = activePlugin.component;
             return (
             <motion.div
               key={activeTab}
-              className="absolute inset-0 z-10"
+              className="bndz-bottom-plugin-surface flex-1 min-h-0 h-full w-full flex flex-col overflow-hidden"
               initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
               animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
               exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
@@ -391,7 +392,7 @@ export default function BottomPluginPanel(props: any & {
           const Component = plugin.component;
           if (!Component) return null;
           return (
-            <div key={plugin.id} className="absolute inset-0 z-0 pointer-events-none invisible" aria-hidden>
+            <div key={plugin.id} className="bndz-bottom-plugin-surface absolute inset-0 z-0 pointer-events-none invisible flex flex-col min-h-0 overflow-hidden" aria-hidden>
               <Component {...mergedPluginProps} isPluginTabActive={false} immersive={immersive} />
             </div>
           );

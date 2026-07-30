@@ -12,6 +12,8 @@ function pathLooksLikeDir(p: string): boolean {
 type Props = {
   items: CanvasItem[];
   selectedIds: string[];
+  snapshotCount?: number;
+  boardName?: string;
   onOpen: (item: CanvasItem) => void;
   onReveal: (item: CanvasItem) => void;
   onCopyPath: (item: CanvasItem) => void;
@@ -25,6 +27,8 @@ type Props = {
 export default function SpatialInspector({
   items,
   selectedIds,
+  snapshotCount = 0,
+  boardName,
   onOpen,
   onReveal,
   onCopyPath,
@@ -71,10 +75,16 @@ export default function SpatialInspector({
         <div className="bndz-spatial-inspector-empty">
           <img src="/Ui/preview-Big Folder.svg" alt="" className="bndz-spatial-inspector-hero" />
           <p>Select a pin or marquee cards to inspect paths, tags, and notes.</p>
+          <div className="bndz-spatial-inspector-board-stats">
+            <div><strong>{items.length}</strong> pin{items.length === 1 ? '' : 's'}</div>
+            {boardName ? <div>{boardName}</div> : null}
+            {snapshotCount > 0 ? <div>{snapshotCount} snapshot{snapshotCount === 1 ? '' : 's'}</div> : null}
+          </div>
           <ul className="bndz-spatial-inspector-tips">
             <li>Drop files from any pane</li>
             <li>Delete removes pins · not files</li>
             <li>Tags sync with BNDZ sidecars</li>
+            <li>Ctrl+Shift+A seeds Automation</li>
           </ul>
         </div>
       </aside>

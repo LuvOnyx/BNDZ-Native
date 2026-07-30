@@ -1567,6 +1567,8 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         <SpatialInspector
           items={doc.items}
           selectedIds={selectedIds}
+          snapshotCount={snapshots.length}
+          boardName={doc.name}
           onOpen={openItem}
           onReveal={revealItem}
           onCopyPath={copyPath}

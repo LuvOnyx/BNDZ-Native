@@ -29,6 +29,7 @@ import { isAudioExt, isVideoExt, isImageExt } from '../lib/mediaTypes';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
+import PreviewMetadataStrip from './preview/PreviewMetadataStrip';
 import { SelectionFilmstrip } from './SelectionFilmstrip';
 import BndzLensStage from './preview/BndzLensStage';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
@@ -373,9 +374,32 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   if (!entity) {
     return (
-      <div className="bndz-preview-panel w-full h-full flex flex-col items-center justify-center text-gray-500 p-4 shrink-0 z-10 select-none">
-        <Icons8Icon id="file_ui" size={48} className="mb-4 opacity-20" />
-        <span className="text-sm bndz-panel-muted">Select a file to preview</span>
+      <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 select-none">
+        <div className="bndz-preview-empty">
+          <Icons8Icon id="file_ui" size={40} className="opacity-25" />
+          <div className="bndz-preview-empty-title">Inspector idle</div>
+          <p className="bndz-preview-empty-desc">
+            Select a file for preview, metadata, and media transport — or open a workspace.
+          </p>
+          <div className="bndz-preview-empty-actions">
+            <button
+              type="button"
+              className="bndz-preview-empty-btn is-accent"
+              onClick={() => window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: '/bndz/spatial-canvas' } }))}
+            >
+              <Icons8Icon id="view_grid" size={12} />
+              Spatial Canvas
+            </button>
+            <button
+              type="button"
+              className="bndz-preview-empty-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: '/' } }))}
+            >
+              <Icons8Icon id="home" size={12} />
+              Smart Views
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -836,6 +860,23 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
        <div className={`bndz-preview-content flex-1 relative flex flex-col min-h-0 ${
          isArchive || isTorrent ? 'overflow-hidden' : 'overflow-y-auto bndz-scrollbar'
        }`}>
+          {path && activeTab !== 'details' && (
+            <PreviewMetadataStrip
+              name={entity.name}
+              path={toWindowsPath(path)}
+              size={(entity as any).size}
+              modified={entity.modified || extendedDetails?.Modified}
+              kindLabel={isDrive ? (entity as any).typeDescription : (isDir ? 'Folder' : (ext ? `${ext.toUpperCase()} file` : 'File'))}
+              isDirectory={isDir}
+              facts={curatedPreviewFacts(extendedDetails)}
+              onOpen={openInShell}
+              onReveal={() => {
+                if (!path) return;
+                void import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('reveal', toWindowsPath(path)));
+              }}
+              onCopyPath={copyPath}
+            />
+          )}
           <AnimatePresence mode="wait">
              <motion.div 
                 key={isAudio || isVideo ? `media-${path || entity.id}-${activeTab}` : `${entity.id}-${activeTab}`}
