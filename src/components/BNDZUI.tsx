@@ -11,6 +11,7 @@ import { useClipboard } from '../data/ClipboardContext';
 import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
+import WorkIntentSwitcher from './WorkIntentSwitcher';
 import FileTransferQueuePanel from './FileTransferQueuePanel';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
 import { SizeBar, type SizeBarStyle } from './SizeBar';
@@ -164,7 +165,7 @@ import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzWorkspacePath, isBndzRamPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_RAM_ROOT } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzWorkspacePath, isBndzRamPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND } from '../lib/bndzVirtualViews';
 import { invalidateRamZoneMountCache, remapRamListingEntries, refreshRamZoneMounts, resolvePanePathForFs, resolveRamStagingFsPath, resolveRamZoneMountPath, entityFsPath } from '../lib/ramStagingPaths';
 import { EmblemIcon } from './EmblemIcon';
 import { isWorkspacePointerTarget } from '../lib/workspace/workspaceFocus';
@@ -208,8 +209,8 @@ import { canonicalDropPath, resolveDropRoute, MESH_DROP_INBOX_DEST } from '../li
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
 import { formatTransferProgressLine } from '../lib/fileTransferQueue';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites, collapseKnownFolderShadowPath, orderRapidAccessItems, knownFolderDedupeKey } from '../lib/rapidAccessDefaults';
-import { resolveFileDragHoverAtPoint, setExternalDragHover, setPointerDragHover, clearPointerDragHover } from '../lib/fileDragHover';
-import { registerFileDropBusContext } from '../lib/fileDropBus';
+import { resolveFileDragHoverAtPoint, setExternalDragHover, setPointerDragHover, clearPointerDragHover, recordExternalDragHover } from '../lib/fileDragHover';
+import { registerFileDropBusContext, commitExternalOleDrop, commitArchiveInternalDrop } from '../lib/fileDropBus';
 import DropDebugOverlay from './DropDebugOverlay';
 import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, resolveEntityPanePath, isShellKnownFolderRoot, shellKnownFolderParent, resolveShellKnownFolderToFs, resolveShellPropertiesPath } from '../lib/shellPaths';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
@@ -644,7 +645,15 @@ export default function BNDZUI() {
       if (moved) {
         if (pendingMarqueeState) applyMarqueeSelection(pendingMarqueeState);
         else applyMarqueeSelection(marqueeState);
+      } else if (!additive) {
+        // Plain click on empty canvas / marquee gutter — clear selection (Explorer-class).
+        const ops = marqueeOpsRef.current;
+        ops.setSelectedItems([], paneId);
+        ops.scheduleSelectionChrome([], true);
+        ops.scheduleQuickActionsBar(false, true);
       }
+      // Suppress the trailing click so row handlers do not re-select after a gutter hit.
+      (window as any)._marqueeDragOccurred = true;
       pendingMarqueeState = null;
       pendingRectState = null;
       setMarquee(null);
@@ -675,6 +684,8 @@ export default function BNDZUI() {
   const [syncResults, setSyncResults] = useState<{ [path: string]: { id: string, statusA?: string, statusB?: string, status?: string } }>({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [folderSizeMap, setFolderSizeMap] = useState<Record<string, number>>({});
+  const folderSizeMapRef = useRef(folderSizeMap);
+  folderSizeMapRef.current = folderSizeMap;
   const [indexedRoots, setIndexedRoots] = useState<string[]>([]);
   const [indexProgress, setIndexProgress] = useState<{
     currentPath: string; filesIndexed: number; done: boolean; root?: string; error?: string;
@@ -744,7 +755,7 @@ export default function BNDZUI() {
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(["/", "/workspace"]));
   const [isSmartToolsOpen, setIsSmartToolsOpen] = useState(false);
-  const [smartToolsTab, setSmartToolsTab] = useState<'assistant' | 'organize' | 'duplicates' | 'agent'>('assistant');
+  const [smartToolsTab, setSmartToolsTab] = useState<'assistant' | 'organize' | 'duplicates' | 'music'>('assistant');
   const [smartToolsPrompt, setSmartToolsPrompt] = useState<string | undefined>();
   const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState(config.previewPanelOpen !== false);
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(config.bottomPanelOpen !== false);
@@ -1188,6 +1199,13 @@ export default function BNDZUI() {
   const typeAheadAtRef = useRef(0);
 
   const openBottomPlugin = React.useCallback((pluginId: string, launch?: BottomPluginLaunchContext) => {
+    // Mesh Drop is a dialog, not a bottom plugin — never open a phantom tab.
+    if (pluginId === 'mesh-drop') {
+      const paths = launch?.paths?.filter(Boolean) ?? [];
+      setMeshDropPaths(paths);
+      setShowMeshDropDialog(true);
+      return;
+    }
     ensurePluginInstalled?.(pluginId);
     setIsBottomPanelOpen(true);
     setBottomPluginTab(pluginId);
@@ -1260,6 +1278,68 @@ export default function BNDZUI() {
   /** Last HTML5 drag-over target — fallback when native drop coordinates miss. */
   const htmlDropTargetRef = useRef<{ paneId: string; tabPath: string } | null>(null);
   const xferMetaRef = useRef(new Map<string, { op: 'copy' | 'move' | 'delete'; label: string; selectParentPath?: string }>());
+  /** Pending FS ops — keep tombstoned names filtered from cache until the queue job finishes. */
+  const pendingFsOpsRef = useRef(new Map<string, {
+    opId: string;
+    kind: 'delete' | 'move' | 'rename';
+    namesByPane: Record<string, Set<string>>;
+    winPaths: Set<string>;
+    startedAt: number;
+  }>());
+
+  const filterTombstonedEntries = React.useCallback((panePath: string, entries: any[]): any[] => {
+    if (!pendingFsOpsRef.current.size || !entries?.length) return entries;
+    const norm = normalizePanePath(panePath);
+    return entries.filter((e: any) => {
+      const name = e?.name;
+      if (!name) return true;
+      for (const op of pendingFsOpsRef.current.values()) {
+        if (op.namesByPane[norm]?.has(name)) return false;
+        const ep = String(e.path || e.fsPath || '').replace(/\//g, '\\').toLowerCase();
+        if (ep && op.winPaths.has(ep)) return false;
+      }
+      return true;
+    });
+  }, []);
+
+  const registerFsTombstone = React.useCallback((
+    opId: string,
+    kind: 'delete' | 'move' | 'rename',
+    panePath: string | null | undefined,
+    names: string[],
+    winPaths: string[],
+  ) => {
+    const namesByPane: Record<string, Set<string>> = {};
+    const norm = panePath ? normalizePanePath(panePath) : '';
+    if (norm && names.length) {
+      namesByPane[norm] = new Set(names.filter(Boolean));
+    }
+    const winSet = new Set<string>();
+    for (const wp of winPaths) {
+      const canon = String(wp || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+      if (!canon) continue;
+      winSet.add(canon);
+      const slash = Math.max(canon.lastIndexOf('\\'), canon.lastIndexOf('/'));
+      if (slash > 0) {
+        const parentWin = canon.slice(0, slash);
+        const base = canon.slice(slash + 1);
+        const parentPane = normalizePanePath('/' + parentWin.replace(/\\/g, '/'));
+        if (!namesByPane[parentPane]) namesByPane[parentPane] = new Set();
+        if (base) namesByPane[parentPane].add(base);
+      }
+    }
+    pendingFsOpsRef.current.set(opId, {
+      opId,
+      kind,
+      namesByPane,
+      winPaths: winSet,
+      startedAt: Date.now(),
+    });
+  }, []);
+
+  const clearFsTombstone = React.useCallback((opId: string) => {
+    pendingFsOpsRef.current.delete(opId);
+  }, []);
   const [listDragGhost, setListDragGhost] = useState<ListDragGhostMeta | null>(null);
   const clearListDragGhost = React.useCallback(() => {
     fluidDragGenRef.current += 1;
@@ -1320,22 +1400,23 @@ export default function BNDZUI() {
   // pathContentsCache stores backend-fetched directory contents keyed by path
   const [pathContentsCache, setPathContentsCache] = useState<Record<string, any[]>>({});
   const cachePathContents = React.useCallback((path: string, data: any[]) => {
+    const filtered = filterTombstonedEntries(path, data);
     setPathContentsCache(prev => {
       const existing = prev[path];
-      if (config.addNewItemsAtTheEndOfTheList && existing?.length && data?.length) {
+      if (config.addNewItemsAtTheEndOfTheList && existing?.length && filtered?.length) {
         const existingIds = new Set(existing.map((e: any) => e.id || e.name));
         const existingNames = new Set(existing.map((e: any) => e.name));
         const kept = existing.filter((e: any) =>
-          data.some((n: any) => (n.id && n.id === e.id) || n.name === e.name),
+          filtered.some((n: any) => (n.id && n.id === e.id) || n.name === e.name),
         );
-        const added = data.filter((n: any) =>
+        const added = filtered.filter((n: any) =>
           !(existingIds.has(n.id) || existingNames.has(n.name)),
         );
         return setPathCacheEntry(prev, path, [...kept, ...added]);
       }
-      return setPathCacheEntry(prev, path, data);
+      return setPathCacheEntry(prev, path, filtered);
     });
-  }, [config.addNewItemsAtTheEndOfTheList]);
+  }, [config.addNewItemsAtTheEndOfTheList, filterTombstonedEntries]);
 
   // Progressive SharedBuffer append — replace streamed listing with full tagged list.
   useEffect(() => {
@@ -1371,7 +1452,7 @@ export default function BNDZUI() {
       const rawPath = detail.path || '';
       if (!rawPath) return;
       const path = normalizePanePath(rawPath);
-      const chunk = normalizeDirEntries(detail.items);
+      const chunk = filterTombstonedEntries(path, normalizeDirEntries(detail.items));
       setPathContentsCache(prev => {
         const existing = prev[path] ?? [];
         return setPathCacheEntry(prev, path, mergeDirEntryChunks(existing, chunk));
@@ -1512,7 +1593,13 @@ export default function BNDZUI() {
       const detail = (ev as CustomEvent<{ prompt?: string; tab?: 'agent' | 'assistant' | 'organize' | 'duplicates' | 'tasks' | 'memories' }>).detail;
       if (detail?.tab) {
         const t = detail.tab;
-        setSmartToolsTab(t === 'agent' || t === 'tasks' || t === 'memories' ? 'assistant' : t === 'duplicates' ? 'duplicates' : t === 'organize' ? 'organize' : 'assistant');
+        setSmartToolsTab(
+          t === 'agent' || t === 'tasks' || t === 'memories' ? 'assistant'
+            : t === 'duplicates' ? 'duplicates'
+              : t === 'organize' ? 'organize'
+                : t === 'music' ? 'music'
+                  : 'assistant',
+        );
       }
       if (detail?.prompt) setSmartToolsPrompt(detail.prompt);
       setIsSmartToolsOpen(true);
@@ -1730,26 +1817,51 @@ export default function BNDZUI() {
     const sourcePath = entity.path ? normalizePanePath(entity.path) : joinPanePath(panePath, entity);
     let targetPath: string;
     if (settingsRt.rename.allowMoveOnRename && /[\\/]/.test(editedValue.trim())) {
-      targetPath = toWindowsPath(editedValue.trim());
+      targetPath = normalizePanePath(editedValue.trim());
     } else {
       const targetDir = sourcePath.replace(/[/\\][^/\\]+$/, '');
       targetPath = targetDir ? `${targetDir}/${targetName}` : joinPanePath(panePath, { name: targetName });
     }
 
-    const displayTarget = targetPath.split(/[/\\]/).pop() || targetName;
+    const winSource = entity.fsPath
+      ? String(entity.fsPath)
+      : await resolvePanePathForFs(sourcePath);
+    const winTarget = await resolvePanePathForFs(normalizePanePath(targetPath));
+    if (!winSource || /^bndz\\/i.test(winSource) || !winTarget || /^bndz\\/i.test(winTarget)) {
+      setToastMessage('Cannot rename in this location.', 'warning');
+      return false;
+    }
+
+    const displayTarget = targetName;
     const renameLabel = `Rename: ${entity.name} → ${displayTarget}`;
     const { IPC } = await import('../lib/ipcBridge');
+    const renameOpId = `rename-${Date.now()}`;
+    registerFsTombstone(renameOpId, 'rename', panePath, [entity.name], [winSource]);
+    setPathContentsCache(prev => {
+      const existing = prev[normalizePanePath(panePath)];
+      if (!existing) return prev;
+      return setPathCacheEntry(
+        prev,
+        normalizePanePath(panePath),
+        existing.map((e: any) => (e.name === entity.name || e.id === entity.id
+          ? { ...e, name: targetName, id: e.id }
+          : e)),
+      );
+    });
     const res = await IPC.executeFsOperation(
-      `rename-${Date.now()}`,
+      renameOpId,
       'move',
-      toWindowsPath(sourcePath),
-      toWindowsPath(targetPath),
+      winSource,
+      winTarget,
       false,
       renameLabel,
     );
-    if (!isQueuedIpcResult(res) && settingsRt.rename.resortAfterRename) void refetchPath(panePath);
+    if (!isQueuedIpcResult(res)) {
+      clearFsTombstone(renameOpId);
+      if (settingsRt.rename.resortAfterRename) void refetchPath(panePath);
+    }
     return true;
-  }, [config, settingsRt.rename, refetchPath]);
+  }, [config, settingsRt.rename, refetchPath, registerFsTombstone, clearFsTombstone]);
 
   const prefetchPathQuiet = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
@@ -2410,11 +2522,12 @@ export default function BNDZUI() {
           }
       }
 
-      // Smart Tools agent (Ctrl+Shift+A)
-      if (!isInput && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
+      // Smart Tools (Ctrl+Shift+A) — opens Assistant tab
+      if (!isInput && (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         setSmartToolsTab('assistant');
         setIsSmartToolsOpen(true);
+        return;
       }
 
       // View mode chords — Ctrl+Shift+1/2/3/4 (details / list / grid / columns)
@@ -2623,14 +2736,26 @@ export default function BNDZUI() {
     if (isFromTree && config.disallowDeleteByKeyInFolderTree) return;
 
     const executeDelete = () => {
+      void (async () => {
       const normPath = normalizePanePath(path);
-      const winPaths = items.map(entity =>
-        toWindowsPath(entity.path || joinPanePath(path, { name: entity.name })),
-      );
+      const winPaths = (await Promise.all(items.map(async (entity: any) => {
+        if (entity.fsPath) return String(entity.fsPath).replace(/\//g, '\\');
+        const raw = entity.path || joinPanePath(path, { name: entity.name });
+        if (isBndzRamPath(raw) || isBndzRamPath(path)) {
+          return (await resolvePanePathForFs(String(raw))) || '';
+        }
+        return toWindowsPath(raw);
+      }))).filter((p): p is string => !!p && !p.toLowerCase().startsWith('bndz\\'));
+      if (!winPaths.length) {
+        pushToast({ kind: 'error', title: 'Delete failed', message: 'Could not resolve item paths on disk.' });
+        return;
+      }
       const label = items.length === 1 ? items[0].name : `${items.length} items`;
       const opId = `delete-${Date.now()}`;
       const deletedIds = new Set(items.map(i => i.id).filter(Boolean));
       const deletedNames = new Set(items.map(i => i.name));
+
+      registerFsTombstone(opId, 'delete', normPath, [...deletedNames], winPaths);
 
       setPanes(prev => prev.map(p => ({
         ...p,
@@ -2661,14 +2786,19 @@ export default function BNDZUI() {
       });
 
       xferMetaRef.current.set(opId, { op: 'delete', label });
-      pushToast({
-        id: `xfer-${opId}`,
-        kind: 'progress',
-        title: 'Deleting…',
-        message: label,
-        sticky: true,
-      });
+      // Progress lives in the transfer queue panel — avoid center sticky toasts for every op.
+      if (!fileOpsRt.showTransferPanel) {
+        pushToast({
+          id: `xfer-${opId}`,
+          kind: 'progress',
+          title: 'Deleting…',
+          message: label,
+          sticky: true,
+        });
+      }
       IPC.executeFsOperation(opId, 'delete', winPaths, '', bypassRecycle, label, 'high');
+      // Skip aggressive RAM refetch — tombstones keep rows hidden until the job completes.
+      })();
     };
 
     const names = items.map(x => x.name).slice(0, 5).join('\n• ');
@@ -2711,6 +2841,24 @@ export default function BNDZUI() {
         { label: 'Cancel', style: 'secondary', action: () => {} }
       ]
     });
+  };
+
+  const createNewItemInActivePane = async (name: string, kind: 'dir' | 'file') => {
+    const pane = panes.find(p => p.id === activePaneId);
+    const cPath = pane?.tabs[pane.activeTabIndex]?.path || currentTab.path;
+    if (!cPath) return;
+    const { createItemInPane } = await import('../lib/ramStagingPaths');
+    const r = await createItemInPane(cPath, name, kind);
+    if (!r.ok) {
+      pushToast({ kind: 'error', title: kind === 'dir' ? 'New folder failed' : 'New file failed', message: r.error || 'Unknown error' });
+      return;
+    }
+    if (isBndzRamPath(cPath)) {
+      invalidateRamZoneMountCache();
+      window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: cPath } }));
+    } else {
+      setTimeout(() => refreshWorkspace(), 150);
+    }
   };
 
   const handleDeletePaths = (paths: string[]) => {
@@ -2821,6 +2969,7 @@ export default function BNDZUI() {
             shouldRefresh = true;
             const meta = xferMetaRef.current.get(job.operationId);
             xferMetaRef.current.delete(job.operationId);
+            clearFsTombstone(job.operationId);
             dismissToast(`xfer-${job.operationId}`);
             const label = meta?.label || job.label || 'items';
             const action = (job.action || meta?.op || '').toLowerCase();
@@ -2860,11 +3009,11 @@ export default function BNDZUI() {
       unsub();
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [refreshPathsForPanes, config.selectParentOfMovedFolder]);
+  }, [refreshPathsForPanes, config.selectParentOfMovedFolder, clearFsTombstone]);
 
   // Live speed/ETA in progress toasts (optional — Configuration → Background processing).
   useEffect(() => {
-    if (!IPC.isNative || !fileOpsRt.showTransferSpeedEta) return;
+    if (!IPC.isNative || !fileOpsRt.showTransferSpeedEta || fileOpsRt.showTransferPanel) return;
     const unsub = IPC.onFileTransferQueueChanged(state => {
       for (const job of state.jobs) {
         if (job.status !== 'running' && job.status !== 'queued') continue;
@@ -2890,7 +3039,7 @@ export default function BNDZUI() {
       }
     });
     return () => unsub();
-  }, [fileOpsRt.showTransferSpeedEta]);
+  }, [fileOpsRt.showTransferSpeedEta, fileOpsRt.showTransferPanel]);
 
   useEffect(() => {
     if (config.showTopMenubar === false) return;
@@ -3097,8 +3246,14 @@ export default function BNDZUI() {
     }
     if (!dirs.length) return;
 
-    // Auto-scan: never restart after cancel, and don't re-run a finished listing.
+    // Auto-scan: skip when every folder already has a size in the session map.
     if (!manual && batchOffset === 0) {
+      const map = folderSizeMapRef.current;
+      const missing = allDirs.filter(d => map[d] == null && map[d.toLowerCase()] == null);
+      if (missing.length === 0) {
+        folderSizeCompletedSigRef.current = listingSig;
+        return;
+      }
       if (folderSizeScanSuppressedRef.current) return;
       if (folderSizeCompletedSigRef.current === listingSig) return;
       if (folderSizeScanActiveRef.current && folderSizeScanPathRef.current === currentPath) return;
@@ -3181,12 +3336,11 @@ export default function BNDZUI() {
   const currentDirItems = pathContentsCache[currentPath];
   const currentDirCount = currentDirItems?.length ?? 0;
 
-  // Reset per-path scan gates when navigating — cancel stale backend work.
+  // Cancel in-flight scan when leaving a path — keep completed signatures so revisits skip IPC.
   useEffect(() => {
     folderSizeScanGen.current += 1;
     folderSizeScanActiveRef.current = false;
     folderSizeScanSuppressedRef.current = false;
-    folderSizeCompletedSigRef.current = '';
     folderSizeScanPathRef.current = '';
     import('../lib/ipcBridge').then(({ IPC }) => IPC.cancelFolderSizeScan());
   }, [currentPath]);
@@ -3219,6 +3373,8 @@ export default function BNDZUI() {
     if (!config.cacheFolderSizes) return;
     if (config.alwaysShowFolderSizes && !config.showCachedFolderSizesOnly) return;
     if (!currentDirCount) return;
+    // Same scheduler as above when both flags are on — skip duplicate 1.6s kick.
+    if (!config.showCachedFolderSizesOnly && (config.autoSyncFolderSizes !== false || config.alwaysShowFolderSizes)) return;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const timer = window.setTimeout(() => {
@@ -3237,7 +3393,7 @@ export default function BNDZUI() {
       clearTimeout(timer);
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [currentPath, currentDirCount, config.cacheFolderSizes, config.alwaysShowFolderSizes, config.showCachedFolderSizesOnly, scanCurrentFolderSizes]);
+  }, [currentPath, currentDirCount, config.cacheFolderSizes, config.alwaysShowFolderSizes, config.showCachedFolderSizesOnly, config.autoSyncFolderSizes, scanCurrentFolderSizes]);
 
   // --- External File System Watcher ---
   useEffect(() => {
@@ -3779,20 +3935,24 @@ export default function BNDZUI() {
         expanded: smartViewsExpanded,
         onClick: () => setCurrentPath(BNDZ_VIEWS_ROOT),
         onToggle: () => setSmartViewsExpanded(!smartViewsExpanded),
-        childrenItems: (['recent', 'media', 'audio', 'documents', 'large'] as const).map(view => ({
-          label: bndzVirtualLabel(view),
-          path: bndzVirtualPath(view),
-          icon: view === 'recent' ? 'clock_ui'
-            : view === 'media' ? 'film_ui'
-            : view === 'audio' ? 'music_ui'
-            : view === 'documents' ? 'file_ui'
-            : 'hard_drive_ui',
-          iconColor: view === 'recent' ? '#fbbf24'
-            : view === 'media' ? '#7eb8e8'
-            : view === 'audio' ? '#34d399'
-            : view === 'documents' ? '#60a5fa'
-            : '#a78bfa',
-        })),
+        childrenItems: [
+          ...(['recent', 'media', 'audio', 'documents', 'large'] as const).map(view => ({
+            label: bndzVirtualLabel(view),
+            path: bndzVirtualPath(view),
+            icon: view === 'recent' ? 'clock_ui'
+              : view === 'media' ? 'film_ui'
+              : view === 'audio' ? 'music_ui'
+              : view === 'documents' ? 'file_ui'
+              : 'hard_drive_ui',
+            iconColor: view === 'recent' ? '#fbbf24'
+              : view === 'media' ? '#7eb8e8'
+              : view === 'audio' ? '#34d399'
+              : view === 'documents' ? '#60a5fa'
+              : '#a78bfa',
+          })),
+          { label: 'Problems', path: BNDZ_PROBLEMS, icon: 'warning', iconColor: '#f59e0b' },
+          { label: 'Inbound', path: BNDZ_INBOUND, icon: 'download_ui', iconColor: '#60a5fa' },
+        ],
       },
       {
         treeKey: 'spatial-canvas',
@@ -4164,17 +4324,33 @@ export default function BNDZUI() {
         ? normalizePanePath(sources[0].replace(/[/\\][^/\\]+$/, '') || '/')
         : undefined,
     });
-    pushToast({
-      id: `xfer-${opId}`,
-      kind: 'progress',
-      title: mode === 'copy' ? 'Copying…' : 'Moving…',
-      message: label,
-      sticky: true,
-    });
     const winSources = await Promise.all(sources.map(async s => {
       if (isBndzRamPath(s)) return (await resolvePanePathForFs(s)) || toWindowsPath(s);
       return toWindowsPath(s);
     }));
+    if (mode === 'move') {
+      const names = sources.map(s => s.split(/[/\\]/).pop() || '').filter(Boolean);
+      const sourceParents = [...new Set(sources.map(s => normalizePanePath(s.replace(/[/\\][^/\\]+$/, '') || '/')))];
+      registerFsTombstone(opId, 'move', sourceParents[0] || null, names, winSources);
+      setPathContentsCache(prev => {
+        let next = prev;
+        for (const parent of sourceParents) {
+          const existing = next[parent];
+          if (!existing) continue;
+          next = setPathCacheEntry(next, parent, existing.filter((e: any) => !names.includes(e.name)));
+        }
+        return next;
+      });
+    }
+    if (!fileOpsRt.showTransferPanel) {
+      pushToast({
+        id: `xfer-${opId}`,
+        kind: 'progress',
+        title: mode === 'copy' ? 'Copying…' : 'Moving…',
+        message: label,
+        sticky: true,
+      });
+    }
     const winDest = (await resolvePanePathForFs(dest)).replace(/\\$/, '');
     void IPC.executeFsOperation(opId, mode, winSources, winDest, false, label, 'high').then(res => {
       if (!isQueuedIpcResult(res)) refreshWorkspace();
@@ -4227,7 +4403,7 @@ export default function BNDZUI() {
         : route.kind === 'mesh-replicate' ? (meshOp === 'move' ? 'Moving' : 'Copying')
         : isMeshDropSend ? 'Mesh Drop'
         : op === 'copy' ? 'Copying' : 'Moving';
-      if (!isMeshDropSend) {
+      if (!isMeshDropSend && !fileOpsRt.showTransferPanel) {
         pushToast({
           id: `xfer-${opId}`,
           kind: 'progress',
@@ -4235,7 +4411,7 @@ export default function BNDZUI() {
           message: label,
           sticky: true,
         });
-      } else {
+      } else if (isMeshDropSend) {
         // Mesh Drop opens the pairing dialog — no fake progress toast.
         dismissToast(`xfer-${opId}`);
       }
@@ -4266,12 +4442,22 @@ export default function BNDZUI() {
           if ((r as { ok?: boolean }).ok === false) {
             throw new Error((r as { error?: string }).error || 'Stage failed');
           }
-          pushToast({ kind: 'success', title: op === 'move' ? 'Moved to RAM' : 'Copied to RAM', message: label });
+          pushToast({ kind: 'success', title: op === 'move' ? 'Moved to zone' : 'Staged to zone', message: label });
           invalidateRamZoneMountCache();
           window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: ramZoneRoot } }));
         } catch (e) {
           dismissToast(`xfer-${opId}`);
-          pushToast({ kind: 'error', title: 'RAM staging failed', message: e instanceof Error ? e.message : String(e) });
+          const msg = e instanceof Error ? e.message : String(e);
+          const partial = /^Staged \d+ of \d+/.test(msg);
+          pushToast({
+            kind: partial ? 'warning' : 'error',
+            title: partial ? 'Staging partial' : 'Staging failed',
+            message: msg,
+          });
+          if (partial) {
+            invalidateRamZoneMountCache();
+            window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: ramZoneRoot } }));
+          }
         }
         return;
       }
@@ -4281,13 +4467,25 @@ export default function BNDZUI() {
         if (isBndzRamPath(s)) return (await resolvePanePathForFs(s)) || toWindowsPath(s);
         return toWindowsPath(s);
       }));
-      IPC.executeFsOperation(opId, op, resolvedSources, destWin, false, label, 'high');
-      if (isBndzRamPath(destCanon) || isBndzRamPath(currentPath)) {
-        window.setTimeout(() => {
-          invalidateRamZoneMountCache();
-          void refetchPath(isBndzRamPath(destCanon) ? destCanon : currentPath);
-        }, 200);
+      if (op === 'move') {
+        const names = canonSources.map(s => s.split(/[/\\]/).pop() || '').filter(Boolean);
+        const sourceParents = [...new Set(
+          (sourcePath ? [normalizePanePath(sourcePath)] : [])
+            .concat(canonSources.map(s => normalizePanePath(s.replace(/[/\\][^/\\]+$/, '') || '/'))),
+        )];
+        registerFsTombstone(opId, 'move', sourceParents[0] || null, names, resolvedSources);
+        setPathContentsCache(prev => {
+          let next = prev;
+          for (const parent of sourceParents) {
+            const existing = next[parent];
+            if (!existing) continue;
+            next = setPathCacheEntry(next, parent, existing.filter((e: any) => !names.includes(e.name)));
+          }
+          return next;
+        });
       }
+      IPC.executeFsOperation(opId, op, resolvedSources, destWin, false, label, 'high');
+      // Tombstones keep source rows hidden — avoid 200ms RAM refresh fighting optimistic UI.
       if (!IPC.isNative && op === 'move' && sourcePath) {
         let newFs = fileSystem;
         for (const sp of canonSources) {
@@ -4493,9 +4691,15 @@ export default function BNDZUI() {
     if (!pasteSpecialRequireClipboard()) return;
     const name = (prompt('New subfolder name:', 'Paste') || '').trim();
     if (!name) return;
-    const destPane = joinPanePathForFs(currentTab.path || '/', name);
-    const { IPC } = await import('../lib/ipcBridge');
-    await IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', destPane, '', false, name);
+    const { createItemInPane } = await import('../lib/ramStagingPaths');
+    const r = await createItemInPane(currentTab.path || '/', name, 'dir');
+    if (!r.ok) {
+      setToastMessage(r.error || 'Could not create folder.');
+      return;
+    }
+    const destPane = isBndzRamPath(currentTab.path)
+      ? `${normalizePanePath(currentTab.path).replace(/\/$/, '')}/${name}`
+      : joinPanePathForFs(currentTab.path || '/', name);
     await executePaste(destPane);
     setToastMessage(`Pasted into "${name}".`);
     refreshWorkspace();
@@ -5284,13 +5488,32 @@ export default function BNDZUI() {
 
   useEffect(() => {
     const onMeshDropSend = (e: Event) => {
-      const paths = ((e as CustomEvent).detail?.paths as string[] | undefined)?.filter(Boolean);
-      if (!paths?.length) return;
+      const raw = (e as CustomEvent).detail?.paths as string[] | undefined;
+      const paths = Array.isArray(raw) ? raw.filter(Boolean) : [];
       setMeshDropPaths(paths);
       setShowMeshDropDialog(true);
     };
     window.addEventListener('bndz-mesh-drop-send', onMeshDropSend);
     return () => window.removeEventListener('bndz-mesh-drop-send', onMeshDropSend);
+  }, []);
+
+  useEffect(() => {
+    const onInboundCopy = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const paths = (detail.paths as string[] | undefined)?.filter(Boolean) ?? [];
+      if (!paths.length) return;
+      const panesSnap = panesRef.current;
+      const activeId = activePaneIdRef.current;
+      const activePane = panesSnap.find(p => p.id === activeId) || panesSnap[0];
+      const dest = normalizePanePath(activePane?.tabs[activePane.activeTabIndex]?.path || '');
+      if (!dest || !isFsDropTargetPath(dest)) {
+        setToastMessage('Open a real folder to receive inbound items.');
+        return;
+      }
+      executeInternalDropRef.current('copy', paths.map(toWindowsPath), canonicalDropPath(dest));
+    };
+    window.addEventListener('bndz-inbound-copy', onInboundCopy);
+    return () => window.removeEventListener('bndz-inbound-copy', onInboundCopy);
   }, []);
 
   // Native OLE drag-hover: warm drop targets (list / tree / breadcrumb / tabs) — no HTML5.
@@ -5359,7 +5582,7 @@ export default function BNDZUI() {
     });
   }, [applyFileDragHoverAtPoint, addTab, bottomPluginTab]);
 
-  // Host: AllowExternalDrop=true (false during BNDZ OLE) — NavigationStarting + WPF drop → bndz-external-drop.
+  // Host: AllowExternalDrop toggled by OLE session — WPF PreviewDrop + NavigationStarting file: fallback.
   useEffect(() => {
     const onExternalDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -5368,119 +5591,36 @@ export default function BNDZUI() {
 
       const clientX = typeof detail.webViewX === 'number' ? detail.webViewX
         : typeof detail.clientX === 'number' ? detail.clientX
-        : window.innerWidth / 2;
+        : (recordExternalDragHover.last.valid ? recordExternalDragHover.last.clientX : window.innerWidth / 2);
       const clientY = typeof detail.webViewY === 'number' ? detail.webViewY
         : typeof detail.clientY === 'number' ? detail.clientY
-        : window.innerHeight / 2;
+        : (recordExternalDragHover.last.valid ? recordExternalDragHover.last.clientY : window.innerHeight / 2);
 
+      // Spatial / Automation canvas owns its own drop surface.
       if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) return;
 
-      if (bottomPluginTab === 'icon-studio') {
-        const hit = typeof detail.webViewX === 'number' && typeof detail.webViewY === 'number'
-          ? document.elementFromPoint(detail.webViewX, detail.webViewY)
-          : null;
-        if (hit?.closest('[data-icon-studio]') || hit?.closest('.icon-studio')) return;
-      }
-
-      const panesSnap = panesRef.current;
-      const activeId = activePaneIdRef.current;
-      const activePane = panesSnap.find(p => p.id === activeId) || panesSnap[0];
-      const activePath = activePane?.tabs[activePane.activeTabIndex]?.path || '/';
-
-      const navTreePath = hitTestNavTreeAtPoint(clientX, clientY);
-      const breadcrumbPath = navTreePath ? null : hitTestBreadcrumbAtPoint(clientX, clientY);
-      const tabHit = hitTestTabAtPoint(clientX, clientY);
-      const listBody = hitTestListBodyAtPoint(clientX, clientY);
-      const listPaneId = listBody?.getAttribute('data-list-pane-id') || null;
-      let hover = tabHit?.paneId
-        ? { paneId: tabHit.paneId, tabIndex: tabHit.tabIndex }
-        : null;
-      if (!hover && listPaneId) {
-        const listPane = panesSnap.find(p => p.id === listPaneId);
-        if (listPane) hover = { paneId: listPane.id, tabIndex: listPane.activeTabIndex };
-      }
-      if (hover) {
-        flushSync(() => {
-          setActivePaneId(hover!.paneId);
-          setPanes(prevPanes => {
-            const next = prevPanes.map(p =>
-              p.id === hover!.paneId ? { ...p, activeTabIndex: hover!.tabIndex } : p,
-            );
-            panesRef.current = next;
-            return next;
-          });
-        });
-      }
-
-      const getContents = (tabPath: string) =>
-        pathContentsCacheRef.current[normalizePanePath(tabPath)] ?? undefined;
-
-      const resolution = resolveFileDropDestination(
+      commitExternalOleDrop({
+        paths,
+        webViewX: typeof detail.webViewX === 'number' ? detail.webViewX : undefined,
+        webViewY: typeof detail.webViewY === 'number' ? detail.webViewY : undefined,
         clientX,
         clientY,
-        hover,
-        panesSnap,
-        activeId,
-        activePath,
-        getContents,
-        breadcrumbPath,
-        navTreePath,
-      );
-
-      let destPath = resolution.tabPath;
-      if (resolution.folderEnt) {
-        destPath = joinPanePath(resolution.tabPath, {
-          name: resolution.folderEnt.name || resolution.folderEnt.id,
-          path: (resolution.folderEnt as { path?: string }).path,
-          id: resolution.folderEnt.id,
-        });
-      }
-      const htmlTarget = htmlDropTargetRef.current;
-      if ((!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') && htmlTarget) {
-        destPath = htmlTarget.tabPath;
-        if (!hover) {
-          const targetPane = panesSnap.find(p => p.id === htmlTarget.paneId);
-          if (targetPane) {
-            flushSync(() => {
-              setActivePaneId(htmlTarget.paneId);
-              setPanes(prevPanes => {
-                const next = prevPanes.map(p =>
-                  p.id === htmlTarget.paneId ? { ...p, activeTabIndex: targetPane.activeTabIndex } : p,
-                );
-                panesRef.current = next;
-                return next;
-              });
-            });
-          }
-        }
-      }
-      // Fallback: OLE landed in our window — use active real folder when hit-test misses (DPI drift).
-      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
-        const tabPath = normalizePanePath(activePane?.tabs[activePane.activeTabIndex]?.path || '');
-        if (tabPath && isFsDropTargetPath(tabPath)) {
-          destPath = tabPath;
-        }
-      }
-      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
-        setToastMessage('Open a real folder to drop files here.');
-        return;
-      }
-
-      const destCanon = canonicalDropPath(destPath);
-      const fromBndzOle = !!detail.fromBndzOle;
-      const oleSession = fromBndzOle ? consumeOleDragSession() : null;
-      if (!fromBndzOle) consumeOleDragSession();
-      const preferred = String(detail.preferredEffect || '').toLowerCase();
-      let op: 'copy' | 'move' = 'copy';
-      if (oleSession?.op === 'move' || oleSession?.op === 'copy') op = oleSession.op;
-      else if (preferred === 'move') op = 'move';
-      executeInternalDropRef.current(op, paths.map(p => toWindowsPath(p)), destCanon, oleSession?.sourceTabPath);
+        source: 'externalOle',
+        preferredEffect: detail.preferredEffect,
+        fromBndzOle: !!detail.fromBndzOle,
+        coordSourceHint: detail.coordSource,
+      });
     };
 
     const onExternalDropFailed = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       const reason = detail.reason || 'Could not read dropped files.';
-      setToastMessage(typeof reason === 'string' ? reason : 'Drop failed — no file paths extracted.');
+      const formats = Array.isArray(detail.formats) ? detail.formats.join(', ') : '';
+      setToastMessage(
+        typeof reason === 'string'
+          ? (formats ? `${reason} (${formats})` : reason)
+          : 'Drop failed — no file paths extracted.',
+      );
     };
 
     const onArchiveDrop = (e: Event) => {
@@ -5491,51 +5631,14 @@ export default function BNDZUI() {
       const clientX = typeof detail.clientX === 'number' ? detail.clientX : window.innerWidth / 2;
       const clientY = typeof detail.clientY === 'number' ? detail.clientY : window.innerHeight / 2;
       if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) return;
-      const panesSnap = panesRef.current;
-      const activeId = activePaneIdRef.current;
-      const activePane = panesSnap.find(p => p.id === activeId) || panesSnap[0];
-      const activePath = activePane?.tabs[activePane.activeTabIndex]?.path || '/';
-      const tabHit = hitTestTabAtPoint(clientX, clientY);
-      const listBody = hitTestListBodyAtPoint(clientX, clientY);
-      let hover = tabHit?.paneId ? { paneId: tabHit.paneId, tabIndex: tabHit.tabIndex } : null;
-      if (!hover && listBody) {
-        const paneId = listBody.getAttribute('data-list-pane-id');
-        const pane = paneId ? panesSnap.find(p => p.id === paneId) : null;
-        if (pane) hover = { paneId: pane.id, tabIndex: pane.activeTabIndex };
-      }
-      const getContents = (tabPath: string) =>
-        pathContentsCacheRef.current[normalizePanePath(tabPath)] ?? undefined;
-      const resolution = resolveFileDropDestination(
+
+      commitArchiveInternalDrop({
+        paths,
         clientX,
         clientY,
-        hover,
-        panesSnap,
-        activeId,
-        activePath,
-        getContents,
-        hitTestBreadcrumbAtPoint(clientX, clientY),
-        hitTestNavTreeAtPoint(clientX, clientY),
-      );
-      let destPath = resolution.tabPath;
-      if (resolution.folderEnt) {
-        destPath = joinPanePath(resolution.tabPath, {
-          name: resolution.folderEnt.name || resolution.folderEnt.id,
-          path: (resolution.folderEnt as { path?: string }).path,
-          id: resolution.folderEnt.id,
-        });
-      }
-      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
-        const tabPath = normalizePanePath(activePane?.tabs[activePane.activeTabIndex]?.path || '');
-        if (tabPath && isFsDropTargetPath(tabPath)) {
-          destPath = tabPath;
-        }
-      }
-      if (!isFsDropTargetPath(destPath) || destPath === '/' || destPath === '/this-pc') {
-        setToastMessage('Open a real folder to drop archive items here.');
-        return;
-      }
-      const op = detail.op === 'move' ? 'move' : 'copy';
-      executeInternalDropRef.current(op, paths.map(toWindowsPath), canonicalDropPath(destPath));
+        source: 'archiveInternal',
+        op: detail.op === 'move' ? 'move' : 'copy',
+      });
     };
 
     window.addEventListener('bndz-external-drop', onExternalDrop);
@@ -5546,7 +5649,7 @@ export default function BNDZUI() {
       window.removeEventListener('bndz-external-drop-failed', onExternalDropFailed);
       window.removeEventListener('bndz-archive-drop', onArchiveDrop);
     };
-  }, [bottomPluginTab]);
+  }, []);
 
   useEffect(() => {
     const syncViewport = () => {
@@ -6814,9 +6917,9 @@ export default function BNDZUI() {
           );
         case 'tags':
           return (
-            <div key={colId} className="bndz-list-select-cell px-2 flex gap-1 h-full items-center flex-wrap">
-              {settingsRt.list.showTags && entityTags.map(t => (
-                <TagBadge key={t} tagKey={t} catalog={availableTags} />
+            <div key={colId} className="bndz-list-select-cell px-2 flex gap-1 h-full items-center overflow-hidden min-w-0">
+              {settingsRt.list.showTags && [...new Set(entityTags)].map(t => (
+                <TagBadge key={t} tagKey={t} catalog={availableTags} compact />
               ))}
             </div>
           );
@@ -7130,8 +7233,7 @@ export default function BNDZUI() {
                  </button>
             </div>
             {/* Fixed-width slot keeps the filter box from shifting when the view changes */}
-            <div className="shrink-0 mx-1 flex items-center gap-1.5 min-w-[124px]">
-              {/* Explicit Details only — neutral default has no density slider. */}
+            <div className="shrink-0 mx-1 flex items-center gap-1.5 w-[230px]">
               {currentTab.viewMode === 'details' && (
                 <>
                   <input
@@ -7140,7 +7242,7 @@ export default function BNDZUI() {
                     max={48}
                     value={detailsIconSz}
                     onChange={e => updateConfig({ detailsIconSize: Number(e.target.value) })}
-                    className="w-[72px] h-1 accent-[#0078d4]"
+                    className="w-[124px] h-1 accent-[#0078d4]"
                     title="Details icon size"
                   />
                   <select
@@ -7155,7 +7257,6 @@ export default function BNDZUI() {
                   </select>
                 </>
               )}
-              {/* Neutral default: Group by only (no size slider). */}
               {isNeutralDefault && computedViewMode === 'details' && (
                 <select
                   value={listGroupBy}
@@ -7205,7 +7306,6 @@ export default function BNDZUI() {
             </div>
         </div>
 
-        {/* Grid Header */}
         {(computedViewMode === 'details') && settingsRt.list.showSortHeaders && (
         <div
            className={`fs-list-header bndz-list-header-bar flex text-[11px] shrink-0 select-none ${!settingsRt.list.verticalGridLines ? 'bndz-list-header-bar--no-grid' : ''}`}
@@ -7235,6 +7335,9 @@ export default function BNDZUI() {
              }}
            />
         </div>
+        )}
+        {(computedViewMode !== 'details') && settingsRt.list.showSortHeaders && (
+          <div className="bndz-list-header-bar-spacer shrink-0" aria-hidden />
         )}
 
         {isGlobal && config.enableBndzIndexedSearch !== false && (
@@ -7283,10 +7386,13 @@ export default function BNDZUI() {
                   (window as any)._marqueeDragOccurred = false;
                   return;
               }
+              // Row hits own handlers; only true list canvas clears selection.
+              if ((e.target as HTMLElement).closest('.fs-item-wrapper')) return;
               setSelectedItems([], pane.id);
               selectionAnchorRef.current = null;
               scheduleSelectionChrome([], true);
               scheduleQuickActionsBar(false);
+              setFocusedItemId(null);
               setLastClickData(null);
               setInlineRename(null);
            }}
@@ -7373,6 +7479,11 @@ export default function BNDZUI() {
               const capturePointerId = e.pointerId;
               const altKey = e.altKey;
 
+              // Arm drag against the *previous* press timestamp, then stamp this press.
+              // Marking first made canStartDragFromList always fail (double-click guard).
+              const armedForDrag = !shiftKey;
+              const mayArmDrag = armedForDrag && canStartDragFromList(mouseRt.disallowDragFromList);
+              const cancelDeferredClick = isWithinDoubleClickGuard() && !!listClickDeferTimerRef.current;
               markPointerDown();
 
               // Select on press; plain click+drag arms immediately (threshold + delay separate click from drag).
@@ -7385,7 +7496,6 @@ export default function BNDZUI() {
                 selectionAnchorRef.current = { paneId: pane.id, itemId: entityId };
               }
 
-              const armedForDrag = !shiftKey;
               listGestureRef.current = {
                 paneId: pane.id,
                 pointerId: capturePointerId,
@@ -7405,12 +7515,12 @@ export default function BNDZUI() {
                 listEl,
               };
 
-              if (isWithinDoubleClickGuard() && listClickDeferTimerRef.current) {
+              if (cancelDeferredClick && listClickDeferTimerRef.current) {
                 clearTimeout(listClickDeferTimerRef.current);
                 listClickDeferTimerRef.current = null;
               }
 
-              if (armedForDrag && canStartDragFromList(mouseRt.disallowDragFromList)) {
+              if (mayArmDrag) {
                 beginDragSession(
                   capturePointerId,
                   startX,
@@ -8331,6 +8441,7 @@ export default function BNDZUI() {
                       ${colorFilterResult?.className || ''}
                       ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[#0078d4]/50' : ''}
                       ${syncOpacity ? "opacity-50" : ""}`}
+                    data-sel-chrome={config.listSelectionChrome || 'fullRow'}
                     style={{
                         ...(isGridMode ? {
                           height: isDrive ? paneGridMetrics.rowHeight : gridMetrics.rowHeight,
@@ -8360,11 +8471,17 @@ export default function BNDZUI() {
                           paddingBottom: detailsPadY,
                           boxSizing: 'border-box' as const,
                         } : {}),
-                        ...(showSelectionChrome && config.listSelectionHighlightColor
+                        ...(showSelectionChrome
+                          && (config.listSelectionChrome || 'fullRow') === 'fullRow'
+                          && config.listSelectionHighlightColor
                           ? { background: config.listSelectionHighlightColor }
-                          : config.applyColors && showSelectionChrome ? { background: 'var(--list-selected-bg)' } : {}),
+                          : showSelectionChrome
+                            && (config.listSelectionChrome || 'fullRow') === 'fullRow'
+                            && config.applyColors
+                            ? { background: 'var(--list-selected-bg)' }
+                            : {}),
                         ...(zebraAlt && !showSelectionChrome && !filterResult?.rowTint && !filterColor && !colorFilterResult?.inlineStyle
-                          ? (config.applyColors ? { background: 'var(--list-alt-bg)' } : { background: '#1e1e1e' })
+                          ? { background: 'var(--list-alt-bg, rgba(255,255,255,0.045))' }
                           : {}),
                         ...(filterResult?.rowTint && !showSelectionChrome ? { background: filterResult.rowTint } : filterColor && !showSelectionChrome ? { background: `${filterColor}1A` } : {}),
                         ...(!showSelectionChrome && colorFilterResult?.inlineStyle ? colorFilterResult.inlineStyle : {})
@@ -8498,6 +8615,7 @@ export default function BNDZUI() {
                            ) : computedViewMode === 'list' ? (
                              <>
                              <div className="flex items-center min-w-0 flex-1">
+                               <div className="bndz-list-marquee-lead shrink-0" aria-hidden />
                                <div className="bndz-list-select-cell flex items-center min-w-0 shrink max-w-full">
                                  <div className={`bndz-clipboard-icon-slot flex justify-center shrink-0 ${iconDimClass}`} style={{ width: listMetrics.iconSlot }}>
                                     {isDir && colorFilterResult?.folderIcon ? (
@@ -8511,7 +8629,7 @@ export default function BNDZUI() {
                                     {displayLabel}
                                  </div>
                                </div>
-                               <div className="bndz-list-marquee-pad" aria-hidden />
+                               <div className="bndz-list-marquee-trail" aria-hidden />
                              </div>
                                {cloudBadge && (
                                  <span className={`text-[10px] mr-1 shrink-0 ${cloudBadge.tone === 'amber' ? 'text-amber-400' : cloudBadge.tone === 'emerald' ? 'text-emerald-400' : 'text-[#7eb8e8]'}`} title={cloudBadge.title}>{cloudBadge.label}</span>
@@ -8527,6 +8645,7 @@ export default function BNDZUI() {
                              </>
                            ) : (
                              <>
+                               <div className="bndz-list-marquee-lead shrink-0" aria-hidden />
                                {listRt.showSelectionCheckboxes && (
                                  <div className="w-5 flex justify-center shrink-0" onMouseDown={e => e.stopPropagation()}>
                                    <input
@@ -8712,7 +8831,8 @@ export default function BNDZUI() {
       else if (/^[A-Za-z]:/.test(id) || id.startsWith('//') || id.startsWith('\\\\') || id.startsWith('/')) path = toWindowsPath(id);
       else path = toWindowsPath(id);
       // Never feed mangled /bndz/ram virtual paths into FS/clipboard ops
-      if (!path || path.toLowerCase().startsWith('bndz\\')) path = ent?.fsPath ? String(ent.fsPath).replace(/\//g, '\\') : path;
+      if (!path || path.toLowerCase().startsWith('bndz\\')) path = ent?.fsPath ? String(ent.fsPath).replace(/\//g, '\\') : '';
+      if (!path) continue;
       paths.push(path);
       types.push(
         ent?.type === 'directory' ? 'folder'
@@ -8752,7 +8872,7 @@ export default function BNDZUI() {
         openBottomPlugin('batch-rename');
         break;
       case 'compare':
-        openBottomPlugin('find');
+        openBottomPlugin('compare');
         break;
       case 'mesh-drop':
         setMeshDropPaths(bottomSelectionTargets.paths);
@@ -8796,6 +8916,15 @@ export default function BNDZUI() {
         break;
       case 'ram-staging':
         openBottomPlugin('ram-staging');
+        break;
+      case 'dropstack':
+        openBottomPlugin('dropstack');
+        break;
+      case 'catalog':
+        openBottomPlugin('catalog');
+        break;
+      case 'folder-sync':
+        openBottomPlugin('folder-sync');
         break;
       default:
         break;
@@ -8994,14 +9123,10 @@ export default function BNDZUI() {
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <MenubarSubmenu label="New" iconId="new_folder">
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                               const cPath = currentTab.path;
-                               import('../lib/ipcBridge').then(({ IPC }) => {
-                                 IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath || '/', 'New folder'), '', false, 'New folder');
-                                 setTimeout(() => refreshWorkspace(), 150);
-                               });
+                               void createNewItemInActivePane('New folder', 'dir');
                             })}><Icons8Icon id="new_folder" size={14} /> New Folder</div>
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                               import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), '', false, 'New Text Document.txt'));
+                               void createNewItemInActivePane('New Text Document.txt', 'file');
                             })}><Icons8Icon id="new_file" size={14} /> New Text Document</div>
                             <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                               const paths = getSelectedEntityPaths();
@@ -9123,13 +9248,10 @@ export default function BNDZUI() {
                  <MenubarPortalMenu open={openMenuId === 'Edit'} anchorEl={menubarAnchors.current['Edit']} minWidth={240}>
                     <MenubarSubmenu label="New">
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
-                        import('../lib/ipcBridge').then(({ IPC }) => {
-                          IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(currentTab.path || '/', 'New folder'), '', false, 'New folder');
-                          setTimeout(() => refreshWorkspace(), 150);
-                        });
+                        void createNewItemInActivePane('New folder', 'dir');
                       })}>New Folder</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
-                        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(currentTab.path || '/', 'New Text Document.txt'), '', false, 'New Text Document.txt'));
+                        void createNewItemInActivePane('New Text Document.txt', 'file');
                       })}>New Text Document</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(async () => {
                         const paths = getSelectedEntityPaths();
@@ -10067,16 +10189,11 @@ export default function BNDZUI() {
                                break;
                            }
                            case 'new_folder': {
-                               const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
-                               if (cPath) {
-                                 IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(cPath, 'New folder'), '', false, 'New folder');
-                                 setTimeout(() => refreshWorkspace(), 150);
-                               }
+                               void createNewItemInActivePane('New folder', 'dir');
                                break;
                            }
                            case 'new_file': {
-                               const cPath = panes.find(p => p.id === activePaneId)?.tabs[panes.find(p => p.id === activePaneId)!.activeTabIndex]?.path;
-                               if (cPath) IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', `${cPath}/New Text Document.txt`, '', false, 'New Text Document.txt');
+                               void createNewItemInActivePane('New Text Document.txt', 'file');
                                break;
                            }
                            case 'select_all': {
@@ -10240,7 +10357,8 @@ export default function BNDZUI() {
 
       {/* Omni-Filter Bar + docked selection actions (opt-in via Appearance) */}
       <div className="shrink-0 relative z-30">
-      <div data-tutorial="omnibar" className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0" style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}>
+      <div data-tutorial="omnibar" className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0 gap-2" style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}>
+         <WorkIntentSwitcher openBottomPlugin={openBottomPlugin} />
          <Icons8Icon id="search" size={14} className="mr-2 opacity-60" />
          <input 
             ref={omniFilterRef}
@@ -10312,6 +10430,14 @@ export default function BNDZUI() {
             },
             onProperties: () => openBottomPlugin('properties'),
             onBatchRename: () => openBottomPlugin('batch-rename'),
+            onMeshDrop: () => {
+              setMeshDropPaths(bottomSelectionTargets.paths);
+              setShowMeshDropDialog(true);
+            },
+            onRamStaging: () => openBottomPlugin('ram-staging'),
+            onGhostLink: () => openBottomPlugin('ghost-link'),
+            onTag: () => setTagAssignmentActive(true),
+            onCompare: () => openBottomPlugin('compare'),
             canPaste: !!clipboard.items?.length && !!clipboard.action,
           })}
         />

@@ -1,4 +1,4 @@
-import { BNDZ_HOME, BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel } from './bndzVirtualViews';
+import { BNDZ_HOME, BNDZ_VIEWS_ROOT, BNDZ_RAM_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel, isBndzRamPath, parseBndzRamZoneId } from './bndzVirtualViews';
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH } from './pathUtils';
 
 /** Human-readable tab / breadcrumb label for a pane path */
@@ -13,6 +13,13 @@ export function getPaneTabLabel(path: string): string {
   if (bndzView) return bndzVirtualLabel(bndzView);
   const workspace = parseBndzWorkspaceView(p);
   if (workspace) return bndzWorkspaceLabel(workspace);
+  if (isBndzRamPath(p)) {
+    const zoneId = parseBndzRamZoneId(p);
+    if (!zoneId) return 'RAM Staging';
+    const tail = p.slice(BNDZ_RAM_ROOT.length + zoneId.length + 1);
+    if (tail) return tail.split('/').filter(Boolean).pop() || zoneId;
+    return zoneId;
+  }
   if (/^\/[A-Za-z]:$/.test(p)) return p.slice(1);
   const lower = p.toLowerCase();
   if (lower === '/shell:desktop') return 'Desktop';

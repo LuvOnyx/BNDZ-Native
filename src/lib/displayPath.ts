@@ -1,7 +1,7 @@
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
 import { getPaneTabLabel } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
-import { BNDZ_HOME, BNDZ_VIEWS_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel } from './bndzVirtualViews';
+import { BNDZ_HOME, BNDZ_VIEWS_ROOT, BNDZ_RAM_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel, isBndzRamPath, parseBndzRamZoneId } from './bndzVirtualViews';
 import { ENV_PATH_ALIASES, SPECIAL_FOLDER_PANE_PATHS } from './shellPaths';
 
 /** `C:` from `/C:` or `//C:` */
@@ -41,6 +41,12 @@ export function formatAddressBarPath(panePath: string): string {
   if (bndzView) return bndzVirtualLabel(bndzView);
   const workspace = parseBndzWorkspaceView(p);
   if (workspace) return bndzWorkspaceLabel(workspace);
+  if (isBndzRamPath(p)) {
+    const zoneId = parseBndzRamZoneId(p);
+    if (!zoneId) return 'RAM Staging';
+    const tail = p.slice(BNDZ_RAM_ROOT.length + zoneId.length + 1);
+    return tail ? tail.replace(/\//g, '\\') : zoneId;
+  }
   if (p === '/') return 'This PC';
   if (isRecycleBinPath(p)) return 'Recycle Bin';
   if (p === '//' || p === '\\\\') return 'Network';
@@ -87,6 +93,26 @@ export function getBreadcrumbSegments(panePath: string, catalogNames?: Record<st
       { label: 'Smart views', path: BNDZ_VIEWS_ROOT },
       { label: bndzWorkspaceLabel(workspace), path: p },
     ];
+  }
+  if (isBndzRamPath(p)) {
+    const zoneId = parseBndzRamZoneId(p);
+    const segs: BreadcrumbSegment[] = [
+      { label: 'Smart views', path: BNDZ_VIEWS_ROOT },
+      { label: 'RAM Staging', path: BNDZ_RAM_ROOT },
+    ];
+    if (zoneId) {
+      segs.push({ label: zoneId, path: `${BNDZ_RAM_ROOT}/${zoneId}` });
+      const tail = p.slice(BNDZ_RAM_ROOT.length + zoneId.length + 1);
+      if (tail) {
+        const parts = tail.split('/').filter(Boolean);
+        let acc = `${BNDZ_RAM_ROOT}/${zoneId}`;
+        for (const part of parts) {
+          acc = `${acc}/${part}`;
+          segs.push({ label: part, path: acc });
+        }
+      }
+    }
+    return segs;
   }
   if (isRecycleBinPath(p)) return [{ label: 'Recycle Bin', path: RECYCLE_BIN_PATH }];
   if (p === '//' || p === '\\\\') return [{ label: 'Network', path: '//' }];

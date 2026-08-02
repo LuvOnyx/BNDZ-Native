@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { useAppConfig } from '../../data/configContext';
 import { meshDropCodeChecksum } from '../../lib/meshDrop';
 import {
+  DEFAULT_MESH_DROP_WEB_BASE,
   buildMeshDropDeepLink,
   buildMeshDropWebLink,
   extractMeshDropCode,
@@ -35,9 +37,9 @@ type Props = {
 };
 
 const SHARE_MODES: { id: MeshDropShareMode; label: string; icon: string; hint: string }[] = [
-  { id: 'code', label: 'Mesh Code', icon: 'copy_path', hint: 'Copy-paste encrypted SDP bundle' },
-  { id: 'link', label: 'Web Link', icon: 'emblem-shared', hint: 'Shareable HTTPS + bndz:// deep link' },
-  { id: 'qr', label: 'QR', icon: 'view_grid', hint: 'Scan from phone or second screen' },
+  { id: 'code', label: 'Mesh Code', icon: 'copy_path', hint: 'Copy-paste encrypted SDP bundle into another BNDZ desktop' },
+  { id: 'link', label: 'Deep Link', icon: 'emblem-shared', hint: 'bndz:// deep link for another BNDZ install' },
+  { id: 'qr', label: 'QR', icon: 'view_grid', hint: 'QR of deep link / Mesh Code for a second BNDZ screen' },
   { id: 'relay', label: 'Relay', icon: 'cloud_ui', hint: 'Auto answer exchange via signaling relay' },
   { id: 'lan', label: 'LAN', icon: 'explorer', hint: 'Discover peers on your subnet' },
 ];
@@ -96,7 +98,12 @@ export default function MeshDropDialog({ paths = [], onClose }: Props) {
 
   const deepLink = useMemo(() => (meshCode ? buildMeshDropDeepLink(meshCode) : ''), [meshCode]);
   const webLink = useMemo(() => (meshCode ? buildMeshDropWebLink(meshCode, webBase) : ''), [meshCode, webBase]);
-  const qrTarget = shareMode === 'qr' ? (webLink || deepLink) : '';
+  const hasCustomWebReceiver = Boolean(
+    webBase
+    && webBase.replace(/\/$/, '').toLowerCase() !== DEFAULT_MESH_DROP_WEB_BASE.replace(/\/$/, '').toLowerCase(),
+  );
+  // QR / phone scan must not advertise a dead public web receiver — prefer deep link.
+  const qrTarget = shareMode === 'qr' ? (deepLink || meshCode) : '';
 
   useEffect(() => {
     if (!qrTarget) {
@@ -232,7 +239,7 @@ export default function MeshDropDialog({ paths = [], onClose }: Props) {
       const r = await IPC.meshDropDiscoverLan();
       const peers = (r.peers as Record<string, unknown>[]).map(normalizePeer);
       setLanPeers(peers);
-      setStatus(peers.length ? `Found ${peers.length} peer(s) on your network` : 'No LAN peers found — use Mesh Code or Web Link');
+      setStatus(peers.length ? `Found ${peers.length} peer(s) on your network` : 'No LAN peers found — use Mesh Code or Deep Link');
     } finally {
       setLanScanning(false);
     }
@@ -295,7 +302,7 @@ export default function MeshDropDialog({ paths = [], onClose }: Props) {
       <div className="bndz-meshdrop-dialog bndz-meshdrop-dialog--wide">
         <div className="bndz-meshdrop-aurora" aria-hidden />
         <header className="bndz-meshdrop-head">
-          <span className="bndz-meshdrop-sigil"><Icons8Icon id="emblem-shared" size={22} /></span>
+          <span className="bndz-meshdrop-sigil"><EmblemIcon id="share-check" size={22} /></span>
           <div className="min-w-0 flex-1">
             <h2 className="bndz-meshdrop-title">Mesh Drop</h2>
             <p className="bndz-meshdrop-sub">Zero-trust WebRTC P2P · encrypted pairing · unlimited size</p>
@@ -311,7 +318,7 @@ export default function MeshDropDialog({ paths = [], onClose }: Props) {
         </div>
 
         {mode === 'host' ? (
-          <div className="bndz-meshdrop-body">
+          <div className="bndz-meshdrop-body" data-mesh-drop-inbox="1">
             <div className="bndz-meshdrop-manifest">
               <div className="bndz-meshdrop-manifest-stat">
                 <span className="label">Payload</span>
@@ -370,20 +377,23 @@ export default function MeshDropDialog({ paths = [], onClose }: Props) {
                 {shareMode === 'link' && (
                   <div className="bndz-meshdrop-panel space-y-3">
                     <div>
-                      <label className="bndz-meshdrop-label">Web share link</label>
-                      <div className="bndz-meshdrop-code-row">
-                        <code className="bndz-meshdrop-code bndz-meshdrop-code--link">{webLink}</code>
-                        <button type="button" className="bndz-meshdrop-btn" onClick={() => copyText(webLink, 'Web link')}>Copy</button>
-                      </div>
-                      <p className="bndz-meshdrop-micro">Opens in browser or BNDZ — Mesh Code is embedded in the URL hash.</p>
-                    </div>
-                    <div>
                       <label className="bndz-meshdrop-label">Deep link (bndz://)</label>
                       <div className="bndz-meshdrop-code-row">
                         <code className="bndz-meshdrop-code bndz-meshdrop-code--link">{deepLink.slice(0, 100)}…</code>
                         <button type="button" className="bndz-meshdrop-btn" onClick={() => copyText(deepLink, 'Deep link')}>Copy</button>
                       </div>
+                      <p className="bndz-meshdrop-micro">Paste into another BNDZ desktop (Receive → paste). Phone browsers need a hosted receiver.</p>
                     </div>
+                    {hasCustomWebReceiver && (
+                      <div>
+                        <label className="bndz-meshdrop-label">Custom web link</label>
+                        <div className="bndz-meshdrop-code-row">
+                          <code className="bndz-meshdrop-code bndz-meshdrop-code--link">{webLink}</code>
+                          <button type="button" className="bndz-meshdrop-btn" onClick={() => copyText(webLink, 'Web link')}>Copy</button>
+                        </div>
+                        <p className="bndz-meshdrop-micro">Uses your configured Mesh Drop web base.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -394,7 +404,7 @@ export default function MeshDropDialog({ paths = [], onClose }: Props) {
                     ) : (
                       <div className="bndz-meshdrop-qr-placeholder">Generating QR…</div>
                     )}
-                    <p className="bndz-meshdrop-micro text-center">Scan to open web link — receiver pastes answer via Relay or Mesh Code tab.</p>
+                    <p className="bndz-meshdrop-micro text-center">Encodes a bndz:// deep link — open on another BNDZ desktop, or paste Mesh Code on Receive.</p>
                   </div>
                 )}
 
@@ -520,7 +530,7 @@ export default function MeshDropDialog({ paths = [], onClose }: Props) {
                         disabled={busy}
                         onClick={() => void joinLanPeer(p)}
                       >
-                        <Icons8Icon id="emblem-shared" size={16} className="text-cyan-300 shrink-0" />
+                        <EmblemIcon id="share-check" size={16} />
                         <div className="min-w-0 flex-1 text-left">
                           <div className="text-xs font-semibold text-white truncate">{p.displayName}</div>
                           <div className="bndz-mono text-[10px] text-gray-500">{p.address}:{p.port}</div>

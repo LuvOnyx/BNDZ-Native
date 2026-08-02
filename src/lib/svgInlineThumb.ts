@@ -29,10 +29,14 @@ export async function resolveSvgInlineThumb(path: string | null | undefined): Pr
 
   const job = (async () => {
     try {
-      const res = await IPC.readTextFile(win, 512 * 1024);
+      const res = await IPC.readTextFile(win, 4 * 1024 * 1024);
       const text = res?.content;
       if (!text || typeof text !== 'string' || text.length < 8) return null;
-      const blob = new Blob([text], { type: 'image/svg+xml' });
+      // Strip scripts / external event handlers so <img> and preview stay safe.
+      const sanitized = text
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+      const blob = new Blob([sanitized], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
       const prev = cache.get(key);
       if (prev) {

@@ -1,139 +1,513 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  ReactFlow, Background, Controls, MiniMap, addEdge, useNodesState, useEdgesState,
+  ReactFlow, Background, Controls, MiniMap, addEdge, useNodesState, useEdgesState, applyNodeChanges,
   type Connection, type Node, type Edge, Handle, Position, Panel, SelectionMode,
-  type Viewport,
+  type Viewport, type ReactFlowInstance, type OnNodesChange, type OnEdgesChange, type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Icons8Icon } from '../Icons8Icon';
 import WorkspaceMenuPanel, { WorkspaceMenuItem, WorkspaceMenuSep } from '../workspace/WorkspaceMenuPanel';
 import {
-  loadAutomationGraph, hydrateAutomationFromJson, invalidateAutomationCache,
-  resetAutomationGraphPersisted,
-  saveAutomationGraphNow, runAutomationGraph, stableAutomationJson,
-  defaultAutomationViewport,
+  loadAutomationGraph, loadAutomationLibrary, hydrateAutomationFromJson,
+  invalidateAutomationCache, saveAutomationGraphNow,
+  runAutomationGraph, syncAutomationLive, getAutomationLiveStatus, createPipeline,
+  saveAutomationLibrary, stableAutomationJson, defaultAutomationViewport,
+  deletePipeline, duplicatePipeline, exportPipelineJson, importPipelineFromJson,
+  addPipelineToLibrary, appendAutomationRunRecord, loadAutomationRunHistory,
   type AutomationNodeType, type AutomationGraph, type AutomationViewport,
+  type AutomationLibrary, type AutomationLiveStatus, type AutomationRunRecord,
 } from '../../lib/automationStore';
 import { IPC } from '../../lib/ipcBridge';
 import { useAppConfig } from '../../data/configContext';
 import { useWorkspaceContextMenu } from '../workspace/useWorkspaceContextMenu';
 import { useWorkspaceAutosave } from '../../lib/useWorkspaceAutosave';
 import { flushBndzMeta } from '../../lib/bndzMetaStore';
-import WorkspaceSplash, { useWorkspaceSplash, resetWorkspaceSplash } from '../workspace/WorkspaceSplash';
+import WorkspaceSplash, { useWorkspaceSplash } from '../workspace/WorkspaceSplash';
 import WorkspaceCommandBar from '../workspace/WorkspaceCommandBar';
 import AutomationViewportRestore from '../workspace/AutomationViewportRestore';
-import { focusWorkspaceSurface } from '../../lib/workspace/workspaceFocus';
+import { focusWorkspaceSurface, shouldHandleWorkspaceKeys } from '../../lib/workspace/workspaceFocus';
 import { bindWorkspaceCursorGuard } from '../../lib/workspace/workspaceCursorGuard';
 import {
-  lintAutomationGraph, dryRunGraph, type LintIssue, type DryRunStep,
+  lintAutomationGraph, dryRunGraph, lintErrorCount, FOLDER_FIELD_KEYS,
+  type LintIssue, type DryRunStep,
 } from '../../lib/workspace/automationLint';
+import {
+  NODE_DEFS, PALETTE_GROUPS, CATEGORY_LABEL, type AutomationNodeDef,
+} from '../../lib/workspace/automationNodeDefs';
+import { consumeAutomationSeed, type AutomationPendingSeed } from '../../lib/workspace/automationPendingSeed';
+import { AUTOMATION_RECIPES, recipeToGraph } from '../../lib/workspace/automationTemplates';
+import {
+  getWorkspaceClipboard, setWorkspaceClipboard,
+} from '../../lib/workspace/workspaceClipboard';
 
 type NodeData = {
   label: string;
   nodeType: AutomationNodeType;
   fields: Record<string, string>;
-};
-
-type NodeDef = {
-  label: string;
-  color: string;
-  icon: string;
-  category: 'trigger' | 'filter' | 'action' | 'utility';
-  desc: string;
-  fields: Array<{ key: string; label: string; placeholder?: string }>;
-};
-
-const NODE_DEFS: Record<AutomationNodeType, NodeDef> = {
-  watchFolder: {
-    label: 'Watch folder', color: '#7eb8e8', icon: 'folder_open_ui', category: 'trigger',
-    desc: 'Monitor a folder for new or changed files',
-    fields: [{ key: 'path', label: 'Folder path', placeholder: 'C:\\Projects\\deploy' }],
-  },
-  filterExtension: {
-    label: 'Filter extension', color: '#34d399', icon: 'filter_ui', category: 'filter',
-    desc: 'Keep only files matching extensions',
-    fields: [{ key: 'extensions', label: 'Extensions', placeholder: 'zip,rar,7z' }],
-  },
-  filterArchive: {
-    label: 'Archives only', color: '#a78bfa', icon: 'zip', category: 'filter',
-    desc: 'Pass through archive types only',
-    fields: [{ key: 'extensions', label: 'Archive types', placeholder: 'zip,rar,7z,tar.gz' }],
-  },
-  copyTo: {
-    label: 'Copy to', color: '#60a5fa', icon: 'copy', category: 'action',
-    desc: 'Copy matched files to a destination',
-    fields: [{ key: 'dest', label: 'Destination', placeholder: 'D:\\Backup' }],
-  },
-  moveTo: {
-    label: 'Move to', color: '#fbbf24', icon: 'move_ui', category: 'action',
-    desc: 'Move matched files to a destination',
-    fields: [{ key: 'dest', label: 'Destination', placeholder: 'D:\\Archive' }],
-  },
-  rsyncDeploy: {
-    label: 'Remote deploy', color: '#f472b6', icon: 'cloud_ui', category: 'action',
-    desc: 'Push files via rsync / SCP to remote host',
-    fields: [
-      { key: 'source', label: 'Local source (optional)', placeholder: 'Uses pipeline files if empty' },
-      { key: 'remote', label: 'Target (user@host:/path)', placeholder: 'user@host:/var/www' },
-      { key: 'extraArgs', label: 'Extra rsync args', placeholder: '-avz --delete' },
-    ],
-  },
-  ghostLinkTo: {
-    label: 'Ghost-Link offload', color: '#a78bfa', icon: 'emblem-symbolic-link', category: 'action',
-    desc: 'Move matched files to cold storage and symlink originals',
-    fields: [{ key: 'coldStorageRoot', label: 'Cold storage root', placeholder: 'D:\\ColdStorage' }],
-  },
-  log: {
-    label: 'Log', color: '#94a3b8', icon: 'notepad', category: 'utility',
-    desc: 'Write a checkpoint message to the run log',
-    fields: [{ key: 'message', label: 'Message', placeholder: 'Pipeline checkpoint' }],
-  },
-};
-
-const PALETTE_GROUPS: Array<{ id: string; label: string; types: AutomationNodeType[] }> = [
-  { id: 'triggers', label: 'Triggers', types: ['watchFolder'] },
-  { id: 'filters', label: 'Filters', types: ['filterExtension', 'filterArchive'] },
-  { id: 'actions', label: 'Actions', types: ['copyTo', 'moveTo', 'rsyncDeploy', 'ghostLinkTo'] },
-  { id: 'utility', label: 'Utility', types: ['log'] },
-];
-
-const CATEGORY_LABEL: Record<NodeDef['category'], string> = {
-  trigger: 'Trigger',
-  filter: 'Filter',
-  action: 'Action',
-  utility: 'Utility',
+  lintSeverity?: 'error' | 'warn' | null;
 };
 
 function BndzNode({ data, selected }: { data: NodeData; selected?: boolean }) {
   const def = NODE_DEFS[data.nodeType];
   const filled = def.fields.filter(f => data.fields[f.key]?.trim()).length;
+  const lintClass = data.lintSeverity === 'error'
+    ? ' has-lint-error'
+    : data.lintSeverity === 'warn'
+      ? ' has-lint-warn'
+      : '';
+  const ledTone = data.lintSeverity === 'error'
+    ? 'is-error'
+    : data.lintSeverity === 'warn'
+      ? 'is-warn'
+      : filled === def.fields.length && def.fields.length > 0
+        ? 'is-ok'
+        : 'is-idle';
   return (
-    <div className={`bndz-flow-node bndz-flow-node--${def.category}${selected ? ' is-selected' : ''}`} style={{ ['--node-accent' as string]: def.color }}>
-      <div className="bndz-flow-node-glow" aria-hidden />
+    <div
+      className={`bndz-flow-node bndz-rack-module bndz-flow-node--${def.category}${selected ? ' is-selected' : ''}${def.branchOutputs ? ' bndz-flow-node--branch' : ''}${lintClass}`}
+      style={{ ['--node-accent' as string]: def.color }}
+    >
+      <span className="bndz-rack-screw bndz-rack-screw--tl" aria-hidden />
+      <span className="bndz-rack-screw bndz-rack-screw--tr" aria-hidden />
+      <span className="bndz-rack-screw bndz-rack-screw--bl" aria-hidden />
+      <span className="bndz-rack-screw bndz-rack-screw--br" aria-hidden />
+      <span className="bndz-rack-rail" aria-hidden />
       <Handle type="target" position={Position.Left} className="bndz-flow-handle" />
-      <div className="bndz-flow-node-head">
-        <span className="bndz-flow-node-icon" style={{ color: def.color }}><Icons8Icon id={def.icon} size={14} /></span>
-        <span className="bndz-flow-node-title">{def.label}</span>
-        <span className="bndz-flow-node-chip">{CATEGORY_LABEL[def.category]}</span>
-      </div>
-      {def.fields.map(f => (
-        <div key={f.key} className="bndz-flow-node-field">
-          <span className="bndz-flow-node-field-label">{f.label}</span>
-          <span className={`bndz-flow-node-field-value${data.fields[f.key]?.trim() ? '' : ' is-empty'}`}>
-            {data.fields[f.key]?.trim() || f.placeholder || '—'}
-          </span>
+      <div className="bndz-rack-head">
+        <span className="bndz-rack-bezel" style={{ color: def.color }}>
+          <Icons8Icon id={def.icon} size={18} />
+        </span>
+        <div className="bndz-rack-head-text">
+          <span className="bndz-rack-title">{def.label}</span>
+          <span className="bndz-rack-tag">{CATEGORY_LABEL[def.category]}</span>
         </div>
-      ))}
-      <div className="bndz-flow-node-foot">
-        <span>{filled}/{def.fields.length} configured</span>
+        <span className={`bndz-rack-led ${ledTone}`} title={data.lintSeverity || 'ready'} aria-hidden />
       </div>
-      <Handle type="source" position={Position.Right} className="bndz-flow-handle" />
+      <div className="bndz-rack-lcd">
+        {def.fields.slice(0, 3).map(f => (
+          <div key={f.key} className="bndz-rack-lcd-row">
+            <span className="bndz-rack-lcd-key">{f.label}</span>
+            <span className={`bndz-rack-lcd-val${data.fields[f.key]?.trim() ? '' : ' is-empty'}`}>
+              {data.fields[f.key]?.trim() || f.placeholder || '—'}
+            </span>
+          </div>
+        ))}
+        {def.fields.length > 3 && (
+          <div className="bndz-rack-lcd-row">
+            <span className="bndz-rack-lcd-val">+{def.fields.length - 3} more fields</span>
+          </div>
+        )}
+      </div>
+      <div className="bndz-rack-meter">
+        <span className="bndz-rack-meter-fill" style={{ width: `${def.fields.length ? (filled / def.fields.length) * 100 : 0}%` }} />
+        <span className="bndz-rack-meter-label">{filled}/{def.fields.length} configured</span>
+      </div>
+      {def.branchOutputs ? (
+        <>
+          <Handle type="source" id="true" position={Position.Right} className="bndz-flow-handle bndz-flow-handle--true" style={{ top: '38%' }} />
+          <Handle type="source" id="false" position={Position.Right} className="bndz-flow-handle bndz-flow-handle--false" style={{ top: '68%' }} />
+          <div className="bndz-flow-branch-labels" aria-hidden>
+            <span className="bndz-flow-branch-label bndz-flow-branch-label--true">yes</span>
+            <span className="bndz-flow-branch-label bndz-flow-branch-label--false">no</span>
+          </div>
+        </>
+      ) : (
+        <Handle type="source" position={Position.Right} className="bndz-flow-handle" />
+      )}
     </div>
   );
 }
 
 const MemoBndzNode = React.memo(BndzNode);
 const nodeTypes = { bndzNode: MemoBndzNode };
+
+type AutomationFlowPaneProps = {
+  nodes: Node<NodeData>[];
+  edges: Edge[];
+  panOnScroll: boolean;
+  zoomOnScroll: boolean;
+  savedViewport: AutomationViewport;
+  onInit: (inst: ReactFlowInstance) => void;
+  onNodesChange: OnNodesChange<Node<NodeData>>;
+  onEdgesChange: OnEdgesChange<Edge>;
+  onConnect: (conn: Connection) => void;
+  onNodesDelete: (deleted: Node<NodeData>[]) => void;
+  onEdgesDelete: (deleted: Edge[]) => void;
+  onNodeContextMenu: (e: React.MouseEvent, node: Node) => void;
+  onEdgeContextMenu: (e: React.MouseEvent, edge: Edge) => void;
+  onPaneContextMenu: (e: React.MouseEvent | MouseEvent) => void;
+  onNodeDragStart: (e: React.MouseEvent, node: Node) => void;
+  onNodeDragStop: () => void;
+  onNodeClick?: (e: React.MouseEvent, node: Node) => void;
+  onViewportMoveEnd: (event: MouseEvent | TouchEvent | null, viewport: Viewport) => void;
+  onSelectionChange: (params: { nodes: Node[]; edges: Edge[] }) => void;
+  loadRecipe: (id: string) => void;
+};
+
+/** Isolated React Flow tree — keeps palette/inspector from re-reconciling every drag frame. */
+const AutomationFlowPane = React.memo(function AutomationFlowPane({
+  nodes,
+  edges,
+  panOnScroll,
+  zoomOnScroll,
+  savedViewport,
+  onInit,
+  onNodesChange,
+  onEdgesChange,
+  onConnect,
+  onNodesDelete,
+  onEdgesDelete,
+  onNodeContextMenu,
+  onEdgeContextMenu,
+  onPaneContextMenu,
+  onNodeDragStart,
+  onNodeDragStop,
+  onNodeClick,
+  onViewportMoveEnd,
+  onSelectionChange,
+  loadRecipe,
+}: AutomationFlowPaneProps) {
+  return (
+    <div className="flex-1 min-w-0 relative bndz-automation-canvas-wrap" onContextMenu={e => e.stopPropagation()}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onInit={onInit}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodesDelete={onNodesDelete}
+        onEdgesDelete={onEdgesDelete}
+        onNodeContextMenu={onNodeContextMenu}
+        onEdgeContextMenu={onEdgeContextMenu}
+        onPaneContextMenu={onPaneContextMenu}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDragStop={onNodeDragStop}
+        onNodeClick={onNodeClick}
+        nodeTypes={nodeTypes}
+        nodesDraggable
+        nodesConnectable
+        elementsSelectable
+        onlyRenderVisibleElements
+        elevateNodesOnSelect={false}
+        deleteKeyCode={['Delete', 'Backspace']}
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={[1]}
+        panOnScroll={panOnScroll}
+        zoomOnScroll={zoomOnScroll}
+        zoomActivationKeyCode="Control"
+        panOnScrollSpeed={0.75}
+        defaultViewport={savedViewport}
+        onMoveEnd={onViewportMoveEnd}
+        minZoom={0.4}
+        maxZoom={1.8}
+        onSelectionChange={onSelectionChange}
+        defaultEdgeOptions={{ type: 'smoothstep', animated: true, style: { stroke: '#7eb8e8', strokeWidth: 2 } }}
+        connectionLineStyle={{ stroke: '#7eb8e8', strokeWidth: 2 }}
+        className="bndz-automation-flow"
+        proOptions={{ hideAttribution: true }}
+      >
+        <AutomationViewportRestore viewport={savedViewport} />
+        <Background gap={24} size={1} color="rgba(56,189,248,0.06)" />
+        <Controls className="bndz-flow-controls" showInteractive={false} />
+        {nodes.length > 6 && (
+          <MiniMap
+            className="bndz-flow-minimap"
+            maskColor="rgba(0,0,0,0.75)"
+            nodeColor={n => NODE_DEFS[(n.data as NodeData).nodeType]?.color || '#38bdf8'}
+            pannable
+            zoomable
+          />
+        )}
+        <Panel position="bottom-center" className="bndz-flow-hint-panel">
+          Ctrl+scroll zoom · Ctrl+C/V blocks · right-click actions
+        </Panel>
+        {nodes.length === 0 && (
+          <Panel position="top-center" className="bndz-automation-empty-panel">
+            <div className="bndz-automation-empty">
+              <h3>Start with a recipe</h3>
+              <p>Pick an everyday job — then edit the folder paths and press Run.</p>
+              <div className="bndz-automation-empty-grid">
+                {AUTOMATION_RECIPES.filter(r => r.group === 'everyday').map(r => (
+                  <button key={r.id} type="button" className="bndz-automation-empty-card" onClick={() => loadRecipe(r.id)}>
+                    <strong>{r.label}</strong>
+                    <span>{r.blurb}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Panel>
+        )}
+      </ReactFlow>
+    </div>
+  );
+});
+
+type AutomationPaletteProps = {
+  onAddNode: (type: AutomationNodeType) => void;
+};
+
+const AutomationPalette = React.memo(function AutomationPalette({ onAddNode }: AutomationPaletteProps) {
+  return (
+    <aside className="bndz-automation-palette shrink-0 overflow-y-auto bndz-scrollbar">
+      <div className="bndz-automation-palette-head">
+        <span className="bndz-automation-palette-title">Block library</span>
+        <span className="bndz-automation-palette-sub">Click to add · right-click canvas</span>
+      </div>
+      {PALETTE_GROUPS.map(group => (
+        <div key={group.id} className="bndz-automation-palette-group">
+          <div className="bndz-automation-palette-group-label">{group.label}</div>
+          {group.types.map(type => {
+            const def = NODE_DEFS[type];
+            return (
+              <button
+                key={type}
+                type="button"
+                className="bndz-automation-palette-btn"
+                style={{ ['--block-accent' as string]: def.color }}
+                onClick={() => onAddNode(type)}
+                title={def.desc}
+              >
+                <span className="bndz-automation-palette-icon"><Icons8Icon id={def.icon} size={14} /></span>
+                <span className="bndz-automation-palette-btn-body">
+                  <span className="bndz-automation-palette-btn-label">{def.label}</span>
+                  <span className="bndz-automation-palette-btn-desc">{def.desc}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </aside>
+  );
+});
+
+type AutomationInspectorProps = {
+  selectedNode: Node<NodeData> | null;
+  lintIssues: LintIssue[];
+  dryRunMode: boolean;
+  dryRunSteps: DryRunStep[];
+  log: string[];
+  showRunHistory: boolean;
+  runHistory: AutomationRunRecord[];
+  armed: boolean;
+  liveStatus: AutomationLiveStatus | null;
+  updateSelectedField: (key: string, value: string) => void;
+  pickFolder: (key: string) => void | Promise<void>;
+  duplicateNode: (id: string) => void;
+  copySelectedNode: () => void;
+  disconnectNode: (id: string) => void;
+  focusLintNode: (nodeId?: string) => void;
+  setDryRunMode: (v: boolean) => void;
+  setDryRunSteps: (steps: DryRunStep[]) => void;
+  setShowRunHistory: React.Dispatch<React.SetStateAction<boolean>>;
+};
+
+/** Memoized so drag-position parent updates do not rebuild the inspector DOM. */
+const AutomationInspector = React.memo(function AutomationInspector({
+  selectedNode,
+  lintIssues,
+  dryRunMode,
+  dryRunSteps,
+  log,
+  showRunHistory,
+  runHistory,
+  armed,
+  liveStatus,
+  updateSelectedField,
+  pickFolder,
+  duplicateNode,
+  copySelectedNode,
+  disconnectNode,
+  focusLintNode,
+  setDryRunMode,
+  setDryRunSteps,
+  setShowRunHistory,
+}: AutomationInspectorProps) {
+  const renderField = (f: AutomationNodeDef['fields'][number], node: Node<NodeData>) => {
+    const val = node.data.fields[f.key] || '';
+    if (f.type === 'boolean') {
+      const checked = val === 'true' || val === '1' || val === 'on';
+      return (
+        <label key={f.key} className="bndz-automation-field bndz-automation-field--bool">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={e => updateSelectedField(f.key, e.target.checked ? 'true' : 'false')}
+          />
+          <span className="bndz-automation-field-label">{f.label}</span>
+        </label>
+      );
+    }
+    if (f.type === 'select' && f.options) {
+      return (
+        <label key={f.key} className="bndz-automation-field">
+          <span className="bndz-automation-field-label">{f.label}</span>
+          <select
+            className="bndz-automation-input"
+            value={val || f.options[0]?.value || ''}
+            onChange={e => updateSelectedField(f.key, e.target.value)}
+          >
+            {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+      );
+    }
+    return (
+      <label key={f.key} className="bndz-automation-field">
+        <span className="bndz-automation-field-label">{f.label}</span>
+        <div className="flex gap-1">
+          <input
+            className="bndz-automation-input flex-1"
+            value={val}
+            placeholder={f.placeholder}
+            onChange={e => updateSelectedField(f.key, e.target.value)}
+          />
+          {(f.type === 'folder' || FOLDER_FIELD_KEYS.has(f.key)) && IPC.isNative && (
+            <button type="button" className="bndz-lens-chip shrink-0" onClick={() => void pickFolder(f.key)}>…</button>
+          )}
+        </div>
+      </label>
+    );
+  };
+
+  return (
+    <aside className="bndz-automation-inspector shrink-0 overflow-y-auto bndz-scrollbar">
+      <div className="bndz-automation-inspector-head">
+        <span className="bndz-automation-inspector-title">Inspector</span>
+        {selectedNode && (
+          <span className="bndz-automation-inspector-chip" style={{ color: NODE_DEFS[selectedNode.data.nodeType].color }}>
+            {NODE_DEFS[selectedNode.data.nodeType].label}
+          </span>
+        )}
+      </div>
+      {!selectedNode ? (
+        <div className="bndz-automation-inspector-empty">
+          <Icons8Icon id="zap_ui" size={28} className="opacity-25 mb-2" />
+          <p>Select a block to edit properties, or add one from the library.</p>
+        </div>
+      ) : (
+        <div className="bndz-automation-inspector-body">
+          <p className="bndz-automation-inspector-desc">{NODE_DEFS[selectedNode.data.nodeType].desc}</p>
+          {NODE_DEFS[selectedNode.data.nodeType].fields.map(f => renderField(f, selectedNode))}
+          <div className="bndz-automation-inspector-actions">
+            <button type="button" className="bndz-lens-chip" onClick={() => duplicateNode(selectedNode.id)}>Duplicate</button>
+            <button type="button" className="bndz-lens-chip" onClick={() => copySelectedNode()}>Copy</button>
+            <button type="button" className="bndz-lens-chip" onClick={() => disconnectNode(selectedNode.id)}>Disconnect</button>
+          </div>
+          <p className="bndz-automation-inspector-kbd">Press <kbd>Delete</kbd> to remove · <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy/paste</p>
+        </div>
+      )}
+      {lintIssues.length > 0 && (
+        <div className="bndz-automation-lint">
+          <div className="bndz-automation-log-head">
+            Pipeline lint
+            <span className="bndz-automation-lint-count">
+              {lintErrorCount(lintIssues)} err · {lintIssues.length - lintErrorCount(lintIssues)} warn
+            </span>
+          </div>
+          <ul className="bndz-automation-lint-list">
+            {lintIssues.map(issue => (
+              <li key={issue.id} className={`bndz-automation-lint-item bndz-automation-lint-item--${issue.severity}`}>
+                {issue.nodeId ? (
+                  <button
+                    type="button"
+                    className="bndz-automation-lint-jump"
+                    onClick={() => focusLintNode(issue.nodeId)}
+                    title="Select block on canvas"
+                  >
+                    {issue.message}
+                  </button>
+                ) : (
+                  <span>{issue.message}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {dryRunMode && dryRunSteps.length > 0 && (
+        <div className="bndz-automation-timeline">
+          <div className="bndz-automation-log-head flex items-center justify-between gap-2">
+            <span>Dry-run timeline</span>
+            <button type="button" className="bndz-lens-chip" onClick={() => { setDryRunMode(false); setDryRunSteps([]); }}>Dismiss</button>
+          </div>
+          <ol className="bndz-automation-timeline-list">
+            {dryRunSteps.map((step, i) => (
+              <li key={`${step.nodeId}-${i}`} className={`bndz-automation-timeline-step bndz-automation-timeline-step--${step.status}`}>
+                <button type="button" className="bndz-automation-timeline-jump" onClick={() => focusLintNode(step.nodeId)}>
+                  <span className="bndz-automation-timeline-idx">{i + 1}</span>
+                  <span className="bndz-automation-timeline-action">{step.action}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {log.length > 0 && (
+        <div className="bndz-automation-log">
+          <div className="bndz-automation-log-head">Run log</div>
+          <pre className="bndz-automation-log-body bndz-mono">{log.join('\n')}</pre>
+        </div>
+      )}
+      {(showRunHistory || runHistory.length > 0) && (
+        <div className="bndz-automation-log">
+          <div className="bndz-automation-log-head flex items-center justify-between gap-2">
+            <span>Run history</span>
+            <button type="button" className="bndz-lens-chip" onClick={() => setShowRunHistory(v => !v)}>
+              {showRunHistory ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showRunHistory && (
+            <ul className="bndz-automation-history-list">
+              {runHistory.length === 0 ? (
+                <li className="bndz-automation-history-empty">No runs yet</li>
+              ) : runHistory.map(entry => (
+                <li key={entry.id} className={`bndz-automation-history-item${entry.ok ? '' : ' is-failed'}`}>
+                  <div className="bndz-automation-history-meta">
+                    <span>{entry.pipelineName}</span>
+                    <span>{new Date(entry.startedAt).toLocaleString()}</span>
+                  </div>
+                  {entry.error && <div className="bndz-automation-history-error">{entry.error}</div>}
+                  {entry.log.length > 0 && (
+                    <pre className="bndz-automation-log-body bndz-mono text-[10px]">{entry.log.slice(-6).join('\n')}</pre>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {armed && liveStatus && (
+        <div className="bndz-automation-log">
+          <div className="bndz-automation-log-head">Live status</div>
+          <ul className="bndz-automation-history-list">
+            {liveStatus.watchers.map(w => (
+              <li key={`${w.path}-${w.pipelineName}`} className="bndz-automation-history-item">
+                <div className="bndz-automation-history-meta">
+                  <span>{w.pipelineName}</span>
+                  <span>{w.live ? 'live' : 'idle'}</span>
+                </div>
+                <div className="text-[10px] text-gray-400 truncate">{w.path}</div>
+                {w.lastError && <div className="bndz-automation-history-error">{w.lastError}</div>}
+              </li>
+            ))}
+            {liveStatus.schedules.map(s => (
+              <li key={s.nodeId} className="bndz-automation-history-item">
+                <div className="bndz-automation-history-meta">
+                  <span>{s.pipelineName}</span>
+                  <span>{s.active ? `every ${s.intervalMinutes}m` : 'paused'}</span>
+                </div>
+                {s.lastError && <div className="bndz-automation-history-error">{s.lastError}</div>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </aside>
+  );
+});
 
 function graphToFlow(graph: AutomationGraph): { nodes: Node<NodeData>[]; edges: Edge[] } {
   return {
@@ -147,38 +521,50 @@ function graphToFlow(graph: AutomationGraph): { nodes: Node<NodeData>[]; edges: 
         fields: Object.fromEntries(Object.entries(n.data).map(([k, v]) => [k, String(v ?? '')])),
       },
     })),
-    edges: graph.edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+    edges: graph.edges.map(e => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle,
+      className: e.sourceHandle === 'false' ? 'bndz-flow-edge--false' : e.sourceHandle === 'true' ? 'bndz-flow-edge--true' : undefined,
+    })),
   };
 }
 
 function flowToGraph(
-  name: string,
+  graph: Pick<AutomationGraph, 'id' | 'name' | 'armed'>,
   nodes: Node<NodeData>[],
   edges: Edge[],
   viewport: AutomationViewport = defaultAutomationViewport(),
 ): AutomationGraph {
   return {
-    id: 'default',
-    name,
+    id: graph.id,
+    name: graph.name,
+    armed: graph.armed,
     nodes: nodes.map(n => ({
       id: n.id,
       type: n.data.nodeType,
       position: n.position,
       data: { ...n.data.fields },
     })),
-    edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+    edges: edges.map(e => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle || undefined,
+    })),
     viewport,
     updatedAt: 0,
   };
 }
 
 function stableGraphJson(
-  name: string,
+  meta: Pick<AutomationGraph, 'id' | 'name' | 'armed'>,
   nodes: Node<NodeData>[],
   edges: Edge[],
   viewport: AutomationViewport,
 ): string {
-  return stableAutomationJson(flowToGraph(name, nodes, edges, viewport));
+  return stableAutomationJson(flowToGraph(meta, nodes, edges, viewport));
 }
 
 function makeFlowNode(
@@ -201,6 +587,14 @@ function makeFlowNode(
   };
 }
 
+function applySeedToGraph(
+  nodes: Node<NodeData>[],
+  seed: { type: AutomationNodeType; fields: Record<string, string> },
+): Node<NodeData>[] {
+  const id = `n_${Date.now()}`;
+  return [...nodes, makeFlowNode(seed.type, id, 120 + nodes.length * 40, 80 + nodes.length * 30, seed.fields)];
+}
+
 export default function BndzAutomationView() {
   const { config } = useAppConfig();
   const autoSave = config.automationAutoSave !== false;
@@ -210,8 +604,11 @@ export default function BndzAutomationView() {
   const panOnScroll = config.automationPanOnScroll !== false;
   const zoomOnScroll = config.automationZoomOnScroll !== false;
 
+  const [pipelineId, setPipelineId] = useState('default');
   const [graphName, setGraphName] = useState('File pipeline');
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>([]);
+  const [armed, setArmed] = useState(false);
+  const [library, setLibrary] = useState<AutomationLibrary | null>(null);
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState<Node<NodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -222,18 +619,25 @@ export default function BndzAutomationView() {
   const [dryRunSteps, setDryRunSteps] = useState<DryRunStep[]>([]);
   const [dryRunMode, setDryRunMode] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<AutomationLiveStatus | null>(null);
+  const [runHistory, setRunHistory] = useState<AutomationRunRecord[]>(() => loadAutomationRunHistory());
+  const [showRunHistory, setShowRunHistory] = useState(false);
   const [savedViewport, setSavedViewport] = useState<AutomationViewport>(defaultAutomationViewport());
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const graphNameRef = useRef(graphName);
+  const graphMetaRef = useRef({ id: pipelineId, name: graphName, armed });
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const viewportRef = useRef<AutomationViewport>(defaultAutomationViewport());
   const viewportSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nodeDraggingRef = useRef(false);
+  const chromeFrozenRef = useRef({ nodes: 0, edges: 0 });
   const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  graphNameRef.current = graphName;
-  nodesRef.current = nodes;
-  edgesRef.current = edges;
+  const rfInstanceRef = useRef<ReactFlowInstance<Node<NodeData>, Edge> | null>(null);
+  graphMetaRef.current = { id: pipelineId, name: graphName, armed };
+  if (!nodeDraggingRef.current) {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  }
   const { menu, closeMenu, openMenu } = useWorkspaceContextMenu(surfaceRef);
   const splash = useWorkspaceSplash('automation', {
     isReady: graphReady,
@@ -244,18 +648,76 @@ export default function BndzAutomationView() {
   const fieldSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const autosave = useWorkspaceAutosave(
-    () => stableGraphJson(graphNameRef.current, nodesRef.current, edgesRef.current, viewportRef.current),
+    () => stableGraphJson(graphMetaRef.current, nodesRef.current, edgesRef.current, viewportRef.current),
     async snap => {
       const parsed = JSON.parse(snap) as AutomationGraph;
       parsed.updatedAt = Date.now();
       hydrateAutomationFromJson(JSON.stringify(parsed));
-      return flushBndzMeta('automation_graph_v1', JSON.stringify(parsed));
+      await flushBndzMeta('automation_graph_v1', JSON.stringify(parsed));
+      const lib = await loadAutomationLibrary();
+      const idx = lib.pipelines.findIndex(p => p.id === parsed.id);
+      const pipelines = [...lib.pipelines];
+      if (idx >= 0) pipelines[idx] = parsed;
+      else pipelines.push(parsed);
+      await flushBndzMeta('automation_library_v1', JSON.stringify({ ...lib, activeId: parsed.id, pipelines, updatedAt: Date.now() }));
+      if (parsed.armed) await syncAutomationLive(parsed);
+      return true;
     },
     saveDelayMs,
     autoSave,
   );
 
   const { schedule: scheduleSave, seed: seedAutosave, flush: flushAutosave } = autosave;
+
+  const currentGraph = useCallback((): AutomationGraph => (
+    flowToGraph(graphMetaRef.current, nodesRef.current, edgesRef.current, viewportRef.current)
+  ), []);
+
+  const loadGraphIntoEditor = useCallback((g: AutomationGraph) => {
+    setPipelineId(g.id);
+    setGraphName(g.name);
+    setArmed(!!g.armed);
+    const { nodes: n, edges: e } = graphToFlow(g);
+    setNodes(n);
+    setEdges(e);
+    const vp = g.viewport ?? defaultAutomationViewport();
+    viewportRef.current = vp;
+    setSavedViewport(vp);
+    seedAutosave(stableGraphJson({ id: g.id, name: g.name, armed: !!g.armed }, n, e, vp));
+  }, [setNodes, setEdges, seedAutosave]);
+
+  const applySeed = useCallback((seed?: AutomationPendingSeed | null) => {
+    const s = seed ?? consumeAutomationSeed();
+    if (!s) return;
+    if (s.pipeline?.nodes?.length) {
+      const graph = {
+        id: pipelineId,
+        name: s.pipeline.name || graphName,
+        nodes: s.pipeline.nodes,
+        edges: s.pipeline.edges,
+        viewport: defaultAutomationViewport(),
+        armed: false,
+        updatedAt: Date.now(),
+      } as AutomationGraph;
+      const { nodes: n, edges: e } = graphToFlow(graph);
+      setNodes(n);
+      setEdges(e);
+      nodesRef.current = n;
+      edgesRef.current = e;
+      setGraphName(graph.name);
+      scheduleSave();
+      setStatus(`Loaded starter: ${graph.name}`);
+      return;
+    }
+    if (!s.type) return;
+    setNodes(nds => {
+      const next = applySeedToGraph(nds, { type: s.type!, fields: s.fields || {} });
+      nodesRef.current = next;
+      scheduleSave();
+      return next;
+    });
+    setStatus(`Added ${NODE_DEFS[s.type].label} block`);
+  }, [setNodes, setEdges, scheduleSave, pipelineId, graphName]);
 
   const scheduleViewportSave = useCallback(() => {
     if (viewportSaveTimer.current) clearTimeout(viewportSaveTimer.current);
@@ -273,20 +735,47 @@ export default function BndzAutomationView() {
   useEffect(() => {
     let active = true;
     invalidateAutomationCache();
-    loadAutomationGraph({ force: true }).then(g => {
+    loadAutomationLibrary({ force: true }).then(lib => {
       if (!active) return;
-      setGraphName(g.name);
-      const { nodes: n, edges: e } = graphToFlow(g);
-      setNodes(n);
-      setEdges(e);
-      const vp = g.viewport ?? defaultAutomationViewport();
-      viewportRef.current = vp;
-      setSavedViewport(vp);
-      seedAutosave(stableGraphJson(g.name, n, e, vp));
+      setLibrary(lib);
+      const g = lib.pipelines.find(p => p.id === lib.activeId) || lib.pipelines[0];
+      loadGraphIntoEditor(g);
       setGraphReady(true);
+      applySeed(consumeAutomationSeed());
+      if (IPC.isNative) {
+        // Re-sync every armed pipeline so one graph save cannot wipe another's watchers.
+        for (const p of lib.pipelines) {
+          if (p.armed) void syncAutomationLive(p);
+        }
+        void getAutomationLiveStatus().then(s => { if (active && s) setLiveStatus(s); });
+      }
     });
     return () => { active = false; };
-  }, [setNodes, setEdges, seedAutosave]);
+  }, [loadGraphIntoEditor, applySeed]);
+
+  useEffect(() => {
+    if (!armed || !IPC.isNative) return;
+    let active = true;
+    const poll = () => {
+      if (document.hidden || nodeDraggingRef.current) return;
+      void getAutomationLiveStatus().then(s => { if (active && s) setLiveStatus(s); });
+    };
+    poll();
+    const id = window.setInterval(poll, 8000);
+    const onVis = () => { if (!document.hidden) poll(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [armed]);
+
+  useEffect(() => {
+    const onSeed = () => applySeed();
+    window.addEventListener('bndz-automation-seed', onSeed);
+    return () => window.removeEventListener('bndz-automation-seed', onSeed);
+  }, [applySeed]);
 
   useLayoutEffect(() => {
     return () => {
@@ -306,67 +795,97 @@ export default function BndzAutomationView() {
     return bindWorkspaceCursorGuard(el);
   }, [graphReady]);
 
-  const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
+  /** Fingerprint of graph *data* only — ignores node positions so drag does not re-lint. */
+  const lintKeyRef = useRef('');
+  const lintGraphKey = useMemo(() => {
+    // Skip expensive stringify while dragging — positions change every frame but data does not.
+    if (nodeDraggingRef.current) return lintKeyRef.current;
+    const next = nodes.map(n => `${n.id}\0${n.data.nodeType}\0${JSON.stringify(n.data.fields)}`).join('\n')
+      + '|' + edges.map(e => `${e.id}:${e.source}:${e.target}:${e.sourceHandle || ''}`).join(';');
+    lintKeyRef.current = next;
+    return next;
+  }, [nodes, edges]);
+
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return nodes.find(n => n.id === selectedNodeId) || null;
+  // Position-only node updates must not refresh the inspector every drag frame.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeId, lintGraphKey]);
 
   useEffect(() => {
     if (nodeDraggingRef.current) return;
     if (lintTimer.current) clearTimeout(lintTimer.current);
     lintTimer.current = setTimeout(() => {
       lintTimer.current = null;
-      const graph = flowToGraph(graphName, nodes, edges, viewportRef.current);
-      setLintIssues(lintAutomationGraph(graph));
-    }, 350);
+      if (nodeDraggingRef.current) return;
+      const issues = lintAutomationGraph(currentGraph());
+      setLintIssues(issues);
+      const byNode = new Map<string, 'error' | 'warn'>();
+      for (const issue of issues) {
+        if (!issue.nodeId) continue;
+        const prev = byNode.get(issue.nodeId);
+        if (issue.severity === 'error' || prev !== 'error') {
+          byNode.set(issue.nodeId, issue.severity);
+        }
+      }
+      setNodes(nds => {
+        let changed = false;
+        const next = nds.map(n => {
+          const sev = byNode.get(n.id) || null;
+          if ((n.data.lintSeverity || null) === sev) return n;
+          changed = true;
+          return { ...n, data: { ...n.data, lintSeverity: sev } };
+        });
+        return changed ? next : nds;
+      });
+    }, 520);
     return () => {
       if (lintTimer.current) clearTimeout(lintTimer.current);
     };
-  }, [graphName, nodes, edges]);
+  }, [pipelineId, graphName, armed, lintGraphKey, currentGraph, setNodes]);
+
+  const focusLintNode = useCallback((nodeId?: string) => {
+    if (!nodeId) return;
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+    setNodes(nds => nds.map(n => ({ ...n, selected: n.id === nodeId })));
+    const target = nodesRef.current.find(n => n.id === nodeId);
+    const rf = rfInstanceRef.current;
+    if (target && rf) {
+      const w = (target.measured?.width ?? 220);
+      const h = (target.measured?.height ?? 120);
+      void rf.setCenter(target.position.x + w / 2, target.position.y + h / 2, { zoom: Math.max(rf.getZoom(), 1), duration: 320 });
+    }
+  }, [setNodes]);
 
   const runDry = useCallback(() => {
-    const graph = flowToGraph(graphNameRef.current, nodesRef.current, edgesRef.current, viewportRef.current);
-    setDryRunSteps(dryRunGraph(graph));
+    const steps = dryRunGraph(currentGraph());
+    setDryRunSteps(steps);
     setDryRunMode(true);
-    setStatus('Dry-run preview — no files touched');
-  }, []);
+    const errs = lintErrorCount(lintAutomationGraph(currentGraph()));
+    setStatus(errs
+      ? `Dry-run preview · ${errs} error${errs === 1 ? '' : 's'} — fix before Run`
+      : 'Dry-run preview — no files touched');
+  }, [currentGraph]);
 
   const onConnect = useCallback((conn: Connection) => {
-    setEdges(eds => addEdge({ ...conn, id: `e_${Date.now()}` }, eds));
+    setEdges(eds => addEdge({
+      ...conn,
+      id: `e_${Date.now()}`,
+      className: conn.sourceHandle === 'false' ? 'bndz-flow-edge--false' : conn.sourceHandle === 'true' ? 'bndz-flow-edge--true' : undefined,
+    }, eds));
     scheduleSave();
   }, [setEdges, scheduleSave]);
 
   const addNode = useCallback((type: AutomationNodeType, at?: { x: number; y: number }, fields?: Record<string, string>) => {
     const id = `n_${Date.now()}`;
-    const def = NODE_DEFS[type];
-    const newNode: Node<NodeData> = {
-      id,
-      type: 'bndzNode',
-      position: at || { x: 120 + nodes.length * 40, y: 80 + nodes.length * 30 },
-      data: {
-        label: def.label,
-        nodeType: type,
-        fields: Object.fromEntries(def.fields.map(f => [f.key, fields?.[f.key] || ''])),
-      },
-    };
+    const newNode = makeFlowNode(type, id, at?.x ?? 120 + nodes.length * 40, at?.y ?? 80 + nodes.length * 30, fields);
     setNodes(nds => [...nds, newNode]);
     setSelectedNodeId(id);
     closeMenu();
     scheduleSave();
   }, [nodes.length, setNodes, closeMenu, scheduleSave]);
-
-  useEffect(() => {
-    const onSpatialPin = (e: Event) => {
-      const detail = (e as CustomEvent).detail || {};
-      const paths = (detail.paths as string[] | undefined)?.filter(Boolean);
-      if (!paths?.length) return;
-      const path = paths[0];
-      const isDir = !path.split(/[/\\]/).pop()?.includes('.');
-      addNode(isDir ? 'watchFolder' : 'filterExtension', { x: 200, y: 120 }, isDir
-        ? { path }
-        : { extensions: path.split(/[/\\]/).pop()?.split('.').pop() || '' });
-      setStatus(`Added block from pin: ${path.split(/[/\\]/).pop()}`);
-    };
-    window.addEventListener('bndz-automation-add-from-pin', onSpatialPin);
-    return () => window.removeEventListener('bndz-automation-add-from-pin', onSpatialPin);
-  }, [addNode]);
 
   const deleteNode = useCallback((id: string) => {
     setNodes(nds => nds.filter(n => n.id !== id));
@@ -384,10 +903,7 @@ export default function BndzAutomationView() {
   }, [setEdges, selectedEdgeId, closeMenu, scheduleSave]);
 
   const deleteSelected = useCallback(() => {
-    if (selectedNodeId) {
-      deleteNode(selectedNodeId);
-      return;
-    }
+    if (selectedNodeId) { deleteNode(selectedNodeId); return; }
     if (selectedEdgeId) deleteEdge(selectedEdgeId);
   }, [selectedNodeId, selectedEdgeId, deleteNode, deleteEdge]);
 
@@ -396,16 +912,14 @@ export default function BndzAutomationView() {
     setEdges([]);
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-    setGraphName('File pipeline');
+    setArmed(false);
     setDryRunMode(false);
     setDryRunSteps([]);
     setStatus('Pipeline cleared');
-    resetWorkspaceSplash('automation');
-    splash.replay();
-    void resetAutomationGraphPersisted();
+    scheduleSave();
     void flushAutosave(true);
     closeMenu();
-  }, [setNodes, setEdges, splash, flushAutosave, closeMenu]);
+  }, [setNodes, setEdges, scheduleSave, flushAutosave, closeMenu]);
 
   const duplicateNode = useCallback((id: string) => {
     const node = nodes.find(n => n.id === id);
@@ -421,6 +935,23 @@ export default function BndzAutomationView() {
     closeMenu();
     scheduleSave();
   }, [nodes, setNodes, closeMenu, scheduleSave]);
+
+  const copySelectedNode = useCallback(() => {
+    const node = nodes.find(n => n.id === selectedNodeId);
+    if (!node) return;
+    setWorkspaceClipboard({
+      kind: 'automation-node',
+      nodeType: node.data.nodeType,
+      fields: { ...node.data.fields },
+    });
+    setStatus('Block copied — Ctrl+V to paste');
+  }, [nodes, selectedNodeId]);
+
+  const pasteNode = useCallback(() => {
+    const clip = getWorkspaceClipboard();
+    if (clip?.kind !== 'automation-node') return;
+    addNode(clip.nodeType as AutomationNodeType, { x: 160 + nodes.length * 24, y: 100 + nodes.length * 20 }, clip.fields);
+  }, [addNode, nodes.length]);
 
   const disconnectNode = useCallback((id: string) => {
     setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
@@ -443,8 +974,20 @@ export default function BndzAutomationView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (!shouldHandleWorkspaceKeys(surfaceRef.current)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedNodeId) {
+        e.preventDefault();
+        copySelectedNode();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        const clip = getWorkspaceClipboard();
+        if (clip?.kind === 'automation-node') {
+          e.preventDefault();
+          pasteNode();
+        }
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (!selectedNodeId && !selectedEdgeId) return;
         e.preventDefault();
@@ -453,7 +996,7 @@ export default function BndzAutomationView() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedNodeId, selectedEdgeId, deleteSelected]);
+  }, [selectedNodeId, selectedEdgeId, deleteSelected, copySelectedNode, pasteNode]);
 
   const scheduleFieldSave = useCallback(() => {
     if (fieldSaveTimer.current) clearTimeout(fieldSaveTimer.current);
@@ -463,18 +1006,68 @@ export default function BndzAutomationView() {
     }, 400);
   }, [scheduleSave]);
 
-  const updateSelectedField = (key: string, value: string) => {
+  const updateSelectedField = useCallback((key: string, value: string) => {
     if (!selectedNodeId) return;
     setNodes(nds => nds.map(n => n.id === selectedNodeId
       ? { ...n, data: { ...n.data, fields: { ...n.data.fields, [key]: value } } }
       : n));
     scheduleFieldSave();
-  };
+  }, [selectedNodeId, setNodes, scheduleFieldSave]);
+
+  const pickFolder = useCallback(async (fieldKey: string) => {
+    if (!IPC.isNative) return;
+    const picked = await IPC.openFolderDialog('Select folder');
+    if (picked) updateSelectedField(fieldKey, picked);
+  }, [updateSelectedField]);
+
+  const toggleArmed = useCallback(async () => {
+    const next = !armed;
+    if (next && lintIssues.some(i => i.severity === 'error')) {
+      setStatus('Fix pipeline errors before arming');
+      return;
+    }
+    setArmed(next);
+    graphMetaRef.current = { ...graphMetaRef.current, armed: next };
+    scheduleSave();
+    const g = { ...currentGraph(), armed: next, updatedAt: Date.now() };
+    if (IPC.isNative) {
+      const status = await syncAutomationLive(g);
+      if (status) setLiveStatus(status);
+      setStatus(next ? 'Pipeline armed — live watchers active' : 'Pipeline disarmed');
+    } else {
+      setStatus(next ? 'Armed (native host required for live run)' : 'Disarmed');
+    }
+  }, [armed, scheduleSave, currentGraph, lintIssues]);
+
+  const armAllPipelines = useCallback(async (nextArmed: boolean) => {
+    if (!library) return;
+    await flushAutosave(true);
+    const nextLib = {
+      ...library,
+      pipelines: library.pipelines.map(p => ({
+        ...p,
+        armed: p.id === pipelineId ? nextArmed : nextArmed,
+        updatedAt: Date.now(),
+      })),
+    };
+    // Persist each pipeline
+    for (const p of nextLib.pipelines) {
+      await saveAutomationGraphNow(p);
+      if (IPC.isNative) await syncAutomationLive(p);
+    }
+    setLibrary(nextLib);
+    setArmed(nextArmed);
+    setStatus(nextArmed ? 'All pipelines armed' : 'All pipelines disarmed');
+  }, [library, pipelineId, flushAutosave]);
 
   const save = async () => {
-    const g = flowToGraph(graphName, nodes, edges, viewportRef.current);
+    const g = { ...currentGraph(), updatedAt: Date.now() };
     const ok = await saveAutomationGraphNow(g);
-    if (ok) seedAutosave(stableGraphJson(g.name, nodes, edges, viewportRef.current));
+    if (ok) seedAutosave(stableGraphJson(graphMetaRef.current, nodes, edges, viewportRef.current));
+    if (g.armed && IPC.isNative) {
+      const status = await syncAutomationLive(g);
+      if (status) setLiveStatus(status);
+    }
     setStatus(ok ? 'Pipeline saved' : 'Save failed');
   };
 
@@ -482,58 +1075,149 @@ export default function BndzAutomationView() {
     setRunning(true);
     setStatus(null);
     setLog([]);
-    const g = flowToGraph(graphName, nodes, edges, viewportRef.current);
-    const payload = { ...g, updatedAt: Date.now() };
-    hydrateAutomationFromJson(JSON.stringify(payload));
-    await flushBndzMeta('automation_graph_v1', JSON.stringify(payload));
-    seedAutosave(stableGraphJson(graphName, nodes, edges, viewportRef.current));
-    const result = await runAutomationGraph(payload);
+    const g = { ...currentGraph(), updatedAt: Date.now() };
+    const startedAt = Date.now();
+    hydrateAutomationFromJson(JSON.stringify(g));
+    await saveAutomationGraphNow(g);
+    seedAutosave(stableGraphJson(graphMetaRef.current, nodes, edges, viewportRef.current));
+    const result = await runAutomationGraph(g);
     setLog(result.log || []);
     setStatus(result.ok ? 'Pipeline completed' : (result.error || 'Pipeline failed'));
+    setRunHistory(appendAutomationRunRecord({
+      pipelineId: g.id,
+      pipelineName: g.name,
+      startedAt,
+      ok: result.ok,
+      log: result.log || [],
+      error: result.error,
+    }));
     setRunning(false);
   };
 
-  const pickFolder = async (fieldKey: string) => {
-    if (!IPC.isNative || !selectedNode) return;
-    const picked = await IPC.openFolderDialog('Select folder');
-    if (picked) updateSelectedField(fieldKey, picked);
-  };
+  const switchPipeline = useCallback(async (id: string) => {
+    if (!library) return;
+    const g = library.pipelines.find(p => p.id === id);
+    if (!g) return;
+    await flushAutosave(true);
+    if (armed && IPC.isNative) {
+      await syncAutomationLive({ ...currentGraph(), armed: false });
+      setArmed(false);
+    }
+    const updatedLib = { ...library, activeId: id, updatedAt: Date.now() };
+    setLibrary(updatedLib);
+    await saveAutomationLibrary(updatedLib);
+    loadGraphIntoEditor(g);
+    if (g.armed && IPC.isNative) {
+      setArmed(true);
+      const status = await syncAutomationLive(g);
+      setLiveStatus(status);
+    }
+    setStatus(`Switched to ${g.name}`);
+  }, [library, flushAutosave, loadGraphIntoEditor, armed, currentGraph]);
+
+  useEffect(() => {
+    const onSelect = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id as string | undefined;
+      if (id) void switchPipeline(id);
+    };
+    window.addEventListener('bndz-automation-select-pipeline', onSelect);
+    return () => window.removeEventListener('bndz-automation-select-pipeline', onSelect);
+  }, [switchPipeline]);
+
+  const newPipeline = useCallback(async () => {
+    const g = createPipeline(`Pipeline ${(library?.pipelines.length ?? 0) + 1}`);
+    const updatedLib: AutomationLibrary = {
+      activeId: g.id,
+      pipelines: [...(library?.pipelines ?? []), g],
+      updatedAt: Date.now(),
+    };
+    setLibrary(updatedLib);
+    await saveAutomationLibrary(updatedLib);
+    loadGraphIntoEditor(g);
+    setStatus('New pipeline created');
+  }, [library, loadGraphIntoEditor]);
+
+  const removePipeline = useCallback(async () => {
+    if (!library || library.pipelines.length <= 1) {
+      setStatus('Cannot delete the only pipeline');
+      return;
+    }
+    if (armed && IPC.isNative) {
+      await syncAutomationLive({ ...currentGraph(), armed: false });
+      setArmed(false);
+    }
+    const updatedLib = await deletePipeline(pipelineId);
+    if (!updatedLib) return;
+    setLibrary(updatedLib);
+    const g = updatedLib.pipelines.find(p => p.id === updatedLib.activeId) || updatedLib.pipelines[0];
+    loadGraphIntoEditor(g);
+    setStatus('Pipeline deleted');
+  }, [library, pipelineId, armed, currentGraph, loadGraphIntoEditor]);
+
+  const clonePipeline = useCallback(async () => {
+    const result = await duplicatePipeline(pipelineId);
+    if (!result) return;
+    setLibrary(result.lib);
+    loadGraphIntoEditor(result.graph);
+    setStatus(`Duplicated as ${result.graph.name}`);
+  }, [pipelineId, loadGraphIntoEditor]);
+
+  const exportPipeline = useCallback(() => {
+    const g = currentGraph();
+    const json = exportPipelineJson(g);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${g.name || 'pipeline'}.bndz-pipeline.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus('Pipeline exported');
+  }, [currentGraph]);
+
+  const importPipeline = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,.bndz-pipeline.json';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const graph = importPipelineFromJson(String(reader.result), file.name.replace(/\.[^.]+$/, ''));
+        if (!graph) {
+          setStatus('Import failed — invalid pipeline JSON');
+          return;
+        }
+        void addPipelineToLibrary(graph).then(lib => {
+          setLibrary(lib);
+          loadGraphIntoEditor(graph);
+          setStatus(`Imported ${graph.name}`);
+        });
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [loadGraphIntoEditor]);
+
+  const loadRecipe = useCallback((recipeId: string) => {
+    const recipe = AUTOMATION_RECIPES.find(r => r.id === recipeId);
+    if (!recipe) return;
+    const g = recipeToGraph(recipe, pipelineId);
+    const { nodes: n, edges: e } = graphToFlow(g);
+    setNodes(n);
+    setEdges(e);
+    nodesRef.current = n;
+    edgesRef.current = e;
+    setGraphName(g.name);
+    setSelectedNodeId(null);
+    setStatus(`${g.name} ready — edit folder paths then Arm / Run`);
+    scheduleSave();
+  }, [pipelineId, setNodes, setEdges, scheduleSave]);
 
   const loadTemplate = useCallback((template: 'deploy' | 'backup') => {
-    const ts = Date.now();
-    if (template === 'deploy') {
-      const n1 = `n_${ts}_w`, n2 = `n_${ts}_f`, n3 = `n_${ts}_r`, n4 = `n_${ts}_l`;
-      setNodes([
-        makeFlowNode('watchFolder', n1, 40, 120, { path: 'C:\\Projects\\site' }),
-        makeFlowNode('filterExtension', n2, 280, 100, { extensions: 'zip,js,css,html' }),
-        makeFlowNode('rsyncDeploy', n3, 520, 120, { remote: 'user@host:/var/www', extraArgs: '-avz --delete' }),
-        makeFlowNode('log', n4, 780, 140, { message: 'Deploy complete' }),
-      ]);
-      setEdges([
-        { id: `e_${ts}_1`, source: n1, target: n2 },
-        { id: `e_${ts}_2`, source: n2, target: n3 },
-        { id: `e_${ts}_3`, source: n3, target: n4 },
-      ]);
-      setGraphName('Deploy pipeline');
-    } else {
-      const n1 = `n_${ts}_w`, n2 = `n_${ts}_a`, n3 = `n_${ts}_c`, n4 = `n_${ts}_l`;
-      setNodes([
-        makeFlowNode('watchFolder', n1, 40, 120, { path: 'C:\\Documents' }),
-        makeFlowNode('filterArchive', n2, 280, 100, { extensions: 'zip,rar,7z' }),
-        makeFlowNode('copyTo', n3, 520, 120, { dest: 'D:\\Backup' }),
-        makeFlowNode('log', n4, 780, 140, { message: 'Backup copied' }),
-      ]);
-      setEdges([
-        { id: `e_${ts}_1`, source: n1, target: n2 },
-        { id: `e_${ts}_2`, source: n2, target: n3 },
-        { id: `e_${ts}_3`, source: n3, target: n4 },
-      ]);
-      setGraphName('Archive backup');
-    }
-    setSelectedNodeId(null);
-    setStatus('Template loaded — edit paths then Run');
-    scheduleSave();
-  }, [setNodes, setEdges, scheduleSave]);
+    loadRecipe(template === 'deploy' ? 'deploy-rsync' : 'archive-backup');
+  }, [loadRecipe]);
 
   const onNodeContextMenu = useCallback((e: React.MouseEvent, node: Node<NodeData>) => {
     e.preventDefault();
@@ -557,7 +1241,127 @@ export default function BndzAutomationView() {
     openMenu({ x: e.clientX, y: e.clientY, kind: 'automation-canvas' });
   }, [openMenu]);
 
+  const onFlowInit = useCallback((inst: ReactFlowInstance) => {
+    rfInstanceRef.current = inst;
+  }, []);
+
+  const pendingDragNodes = useRef<Node<NodeData>[] | null>(null);
+  const dragElByIdRef = useRef<Map<string, HTMLElement>>(new Map());
+  const dragRafRef = useRef(0);
+  const dragPendingPosRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  const setFlowDraggingClass = useCallback((on: boolean) => {
+    const el = surfaceRef.current?.querySelector('.bndz-automation-flow');
+    el?.classList.toggle('is-node-dragging', on);
+  }, []);
+
+  const flushDragTransforms = useCallback(() => {
+    dragRafRef.current = 0;
+    const pending = dragPendingPosRef.current;
+    if (!pending.size) return;
+    for (const [id, pos] of pending) {
+      let el = dragElByIdRef.current.get(id);
+      if (!el) {
+        el = surfaceRef.current?.querySelector(`.react-flow__node[data-id="${CSS.escape(id)}"]`) as HTMLElement | null || undefined;
+        if (el) {
+          dragElByIdRef.current.set(id, el);
+          el.style.willChange = 'transform';
+        }
+      }
+      if (el) el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+    }
+    pending.clear();
+  }, []);
+
+  const onNodeDragStart = useCallback((_e: React.MouseEvent, node: Node) => {
+    nodeDraggingRef.current = true;
+    chromeFrozenRef.current = {
+      nodes: nodesRef.current.length,
+      edges: edgesRef.current.length,
+    };
+    dragElByIdRef.current.clear();
+    dragPendingPosRef.current.clear();
+    const surface = surfaceRef.current;
+    const ids = new Set<string>([node.id]);
+    // Multi-select: cache all selected node DOMs once.
+    for (const n of nodesRef.current) {
+      if (n.selected) ids.add(n.id);
+    }
+    if (surface) {
+      for (const id of ids) {
+        const el = surface.querySelector(`.react-flow__node[data-id="${CSS.escape(id)}"]`) as HTMLElement | null;
+        if (el) {
+          dragElByIdRef.current.set(id, el);
+          el.style.willChange = 'transform';
+        }
+      }
+    }
+    setFlowDraggingClass(true);
+  }, [setFlowDraggingClass]);
+
+  const onNodeDragStop = useCallback(() => {
+    if (dragRafRef.current) {
+      cancelAnimationFrame(dragRafRef.current);
+      flushDragTransforms();
+    }
+    for (const el of dragElByIdRef.current.values()) {
+      el.style.willChange = '';
+    }
+    dragElByIdRef.current.clear();
+    dragPendingPosRef.current.clear();
+    const flushed = pendingDragNodes.current || nodesRef.current;
+    pendingDragNodes.current = null;
+    nodeDraggingRef.current = false;
+    setFlowDraggingClass(false);
+    nodesRef.current = flushed;
+    setNodes(flushed);
+    scheduleSave();
+  }, [scheduleSave, setNodes, setFlowDraggingClass, flushDragTransforms]);
+
+  /** Mid-drag: refs + rAF translate3d only — never RF/React store. */
+  const onNodesChange = useCallback<OnNodesChange<Node<NodeData>>>((changes) => {
+    const onlyDragPos = changes.length > 0 && changes.every(c =>
+      c.type === 'position' || c.type === 'dimensions' || c.type === 'select',
+    );
+    if (nodeDraggingRef.current && onlyDragPos) {
+      const base = pendingDragNodes.current ?? nodesRef.current;
+      const next = applyNodeChanges(changes as NodeChange<Node<NodeData>>[], base);
+      pendingDragNodes.current = next;
+      nodesRef.current = next;
+      for (const c of changes) {
+        if (c.type !== 'position' || !c.position || !('id' in c) || !c.id) continue;
+        dragPendingPosRef.current.set(c.id, c.position);
+      }
+      if (!dragRafRef.current) {
+        dragRafRef.current = requestAnimationFrame(flushDragTransforms);
+      }
+      return;
+    }
+    onNodesChangeBase(changes);
+  }, [onNodesChangeBase, flushDragTransforms]);
+
+  const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
+    // Authoritative selection — micro-drags must not block inspector sync.
+    nodeDraggingRef.current = false;
+    setSelectedNodeId(node.id);
+    setSelectedEdgeId(null);
+  }, []);
+
+  const onSelectionChange = useCallback(({ nodes: sel, edges: selE }: { nodes: Node[]; edges: Edge[] }) => {
+    if (nodeDraggingRef.current) return;
+    const nid = sel[0]?.id || null;
+    const eid = selE[0]?.id || null;
+    setSelectedNodeId(prev => (prev === nid ? prev : nid));
+    setSelectedEdgeId(prev => (prev === eid ? prev : eid));
+  }, []);
+
   const menuNode = nodes.find(n => n.id === menu?.targetId);
+  const liveWatchers = liveStatus?.watchers?.filter(w => w.live).length ?? 0;
+  const liveSchedules = liveStatus?.schedules?.filter(s => s.active).length ?? 0;
+
+  // Freeze chrome counts while dragging so header/command bar skip extra work mid-drag.
+  const chromeNodeCount = nodeDraggingRef.current ? chromeFrozenRef.current.nodes : nodes.length;
+  const chromeEdgeCount = nodeDraggingRef.current ? chromeFrozenRef.current.edges : edges.length;
 
   return (
     <div
@@ -576,14 +1380,14 @@ export default function BndzAutomationView() {
           workspaceId="automation"
           eyebrow="Circuit studio"
           title="Automation"
-          subtitle="Wire file pipelines like a live circuit — watch, filter, copy, deploy across local and remote hosts."
+          subtitle="Wire file pipelines — watch, filter, branch, deploy. Arm pipelines for live folder watchers and schedules."
           icon="zap_ui"
           accent="#38bdf8"
           features={[
-            { icon: 'zap_ui', title: 'Visual pipelines', desc: 'Connect blocks left to right' },
-            { icon: 'cloud_ui', title: 'Remote deploy', desc: 'rsync / SCP blocks for instant push' },
-            { icon: 'keyboard_ui', title: 'Delete key', desc: 'Select a block and press Delete' },
-            { icon: 'sync_folders', title: 'Auto-save', desc: 'Pipeline persists as you edit' },
+            { icon: 'zap_ui', title: '22 block types', desc: 'Triggers, filters, actions, branches' },
+            { icon: 'cloud_ui', title: 'Live watchers', desc: 'Arm pipeline for real-time folder monitoring' },
+            { icon: 'branch', title: 'Branch splits', desc: 'True/false outputs for conditional flows' },
+            { icon: 'sync_folders', title: 'Pipeline library', desc: 'Multiple named pipelines' },
           ]}
           onDismiss={() => splash.dismiss()}
         />
@@ -595,7 +1399,21 @@ export default function BndzAutomationView() {
             <img src="/Ui/plugin.svg" alt="" className="bndz-ws-sigil-img" />
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {library && (
+                <select
+                  className="bndz-automation-pipeline-select"
+                  value={pipelineId}
+                  onChange={e => void switchPipeline(e.target.value)}
+                  title="Pipeline library"
+                >
+                  {library.pipelines.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.armed ? '● ' : ''}{p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <input
                 className="bndz-ws-pipeline-name"
                 value={graphName}
@@ -603,18 +1421,70 @@ export default function BndzAutomationView() {
                 spellCheck={false}
               />
               <span className="bndz-ws-pill bndz-ws-pill--automation">Circuit</span>
+              <button
+                type="button"
+                className={`bndz-ws-chip${armed ? ' bndz-ws-chip--armed' : ''}`}
+                onClick={() => void toggleArmed()}
+                title={armed ? 'Disarm live watchers' : 'Arm for live watchers & schedules'}
+              >
+                {armed ? '● Armed' : '○ Disarmed'}
+              </button>
+              {library && library.pipelines.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="bndz-ws-chip"
+                    title="Arm all pipelines"
+                    onClick={() => void armAllPipelines(true)}
+                  >
+                    Arm all
+                  </button>
+                  <button
+                    type="button"
+                    className="bndz-ws-chip"
+                    title="Disarm all pipelines"
+                    onClick={() => void armAllPipelines(false)}
+                  >
+                    Disarm all
+                  </button>
+                </>
+              )}
             </div>
             <p className="bndz-ws-chrome-desc">
-              {nodes.length} block{nodes.length === 1 ? '' : 's'} · {edges.length} wire{edges.length === 1 ? '' : 's'}
+              {chromeNodeCount} block{chromeNodeCount === 1 ? '' : 's'} · {chromeEdgeCount} wire{chromeEdgeCount === 1 ? '' : 's'}
+              {armed && (liveWatchers > 0 || liveSchedules > 0) && (
+                <span className="bndz-automation-live-badge">
+                  {' '}· {liveWatchers} watcher{liveWatchers === 1 ? '' : 's'}{liveSchedules > 0 ? ` · ${liveSchedules} schedule${liveSchedules === 1 ? '' : 's'}` : ''}
+                </span>
+              )}
+              {liveStatus?.watchers?.some(w => w.lastError) && (
+                <span className="bndz-automation-live-badge bndz-automation-live-badge--error">
+                  {' '}· watcher error
+                </span>
+              )}
             </p>
           </div>
         </div>
         <div className="bndz-ws-chrome-actions shrink-0">
           {status && <span className="bndz-ws-status">{status}</span>}
-          <button type="button" className="bndz-ws-chip" disabled={running} onClick={runDry}>
-            Dry run
-          </button>
-          <button type="button" className="bndz-ws-chip bndz-ws-chip--primary" disabled={running || lintIssues.some(i => i.severity === 'error')} onClick={() => void run()}>
+          {lintIssues.length > 0 && (
+            <span
+              className={`bndz-automation-lint-badge${lintErrorCount(lintIssues) ? ' is-error' : ''}`}
+              title={lintIssues.map(i => i.message).join('\n')}
+            >
+              {lintErrorCount(lintIssues)
+                ? `${lintErrorCount(lintIssues)} error${lintErrorCount(lintIssues) === 1 ? '' : 's'}`
+                : `${lintIssues.length} warn`}
+            </span>
+          )}
+          <button type="button" className="bndz-ws-chip" disabled={running} onClick={runDry}>Dry run</button>
+          <button
+            type="button"
+            className="bndz-ws-chip bndz-ws-chip--primary"
+            disabled={running || lintErrorCount(lintIssues) > 0}
+            onClick={() => void run()}
+            title={lintErrorCount(lintIssues) > 0 ? 'Fix pipeline lint errors before running' : undefined}
+          >
             {running ? 'Running…' : 'Run pipeline'}
           </button>
         </div>
@@ -622,190 +1492,109 @@ export default function BndzAutomationView() {
 
       <WorkspaceCommandBar
         variant="automation"
-        hint="Del removes · drag marquee · middle-drag pan"
+        hint="Del removes · Ctrl+C/V block · middle-drag pan"
         commands={[
-          { id: 'deploy', label: 'Deploy template', iconSrc: '/launcher-icons/emblem-downloads.svg', onClick: () => loadTemplate('deploy') },
-          { id: 'backup', label: 'Backup template', iconSrc: '/launcher-icons/emblem-documents.svg', onClick: () => loadTemplate('backup') },
+          { id: 'new', label: 'New pipeline', iconSrc: '/Ui/plugin.svg', onClick: () => void newPipeline() },
+          { id: 'dup-pipe', label: 'Duplicate pipeline', iconSrc: '/launcher-icons/copy.png', onClick: () => void clonePipeline() },
+          { id: 'del-pipe', label: 'Delete pipeline', iconSrc: '/launcher-icons/trash_ui.png', disabled: (library?.pipelines.length ?? 0) <= 1, onClick: () => void removePipeline() },
+          { id: 'export-pipe', label: 'Export pipeline', iconSrc: '/launcher-icons/emblem-downloads.svg', onClick: exportPipeline },
+          { id: 'import-pipe', label: 'Import pipeline', iconSrc: '/launcher-icons/emblem-documents.svg', onClick: importPipeline },
+          {
+            id: 'fit-view',
+            label: 'Fit all',
+            iconSrc: '/Ui/details-view.svg',
+            onClick: () => {
+              const rf = rfInstanceRef.current;
+              if (!rf) return;
+              void rf.fitView({ padding: 0.18, duration: 280, maxZoom: 1.25 });
+            },
+          },
+          {
+            id: 'reset-zoom',
+            label: 'Reset zoom',
+            iconSrc: '/launcher-icons/emblem-synchronizing.svg',
+            onClick: () => {
+              const rf = rfInstanceRef.current;
+              if (!rf) return;
+              const { x, y } = rf.getViewport();
+              // Keep pan; snap zoom to 1 around current viewport center via setViewport after measuring.
+              const zoom = rf.getZoom();
+              const el = document.querySelector('.bndz-automation-flow') as HTMLElement | null;
+              if (!el) {
+                void rf.setViewport({ x, y, zoom: 1 }, { duration: 200 });
+                return;
+              }
+              const rect = el.getBoundingClientRect();
+              const cx = rect.width / 2;
+              const cy = rect.height / 2;
+              const worldX = (cx - x) / zoom;
+              const worldY = (cy - y) / zoom;
+              void rf.setViewport({ x: cx - worldX, y: cy - worldY, zoom: 1 }, { duration: 200 });
+            },
+          },
+          { id: 'history', label: 'Run history', iconSrc: '/launcher-icons/clock_ui.png', onClick: () => setShowRunHistory(v => !v) },
+          { id: 'tidy', label: 'Downloads tidy', iconSrc: '/launcher-icons/emblem-downloads.svg', onClick: () => loadRecipe('downloads-tidy') },
+          { id: 'shots', label: 'Screenshots', iconSrc: '/launcher-icons/emblem-documents.svg', onClick: () => loadRecipe('screenshot-collect') },
+          { id: 'zip', label: 'Zip inbox', iconSrc: '/launcher-icons/zip.png', onClick: () => loadRecipe('zip-inbox') },
+          { id: 'deploy', label: 'Deploy', iconSrc: '/launcher-icons/emblem-shared.svg', onClick: () => loadTemplate('deploy') },
           { id: 'save', label: 'Flush save', iconSrc: '/Ui/plugin.svg', onClick: () => void save() },
-          { id: 'clear', label: 'Clear pipeline', iconSrc: '/launcher-icons/trash_ui.png', disabled: nodes.length === 0 && edges.length === 0, onClick: clearPipeline },
+          { id: 'clear', label: 'Clear pipeline', iconSrc: '/launcher-icons/trash_ui.png', disabled: chromeNodeCount === 0 && chromeEdgeCount === 0, onClick: clearPipeline },
           { id: 'intro', label: 'Intro', iconSrc: '/Ui/image-loading.svg', onClick: () => splash.replay() },
         ]}
       />
 
       <div className="flex flex-1 min-h-0">
-        <aside className="bndz-automation-palette shrink-0 overflow-y-auto bndz-scrollbar">
-          <div className="bndz-automation-palette-head">
-            <span className="bndz-automation-palette-title">Block library</span>
-            <span className="bndz-automation-palette-sub">Click to add · right-click canvas · Del removes</span>
-          </div>
-          {PALETTE_GROUPS.map(group => (
-            <div key={group.id} className="bndz-automation-palette-group">
-              <div className="bndz-automation-palette-group-label">{group.label}</div>
-              {group.types.map(type => {
-                const def = NODE_DEFS[type];
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    className="bndz-automation-palette-btn"
-                    style={{ ['--block-accent' as string]: def.color }}
-                    onClick={() => addNode(type)}
-                    title={def.desc}
-                  >
-                    <span className="bndz-automation-palette-icon"><Icons8Icon id={def.icon} size={14} /></span>
-                    <span className="bndz-automation-palette-btn-body">
-                      <span className="bndz-automation-palette-btn-label">{def.label}</span>
-                      <span className="bndz-automation-palette-btn-desc">{def.desc}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </aside>
+        <AutomationPalette onAddNode={addNode} />
 
-        <div
-          className="flex-1 min-w-0 relative bndz-automation-canvas-wrap"
-          onContextMenu={e => e.stopPropagation()}
-        >
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodesDelete={onNodesDelete}
-            onEdgesDelete={onEdgesDelete}
-            onNodeContextMenu={onNodeContextMenu}
-            onEdgeContextMenu={onEdgeContextMenu}
-            onPaneContextMenu={onPaneContextMenu}
-            onNodeDragStart={() => { nodeDraggingRef.current = true; }}
-            onNodeDragStop={() => {
-              nodeDraggingRef.current = false;
-              scheduleSave();
-              const graph = flowToGraph(graphNameRef.current, nodesRef.current, edgesRef.current, viewportRef.current);
-              setLintIssues(lintAutomationGraph(graph));
-            }}
-            nodeTypes={nodeTypes}
-            nodesDraggable
-            nodesConnectable
-            elementsSelectable
-            onlyRenderVisibleElements
-            elevateNodesOnSelect={false}
-            deleteKeyCode={['Delete', 'Backspace']}
-            selectionOnDrag
-            selectionMode={SelectionMode.Partial}
-            panOnDrag={[1]}
-            panOnScroll={panOnScroll}
-            zoomOnScroll={zoomOnScroll}
-            zoomActivationKeyCode="Control"
-            panOnScrollSpeed={0.75}
-            defaultViewport={savedViewport}
-            onMoveEnd={onViewportMoveEnd}
-            minZoom={0.4}
-            maxZoom={1.8}
-            onSelectionChange={({ nodes: sel, edges: selE }) => {
-              setSelectedNodeId(sel[0]?.id || null);
-              setSelectedEdgeId(selE[0]?.id || null);
-            }}
-            className="bndz-automation-flow"
-            proOptions={{ hideAttribution: true }}
-          >
-            <AutomationViewportRestore viewport={savedViewport} />
-            <Background gap={24} size={1} color="rgba(56,189,248,0.06)" />
-            <Controls className="bndz-flow-controls" showInteractive={false} />
-            {nodes.length > 4 && (
-              <MiniMap
-                className="bndz-flow-minimap"
-                maskColor="rgba(0,0,0,0.75)"
-                nodeColor={n => NODE_DEFS[(n.data as NodeData).nodeType]?.color || '#38bdf8'}
-                pannable
-                zoomable
-              />
-            )}
-            <Panel position="bottom-center" className="bndz-flow-hint-panel">
-              Ctrl+scroll zoom · scroll pan · middle-drag pan · right-click actions
-            </Panel>
-          </ReactFlow>
-        </div>
+        <AutomationFlowPane
+          nodes={nodes}
+          edges={edges}
+          panOnScroll={panOnScroll}
+          zoomOnScroll={zoomOnScroll}
+          savedViewport={savedViewport}
+          onInit={onFlowInit}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodesDelete={onNodesDelete}
+          onEdgesDelete={onEdgesDelete}
+          onNodeContextMenu={onNodeContextMenu}
+          onEdgeContextMenu={onEdgeContextMenu}
+          onPaneContextMenu={onPaneContextMenu}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
+          onNodeClick={onNodeClick}
+          onViewportMoveEnd={onViewportMoveEnd}
+          onSelectionChange={onSelectionChange}
+          loadRecipe={loadRecipe}
+        />
 
-        <aside className="bndz-automation-inspector shrink-0 overflow-y-auto bndz-scrollbar">
-          <div className="bndz-automation-inspector-head">
-            <span className="bndz-automation-inspector-title">Inspector</span>
-            {selectedNode && (
-              <span className="bndz-automation-inspector-chip" style={{ color: NODE_DEFS[selectedNode.data.nodeType].color }}>
-                {NODE_DEFS[selectedNode.data.nodeType].label}
-              </span>
-            )}
-          </div>
-          {!selectedNode ? (
-            <div className="bndz-automation-inspector-empty">
-              <Icons8Icon id="zap_ui" size={28} className="opacity-25 mb-2" />
-              <p>Select a block to edit properties, or add one from the library.</p>
-            </div>
-          ) : (
-            <div className="bndz-automation-inspector-body">
-              <p className="bndz-automation-inspector-desc">{NODE_DEFS[selectedNode.data.nodeType].desc}</p>
-              {NODE_DEFS[selectedNode.data.nodeType].fields.map(f => (
-                <label key={f.key} className="bndz-automation-field">
-                  <span className="bndz-automation-field-label">{f.label}</span>
-                  <div className="flex gap-1">
-                    <input
-                      className="bndz-automation-input flex-1"
-                      value={selectedNode.data.fields[f.key] || ''}
-                      placeholder={f.placeholder}
-                      onChange={e => updateSelectedField(f.key, e.target.value)}
-                    />
-                    {(f.key === 'path' || f.key === 'dest' || f.key === 'source') && IPC.isNative && (
-                      <button type="button" className="bndz-lens-chip shrink-0" onClick={() => void pickFolder(f.key)}>…</button>
-                    )}
-                  </div>
-                </label>
-              ))}
-              <div className="bndz-automation-inspector-actions">
-                <button type="button" className="bndz-lens-chip" onClick={() => duplicateNode(selectedNode.id)}>Duplicate</button>
-                <button type="button" className="bndz-lens-chip" onClick={() => disconnectNode(selectedNode.id)}>Disconnect</button>
-              </div>
-              <p className="bndz-automation-inspector-kbd">Press <kbd>Delete</kbd> to remove selected block or wire.</p>
-            </div>
-          )}
-          {lintIssues.length > 0 && (
-            <div className="bndz-automation-lint">
-              <div className="bndz-automation-log-head">Pipeline lint</div>
-              <ul className="bndz-automation-lint-list">
-                {lintIssues.map(issue => (
-                  <li key={issue.id} className={`bndz-automation-lint-item bndz-automation-lint-item--${issue.severity}`}>
-                    {issue.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {dryRunMode && dryRunSteps.length > 0 && (
-            <div className="bndz-automation-timeline">
-              <div className="bndz-automation-log-head">Dry-run timeline</div>
-              <ol className="bndz-automation-timeline-list">
-                {dryRunSteps.map((step, i) => (
-                  <li key={step.nodeId} className="bndz-automation-timeline-step">
-                    <span className="bndz-automation-timeline-idx">{i + 1}</span>
-                    <span className="bndz-automation-timeline-action">{step.action}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {log.length > 0 && (
-            <div className="bndz-automation-log">
-              <div className="bndz-automation-log-head">Run log</div>
-              <pre className="bndz-automation-log-body bndz-mono">{log.join('\n')}</pre>
-            </div>
-          )}
-        </aside>
+        <AutomationInspector
+          selectedNode={selectedNode}
+          lintIssues={lintIssues}
+          dryRunMode={dryRunMode}
+          dryRunSteps={dryRunSteps}
+          log={log}
+          showRunHistory={showRunHistory}
+          runHistory={runHistory}
+          armed={armed}
+          liveStatus={liveStatus}
+          updateSelectedField={updateSelectedField}
+          pickFolder={pickFolder}
+          duplicateNode={duplicateNode}
+          copySelectedNode={copySelectedNode}
+          disconnectNode={disconnectNode}
+          focusLintNode={focusLintNode}
+          setDryRunMode={setDryRunMode}
+          setDryRunSteps={setDryRunSteps}
+          setShowRunHistory={setShowRunHistory}
+        />
       </div>
 
       {menu?.kind === 'automation-node' && menuNode && (
         <WorkspaceMenuPanel variant="automation" x={menu.x} y={menu.y}>
           <WorkspaceMenuItem label="Duplicate block" icon="copy" onClick={() => duplicateNode(menuNode.id)} />
+          <WorkspaceMenuItem label="Copy block" icon="copy" onClick={() => { copySelectedNode(); closeMenu(); }} />
           <WorkspaceMenuItem label="Disconnect all" icon="sync" onClick={() => disconnectNode(menuNode.id)} />
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Delete block" icon="delete" danger onClick={() => deleteNode(menuNode.id)} />
@@ -821,7 +1610,10 @@ export default function BndzAutomationView() {
       {menu?.kind === 'automation-canvas' && (
         <WorkspaceMenuPanel variant="automation" x={menu.x} y={menu.y}>
           <WorkspaceMenuItem label="Add watch folder" icon="folder_open_ui" onClick={() => addNode('watchFolder')} />
+          <WorkspaceMenuItem label="Add filter extension" icon="filter_ui" onClick={() => addNode('filterExtension')} />
           <WorkspaceMenuItem label="Add copy to" icon="copy" onClick={() => addNode('copyTo')} />
+          <WorkspaceMenuItem label="Add branch" icon="branch" onClick={() => addNode('branch')} />
+          <WorkspaceMenuItem label="Add notify" icon="bell" onClick={() => addNode('notifyToast')} />
           <WorkspaceMenuItem label="Add remote deploy" icon="cloud_ui" onClick={() => addNode('rsyncDeploy')} />
           <WorkspaceMenuItem label="Add log block" icon="notepad" onClick={() => addNode('log')} />
           <WorkspaceMenuSep />

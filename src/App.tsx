@@ -5,6 +5,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import BNDZUI from './components/BNDZUI';
+import PluginPopoutShell from './components/PluginPopoutShell';
 import { ConfigProvider } from './data/configContext';
 import { ClipboardProvider } from './data/ClipboardContext';
 import ModalProvider from './components/ModalProvider';
@@ -15,9 +16,13 @@ import { initGlobalEscapeListener } from './lib/globalEscape';
 import LaunchSplash from './components/LaunchSplash';
 import PerfHud from './components/PerfHud';
 import LegalAcceptGate from './components/LegalAcceptGate';
+import { readPluginWindowBootFromUrl } from './lib/pluginWindowBoot';
+
+const PLUGIN_BOOT = readPluginWindowBootFromUrl();
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(() => {
+    if (PLUGIN_BOOT) return true;
     try {
       return localStorage.getItem('bndz-launch-splash-seen') === '1';
     } catch {
@@ -33,6 +38,17 @@ export default function App() {
     } catch { /* ignore */ }
     setSplashDone(true);
   };
+
+  if (PLUGIN_BOOT) {
+    return (
+      <ConfigProvider>
+        <PluginRegistryProvider>
+          <PluginPopoutShell initial={PLUGIN_BOOT} />
+          <ToastHost />
+        </PluginRegistryProvider>
+      </ConfigProvider>
+    );
+  }
 
   return (
     <ConfigProvider>

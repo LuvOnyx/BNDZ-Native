@@ -168,7 +168,8 @@ export const IPC = {
         } else if (data.type === 'ELEVATION_REQUIRED') {
           this._elevationListeners.forEach(cb => cb(data.payload ?? { message: 'Administrator approval may be required.' }));
         } else if (data.type === 'DRIVES_CHANGED') {
-          this._drivesListeners.forEach(cb => cb(data.payload));
+          const drives = Array.isArray(data.payload) ? data.payload : [];
+          this._drivesListeners.forEach(cb => cb(drives));
         } else if (data.type === 'EXTERNAL_FILES_DROPPED') {
           window.dispatchEvent(new CustomEvent('bndz-external-drop', { detail: data.payload }));
         } else if (data.type === 'EXTERNAL_FILES_DROP_FAILED') {
@@ -197,6 +198,8 @@ export const IPC = {
           window.dispatchEvent(new CustomEvent('bndz-ghost-link-progress', { detail: data.payload }));
         } else if (data.type === 'RAM_STAGING_ZONE_CHANGED') {
           window.dispatchEvent(new CustomEvent('bndz-ram-zone-changed', { detail: data.payload }));
+        } else if (data.type === 'RAM_STAGING_MEMORY_PRESSURE') {
+          window.dispatchEvent(new CustomEvent('bndz-ram-memory-pressure', { detail: data.payload }));
         } else if (data.type === 'GLOBAL_HOTKEY') {
           const id = data.payload?.id ?? '';
           window.dispatchEvent(new CustomEvent('bndz-global-hotkey', { detail: { id } }));
@@ -582,6 +585,17 @@ export const IPC = {
     });
   },
 
+  meshDropSetConfig(opts: {
+    stunServers?: string;
+    lanDiscovery?: boolean;
+    turnUrl?: string;
+    turnUsername?: string;
+    turnCredential?: string;
+  }): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({ type: 'MESH_DROP_SET_CONFIG', payload: opts });
+  },
+
   meshDropCreateOffer(paths: string[], label?: string): Promise<{ ok: boolean; sessionId?: string; meshCode?: string; session?: unknown; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_meshDropOffer`;
@@ -752,10 +766,12 @@ export const IPC = {
   ramStagingListZones(): Promise<{ zones: unknown[]; status: unknown }> {
     if (!this.isNative) return Promise.resolve({ zones: [], status: {} });
     const id = `${Date.now()}_ramList`;
-    return _nativeCall<any>('RAM_STAGING_LIST_ZONES', 'RAM_STAGING_LIST_ZONES_RESULT', id, {}, 15000).then(r => ({
-      zones: Array.isArray(r?.zones) ? r.zones : [],
-      status: r?.status ?? {},
-    }));
+    return _nativeCall<any>('RAM_STAGING_LIST_ZONES', 'RAM_STAGING_LIST_ZONES_RESULT', id, {}, 15000)
+      .then(r => ({
+        zones: Array.isArray(r?.zones) ? r.zones : [],
+        status: r?.status ?? {},
+      }))
+      .catch(() => ({ zones: [], status: {} }));
   },
 
   ramStagingCreateZone(name: string, sizeBudgetMb: number, preferRam = true): Promise<{ ok: boolean; zone?: unknown; error?: string }> {
@@ -791,6 +807,34 @@ export const IPC = {
     const id = `${Date.now()}_ramFlush`;
     return _nativeCall<any>('RAM_STAGING_FLUSH_ZONE', 'RAM_STAGING_FLUSH_ZONE_RESULT', id, { zoneId }, 3600000).then(r => ({
       ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  ramStagingInstallImDisk(): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ramImdisk`;
+    return _nativeCall<any>('RAM_STAGING_INSTALL_IMDISK', 'RAM_STAGING_INSTALL_IMDISK_RESULT', id, {}, 600000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  ramStagingInstallAim(): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ramAim`;
+    return _nativeCall<any>('RAM_STAGING_INSTALL_AIM', 'RAM_STAGING_INSTALL_AIM_RESULT', id, {}, 600000).then(r => ({
+      ok: r?.ok !== false,
+      error: r?.error,
+    }));
+  },
+
+  ramStagingRemountZone(zoneId: string): Promise<{ ok: boolean; zone?: unknown; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_ramRemount`;
+    return _nativeCall<any>('RAM_STAGING_REMOUNT_ZONE', 'RAM_STAGING_REMOUNT_ZONE_RESULT', id, { zoneId }, 120000).then(r => ({
+      ok: r?.ok !== false,
+      zone: r?.zone,
       error: r?.error,
     }));
   },
@@ -1117,7 +1161,8 @@ export const IPC = {
 
   getFileTransferQueue(): Promise<FileTransferQueueState> {
     if (this.isNative) {
-      return _nativeCall<FileTransferQueueState>('GET_FILE_TRANSFER_QUEUE', 'FILE_TRANSFER_QUEUE_RESULT', undefined);
+      return _nativeCall<FileTransferQueueState>('GET_FILE_TRANSFER_QUEUE', 'FILE_TRANSFER_QUEUE_RESULT', undefined)
+        .catch(() => ({ queuedCount: 0, activeCount: 0, jobs: [] as FileTransferJobDto[] }));
     }
     return Promise.resolve({ queuedCount: 0, activeCount: 0, jobs: [] });
   },
@@ -1407,7 +1452,9 @@ export const IPC = {
   getCloudProviders(): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_cloudProviders`;
-      return _nativeCall<any[]>('GET_CLOUD_PROVIDERS', 'CLOUD_PROVIDERS_RESULT', id);
+      return _nativeCall<any>('GET_CLOUD_PROVIDERS', 'CLOUD_PROVIDERS_RESULT', id)
+        .then(r => (Array.isArray(r) ? r : []))
+        .catch(() => []);
     }
     return Promise.resolve([
       { name: 'OneDrive', path: `C:\\Users\\${(window as any).__bndzUser || 'User'}\\OneDrive`, icon: '☁️' }
@@ -1417,12 +1464,22 @@ export const IPC = {
   getSystemDrives(): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_drives`;
-      return _nativeCall<any[]>('GET_DRIVES', 'DRIVES_RESULT', id);
+      return _nativeCall<any>('GET_DRIVES', 'DRIVES_RESULT', id)
+        .then(r => (Array.isArray(r) ? r : []))
+        .catch(() => []);
     }
     return Promise.resolve([
       { name: '/', letter: '/', label: 'Container Root', totalSpace: 10_000_000_000, freeSpace: 5_000_000_000 },
       { name: '/workspace', letter: '/workspace', label: 'Workspace', totalSpace: 10_000_000_000, freeSpace: 5_000_000_000 }
     ]);
+  },
+
+  /** Host liveness probe — resolves quickly if the native IPC pump is healthy. */
+  ipcPing(): Promise<boolean> {
+    if (!this.isNative) return Promise.resolve(false);
+    return _nativeCall<any>('IPC_PING', 'IPC_PING_RESULT', undefined, undefined, 4000)
+      .then(r => r?.ok !== false)
+      .catch(() => false);
   },
 
   getNetworkLocations(): Promise<any[]> {
@@ -1664,6 +1721,28 @@ export const IPC = {
         'OPEN_PATH_IN_NEW_WINDOW_RESULT',
         id,
         { path },
+        15000,
+      ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+    }
+    return Promise.resolve({ ok: false, error: 'Requires native host.' });
+  },
+
+  /** Spawn a Stage-style second process hosting one plugin (or sticky widget). */
+  openPluginWindow(
+    pluginId: string,
+    opts?: { stickyId?: string; title?: string },
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_pluginWindow`;
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'OPEN_PLUGIN_WINDOW',
+        'OPEN_PLUGIN_WINDOW_RESULT',
+        id,
+        {
+          pluginId,
+          stickyId: opts?.stickyId,
+          title: opts?.title,
+        },
         15000,
       ).catch(err => ({ ok: false, error: String(err?.message || err) }));
     }
@@ -2600,5 +2679,264 @@ export const IPC = {
       ).then(r => ({ ok: !!r?.ok, log: r?.log || [], error: r?.error }));
     }
     return Promise.resolve({ ok: false, log: [], error: 'Native host required.' });
+  },
+
+  syncAutomationLive(graph: unknown): Promise<{
+    watchers: Array<{ path: string; pipelineName: string; live: boolean; lastTriggeredAt?: number; lastError?: string }>;
+    schedules: Array<{ nodeId: string; pipelineName: string; intervalMinutes: number; active: boolean; lastTriggeredAt?: number; lastError?: string }>;
+  } | null> {
+    if (!this.isNative) return Promise.resolve(null);
+    const id = `${Date.now()}_automationLive`;
+    return _nativeCall<{ watchers?: unknown[]; schedules?: unknown[] }>(
+      'SYNC_AUTOMATION_LIVE', 'AUTOMATION_LIVE_STATUS', id, graph, 30000,
+    ).then(r => ({
+      watchers: (r?.watchers || []) as Array<{ path: string; pipelineName: string; live: boolean; lastTriggeredAt?: number; lastError?: string }>,
+      schedules: (r?.schedules || []) as Array<{ nodeId: string; pipelineName: string; intervalMinutes: number; active: boolean; lastTriggeredAt?: number; lastError?: string }>,
+    }));
+  },
+
+  _automationStatusCache: null as { result: any; at: number } | null,
+  getAutomationLiveStatus(): Promise<{
+    watchers: Array<{ path: string; pipelineName: string; live: boolean; lastTriggeredAt?: number; lastError?: string }>;
+    schedules: Array<{ nodeId: string; pipelineName: string; intervalMinutes: number; active: boolean; lastTriggeredAt?: number; lastError?: string }>;
+  } | null> {
+    if (!this.isNative) return Promise.resolve(null);
+    const now = Date.now();
+    const cached = this._automationStatusCache;
+    if (cached && now - cached.at < 2000) return Promise.resolve(cached.result);
+    const id = `${now}_automationStatus`;
+    return _nativeCall<{ watchers?: unknown[]; schedules?: unknown[] }>(
+      'GET_AUTOMATION_LIVE_STATUS', 'AUTOMATION_LIVE_STATUS', id, {}, 15000,
+    ).then(r => {
+      const result = {
+        watchers: (r?.watchers || []) as Array<{ path: string; pipelineName: string; live: boolean; lastTriggeredAt?: number; lastError?: string }>,
+        schedules: (r?.schedules || []) as Array<{ nodeId: string; pipelineName: string; intervalMinutes: number; active: boolean; lastTriggeredAt?: number; lastError?: string }>,
+      };
+      this._automationStatusCache = { result, at: Date.now() };
+      return result;
+    });
+  },
+
+  /** Fire armed spatialPin pipelines with the given pin paths (live Spatial Canvas trigger). */
+  fireAutomationSpatialPins(paths: string[]): Promise<{ ok: boolean; fired: number; log: string[]; error?: string; queued?: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, fired: 0, log: [], error: 'Native host required.' });
+    const id = `${Date.now()}_automationSpatial`;
+    // Backend acks immediately (queued run). Keep timeout short so Send-to-automation never hangs the UI.
+    return _nativeCall<{ ok?: boolean; fired?: number; log?: string[]; error?: string; queued?: boolean }>(
+      'FIRE_AUTOMATION_SPATIAL_PINS', 'AUTOMATION_SPATIAL_PIN_RESULT', id, { paths }, 15000,
+    ).then(r => ({ ok: !!r?.ok, fired: r?.fired ?? 0, log: r?.log || [], error: r?.error, queued: !!r?.queued }));
+  },
+
+  analyzeMusicFile(path: string): Promise<{
+    ok: boolean;
+    bpm?: number;
+    key?: string;
+    mode?: string;
+    keyConfidence?: number;
+    durationSec?: number;
+    peakDb?: number;
+    title?: string;
+    artist?: string;
+    camelot?: string;
+    suggestedHalfTime?: number;
+    suggestedDoubleTime?: number;
+    sidecarTags?: string[];
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required.' });
+    const id = `${Date.now()}_analyzeMusic`;
+    return _nativeCall(
+      'ANALYZE_MUSIC_FILE', 'ANALYZE_MUSIC_RESULT', id, { path }, 180000,
+    );
+  },
+
+  analyzeMusicBatch(paths: string[], writeTags = false): Promise<{
+    ok: boolean;
+    analyzed?: number;
+    failed?: number;
+    results?: Array<{
+      ok: boolean;
+      path?: string;
+      bpm?: number;
+      key?: string;
+      mode?: string;
+      keyConfidence?: number;
+      peakDb?: number;
+      camelot?: string;
+      sidecarTags?: string[];
+      tagsWritten?: boolean;
+      error?: string;
+    }>;
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required.' });
+    const id = `${Date.now()}_analyzeMusicBatch`;
+    return _nativeCall(
+      'ANALYZE_MUSIC_BATCH', 'ANALYZE_MUSIC_BATCH_RESULT', id, { paths, writeTags }, 600000,
+    );
+  },
+
+  sandboxStart(rootPath: string, name?: string): Promise<{ ok: boolean; sessionId?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_sandboxStart`;
+    return _nativeCall<any>('SANDBOX_START', 'SANDBOX_START_RESULT', id, { rootPath, name }, 30000);
+  },
+
+  sandboxGetActive(): Promise<{ sessions: any[] }> {
+    if (!this.isNative) return Promise.resolve({ sessions: [] });
+    const id = `${Date.now()}_sandboxActive`;
+    return _nativeCall<any>('SANDBOX_GET_ACTIVE', 'SANDBOX_GET_ACTIVE_RESULT', id, {}, 15000)
+      .then(r => ({ sessions: Array.isArray(r?.sessions) ? r.sessions : [] }));
+  },
+
+  sandboxList(): Promise<{ sessions: any[] }> {
+    if (!this.isNative) return Promise.resolve({ sessions: [] });
+    const id = `${Date.now()}_sandboxList`;
+    return _nativeCall<any>('SANDBOX_LIST', 'SANDBOX_LIST_RESULT', id, {}, 15000)
+      .then(r => ({ sessions: Array.isArray(r?.sessions) ? r.sessions : [] }));
+  },
+
+  sandboxCommit(sessionId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_sandboxCommit`;
+    return _nativeCall<any>('SANDBOX_COMMIT', 'SANDBOX_COMMIT_RESULT', id, { sessionId }, 120000);
+  },
+
+  sandboxDiscard(sessionId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_sandboxDiscard`;
+    return _nativeCall<any>('SANDBOX_DISCARD', 'SANDBOX_DISCARD_RESULT', id, { sessionId }, 30000);
+  },
+
+  sandboxCheckpoint(sessionId: string, name: string): Promise<{ ok: boolean; checkpointId?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_sandboxCp`;
+    return _nativeCall<any>('SANDBOX_CHECKPOINT', 'SANDBOX_CHECKPOINT_RESULT', id, { sessionId, name }, 30000);
+  },
+
+  sandboxListCheckpoints(sessionId: string): Promise<{ checkpoints: any[] }> {
+    if (!this.isNative) return Promise.resolve({ checkpoints: [] });
+    const id = `${Date.now()}_sandboxCps`;
+    return _nativeCall<any>('SANDBOX_LIST_CHECKPOINTS', 'SANDBOX_LIST_CHECKPOINTS_RESULT', id, { sessionId }, 15000)
+      .then(r => ({ checkpoints: Array.isArray(r?.checkpoints) ? r.checkpoints : [] }));
+  },
+
+  sandboxRestoreCheckpoint(sessionId: string, checkpointId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_sandboxRestore`;
+    return _nativeCall<any>('SANDBOX_RESTORE_CHECKPOINT', 'SANDBOX_RESTORE_CHECKPOINT_RESULT', id, { sessionId, checkpointId }, 60000);
+  },
+
+  healthScan(rootPath: string): Promise<{ ok: boolean; problemCount?: number; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_healthScan`;
+    return _nativeCall<any>('HEALTH_SCAN', 'HEALTH_SCAN_RESULT', id, { rootPath }, 600000);
+  },
+
+  healthListProblems(rootPrefix?: string, limit?: number): Promise<{ problems: any[] }> {
+    if (!this.isNative) return Promise.resolve({ problems: [] });
+    const id = `${Date.now()}_healthProblems`;
+    return _nativeCall<any>('HEALTH_LIST_PROBLEMS', 'HEALTH_LIST_PROBLEMS_RESULT', id, { rootPrefix, limit }, 30000)
+      .then(r => ({ problems: Array.isArray(r?.problems) ? r.problems : [] }));
+  },
+
+  healthGetSummary(): Promise<{ total: number; critical: number; warning: number; info: number }> {
+    if (!this.isNative) return Promise.resolve({ total: 0, critical: 0, warning: 0, info: 0 });
+    const id = `${Date.now()}_healthSummary`;
+    return _nativeCall<any>('HEALTH_GET_SUMMARY', 'HEALTH_GET_SUMMARY_RESULT', id, {}, 15000)
+      .then(r => ({
+        total: r?.total ?? 0,
+        critical: r?.critical ?? 0,
+        warning: r?.warning ?? 0,
+        info: r?.info ?? 0,
+      }));
+  },
+
+  healthClear(rootPrefix?: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_healthClear`;
+    return _nativeCall<any>('HEALTH_CLEAR', 'HEALTH_CLEAR_RESULT', id, { rootPrefix }, 15000);
+  },
+
+  lineageGet(path: string, depth?: number): Promise<{ edges: any[]; inbound?: any[]; outbound?: any[]; timeline?: any[] }> {
+    if (!this.isNative) return Promise.resolve({ edges: [] });
+    const id = `${Date.now()}_lineageGet`;
+    return _nativeCall<any>('LINEAGE_GET', 'LINEAGE_GET_RESULT', id, { path, depth }, 30000)
+      .then(r => {
+        const timeline = Array.isArray(r?.timeline) ? r.timeline
+          : Array.isArray(r?.Timeline) ? r.Timeline
+          : Array.isArray(r?.edges) ? r.edges
+          : [];
+        return {
+          edges: timeline,
+          inbound: r?.inbound ?? r?.Inbound ?? [],
+          outbound: r?.outbound ?? r?.Outbound ?? [],
+          timeline,
+        };
+      });
+  },
+
+  lineageGetRecent(limit?: number): Promise<{ edges: any[] }> {
+    if (!this.isNative) return Promise.resolve({ edges: [] });
+    const id = `${Date.now()}_lineageRecent`;
+    return _nativeCall<any>('LINEAGE_GET_RECENT', 'LINEAGE_GET_RECENT_RESULT', id, { limit }, 15000)
+      .then(r => ({ edges: Array.isArray(r?.edges) ? r.edges : [] }));
+  },
+
+  capacityBuildPlan(path: string, targetFreeBytes?: number): Promise<{ ok: boolean; plan?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_capPlan`;
+    return _nativeCall<any>('CAPACITY_BUILD_PLAN', 'CAPACITY_BUILD_PLAN_RESULT', id, { path, targetFreeBytes }, 120000);
+  },
+
+  inboundList(): Promise<{ entries: any[]; watching?: boolean }> {
+    if (!this.isNative) return Promise.resolve({ entries: [], watching: false });
+    const id = `${Date.now()}_inboundList`;
+    return _nativeCall<any>('INBOUND_LIST', 'INBOUND_LIST_RESULT', id, {}, 15000)
+      .then(r => ({
+        entries: Array.isArray(r?.entries) ? r.entries : [],
+        watching: !!r?.watching,
+      }));
+  },
+
+  inboundCaptureNow(): Promise<{ ok: boolean; id?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_inboundCapture`;
+    return _nativeCall<any>('INBOUND_CAPTURE_NOW', 'INBOUND_CAPTURE_NOW_RESULT', id, {}, 15000);
+  },
+
+  inboundStartWatching(): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_inboundWatch`;
+    return _nativeCall<any>('INBOUND_START_WATCHING', 'INBOUND_START_WATCHING_RESULT', id, {}, 15000);
+  },
+
+  inboundStopWatching(): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_inboundStop`;
+    return _nativeCall<any>('INBOUND_STOP_WATCHING', 'INBOUND_STOP_WATCHING_RESULT', id, {}, 15000);
+  },
+
+  inboundDelete(entryId: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_inboundDel`;
+    return _nativeCall<any>('INBOUND_DELETE', 'INBOUND_DELETE_RESULT', id, { id: entryId }, 15000);
+  },
+
+  inboundGetPaths(entryId: string): Promise<{ paths: string[] }> {
+    if (!this.isNative) return Promise.resolve({ paths: [] });
+    const id = `${Date.now()}_inboundPaths`;
+    return _nativeCall<any>('INBOUND_GET_PATHS', 'INBOUND_GET_PATHS_RESULT', id, { id: entryId }, 15000)
+      .then(r => ({ paths: Array.isArray(r?.paths) ? r.paths : [] }));
+  },
+
+  inboundGetRoot(): Promise<{ root: string; watching?: boolean }> {
+    if (!this.isNative) return Promise.resolve({ root: '', watching: false });
+    const id = `${Date.now()}_inboundRoot`;
+    return _nativeCall<any>('INBOUND_GET_ROOT', 'INBOUND_GET_ROOT_RESULT', id, {}, 15000)
+      .then(r => ({
+        root: r?.root ?? r?.path ?? '',
+        watching: !!r?.watching,
+      }));
   },
 };

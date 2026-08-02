@@ -3,8 +3,9 @@
  * sessions converge here before executeInternalDrop.
  */
 
-import { isBndzVirtualPath } from './bndzVirtualViews';
+import { isFsDropTargetPath } from './bndzVirtualViews';
 import { getParentWinPath } from './dropDestination';
+import { MESH_DROP_INBOX_DEST } from './fsPathRouting';
 import { normalizePanePath, toWindowsPath } from './pathUtils';
 import {
   consumeOleDragSession,
@@ -185,7 +186,7 @@ function tryCommitToKnownListFolder(
   const html = ctx.getHtmlDropTarget();
   if (html?.tabPath) {
     const norm = normalizePanePath(html.tabPath);
-    if (!isBndzVirtualPath(norm) && norm !== '/' && norm !== '/this-pc') {
+    if (isFsDropTargetPath(norm)) {
       ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(norm));
       return true;
     }
@@ -195,7 +196,7 @@ function tryCommitToKnownListFolder(
   const activeId = ctx.getActivePaneId();
   const pane = panes.find(p => p.id === activeId) ?? panes[0];
   const tabPath = normalizePanePath(pane?.tabs[pane.activeTabIndex]?.path || '');
-  if (tabPath && !isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+  if (tabPath && isFsDropTargetPath(tabPath)) {
     ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(tabPath));
     return true;
   }
@@ -219,11 +220,11 @@ function findLastRealPathInHistory(panes: PaneTabSnapshot[], paneId: string, tab
   if (Array.isArray(history)) {
     for (let i = history.length - 1; i >= 0; i--) {
       const p = normalizePanePath(history[i] || '');
-      if (p && !isBndzVirtualPath(p) && p !== '/' && p !== '/this-pc') return p;
+      if (p && isFsDropTargetPath(p)) return p;
     }
   }
   const current = normalizePanePath(tab.path || '');
-  if (current && !isBndzVirtualPath(current) && current !== '/' && current !== '/this-pc') return current;
+  if (current && isFsDropTargetPath(current)) return current;
   return null;
 }
 
@@ -265,11 +266,24 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     return true;
   }
 
+  const meshDropInboxEl = document.elementsFromPoint(clientX, clientY)
+    .map(el => (el as HTMLElement).closest('[data-mesh-drop-inbox]'))
+    .find(Boolean);
+  if (meshDropInboxEl) {
+    const op: 'copy' | 'move' = opts.op === 'move' || opts.preferredEffect === 'move' ? 'move' : 'copy';
+    ctx.executeDrop(op, paths.map(toWindowsPath), MESH_DROP_INBOX_DEST);
+    lastDropDebug = { clientX, clientY, coordSource, destPath: MESH_DROP_INBOX_DEST, source: opts.source, committed: true };
+    if (isDropDebugEnabled()) {
+      window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));
+    }
+    return true;
+  }
+
   const homeNavEl = document.elementsFromPoint(clientX, clientY)
     .map(el => (el as HTMLElement).closest('[data-home-nav-path]'))
     .find(Boolean) as HTMLElement | null;
   const homeNavPath = homeNavEl?.getAttribute('data-home-nav-path');
-  if (homeNavPath && !isBndzVirtualPath(homeNavPath) && homeNavPath !== '/' && homeNavPath !== '/this-pc') {
+  if (homeNavPath && isFsDropTargetPath(homeNavPath)) {
     const op: 'copy' | 'move' = opts.preferredEffect === 'move' ? 'move' : 'copy';
     ctx.executeDrop(op, paths.map(toWindowsPath), canonicalDropPath(homeNavPath));
     lastDropDebug = { clientX, clientY, coordSource, destPath: homeNavPath, source: opts.source, committed: true };
@@ -351,14 +365,14 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
   }
 
   let finalDest = destPath;
-  if (isBndzVirtualPath(finalDest) || finalDest === '/' || finalDest === '/this-pc') {
+  if (!isFsDropTargetPath(finalDest)) {
     if (listBody && hover) {
       const real = findLastRealPathInHistory(ctx.getPanes(), hover.paneId, hover.tabIndex);
       if (real) finalDest = real;
     }
   }
 
-  if (isBndzVirtualPath(finalDest) || finalDest === '/' || finalDest === '/this-pc') {
+  if (!isFsDropTargetPath(finalDest)) {
     const hoveredList = recordExternalDragHover.last.valid
       || recordPointerDragHover.last.overList
       || !!ctx.getHtmlDropTarget()?.tabPath;

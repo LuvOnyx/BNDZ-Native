@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -7,12 +7,14 @@ import {
   PluginHeroActionButton,
   PluginCard,
   PLUGIN_SELECT_CLASS,
+  PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
 import { isQueuedIpcResult } from '../../lib/transferIpc';
 import { pushToast } from '../ToastHost';
 import { useAppConfig } from '../../data/configContext';
 import { buildFileOpsRuntime } from '../../lib/settingsWiring';
+import { panePathFromWin } from '../../lib/storageOrganize';
 
 export const ActionLogPluginDef = {
   id: 'action-log',
@@ -90,15 +92,28 @@ export default function ActionLogPlugin() {
   const [canRedo, setCanRedo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [kindFilter, setKindFilter] = useState<string>('all');
+  const [textFilter, setTextFilter] = useState('');
   const [, setTick] = useState(0);
   const dateFormat = config.dateFormatInActionLabels || 'Age of action (how long ago)';
   const historyMax = Math.min(4096, Math.max(1, config.allowedNumberOfEntriesInTheActionLog ?? 100));
   const fileOps = buildFileOpsRuntime(config);
   const loggingEnabled = fileOps.logActions;
 
-  const visibleItems = kindFilter === 'all'
-    ? items
-    : items.filter(entry => entry.kind === kindFilter);
+  const visibleItems = useMemo(() => {
+    const q = textFilter.trim().toLowerCase();
+    return items.filter(entry => {
+      if (kindFilter !== 'all' && entry.kind !== kindFilter) return false;
+      if (!q) return true;
+      const hay = [
+        entry.label,
+        entry.kind,
+        entry.destination || '',
+        ...(entry.sourcePaths || []),
+        ...(entry.targetPaths || []),
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [items, kindFilter, textFilter]);
   const kindOptions = ['all', ...Array.from(new Set(items.map(i => i.kind)))];
 
   const refresh = useCallback(async () => {
@@ -125,8 +140,8 @@ export default function ActionLogPlugin() {
     return () => window.clearInterval(id);
   }, []);
 
-  const runUndo = async () => {
-    const r = await IPC.executeUndo();
+  const runUndo = async (entryId?: string) => {
+    const r = await IPC.executeUndo(entryId ? { entryId } : undefined);
     if (isQueuedIpcResult(r)) {
       pushToast({ kind: 'info', title: 'Undo queued', message: 'Running in the transfer panel…' });
       return;
@@ -145,6 +160,22 @@ export default function ActionLogPlugin() {
     await refresh();
   };
 
+  const navigateToPath = (winPath?: string | null) => {
+    if (!winPath) return;
+    const isFile = /\.[A-Za-z0-9]{1,8}$/.test(winPath.replace(/\\/g, '/'));
+    const target = isFile ? winPath.replace(/\\[^\\]+$/, '') : winPath;
+    window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: panePathFromWin(target) } }));
+  };
+
+  const exportLog = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(visibleItems, null, 2));
+      pushToast({ kind: 'success', title: 'Exported', message: `${visibleItems.length} entries copied as JSON.` });
+    } catch {
+      pushToast({ kind: 'warning', title: 'Export', message: 'Could not copy to clipboard.' });
+    }
+  };
+
   return (
     <PluginPanelShell
       title="Action Log"
@@ -154,6 +185,12 @@ export default function ActionLogPlugin() {
       variant="embedded"
       toolbar={
         <>
+          <input
+            value={textFilter}
+            onChange={e => setTextFilter(e.target.value)}
+            placeholder="Search log…"
+            className={`${PLUGIN_INPUT_CLASS} !w-[140px] !py-1`}
+          />
           <select
             value={kindFilter}
             onChange={e => setKindFilter(e.target.value)}
@@ -164,6 +201,9 @@ export default function ActionLogPlugin() {
               <option key={k} value={k}>{k === 'all' ? 'All types' : k}</option>
             ))}
           </select>
+          <button type="button" onClick={() => void exportLog()} className="p-1.5 rounded-md hover:bg-white/5 text-gray-500" title="Export visible log">
+            <Icons8Icon id="copy_path" size={13} />
+          </button>
           <button type="button" onClick={() => void refresh()} className="p-1.5 rounded-md hover:bg-white/5 text-gray-500" title="Refresh">
             <Icons8Icon id="refresh" size={13} />
           </button>
@@ -268,10 +308,30 @@ export default function ActionLogPlugin() {
                       <div className="flex-1 min-w-0">
                         <div className="truncate text-slate-100 font-medium leading-snug">{entry.label}</div>
                         {entry.destination && (
-                          <div className="truncate text-[10px] text-slate-500 mt-0.5" title={entry.destination}>
+                          <button
+                            type="button"
+                            onClick={() => navigateToPath(entry.destination)}
+                            className="truncate text-[10px] text-slate-500 mt-0.5 hover:text-sky-300 text-left block max-w-full"
+                            title={entry.destination}
+                          >
                             → {entry.destination}
-                          </div>
+                          </button>
                         )}
+                        {(entry.sourcePaths?.length || entry.targetPaths?.length) ? (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(entry.sourcePaths || []).slice(0, 2).map(p => (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => navigateToPath(p)}
+                                className="text-[9px] text-white/40 hover:text-sky-300 truncate max-w-[140px]"
+                                title={p}
+                              >
+                                {p.split(/[/\\]/).pop()}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {entry.canUndo && (
                             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300/80 border border-emerald-500/25 bg-emerald-500/10 rounded px-1.5 py-0.5">
@@ -284,10 +344,10 @@ export default function ActionLogPlugin() {
                               Permanent — cannot undo
                             </span>
                           )}
-                          {isLatest && canUndo && entry.canUndo && (
+                          {entry.canUndo && (
                             <button
                               type="button"
-                              onClick={() => void runUndo()}
+                              onClick={() => void runUndo(entry.id)}
                               className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-sky-300 border border-sky-400/35 bg-sky-500/15 hover:bg-sky-500/25 rounded px-1.5 py-0.5 transition-colors"
                             >
                               <Icons8Icon id="undo" size={9} />

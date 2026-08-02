@@ -1,0 +1,18 @@
+---
+description: Uiverse is the standing visual reference for all BNDZ UI work
+alwaysApply: true
+---
+
+# BNDZ Uiverse UI Reference
+
+On **every** UI pass (cards, panels, notes, buttons, empty states, plugins, Spatial, Automations, dialogs):
+
+1. Open [https://uiverse.io/elements](https://uiverse.io/elements) and use the library as the **reference bar** for unique, crafted components — motion, depth, glass/paper surfaces, stickies, buttons, loaders, hover states.
+2. **Adapt** patterns into BNDZ tokens and CSS (`src/index.css`, existing soft squircles / native FM language). Do **not** paste raw Uiverse HTML/Tailwind dumps, iframes, or third-party CDN widgets into the product.
+3. Still obey `.cursor/rules/bndz-implementation-rule.mdc`: native host feel, no generic web-app chrome, soft squircles over pill clusters, top-tier FM quality.
+4. Prefer distinctive craft over default React/shadcn-looking blocks. If a surface could belong to any SaaS dashboard after removing BNDZ branding, redesign it.
+
+```text
+❌ BAD: invent flat generic cards with no reference pass
+✅ GOOD: sample Uiverse elements → translate craft into BNDZ CSS/components
+```

@@ -97,7 +97,17 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const openBottomPluginFromConfig = (pluginId: string) => {
     if (hasChanges) applyChanges();
     onClose();
+    if (pluginId === 'mesh-drop') {
+      window.dispatchEvent(new CustomEvent('bndz-mesh-drop-send', { detail: { paths: [] } }));
+      return;
+    }
     window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: pluginId } }));
+  };
+
+  const openMeshDropFromConfig = () => {
+    if (hasChanges) applyChanges();
+    onClose();
+    window.dispatchEvent(new CustomEvent('bndz-mesh-drop-send', { detail: { paths: [] } }));
   };
 
   const openTagManagerFromConfig = () => {
@@ -317,13 +327,22 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const [activeTab, setActiveTabState] = useState(
     initialTab || (globalConfig as any).configurationLastTab || 'Menus & Context',
   );
+  const settingsContentRef = useRef<HTMLDivElement>(null);
+  const scrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setActiveTab = useCallback((tab: string) => {
-    setActiveTabState(tab);
+    const el = settingsContentRef.current;
+    const prevScroll = (globalConfig as any).configurationScrollByTab || {};
+    const nextScroll = el
+      ? { ...prevScroll, [activeTab]: el.scrollTop }
+      : prevScroll;
+    const patch: Record<string, unknown> = { configurationScrollByTab: nextScroll };
     if ((globalConfig as any).configurationRememberTab !== false) {
-      updateGlobalConfig({ configurationLastTab: tab } as any);
+      patch.configurationLastTab = tab;
     }
-  }, [globalConfig, updateGlobalConfig]);
+    updateGlobalConfig(patch as any);
+    setActiveTabState(tab);
+  }, [globalConfig, updateGlobalConfig, activeTab]);
 
   useEffect(() => {
     if (initialTab) setActiveTabState(initialTab);
@@ -334,7 +353,6 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const [jumpQuery, setJumpQuery] = useState('');
   const [jumpSelectedIndex, setJumpSelectedIndex] = useState(0);
   const [pendingJump, setPendingJump] = useState<JumpSettingEntry | null>(null);
-  const settingsContentRef = useRef<HTMLDivElement>(null);
   const [runtimeInfo, setRuntimeInfo] = useState<{
     version: string;
     iniPath: string;
@@ -441,6 +459,39 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
     }, 60);
     return () => window.clearTimeout(t);
   }, [pendingJump, activeTab]);
+
+  // Restore per-tab scroll; persist while scrolling within a tab.
+  useEffect(() => {
+    if (pendingJump) return;
+    const el = settingsContentRef.current;
+    if (!el) return;
+    const map = (globalConfig as any).configurationScrollByTab as Record<string, number> | undefined;
+    const y = map?.[activeTab];
+    if (typeof y === 'number' && Number.isFinite(y)) {
+      el.scrollTop = y;
+    } else {
+      el.scrollTop = 0;
+    }
+  }, [activeTab, pendingJump]); // eslint-disable-line react-hooks/exhaustive-deps -- restore on tab only
+
+  useEffect(() => {
+    const el = settingsContentRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (scrollSaveTimer.current) clearTimeout(scrollSaveTimer.current);
+      scrollSaveTimer.current = setTimeout(() => {
+        const prev = (globalConfig as any).configurationScrollByTab || {};
+        updateGlobalConfig({
+          configurationScrollByTab: { ...prev, [activeTab]: el.scrollTop },
+        } as any);
+      }, 180);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (scrollSaveTimer.current) clearTimeout(scrollSaveTimer.current);
+    };
+  }, [activeTab, globalConfig, updateGlobalConfig]);
 
   const filteredCategories = categories.map(cat => ({
     ...cat,
@@ -883,6 +934,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             <TabsContent value="Workspace Tools" className="m-0 border-0 p-0 outline-none flex flex-col h-full min-h-0">
               <WorkspaceToolsTabContent
                 openBottomPlugin={openBottomPluginFromConfig}
+                openMeshDrop={openMeshDropFromConfig}
                 localConfig={localConfig}
                 updateLocalConfig={updateLocalConfig}
               />
@@ -1765,6 +1817,14 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <div className="ml-[20px] pt-1">
                     <Checkbox label={<span>BNDZ is <span className="underline decoration-1 underline-offset-[3px]">d</span>efault file manager</span>} checked={localConfig.isDefaultFileManager ?? localConfig.bndzIsDefaultFileManager ?? false} onChange={e => handleDefaultFileManagerToggle(e.target.checked)} disabled={shellBusy} />
                     <p className="text-[12px] mt-[2px] ml-[22px] text-[#888]">Double-clicking drives or directories will open them in BNDZ. Unchecking restores Windows Explorer.</p>
+                 </div>
+                 <div className="ml-[22px] mt-3 flex items-center gap-2 px-3 py-2 rounded-md border border-white/[0.06] bg-black/20">
+                   <div className={`w-2 h-2 rounded-full shrink-0 ${(localConfig.isDefaultFileManager ?? localConfig.bndzIsDefaultFileManager) ? 'bg-emerald-400' : 'bg-gray-600'}`} />
+                   <span className="text-[11px] text-gray-300">
+                     {(localConfig.isDefaultFileManager ?? localConfig.bndzIsDefaultFileManager)
+                       ? 'Windows opens folders in BNDZ'
+                       : 'Windows opens folders in Explorer (default)'}
+                   </span>
                  </div>
                  {shellStatus && (
                    <p className="text-[11px] ml-[22px] mt-2 text-[#99c9f0]">{shellStatus}</p>

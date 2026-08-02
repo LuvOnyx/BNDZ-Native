@@ -5,16 +5,81 @@ namespace BNDZ.Services.RamStaging;
 /// <summary>Detect and manage ImDisk RAM volumes.</summary>
 public sealed class ImDiskProvider
 {
-    private static readonly string[] ImDiskPaths =
-    [
-        @"C:\Windows\System32\imdisk.exe",
-        @"C:\Program Files\ImDisk\imdisk.exe",
-        @"C:\Program Files (x86)\ImDisk\imdisk.exe",
-    ];
+    public bool IsAvailable
+    {
+        get
+        {
+            var now = Environment.TickCount64;
+            if (_availCached && now - _availTicks < 30_000)
+                return _availValue;
+            _availValue = FindImDisk() != null;
+            _availCached = true;
+            _availTicks = now;
+            return _availValue;
+        }
+    }
 
-    public bool IsAvailable => FindImDisk() != null;
+    public void InvalidateAvailabilityCache()
+    {
+        _availCached = false;
+        _availTicks = 0;
+    }
 
-    public string? FindImDisk() => ImDiskPaths.FirstOrDefault(File.Exists);
+    private bool _availCached;
+    private bool _availValue;
+    private long _availTicks;
+
+    public string? FindImDisk()
+    {
+        foreach (var path in CandidateImDiskPaths())
+        {
+            try
+            {
+                if (File.Exists(path)) return path;
+            }
+            catch
+            {
+                /* skip inaccessible path */
+            }
+        }
+        return null;
+    }
+
+    private static IEnumerable<string> CandidateImDiskPaths()
+    {
+        var baseDir = AppContext.BaseDirectory.TrimEnd('\\', '/');
+        yield return Path.Combine(baseDir, "redist", "imdisk", "imdisk.exe");
+        yield return Path.Combine(baseDir, "redist", "imdisk", "x64", "imdisk.exe");
+        yield return Path.Combine(baseDir, "redist", "imdisk", "cli", "imdisk.exe");
+        yield return Path.Combine(baseDir, "Assets", "redist", "imdisk", "imdisk.exe");
+        yield return Path.Combine(CacheDirectoryFallback(), "imdisk.exe");
+
+        // Vendored LTRData/ImDisk source tree build outputs (dev)
+        foreach (var root in DevRepoRoots())
+        {
+            yield return Path.Combine(root, "external", "ImDisk", "cli", "x64", "fre", "imdisk.exe");
+            yield return Path.Combine(root, "external", "ImDisk", "cli", "amd64", "imdisk.exe");
+        }
+
+        yield return @"C:\Windows\System32\imdisk.exe";
+        yield return @"C:\Program Files\ImDisk\imdisk.exe";
+        yield return @"C:\Program Files (x86)\ImDisk\imdisk.exe";
+        yield return @"C:\Program Files\ImDisk Toolkit\imdisk.exe";
+    }
+
+    private static IEnumerable<string> DevRepoRoots()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+        {
+            if (Directory.Exists(Path.Combine(dir.FullName, "external", "ImDisk"))
+                || Directory.Exists(Path.Combine(dir.FullName, "BNDZBackend")))
+                yield return dir.FullName;
+        }
+    }
+
+    private static string CacheDirectoryFallback() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BNDZ", "redist", "ImDiskTk-extract");
 
     public async Task<(string mountPath, string? driveLetter)> CreateRamVolumeAsync(
         long sizeMb,

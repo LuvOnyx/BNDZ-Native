@@ -14,7 +14,7 @@ void import('./lib/automationStore').then(({ restoreArmedAutomationsOnBoot }) =>
   void restoreArmedAutomationsOnBoot();
 });
 
-/** Explorer drags over WebView2: host opens AllowExternalDrop gate; page reports hover coords. */
+/** Explorer → BNDZ: host opens AllowExternalDrop gate; page reports hover for drop targeting. */
 function installExternalOleDragBridge() {
   let lastHoverMs = 0;
   const hasFilePayload = (types: readonly string[]) =>

@@ -41,10 +41,21 @@ export function winPathFromPane(panePath: string): string {
   return p;
 }
 
+export type OrganizeMode = 'buckets' | 'flatten' | 'date-tree' | 'dedupe-folders';
+
+export function fileWinPath(
+  rootWinPath: string,
+  file: { name?: string; path?: string },
+): string {
+  const root = rootWinPath.replace(/\\+$/, '');
+  if (file.path) return file.path.replace(/\//g, '\\');
+  return `${root}\\${file.name || ''}`;
+}
+
 export function buildOrganizePlan(
   rootWinPath: string,
   entries: Array<{ type?: string; name?: string; path?: string }>,
-  paneRoot: string,
+  _paneRoot?: string,
 ): OrganizePlanEntry[] {
   const root = rootWinPath.replace(/\\+$/, '');
   return entries
@@ -52,13 +63,107 @@ export function buildOrganizePlan(
     .map(file => {
       const name = file.name || '';
       const bucket = bucketForFile(name);
-      const src = file.path
-        ? file.path.replace(/\//g, '\\')
-        : `${root}\\${name}`;
+      const src = fileWinPath(root, file);
       const dest = `${root}\\${bucket}\\${name}`;
       return { file: src, name, bucket, dest };
     })
     .filter(p => p.file.toLowerCase() !== p.dest.toLowerCase());
+}
+
+/** Move files from nested paths into the root folder (keeps basename). */
+export function buildFlattenPlan(
+  rootWinPath: string,
+  entries: Array<{ type?: string; name?: string; path?: string }>,
+): OrganizePlanEntry[] {
+  const root = rootWinPath.replace(/\\+$/, '');
+  const rootLower = root.toLowerCase();
+  return entries
+    .filter(e => e.type === 'file')
+    .map(file => {
+      const name = file.name || '';
+      const src = fileWinPath(root, file);
+      const parent = src.replace(/\\[^\\]+$/, '');
+      if (parent.toLowerCase() === rootLower) return null;
+      return { file: src, name, bucket: 'Root', dest: `${root}\\${name}` };
+    })
+    .filter((p): p is OrganizePlanEntry => !!p && p.file.toLowerCase() !== p.dest.toLowerCase());
+}
+
+/** Group files into YYYY\\MM date folders (uses mtime when provided). */
+export function buildDateTreePlan(
+  rootWinPath: string,
+  entries: Array<{ type?: string; name?: string; path?: string; dateModified?: string | number | Date }>,
+): OrganizePlanEntry[] {
+  const root = rootWinPath.replace(/\\+$/, '');
+  const now = new Date();
+  return entries
+    .filter(e => e.type === 'file')
+    .map(file => {
+      const name = file.name || '';
+      const src = fileWinPath(root, file);
+      let d = now;
+      if (file.dateModified != null) {
+        const parsed = new Date(file.dateModified);
+        if (!Number.isNaN(parsed.getTime())) d = parsed;
+      }
+      const yyyy = String(d.getFullYear());
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const bucket = `${yyyy}\\${mm}`;
+      return { file: src, name, bucket, dest: `${root}\\${yyyy}\\${mm}\\${name}` };
+    })
+    .filter(p => p.file.toLowerCase() !== p.dest.toLowerCase());
+}
+
+/** Place each extension family into its own folder (lighter than full buckets). */
+export function buildDedupeFolderPlan(
+  rootWinPath: string,
+  entries: Array<{ type?: string; name?: string; path?: string }>,
+): OrganizePlanEntry[] {
+  const root = rootWinPath.replace(/\\+$/, '');
+  return entries
+    .filter(e => e.type === 'file')
+    .map(file => {
+      const name = file.name || '';
+      const src = fileWinPath(root, file);
+      const dot = name.lastIndexOf('.');
+      const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : 'no-ext';
+      const bucket = `.${ext}`;
+      return { file: src, name, bucket, dest: `${root}\\${bucket}\\${name}` };
+    })
+    .filter(p => p.file.toLowerCase() !== p.dest.toLowerCase());
+}
+
+export function buildOrganizePlanForMode(
+  mode: OrganizeMode,
+  rootWinPath: string,
+  entries: Array<{ type?: string; name?: string; path?: string; dateModified?: string | number | Date }>,
+): OrganizePlanEntry[] {
+  switch (mode) {
+    case 'flatten': return buildFlattenPlan(rootWinPath, entries);
+    case 'date-tree': return buildDateTreePlan(rootWinPath, entries);
+    case 'dedupe-folders': return buildDedupeFolderPlan(rootWinPath, entries);
+    case 'buckets':
+    default: return buildOrganizePlan(rootWinPath, entries);
+  }
+}
+
+export async function applyOrganizePlan(
+  plan: OrganizePlanEntry[],
+  executeFs: (id: string, op: string, src: string, dest: string) => Promise<unknown>,
+): Promise<number> {
+  let moved = 0;
+  const mkdirDone = new Set<string>();
+  for (const entry of plan) {
+    const destDir = entry.dest.replace(/\\[^\\]+$/, '');
+    const key = destDir.toLowerCase();
+    if (!mkdirDone.has(key)) {
+      await executeFs(`org-mkdir-${destDir}`, 'create-dir', destDir, '');
+      mkdirDone.add(key);
+    }
+    await executeFs(`org-move-${entry.name}-${moved}`, 'move', entry.file, entry.dest);
+    moved++;
+  }
+  return moved;
 }
 
 export function groupOrganizePlanByBucket(plan: OrganizePlanEntry[]): Record<string, OrganizePlanEntry[]> {

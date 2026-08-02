@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type RefObject } from 'react';
 export type WorkspaceMenuState = {
   x: number;
   y: number;
-  kind: 'spatial-card' | 'spatial-board' | 'automation-node' | 'automation-canvas' | 'automation-edge';
+  kind: 'spatial-card' | 'spatial-sticky' | 'spatial-board' | 'automation-node' | 'automation-canvas' | 'automation-edge';
   targetId?: string;
 } | null;
 

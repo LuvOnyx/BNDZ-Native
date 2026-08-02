@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 
 namespace BNDZ.Services;
@@ -23,6 +24,75 @@ public class CloudStorageService
         @"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    /// <summary>
+    /// DriveInfo.IsReady / VolumeLabel can hang for tens of seconds on flaky network,
+    /// Google Drive File Stream, or optical volumes — never call them on the UI/IPC thread
+    /// without a timeout.
+    /// </summary>
+    private static bool TryDriveReady(DriveInfo d, int timeoutMs = 750)
+    {
+        try
+        {
+            var task = Task.Run(() =>
+            {
+                try { return d.IsReady; }
+                catch { return false; }
+            });
+            return task.Wait(timeoutMs) && task.Result;
+        }
+        catch { return false; }
+    }
+
+    private static bool TryReadDriveMeta(DriveInfo d, out string label, out long total, out long free, out string format, int timeoutMs = 750)
+    {
+        label = "";
+        total = 0;
+        free = 0;
+        format = "";
+        try
+        {
+            var task = Task.Run<(bool Ok, string Label, long Total, long Free, string Format)>(() =>
+            {
+                try
+                {
+                    return (
+                        Ok: true,
+                        Label: d.VolumeLabel ?? "",
+                        Total: d.TotalSize,
+                        Free: d.TotalFreeSpace,
+                        Format: d.DriveFormat ?? ""
+                    );
+                }
+                catch
+                {
+                    return (Ok: false, Label: "", Total: 0L, Free: 0L, Format: "");
+                }
+            });
+            if (!task.Wait(timeoutMs)) return false;
+            var r = task.Result;
+            if (!r.Ok) return false;
+            label = r.Label;
+            total = r.Total;
+            free = r.Free;
+            format = r.Format;
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static IEnumerable<DriveInfo> EnumerateReadyDrives()
+    {
+        DriveInfo[] drives;
+        try { drives = DriveInfo.GetDrives(); }
+        catch { yield break; }
+
+        foreach (var d in drives)
+        {
+            if (TryDriveReady(d))
+                yield return d;
+        }
+    }
+
     public List<object> GetProviders()
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -41,7 +111,7 @@ public class CloudStorageService
                 try
                 {
                     var di = new DriveInfo(path.Substring(0, 1) + ":\\");
-                    if (!di.IsReady) return;
+                    if (!TryDriveReady(di)) return;
                 }
                 catch { return; }
             }
@@ -78,11 +148,9 @@ public class CloudStorageService
             AddLabeled(mount.DisplayName, mount.MountPoint, mount.Icon, mount.AccountLabel);
 
         // Volume roots that look like Google Drive File Stream (email volume label).
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
+        foreach (var drive in EnumerateReadyDrives())
         {
-            string label;
-            try { label = drive.VolumeLabel ?? ""; }
-            catch { continue; }
+            if (!TryReadDriveMeta(drive, out var label, out _, out _, out _)) continue;
             if (!LooksLikeGoogleDriveLabel(label)) continue;
             AddLabeled("Google Drive", drive.Name, "gdrive", label.Trim());
         }
@@ -115,23 +183,10 @@ public class CloudStorageService
         var dedicated = BuildDedicatedCloudVolumeMap();
         var list = new List<object>();
 
-        foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
+        foreach (var d in EnumerateReadyDrives())
         {
-            string label;
-            long total;
-            long free;
-            string format;
-            try
-            {
-                label = d.VolumeLabel ?? "";
-                total = d.TotalSize;
-                free = d.TotalFreeSpace;
-                format = d.DriveFormat;
-            }
-            catch
-            {
+            if (!TryReadDriveMeta(d, out var label, out var total, out var free, out var format))
                 continue;
-            }
 
             var letter = (d.Name.Length >= 2 ? d.Name.Substring(0, 2) : d.Name).ToUpperInvariant(); // "G:"
             dedicated.TryGetValue(letter, out var cloud);
@@ -179,11 +234,9 @@ public class CloudStorageService
         foreach (var mount in EnumerateSyncEngineMounts())
             Consider(mount.DisplayName, mount.MountPoint, mount.Icon, mount.AccountLabel);
 
-        foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
+        foreach (var d in EnumerateReadyDrives())
         {
-            string label;
-            try { label = d.VolumeLabel ?? ""; }
-            catch { continue; }
+            if (!TryReadDriveMeta(d, out var label, out _, out _, out _)) continue;
             if (!LooksLikeGoogleDriveLabel(label)) continue;
             Consider("Google Drive", d.Name, "gdrive", label.Trim());
         }

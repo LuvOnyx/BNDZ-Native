@@ -17,6 +17,8 @@
     <Product>BNDZ File Manager</Product>
     <Company>BNDZ</Company>
     <Description>Modern Windows file manager with WebView2 UI</Description>
+    <!-- Never compile/copy outputs nested under the project (verify builds, stale -o dirs). -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);_build_verify_out\**;_build*\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">

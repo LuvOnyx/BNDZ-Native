@@ -281,24 +281,50 @@ public class FileOperationService
         {
             var singleSrc = sources[0];
             // Existing directory destination → fall through to general copy/move plan.
-            // Non-existing path is the destination *file* (rename / move-as) — never
+            // Non-existing path is the destination *name* (rename / move-as) — never
             // CreateDirectory(target) then nest the old filename inside it.
-            if (File.Exists(singleSrc) && !Directory.Exists(targetDir))
+            if (!Directory.Exists(targetDir) && !File.Exists(targetDir))
             {
-                var destFile = targetDir;
-                if (File.Exists(destFile) && onConflict != null)
+                if (File.Exists(singleSrc))
                 {
-                    var resolution = await onConflict(operationId, Path.GetFileName(destFile), singleSrc, destFile);
-                    if (resolution == "skip") return createdPaths;
-                    if (resolution == "keepboth") destFile = GetUniquePath(destFile);
+                    var destFile = targetDir;
+                    if (File.Exists(destFile) && onConflict != null)
+                    {
+                        var resolution = await onConflict(operationId, Path.GetFileName(destFile), singleSrc, destFile);
+                        if (resolution == "skip") return createdPaths;
+                        if (resolution == "keepboth") destFile = GetUniquePath(destFile);
+                    }
+                    var destParent = Path.GetDirectoryName(destFile);
+                    if (!string.IsNullOrEmpty(destParent) && !Directory.Exists(destParent))
+                        Directory.CreateDirectory(destParent);
+                    File.Move(singleSrc, destFile, overwrite: true);
+                    createdPaths.Add(destFile);
+                    onProgress?.Invoke(operationId, 100, singleSrc, 0, 0, 0, 1, 1);
+                    return createdPaths;
                 }
-                var destDir = Path.GetDirectoryName(destFile);
-                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
-                    Directory.CreateDirectory(destDir);
-                File.Move(singleSrc, destFile, overwrite: true);
-                createdPaths.Add(destFile);
-                onProgress?.Invoke(operationId, 100, singleSrc, 0, 0, 0, 1, 1);
-                return createdPaths;
+
+                if (Directory.Exists(singleSrc))
+                {
+                    var destFolder = targetDir;
+                    var destParent = Path.GetDirectoryName(destFolder.TrimEnd('\\', '/'));
+                    if (!string.IsNullOrEmpty(destParent) && !Directory.Exists(destParent))
+                        Directory.CreateDirectory(destParent);
+                    try
+                    {
+                        Directory.Move(singleSrc, destFolder);
+                    }
+                    catch (IOException)
+                    {
+                        // Cross-volume: fall through to copy+delete plan with dest as new root.
+                        // Re-enter as copy into parent then delete — handled below after we
+                        // treat destFolder as the final name via a one-shot recursive copy.
+                        CopyDirectoryRecursive(singleSrc, destFolder, cancellationToken);
+                        try { Directory.Delete(singleSrc, true); } catch { /* best effort */ }
+                    }
+                    createdPaths.Add(destFolder);
+                    onProgress?.Invoke(operationId, 100, singleSrc, 0, 0, 0, 1, 1);
+                    return createdPaths;
+                }
             }
         }
 
@@ -318,7 +344,7 @@ public class FileOperationService
         {
             var destRoot = Path.Combine(targetDir, Path.GetFileName(src.TrimEnd('\\', '/')));
             Directory.CreateDirectory(destRoot);
-            foreach (var dir in Directory.EnumerateDirectories(src, "*", SearchOption.AllDirectories))
+            foreach (var dir in FileOperationPathPlanner.EnumerateChildDirectoriesRecursive(src))
             {
                 var rel = Path.GetRelativePath(src, dir);
                 Directory.CreateDirectory(Path.Combine(destRoot, rel));
@@ -478,6 +504,22 @@ public class FileOperationService
         catch (Exception ex)
         {
             Debug.WriteLine($"Set archive attribute failed for {path}: {ex.Message}");
+        }
+    }
+
+    private static void CopyDirectoryRecursive(string sourceDir, string destDir, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(destDir);
+        foreach (var file in Directory.EnumerateFiles(sourceDir))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var dest = Path.Combine(destDir, Path.GetFileName(file));
+            File.Copy(file, dest, overwrite: true);
+        }
+        foreach (var dir in Directory.EnumerateDirectories(sourceDir))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CopyDirectoryRecursive(dir, Path.Combine(destDir, Path.GetFileName(dir)), cancellationToken);
         }
     }
 

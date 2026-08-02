@@ -91,7 +91,8 @@ export default function ImageZoomPreview({
     const el = transformRef.current;
     if (!el) return;
     const { x, y } = offsetRef.current;
-    el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scaleRef.current})`;
+    const s = scaleRef.current;
+    el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${s})`;
     rafRef.current = null;
   }, []);
 
@@ -120,7 +121,10 @@ export default function ImageZoomPreview({
   }, []);
 
   const fitToContainer = useCallback((preserveZoom = false) => {
+    const stage = stageRef.current;
+    if (!stage?.clientWidth || !stage?.clientHeight) return;
     const fit = measureFitScale();
+    if (!fit || !Number.isFinite(fit)) return;
     baseFitScaleRef.current = fit;
     if (!preserveZoom) {
       offsetRef.current = { x: 0, y: 0 };
@@ -180,8 +184,9 @@ export default function ImageZoomPreview({
     const stage = stageRef.current;
     if (!stage) return;
     const ro = new ResizeObserver(() => {
+      if (!stage.clientWidth || !stage.clientHeight) return;
       const nearFit = Math.abs(scaleRef.current - baseFitScaleRef.current) < 0.08;
-      if (nearFit) fitToContainer(false);
+      if (nearFit || baseFitScaleRef.current <= 1.01) fitToContainer(false);
     });
     ro.observe(stage);
     return () => ro.disconnect();
@@ -203,7 +208,7 @@ export default function ImageZoomPreview({
         <div
           ref={transformRef}
           className="bndz-image-preview-transform"
-          style={{ transform: 'translate3d(0px, 0px, 0) scale(1)' }}
+          style={{ transform: 'translate(-50%, -50%) scale(1)' }}
         >
           <img
             ref={imgRef}

@@ -1,10 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
-import { toVirtualStreamUrl, toWindowsPath } from '../../lib/pathUtils';
+import { Icons8Icon } from '../Icons8Icon';
+import { EmblemIcon } from '../EmblemIcon';
+import { IPC } from '../../lib/ipcBridge';
+import { audioPlaybackSession } from '../../lib/audioPlaybackSession';
+import { toWindowsPath } from '../../lib/pathUtils';
 
 type Props = {
   path: string;
+  title?: string;
+};
+
+type MusicAnalysis = {
+  bpm?: number;
+  key?: string;
+  mode?: string;
+  keyConfidence?: number;
+  camelot?: string;
+  peakDb?: number;
+  suggestedHalfTime?: number;
+  suggestedDoubleTime?: number;
+  artist?: string;
   title?: string;
 };
 
@@ -15,87 +32,271 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+/** Ableton-style — light peaks on saturated track. */
+const WAVE_TRACK = '#e11d48';
+const WAVE_FILL = '#fecdd3';
+const WAVE_PROGRESS = '#fff1f2';
+const REGION = 'rgba(255, 255, 255, 0.22)';
+
+async function blobUrlFromIpc(winPath: string): Promise<string | null> {
+  const result = await IPC.getMediaBlob(winPath);
+  if (!result.base64 || !result.mime) return null;
+  const binary = atob(result.base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: result.mime }));
+}
+
+/** Downsample channel data so WaveSurfer gets drawable peaks without megabyte arrays. */
+function channelPeaks(channel: Float32Array, buckets = 2048): number[] {
+  const out: number[] = [];
+  const block = Math.max(1, Math.floor(channel.length / buckets));
+  for (let i = 0; i < buckets; i++) {
+    const start = i * block;
+    let min = 1;
+    let max = -1;
+    for (let j = start; j < start + block && j < channel.length; j++) {
+      const v = channel[j];
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    out.push(min, max);
+  }
+  return out;
+}
+
 export default function AudioWaveformEditor({ path, title }: Props) {
+  const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(() => audioPlaybackSession.getSnapshot().playing);
   const [duration, setDuration] = useState(0);
-  const [current, setCurrent] = useState(0);
+  const [current, setCurrent] = useState(() => audioPlaybackSession.getSnapshot().currentTime);
   const [region, setRegion] = useState<{ start: number; end: number } | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<MusicAnalysis | null>(null);
+  const [ready, setReady] = useState(false);
+  const [vZoom, setVZoom] = useState(1);
 
   useEffect(() => {
-    void import('../../lib/ipcBridge').then(({ IPC }) => IPC.ensureFfmpegTools());
+    void IPC.ensureFfmpegTools();
   }, []);
+
+  useEffect(() => {
+    setAnalysis(null);
+    setStatus(null);
+    setReady(false);
+  }, [path]);
+
+  useEffect(() => {
+    return audioPlaybackSession.subscribe(() => {
+      const snap = audioPlaybackSession.getSnapshot();
+      if (!audioPlaybackSession.samePath(path)) return;
+      setPlaying(snap.playing);
+      setCurrent(snap.currentTime);
+      if (snap.duration > 0) setDuration(snap.duration);
+      if (snap.error) setStatus(snap.error);
+    });
+  }, [path]);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !path) return;
+    let cancelled = false;
+    let ws: WaveSurfer | null = null;
 
-    const regions = RegionsPlugin.create();
-    regionsRef.current = regions;
-    const ws = WaveSurfer.create({
-      container: el,
-      height: 96,
-      waveColor: 'rgba(126, 184, 232, 0.45)',
-      progressColor: '#7eb8e8',
-      cursorColor: '#c4a35a',
-      barWidth: 2,
-      barGap: 1,
-      normalize: true,
-      url: toVirtualStreamUrl(path),
-      plugins: [regions],
-    });
-    wsRef.current = ws;
+    const setup = async () => {
+      el.replaceChildren();
+      setStatus(null);
 
-    ws.on('ready', () => {
-      const d = ws.getDuration();
-      setDuration(d);
-      const r = regions.addRegion({
-        start: 0,
-        end: Math.min(d, d > 30 ? 30 : d),
-        color: 'rgba(196, 163, 90, 0.22)',
-        drag: true,
-        resize: true,
+      // Resolve ONE live blob — never bndz-stream for peaks (fetch/decode fails silently).
+      let blobUrl = '';
+      const snap = audioPlaybackSession.getSnapshot();
+      if (audioPlaybackSession.samePath(path) && snap.resolvedSrc.startsWith('blob:')) {
+        blobUrl = snap.resolvedSrc;
+      } else {
+        try {
+          const created = await blobUrlFromIpc(toWindowsPath(path));
+          if (cancelled) return;
+          if (!created) {
+            setStatus('Could not load audio for waveform');
+            return;
+          }
+          blobUrl = created;
+          audioPlaybackSession.load(path, blobUrl, { force: true });
+        } catch (e) {
+          if (!cancelled) setStatus(e instanceof Error ? e.message : 'Waveform load failed');
+          return;
+        }
+      }
+
+      if (cancelled || !blobUrl) return;
+
+      // Decode peaks ourselves — WaveSurfer `media`-only does not draw bars.
+      let peaks: number[][] = [];
+      let peakDuration = 0;
+      try {
+        const ab = await (await fetch(blobUrl)).arrayBuffer();
+        if (cancelled) return;
+        const ctx = new AudioContext();
+        try {
+          const audioBuffer = await ctx.decodeAudioData(ab.slice(0));
+          peakDuration = audioBuffer.duration;
+          const chans = Math.min(2, audioBuffer.numberOfChannels);
+          for (let ch = 0; ch < chans; ch++) {
+            peaks.push(channelPeaks(audioBuffer.getChannelData(ch)));
+          }
+        } finally {
+          void ctx.close();
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setStatus(e instanceof Error ? e.message : 'Could not decode waveform peaks');
+        }
+        return;
+      }
+
+      if (cancelled || !peaks.length || !(peakDuration > 0)) {
+        setStatus('Waveform decode produced no peaks');
+        return;
+      }
+
+      const media = audioPlaybackSession.getMediaElement();
+      const regions = RegionsPlugin.create();
+      regionsRef.current = regions;
+      ws = WaveSurfer.create({
+        container: el,
+        height: Math.round(140 * vZoom),
+        waveColor: WAVE_FILL,
+        progressColor: WAVE_PROGRESS,
+        cursorColor: '#fff',
+        cursorWidth: 2,
+        barWidth: 2,
+        barGap: 0,
+        barRadius: 0,
+        normalize: true,
+        fillParent: true,
+        media,
+        peaks,
+        duration: peakDuration,
+        plugins: [regions],
       });
-      setRegion({ start: r.start, end: r.end });
-    });
-    ws.on('audioprocess', () => setCurrent(ws.getCurrentTime()));
-    ws.on('play', () => setPlaying(true));
-    ws.on('pause', () => setPlaying(false));
-    ws.on('finish', () => setPlaying(false));
-    regions.on('region-updated', (r: { start: number; end: number }) => {
-      setRegion({ start: r.start, end: r.end });
-    });
+      wsRef.current = ws;
+      el.style.setProperty('--bndz-wave-track', WAVE_TRACK);
+
+      const finishReady = () => {
+        if (!ws) return;
+        const d = ws.getDuration() || peakDuration || audioPlaybackSession.getSnapshot().duration;
+        setDuration(d);
+        setReady(true);
+        setCurrent(media.currentTime || 0);
+        setPlaying(!media.paused && !media.ended);
+        regions.clearRegions();
+        const r = regions.addRegion({
+          start: 0,
+          end: Math.min(d || 1, (d || 1) > 30 ? 30 : (d || 1)),
+          color: REGION,
+          drag: true,
+          resize: true,
+        });
+        setRegion({ start: r.start, end: r.end });
+      };
+
+      ws.on('ready', finishReady);
+      // peaks+duration often fire ready immediately; also sync if already ready
+      try {
+        if (ws.getDuration() > 0) finishReady();
+      } catch { /* */ }
+
+      ws.on('audioprocess', () => { if (ws) setCurrent(ws.getCurrentTime()); });
+      ws.on('timeupdate', () => { if (ws) setCurrent(ws.getCurrentTime()); });
+      ws.on('play', () => setPlaying(true));
+      ws.on('pause', () => setPlaying(false));
+      ws.on('finish', () => setPlaying(false));
+      regions.on('region-updated', (r: { start: number; end: number }) => {
+        setRegion({ start: r.start, end: r.end });
+      });
+    };
+
+    void setup();
 
     return () => {
-      ws.destroy();
+      cancelled = true;
+      const snap = audioPlaybackSession.getSnapshot();
+      const keepPlaying = snap.playing && audioPlaybackSession.samePath(path);
+      const t = snap.currentTime;
+      try { ws?.destroy(); } catch { /* */ }
       wsRef.current = null;
       regionsRef.current = null;
+      if (keepPlaying) {
+        audioPlaybackSession.seek(t);
+        audioPlaybackSession.play();
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
-  const togglePlay = () => {
+  useEffect(() => {
     const ws = wsRef.current;
-    if (!ws) return;
-    void ws.playPause();
+    if (!ws || !ready) return;
+    try {
+      ws.setOptions({ height: Math.round(140 * vZoom) });
+    } catch { /* */ }
+  }, [vZoom, ready]);
+
+  useEffect(() => {
+    const root = editorRef.current;
+    if (!root) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.altKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.ctrlKey) {
+        const dir = e.deltaY > 0 ? -0.08 : 0.08;
+        setVZoom(z => Math.max(0.55, Math.min(2.4, +(z + dir).toFixed(2))));
+        return;
+      }
+      if (e.altKey) {
+        const ws = wsRef.current;
+        if (!ws || !ready) return;
+        const dur = ws.getDuration() || 1;
+        const el = containerRef.current;
+        const fit = el ? Math.max(1, Math.floor(el.clientWidth / dur)) : 1;
+        const cur = (ws as unknown as { options?: { minPxPerSec?: number } }).options?.minPxPerSec || fit;
+        const next = Math.max(fit, Math.min(480, cur * (e.deltaY > 0 ? 0.85 : 1.18)));
+        try { ws.zoom(next); } catch { /* */ }
+      }
+    };
+    root.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => root.removeEventListener('wheel', onWheel, { capture: true });
+  }, [ready]);
+
+  const togglePlay = () => {
+    audioPlaybackSession.clearError();
+    audioPlaybackSession.toggle();
+  };
+
+  const skip = (delta: number) => {
+    audioPlaybackSession.skip(delta);
   };
 
   const playRegion = () => {
     const ws = wsRef.current;
     if (!ws || !region) return;
-    ws.setTime(region.start);
-    void ws.play();
+    audioPlaybackSession.seek(region.start);
+    audioPlaybackSession.play();
     const stopAt = region.end;
-    const onTime = () => {
-      if (ws.getCurrentTime() >= stopAt) {
-        ws.pause();
-        ws.un('timeupdate', onTime);
+    const unsub = audioPlaybackSession.subscribe(() => {
+      const t = audioPlaybackSession.getSnapshot().currentTime;
+      if (t >= stopAt) {
+        audioPlaybackSession.pause();
+        unsub();
       }
-    };
-    ws.on('timeupdate', onTime);
+    });
   };
 
   const exportSelection = async () => {
@@ -103,7 +304,6 @@ export default function AudioWaveformEditor({ path, title }: Props) {
     setBusy(true);
     setStatus(null);
     try {
-      const { IPC } = await import('../../lib/ipcBridge');
       const dest = await IPC.trimAudioFile(toWindowsPath(path), region.start, region.end);
       if (dest?.ok) setStatus(`Exported → ${dest.path?.split(/[/\\]/).pop() || 'clip'}`);
       else setStatus(dest?.error || 'Export failed — preparing audio tools…');
@@ -114,26 +314,162 @@ export default function AudioWaveformEditor({ path, title }: Props) {
     }
   };
 
+  const detectMusic = async () => {
+    if (!path) return;
+    setAnalyzing(true);
+    setStatus(null);
+    try {
+      const r = await IPC.analyzeMusicFile(toWindowsPath(path));
+      if (!r?.ok) {
+        setStatus(r?.error || 'Analysis failed');
+        setAnalysis(null);
+        return;
+      }
+      setAnalysis({
+        bpm: r.bpm,
+        key: r.key,
+        mode: r.mode,
+        keyConfidence: r.keyConfidence,
+        camelot: r.camelot,
+        peakDb: r.peakDb,
+        suggestedHalfTime: r.suggestedHalfTime,
+        suggestedDoubleTime: r.suggestedDoubleTime,
+        artist: r.artist,
+        title: r.title,
+      });
+      if (r.sidecarTags?.length) {
+        try {
+          const sc = await IPC.getTagSidecar(toWindowsPath(path));
+          const existing = sc?.tags?.filter(Boolean) ?? [];
+          const merged = [...new Set([
+            ...existing.filter(t => !/^(bpm|key|camelot)(?:\s|:|$|\d)/i.test(String(t).trim())),
+            ...r.sidecarTags,
+          ])];
+          await IPC.setTagMeta(toWindowsPath(path), sc?.label, sc?.comment, merged);
+        } catch { /* sidecar optional */ }
+      }
+      setStatus(`Detected ${r.bpm} BPM · ${r.key} ${r.mode}${r.camelot ? ` · Camelot ${r.camelot}` : ''}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Analysis failed');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const keyLabel = analysis?.key
+    ? `${analysis.key} ${analysis.mode === 'minor' ? 'min' : 'maj'}`
+    : null;
+
+  const displayTitle = title || analysis?.title || path.split(/[/\\]/).pop();
+
   return (
-    <div className="bndz-wave-editor flex flex-col gap-2 p-3 h-full min-h-[200px]">
-      <div className="flex items-center justify-between gap-2">
+    <div ref={editorRef} className="bndz-wave-editor flex flex-col p-3 h-full min-h-[260px]">
+      <div className="bndz-wave-editor-head">
         <div className="min-w-0">
-          <div className="text-[11px] font-medium text-white truncate">{title || path.split(/[/\\]/).pop()}</div>
-          <div className="text-[10px] text-[#7a8088]">Zero-Launch waveform · drag handles to trim</div>
+          <div className="bndz-wave-editor-kicker">Producer desk</div>
+          <div className="bndz-wave-editor-title truncate">{displayTitle}</div>
+          <div className="bndz-wave-editor-sub">
+            {analysis?.artist ? `${analysis.artist} · ` : ''}
+            Ctrl+wheel vertical · Alt+wheel timeline · shared playback
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button type="button" className="bndz-lens-chip" onClick={togglePlay}>{playing ? 'Pause' : 'Play'}</button>
-          <button type="button" className="bndz-lens-chip" disabled={!region} onClick={playRegion}>Loop region</button>
-          <button type="button" className="bndz-lens-chip" disabled={!region || busy} onClick={() => void exportSelection()}>
+        <div className="bndz-wave-editor-tools">
+          <button
+            type="button"
+            className="bndz-wave-btn is-primary"
+            disabled={analyzing}
+            onClick={() => void detectMusic()}
+          >
+            <Icons8Icon id="music_ui" size={12} />
+            {analyzing ? 'Detecting…' : 'Detect BPM + Key'}
+          </button>
+          <button
+            type="button"
+            className="bndz-wave-btn is-accent"
+            disabled={!region || busy}
+            onClick={() => void exportSelection()}
+          >
+            <Icons8Icon id="download" size={12} />
             {busy ? 'Exporting…' : 'Export clip'}
           </button>
         </div>
       </div>
-      <div ref={containerRef} className="rounded-md bg-[#12141a] border border-white/[0.06] min-h-[96px]" />
-      <div className="flex items-center justify-between text-[10px] text-[#7a8088] bndz-mono">
-        <span>{formatTime(current)} / {formatTime(duration)}</span>
-        {region && <span>Selection {formatTime(region.start)} – {formatTime(region.end)}</span>}
-        {status && <span className="text-[#7eb8e8]">{status}</span>}
+
+      {analysis && (
+        <div className="bndz-music-analysis-strip" role="status">
+          <div className="bndz-music-stat">
+            <span className="bndz-music-stat-label">BPM</span>
+            <span className="bndz-music-stat-value">{analysis.bpm?.toFixed(1)}</span>
+          </div>
+          <div className="bndz-music-stat">
+            <span className="bndz-music-stat-label">Key</span>
+            <span className="bndz-music-stat-value">{keyLabel}</span>
+          </div>
+          <div className="bndz-music-stat">
+            <span className="bndz-music-stat-label">Camelot</span>
+            <span className="bndz-music-stat-value">{analysis.camelot || '—'}</span>
+          </div>
+          <div className="bndz-music-stat">
+            <span className="bndz-music-stat-label">Peak</span>
+            <span className="bndz-music-stat-value">{analysis.peakDb != null ? `${analysis.peakDb.toFixed(1)} dB` : '—'}</span>
+          </div>
+          <div className="bndz-music-stat bndz-music-stat--wide">
+            <span className="bndz-music-stat-label">Half / Double</span>
+            <span className="bndz-music-stat-value">
+              {analysis.suggestedHalfTime?.toFixed(1)} · {analysis.suggestedDoubleTime?.toFixed(1)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="bndz-wave-transport">
+        <button type="button" className="bndz-wave-btn" disabled={!ready} onClick={() => skip(-5)} title="Back 5s">
+          <EmblemIcon id="media-seek-backward" size={12} />
+          −5s
+        </button>
+        <button type="button" className="bndz-wave-btn is-primary" disabled={!ready} onClick={togglePlay}>
+          <EmblemIcon id={playing ? 'media-playback-paused' : 'media-playback-playing'} size={12} />
+          {playing ? 'Pause' : 'Play'}
+        </button>
+        <button type="button" className="bndz-wave-btn" disabled={!ready} onClick={() => skip(5)} title="Forward 5s">
+          <EmblemIcon id="media-seek-forward" size={12} />
+          +5s
+        </button>
+        <button type="button" className="bndz-wave-btn" disabled={!region || !ready} onClick={playRegion}>
+          Loop region
+        </button>
+      </div>
+
+      <div ref={wrapRef} className="bndz-wave-canvas-wrap bndz-wave-canvas-wrap--daw">
+        <div ref={containerRef} className="bndz-wave-canvas" />
+        {!ready && (
+          <div className="bndz-wave-canvas-loading" aria-live="polite">
+            {status || 'Decoding waveform…'}
+          </div>
+        )}
+      </div>
+
+      <div className="bndz-wave-meter">
+        <span className="bndz-wave-meter-time bndz-mono">
+          {formatTime(current)} / {formatTime(duration)}
+        </span>
+        {region && (
+          <span className="bndz-wave-meter-sel bndz-mono">
+            Selection {formatTime(region.start)} – {formatTime(region.end)}
+            {' · '}
+            {(region.end - region.start).toFixed(1)}s
+          </span>
+        )}
+        <span className="bndz-wave-meter-levels" aria-hidden>
+          {[0.35, 0.55, 0.8, 0.62, 0.9, 0.7, 0.45].map((h, i) => (
+            <span
+              key={i}
+              className="bndz-wave-meter-bar"
+              style={{ height: `${Math.round(h * 16 * (playing ? 0.7 + (i % 3) * 0.15 : 0.45))}px` }}
+            />
+          ))}
+        </span>
+        {status && ready && <span className="text-[#fda4af]">{status}</span>}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace BNDZ.Services.MeshDrop;
 
-/// <summary>Chunked file transfer frames over WebRTC data channel or TCP fallback.</summary>
+/// <summary>Chunked file transfer frames over a WebRTC data channel.</summary>
 public static class MeshDropProtocol
 {
     public const int ChunkSize = 256 * 1024;

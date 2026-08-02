@@ -8,7 +8,8 @@ import {
     useGroupRef,
     usePanelRef,
 } from 'react-resizable-panels';
-import React from 'react';
+import React, { useCallback } from 'react';
+import { clearChromeDragCursor } from '../../lib/workspace/workspaceCursorGuard';
 
 export type { Layout, GroupImperativeHandle, PanelImperativeHandle };
 export { useGroupRef, usePanelRef };
@@ -81,11 +82,26 @@ interface ResizableHandleProps extends React.ComponentProps<typeof Separator> {
     withHandle?: boolean;
 }
 
+function endResizeCursor(el: EventTarget | null) {
+    const node = el as HTMLElement | null;
+    if (node) {
+        try {
+            for (let i = 0; i < 16; i++) {
+                if (node.hasPointerCapture?.(i)) node.releasePointerCapture(i);
+            }
+        } catch { /* ignore */ }
+    }
+    clearChromeDragCursor();
+}
+
 export const ResizableHandle = ({
     className,
     direction,
     withHandle = false,
     disabled,
+    onPointerUp,
+    onPointerCancel,
+    onLostPointerCapture,
     ...props
 }: ResizableHandleProps) => {
     const isVertical = direction === 'vertical' || className?.includes('cursor-row-resize');
@@ -93,10 +109,26 @@ export const ResizableHandle = ({
         ? 'h-1 bg-[#282830] transition-colors hover:bg-[#3b82f6] flex items-center justify-center cursor-row-resize z-50 data-[disabled]:opacity-0 data-[disabled]:pointer-events-none'
         : 'w-1 bg-[#282830] transition-colors hover:bg-[#3b82f6] flex items-center justify-center cursor-col-resize z-50 data-[disabled]:opacity-0 data-[disabled]:pointer-events-none';
 
+    const finish = useCallback((e: React.PointerEvent) => {
+        endResizeCursor(e.currentTarget);
+    }, []);
+
     return (
         <Separator
             className={className || defaultClassName}
             disabled={disabled}
+            onPointerUp={(e) => {
+                finish(e);
+                onPointerUp?.(e);
+            }}
+            onPointerCancel={(e) => {
+                finish(e);
+                onPointerCancel?.(e);
+            }}
+            onLostPointerCapture={(e) => {
+                finish(e);
+                onLostPointerCapture?.(e);
+            }}
             {...props}
         >
             {withHandle && (

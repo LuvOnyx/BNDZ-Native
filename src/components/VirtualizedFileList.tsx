@@ -1,8 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
-/** Trailing empty canvas so folder (New / Paste) context menu stays reachable when the list is full. */
-export const LIST_FOLDER_CONTEXT_PAD_PX = 72;
+/** Trailing empty canvas so deselect / marquee / folder context stay reachable when the list is full. */
+export const LIST_FOLDER_CONTEXT_PAD_PX = 140;
 
 interface VirtualizedFileListProps<T> {
   items: T[];
@@ -144,21 +144,28 @@ export function VirtualizedFileList<T>({
       }
       return (
         <div
-          className={className}
+          className={`${className} bndz-list-body`}
           style={{
             minHeight: contentMin || undefined,
             width: '100%',
             gap: mode === 'list' ? gap : undefined,
-            paddingBottom: LIST_FOLDER_CONTEXT_PAD_PX,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {items.map((item, i) => renderItem(item, i))}
+          <div
+            className="bndz-list-empty-canvas"
+            aria-hidden
+            style={{ flex: '1 1 auto', minHeight: LIST_FOLDER_CONTEXT_PAD_PX, width: '100%' }}
+          />
         </div>
       );
     }
 
     if (mode === 'grid') {
       const bodyHeight = withFolderPad(virtualizer.getTotalSize());
+      const contentEnd = virtualizer.getTotalSize();
       return (
         <div
           className={className}
@@ -195,14 +202,27 @@ export function VirtualizedFileList<T>({
               </div>
             );
           })}
+          <div
+            className="bndz-list-empty-canvas"
+            aria-hidden
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: contentEnd,
+              bottom: 0,
+              minHeight: LIST_FOLDER_CONTEXT_PAD_PX,
+            }}
+          />
         </div>
       );
     }
 
     const bodyHeight = withFolderPad(virtualizer.getTotalSize());
+    const contentEnd = virtualizer.getTotalSize();
     return (
       <div
-        className={className}
+        className={`${className} bndz-list-body`}
         style={{ height: bodyHeight, minHeight: withFolderPad(0), position: 'relative', width: '100%' }}
       >
         {virtualizer.getVirtualItems().map(vi => (
@@ -225,6 +245,18 @@ export function VirtualizedFileList<T>({
             </div>
           </div>
         ))}
+        <div
+          className="bndz-list-empty-canvas"
+          aria-hidden
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: contentEnd,
+            bottom: 0,
+            minHeight: LIST_FOLDER_CONTEXT_PAD_PX,
+          }}
+        />
       </div>
     );
   };

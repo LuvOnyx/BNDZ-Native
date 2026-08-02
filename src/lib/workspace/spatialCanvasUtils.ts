@@ -1,4 +1,4 @@
-import type { CanvasItem } from '../spatialCanvasStore';
+import type { CanvasItem, SpatialSticky } from '../spatialCanvasStore';
 
 export type PinCluster = {
   id: string;
@@ -88,15 +88,30 @@ export function computeRelations(
   return relations;
 }
 
-export function exportConstellationJson(doc: { name: string; items: CanvasItem[]; panX: number; panY: number; zoom: number }) {
+export function exportConstellationJson(doc: {
+  name: string;
+  items: CanvasItem[];
+  stickies?: SpatialSticky[];
+  panX: number;
+  panY: number;
+  zoom: number;
+}) {
   return JSON.stringify({
     format: 'bndz-constellation-v1',
     exportedAt: Date.now(),
     ...doc,
+    stickies: doc.stickies ?? [],
   }, null, 2);
 }
 
-export function parseConstellationImport(raw: string): { items: CanvasItem[]; panX?: number; panY?: number; zoom?: number; name?: string } | null {
+export function parseConstellationImport(raw: string): {
+  items: CanvasItem[];
+  stickies?: SpatialSticky[];
+  panX?: number;
+  panY?: number;
+  zoom?: number;
+  name?: string;
+} | null {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (parsed.format && parsed.format !== 'bndz-constellation-v1') return null;
@@ -107,8 +122,12 @@ export function parseConstellationImport(raw: string): { items: CanvasItem[]; pa
       seen.add(it.path);
       return true;
     });
+    const stickies = Array.isArray(parsed.stickies)
+      ? (parsed.stickies as SpatialSticky[]).filter(s => s && typeof s.id === 'string' && typeof s.x === 'number' && typeof s.y === 'number')
+      : undefined;
     return {
       items,
+      stickies,
       panX: typeof parsed.panX === 'number' ? parsed.panX : undefined,
       panY: typeof parsed.panY === 'number' ? parsed.panY : undefined,
       zoom: typeof parsed.zoom === 'number' ? parsed.zoom : undefined,

@@ -34,13 +34,15 @@ export default function InspectionViewportRouter({
 
   if (!useGpu) {
     return (
-      <ImageZoomPreview
-        src={src}
-        alt={alt}
-        fallbackSrc={fallbackSrc}
-        filePath={filePath}
-        onOpenFloating={onOpenFloating}
-      />
+      <div className="relative w-full h-full min-h-0 flex flex-col">
+        <ImageZoomPreview
+          src={src}
+          alt={alt}
+          fallbackSrc={fallbackSrc}
+          filePath={filePath}
+          onOpenFloating={onOpenFloating}
+        />
+      </div>
     );
   }
 

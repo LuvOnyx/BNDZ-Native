@@ -60,6 +60,12 @@ export async function executeMeshTransfer(req: MeshTransferRequest): Promise<{ o
         move: route.move,
       });
     }
+    case 'mesh-drop-send': {
+      const paths = (route.paths?.length ? route.paths : localPathsFromSources(sourcePaths)).filter(Boolean);
+      if (!paths.length) return { ok: false, error: 'No files for Mesh Drop' };
+      window.dispatchEvent(new CustomEvent('bndz-mesh-drop-send', { detail: { paths, operationId } }));
+      return { ok: true };
+    }
     default:
       return { ok: false, error: 'Not a mesh transfer' };
   }

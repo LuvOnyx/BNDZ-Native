@@ -199,20 +199,24 @@ export default function BottomPluginPanel(props: any & {
       onCommandDeckTool(id);
       return;
     }
+    if (id === 'mesh-drop') {
+      window.dispatchEvent(new CustomEvent('bndz-mesh-drop-send', { detail: { paths: [] } }));
+      return;
+    }
     const tabMap: Partial<Record<ContextToolId, string>> = {
       properties: 'properties',
       'batch-rename': 'batch-rename',
-      compare: 'find',
+      compare: 'compare',
       'storage-cleanup': 'storage-cleanup',
-      'index-folder': 'index',
+      'index-folder': 'find',
       waveform: 'metadata',
-      'media-tab': 'media',
-      histogram: 'preview',
-      loupe: 'preview',
-      'quick-look': 'preview',
+      'media-tab': 'metadata',
+      // Inspection shaders / Quick Look require Command Deck handler — do not open Properties.
       'ghost-link': 'ghost-link',
-      'mesh-drop': 'mesh-drop',
       'ram-staging': 'ram-staging',
+      dropstack: 'dropstack',
+      catalog: 'catalog',
+      'folder-sync': 'folder-sync',
     };
     const tab = tabMap[id];
     if (tab) handleTabClick(tab);
@@ -343,6 +347,21 @@ export default function BottomPluginPanel(props: any & {
               </div>
             )}
             <div className="flex items-center gap-1 px-2 shrink-0 border-l border-white/[0.04]">
+              {activeTab && (
+                <button
+                  type="button"
+                  className="bndz-bottom-popout-btn"
+                  title="Pop out plugin into a separate window"
+                  onClick={() => {
+                    const name = activePlugin?.name;
+                    void import('../lib/ipcBridge').then(({ IPC }) =>
+                      IPC.openPluginWindow(activeTab, { title: name }),
+                    );
+                  }}
+                >
+                  <Icons8Icon id="external_link" size={12} />
+                </button>
+              )}
               {!immersive && onEnterImmersive && (
                 <button
                   type="button"
@@ -411,9 +430,9 @@ export default function BottomPluginPanel(props: any & {
       <>
         <div className="bndz-bottom-immersive-placeholder h-full flex items-center justify-center gap-2 px-3 text-[11px] text-gray-500">
           <Icons8Icon id="extension_hub" size={12} className="opacity-60" />
-          Immersive mode covering the list
+          Plugin immersive — list covered
           <button type="button" className="text-[#7eb8e8] hover:text-[#99c9f0] font-medium" onClick={() => onExitImmersive?.()}>
-            Restore
+            Exit immersive
           </button>
         </div>
         {createPortal(

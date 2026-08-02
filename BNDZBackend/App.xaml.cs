@@ -18,6 +18,10 @@ namespace BNDZ
         private static Mutex? _instanceMutex;
         /// <summary>Second process launched via --stage-window (tear-off / Lens Stage).</summary>
         public static bool IsStageWindow { get; private set; }
+        /// <summary>Second process launched via --plugin-window (plugin pop-out / sticky widget).</summary>
+        public static bool IsPluginWindow { get; private set; }
+        public static string? PluginWindowId { get; private set; }
+        public static string? PluginStickyId { get; private set; }
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
@@ -132,6 +136,10 @@ namespace BNDZ
             }
 
             IsStageWindow = HasArg(e.Args, "--stage-window");
+            PluginWindowId = ResolveArgValue(e.Args, "--plugin-window");
+            PluginStickyId = ResolveArgValue(e.Args, "--sticky-id");
+            IsPluginWindow = !string.IsNullOrWhiteSpace(PluginWindowId);
+            var pluginTitle = ResolveArgValue(e.Args, "--plugin-title");
 
             var serviceCollection = new ServiceCollection();
             ConfigureServices(serviceCollection);
@@ -144,6 +152,8 @@ namespace BNDZ
             var startupAction = ResolveStartupAction(e.Args);
             if (!string.IsNullOrWhiteSpace(startupAction))
                 mainWindow.SetPendingStartupAction(startupAction);
+            if (IsPluginWindow && !string.IsNullOrWhiteSpace(PluginWindowId))
+                mainWindow.SetPendingPluginWindow(PluginWindowId!, PluginStickyId, pluginTitle);
             mainWindow.Show();
 
             BndzFileManagerIpcService.Instance.RegisterMain(mainWindow);
@@ -152,13 +162,14 @@ namespace BNDZ
 
         /// <summary>
         /// Honor "Allow multiple instances". When disabled, activate the existing process instead.
-        /// Stage Workspaces (--stage-window) always opens a second process so tear-off is real.
+        /// Stage Workspaces (--stage-window) and plugin pop-outs (--plugin-window) always open a
+        /// second process so tear-off / sticky widgets are real.
         /// </summary>
         private static bool TryAcquireSingleInstance(string[] args)
         {
             try
             {
-                if (HasArg(args, "--stage-window") || ReadAllowMultipleInstances())
+                if (HasArg(args, "--stage-window") || HasArg(args, "--plugin-window") || ReadAllowMultipleInstances())
                     return true;
 
                 const string name = @"Local\BNDZ-FileManager-SingleInstance";
@@ -197,6 +208,16 @@ namespace BNDZ
 
         private static bool HasArg(string[] args, string flag) =>
             args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+        private static string? ResolveArgValue(string[] args, string flag)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                    return args[i + 1];
+            }
+            return null;
+        }
 
         /// <summary>
         /// Resolve a stable EXE for UAC relaunch — never re-elevate via dotnet.exe host.

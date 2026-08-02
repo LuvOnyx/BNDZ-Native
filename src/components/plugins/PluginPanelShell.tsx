@@ -10,6 +10,7 @@ interface PluginPanelShellProps {
   toolbar?: ReactNode;
   children: ReactNode;
   status?: ReactNode;
+  footer?: ReactNode;
   /** When embedded in bottom tab strip, skip duplicate title chrome */
   variant?: 'default' | 'embedded';
 }
@@ -23,6 +24,7 @@ export default function PluginPanelShell({
   toolbar,
   children,
   status,
+  footer,
   variant = 'default',
 }: PluginPanelShellProps) {
   if (variant === 'embedded') {
@@ -36,7 +38,12 @@ export default function PluginPanelShell({
         {status && (
           <div className="shrink-0 px-4 py-2 border-b border-white/[0.06] bndz-panel-muted">{status}</div>
         )}
-        <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bndz-scrollbar overscroll-contain">{children}</div>
+        {footer && (
+          <div className="bndz-plugin-footer shrink-0 px-3 py-2 border-t border-white/[0.06] flex items-center gap-2 bg-black/25">
+            {footer}
+          </div>
+        )}
       </div>
     );
   }
@@ -46,7 +53,7 @@ export default function PluginPanelShell({
       <div className="bndz-plugin-toolbar shrink-0 px-4 py-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Icons8Icon id={icon} size={16} className="shrink-0" />
+            <Icons8Icon id={icon} size={16} className="shrink-0" style={{ color: iconColor } as React.CSSProperties} />
             <span className="font-semibold text-sm text-white tracking-tight">{title}</span>
           </div>
           {subtitle && <p className="bndz-panel-muted mt-0.5 truncate">{subtitle}</p>}
@@ -56,7 +63,12 @@ export default function PluginPanelShell({
       {status && (
         <div className="shrink-0 px-4 py-2 border-b border-white/[0.06] bndz-panel-muted">{status}</div>
       )}
-      <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bndz-scrollbar overscroll-contain">{children}</div>
+      {footer && (
+        <div className="bndz-plugin-footer shrink-0 px-4 py-2 border-t border-white/[0.06] flex items-center gap-2 bg-black/25">
+          {footer}
+        </div>
+      )}
     </div>
   );
 }

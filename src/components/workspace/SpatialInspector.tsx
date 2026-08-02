@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ShellNativeIcon } from '../ShellNativeIcon';
 import { IPC } from '../../lib/ipcBridge';
 import TagStudioPanel from './TagStudioPanel';
-import type { CanvasItem } from '../../lib/spatialCanvasStore';
+import type { CanvasItem, SpatialSticky } from '../../lib/spatialCanvasStore';
 
 function pathLooksLikeDir(p: string): boolean {
   const base = p.split(/[/\\]/).pop() || '';
@@ -11,6 +11,7 @@ function pathLooksLikeDir(p: string): boolean {
 
 type Props = {
   items: CanvasItem[];
+  stickies?: SpatialSticky[];
   selectedIds: string[];
   snapshotCount?: number;
   boardName?: string;
@@ -22,10 +23,12 @@ type Props = {
   onAddTag: (path: string, tag: string) => void;
   onRemoveTag: (path: string, tag: string) => void;
   onBatchAddTag?: (paths: string[], tag: string) => void;
+  onUpdateStickyText?: (id: string, text: string) => void;
 };
 
 export default function SpatialInspector({
   items,
+  stickies = [],
   selectedIds,
   snapshotCount = 0,
   boardName,
@@ -37,9 +40,12 @@ export default function SpatialInspector({
   onAddTag,
   onRemoveTag,
   onBatchAddTag,
+  onUpdateStickyText,
 }: Props) {
   const selected = items.filter(it => selectedIds.includes(it.id));
+  const selectedStickies = stickies.filter(s => selectedIds.includes(s.id));
   const primary = selected[0] ?? null;
+  const primarySticky = !primary ? (selectedStickies[0] ?? null) : null;
   const [tags, setTags] = useState<string[]>([]);
   const [sidecarLabel, setSidecarLabel] = useState('');
   const [shellMeta, setShellMeta] = useState<{ size?: string; modified?: string } | null>(null);
@@ -48,6 +54,7 @@ export default function SpatialInspector({
     if (!primary?.path || !IPC.isNative) {
       setTags([]);
       setSidecarLabel('');
+      setShellMeta(null);
       return;
     }
     let active = true;
@@ -66,7 +73,7 @@ export default function SpatialInspector({
     return () => { active = false; };
   }, [primary?.path, primary?.id]);
 
-  if (!primary) {
+  if (!primary && !primarySticky) {
     return (
       <aside className="bndz-spatial-inspector shrink-0">
         <div className="bndz-spatial-inspector-head">
@@ -74,18 +81,44 @@ export default function SpatialInspector({
         </div>
         <div className="bndz-spatial-inspector-empty">
           <img src="/Ui/preview-Big Folder.svg" alt="" className="bndz-spatial-inspector-hero" />
-          <p>Select a pin or marquee cards to inspect paths, tags, and notes.</p>
+          <p>Select a pin or sticky to inspect paths, tags, and notes.</p>
           <div className="bndz-spatial-inspector-board-stats">
             <div><strong>{items.length}</strong> pin{items.length === 1 ? '' : 's'}</div>
+            {stickies.length > 0 ? <div><strong>{stickies.length}</strong> sticky{stickies.length === 1 ? '' : 'ies'}</div> : null}
             {boardName ? <div>{boardName}</div> : null}
             {snapshotCount > 0 ? <div>{snapshotCount} snapshot{snapshotCount === 1 ? '' : 's'}</div> : null}
           </div>
           <ul className="bndz-spatial-inspector-tips">
+            <li>Click once to select · double-click to open</li>
             <li>Drop files from any pane</li>
             <li>Delete removes pins · not files</li>
             <li>Tags sync with BNDZ sidecars</li>
-            <li>Ctrl+Shift+A seeds Automation</li>
           </ul>
+        </div>
+      </aside>
+    );
+  }
+
+  if (primarySticky) {
+    return (
+      <aside className="bndz-spatial-inspector shrink-0">
+        <div className="bndz-spatial-inspector-head">
+          <span className="bndz-spatial-inspector-title">
+            {selectedStickies.length > 1 ? `${selectedStickies.length} stickies` : 'Sticky'}
+          </span>
+        </div>
+        <div className="bndz-spatial-inspector-body">
+          <label className="bndz-spatial-field">
+            <span className="bndz-spatial-field-label">Note</span>
+            <textarea
+              className="bndz-spatial-field-input"
+              rows={6}
+              value={primarySticky.text || ''}
+              placeholder="Sticky note…"
+              onChange={e => onUpdateStickyText?.(primarySticky.id, e.target.value)}
+            />
+          </label>
+          <p className="bndz-spatial-inspector-kbd"><kbd>Del</kbd> remove sticky</p>
         </div>
       </aside>
     );
@@ -103,16 +136,16 @@ export default function SpatialInspector({
       </div>
       <div className="bndz-spatial-inspector-body">
         <div className="bndz-spatial-inspector-hero-row">
-          <ShellNativeIcon path={primary.path} isDir={pathLooksLikeDir(primary.path)} size={48} />
+          <ShellNativeIcon path={primary!.path} isDir={pathLooksLikeDir(primary!.path)} size={48} />
           <div className="min-w-0">
-            <div className="bndz-spatial-inspector-name" title={primary.name}>{primary.name}</div>
-            <div className="bndz-spatial-inspector-path" title={primary.path}>{primary.path}</div>
+            <div className="bndz-spatial-inspector-name" title={primary!.name}>{primary!.name}</div>
+            <div className="bndz-spatial-inspector-path" title={primary!.path}>{primary!.path}</div>
           </div>
         </div>
         <div className="bndz-spatial-inspector-actions">
-          <button type="button" className="bndz-ws-chip" onClick={() => onOpen(primary)}>Open</button>
-          <button type="button" className="bndz-ws-chip" onClick={() => onReveal(primary)}>Reveal</button>
-          <button type="button" className="bndz-ws-chip" onClick={() => onCopyPath(primary)}>Copy path</button>
+          <button type="button" className="bndz-ws-chip" onClick={() => onOpen(primary!)}>Open</button>
+          <button type="button" className="bndz-ws-chip" onClick={() => onReveal(primary!)}>Reveal</button>
+          <button type="button" className="bndz-ws-chip" onClick={() => onCopyPath(primary!)}>Copy path</button>
         </div>
         {shellMeta && selected.length === 1 && (
           <div className="bndz-spatial-inspector-meta">
@@ -137,16 +170,16 @@ export default function SpatialInspector({
               <textarea
                 className="bndz-spatial-field-input"
                 rows={3}
-                value={primary.note || ''}
+                value={primary!.note || ''}
                 placeholder="Annotation for this pin…"
-                onChange={e => onUpdateNote(primary.id, e.target.value)}
-                onFocus={() => onEditNote(primary.id)}
+                onChange={e => onUpdateNote(primary!.id, e.target.value)}
+                onFocus={() => onEditNote(primary!.id)}
               />
             </label>
             <div className="bndz-spatial-field">
               <span className="bndz-spatial-field-label">Tags</span>
               <TagStudioPanel
-                path={primary.path}
+                path={primary!.path}
                 onAddTag={(p, t) => { onAddTag(p, t); setTags(prev => (prev.includes(t) ? prev : [...prev, t])); }}
                 onRemoveTag={(p, t) => { onRemoveTag(p, t); setTags(prev => prev.filter(x => x !== t)); }}
               />

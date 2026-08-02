@@ -42,6 +42,8 @@ public sealed class FileOperationPreferences
     public bool CopyTagsOnCopyOperations { get; set; }
     public bool CopyTagsOnBackupAndSync { get; set; }
     public bool SetArchiveAttributeOnFolderRename { get; set; }
+    public bool FollowJunctions { get; set; }
+    public bool ResolveJunctions { get; set; }
 
     public enum UndoPromptMode
     {
@@ -128,6 +130,8 @@ public sealed class FileOperationPreferences
                 CopyTagsOnCopyOperations = ReadBool(root, "copyTagsOnCopyOperations", false),
                 CopyTagsOnBackupAndSync = ReadBool(root, "copyTagsOnBackupAndSyncOperations", false),
                 SetArchiveAttributeOnFolderRename = ReadBool(root, "setArchiveAttributeOnFolderRename", false),
+                FollowJunctions = ReadBool(root, "followJunctions", false),
+                ResolveJunctions = ReadBool(root, "resolveJunctions", false),
             };
             Current = p;
         }

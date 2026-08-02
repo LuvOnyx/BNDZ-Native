@@ -335,9 +335,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
               kindLabel={kindLabel}
               isDirectory={isDir}
               facts={curatedPreviewFacts(extMeta)}
-              onOpen={() => runVerb(isDir ? 'open' : 'open')}
               onReveal={() => runVerb('reveal')}
-              onCopyPath={copyPath}
             />
 
             <div className="bndz-quick-preview-stage">

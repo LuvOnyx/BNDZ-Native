@@ -9,7 +9,7 @@ using SIPSorcery.Net;
 
 namespace BNDZ.Services.MeshDrop;
 
-/// <summary>Zero-trust P2P file transfer via WebRTC data channels with encrypted TCP fallback.</summary>
+/// <summary>Zero-trust P2P file transfer via WebRTC data channels (LAN / relay signaling).</summary>
 public sealed class MeshDropService : IDisposable
 {
     private static readonly string[] DefaultStunServers = ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"];
@@ -22,13 +22,19 @@ public sealed class MeshDropService : IDisposable
     private Action<object>? _sessionChanged;
     private string[] _stunServers = DefaultStunServers;
     private bool _lanDiscoveryEnabled = true;
+    private string? _turnUrl;
+    private string? _turnUsername;
+    private string? _turnCredential;
 
     public MeshDropService(FileTransferQueueService queue) => _queue = queue;
 
-    public void SetConfig(string[]? stunServers, bool lanDiscovery)
+    public void SetConfig(string[]? stunServers, bool lanDiscovery, string? turnUrl = null, string? turnUsername = null, string? turnCredential = null)
     {
         _stunServers = stunServers?.Length > 0 ? stunServers : DefaultStunServers;
         _lanDiscoveryEnabled = lanDiscovery;
+        _turnUrl = string.IsNullOrWhiteSpace(turnUrl) ? null : turnUrl.Trim();
+        _turnUsername = string.IsNullOrWhiteSpace(turnUsername) ? null : turnUsername;
+        _turnCredential = string.IsNullOrWhiteSpace(turnCredential) ? null : turnCredential;
     }
 
     public void SetSessionChangedHandler(Action<object>? handler) => _sessionChanged = handler;
@@ -71,12 +77,15 @@ public sealed class MeshDropService : IDisposable
         await WaitForIceGatheringAsync(pc, ct);
 
         var sdp = pc.localDescription?.sdp?.ToString() ?? "";
+        var cred = MeshDropCredentialVault.CreateEphemeral(sessionId);
         var offerPayload = new MeshDropSignaling.OfferPayload
         {
             SessionId = sessionId,
             HostName = Environment.MachineName,
             Sdp = sdp,
             Fingerprint = MeshDropSignaling.ComputeFingerprint(sdp),
+            HostKeyFingerprint = cred.Fingerprint,
+            OneTimeToken = cred.OneTimeToken,
             ExpiresUtc = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeMilliseconds(),
             FileCount = session.FileCount,
             TotalBytes = session.TotalBytes,
@@ -141,6 +150,7 @@ public sealed class MeshDropService : IDisposable
             ReceiverName = Environment.MachineName,
             Sdp = answerSdp,
             Fingerprint = MeshDropSignaling.ComputeFingerprint(answerSdp),
+            OneTimeToken = offer.OneTimeToken,
         };
         var answerCode = MeshDropSignaling.EncodeAnswer(answerPayload);
 
@@ -156,6 +166,14 @@ public sealed class MeshDropService : IDisposable
 
         var answer = MeshDropSignaling.DecodeAnswer(answerCode)
             ?? throw new InvalidOperationException("Invalid answer code");
+
+        // Prefer vault-backed one-time token when present (local host session).
+        var hostCred = MeshDropCredentialVault.Get(sessionId);
+        if (hostCred != null)
+        {
+            if (!MeshDropCredentialVault.TryConsumeToken(sessionId, answer.OneTimeToken))
+                throw new InvalidOperationException("Mesh Drop pairing token invalid or already used.");
+        }
 
         var remoteInit = new RTCSessionDescriptionInit { type = RTCSdpType.answer, sdp = answer.Sdp };
         ctx.PeerConnection.setRemoteDescription(remoteInit);
@@ -304,9 +322,19 @@ public sealed class MeshDropService : IDisposable
 
     private RTCPeerConnection CreatePeerConnection(PeerContext ctx)
     {
+        var servers = _stunServers.Select(s => new RTCIceServer { urls = s }).ToList();
+        if (!string.IsNullOrWhiteSpace(_turnUrl))
+        {
+            servers.Add(new RTCIceServer
+            {
+                urls = _turnUrl!,
+                username = _turnUsername,
+                credential = _turnCredential,
+            });
+        }
         var config = new RTCConfiguration
         {
-            iceServers = _stunServers.Select(s => new RTCIceServer { urls = s }).ToList(),
+            iceServers = servers,
         };
         var pc = new RTCPeerConnection(config);
         pc.onconnectionstatechange += state =>

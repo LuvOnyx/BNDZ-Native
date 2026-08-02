@@ -103,6 +103,15 @@ class AudioPlaybackSession {
   load(path: string, src: string, opts?: { force?: boolean }): boolean {
     const el = this.ensureEl();
     if (!opts?.force && this.samePath(path) && this.resolvedSrc) {
+      // Never replace a live blob with a stream URL — peaks / decoder break (ERR_FILE_NOT_FOUND).
+      if (
+        this.resolvedSrc.startsWith('blob:')
+        && src.includes('bndz-stream://')
+      ) {
+        this.error = null;
+        this.emit();
+        return false;
+      }
       this.error = null;
       this.emit();
       return false;
@@ -131,13 +140,19 @@ class AudioPlaybackSession {
   }
 
   markBlobUrl(url: string) {
-    if (this.blobUrl && this.blobUrl !== url) URL.revokeObjectURL(this.blobUrl);
+    // Never revoke the URL currently bound to the media element.
+    if (this.blobUrl && this.blobUrl !== url && this.blobUrl !== this.resolvedSrc) {
+      try { URL.revokeObjectURL(this.blobUrl); } catch { /* */ }
+    }
     this.blobUrl = url;
   }
 
   play() {
     const el = this.ensureEl();
-    if (!this.resolvedSrc || this.error) return;
+    if (!this.resolvedSrc) return;
+    // Allow retry after a transient decode/blob error once src is live again.
+    if (this.error && this.resolvedSrc.startsWith('blob:')) this.error = null;
+    if (this.error) return;
     void el.play().catch(() => {
       this.error = 'Unable to play this media file. Try opening it in your default player.';
       this.emit();
@@ -200,6 +215,11 @@ class AudioPlaybackSession {
   /** Soft release — keep element alive for next surface binding. */
   releaseUi() {
     this.emit();
+  }
+
+  /** Shared decoder for WaveSurfer / preview / Quick Look — never dual-decode. */
+  getMediaElement(): HTMLAudioElement {
+    return this.ensureEl();
   }
 }
 

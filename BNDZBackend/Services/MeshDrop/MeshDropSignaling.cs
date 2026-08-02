@@ -21,6 +21,8 @@ public static class MeshDropSignaling
         public string HostName { get; set; } = "";
         public string Sdp { get; set; } = "";
         public string Fingerprint { get; set; } = "";
+        public string HostKeyFingerprint { get; set; } = "";
+        public string OneTimeToken { get; set; } = "";
         public long ExpiresUtc { get; set; }
         public int FileCount { get; set; }
         public long TotalBytes { get; set; }
@@ -34,6 +36,7 @@ public static class MeshDropSignaling
         public string ReceiverName { get; set; } = "";
         public string Sdp { get; set; } = "";
         public string Fingerprint { get; set; } = "";
+        public string OneTimeToken { get; set; } = "";
     }
 
     public static string EncodeOffer(OfferPayload payload)

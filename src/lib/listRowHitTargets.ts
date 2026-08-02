@@ -2,7 +2,9 @@
 export function isListMarqueeSurface(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el) return false;
-  return !!el.closest('.bndz-list-col-gutter, .bndz-list-marquee-trail, .bndz-list-marquee-pad');
+  return !!el.closest(
+    '.bndz-list-col-gutter, .bndz-list-marquee-trail, .bndz-list-marquee-pad, .bndz-list-marquee-lead, .bndz-list-empty-canvas',
+  );
 }
 
 /**

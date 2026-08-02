@@ -14,6 +14,7 @@ void main() {
 }
 `;
 
+/** Luma heat-tint inspect (not a statistical histogram overlay). */
 export const histogramFrag = /* glsl */`
 uniform sampler2D uMap;
 uniform vec2 uResolution;

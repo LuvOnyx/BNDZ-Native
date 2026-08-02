@@ -322,6 +322,24 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                 Mirror mode (delete extras in destination)
               </label>
             </div>
+            <div className="flex items-center gap-2">
+              <PluginToolbarButton
+                icon="sync"
+                onClick={() => setDraft(d => d ? { ...d, sourcePath: d.destPath, destPath: d.sourcePath } : d)}
+              >
+                Pull (swap source ↔ dest)
+              </PluginToolbarButton>
+            </div>
+            <div>
+              <PluginFieldLabel>Exclude patterns (; or newline)</PluginFieldLabel>
+              <textarea
+                className={`${PLUGIN_INPUT_CLASS} min-h-[52px] resize-y bndz-mono text-[11px]`}
+                placeholder="*.tmp; node_modules; .git"
+                value={(draft as any).excludePatterns || ''}
+                onChange={e => setDraft({ ...draft, excludePatterns: e.target.value } as any)}
+              />
+              <p className="text-[10px] text-white/35 mt-1">Applied client-side to preview lists; stored with the job draft.</p>
+            </div>
             <div className="flex justify-end gap-2 pt-1">
               <PluginToolbarButton onClick={() => { setDraft(null); setEditingId(null); }}>Cancel</PluginToolbarButton>
               <PluginToolbarButton icon="check" active onClick={() => void saveDraft()} disabled={!draft.sourcePath || !draft.destPath}>

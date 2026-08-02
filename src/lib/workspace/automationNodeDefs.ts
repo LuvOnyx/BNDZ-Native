@@ -18,6 +18,7 @@ export type AutomationNodeType =
   | 'moveTo'
   | 'rsyncDeploy'
   | 'ghostLinkTo'
+  | 'stageToRam'
   | 'recycleBin'
   | 'compressArchive'
   | 'extractArchive'
@@ -93,8 +94,8 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
   },
   spatialPin: {
     label: 'Spatial pin', color: '#a78bfa', icon: 'pin', category: 'trigger',
-    desc: 'Trigger from Spatial Canvas pinned paths',
-    fields: [{ key: 'paths', label: 'Pinned paths', placeholder: 'One path per line' }],
+    desc: 'Fires when Spatial Canvas sends paths (Send to automation) while the pipeline is armed; paths also seed the node for manual runs',
+    fields: [{ key: 'paths', label: 'Pinned paths (manual seed)', placeholder: 'One path per line' }],
   },
   filterExtension: {
     label: 'Filter extension', color: '#34d399', icon: 'filter_ui', category: 'filter',
@@ -168,6 +169,15 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
     label: 'Ghost-Link offload', color: '#a78bfa', icon: 'emblem-symbolic-link', category: 'action',
     desc: 'Move matched files to cold storage and symlink originals',
     fields: [{ key: 'coldStorageRoot', label: 'Cold storage root', placeholder: 'D:\\ColdStorage', type: 'folder' }],
+  },
+  stageToRam: {
+    label: 'Stage to RAM', color: '#c4a35a', icon: 'hard_drive_ui', category: 'action',
+    desc: 'Copy matched files into a RAM / Fast Staging zone',
+    fields: [
+      { key: 'zoneName', label: 'Zone name (if creating)', placeholder: 'Automation Staging' },
+      { key: 'sizeBudgetMb', label: 'Size budget MB', placeholder: '4096' },
+      { key: 'zoneId', label: 'Existing zone id (optional)', placeholder: 'Leave empty to reuse/create' },
+    ],
   },
   recycleBin: {
     label: 'Recycle Bin', color: '#f87171', icon: 'trash_ui', category: 'action',
@@ -273,7 +283,7 @@ export const PALETTE_GROUPS: Array<{ id: string; label: string; types: Automatio
   {
     id: 'actions',
     label: 'Actions',
-    types: ['copyTo', 'moveTo', 'rsyncDeploy', 'ghostLinkTo', 'recycleBin', 'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'applyTag', 'notifyToast', 'runShell'],
+    types: ['copyTo', 'moveTo', 'rsyncDeploy', 'ghostLinkTo', 'stageToRam', 'recycleBin', 'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'applyTag', 'notifyToast', 'runShell'],
   },
   {
     id: 'utility',

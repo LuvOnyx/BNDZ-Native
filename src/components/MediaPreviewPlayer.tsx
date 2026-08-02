@@ -200,9 +200,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         const blob = new Blob([bytes], { type: result.mime });
-        const url = URL.createObjectURL(blob);
-        audioPlaybackSession.markBlobUrl(url);
-        return url;
+        return URL.createObjectURL(blob);
       } catch (err: any) {
         if (!cancelled) setLoadError(err?.message || 'Media load failed.');
         return null;
@@ -219,7 +217,10 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
         if (blobSrc) nextSrc = blobSrc;
       }
       if (cancelled) return;
-      const reloaded = audioPlaybackSession.load(filePath, nextSrc);
+      audioPlaybackSession.clearError();
+      const reloaded = audioPlaybackSession.load(filePath, nextSrc, {
+        force: nextSrc.startsWith('blob:'),
+      });
       loadedPathRef.current = filePath;
       syncFromSession();
       if (reloaded && autoplay) audioPlaybackSession.play();

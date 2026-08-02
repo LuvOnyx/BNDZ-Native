@@ -85,6 +85,10 @@ public static class LicenseService
         "GET_TAGS_CONFIG",
         "GET_CLOUD_PROVIDERS",
         "GET_NETWORK_LOCATIONS",
+        "GET_FILE_TRANSFER_QUEUE",
+        "REFRESH_WORKSPACE",
+        "RAM_STAGING_LIST_ZONES",
+        "IPC_PING",
         "BNDZ_UI_READY",
     };
 
@@ -168,14 +172,31 @@ public static class LicenseService
         _statusCacheTicks = 0;
     }
 
-    public static LicenseStatusDto GetStatusCached(int ttlMs = 1500)
+    public static LicenseStatusDto GetStatusCached(int ttlMs = 5000)
     {
         var now = Environment.TickCount64;
         if (_statusCache != null && now - _statusCacheTicks < ttlMs)
             return _statusCache;
-        _statusCache = GetStatus();
-        _statusCacheTicks = now;
-        return _statusCache;
+        try
+        {
+            _statusCache = GetStatus();
+            _statusCacheTicks = now;
+            return _statusCache;
+        }
+        catch
+        {
+            // Never throw on the IPC pump — prefer a permissive stale/fail-open status.
+            if (_statusCache != null) return _statusCache;
+            return new LicenseStatusDto
+            {
+                Activated = false,
+                CanUseApp = true,
+                TrialExpired = false,
+                TrialDaysTotal = TrialDays,
+                TrialDaysRemaining = TrialDays,
+                LicenseMode = "fail-open",
+            };
+        }
     }
 
     public static LicenseStatusDto GetStatus()
@@ -327,8 +348,7 @@ public static class LicenseService
             // would fail against DefaultDevSecret and falsely show "Enter license key".
             if (IsUsingDefaultSecret)
             {
-                if (!string.IsNullOrEmpty(rec.Hwid) &&
-                    !string.Equals(rec.Hwid, hwid, StringComparison.OrdinalIgnoreCase))
+                if (!MachineIdService.MatchesStoredHardwareId(rec.Hwid))
                     return null;
                 if (string.IsNullOrEmpty(rec.Token) && !rec.IsValid)
                     return null;
@@ -341,10 +361,17 @@ public static class LicenseService
 
             if (!string.IsNullOrEmpty(rec.Token))
             {
-                if (!VerifyActivationToken(rec.Token, rec.Serial, hwid))
+                if (!VerifyActivationToken(rec.Token, rec.Serial, hwid)
+                    && !(MachineIdService.MatchesStoredHardwareId(rec.Hwid)
+                         && VerifyActivationToken(rec.Token, rec.Serial, rec.Hwid)))
                     return null;
-                if (!string.IsNullOrEmpty(rec.Hwid) &&
-                    !string.Equals(rec.Hwid, hwid, StringComparison.OrdinalIgnoreCase))
+                if (!MachineIdService.MatchesStoredHardwareId(rec.Hwid))
+                    return null;
+            }
+            else
+            {
+                // Legacy offline seat
+                if (!MachineIdService.MatchesStoredHardwareId(rec.Hwid))
                     return null;
             }
 

@@ -114,6 +114,8 @@ public sealed class FileTransferQueueService
     private readonly ConcurrentDictionary<string, FileTransferJob> _jobs = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancelSources = new();
     private readonly ConcurrentDictionary<string, Process> _attachedProcesses = new();
+    private readonly ConcurrentDictionary<string, Func<CancellationToken, Task>> _workById = new();
+    private readonly ConcurrentDictionary<string, FileTransferPriority> _priorityById = new();
     private readonly string _persistPath;
     private readonly object _persistLock = new();
     private int _queuedCount;
@@ -297,6 +299,7 @@ public sealed class FileTransferQueueService
             }
         }
         DetachProcess(operationId);
+        ForgetWork(operationId);
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();
         NotifyChanged();
@@ -305,8 +308,8 @@ public sealed class FileTransferQueueService
     public void MarkFailed(string operationId, string? error)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return;
-        // Don't overwrite an intentional cancel with a failed status.
-        if (job.Status == FileTransferJobStatus.Cancelled) return;
+        // Don't overwrite an intentional cancel/pause with a failed status.
+        if (job.Status is FileTransferJobStatus.Cancelled or FileTransferJobStatus.Paused) return;
         job.Status = FileTransferJobStatus.Failed;
         job.Error = error;
         job.CompletedUtc = DateTime.UtcNow;
@@ -316,6 +319,7 @@ public sealed class FileTransferQueueService
             job.VerifyStatus = "failed";
         }
         DetachProcess(operationId);
+        ForgetWork(operationId);
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();
         NotifyChanged();
@@ -326,13 +330,23 @@ public sealed class FileTransferQueueService
         if (!_jobs.TryGetValue(operationId, out var job)) return;
         if (job.Status is FileTransferJobStatus.Completed or FileTransferJobStatus.Cancelled)
             return;
+        // Pause parks the job and cancels in-flight I/O — don't treat that cancel as terminal.
+        if (job.Status == FileTransferJobStatus.Paused)
+            return;
         job.Status = FileTransferJobStatus.Cancelled;
         job.Error = reason ?? "Cancelled";
         job.CompletedUtc = DateTime.UtcNow;
         DetachProcess(operationId);
+        ForgetWork(operationId);
         _cancelSources.TryRemove(operationId, out var cts);
         cts?.Dispose();
         NotifyChanged();
+    }
+
+    private void ForgetWork(string operationId)
+    {
+        _workById.TryRemove(operationId, out _);
+        _priorityById.TryRemove(operationId, out _);
     }
 
     /// <summary>Track an external process (WinRAR / TeraCopy) so Cancel can kill it. Caller owns Process lifetime.</summary>
@@ -414,7 +428,11 @@ public sealed class FileTransferQueueService
 
         if (_jobs.TryGetValue(operationId, out var paused) && paused.Status == FileTransferJobStatus.Paused)
         {
-            MarkCancelled(operationId);
+            paused.Status = FileTransferJobStatus.Cancelled;
+            paused.Error = "Cancelled";
+            paused.CompletedUtc = DateTime.UtcNow;
+            ForgetWork(operationId);
+            NotifyChanged();
             return true;
         }
 
@@ -449,13 +467,53 @@ public sealed class FileTransferQueueService
         return true;
     }
 
-    /// <summary>Resume a paused job by re-queuing a no-op completion marker — UI should re-enqueue real work.</summary>
+    /// <summary>
+    /// Resume a paused job by re-queuing its original work from the start.
+    /// (True mid-byte resume isn't supported — pause cancels in-flight I/O.)
+    /// </summary>
     public bool Resume(string operationId)
     {
         if (!_jobs.TryGetValue(operationId, out var job)) return false;
         if (job.Status != FileTransferJobStatus.Paused) return false;
+        if (!_workById.TryGetValue(operationId, out var work))
+        {
+            job.Error = "Cannot resume — job work was not retained (restart the transfer).";
+            NotifyChanged();
+            return false;
+        }
+
+        var priority = _priorityById.TryGetValue(operationId, out var p) ? p : FileTransferPriority.Normal;
         job.Status = FileTransferJobStatus.Queued;
+        job.Error = null;
+        job.Progress = 0;
+        job.CurrentFile = null;
+        job.CompletedUtc = null;
+
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_pendingLock)
+        {
+            // Avoid double-queue if already pending
+            if (_pending.Any(w => w.OperationId == operationId))
+            {
+                NotifyChanged();
+                return true;
+            }
+            _pending.Add(new QueuedWork
+            {
+                OperationId = operationId,
+                Work = work,
+                Completion = tcs,
+                Priority = priority,
+            });
+            _pending.Sort((a, b) =>
+            {
+                var byPriority = b.Priority.CompareTo(a.Priority);
+                return byPriority != 0 ? byPriority : a.EnqueuedUtc.CompareTo(b.EnqueuedUtc);
+            });
+            Interlocked.Increment(ref _queuedCount);
+        }
         NotifyChanged();
+        _ = ProcessQueueAsync();
         return true;
     }
 
@@ -472,6 +530,8 @@ public sealed class FileTransferQueueService
         CancellationToken cancellationToken = default,
         FileTransferPriority priority = FileTransferPriority.Normal)
     {
+        _workById[operationId] = work;
+        _priorityById[operationId] = priority;
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_pendingLock)
         {
@@ -558,7 +618,12 @@ public sealed class FileTransferQueueService
                 }
                 catch (OperationCanceledException)
                 {
-                    MarkCancelled(item.OperationId);
+                    // Pause sets Paused then cancels the token — keep parked, don't Cancel.
+                    if (!(_jobs.TryGetValue(item.OperationId, out var pausedJob)
+                          && pausedJob.Status == FileTransferJobStatus.Paused))
+                    {
+                        MarkCancelled(item.OperationId);
+                    }
                     item.Completion.TrySetCanceled();
                 }
                 catch (Exception ex)

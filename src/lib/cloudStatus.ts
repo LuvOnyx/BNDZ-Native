@@ -20,12 +20,13 @@ function norm(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
-export function matchCloudProvider(fullPath: string, providers: CloudProvider[]): CloudProvider | null {
+export function matchCloudProvider(fullPath: string, providers: CloudProvider[] | null | undefined): CloudProvider | null {
   const n = norm(fullPath);
-  if (!n || !providers.length) return null;
+  const list = Array.isArray(providers) ? providers : [];
+  if (!n || !list.length) return null;
   let best: CloudProvider | null = null;
   let bestLen = 0;
-  for (const p of providers) {
+  for (const p of list) {
     const root = norm(p.path || '');
     if (!root || root.length < 3) continue;
     if (n === root || n.startsWith(`${root}/`)) {

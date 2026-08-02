@@ -170,7 +170,10 @@ export function nativeCall<T>(
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       if (pending.delete(id)) {
-        console.warn(`[IPC] Timeout waiting for ${responseType} (id=${id})`);
+        // Quiet warn — callers often .catch() to empty defaults; avoid console spam storms.
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug(`[IPC] Timeout waiting for ${responseType} (id=${id})`);
+        }
         reject(new Error(`IPC timeout: ${responseType}`));
       }
     }, timeoutMs);

@@ -1,8 +1,8 @@
 import React, { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import type { CanvasItem } from '../../lib/spatialCanvasStore';
 
-const CARD_W = 172;
-const CARD_H = 148;
+const CARD_W = 228;
+const CARD_H = 176;
 
 export type ConstellationMinimapHandle = {
   setViewport: (panX: number, panY: number, zoom: number) => void;

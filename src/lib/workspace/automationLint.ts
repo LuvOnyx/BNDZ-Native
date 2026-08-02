@@ -1,10 +1,37 @@
 import type { AutomationGraph } from '../automationStore';
+import { NODE_DEFS, isTriggerType, FOLDER_FIELD_KEYS, type AutomationNodeType } from './automationNodeDefs';
 
 export type LintIssue = {
   id: string;
   severity: 'error' | 'warn';
   nodeId?: string;
   message: string;
+};
+
+const TERMINAL_TYPES = new Set<AutomationNodeType>([
+  'log', 'notifyToast', 'recycleBin', 'delay', 'moveTo', 'copyTo', 'rsyncDeploy', 'runShell',
+  'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'stopAbort',
+  'ghostLinkTo', 'stageToRam',
+]);
+
+/** Fields that must be non-empty for the given block type. */
+const REQUIRED_FIELDS: Partial<Record<AutomationNodeType, string[]>> = {
+  watchFolder: ['path'],
+  copyTo: ['dest'],
+  moveTo: ['dest'],
+  rsyncDeploy: ['remote'],
+  ghostLinkTo: ['coldStorageRoot'],
+  compressArchive: ['dest'],
+  extractArchive: ['dest'],
+  syncFolders: ['dest'],
+  generateThumbnail: ['dest'],
+  applyTag: ['tag'],
+  filterTag: ['tag'],
+  filterContent: ['pattern'],
+  runShell: ['command'],
+  onSchedule: ['intervalMinutes'],
+  stopAbort: ['message'],
+  batchCounter: ['limit'],
 };
 
 export function lintAutomationGraph(graph: AutomationGraph): LintIssue[] {
@@ -31,70 +58,170 @@ export function lintAutomationGraph(graph: AutomationGraph): LintIssue[] {
     outgoing.set(e.source, (outgoing.get(e.source) ?? 0) + 1);
   });
 
+  // Cycle detection (directed)
+  const adj = new Map<string, string[]>();
+  graph.nodes.forEach(n => adj.set(n.id, []));
+  graph.edges.forEach(e => {
+    if (nodeIds.has(e.source) && nodeIds.has(e.target)) {
+      adj.get(e.source)!.push(e.target);
+    }
+  });
+  const cycleVisit = new Map<string, 0 | 1 | 2>();
+  const cycleHit = new Set<string>();
+  const dfsCycle = (id: string): boolean => {
+    const st = cycleVisit.get(id) ?? 0;
+    if (st === 1) { cycleHit.add(id); return true; }
+    if (st === 2) return false;
+    cycleVisit.set(id, 1);
+    let found = false;
+    for (const next of adj.get(id) || []) {
+      if (dfsCycle(next)) found = true;
+    }
+    cycleVisit.set(id, 2);
+    return found;
+  };
+  graph.nodes.forEach(n => dfsCycle(n.id));
+  if (cycleHit.size) {
+    issues.push({
+      id: 'graph_cycle',
+      severity: 'error',
+      nodeId: [...cycleHit][0],
+      message: 'Pipeline contains a cycle — loops are not supported',
+    });
+  }
+
   graph.nodes.forEach(n => {
-    const def = n.type;
-    if (def === 'watchFolder') {
-      const path = String(n.data.path ?? '').trim();
-      if (!path) {
+    const def = NODE_DEFS[n.type];
+    if (!def) {
+      issues.push({ id: `unknown_${n.id}`, severity: 'error', nodeId: n.id, message: `Unknown block type: ${n.type}` });
+      return;
+    }
+
+    const req = REQUIRED_FIELDS[n.type];
+    if (req) {
+      for (const key of req) {
+        const field = def.fields.find(f => f.key === key);
+        const val = String(n.data[key] ?? '').trim();
+        if (!val) {
+          issues.push({
+            id: `${key}_${n.id}`,
+            severity: 'error',
+            nodeId: n.id,
+            message: `${def.label}: ${field?.label || key} is required`,
+          });
+        }
+      }
+    }
+
+    if (n.type === 'onSchedule') {
+      const mins = Number(String(n.data.intervalMinutes ?? '').trim());
+      if (String(n.data.intervalMinutes ?? '').trim() && (!Number.isFinite(mins) || mins < 1)) {
         issues.push({
-          id: `watch_path_${n.id}`,
+          id: `interval_${n.id}`,
           severity: 'error',
           nodeId: n.id,
-          message: 'Watch folder needs a path',
+          message: 'On schedule: interval must be at least 1 minute',
         });
       }
     }
-    if (def === 'copyTo' || def === 'moveTo') {
-      const dest = String(n.data.dest ?? '').trim();
-      if (!dest) {
+
+    if (n.type === 'stageToRam') {
+      const sizeRaw = String(n.data.sizeBudgetMb ?? '').trim();
+      if (sizeRaw) {
+        const nMb = Number(sizeRaw.replace(/[MmBb]/g, ''));
+        if (!Number.isFinite(nMb) || nMb < 256) {
+          issues.push({
+            id: `ram_size_${n.id}`,
+            severity: 'warn',
+            nodeId: n.id,
+            message: 'Stage to RAM: size budget should be ≥ 256 MB',
+          });
+        }
+      }
+    }
+
+    if (n.type === 'filterExtension' || n.type === 'filterArchive') {
+      const ext = String(n.data.extensions ?? '').trim();
+      if (ext && !/^[\w.*,;\s.-]+$/i.test(ext)) {
         issues.push({
-          id: `dest_${n.id}`,
-          severity: 'error',
+          id: `ext_${n.id}`,
+          severity: 'warn',
           nodeId: n.id,
-          message: `${def === 'copyTo' ? 'Copy' : 'Move'} block needs a destination`,
+          message: `${def.label}: extensions look invalid (use comma-separated, e.g. zip,tar.gz)`,
         });
       }
     }
-    if (def === 'rsyncDeploy') {
-      const remote = String(n.data.remote ?? '').trim();
-      if (!remote) {
+
+    if (n.type === 'branch') {
+      const trueOut = graph.edges.some(e => e.source === n.id && e.sourceHandle === 'true');
+      const falseOut = graph.edges.some(e => e.source === n.id && e.sourceHandle === 'false');
+      if (!trueOut && !falseOut) {
         issues.push({
-          id: `remote_${n.id}`,
-          severity: 'error',
+          id: `branch_unwired_${n.id}`,
+          severity: 'warn',
           nodeId: n.id,
-          message: 'Remote deploy needs a target (user@host:/path)',
+          message: 'Branch has no true/false outputs connected',
+        });
+      } else if (!trueOut || !falseOut) {
+        issues.push({
+          id: `branch_partial_${n.id}`,
+          severity: 'warn',
+          nodeId: n.id,
+          message: `Branch missing ${!trueOut ? 'yes' : 'no'} output wire`,
         });
       }
     }
+
     const inc = incoming.get(n.id) ?? 0;
     const out = outgoing.get(n.id) ?? 0;
-    if (def !== 'watchFolder' && inc === 0) {
+    if (!isTriggerType(n.type) && inc === 0) {
       issues.push({
         id: `disconnected_${n.id}`,
         severity: 'warn',
         nodeId: n.id,
-        message: 'Node has no incoming connection',
+        message: `${def.label}: no incoming connection`,
       });
     }
-    if (out === 0 && def !== 'log' && def !== 'copyTo' && def !== 'moveTo' && def !== 'rsyncDeploy') {
+    if (out === 0 && !TERMINAL_TYPES.has(n.type) && n.type !== 'branch') {
       issues.push({
         id: `dead_end_${n.id}`,
         severity: 'warn',
         nodeId: n.id,
-        message: 'Node has no outgoing connection',
+        message: `${def.label}: no outgoing connection`,
       });
     }
   });
 
-  if (!graph.nodes.some(n => n.type === 'watchFolder')) {
+  if (!graph.nodes.some(n => isTriggerType(n.type))) {
     issues.push({
       id: 'no_trigger',
       severity: 'warn',
-      message: 'Pipeline has no watch-folder trigger',
+      message: 'Pipeline has no trigger block',
     });
   }
 
-  return issues;
+  if (graph.armed && graph.nodes.some(n => n.type === 'watchFolder' && String(n.data.liveWatch) === 'true')) {
+    graph.nodes
+      .filter(n => n.type === 'watchFolder' && String(n.data.liveWatch) === 'true' && !String(n.data.path ?? '').trim())
+      .forEach(n => {
+        issues.push({
+          id: `live_path_${n.id}`,
+          severity: 'error',
+          nodeId: n.id,
+          message: 'Live watch requires a folder path',
+        });
+      });
+  }
+
+  // Prefer errors first, then warns; stable by message
+  return issues.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'error' ? -1 : 1;
+    return a.message.localeCompare(b.message);
+  });
+}
+
+export function lintErrorCount(issues: LintIssue[]): number {
+  return issues.filter(i => i.severity === 'error').length;
 }
 
 export type DryRunStep = {
@@ -106,27 +233,63 @@ export type DryRunStep = {
 
 export function dryRunGraph(graph: AutomationGraph): DryRunStep[] {
   const order = topologicalOrder(graph);
-  return order.map(n => {
-    const label = n.type;
-    let action = 'Pass through';
-    if (n.type === 'watchFolder') action = `Watch ${n.data.path || '(unset)'}`;
-    else if (n.type === 'filterExtension') action = `Filter ext: ${n.data.extensions || '*'}`;
-    else if (n.type === 'copyTo') action = `Copy → ${n.data.dest || '(unset)'}`;
-    else if (n.type === 'moveTo') action = `Move → ${n.data.dest || '(unset)'}`;
-    else if (n.type === 'rsyncDeploy') action = `Rsync → ${n.data.remote || '(unset)'}`;
-    else if (n.type === 'log') action = `Log: ${n.data.message || 'checkpoint'}`;
-    return {
-      nodeId: n.id,
-      label,
-      action,
-      status: 'pending' as const,
-    };
-  });
+  const hasCycle = lintAutomationGraph(graph).some(i => i.id === 'graph_cycle');
+  return order.map((n, idx) => ({
+    nodeId: n.id,
+    label: NODE_DEFS[n.type]?.label || n.type,
+    action: describeDryRunAction(n),
+    status: hasCycle && idx > 0 ? 'skip' as const : 'ok' as const,
+  }));
+}
+
+function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
+  const d = n.data;
+  switch (n.type) {
+    case 'watchFolder': {
+      const live = String(d.liveWatch) === 'true';
+      return live ? `Live watch ${d.path || '(unset)'}` : `Scan ${d.path || '(unset)'}`;
+    }
+    case 'manualRun': return 'Manual trigger';
+    case 'onSchedule': return `Schedule every ${d.intervalMinutes || '60'} min`;
+    case 'onStartup': return 'Run on BNDZ startup';
+    case 'indexChanged': return `Index changed${d.root ? ` · ${d.root}` : ''}`;
+    case 'spatialPin': return `Spatial pin (${String(d.paths || '').split('\n').filter(Boolean).length} paths)`;
+    case 'filterExtension': return `Filter ext: ${d.extensions || '*'}`;
+    case 'filterArchive': return `Archives: ${d.extensions || 'default'}`;
+    case 'filterSize': return `Size ${d.minSize || '0'} – ${d.maxSize || '∞'}`;
+    case 'filterAge': return `${d.mode || 'olderThan'} ${d.days || '7'} days`;
+    case 'filterTag': return `Tag: ${d.tag || '(unset)'}`;
+    case 'filterContent': return `Grep: ${d.pattern || '(unset)'}`;
+    case 'duplicatesOnly': return `Duplicates ≥ ${d.minSize || '1KB'}`;
+    case 'copyTo': return `Copy → ${d.dest || '(unset)'}`;
+    case 'moveTo': return `Move → ${d.dest || '(unset)'}`;
+    case 'rsyncDeploy': return `Deploy → ${d.remote || '(unset)'}`;
+    case 'ghostLinkTo': return `Ghost-Link → ${d.coldStorageRoot || '(unset)'}`;
+    case 'stageToRam': {
+      const zoneId = String(d.zoneId || '').trim();
+      if (zoneId) return `Stage → zone ${zoneId}`;
+      return `Stage → ${d.zoneName || 'Automation Staging'} (${d.sizeBudgetMb || '4096'} MB)`;
+    }
+    case 'recycleBin': return 'Send to Recycle Bin';
+    case 'compressArchive': return `Compress → ${d.dest || '(unset)'}`;
+    case 'extractArchive': return `Extract → ${d.dest || '(unset)'}`;
+    case 'syncFolders': return `Sync → ${d.dest || '(unset)'}`;
+    case 'generateThumbnail': return `Thumbnails → ${d.dest || '(unset)'}`;
+    case 'applyTag': return `Tag "${d.tag || '(unset)'}"`;
+    case 'notifyToast': return `Toast: ${d.title || 'BNDZ'}`;
+    case 'runShell': return `Shell: ${d.command || '(unset)'}`;
+    case 'branch': return `Branch: ${d.condition || 'anyFiles'}`;
+    case 'delay': return `Wait ${d.seconds || '1'}s`;
+    case 'stopAbort': return `Abort: ${d.message || 'stop'}`;
+    case 'batchCounter': return `First ${d.limit || '50'} files`;
+    case 'log': return `Log: ${d.message || 'checkpoint'}`;
+    default: return 'Pass through';
+  }
 }
 
 function topologicalOrder(graph: AutomationGraph) {
   const nodes = [...graph.nodes];
-  const triggers = nodes.filter(n => n.type === 'watchFolder');
+  const triggers = nodes.filter(n => isTriggerType(n.type));
   const visited = new Set<string>();
   const out: typeof nodes = [];
   const walk = (id: string) => {
@@ -140,3 +303,5 @@ function topologicalOrder(graph: AutomationGraph) {
   nodes.forEach(n => { if (!visited.has(n.id)) out.push(n); });
   return out;
 }
+
+export { FOLDER_FIELD_KEYS };

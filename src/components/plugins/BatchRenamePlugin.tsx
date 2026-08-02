@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { isQueuedIpcResult } from '../../lib/transferIpc';
@@ -70,17 +70,24 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         [selectedItems, focusedPath],
     );
 
-    const expandTokens = (str: string, index: number) => {
+    const expandTokens = (str: string, index: number, oldName: string, parentDir: string) => {
         if (!str) return str;
         const now = new Date();
         const pad = (n: number) => n.toString().padStart(2, '0');
         const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
         const time = `${pad(now.getHours())}${pad(now.getMinutes())}`;
+        const dot = oldName.lastIndexOf('.');
+        const nameStem = dot > 0 ? oldName.slice(0, dot) : oldName;
+        const ext = dot > 0 ? oldName.slice(dot + 1) : '';
+        const parent = parentDir.split(/[/\\]/).filter(Boolean).pop() || '';
         return str
             .replace(/\{date\}/g, date)
             .replace(/\{time\}/g, time)
             .replace(/\{datetime\}/g, `${date}_${time}`)
-            .replace(/\{index\}/g, String(seqStart + index).padStart(seqPad, '0'));
+            .replace(/\{index\}/g, String(seqStart + index).padStart(seqPad, '0'))
+            .replace(/\{name\}/g, nameStem)
+            .replace(/\{ext\}/g, ext)
+            .replace(/\{parent\}/g, parent);
     };
 
     const applyCasing = (str: string, type: string) => {
@@ -94,7 +101,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         return str;
     };
 
-    const processItemFromRules = (oldName: string, index: number) => {
+    const processItemFromRules = (oldName: string, index: number, parentDir: string) => {
         let baseName = oldName;
         let extension = "";
         const dotIndex = oldName.lastIndexOf('.');
@@ -120,8 +127,8 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             newBase = applyCasing(newBase, casing);
         }
 
-        if (prefix) newBase = prefix + newBase;
-        if (suffix) newBase = newBase + suffix;
+        if (prefix) newBase = expandTokens(prefix, index, oldName, parentDir) + newBase;
+        if (suffix) newBase = newBase + expandTokens(suffix, index, oldName, parentDir);
 
         if (useSequence) {
             const numStr = (seqStart + index).toString().padStart(seqPad, '0');
@@ -129,22 +136,70 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         }
 
         if (useDateTokens) {
-            newBase = expandTokens(newBase, index);
-            extension = expandTokens(extension, index);
+            newBase = expandTokens(newBase, index, oldName, parentDir);
+            extension = expandTokens(extension, index, oldName, parentDir);
         }
+
+        // Always expand {name}/{ext}/{parent} in the result base
+        newBase = expandTokens(newBase, index, oldName, parentDir);
 
         return newBase + extension;
     };
 
-    const processItem = (oldName: string, index: number) => {
+    const processItem = (oldName: string, index: number, parentDir: string) => {
         if (aiOverrides[oldName] !== undefined) return aiOverrides[oldName];
-        return processItemFromRules(oldName, index);
+        return processItemFromRules(oldName, index, parentDir);
     };
 
-    const previews = targets.map((t, i) => ({
+    const [autoSuffixCollisions, setAutoSuffixCollisions] = useState(true);
+    const [targetOrder, setTargetOrder] = useState<string[]>([]);
+
+    const orderedTargets = useMemo(() => {
+        if (!targetOrder.length) return targets;
+        const map = new Map(targets.map(t => [t.sourcePath, t]));
+        const ordered = targetOrder.map(p => map.get(p)).filter(Boolean) as RenameTarget[];
+        const rest = targets.filter(t => !targetOrder.includes(t.sourcePath));
+        return [...ordered, ...rest];
+    }, [targets, targetOrder]);
+
+    useEffect(() => {
+        setTargetOrder(prev => {
+            const next = targets.map(t => t.sourcePath);
+            if (prev.length && prev.every((p, i) => p === next[i])) return prev;
+            return next;
+        });
+    }, [targets]);
+
+    const rawPreviews = orderedTargets.map((t, i) => ({
         ...t,
-        newName: processItem(t.oldName, i),
+        newName: processItem(t.oldName, i, t.parentDir),
     }));
+
+    const previews = useMemo(() => {
+        if (!autoSuffixCollisions) return rawPreviews;
+        const used = new Map<string, number>();
+        return rawPreviews.map(p => {
+            if (p.oldName === p.newName || !p.newName) return p;
+            const dir = p.parentDir.toLowerCase();
+            let name = p.newName;
+            let key = `${dir}\\${name.toLowerCase()}`;
+            let n = used.get(key) || 0;
+            if (n === 0) {
+                used.set(key, 1);
+                return p;
+            }
+            const dot = name.lastIndexOf('.');
+            const stem = dot > 0 ? name.slice(0, dot) : name;
+            const ext = dot > 0 ? name.slice(dot) : '';
+            while (used.has(key)) {
+                n += 1;
+                name = `${stem} (${n})${ext}`;
+                key = `${dir}\\${name.toLowerCase()}`;
+            }
+            used.set(key, 1);
+            return { ...p, newName: name };
+        });
+    }, [rawPreviews, autoSuffixCollisions]);
 
     const collisions = useMemo(
         () => previews.filter(p => p.oldName !== p.newName && p.newName),
@@ -152,6 +207,7 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
     );
 
     const batchNameConflicts = useMemo(() => {
+        if (autoSuffixCollisions) return new Set<string>();
         const counts = new Map<string, number>();
         for (const p of previews) {
             if (p.oldName === p.newName || !p.newName) continue;
@@ -159,7 +215,57 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
             counts.set(key, (counts.get(key) || 0) + 1);
         }
         return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([k]) => k));
-    }, [previews]);
+    }, [previews, autoSuffixCollisions]);
+
+    type RenamePreset = {
+        name: string;
+        findStr: string;
+        replaceStr: string;
+        useRegex: boolean;
+        prefix: string;
+        suffix: string;
+        casing: typeof casing;
+        useSequence: boolean;
+        seqStart: number;
+        seqPad: number;
+        seqSeparator: string;
+        useDateTokens: boolean;
+    };
+    const PRESET_KEY = 'bndz-rename-presets-v1';
+    const [presets, setPresets] = useState<RenamePreset[]>(() => {
+        try {
+            const raw = localStorage.getItem(PRESET_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch { return []; }
+    });
+    const persistPresets = (next: RenamePreset[]) => {
+        setPresets(next);
+        localStorage.setItem(PRESET_KEY, JSON.stringify(next));
+    };
+    const savePreset = () => {
+        const name = window.prompt('Preset name');
+        if (!name?.trim()) return;
+        const preset: RenamePreset = {
+            name: name.trim(), findStr, replaceStr, useRegex, prefix, suffix, casing,
+            useSequence, seqStart, seqPad, seqSeparator, useDateTokens,
+        };
+        persistPresets([...presets.filter(p => p.name !== preset.name), preset]);
+        pushToast({ kind: 'success', title: 'Preset saved', message: preset.name });
+    };
+    const loadPreset = (p: RenamePreset) => {
+        setFindStr(p.findStr); setReplaceStr(p.replaceStr); setUseRegex(p.useRegex);
+        setPrefix(p.prefix); setSuffix(p.suffix); setCasing(p.casing);
+        setUseSequence(p.useSequence); setSeqStart(p.seqStart); setSeqPad(p.seqPad);
+        setSeqSeparator(p.seqSeparator); setUseDateTokens(p.useDateTokens);
+    };
+    const moveTarget = (index: number, dir: -1 | 1) => {
+        const next = [...orderedTargets.map(t => t.sourcePath)];
+        const j = index + dir;
+        if (j < 0 || j >= next.length) return;
+        [next[index], next[j]] = [next[j], next[index]];
+        setTargetOrder(next);
+    };
 
     const handleCommit = async () => {
         if (!collisions.length || committing) return;
@@ -281,6 +387,29 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
                         </>
                     }
                 />
+            <div className="px-4 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-2 shrink-0">
+                <label className="inline-flex items-center gap-1.5 text-[10px] text-white/50 cursor-pointer">
+                    <input type="checkbox" checked={autoSuffixCollisions} onChange={e => setAutoSuffixCollisions(e.target.checked)} />
+                    Auto-suffix collisions
+                </label>
+                <span className="text-[10px] text-white/30">Tokens: {'{name}'} {'{ext}'} {'{parent}'} {'{date}'} {'{index}'}</span>
+                <div className="flex-1" />
+                <PluginToolbarButton icon="bookmark" onClick={savePreset}>Save preset</PluginToolbarButton>
+                {presets.length > 0 && (
+                    <select
+                        className={PLUGIN_SELECT_CLASS}
+                        defaultValue=""
+                        onChange={e => {
+                            const p = presets.find(x => x.name === e.target.value);
+                            if (p) loadPreset(p);
+                            e.target.value = '';
+                        }}
+                    >
+                        <option value="">Load preset…</option>
+                        {presets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                    </select>
+                )}
+            </div>
             <div className="w-full flex-1 flex text-gray-200 overflow-hidden min-h-0">
                 <div className="bndz-plugin-sidebar max-w-[300px] flex flex-col overflow-y-auto bndz-scrollbar p-0">
                     <PluginControlSection title="Find & replace" icon="search">

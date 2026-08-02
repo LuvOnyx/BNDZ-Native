@@ -95,8 +95,10 @@ export function encodeLocalStreamPath(winPath: string): string {
  * SetVirtualHostNameToFolderMapping hosts like http://bndz.local/...
  */
 export function toVirtualStreamUrl(path: string | null | undefined): string {
-  const win = toWindowsPath(path);
+  const win = toWindowsPath(path)?.split('#')[0]?.split('?')[0];
   if (!win) return '';
+  // Never stream directories — custom scheme 404s and poisons preview.
+  if (win.endsWith('\\') || win.endsWith('/')) return '';
   const encoded = encodeLocalStreamPath(win);
   const isNative =
     typeof window !== 'undefined' && !!(window as any).chrome?.webview;

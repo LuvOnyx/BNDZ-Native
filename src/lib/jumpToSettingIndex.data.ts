@@ -1833,8 +1833,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "menu",
       "bar",
       "menus",
-      "mouse",
-      "usability"
+      "context"
     ],
     "description": "Controls show top menu bar"
   },
@@ -1846,25 +1845,28 @@ export const JUMP_SETTING_INDEX: Array<{
       "enable",
       "submenus",
       "menus",
-      "mouse",
-      "usability"
+      "context"
     ],
     "description": "Controls enable submenus"
   },
   {
     "tab": "Menus & Context",
-    "label": "Native context menu",
+    "label": "Merge Native Windows shell verbs into the BNDZ menu",
     "key": "nativeContextMenu",
     "keywords": [
+      "merge",
       "native",
-      "context",
+      "windows",
+      "shell",
+      "verbs",
+      "into",
+      "the",
+      "bndz",
       "menu",
+      "context",
       "menus",
-      "mouse",
-      "usability",
       "right",
       "click",
-      "shell",
       "explorer"
     ],
     "description": "Controls native context menu"
@@ -1882,8 +1884,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "above",
       "selection",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "select",
       "highlight",
       "marquee"
@@ -1902,8 +1903,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "context",
       "menu",
       "menus",
-      "mouse",
-      "usability",
       "right",
       "click",
       "shell",
@@ -1923,8 +1922,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "context",
       "menu",
       "menus",
-      "mouse",
-      "usability",
       "extension",
       "file",
       "type",
@@ -1948,8 +1945,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "context",
       "menu",
       "menus",
-      "mouse",
-      "usability",
       "right",
       "click",
       "shell",
@@ -1970,8 +1965,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "context",
       "menu",
       "menus",
-      "mouse",
-      "usability",
       "right",
       "click",
       "shell",
@@ -1995,8 +1988,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "context",
       "menu",
       "menus",
-      "mouse",
-      "usability",
       "right",
       "click",
       "shell",
@@ -2024,8 +2015,6 @@ export const JUMP_SETTING_INDEX: Array<{
       "context",
       "menu",
       "menus",
-      "mouse",
-      "usability",
       "right",
       "click",
       "shell",
@@ -2045,8 +2034,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "filter",
       "patterns",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "find",
       "everything",
       "fuzzy"
@@ -2065,8 +2053,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "an",
       "item",
       "menus",
-      "mouse",
-      "usability"
+      "context"
     ],
     "description": "Controls single click to open an item"
   },
@@ -2080,8 +2067,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "icon",
       "only",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "icons",
       "library",
       "custom"
@@ -2096,8 +2082,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "folders",
       "only",
       "menus",
-      "mouse",
-      "usability"
+      "context"
     ],
     "description": "Controls folders only"
   },
@@ -2110,8 +2095,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "to",
       "select",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "selection",
       "highlight",
       "marquee"
@@ -2128,8 +2112,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "icon",
       "only",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "icons",
       "library",
       "custom"
@@ -2146,8 +2129,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "column",
       "select",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "selection",
       "highlight",
       "marquee"
@@ -2165,8 +2147,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "background",
       "window",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "drag",
       "drop",
       "and",
@@ -2185,8 +2166,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "shift",
       "wheel",
       "menus",
-      "mouse",
-      "usability"
+      "context"
     ],
     "description": "Controls shift wheel scrolls horizontally"
   },
@@ -2204,8 +2184,7 @@ export const JUMP_SETTING_INDEX: Array<{
       "ctrl",
       "wheel",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "wrap",
       "view",
       "details"
@@ -2221,13 +2200,13 @@ export const JUMP_SETTING_INDEX: Array<{
       "hovered",
       "items",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "tooltip",
       "hover",
       "popup",
       "info",
       "tip",
+      "mouse",
       "over",
       "preview",
       "theme",
@@ -2247,13 +2226,13 @@ export const JUMP_SETTING_INDEX: Array<{
       "show",
       "tooltips",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "tooltip",
       "hover",
       "popup",
       "info",
       "tip",
+      "mouse",
       "over",
       "preview"
     ],
@@ -2268,13 +2247,13 @@ export const JUMP_SETTING_INDEX: Array<{
       "verbatim",
       "tooltips",
       "menus",
-      "mouse",
-      "usability",
+      "context",
       "tooltip",
       "hover",
       "popup",
       "info",
       "tip",
+      "mouse",
       "over",
       "preview"
     ],
@@ -4186,6 +4165,43 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "File Operations",
+    "label": "Show transfer speed &amp; ETA in toasts",
+    "key": "showTransferSpeedEta",
+    "keywords": [
+      "show",
+      "transfer",
+      "speed",
+      "amp",
+      "eta",
+      "in",
+      "toasts",
+      "file",
+      "operations",
+      "notification",
+      "toast",
+      "popup",
+      "message",
+      "alert"
+    ],
+    "description": "Controls show transfer speed eta"
+  },
+  {
+    "tab": "File Operations",
+    "label": "Auto-clear finished jobs",
+    "key": "autoClearFinishedTransfers",
+    "keywords": [
+      "auto",
+      "clear",
+      "finished",
+      "jobs",
+      "transfers",
+      "file",
+      "operations"
+    ],
+    "description": "Controls auto clear finished transfers"
+  },
+  {
+    "tab": "File Operations",
     "label": "Use Custom Copy",
     "key": "useCustomCopy",
     "keywords": [
@@ -5009,17 +5025,19 @@ export const JUMP_SETTING_INDEX: Array<{
     "label": "Show branch bar",
     "key": "branchViewStrip",
     "keywords": [
+      "show",
       "branch",
       "bar",
+      "view",
       "strip",
-      "show",
-      "hide",
-      "sibling",
-      "folders",
       "find",
-      "files"
+      "files",
+      "search",
+      "filter",
+      "everything",
+      "fuzzy"
     ],
-    "description": "Show or hide the Branch bar above the file list"
+    "description": "Controls branch view strip"
   },
   {
     "tab": "Find Files & Branch View",
@@ -5456,15 +5474,19 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Shell Integration",
-    "label": "Use Native OS Context Menu",
+    "label": "Include Native shell verbs in BNDZ menu",
     "key": "useNativeOSContextMenu",
     "keywords": [
-      "use",
+      "include",
       "native",
+      "shell",
+      "verbs",
+      "in",
+      "bndz",
+      "menu",
+      "use",
       "os",
       "context",
-      "menu",
-      "shell",
       "integration",
       "right",
       "click",
@@ -5551,6 +5573,50 @@ export const JUMP_SETTING_INDEX: Array<{
       "dnd"
     ],
     "description": "Controls extended compatibility for clipboard and drag and drop"
+  },
+  {
+    "tab": "Preview",
+    "label": "Show Lens Stage under the preview panel",
+    "key": "showLensStage",
+    "keywords": [
+      "show",
+      "lens",
+      "stage",
+      "under",
+      "the",
+      "preview",
+      "panel",
+      "pane",
+      "right",
+      "viewer",
+      "tags",
+      "label",
+      "color",
+      "tag",
+      "tagging"
+    ],
+    "description": "Controls show lens stage"
+  },
+  {
+    "tab": "Preview",
+    "label": "Start collapsed (preview uses full height)",
+    "key": "lensCollapsedByDefault",
+    "keywords": [
+      "start",
+      "collapsed",
+      "preview",
+      "uses",
+      "full",
+      "height",
+      "lens",
+      "by",
+      "default",
+      "pane",
+      "right",
+      "panel",
+      "viewer"
+    ],
+    "description": "Controls lens collapsed by default"
   },
   {
     "tab": "Preview",
@@ -5884,13 +5950,19 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Thumbnails",
-    "label": "Show cached thumbnails only",
+    "label": "Show cached thumbnails only (leave off — blocks first-visit extract)",
     "key": "showCachedThumbnailsOnly",
     "keywords": [
       "show",
       "cached",
       "thumbnails",
       "only",
+      "leave",
+      "off",
+      "blocks",
+      "first",
+      "visit",
+      "extract",
       "thumbnail",
       "preview",
       "icon",
@@ -6528,6 +6600,25 @@ export const JUMP_SETTING_INDEX: Array<{
       "blow"
     ],
     "description": "Controls on right mouse up"
+  },
+  {
+    "tab": "Tabs",
+    "label": "Keep Continuum Home as a permanent locked tab",
+    "key": "permanentHomeTab",
+    "keywords": [
+      "keep",
+      "continuum",
+      "home",
+      "as",
+      "permanent",
+      "locked",
+      "tab",
+      "tabs",
+      "bar",
+      "close",
+      "new"
+    ],
+    "description": "Controls permanent home tab"
   },
   {
     "tab": "Tabs",
@@ -7331,6 +7422,19 @@ export const JUMP_SETTING_INDEX: Array<{
       "marquee"
     ],
     "description": "Controls sticky checkbox selection"
+  },
+  {
+    "tab": "Styles",
+    "label": "Sticky type group headers",
+    "key": "stickyGroupHeaders",
+    "keywords": [
+      "sticky",
+      "type",
+      "group",
+      "headers",
+      "styles"
+    ],
+    "description": "Controls sticky group headers"
   },
   {
     "tab": "Styles",

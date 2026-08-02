@@ -6,7 +6,6 @@ const SECTION_KEY_MAP: Record<string, string> = {
     storage: 'drives',
     quick: 'quickAccess',
     cloud: 'cloud',
-    ram: 'ramStaging',
     miniTree: 'miniTree',
     tree: 'tree',
 };
@@ -14,13 +13,12 @@ const SECTION_KEY_MAP: Record<string, string> = {
 const REVERSE_SECTION_MAP: Record<string, string> = {
     quickAccess: 'quick',
     cloud: 'cloud',
-    ramStaging: 'ram',
     drives: 'storage',
     miniTree: 'miniTree',
     tree: 'tree',
 };
 
-const DEFAULT_SECTION_ORDER = ['drives', 'quickAccess', 'cloud', 'ramStaging', 'tree', 'miniTree'];
+const DEFAULT_SECTION_ORDER = ['drives', 'quickAccess', 'cloud', 'tree', 'miniTree'];
 
 function mapSidebarOrder(sidebarOrder?: string[], includeMiniTree?: boolean) {
     const mapped = (sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])
@@ -44,7 +42,6 @@ export function LeftSidebar({
     quickAccessContent,
     cloudProvidersContent,
     miniTreeContent,
-    ramStagingContent,
     treeContent,
     sidebarOrder,
     showMiniTree,
@@ -55,7 +52,6 @@ export function LeftSidebar({
         cloud: true,
         drives: true,
         miniTree: true,
-        ramStaging: true,
         tree: true,
     });
 
@@ -128,7 +124,6 @@ export function LeftSidebar({
     const sections = {
         quickAccess: { content: quickAccessContent, label: 'Rapid access', icon: 'zap_ui', iconColor: 'text-emerald-400' },
         cloud: { content: cloudProvidersContent, label: 'Cloud Drives', icon: 'cloud_drive', iconColor: 'text-[#7eb8e8]' },
-        ramStaging: { content: ramStagingContent, label: 'RAM Staging', icon: 'hard_drive_ui', iconColor: 'text-violet-400' },
         drives: { content: drivesContent, label: 'Drives', icon: 'disk_mgmt', iconColor: 'text-gray-400' },
         miniTree: { content: miniTreeContent, label: 'Mini Tree', icon: 'mini_tree', iconColor: 'text-violet-400' },
         tree: { content: treeContent, label: 'Navigation Tree', icon: 'shell_menus', iconColor: 'text-emerald-500' },

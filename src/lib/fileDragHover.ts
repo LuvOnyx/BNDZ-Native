@@ -3,7 +3,7 @@
  * WebView2 file surfaces use pointer + host OLE — not HTML5 DnD.
  */
 
-import { isBndzVirtualPath } from './bndzVirtualViews';
+import { isFsDropTargetPath } from './bndzVirtualViews';
 import { normalizePanePath } from './pathUtils';
 import {
   hitTestArchiveRootAtPoint,
@@ -78,7 +78,7 @@ export function resolveFileDragHoverAtPoint(
       let tabIndex = pane.activeTabIndex;
       if (tabHit?.paneId === paneId && tabHit.tabIndex >= 0) tabIndex = tabHit.tabIndex;
       const tabPath = normalizePanePath(pane.tabs[tabIndex]?.path || '/');
-      if (!isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+      if (isFsDropTargetPath(tabPath)) {
         htmlDropTarget = { paneId: pane.id, tabPath };
       }
     }

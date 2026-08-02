@@ -34,6 +34,7 @@ import { SelectionFilmstrip } from './SelectionFilmstrip';
 import BndzLensStage from './preview/BndzLensStage';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IPC } from '../lib/ipcBridge';
+import FileLineagePanel from './preview/FileLineagePanel';
 
 type PreviewTab = 'preview' | 'details' | 'media';
 
@@ -247,7 +248,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   // Use local-stream prefix so C# WebResourceRequested can intercept and stream local files securely
   // For web fallback, use the Express backend route
   const isNative = typeof window !== 'undefined' && !!(window as any).chrome?.webview;
-  const virtualUrl = path
+  const virtualUrl = path && !isDir
       ? (isNative ? toVirtualStreamUrl(path) : `/local-stream/${encodeLocalStreamPath(toWindowsPath(path))}`)
       : '';
   const previewAllowed = isArchive || isTorrent || isPreviewEnabledForExt(ext, config);
@@ -816,7 +817,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const gpuInspectionOn = config.gpuInspection !== false && probeWebGL();
   const inspectionModes: { id: InspectionShaderMode; label: string }[] = [
     { id: 'passthrough', label: 'Standard' },
-    { id: 'histogram', label: 'Histogram' },
+    { id: 'histogram', label: 'Luma inspect' },
     { id: 'loupe', label: 'Loupe' },
   ];
 
@@ -834,31 +835,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   {t.label}
                 </button>
              ))}
-             {isImage && gpuInspectionOn && activeTab === 'preview' && (
-               <div className="bndz-inspection-mode-strip flex items-center gap-0.5 ml-2 pl-2 border-l border-white/10">
-                 {inspectionModes.map(mode => (
-                   <button
-                     key={mode.id}
-                     type="button"
-                     title={`${mode.label} view`}
-                     onClick={() => updateConfig({ inspectionShaderMode: mode.id })}
-                     className={`bndz-inspection-mode-btn${shaderMode === mode.id ? ' is-active' : ''}`}
-                   >
-                     {mode.label}
-                   </button>
-                 ))}
-               </div>
-             )}
           </div>
-          <div className="flex gap-0.5">
+          <div className="flex gap-0.5 shrink-0">
              <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" /></button>
-             <button type="button" onClick={copyPath} className="bndz-preview-action-btn" title="Copy path"><Icons8Icon id="copy" size={18} className="bndz-preview-action-icon" /></button>
              <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={18} className="bndz-preview-action-icon" /></button>
           </div>
        </div>
        
        <div className={`bndz-preview-content flex-1 relative flex flex-col min-h-0 ${
-         isArchive || isTorrent ? 'overflow-hidden' : 'overflow-y-auto bndz-scrollbar'
+         isArchive || isTorrent || (isAudio && activeTab === 'media')
+           ? 'overflow-hidden overscroll-contain'
+           : 'overflow-y-auto bndz-scrollbar'
        }`}>
           {path && activeTab !== 'details' && (
             <PreviewMetadataStrip
@@ -869,13 +856,26 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               kindLabel={isDrive ? (entity as any).typeDescription : (isDir ? 'Folder' : (ext ? `${ext.toUpperCase()} file` : 'File'))}
               isDirectory={isDir}
               facts={curatedPreviewFacts(extendedDetails)}
-              onOpen={openInShell}
               onReveal={() => {
                 if (!path) return;
                 void import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('reveal', toWindowsPath(path)));
               }}
-              onCopyPath={copyPath}
             />
+          )}
+          {isImage && gpuInspectionOn && activeTab === 'preview' && (
+            <div className="bndz-inspection-mode-bar shrink-0">
+              {inspectionModes.map(mode => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  title={`${mode.label} view`}
+                  onClick={() => updateConfig({ inspectionShaderMode: mode.id })}
+                  className={`bndz-inspection-mode-btn${shaderMode === mode.id ? ' is-active' : ''}`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
           )}
           <AnimatePresence mode="wait">
              <motion.div 
@@ -1030,6 +1030,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                           </div>
                        </div>
                     )}
+
+                    <FileLineagePanel path={path || null} onNavigate={onNavigate} />
                 </div>
                 )}
 

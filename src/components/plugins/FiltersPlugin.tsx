@@ -68,6 +68,15 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
         persist(filters.map(f => f.id === id ? { ...f, isActive: active } : f));
     };
 
+    const moveRule = (id: string, dir: -1 | 1) => {
+        const idx = filters.findIndex(f => f.id === id);
+        const j = idx + dir;
+        if (idx < 0 || j < 0 || j >= filters.length) return;
+        const next = [...filters];
+        [next[idx], next[j]] = [next[j], next[idx]];
+        persist(next);
+    };
+
     const removeRule = (id: string) => {
         persist(filters.filter(f => f.id !== id));
         if (editing?.id === id) setEditing(null);
@@ -110,7 +119,22 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                             {editing ? ` · editing “${editing.name}”` : ''}
                         </span>
                     }
-                    actions={<PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNew}>New rule</PluginHeroActionButton>}
+                    actions={
+                        <>
+                            <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNew}>New rule</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="copy_path" onClick={() => {
+                                void navigator.clipboard.writeText(JSON.stringify(filters, null, 2));
+                            }}>Export</PluginHeroActionButton>
+                            <PluginHeroActionButton icon="upload" onClick={() => {
+                                const raw = window.prompt('Paste filter JSON');
+                                if (!raw) return;
+                                try {
+                                    const parsed = JSON.parse(raw);
+                                    if (Array.isArray(parsed)) persist(parsed);
+                                } catch { /* ignore */ }
+                            }}>Import</PluginHeroActionButton>
+                        </>
+                    }
                 />
 
             <div className="w-full flex-1 p-4 flex gap-4 overflow-hidden min-h-0">
@@ -144,6 +168,10 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                                                 : 'hover:border-sky-400/25'
                                     }`}
                                 >
+                                    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                                        <button type="button" className="p-1 text-white/30 hover:text-white/70" onClick={() => moveRule(f.id, -1)} title="Move up">↑</button>
+                                        <button type="button" className="p-1 text-white/30 hover:text-white/70" onClick={() => moveRule(f.id, 1)} title="Move down">↓</button>
+                                    </div>
                                     <input
                                         type="checkbox"
                                         checked={f.isActive}

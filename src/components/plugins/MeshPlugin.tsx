@@ -195,11 +195,39 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
                     {hosts.map(h => <option key={h.id} value={h.id}>{h.alias}</option>)}
                   </select>
                   <PluginFieldLabel>Remote path</PluginFieldLabel>
-                  <input className={PLUGIN_INPUT_CLASS} value={r.remotePath} onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, remotePath: e.target.value } : x))} />
+                  <div className="flex gap-1.5">
+                    <input className={`flex-1 ${PLUGIN_INPUT_CLASS}`} value={r.remotePath} onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, remotePath: e.target.value } : x))} />
+                    <PluginToolbarButton
+                      onClick={() => {
+                        const meshMatch = String(currentPath || '').match(/^\/mesh\/[^/]+(\/.*)?$/i);
+                        if (meshMatch) {
+                          const remote = (meshMatch[1] || '/').replace(/\//g, '/');
+                          setRules(prev => prev.map((x, j) => j === i ? { ...x, remotePath: remote || '/' } : x));
+                        }
+                      }}
+                    >
+                      Use browse path
+                    </PluginToolbarButton>
+                  </div>
+                  <PluginFieldLabel>Exclude globs (; separated)</PluginFieldLabel>
+                  <input
+                    className={PLUGIN_INPUT_CLASS}
+                    value={(r as any).excludeGlobs || ''}
+                    placeholder="*.tmp; node_modules; .git"
+                    onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, excludeGlobs: e.target.value } as any : x))}
+                  />
                   <div className="flex gap-2 items-center flex-wrap">
                     <label className="flex items-center gap-1.5 text-xs text-gray-400">
                       <input type="checkbox" checked={r.pushOnSave} onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, pushOnSave: e.target.checked } : x))} />
                       Push on save
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <input
+                        type="checkbox"
+                        checked={(r as any).pullMode === true}
+                        onChange={e => setRules(prev => prev.map((x, j) => j === i ? { ...x, pullMode: e.target.checked } as any : x))}
+                      />
+                      Prefer pull (swap on run)
                     </label>
                     <PluginToolbarButton onClick={() => void IPC.meshRunSync(r.id)} disabled={busy}>Run now</PluginToolbarButton>
                   </div>

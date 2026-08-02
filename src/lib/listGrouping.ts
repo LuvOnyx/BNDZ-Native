@@ -17,7 +17,12 @@ export function isGroupHeaderRow(row: ListRowItem): row is ListGroupHeader {
 
 function extensionGroup(entity: Record<string, unknown>): string {
   if (entity.type === 'directory') return 'Folders';
-  const ext = String(entity.extension || '').toLowerCase();
+  let ext = String(entity.extension || '').toLowerCase().replace(/^\./, '');
+  if (!ext) {
+    const name = String(entity.name || '');
+    const dot = name.lastIndexOf('.');
+    if (dot > 0 && dot < name.length - 1) ext = name.slice(dot + 1).toLowerCase();
+  }
   if (!ext) return 'No extension';
   if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff'].includes(ext)) return 'Images';
   if (['mp4', 'mkv', 'avi', 'mov', 'wmv', 'webm'].includes(ext)) return 'Video';

@@ -216,6 +216,10 @@ export function resolveShellPropertiesPath(path: string | null | undefined): str
 export function entityShellIsDirectory(entity: { driveInfo?: unknown; id?: string; type?: string } | null | undefined, path: string | null | undefined): boolean {
   if (entity?.driveInfo) return false;
   if (typeof entity?.id === 'string' && entity.id.startsWith('drive-')) return false;
+  // Trust explicit directory typing even when the name contains dots (e.g. "foo.bar").
+  const t = (entity?.type || '').toLowerCase();
+  if (t === 'directory' || t === 'folder' || t === 'dir') return true;
+  if (t === 'file') return false;
   return shellIconIsDirectory(path);
 }
 

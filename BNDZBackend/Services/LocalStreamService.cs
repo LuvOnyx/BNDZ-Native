@@ -119,11 +119,21 @@ namespace BNDZ.Services
             CoreWebView2WebResourceRequestedEventArgs e,
             string localPath)
         {
+            if (e.Request.Method == "OPTIONS")
+            {
+                var empty = new MemoryStream();
+                e.Response = env.CreateWebResourceResponse(empty, 204, "No Content",
+                    "Access-Control-Allow-Origin: *\r\n" +
+                    "Access-Control-Allow-Methods: GET, OPTIONS\r\n" +
+                    "Access-Control-Allow-Headers: Range");
+                return;
+            }
+
             if (string.IsNullOrEmpty(localPath) || !File.Exists(localPath))
             {
                 System.Diagnostics.Debug.WriteLine($"[local-stream] 404 path='{localPath}' uri='{e.Request.Uri}'");
                 var empty = new MemoryStream();
-                e.Response = env.CreateWebResourceResponse(empty, 404, "Not Found", "Content-Type: text/plain");
+                e.Response = env.CreateWebResourceResponse(empty, 404, "Not Found", "Content-Type: text/plain\r\nAccess-Control-Allow-Origin: *");
                 return;
             }
 

@@ -184,6 +184,8 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: 'piechart_ui' },
+    { id: 'advanced', label: 'Advanced', icon: 'zap_ui' },
+    { id: 'uninstaller', label: 'Apps', icon: 'app_ui' },
     { id: 'duplicates', label: 'Duplicates', icon: 'copy' },
     { id: 'organize', label: 'Smart Organize', icon: 'folder_plus_ui' },
   ];
@@ -433,6 +435,29 @@ export default function StorageCleanupPlugin({ currentPath, pathContentsCache, f
                 })}
               </div>
             </div>
+          )}
+
+          {activeTab === 'advanced' && (
+            <div className="space-y-3">
+              <PluginCard>
+                <PluginSectionTitle icon="zap_ui">Advanced storage scan</PluginSectionTitle>
+                <p className="text-xs bndz-panel-muted mt-1 mb-3">
+                  Deep scan for large files, empty folders, and reclaimable space across a chosen root.
+                </p>
+                <PluginToolbarButton icon="zap_ui" onClick={() => setAdvancedWizardOpen(true)}>
+                  Launch advanced scan
+                </PluginToolbarButton>
+              </PluginCard>
+              {advancedWizardOpen && (
+                <StorageAdvancedScanWizard
+                  onClose={() => setAdvancedWizardOpen(false)}
+                />
+              )}
+            </div>
+          )}
+
+          {activeTab === 'uninstaller' && (
+            <InstalledAppsPanel />
           )}
 
           {activeTab === 'organize' && (

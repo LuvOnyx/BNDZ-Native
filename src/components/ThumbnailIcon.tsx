@@ -13,6 +13,7 @@ import { entityShellIsDirectory } from '../lib/shellPaths';
 import { useNativeIcon } from '../lib/useNativeIcon';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IconPlaceholder } from './IconPlaceholder';
+import { EmblemIcon } from './EmblemIcon';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif', 'avif']);
 const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg', 'flv', 'ts', 'm2ts']);
@@ -115,15 +116,17 @@ export function ThumbnailIcon({
     return () => observer.disconnect();
   }, [path, eager]);
 
-  const shellFetchEnabled = isVisible && shouldFetchNativeShellIcon(entity, config);
   const thumbFetchEnabled = isVisible && useThumbnail && shouldFetchNativeThumbnail(entity, config);
+  // Always keep shell available as fallback — especially folders when folder-thumb returns null/error.
+  const shellFetchEnabled = isVisible && shouldFetchNativeShellIcon(entity, config)
+    && (!thumbFetchEnabled || showTypeBadge || thumbBroken || dirFlag);
 
   // Direct fetch — viewport-visible rows get priorityBoost so they fill before offscreen prefetch.
   useEffect(() => {
     if (!isVisible || !path) return;
     const boost = eager ? 800 : 400;
     if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', LIST_THUMB_PX, boost);
-    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, Math.max(0, boost - 200));
+    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, boost);
   }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled, eager]);
 
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
@@ -235,7 +238,9 @@ export function ThumbnailIcon({
         />
       )}
       {isGhostLink && size >= 14 && (
-        <span className="bndz-ghostlink-emblem absolute -right-0.5 -bottom-0.5 text-[9px] leading-none pointer-events-none" title="Ghost link">👻</span>
+        <span className="bndz-ghostlink-emblem absolute -right-0.5 -bottom-0.5 leading-none pointer-events-none" title="Ghost link">
+          <EmblemIcon id="emblem-symbolic-link" size={Math.max(10, Math.round(size * 0.35))} />
+        </span>
       )}
     </div>
   );

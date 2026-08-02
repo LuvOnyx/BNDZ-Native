@@ -71,11 +71,13 @@ public sealed class BndzFileIndexService : IDisposable
                   ext TEXT,
                   size INTEGER NOT NULL DEFAULT 0,
                   modified INTEGER NOT NULL DEFAULT 0,
+                  created INTEGER NOT NULL DEFAULT 0,
                   is_dir INTEGER NOT NULL DEFAULT 0,
                   media_kind TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_files_name ON files(name COLLATE NOCASE);
                 CREATE INDEX IF NOT EXISTS idx_files_modified ON files(modified DESC);
+                CREATE INDEX IF NOT EXISTS idx_files_created ON files(created DESC);
                 CREATE INDEX IF NOT EXISTS idx_files_media ON files(media_kind, modified DESC);
                 CREATE INDEX IF NOT EXISTS idx_files_size ON files(size DESC);
                 CREATE TABLE IF NOT EXISTS locations (
@@ -105,9 +107,66 @@ public sealed class BndzFileIndexService : IDisposable
                 );
                 """;
             cmd.ExecuteNonQuery();
+            EnsureCreatedColumn(conn);
             EnsureFtsBackfill(conn);
             EnsureMetaKv(conn);
+            BackfillCreatedDates(conn);
             _schemaReady = true;
+        }
+    }
+
+    private static void EnsureCreatedColumn(SqliteConnection conn)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM pragma_table_info('files') WHERE name='created'";
+        if (Convert.ToInt64(check.ExecuteScalar()) != 0) return;
+        using var alter = conn.CreateCommand();
+        alter.CommandText = "ALTER TABLE files ADD COLUMN created INTEGER NOT NULL DEFAULT 0";
+        alter.ExecuteNonQuery();
+        using var idx = conn.CreateCommand();
+        idx.CommandText = "CREATE INDEX IF NOT EXISTS idx_files_created ON files(created DESC)";
+        idx.ExecuteNonQuery();
+    }
+
+    /// <summary>Gradually backfill creation timestamps for rows indexed before the created column existed.</summary>
+    private static void BackfillCreatedDates(SqliteConnection conn, int batchSize = 5000)
+    {
+        try
+        {
+            using var sel = conn.CreateCommand();
+            sel.CommandText = "SELECT path FROM files WHERE created=0 LIMIT $lim";
+            sel.Parameters.AddWithValue("$lim", Math.Max(1, batchSize));
+            var paths = new List<string>();
+            using (var r = sel.ExecuteReader())
+                while (r.Read()) paths.Add(r.GetString(0));
+            if (paths.Count == 0) return;
+
+            using var upd = conn.CreateCommand();
+            upd.CommandText = "UPDATE files SET created=$c WHERE path=$p";
+            upd.Parameters.Add("$p", SqliteType.Text);
+            upd.Parameters.Add("$c", SqliteType.Integer);
+            foreach (var panePath in paths)
+            {
+                try
+                {
+                    var win = PaneToWin(panePath);
+                    if (string.IsNullOrEmpty(win)) continue;
+                    long created = 0;
+                    if (File.Exists(win))
+                        created = new DateTimeOffset(File.GetCreationTimeUtc(win)).ToUnixTimeSeconds();
+                    else if (Directory.Exists(win))
+                        created = new DateTimeOffset(Directory.GetCreationTimeUtc(win)).ToUnixTimeSeconds();
+                    if (created <= 0) continue;
+                    upd.Parameters["$p"].Value = panePath;
+                    upd.Parameters["$c"].Value = created;
+                    upd.ExecuteNonQuery();
+                }
+                catch { /* skip unreadable paths */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/CreatedBackfill] {ex.Message}");
         }
     }
 
@@ -228,8 +287,8 @@ public sealed class BndzFileIndexService : IDisposable
             using var conn = OpenConnection();
             var upsert = conn.CreateCommand();
             upsert.CommandText = """
-                INSERT INTO files(path,name,ext,size,modified,is_dir,media_kind) VALUES($p,$n,$e,$s,$m,$d,$k)
-                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k;
+                INSERT INTO files(path,name,ext,size,modified,is_dir,media_kind,created) VALUES($p,$n,$e,$s,$m,$d,$k,$c)
+                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k,created=$c;
                 DELETE FROM files_fts WHERE path=$p;
                 INSERT INTO files_fts(name, path) VALUES($n, $p);
                 """;
@@ -240,6 +299,7 @@ public sealed class BndzFileIndexService : IDisposable
             upsert.Parameters.Add("$m", SqliteType.Integer);
             upsert.Parameters.Add("$d", SqliteType.Integer);
             upsert.Parameters.Add("$k", SqliteType.Text);
+            upsert.Parameters.Add("$c", SqliteType.Integer);
 
             IndexDir(conn, root, root, 0, maxDepth, upsert, ref batch, ct);
 
@@ -299,6 +359,7 @@ public sealed class BndzFileIndexService : IDisposable
                     upsert.Parameters["$e"].Value = string.IsNullOrEmpty(ext) ? DBNull.Value : ext;
                     upsert.Parameters["$s"].Value = fi.Length;
                     upsert.Parameters["$m"].Value = new DateTimeOffset(fi.LastWriteTimeUtc).ToUnixTimeSeconds();
+                    upsert.Parameters["$c"].Value = new DateTimeOffset(fi.CreationTimeUtc).ToUnixTimeSeconds();
                     upsert.Parameters["$d"].Value = 0;
                     upsert.Parameters["$k"].Value = ClassifyMedia(ext) ?? (object)DBNull.Value;
                     if (tx == null) tx = conn.BeginTransaction();
@@ -330,6 +391,7 @@ public sealed class BndzFileIndexService : IDisposable
                     upsert.Parameters["$e"].Value = DBNull.Value;
                     upsert.Parameters["$s"].Value = 0L;
                     upsert.Parameters["$m"].Value = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                    upsert.Parameters["$c"].Value = new DateTimeOffset(di.CreationTimeUtc).ToUnixTimeSeconds();
                     upsert.Parameters["$d"].Value = 1;
                     upsert.Parameters["$k"].Value = DBNull.Value;
                     if (tx == null) tx = conn.BeginTransaction();
@@ -380,7 +442,7 @@ public sealed class BndzFileIndexService : IDisposable
             cmd.Parameters.AddWithValue($"$t{i}", $"%{EscapeLike(terms[i])}%");
         }
 
-        var sql = $"SELECT path,name,size,is_dir,modified FROM files WHERE {string.Join(" AND ", where)}";
+        var sql = $"SELECT {FileRowColumns} FROM files WHERE {string.Join(" AND ", where)}";
         if (!string.IsNullOrWhiteSpace(scopeRootPanePath))
         {
             var win = PaneToWin(scopeRootPanePath);
@@ -409,8 +471,8 @@ public sealed class BndzFileIndexService : IDisposable
         {
             using var conn = OpenConnection();
             using var cmd = conn.CreateCommand();
-            var sql = """
-                SELECT f.path, f.name, f.size, f.is_dir, f.modified,
+            var sql = $"""
+                SELECT f.path, f.name, f.size, f.is_dir, f.modified, COALESCE(f.ext,''), COALESCE(f.media_kind,''), f.created,
                        snippet(c, 1, '', '', '…', 12) AS snip,
                        bm25(c) AS rank
                 FROM content_fts c
@@ -450,12 +512,15 @@ public sealed class BndzFileIndexService : IDisposable
             var size = reader.GetInt64(2);
             var isDir = reader.GetInt32(3) == 1;
             var modified = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt64(4) : 0L;
-            var snip = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
-            var rank = reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetDouble(6) : 0d;
+            var ext = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
+            var mediaKind = reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetString(6) : "";
+            var created = reader.FieldCount > 7 && !reader.IsDBNull(7) ? reader.GetInt64(7) : 0L;
+            var snip = reader.FieldCount > 8 && !reader.IsDBNull(8) ? reader.GetString(8) : "";
+            var rank = reader.FieldCount > 9 && !reader.IsDBNull(9) ? reader.GetDouble(9) : 0d;
             if (isDir)
-                results.Add(new { id = path, name, path, type = "directory", modified, snippet = snip, rank });
+                results.Add(new { id = path, name, path, type = "directory", modified = FormatModifiedIso(modified), created = FormatModifiedIso(created), snippet = snip, rank, mediaKind = string.IsNullOrWhiteSpace(mediaKind) ? null : mediaKind });
             else
-                results.Add(new { id = path, name, path, type = "file", size, modified, snippet = snip, rank });
+                results.Add(new { id = path, name, path, type = "file", size, modified = FormatModifiedIso(modified), created = FormatModifiedIso(created), extension = string.IsNullOrWhiteSpace(ext) ? null : ext.Trim().TrimStart('.').ToLowerInvariant(), snippet = snip, rank, mediaKind = string.IsNullOrWhiteSpace(mediaKind) ? null : mediaKind });
         }
         return results;
     }
@@ -468,8 +533,8 @@ public sealed class BndzFileIndexService : IDisposable
             if (string.IsNullOrEmpty(match)) return [];
 
             using var cmd = conn.CreateCommand();
-            var sql = """
-                SELECT f.path, f.name, f.size, f.is_dir, f.modified
+            var sql = $"""
+                SELECT f.path, f.name, f.size, f.is_dir, f.modified, COALESCE(f.ext,''), COALESCE(f.media_kind,''), f.created
                 FROM files_fts
                 JOIN files f ON f.path = files_fts.path
                 WHERE files_fts MATCH $q
@@ -555,7 +620,7 @@ public sealed class BndzFileIndexService : IDisposable
     }
 
     public List<object> GetRecentFiles(int limit = 500) =>
-        QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 ORDER BY modified DESC LIMIT $lim", limit);
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 ORDER BY modified DESC LIMIT $lim", limit);
 
     /// <summary>Continuum rail rows with media_kind for Peek Orbit + thumb priority.</summary>
     public List<object> GetContinuumFiles(int limit = 28)
@@ -563,8 +628,8 @@ public sealed class BndzFileIndexService : IDisposable
         var lim = Math.Max(1, Math.Min(limit, 64));
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT path,name,size,is_dir,modified,COALESCE(media_kind,'') FROM files
+        cmd.CommandText = $"""
+            SELECT {FileRowColumns} FROM files
             WHERE is_dir=0
             ORDER BY
               CASE WHEN media_kind IN ('image','video') THEN 0
@@ -574,22 +639,7 @@ public sealed class BndzFileIndexService : IDisposable
             LIMIT $lim
             """;
         cmd.Parameters.AddWithValue("$lim", lim);
-        var results = new List<object>();
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            var path = reader.GetString(0);
-            var name = reader.GetString(1);
-            var size = reader.GetInt64(2);
-            var isDir = reader.GetInt32(3) == 1;
-            var modified = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt64(4) : 0L;
-            var mediaKind = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
-            if (isDir)
-                results.Add(new { id = path, name, path, type = "directory", modified, mediaKind });
-            else
-                results.Add(new { id = path, name, path, type = "file", size, modified, mediaKind });
-        }
-        return results;
+        return ReadFileRows(cmd);
     }
 
     /// <summary>Cheap fingerprint — skip expensive continuum/orbit rebuild when unchanged.</summary>
@@ -633,8 +683,8 @@ public sealed class BndzFileIndexService : IDisposable
         var lim = Math.Clamp(limit, 1, 32);
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT f.path, f.name, f.size, f.is_dir, f.modified, COALESCE(f.media_kind,''), COALESCE(s.open_count,0)
+        cmd.CommandText = $"""
+            SELECT f.path, f.name, f.size, f.is_dir, f.modified, COALESCE(f.ext,''), COALESCE(f.media_kind,''), COALESCE(s.open_count,0)
             FROM path_stats s
             INNER JOIN files f ON f.path = s.path
             ORDER BY s.open_count DESC, s.last_open DESC
@@ -645,17 +695,42 @@ public sealed class BndzFileIndexService : IDisposable
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            var p = reader.GetString(0);
+            var path = reader.GetString(0);
             var name = reader.GetString(1);
             var size = reader.GetInt64(2);
             var isDir = reader.GetInt32(3) == 1;
             var modified = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt64(4) : 0L;
-            var mediaKind = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
-            var opens = reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetInt64(6) : 0L;
+            var ext = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
+            var mediaKind = reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetString(6) : "";
+            var opens = reader.FieldCount > 7 && !reader.IsDBNull(7) ? reader.GetInt64(7) : 0L;
             if (isDir)
-                results.Add(new { id = p, name, path = p, type = "directory", modified, mediaKind, openCount = opens });
+            {
+                results.Add(new
+                {
+                    id = path,
+                    name,
+                    path,
+                    type = "directory",
+                    modified = FormatModifiedIso(modified),
+                    mediaKind = string.IsNullOrWhiteSpace(mediaKind) ? null : mediaKind,
+                    openCount = opens,
+                });
+            }
             else
-                results.Add(new { id = p, name, path = p, type = "file", size, modified, mediaKind, openCount = opens });
+            {
+                results.Add(new
+                {
+                    id = path,
+                    name,
+                    path,
+                    type = "file",
+                    size,
+                    modified = FormatModifiedIso(modified),
+                    extension = string.IsNullOrWhiteSpace(ext) ? null : ext.Trim().TrimStart('.').ToLowerInvariant(),
+                    mediaKind = string.IsNullOrWhiteSpace(mediaKind) ? null : mediaKind,
+                    openCount = opens,
+                });
+            }
         }
         return results;
     }
@@ -690,14 +765,14 @@ public sealed class BndzFileIndexService : IDisposable
     }
 
     public List<object> GetMediaFiles(int limit = 1000) =>
-        QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 AND media_kind IN ('image','video') ORDER BY modified DESC LIMIT $lim", limit);
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind IN ('image','video') ORDER BY modified DESC LIMIT $lim", limit);
 
     public List<object> GetAudioFiles(int limit = 1000) =>
-        QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 AND media_kind='audio' ORDER BY modified DESC LIMIT $lim", limit);
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind='audio' ORDER BY modified DESC LIMIT $lim", limit);
 
     public List<object> GetDocumentFiles(int limit = 1000) =>
-        QueryView("""
-            SELECT path,name,size,is_dir,modified FROM files
+        QueryView($"""
+            SELECT {FileRowColumns} FROM files
             WHERE is_dir=0 AND (
               media_kind='document'
               OR lower(ext) IN ('pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','rtf','odt')
@@ -706,7 +781,7 @@ public sealed class BndzFileIndexService : IDisposable
             """, limit);
 
     public List<object> GetLargeFiles(int limit = 500, long minBytes = 100 * 1024 * 1024) =>
-        QueryView("SELECT path,name,size,is_dir,modified FROM files WHERE is_dir=0 AND size >= $min ORDER BY size DESC LIMIT $lim", limit, minBytes);
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND size >= $min ORDER BY size DESC LIMIT $lim", limit, minBytes);
 
     private List<object> QueryView(string sql, int limit, long? minBytes = null)
     {
@@ -716,6 +791,37 @@ public sealed class BndzFileIndexService : IDisposable
         cmd.Parameters.AddWithValue("$lim", Math.Max(1, Math.Min(limit, 5000)));
         if (minBytes.HasValue) cmd.Parameters.AddWithValue("$min", minBytes.Value);
         return ReadFileRows(cmd);
+    }
+
+    private const string FileRowColumns = "path,name,size,is_dir,modified,COALESCE(ext,''),COALESCE(media_kind,''),created";
+
+    private static string FormatModifiedIso(long unixSeconds)
+    {
+        if (unixSeconds <= 0) return "";
+        return DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("o");
+    }
+
+    private static object BuildIndexedFileRow(
+        string path, string name, long size, bool isDir, long modifiedUnix, string ext, string mediaKind, long createdUnix = 0)
+    {
+        var modified = FormatModifiedIso(modifiedUnix);
+        var created = FormatModifiedIso(createdUnix);
+        var extNorm = string.IsNullOrWhiteSpace(ext) ? null : ext.Trim().TrimStart('.').ToLowerInvariant();
+        var kind = string.IsNullOrWhiteSpace(mediaKind) ? null : mediaKind;
+        if (isDir)
+            return new { id = path, name, path, type = "directory", modified, created, mediaKind = kind };
+        return new
+        {
+            id = path,
+            name,
+            path,
+            type = "file",
+            size,
+            modified,
+            created,
+            extension = extNorm,
+            mediaKind = kind,
+        };
     }
 
     private static List<object> ReadFileRows(SqliteCommand cmd)
@@ -729,10 +835,10 @@ public sealed class BndzFileIndexService : IDisposable
             var size = reader.GetInt64(2);
             var isDir = reader.GetInt32(3) == 1;
             var modified = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetInt64(4) : 0L;
-            if (isDir)
-                results.Add(new { id = path, name, path, type = "directory", modified });
-            else
-                results.Add(new { id = path, name, path, type = "file", size, modified });
+            var ext = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "";
+            var mediaKind = reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetString(6) : "";
+            var created = reader.FieldCount > 7 && !reader.IsDBNull(7) ? reader.GetInt64(7) : 0L;
+            results.Add(BuildIndexedFileRow(path, name, size, isDir, modified, ext, mediaKind, created));
         }
         return results;
     }
@@ -742,7 +848,7 @@ public sealed class BndzFileIndexService : IDisposable
         if (string.IsNullOrWhiteSpace(panePath)) return null;
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT name,ext,size,modified,is_dir,media_kind FROM files WHERE path=$p";
+        cmd.CommandText = "SELECT name,ext,size,modified,is_dir,media_kind,created FROM files WHERE path=$p";
         cmd.Parameters.AddWithValue("$p", NormalizePanePath(panePath));
         using var r = cmd.ExecuteReader();
         if (!r.Read()) return null;
@@ -751,9 +857,12 @@ public sealed class BndzFileIndexService : IDisposable
             ["name"] = r.GetString(0),
             ["extension"] = r.IsDBNull(1) ? null : r.GetString(1),
             ["size"] = r.GetInt64(2),
-            ["modified"] = r.GetInt64(3),
+            ["modified"] = FormatModifiedIso(r.GetInt64(3)),
+            ["modifiedUnix"] = r.GetInt64(3),
             ["isDirectory"] = r.GetInt32(4) == 1,
             ["mediaKind"] = r.IsDBNull(5) ? null : r.GetString(5),
+            ["created"] = FormatModifiedIso(r.FieldCount > 6 && !r.IsDBNull(6) ? r.GetInt64(6) : 0L),
+            ["createdUnix"] = r.FieldCount > 6 && !r.IsDBNull(6) ? r.GetInt64(6) : 0L,
         };
     }
 
@@ -851,8 +960,8 @@ public sealed class BndzFileIndexService : IDisposable
 
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT path,name,size,is_dir,modified FROM files
+        cmd.CommandText = $"""
+            SELECT {FileRowColumns} FROM files
             WHERE is_dir=0
               AND path LIKE $prefix
               AND path NOT LIKE $nested
@@ -877,8 +986,8 @@ public sealed class BndzFileIndexService : IDisposable
         var lim = Math.Max(1, Math.Min(limit, 64));
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT path,name,size,is_dir,modified FROM files
+        cmd.CommandText = $"""
+            SELECT {FileRowColumns} FROM files
             WHERE is_dir=0 AND size=$size AND path != $self
             ORDER BY modified DESC
             LIMIT $lim
@@ -897,8 +1006,8 @@ public sealed class BndzFileIndexService : IDisposable
         var lim = Math.Max(1, Math.Min(limit, 24));
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT path,name,size,is_dir,modified FROM files
+        cmd.CommandText = $"""
+            SELECT {FileRowColumns} FROM files
             WHERE is_dir=0
               AND media_kind=$kind
               AND path != $self
@@ -955,8 +1064,8 @@ public sealed class BndzFileIndexService : IDisposable
             using var conn = OpenConnection();
             using var upsert = conn.CreateCommand();
             upsert.CommandText = """
-                INSERT INTO files(path,name,ext,size,modified,is_dir,media_kind) VALUES($p,$n,$e,$s,$m,$d,$k)
-                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k;
+                INSERT INTO files(path,name,ext,size,modified,is_dir,media_kind,created) VALUES($p,$n,$e,$s,$m,$d,$k,$c)
+                ON CONFLICT(path) DO UPDATE SET name=$n,ext=$e,size=$s,modified=$m,is_dir=$d,media_kind=$k,created=$c;
                 DELETE FROM files_fts WHERE path=$p;
                 INSERT INTO files_fts(name, path) VALUES($n, $p);
                 """;
@@ -967,6 +1076,7 @@ public sealed class BndzFileIndexService : IDisposable
             upsert.Parameters.Add("$m", SqliteType.Integer);
             upsert.Parameters.Add("$d", SqliteType.Integer);
             upsert.Parameters.Add("$k", SqliteType.Text);
+            upsert.Parameters.Add("$c", SqliteType.Integer);
 
             if (File.Exists(path))
             {
@@ -977,6 +1087,7 @@ public sealed class BndzFileIndexService : IDisposable
                 upsert.Parameters["$e"].Value = string.IsNullOrEmpty(ext) ? DBNull.Value : ext;
                 upsert.Parameters["$s"].Value = fi.Length;
                 upsert.Parameters["$m"].Value = new DateTimeOffset(fi.LastWriteTimeUtc).ToUnixTimeSeconds();
+                upsert.Parameters["$c"].Value = new DateTimeOffset(fi.CreationTimeUtc).ToUnixTimeSeconds();
                 upsert.Parameters["$d"].Value = 0;
                 upsert.Parameters["$k"].Value = ClassifyMedia(ext) ?? (object)DBNull.Value;
                 upsert.ExecuteNonQuery();
@@ -990,6 +1101,7 @@ public sealed class BndzFileIndexService : IDisposable
                 upsert.Parameters["$e"].Value = DBNull.Value;
                 upsert.Parameters["$s"].Value = 0L;
                 upsert.Parameters["$m"].Value = new DateTimeOffset(di.LastWriteTimeUtc).ToUnixTimeSeconds();
+                upsert.Parameters["$c"].Value = new DateTimeOffset(di.CreationTimeUtc).ToUnixTimeSeconds();
                 upsert.Parameters["$d"].Value = 1;
                 upsert.Parameters["$k"].Value = DBNull.Value;
                 upsert.ExecuteNonQuery();

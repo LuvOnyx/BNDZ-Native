@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import type { CanvasItem } from '../../lib/spatialCanvasStore';
-import SpatialPipCard from './SpatialPipCard';
+import SpatialCanvasCard from '../../components/workspace/SpatialCanvasCard';
 import BezierWireLayer from './BezierWireLayer';
 import type { PinRelation } from '../../lib/workspace/spatialCanvasUtils';
 
@@ -31,8 +31,12 @@ type Props = {
   onContextMenu: (e: React.MouseEvent, item: CanvasItem) => void;
   onNoteBlur: (id: string, value: string) => void;
   onNoteCancel: () => void;
+  onReveal?: (item: CanvasItem) => void;
+  onAutomate?: (item: CanvasItem) => void;
+  onAddStickyBeside?: (item: CanvasItem) => void;
 };
 
+/** Spatial v2 board — same glass constellation cards as v1 (`SpatialCanvasCard`). */
 export default function SpatialSpringBoard({
   items,
   relations,
@@ -46,6 +50,9 @@ export default function SpatialSpringBoard({
   onContextMenu,
   onNoteBlur,
   onNoteCancel,
+  onReveal,
+  onAutomate,
+  onAddStickyBeside,
 }: Props) {
   const getItemPosition = useCallback((id: string) => {
     const item = items.find(it => it.id === id);
@@ -64,7 +71,7 @@ export default function SpatialSpringBoard({
         getItemPosition={getItemPosition}
       />
       {items.map(item => (
-        <SpatialPipCard
+        <SpatialCanvasCard
           key={item.id}
           item={item}
           selected={selectedSet.has(item.id)}
@@ -77,6 +84,9 @@ export default function SpatialSpringBoard({
           onContextMenu={onContextMenu}
           onNoteBlur={onNoteBlur}
           onNoteCancel={onNoteCancel}
+          onReveal={onReveal}
+          onAutomate={onAutomate}
+          onAddStickyBeside={onAddStickyBeside}
         />
       ))}
     </>

@@ -38,17 +38,35 @@ public static class FileOperationPathPlanner
         if (action is "move" or "rename" && sources.Count == 1 && !string.IsNullOrEmpty(targetDir))
         {
             var src = Normalize(sources[0]);
-            if (File.Exists(src) && !Directory.Exists(targetDir))
+            // Target is the new full path (rename / move-as), not a parent container.
+            if (!Directory.Exists(targetDir) && !File.Exists(targetDir))
             {
-                var destFile = targetDir;
-                if (!destFile.EndsWith(Path.GetFileName(src), StringComparison.OrdinalIgnoreCase)
-                    && !File.Exists(destFile) && !Directory.Exists(destFile))
-                    destFile = Path.Combine(Path.GetDirectoryName(targetDir) ?? targetDir, Path.GetFileName(targetDir));
-                if (!File.Exists(destFile) || string.Equals(src, destFile, StringComparison.OrdinalIgnoreCase))
-                    results.Add((src, destFile));
-                else
-                    results.Add((src, Path.Combine(Path.GetDirectoryName(destFile) ?? targetDir, Path.GetFileName(src))));
-                return results;
+                if (File.Exists(src))
+                {
+                    var destFile = targetDir;
+                    if (!destFile.EndsWith(Path.GetFileName(src), StringComparison.OrdinalIgnoreCase)
+                        && !File.Exists(destFile) && !Directory.Exists(destFile))
+                        destFile = Path.Combine(Path.GetDirectoryName(targetDir) ?? targetDir, Path.GetFileName(targetDir));
+                    if (!File.Exists(destFile) || string.Equals(src, destFile, StringComparison.OrdinalIgnoreCase))
+                        results.Add((src, destFile));
+                    else
+                        results.Add((src, Path.Combine(Path.GetDirectoryName(destFile) ?? targetDir, Path.GetFileName(src))));
+                    return results;
+                }
+
+                if (Directory.Exists(src))
+                {
+                    // Dest IS the renamed folder — do not nest GetFileName(src) under it.
+                    foreach (var file in EnumerateFilesRecursive(src))
+                    {
+                        var rel = Path.GetRelativePath(src, file);
+                        results.Add((file, Path.Combine(targetDir, rel)));
+                    }
+                    // Empty folders still need a marker so callers create the root.
+                    if (results.Count == 0)
+                        results.Add((src, targetDir));
+                    return results;
+                }
             }
         }
 
@@ -67,7 +85,7 @@ public static class FileOperationPathPlanner
                 var destRoot = useStructure
                     ? ResolveDirectoryRootDestination(src, targetDir, commonRoot)
                     : Path.Combine(targetDir, Path.GetFileName(src.TrimEnd('\\', '/')));
-                foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+                foreach (var file in EnumerateFilesRecursive(src))
                 {
                     var rel = Path.GetRelativePath(src, file);
                     results.Add((file, Path.Combine(destRoot, rel)));
@@ -76,6 +94,110 @@ public static class FileOperationPathPlanner
         }
 
         return results;
+    }
+
+    /// <summary>Enumerate files under a directory respecting followJunctions / resolveJunctions preferences.</summary>
+    public static IEnumerable<string> EnumerateFilesRecursive(string root)
+    {
+        var prefs = FileOperationPreferences.Current;
+        var stack = new Stack<string>();
+        stack.Push(Normalize(root));
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            if (!visited.Add(dir)) continue;
+
+            IEnumerable<string> files;
+            IEnumerable<string> dirs;
+            try
+            {
+                files = Directory.EnumerateFiles(dir);
+                dirs = Directory.EnumerateDirectories(dir);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var file in files)
+            {
+                if (prefs.ResolveJunctions && IsReparsePoint(file))
+                {
+                    var target = TryResolveReparseFile(file);
+                    if (!string.IsNullOrEmpty(target) && File.Exists(target))
+                    {
+                        yield return target;
+                        continue;
+                    }
+                }
+                yield return file;
+            }
+
+            foreach (var sub in dirs)
+            {
+                if (!prefs.FollowJunctions && IsReparsePoint(sub)) continue;
+                stack.Push(sub);
+            }
+        }
+    }
+
+    private static bool IsReparsePoint(string path)
+    {
+        try
+        {
+            return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string? TryResolveReparseFile(string linkPath)
+    {
+        try
+        {
+            if (File.Exists(linkPath) && !IsReparsePoint(linkPath)) return linkPath;
+            var fi = new FileInfo(linkPath);
+            if (fi.Exists && fi.LinkTarget != null) return fi.LinkTarget;
+        }
+        catch { /* fall through */ }
+        return null;
+    }
+
+    public static IEnumerable<string> EnumerateChildDirectoriesRecursive(string root)
+    {
+        var normalized = Normalize(root);
+        foreach (var dir in EnumerateDirectoriesRecursive(normalized))
+        {
+            if (!string.Equals(dir, normalized, StringComparison.OrdinalIgnoreCase))
+                yield return dir;
+        }
+    }
+
+    private static IEnumerable<string> EnumerateDirectoriesRecursive(string root)
+    {
+        var prefs = FileOperationPreferences.Current;
+        var stack = new Stack<string>();
+        stack.Push(Normalize(root));
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            if (!visited.Add(dir)) continue;
+            yield return dir;
+            IEnumerable<string> subs;
+            try { subs = Directory.EnumerateDirectories(dir); }
+            catch { continue; }
+            foreach (var sub in subs)
+            {
+                if (!prefs.FollowJunctions && IsReparsePoint(sub)) continue;
+                stack.Push(sub);
+            }
+        }
     }
 
     private static string SourceRootForStructure(string raw)

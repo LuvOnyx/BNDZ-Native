@@ -305,6 +305,42 @@ public sealed class BndzActionLogService
                 }
                 break;
 
+            case ActionKind.GhostLinkOffload:
+                for (int i = 0; i < entry.SourcePaths.Count; i++)
+                {
+                    var original = entry.SourcePaths[i];
+                    var offload = entry.TargetPaths.ElementAtOrDefault(i) ?? entry.TargetPaths.LastOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(offload) || !File.Exists(offload)) continue;
+                    if (File.Exists(original) || Directory.Exists(original))
+                    {
+                        if (File.Exists(original)) File.Delete(original);
+                        else Directory.Delete(original, true);
+                    }
+                    File.Move(offload, original);
+                }
+                break;
+
+            case ActionKind.GhostLinkRestore:
+                // Undo restore = re-offload: move file back to cold path and recreate symlink.
+                for (int i = 0; i < entry.TargetPaths.Count; i++)
+                {
+                    var original = entry.TargetPaths[i];
+                    var offload = entry.SourcePaths.ElementAtOrDefault(i) ?? entry.SourcePaths.LastOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(offload) || !File.Exists(original)) continue;
+                    var offDir = Path.GetDirectoryName(offload);
+                    if (!string.IsNullOrEmpty(offDir)) Directory.CreateDirectory(offDir);
+                    File.Move(original, offload, overwrite: true);
+                    try
+                    {
+                        File.CreateSymbolicLink(original, Path.GetFullPath(offload));
+                    }
+                    catch
+                    {
+                        // If symlink fails, leave bytes in cold storage — operator can re-run Ghost-Link.
+                    }
+                }
+                break;
+
             case ActionKind.SyncFolder:
             case ActionKind.ExtractArchive:
                 foreach (var created in entry.TargetPaths)
@@ -384,9 +420,52 @@ public sealed class BndzActionLogService
                 break;
 
             case ActionKind.CreateArchive:
-                foreach (var archive in entry.TargetPaths)
                 {
-                    if (File.Exists(archive)) File.Delete(archive);
+                    var archive = entry.TargetPaths.FirstOrDefault();
+                    if (string.IsNullOrWhiteSpace(archive))
+                        throw new InvalidOperationException("Archive path missing for redo.");
+                    var format = Path.GetExtension(archive).TrimStart('.').ToLowerInvariant();
+                    if (string.IsNullOrEmpty(format)) format = "zip";
+                    if (format is "tgz") format = "gz";
+                    var archives = new ArchiveService();
+                    await archives.CreateArchiveAsync(entry.SourcePaths, archive, format).ConfigureAwait(false);
+                }
+                break;
+
+            case ActionKind.GhostLinkOffload:
+                // Redo offload = move hot → cold and recreate symlink (same as undo of restore).
+                for (int i = 0; i < entry.SourcePaths.Count; i++)
+                {
+                    var original = entry.SourcePaths[i];
+                    var offload = entry.TargetPaths.ElementAtOrDefault(i) ?? entry.TargetPaths.LastOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(offload) || !File.Exists(original)) continue;
+                    var offDir = Path.GetDirectoryName(offload);
+                    if (!string.IsNullOrEmpty(offDir)) Directory.CreateDirectory(offDir);
+                    File.Move(original, offload, overwrite: true);
+                    try
+                    {
+                        File.CreateSymbolicLink(original, Path.GetFullPath(offload));
+                    }
+                    catch
+                    {
+                        // Symlink may require elevation — bytes are in cold storage.
+                    }
+                }
+                break;
+
+            case ActionKind.GhostLinkRestore:
+                // Redo restore = move cold → hot (same as undo of offload).
+                for (int i = 0; i < entry.TargetPaths.Count; i++)
+                {
+                    var original = entry.TargetPaths[i];
+                    var offload = entry.SourcePaths.ElementAtOrDefault(i) ?? entry.SourcePaths.LastOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(offload) || !File.Exists(offload)) continue;
+                    if (File.Exists(original) || Directory.Exists(original))
+                    {
+                        if (File.Exists(original)) File.Delete(original);
+                        else Directory.Delete(original, true);
+                    }
+                    File.Move(offload, original);
                 }
                 break;
 
@@ -481,6 +560,26 @@ public sealed class BndzActionLogService
             Kind = ActionKind.CreateFile,
             Label = $"Create file {Path.GetFileName(path)}",
             TargetPaths = new List<string> { path },
+        };
+
+    public static ActionLogEntry ForGhostLinkOffload(string originalPath, string offloadPath)
+        => new()
+        {
+            Kind = ActionKind.GhostLinkOffload,
+            Label = $"Ghost-Link · {Path.GetFileName(originalPath)}",
+            SourcePaths = new List<string> { originalPath },
+            TargetPaths = new List<string> { offloadPath },
+            LinkType = "ghost-link",
+        };
+
+    public static ActionLogEntry ForGhostLinkRestore(string originalPath, string offloadPath)
+        => new()
+        {
+            Kind = ActionKind.GhostLinkRestore,
+            Label = $"Ghost restore · {Path.GetFileName(originalPath)}",
+            SourcePaths = new List<string> { offloadPath },
+            TargetPaths = new List<string> { originalPath },
+            LinkType = "ghost-link",
         };
 
     public static ActionLogEntry ForCreateLink(string linkPath, string targetPath, string linkType)
@@ -587,6 +686,8 @@ public enum ActionKind
     SyncFolder,
     CreateArchive,
     ExtractArchive,
+    GhostLinkOffload,
+    GhostLinkRestore,
 }
 
 public sealed class ActionLogEntry

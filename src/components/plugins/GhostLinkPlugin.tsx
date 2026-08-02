@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
@@ -20,7 +21,7 @@ import {
 export const GhostLinkPluginDef = {
   id: 'ghost-link',
   name: 'Ghost-Link',
-  icon: 'emblem-symbolic-link',
+  icon: 'emblem_symbolic_link',
   description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: true,
@@ -412,6 +413,43 @@ export default function GhostLinkPlugin({
     }
   };
 
+  const [ghostSel, setGhostSel] = useState<Set<string>>(() => new Set());
+  const restoreSelectedGhosts = async () => {
+    const paths = [...ghostSel];
+    if (!paths.length) return;
+    setBusy(true);
+    try {
+      for (const p of paths) {
+        await IPC.ghostLinkRestore(p);
+      }
+      pushToast({ kind: 'success', title: 'Restored', message: `${paths.length} ghost(s) restored.` });
+      setGhostSel(new Set());
+      await refresh();
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Restore failed', message: String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkBrokenGhosts = async () => {
+    const broken: string[] = [];
+    for (const g of ghosts) {
+      const cold = (g as any).coldPath || (g as any).targetPath;
+      if (!cold) continue;
+      try {
+        const exists = await IPC.checkPathExists(cold);
+        if (!exists) broken.push(g.originalPath);
+      } catch { /* ignore */ }
+    }
+    if (broken.length) {
+      pushToast({ kind: 'warning', title: 'Broken ghosts', message: `${broken.length} cold target(s) missing.` });
+      setGhostSel(new Set(broken));
+    } else {
+      pushToast({ kind: 'success', title: 'Health check', message: 'All cold targets present.' });
+    }
+  };
+
   const revealPath = (winPath: string) => {
     if (!winPath) return;
     window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: winPath.replace(/^([A-Za-z]):\\/, '/$1/').replace(/\\/g, '/') } }));
@@ -420,7 +458,7 @@ export default function GhostLinkPlugin({
   const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: 'piechart_ui' },
     { id: 'rules', label: 'Rules', icon: 'filter_ui', badge: displayRules.length },
-    { id: 'ghosts', label: 'Ghosts', icon: 'emblem-symbolic-link', badge: ghosts.length },
+    { id: 'ghosts', label: 'Ghosts', icon: 'emblem_symbolic_link', badge: ghosts.length },
   ];
 
   const scanPct = scanProgress && scanProgress.total > 0
@@ -430,7 +468,7 @@ export default function GhostLinkPlugin({
   return (
     <PluginPanelShell
       title="Ghost-Link"
-      icon="emblem-symbolic-link"
+      icon="emblem_symbolic_link"
       iconColor="#a78bfa"
       variant="embedded"
       subtitle="Symlink offloading · cold storage vault"
@@ -450,11 +488,11 @@ export default function GhostLinkPlugin({
         </PluginTabStrip>
       }
     >
-      <div className="flex flex-col h-full min-h-0 overflow-hidden bndz-ghostlink-panel">
+      <div className="flex flex-col min-h-0 bndz-ghostlink-panel">
         <PluginHeroStrip
           icon={
-            <div className="bndz-ghostlink-hero-icon">
-              <Icons8Icon id="emblem-symbolic-link" size={52} className="bndz-ghostlink-emblem" />
+            <div className="bndz-ghostlink-hero-icon flex items-center justify-center">
+              <EmblemIcon id="emblem-symbolic-link" size={48} />
             </div>
           }
           name="Ghost-Link Storage"
@@ -476,7 +514,7 @@ export default function GhostLinkPlugin({
               </PluginHeroActionButton>
               {selectedPaths?.length ? (
                 <PluginHeroActionButton
-                  icon="emblem-symbolic-link"
+                  icon="emblem_symbolic_link"
                   onClick={() => void offloadSelection()}
                   disabled={busy || !defaultColdRoot}
                 >
@@ -515,7 +553,7 @@ export default function GhostLinkPlugin({
             <div className="p-5 space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <PluginStatCard label="Active rules" value={String(enabledRules.length)} sub={`${displayRules.length} total configured`} iconId="filter_ui" />
-                <PluginStatCard label="Ghost links" value={String(stats.ghostCount)} sub="Symlinks pointing to cold vault" iconId="emblem-symbolic-link" />
+                <PluginStatCard label="Ghost links" value={String(stats.ghostCount)} sub="Symlinks pointing to cold vault" iconId="emblem_symbolic_link" />
                 <PluginStatCard label="Space reclaimed" value={formatBytes(stats.bytesReclaimed)} sub="On original volumes" iconId="storage_cleanup" />
               </div>
 
@@ -550,7 +588,7 @@ export default function GhostLinkPlugin({
 
               {ghosts.length > 0 && (
                 <div>
-                  <PluginSectionTitle icon="emblem-symbolic-link" action={
+                  <PluginSectionTitle icon="emblem_symbolic_link" action={
                     <PluginToolbarButton onClick={() => setActiveTab('ghosts')}>View all</PluginToolbarButton>
                   }>
                     Recent ghosts
@@ -560,7 +598,7 @@ export default function GhostLinkPlugin({
                       const { leaf, parent } = splitPath(g.originalPath);
                       return (
                         <div key={g.id} className="bndz-ghostlink-ghost-row">
-                          <Icons8Icon id="emblem-symbolic-link" size={14} className="text-violet-300 shrink-0" />
+                          <EmblemIcon id="emblem-symbolic-link" size={14} />
                           <div className="min-w-0 flex-1">
                             <div className="text-xs font-medium text-white truncate">{leaf}</div>
                             <div className="bndz-mono text-[10px] text-gray-500 truncate">{parent}</div>
@@ -582,7 +620,7 @@ export default function GhostLinkPlugin({
             <div className="p-5 space-y-4">
               {displayRules.length === 0 ? (
                 <PluginEmptyState
-                  icon="emblem-symbolic-link"
+                  icon="emblem_symbolic_link"
                   title="No rules yet"
                   description="Add a preset above or create a custom rule. Each rule needs source folders and a cold storage vault."
                 />
@@ -614,18 +652,37 @@ export default function GhostLinkPlugin({
             <div className="p-5">
               {ghosts.length === 0 ? (
                 <PluginEmptyState
-                  icon="emblem-symbolic-link"
+                  icon="emblem_symbolic_link"
                   title="No ghost links yet"
                   description="Run a scan or ghost the current selection. Offloaded files appear here with restore controls."
                 />
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <PluginToolbarButton icon="check" onClick={() => setGhostSel(new Set(ghosts.map(g => g.originalPath)))}>Select all</PluginToolbarButton>
+                    <PluginToolbarButton icon="reset_ui" onClick={() => void restoreSelectedGhosts()} disabled={busy || !ghostSel.size}>
+                      Restore selected ({ghostSel.size})
+                    </PluginToolbarButton>
+                    <PluginToolbarButton icon="warning" onClick={() => void checkBrokenGhosts()} disabled={busy}>
+                      Health check
+                    </PluginToolbarButton>
+                  </div>
                   {ghosts.map(g => {
                     const { leaf, parent } = splitPath(g.originalPath);
                     const cold = splitPath(g.offloadPath);
                     return (
                       <div key={g.id} className="bndz-ghostlink-ghost-row bndz-ghostlink-ghost-row--full">
-                        <Icons8Icon id="emblem-symbolic-link" size={16} className="text-violet-300 shrink-0" />
+                        <input
+                          type="checkbox"
+                          checked={ghostSel.has(g.originalPath)}
+                          onChange={() => setGhostSel(prev => {
+                            const next = new Set(prev);
+                            if (next.has(g.originalPath)) next.delete(g.originalPath);
+                            else next.add(g.originalPath);
+                            return next;
+                          })}
+                        />
+                        <EmblemIcon id="emblem-symbolic-link" size={16} />
                         <div className="min-w-0 flex-1 grid grid-cols-1 lg:grid-cols-2 gap-2">
                           <div className="min-w-0">
                             <div className="text-xs font-semibold text-white truncate">{leaf}</div>

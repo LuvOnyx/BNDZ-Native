@@ -8,6 +8,7 @@ namespace BNDZ.Services;
 public sealed class AutomationRunnerDeps
 {
     public GhostLink.GhostLinkService? GhostLink { get; init; }
+    public RamStaging.RamStagingService? RamStaging { get; init; }
     public BndzTagSidecarStore? TagStore { get; init; }
     public ArchiveService? ArchiveService { get; init; }
     public ShellContextMenuService? ShellContext { get; init; }
@@ -215,6 +216,9 @@ public sealed class BndzAutomationRunnerService
             case "ghostLinkTo":
                 GhostLinkOffload(files, node, log);
                 return [];
+            case "stageToRam":
+                StageToRam(files, node, log);
+                return files;
             case "recycleBin":
                 RecycleFiles(files, node, log);
                 return [];
@@ -478,6 +482,48 @@ public sealed class BndzAutomationRunnerService
         catch (Exception ex)
         {
             log.Add($"  ! Ghost-Link offload failed: {ex.Message}");
+        }
+    }
+
+    private void StageToRam(List<string> files, AutomationNode node, List<string> log)
+    {
+        if (_deps.RamStaging == null)
+        {
+            log.Add("  ! RAM Staging service unavailable.");
+            return;
+        }
+        var targets = files.Where(p => File.Exists(p) || Directory.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (targets.Count == 0)
+        {
+            log.Add("  ! No files/folders to stage.");
+            return;
+        }
+        try
+        {
+            var zoneId = BndzAutomationExtensions.GetField(node.Data, "zoneId");
+            var zoneName = BndzAutomationExtensions.GetField(node.Data, "zoneName", "Automation Staging");
+            var sizeRaw = BndzAutomationExtensions.GetField(node.Data, "sizeBudgetMb", "4096");
+            long sizeMb = 4096;
+            if (long.TryParse(sizeRaw.Trim().TrimEnd('M', 'B', 'm', 'b'), out var parsedMb) && parsedMb > 0)
+                sizeMb = Math.Clamp(parsedMb, 256, 65536);
+            if (string.IsNullOrWhiteSpace(zoneId))
+            {
+                var existing = _deps.RamStaging.ListZones().FirstOrDefault(z =>
+                    !string.IsNullOrWhiteSpace(z.MountPath) && Directory.Exists(z.MountPath));
+                if (existing != null) zoneId = existing.Id;
+            }
+            if (string.IsNullOrWhiteSpace(zoneId))
+            {
+                var zone = _deps.RamStaging.CreateZoneAsync(zoneName, sizeMb <= 0 ? 4096 : sizeMb, preferRam: true).GetAwaiter().GetResult();
+                zoneId = zone.Id;
+                log.Add($"  · Created staging zone {zone.Name} ({zone.Id})");
+            }
+            _deps.RamStaging.StagePathsAsync(zoneId!, targets).GetAwaiter().GetResult();
+            log.Add($"  · Staged {targets.Count} item(s) → zone {zoneId}");
+        }
+        catch (Exception ex)
+        {
+            log.Add($"  ! RAM stage failed: {ex.Message}");
         }
     }
 

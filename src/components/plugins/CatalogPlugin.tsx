@@ -5,6 +5,7 @@ import { listCatalogs, upsertCatalog, deleteCatalog, type CatalogEntry } from '.
 import { VF_ROOT } from '../../lib/virtualPaths';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { pushToast } from '../ToastHost';
+import { IPC } from '../../lib/ipcBridge';
 import {
   PluginToolbarButton,
   PluginSectionTitle,
@@ -131,6 +132,54 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
     if (editing?.id === cat.id) setEditing(prev => prev ? { ...prev, paths: nextPaths } : null);
   };
 
+  const refreshQuery = async (cat: CatalogEntry) => {
+    const q = (cat.query || '').trim();
+    if (!q) {
+      pushToast({ kind: 'warning', title: 'No query', message: 'Set a search query on this catalog first.' });
+      return;
+    }
+    try {
+      const { items } = await IPC.performGlobalSearch(q, 2000, false, '', true, false);
+      const paths = (items || []).map((i: any) => toWindowsPath(i.path || i.fullPath || '')).filter(Boolean);
+      await upsertCatalog({ id: cat.id, name: cat.name, paths, query: cat.query });
+      await load();
+      notifyCatalogChanged();
+      pushToast({ kind: 'success', title: 'Query refreshed', message: `${paths.length} path(s) from live search.` });
+    } catch {
+      pushToast({ kind: 'error', title: 'Refresh failed', message: 'Could not run catalog query.' });
+    }
+  };
+
+  const setOp = async (op: 'union' | 'intersect' | 'subtract') => {
+    if (!selected) return;
+    const otherId = window.prompt('Other catalog id or name');
+    if (!otherId?.trim()) return;
+    const other = catalogs.find(c => c.id === otherId.trim() || c.name.toLowerCase() === otherId.trim().toLowerCase());
+    if (!other) {
+      pushToast({ kind: 'warning', title: 'Not found', message: 'No matching catalog.' });
+      return;
+    }
+    const a = new Set(selected.paths || []);
+    const b = new Set(other.paths || []);
+    let next: string[] = [];
+    if (op === 'union') next = [...new Set([...a, ...b])];
+    else if (op === 'intersect') next = [...a].filter(p => b.has(p));
+    else next = [...a].filter(p => !b.has(p));
+    await upsertCatalog({ id: selected.id, name: selected.name, paths: next, query: selected.query });
+    await load();
+    notifyCatalogChanged();
+    pushToast({ kind: 'success', title: `Set ${op}`, message: `${next.length} path(s) in ${selected.name}` });
+  };
+
+  const bulkRemoveSelected = async () => {
+    if (!selected || !selectedPaths.length) return;
+    const remove = new Set(selectedPaths.map(p => toWindowsPath(p).toLowerCase()));
+    const next = (selected.paths || []).filter(p => !remove.has(p.toLowerCase()));
+    await upsertCatalog({ id: selected.id, name: selected.name, paths: next, query: selected.query });
+    await load();
+    notifyCatalogChanged();
+  };
+
   const exportCatalogs = () => {
     const blob = new Blob([JSON.stringify(catalogs, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -184,6 +233,19 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
                 <PluginHeroActionButton icon="explorer" variant="primary" onClick={() => onNavigate?.(`/vf/${selected.id}`)}>
                   Open
                 </PluginHeroActionButton>
+              )}
+              {selected?.query?.trim() && (
+                <PluginHeroActionButton icon="refresh" onClick={() => void refreshQuery(selected)}>Refresh query</PluginHeroActionButton>
+              )}
+              {selected && (
+                <>
+                  <PluginHeroActionButton icon="layers_ui" onClick={() => void setOp('union')}>Union</PluginHeroActionButton>
+                  <PluginHeroActionButton icon="filters" onClick={() => void setOp('intersect')}>Intersect</PluginHeroActionButton>
+                  <PluginHeroActionButton icon="delete" onClick={() => void setOp('subtract')}>Subtract</PluginHeroActionButton>
+                </>
+              )}
+              {selected && selectedPaths.length > 0 && (
+                <PluginHeroActionButton icon="delete" onClick={() => void bulkRemoveSelected()}>Remove sel</PluginHeroActionButton>
               )}
               <PluginHeroActionButton icon="upload" onClick={() => importRef.current?.click()}>Import</PluginHeroActionButton>
               <PluginHeroActionButton icon="download" onClick={exportCatalogs}>Export</PluginHeroActionButton>

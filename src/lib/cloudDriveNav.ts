@@ -67,10 +67,11 @@ export function isDedicatedCloudVolumeMount(path: string | null | undefined): bo
   return /^(My Drive|Google Drive)$/i.test(rest);
 }
 
-export function canonicalizeCloudProviders(providers: CloudProvider[]): CloudProvider[] {
+export function canonicalizeCloudProviders(providers: CloudProvider[] | null | undefined): CloudProvider[] {
   const byKey = new Map<string, CloudProvider>();
+  const list = Array.isArray(providers) ? providers : [];
 
-  for (const p of providers) {
+  for (const p of list) {
     const volume = cloudVolumeRoot(p.path);
     const key = volume && isDedicatedCloudVolumeMount(p.path)
       ? `vol|${volume}`
@@ -140,8 +141,8 @@ function providersFromGoogleDriveVolumes(drives: DriveLike[] | undefined): Cloud
 }
 
 export function groupCloudProvidersForNav(
-  providers: CloudProvider[],
-  drives?: DriveLike[],
+  providers: CloudProvider[] | null | undefined,
+  drives?: DriveLike[] | null,
 ): {
   navItems: Array<{
     label: string;
@@ -156,9 +157,11 @@ export function groupCloudProvidersForNav(
   googleAccounts: CloudProvider[];
   ownedVolumes: Set<string>;
 } {
+  const safeProviders = Array.isArray(providers) ? providers : [];
+  const safeDrives = Array.isArray(drives) ? drives : [];
   const merged = canonicalizeCloudProviders([
-    ...providers,
-    ...providersFromGoogleDriveVolumes(drives),
+    ...safeProviders,
+    ...providersFromGoogleDriveVolumes(safeDrives),
   ]);
   const googleAccounts = merged.filter(isGoogleDriveProvider);
   const others = merged.filter(p => !isGoogleDriveProvider(p));
@@ -169,7 +172,7 @@ export function groupCloudProvidersForNav(
     const v = cloudVolumeRoot(p.path);
     if (v) ownedVolumes.add(v);
   }
-  for (const d of drives || []) {
+  for (const d of safeDrives) {
     if (!isCloudOwnedDrive(d)) continue;
     const v = cloudVolumeRoot(d.name || d.path);
     if (v) ownedVolumes.add(v);

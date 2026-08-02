@@ -24,9 +24,26 @@ const inflight = new Map<string, Promise<string | null>>();
 const listeners = new Map<string, Set<() => void>>();
 let lastAppliedCacheBuster = 0;
 
-function iconKey(path: string, isDirectory: boolean, kind: IconRequestKind): string {
-  const win = resolveShellIconPath(path) || toWindowsPath(path);
-  return `${kind}:${win}:${isDirectory ? 'd' : 'f'}`;
+function canonicalizeIconPath(path: string): string {
+  let win = (resolveShellIconPath(path) || toWindowsPath(path) || '').trim();
+  if (!win) return '';
+  win = win.replace(/\//g, '\\');
+  // Shell / GUID paths keep case — filesystem paths normalize for Map hits across casing.
+  if (/^shell:/i.test(win) || win.includes('::{')) return win;
+  // Collapse trailing separators except drive roots (C:\).
+  if (/^[A-Za-z]:\\/.test(win)) {
+    const drive = win.slice(0, 2).toUpperCase();
+    let rest = win.slice(2).replace(/\\+$/, '');
+    if (!rest) return `${drive}\\`;
+    return `${drive}${rest.toLowerCase()}`;
+  }
+  return win.replace(/\\+$/, '').toLowerCase();
+}
+
+function iconKey(path: string, isDirectory: boolean, kind: IconRequestKind, thumbPx = LIST_THUMB_PX): string {
+  const win = canonicalizeIconPath(path);
+  const base = `${kind}:${win}:${isDirectory ? 'd' : 'f'}`;
+  return kind === 'thumbnail' ? `${base}:${thumbPx}` : base;
 }
 
 export function hostIconCacheKey(path: string, isDirectory: boolean): string | null {
@@ -84,8 +101,8 @@ function commitCache(key: string, data: string | null, typeKey?: string | null, 
   notify(key);
 }
 
-export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequestKind = 'shell'): string | null {
-  const key = iconKey(path, isDirectory, kind);
+export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequestKind = 'shell', thumbPx = LIST_THUMB_PX): string | null {
+  const key = iconKey(path, isDirectory, kind, thumbPx);
   const entry = cache.get(key);
   if (entry?.status === 'ready' && entry.data) return entry.data;
   if (kind === 'shell') {
@@ -107,8 +124,8 @@ function isNegativeFresh(entry: IconCacheEntry | undefined): boolean {
   return Date.now() - at < NEGATIVE_TTL_MS;
 }
 
-export function subscribeIcon(path: string, isDirectory: boolean, kind: IconRequestKind, cb: () => void): () => void {
-  const key = iconKey(path, isDirectory, kind);
+export function subscribeIcon(path: string, isDirectory: boolean, kind: IconRequestKind, cb: () => void, thumbPx = LIST_THUMB_PX): () => void {
+  const key = iconKey(path, isDirectory, kind, thumbPx);
   if (!listeners.has(key)) listeners.set(key, new Set());
   listeners.get(key)!.add(cb);
   return () => listeners.get(key)?.delete(cb);
@@ -139,11 +156,12 @@ export function requestNativeIcon(
   priorityBoost = 0,
 ): Promise<string | null> {
   if (!path) return Promise.resolve(null);
-  const key = iconKey(path, isDirectory, kind);
+  const key = iconKey(path, isDirectory, kind, thumbPx);
   const typeKey = kind === 'shell' ? hostIconCacheKey(path, isDirectory) : null;
 
   const cached = cache.get(key);
   if (cached?.status === 'ready' && cached.data) return Promise.resolve(cached.data);
+  if (cached?.status === 'loading' && inflight.has(key)) return inflight.get(key)!;
   // Negative CAS — thumbnails only; shell icons retry on next visible row.
   if (kind !== 'shell' && isNegativeFresh(cached)) return Promise.resolve(null);
 
@@ -172,8 +190,13 @@ export function requestNativeIcon(
 
   if (!cached?.data) cache.set(key, { data: cached?.data ?? null, status: 'loading' });
 
-  // Priority: thumbnails > shell; boost for viewport-near rows (higher = sooner).
-  const priority = (kind === 'thumbnail' ? 1000 : 250) + Math.max(0, Math.min(749, priorityBoost | 0));
+  // Priority: thumbnails > shell; viewport boost can lift shell to VIEWPORT_PRIORITY_FLOOR (1700).
+  const boost = Math.max(0, priorityBoost | 0);
+  const priority = kind === 'thumbnail'
+    ? 1000 + Math.min(900, boost)
+    : boost >= 800
+      ? 1700 + Math.min(200, boost - 800)
+      : 250 + Math.min(749, boost);
   const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority)
     .then(data => {
       commitCache(key, data, typeKey, kind);
@@ -197,18 +220,19 @@ function applyBatchChunk(
   chunk: Array<{ path: string; isDirectory: boolean }>,
   batch: Record<string, string | null>,
   kind: IconRequestKind,
+  thumbPx = LIST_THUMB_PX,
 ) {
   for (const req of chunk) {
-    const key = iconKey(req.path, req.isDirectory, kind);
+    const key = iconKey(req.path, req.isDirectory, kind, thumbPx);
     if (cache.get(key)?.data) continue;
-    const win = resolveShellIconPath(req.path) || toWindowsPath(req.path);
+    const win = canonicalizeIconPath(req.path);
     const raw = lookupBatchIcon(batch, win, req.path, toWindowsPath(req.path));
     const data = toDataUrl(raw);
     const typeKey = kind === 'shell' ? hostIconCacheKey(req.path, req.isDirectory) : null;
     if (data) commitCache(key, data, typeKey);
   }
   for (const req of chunk) {
-    const key = iconKey(req.path, req.isDirectory, kind);
+    const key = iconKey(req.path, req.isDirectory, kind, thumbPx);
     if (!cache.get(key)?.data && !inflight.has(key)) {
       if (kind === 'shell') {
         const typeKey = hostIconCacheKey(req.path, req.isDirectory);
@@ -217,7 +241,7 @@ function applyBatchChunk(
           continue;
         }
       }
-      void requestNativeIcon(req.path, req.isDirectory, kind);
+      void requestNativeIcon(req.path, req.isDirectory, kind, thumbPx);
     }
   }
 }
@@ -226,12 +250,15 @@ export async function prefetchIconsForEntities(
   entities: Array<{ path?: string; name: string; type?: string; isDirectory?: boolean }>,
   panePath: string,
   kind: IconRequestKind = 'shell',
+  limit = 160,
 ): Promise<void> {
   const { joinPanePath } = await import('./pathUtils');
   const { IPC } = await import('./ipcBridge');
   const requests: Array<{ path: string; isDirectory: boolean }> = [];
   const seenTypes = new Set<string>();
+  const seenDirs = new Set<string>();
   for (const ent of entities) {
+    if (requests.length >= limit) break;
     const fullPath = joinPanePath(panePath, ent);
     const isDir = entityShellIsDirectory(ent, fullPath);
     const key = iconKey(fullPath, isDir, kind);
@@ -245,6 +272,11 @@ export async function prefetchIconsForEntities(
       if (typeKey?.startsWith('.') && !isDir) {
         if (seenTypes.has(typeKey)) continue;
         seenTypes.add(typeKey);
+      }
+      if (isDir) {
+        const dirKey = typeKey || fullPath.toLowerCase();
+        if (seenDirs.has(dirKey)) continue;
+        seenDirs.add(dirKey);
       }
     }
     requests.push({ path: fullPath, isDirectory: isDir });
@@ -294,7 +326,7 @@ function entityMediaExt(ent: { extension?: string; name?: string }): string {
 export async function prefetchMediaThumbnailsForEntities(
   entities: Array<{ path?: string; name: string; type?: string; isDirectory?: boolean; extension?: string }>,
   panePath: string,
-  limit = 96,
+  limit = 192,
   opts?: { includeFolders?: boolean },
 ): Promise<void> {
   const { joinPanePath } = await import('./pathUtils');
@@ -308,14 +340,14 @@ export async function prefetchMediaThumbnailsForEntities(
       continue;
     }
     const fullPath = joinPanePath(panePath, ent);
-    const key = iconKey(fullPath, !!isDir, 'thumbnail');
+    const key = iconKey(fullPath, !!isDir, 'thumbnail', LIST_THUMB_PX);
     if (cache.get(key)?.data || inflight.has(key)) continue;
     media.push({ path: fullPath, isDirectory: !!isDir });
     if (media.length >= limit) break;
   }
   if (!media.length) return;
 
-  const CHUNK = 6;
+  const CHUNK = 12;
   for (let i = 0; i < media.length; i += CHUNK) {
     const chunk = media.slice(i, i + CHUNK);
     if (IPC.isNative && typeof IPC.getNativeThumbnailsBatch === 'function') {
@@ -324,7 +356,7 @@ export async function prefetchMediaThumbnailsForEntities(
           () => IPC.getNativeThumbnailsBatch(chunk.map(c => c.path), LIST_THUMB_PX),
           750,
         );
-        applyBatchChunk(chunk, batch, 'thumbnail');
+        applyBatchChunk(chunk, batch, 'thumbnail', LIST_THUMB_PX);
         continue;
       } catch { /* per-item */ }
     }
@@ -357,6 +389,22 @@ export async function prefetchShellIconPaths(
     }
     await Promise.all(chunk.map(r => requestNativeIcon(r.path, r.isDirectory, 'shell')));
   }
+}
+
+export function prefetchListingVisuals(
+  entities: Array<{ path?: string; name: string; type?: string; isDirectory?: boolean; extension?: string }>,
+  panePath: string,
+  options?: { iconLimit?: number; thumbLimit?: number; includeFolderThumbs?: boolean },
+) {
+  if (!entities?.length) return;
+  const iconLimit = options?.iconLimit ?? 160;
+  const thumbLimit = options?.thumbLimit ?? 192;
+  void Promise.all([
+    prefetchIconsForEntities(entities, panePath, 'shell', iconLimit),
+    prefetchMediaThumbnailsForEntities(entities, panePath, thumbLimit, {
+      includeFolders: options?.includeFolderThumbs === true,
+    }),
+  ]);
 }
 
 export function clearIconCache() {

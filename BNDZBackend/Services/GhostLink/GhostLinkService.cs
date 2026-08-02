@@ -3,13 +3,19 @@ using System.Diagnostics;
 namespace BNDZ.Services.GhostLink;
 
 /// <summary>Move inactive files to cold storage and replace with symlinks (Ghost Links).</summary>
-public sealed class GhostLinkService
+public sealed class GhostLinkService : IDisposable
 {
     private readonly GhostLinkDatabase _db = new();
     private readonly GhostLinkScanner _scanner = new();
     private readonly LinkService _linkService;
     private readonly FileTransferQueueService _queue;
+    private BndzActionLogService? _actionLog;
     private Action<object>? _progressHandler;
+    private CancellationTokenSource? _idleCts;
+    private Task? _idleLoop;
+    private readonly object _idleGate = new();
+    private static readonly TimeSpan IdleScanInterval = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan IdleScanStartupDelay = TimeSpan.FromMinutes(2);
 
     public GhostLinkService(LinkService linkService, FileTransferQueueService queue)
     {
@@ -17,7 +23,58 @@ public sealed class GhostLinkService
         _queue = queue;
     }
 
+    public void SetActionLog(BndzActionLogService? actionLog) => _actionLog = actionLog;
+
     public void SetProgressHandler(Action<object>? handler) => _progressHandler = handler;
+
+    /// <summary>Background inactivity scans for enabled rules (plan Phase 2).</summary>
+    public void StartIdleScanner()
+    {
+        lock (_idleGate)
+        {
+            if (_idleLoop != null) return;
+            _idleCts = new CancellationTokenSource();
+            var ct = _idleCts.Token;
+            _idleLoop = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(IdleScanStartupDelay, ct).ConfigureAwait(false);
+                    while (!ct.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            var enabled = _db.GetRules().Any(r => r.Enabled);
+                            if (enabled)
+                                await RunScanAsync(null, ct).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                        catch
+                        {
+                            /* next interval */
+                        }
+
+                        await Task.Delay(IdleScanInterval, ct).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            }, ct);
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_idleGate)
+        {
+            try { _idleCts?.Cancel(); } catch { /* */ }
+            _idleCts?.Dispose();
+            _idleCts = null;
+            _idleLoop = null;
+        }
+    }
 
     public List<GhostLinkRule> GetRules() => _db.GetRules();
 
@@ -143,6 +200,7 @@ public sealed class GhostLinkService
             Directory.Move(ghost.OffloadPath, originalPath);
 
         _db.RemoveGhost(originalPath);
+        _actionLog?.Record(BndzActionLogService.ForGhostLinkRestore(originalPath, ghost.OffloadPath));
         await Task.CompletedTask;
     }
 
@@ -182,6 +240,8 @@ public sealed class GhostLinkService
             BytesSaved = fi.Length,
             RuleId = rule.Id,
         });
+
+        _actionLog?.Record(BndzActionLogService.ForGhostLinkOffload(file, offloadPath));
 
         return fi.Length;
     }

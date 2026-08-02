@@ -65,6 +65,10 @@ namespace BNDZ
         private readonly MeshDropService _meshDropService;
         private readonly GhostLinkService _ghostLinkService;
         private readonly RamStagingService _ramStagingService;
+        private readonly AutomationRunnerDeps _automationRunnerDeps;
+        private readonly BndzAutomationWatcherService _automationWatcher;
+        private readonly BndzAutomationSchedulerService _automationScheduler;
+        private readonly BndzAutomationEventTriggerService _automationEventTriggers;
 
         private ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
         private ConcurrentQueue<object> _fseventBuffer = new();
@@ -86,11 +90,14 @@ namespace BNDZ
         private bool _allowClose;
         private string? _pendingOpenPath;
         private string? _pendingStartupAction;
+        private string? _pendingPluginId;
+        private string? _pendingStickyId;
+        private string? _pendingPluginTitle;
 
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
             InitializeComponent();
-            // Default true so Explorer shows copy cursor over WebView2; disabled during BNDZ OLE only.
+            // Chromium OLE gate — open for Explorer drops; closed during BNDZ-initiated drags.
             MainWebView.AllowExternalDrop = true;
             _fileService = fileService;
             _aiService = aiService;
@@ -102,7 +109,21 @@ namespace BNDZ
             _meshTransferService = new MeshTransferService(_meshOrchestrator, _fileTransferQueue);
             _meshDropService = new MeshDropService(_fileTransferQueue);
             _ghostLinkService = new GhostLinkService(_linkService, _fileTransferQueue);
+            _ghostLinkService.SetActionLog(_actionLogService);
+            _ghostLinkService.StartIdleScanner();
             _ramStagingService = new RamStagingService(_fileTransferQueue);
+            _automationRunnerDeps = new AutomationRunnerDeps
+            {
+                GhostLink = _ghostLinkService,
+                RamStaging = _ramStagingService,
+                TagStore = _tagSidecarStore,
+                ArchiveService = _archiveService,
+                ShellContext = _shellContextMenuService,
+                HostWindow = new System.Windows.Interop.WindowInteropHelper(this).Handle,
+            };
+            _automationWatcher = new BndzAutomationWatcherService(_automationRunnerDeps);
+            _automationScheduler = new BndzAutomationSchedulerService(_automationRunnerDeps);
+            _automationEventTriggers = new BndzAutomationEventTriggerService(_automationRunnerDeps);
             _meshDropService.SetSessionChangedHandler(evt =>
             {
                 PostToUi(() =>
@@ -201,11 +222,22 @@ namespace BNDZ
                     try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(evt)); }
                     catch { }
                 });
+                if (p.Done && string.IsNullOrEmpty(p.Error))
+                {
+                    _ = Task.Run(() =>
+                    {
+                        try { _automationEventTriggers.FireIndexChanged(p.Root ?? p.CurrentPath); }
+                        catch { /* best effort */ }
+                    });
+                }
             };
             AppIconService.ApplyToWindow(this);
-            _trayService = new SystemTrayService(this);
-            _trayService.QuitRequested += () => Dispatcher.Invoke(() => RequestCloseFromUI("tray"));
-            _trayService.EnsureVisible();
+            if (!App.IsPluginWindow)
+            {
+                _trayService = new SystemTrayService(this);
+                _trayService.QuitRequested += () => Dispatcher.Invoke(() => RequestCloseFromUI("tray"));
+                _trayService.EnsureVisible();
+            }
             Closing += OnMainWindowClosing;
             StateChanged += (_, _) => PostWindowStateChanged();
             SourceInitialized += (_, _) => ApplyStartupWindowPlacement();
@@ -218,6 +250,12 @@ namespace BNDZ
         {
             try
             {
+                if (App.IsPluginWindow)
+                {
+                    ApplyPluginWindowPlacement();
+                    return;
+                }
+
                 var json = _settingsManager.LoadSettings();
                 if (string.IsNullOrWhiteSpace(json)) return;
                 using var doc = JsonDocument.Parse(json);
@@ -274,8 +312,29 @@ namespace BNDZ
             }
         }
 
+        private void ApplyPluginWindowPlacement()
+        {
+            var stickyMode = !string.IsNullOrWhiteSpace(_pendingStickyId)
+                || string.Equals(_pendingPluginId, "sticky-note", StringComparison.OrdinalIgnoreCase);
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            WindowState = WindowState.Normal;
+            Width = stickyMode ? 380 : 820;
+            Height = stickyMode ? 440 : 580;
+            MinWidth = stickyMode ? 280 : 480;
+            MinHeight = stickyMode ? 240 : 360;
+            var label = !string.IsNullOrWhiteSpace(_pendingPluginTitle)
+                ? _pendingPluginTitle
+                : stickyMode
+                    ? "Sticky"
+                    : (!string.IsNullOrWhiteSpace(_pendingPluginId) ? _pendingPluginId : "Plugin");
+            Title = $"BNDZ · {label}";
+            // Sticky widgets behave like desktop notes — stay above other windows.
+            Topmost = stickyMode;
+        }
+
         private void PersistWindowPlacementIntoSettings()
         {
+            if (App.IsPluginWindow) return;
             try
             {
                 var json = _settingsManager.LoadSettings() ?? "{}";
@@ -314,8 +373,9 @@ namespace BNDZ
 
         private void OnMainWindowClosing(object? sender, CancelEventArgs e)
         {
-            if (_allowClose)
+            if (_allowClose || App.IsPluginWindow)
             {
+                if (App.IsPluginWindow) _allowClose = true;
                 return;
             }
             e.Cancel = true;
@@ -343,6 +403,13 @@ namespace BNDZ
         public void SetPendingOpenPath(string path) => _pendingOpenPath = path;
 
         public void SetPendingStartupAction(string action) => _pendingStartupAction = action;
+
+        public void SetPendingPluginWindow(string pluginId, string? stickyId, string? title)
+        {
+            _pendingPluginId = pluginId;
+            _pendingStickyId = stickyId;
+            _pendingPluginTitle = title;
+        }
 
         private void PostToUi(Action action) => UiThread.Marshal(Dispatcher, action);
 
@@ -419,6 +486,28 @@ namespace BNDZ
             OpenPathInManager(path);
         }
 
+        private void FlushPendingPluginWindow()
+        {
+            if (string.IsNullOrWhiteSpace(_pendingPluginId) && !App.IsPluginWindow) return;
+            var pluginId = _pendingPluginId ?? App.PluginWindowId;
+            if (string.IsNullOrWhiteSpace(pluginId)) return;
+            try
+            {
+                MainWebView.CoreWebView2?.PostWebMessageAsJson(
+                    JsonSerializer.Serialize(new
+                    {
+                        type = "BNDZ_PLUGIN_WINDOW",
+                        payload = new
+                        {
+                            pluginId,
+                            stickyId = _pendingStickyId ?? App.PluginStickyId,
+                            title = _pendingPluginTitle,
+                        },
+                    }));
+            }
+            catch { }
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             try
@@ -429,6 +518,9 @@ namespace BNDZ
             }
             catch { /* best effort */ }
             BndzFileManagerIpcService.Instance.Dispose();
+            _automationWatcher.Dispose();
+            _automationScheduler.Dispose();
+            try { _ramStagingService?.Dispose(); } catch { /* best effort flush */ }
             _trayService?.Dispose();
             base.OnClosed(e);
         }
@@ -597,8 +689,7 @@ namespace BNDZ
         {
             try
             {
-                // Explorer/desktop drops need Chromium acceptance for copy cursor over WebView2.
-                // Disable only during BNDZ-initiated OLE so WPF can re-enter the host window.
+                // Open for Explorer/Desktop drops; close only while BNDZ owns the OLE session.
                 MainWebView.AllowExternalDrop = !_bndzOleDragActive;
             }
             catch (Exception ex)
@@ -1046,16 +1137,24 @@ namespace BNDZ
 
         private void PushDrivesUpdate()
         {
-            var drives = _cloudStorageService.GetAnnotatedDrives();
-            
-            var evt = new { type = "DRIVES_CHANGED", payload = drives };
-            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            string json = JsonSerializer.Serialize(evt, jsonOptions);
-
-            PostToUi(() => {
-                try {
-                    MainWebView.CoreWebView2?.PostWebMessageAsJson(json);
-                } catch { }
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var drives = _cloudStorageService.GetAnnotatedDrives();
+                    var evt = new { type = "DRIVES_CHANGED", payload = drives };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    string json = JsonSerializer.Serialize(evt, jsonOptions);
+                    PostToUi(() =>
+                    {
+                        try { MainWebView.CoreWebView2?.PostWebMessageAsJson(json); }
+                        catch { }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[PushDrivesUpdate] {ex.Message}");
+                }
             });
         }
 
@@ -1164,7 +1263,9 @@ namespace BNDZ
                 customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme });
 
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var profileDir = App.IsStageWindow
+            var profileDir = App.IsPluginWindow
+                ? Path.Combine(localAppData, "BNDZ", "WebView2", $"Plugin-{Process.GetCurrentProcess().Id}")
+                : App.IsStageWindow
                 ? Path.Combine(localAppData, "BNDZ", "WebView2", $"Stage-{Process.GetCurrentProcess().Id}")
                 : Path.Combine(localAppData, "BNDZ", "WebView2", "Main");
             Directory.CreateDirectory(profileDir);
@@ -1252,7 +1353,18 @@ namespace BNDZ
 #endif
 
             // Navigate to the React frontend served from the virtual host, bypassing cache
-            MainWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?t={DateTime.Now.Ticks}");
+            var navUrl = $"http://bndz.local/index.html?t={DateTime.Now.Ticks}";
+            if (App.IsPluginWindow && !string.IsNullOrWhiteSpace(_pendingPluginId ?? App.PluginWindowId))
+            {
+                var pluginId = Uri.EscapeDataString(_pendingPluginId ?? App.PluginWindowId!);
+                navUrl += $"&pluginWindow={pluginId}";
+                var sticky = _pendingStickyId ?? App.PluginStickyId;
+                if (!string.IsNullOrWhiteSpace(sticky))
+                    navUrl += $"&stickyId={Uri.EscapeDataString(sticky)}";
+                if (!string.IsNullOrWhiteSpace(_pendingPluginTitle))
+                    navUrl += $"&title={Uri.EscapeDataString(_pendingPluginTitle)}";
+            }
+            MainWebView.CoreWebView2.Navigate(navUrl);
             MainWebView.CoreWebView2.NavigationCompleted += (_, _) => FlushPendingStartupAction();
             }
             catch (Exception ex)
@@ -1290,9 +1402,10 @@ namespace BNDZ
 
         private async void CoreWebView2_WebMessageReceived(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
         {
+            string messageStr = "";
             try
             {
-                string messageStr = e.WebMessageAsJson;
+                messageStr = e.WebMessageAsJson;
                 
                 // If it was sent as a JSON string instead of an object, it'll have double quotes around it and be escaped
                 if (messageStr.StartsWith("\"") && messageStr.EndsWith("\"")) {
@@ -1308,6 +1421,13 @@ namespace BNDZ
 
                 string? type = typeProp.GetString();
                 if (string.IsNullOrEmpty(type)) return;
+
+                var reqId = root.TryGetProperty("id", out var earlyIdEl) ? earlyIdEl.GetString() : null;
+
+                // Fast-path: keep the WebView message pump responsive. Never block here on
+                // DriveInfo / license IO — those hangs cascade into mass IPC timeouts.
+                if (TryHandleFastIpc(type, reqId, root))
+                    return;
 
                 if (type == "EXTERNAL_DRAG_HOVER_REPORT")
                 {
@@ -1330,24 +1450,26 @@ namespace BNDZ
                 }
 
                 // Native license gate: when trial is expired / unlicensed, only allow license + bootstrap IPC.
-                if (!LicenseService.GetStatusCached().CanUseApp && !LicenseService.IsIpcAllowedWhenUnlicensed(type))
+                bool canUseApp = true;
+                try { canUseApp = LicenseService.GetStatusCached().CanUseApp; }
+                catch { canUseApp = true; /* fail open for IPC pump */ }
+
+                if (!canUseApp && !LicenseService.IsIpcAllowedWhenUnlicensed(type))
                 {
-                    var blockedId = root.TryGetProperty("id", out var blockedIdEl) ? blockedIdEl.GetString() : null;
                     var blockedPayload = new
                     {
                         error = "License required. Activate BNDZ to continue.",
                         licenseRequired = true,
                     };
-                    // Frontend waits on names like ICON_LIBRARIES_RESULT, not GET_ICON_LIBRARIES_RESULT.
                     var blockedResultType = LicenseService.ResolveIpcResultType(type);
-                    var blockedResponse = new { type = blockedResultType, id = blockedId, payload = blockedPayload };
+                    var blockedResponse = new { type = blockedResultType, id = reqId, payload = blockedPayload };
                     var blockedJson = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() =>
                         MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(blockedResponse, blockedJson)));
                     return;
                 }
 
-                else if (type == "BNDZ_UI_READY")
+                if (type == "BNDZ_UI_READY")
                 {
                     try
                     {
@@ -1363,6 +1485,9 @@ namespace BNDZ
                     }
                     catch { /* best-effort */ }
                     PostToUi(FlushPendingOpenPath);
+                    PostToUi(FlushPendingPluginWindow);
+                    try { InboundVolumeService.Instance.StartWatching(); } catch { }
+                    try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
                 }
                 else if (type == "EXECUTE_BATCH_RENAME")
                 {
@@ -1427,10 +1552,31 @@ namespace BNDZ
                 else if (type == "GET_FILE_TRANSFER_QUEUE")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var response = new { type = "FILE_TRANSFER_QUEUE_RESULT", id = idProp, payload = _fileTransferQueue.GetQueueState() };
-                    PostToUi(() =>
+                    _ = Task.Run(() =>
                     {
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response));
+                        try
+                        {
+                            var response = new { type = "FILE_TRANSFER_QUEUE_RESULT", id = idProp, payload = _fileTransferQueue.GetQueueState() };
+                            PostToUi(() =>
+                            {
+                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response)); }
+                                catch { }
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new
+                            {
+                                type = "FILE_TRANSFER_QUEUE_RESULT",
+                                id = idProp,
+                                payload = new { queuedCount = 0, activeCount = 0, jobs = Array.Empty<object>(), error = ex.Message },
+                            };
+                            PostToUi(() =>
+                            {
+                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response)); }
+                                catch { }
+                            });
+                        }
                     });
                 }
                 else if (type == "CANCEL_FILE_TRANSFER")
@@ -2303,6 +2449,19 @@ namespace BNDZ
                         }
                     });
                 }
+                else if (type == "MESH_DROP_SET_CONFIG")
+                {
+                    var payload = root.GetProperty("payload");
+                    var stunRaw = payload.TryGetProperty("stunServers", out var stunEl) ? stunEl.GetString() : null;
+                    var stunServers = string.IsNullOrWhiteSpace(stunRaw)
+                        ? null
+                        : stunRaw.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var lanDiscovery = !payload.TryGetProperty("lanDiscovery", out var lanEl) || lanEl.GetBoolean();
+                    var turnUrl = payload.TryGetProperty("turnUrl", out var turnUrlEl) ? turnUrlEl.GetString() : null;
+                    var turnUser = payload.TryGetProperty("turnUsername", out var turnUserEl) ? turnUserEl.GetString() : null;
+                    var turnCred = payload.TryGetProperty("turnCredential", out var turnCredEl) ? turnCredEl.GetString() : null;
+                    _meshDropService.SetConfig(stunServers, lanDiscovery, turnUrl, turnUser, turnCred);
+                }
                 else if (type == "MESH_DROP_CREATE_OFFER")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
@@ -2582,9 +2741,24 @@ namespace BNDZ
                 else if (type == "RAM_STAGING_LIST_ZONES")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var zones = _ramStagingService.ListZones().Select(z => z.ToDto()).ToList();
-                    var status = _ramStagingService.GetStatus();
-                    PostMeshIpcResult(idProp, "RAM_STAGING_LIST_ZONES_RESULT", new { zones, status });
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var zones = _ramStagingService.ListZones().Select(z => z.ToDto()).ToList();
+                            var status = _ramStagingService.GetStatus();
+                            PostMeshIpcResult(idProp, "RAM_STAGING_LIST_ZONES_RESULT", new { zones, status });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "RAM_STAGING_LIST_ZONES_RESULT", new
+                            {
+                                zones = Array.Empty<object>(),
+                                status = new { error = ex.Message },
+                                error = ex.Message,
+                            });
+                        }
+                    });
                 }
                 else if (type == "RAM_STAGING_CREATE_ZONE")
                 {
@@ -2631,7 +2805,7 @@ namespace BNDZ
                     var payload = root.GetProperty("payload");
                     var zoneId = payload.TryGetProperty("zoneId", out var zEl) ? zEl.GetString() ?? "" : "";
                     var paths = payload.TryGetProperty("paths", out var pEl) && pEl.ValueKind == JsonValueKind.Array
-                        ? pEl.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList()
+                        ? pEl.EnumerateArray().Select(x => NormalizeFsPath(x.GetString() ?? "")).Where(s => s.Length > 0).ToList()
                         : new List<string>();
                     _ = Task.Run(async () =>
                     {
@@ -2661,6 +2835,349 @@ namespace BNDZ
                         {
                             PostMeshIpcResult(idProp, "RAM_STAGING_FLUSH_ZONE_RESULT", new { ok = false, error = ex.Message });
                         }
+                    });
+                }
+                else if (type == "RAM_STAGING_INSTALL_IMDISK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var (ok, error) = await _ramStagingService.InstallImDiskAsync().ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "RAM_STAGING_INSTALL_IMDISK_RESULT", new { ok, error });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "RAM_STAGING_INSTALL_IMDISK_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "RAM_STAGING_INSTALL_AIM")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var (ok, error) = await _ramStagingService.InstallAimAsync().ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "RAM_STAGING_INSTALL_AIM_RESULT", new { ok, error });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "RAM_STAGING_INSTALL_AIM_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "RAM_STAGING_REMOUNT_ZONE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var zoneId = root.GetProperty("payload").TryGetProperty("zoneId", out var zEl) ? zEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var zone = await _ramStagingService.RemountZoneAsync(zoneId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "RAM_STAGING_REMOUNT_ZONE_RESULT", new { ok = true, zone = zone.ToDto() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "RAM_STAGING_REMOUNT_ZONE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Phase 9+ selling-pillar IPC: Sandbox ──
+                else if (type == "SANDBOX_START")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPath = payload.TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    var sbName = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var session = ProjectSandboxService.Instance.StartSession(rootPath, sbName);
+                            PostMeshIpcResult(idProp, "SANDBOX_START_RESULT", new { ok = true, sessionId = session.Id, session });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SANDBOX_START_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "SANDBOX_GET_ACTIVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var active = ProjectSandboxService.Instance.GetActiveSession();
+                        PostMeshIpcResult(idProp, "SANDBOX_GET_ACTIVE_RESULT", new { sessions = active != null ? new[] { active } : Array.Empty<SandboxSessionDto>() });
+                    });
+                }
+                else if (type == "SANDBOX_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "SANDBOX_LIST_RESULT", new { sessions = ProjectSandboxService.Instance.ListSessions() });
+                    });
+                }
+                else if (type == "SANDBOX_COMMIT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var sessionId = root.GetProperty("payload").TryGetProperty("sessionId", out var sEl) ? sEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            ProjectSandboxService.Instance.Commit(sessionId);
+                            PostMeshIpcResult(idProp, "SANDBOX_COMMIT_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SANDBOX_COMMIT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "SANDBOX_DISCARD")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var sessionId = root.GetProperty("payload").TryGetProperty("sessionId", out var sEl) ? sEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            ProjectSandboxService.Instance.Discard(sessionId);
+                            PostMeshIpcResult(idProp, "SANDBOX_DISCARD_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SANDBOX_DISCARD_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "SANDBOX_CHECKPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var sessionId = payload.TryGetProperty("sessionId", out var sEl) ? sEl.GetString() ?? "" : "";
+                    var cpName = payload.TryGetProperty("name", out var cpnEl) ? cpnEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var dto = ProjectSandboxService.Instance.CreateCheckpoint(sessionId, cpName);
+                            PostMeshIpcResult(idProp, "SANDBOX_CHECKPOINT_RESULT", new { ok = true, checkpointId = dto.Id, checkpoint = dto });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SANDBOX_CHECKPOINT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "SANDBOX_LIST_CHECKPOINTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var sessionId = root.GetProperty("payload").TryGetProperty("sessionId", out var sEl) ? sEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "SANDBOX_LIST_CHECKPOINTS_RESULT", new { checkpoints = ProjectSandboxService.Instance.ListCheckpoints(sessionId) });
+                    });
+                }
+                else if (type == "SANDBOX_RESTORE_CHECKPOINT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var sessionId = payload.TryGetProperty("sessionId", out var sEl) ? sEl.GetString() ?? "" : "";
+                    var checkpointId = payload.TryGetProperty("checkpointId", out var cpEl) ? cpEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            ProjectSandboxService.Instance.RestoreCheckpoint(sessionId, checkpointId);
+                            PostMeshIpcResult(idProp, "SANDBOX_RESTORE_CHECKPOINT_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SANDBOX_RESTORE_CHECKPOINT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Phase 9+ selling-pillar IPC: Health ──
+                else if (type == "HEALTH_SCAN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var rootPath = root.GetProperty("payload").TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await LibraryHealthService.Instance.ScanAsync(rootPath, null, CancellationToken.None).ConfigureAwait(false);
+                            var count = LibraryHealthService.Instance.ListProblems(rootPath).Count;
+                            PostMeshIpcResult(idProp, "HEALTH_SCAN_RESULT", new { ok = true, problemCount = count });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "HEALTH_SCAN_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "HEALTH_LIST_PROBLEMS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPrefix = payload.TryGetProperty("rootPrefix", out var rpEl) ? rpEl.GetString() : null;
+                    var hLimit = payload.TryGetProperty("limit", out var limEl) && limEl.ValueKind == JsonValueKind.Number ? limEl.GetInt32() : 500;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "HEALTH_LIST_PROBLEMS_RESULT", new { problems = LibraryHealthService.Instance.ListProblems(rootPrefix, hLimit) });
+                    });
+                }
+                else if (type == "HEALTH_GET_SUMMARY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var summary = LibraryHealthService.Instance.GetSummary();
+                        PostMeshIpcResult(idProp, "HEALTH_GET_SUMMARY_RESULT", new
+                        {
+                            total = summary.Total,
+                            critical = summary.BySeverity.GetValueOrDefault("error"),
+                            warning = summary.BySeverity.GetValueOrDefault("warning"),
+                            info = summary.BySeverity.GetValueOrDefault("info"),
+                        });
+                    });
+                }
+                else if (type == "HEALTH_CLEAR")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var rootPrefix = root.GetProperty("payload").TryGetProperty("rootPrefix", out var rpEl) ? rpEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        LibraryHealthService.Instance.ClearProblems(rootPrefix);
+                        PostMeshIpcResult(idProp, "HEALTH_CLEAR_RESULT", new { ok = true });
+                    });
+                }
+                // ── Phase 9+ selling-pillar IPC: Lineage ──
+                else if (type == "LINEAGE_GET")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var linPath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var depth = payload.TryGetProperty("depth", out var dEl) && dEl.ValueKind == JsonValueKind.Number ? dEl.GetInt32() : 8;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "LINEAGE_GET_RESULT", FileLineageService.Instance.GetLineage(linPath, depth));
+                    });
+                }
+                else if (type == "LINEAGE_GET_RECENT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var linLimit = root.GetProperty("payload").TryGetProperty("limit", out var limEl) && limEl.ValueKind == JsonValueKind.Number ? limEl.GetInt32() : 50;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "LINEAGE_GET_RECENT_RESULT", new { edges = FileLineageService.Instance.GetRecent(linLimit) });
+                    });
+                }
+                // ── Phase 9+ selling-pillar IPC: Capacity Solver ──
+                else if (type == "CAPACITY_BUILD_PLAN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var capPath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    long? targetFreeBytes = payload.TryGetProperty("targetFreeBytes", out var tfEl) && tfEl.ValueKind == JsonValueKind.Number ? tfEl.GetInt64() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var plan = CapacitySolverService.Instance.BuildPlan(capPath, targetFreeBytes);
+                            PostMeshIpcResult(idProp, "CAPACITY_BUILD_PLAN_RESULT", new { ok = true, plan });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "CAPACITY_BUILD_PLAN_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Phase 9+ selling-pillar IPC: Inbound Volume ──
+                else if (type == "INBOUND_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "INBOUND_LIST_RESULT", new
+                        {
+                            entries = InboundVolumeService.Instance.ListEntries(),
+                            watching = InboundVolumeService.Instance.IsWatching,
+                        });
+                    });
+                }
+                else if (type == "INBOUND_CAPTURE_NOW")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var entryId = InboundVolumeService.Instance.CaptureClipboardNow();
+                            var entry = entryId != null
+                                ? InboundVolumeService.Instance.ListEntries().FirstOrDefault(e => e.Id == entryId)
+                                : null;
+                            PostMeshIpcResult(idProp, "INBOUND_CAPTURE_NOW_RESULT", new { ok = true, entry });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "INBOUND_CAPTURE_NOW_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "INBOUND_START_WATCHING")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        InboundVolumeService.Instance.StartWatching();
+                        PostMeshIpcResult(idProp, "INBOUND_START_WATCHING_RESULT", new { ok = true });
+                    });
+                }
+                else if (type == "INBOUND_STOP_WATCHING")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        InboundVolumeService.Instance.StopWatching();
+                        PostMeshIpcResult(idProp, "INBOUND_STOP_WATCHING_RESULT", new { ok = true });
+                    });
+                }
+                else if (type == "INBOUND_DELETE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var entryIdVal = root.GetProperty("payload").TryGetProperty("id", out var entEl) ? entEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        InboundVolumeService.Instance.DeleteEntry(entryIdVal);
+                        PostMeshIpcResult(idProp, "INBOUND_DELETE_RESULT", new { ok = true });
+                    });
+                }
+                else if (type == "INBOUND_GET_PATHS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var entryIdVal = root.GetProperty("payload").TryGetProperty("id", out var entEl) ? entEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "INBOUND_GET_PATHS_RESULT", new { paths = InboundVolumeService.Instance.GetEntryPaths(entryIdVal) });
+                    });
+                }
+                else if (type == "INBOUND_GET_ROOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var inboundRootPath = InboundVolumeService.Instance.GetInboundRootPath();
+                    PostMeshIpcResult(idProp, "INBOUND_GET_ROOT_RESULT", new
+                    {
+                        path = inboundRootPath,
+                        root = inboundRootPath,
+                        watching = InboundVolumeService.Instance.IsWatching,
                     });
                 }
                 else if (type == "AI_BATCH_RENAME")
@@ -2776,15 +3293,31 @@ namespace BNDZ
                 else if (type == "GET_DRIVES")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var drives = _cloudStorageService.GetAnnotatedDrives();
-                    
-                    var response = new { type = "DRIVES_RESULT", id = idProp, payload = drives };
-                    var jsonOptsDrives = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    var responseJson = JsonSerializer.Serialize(response, jsonOptsDrives);
-                    PostToUi(() =>
+                    _ = Task.Run(() =>
                     {
-                        IpcDebugLog($"[SEND] {responseJson}");
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson);
+                        try
+                        {
+                            var drives = _cloudStorageService.GetAnnotatedDrives();
+                            var response = new { type = "DRIVES_RESULT", id = idProp, payload = drives };
+                            var jsonOptsDrives = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            var responseJson = JsonSerializer.Serialize(response, jsonOptsDrives);
+                            PostToUi(() =>
+                            {
+                                IpcDebugLog($"[SEND] {responseJson}");
+                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson); }
+                                catch { }
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new { type = "DRIVES_RESULT", id = idProp, payload = Array.Empty<object>(), error = ex.Message };
+                            var jsonOptsDrives = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() =>
+                            {
+                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptsDrives)); }
+                                catch { }
+                            });
+                        }
                     });
                 }
                 else if (type == "PERFORM_GLOBAL_SEARCH")
@@ -3165,6 +3698,61 @@ namespace BNDZ
                         error = ex.Message;
                     }
                     var response = new { type = "OPEN_PATH_IN_NEW_WINDOW_RESULT", id = idProp, payload = new { ok, error } };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
+                else if (type == "OPEN_PLUGIN_WINDOW")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string pluginId = "";
+                    string? stickyId = null;
+                    string? title = null;
+                    if (root.TryGetProperty("payload", out var pluginPayload) && pluginPayload.ValueKind == JsonValueKind.Object)
+                    {
+                        if (pluginPayload.TryGetProperty("pluginId", out var pidEl))
+                            pluginId = pidEl.GetString() ?? "";
+                        if (pluginPayload.TryGetProperty("stickyId", out var sidEl))
+                            stickyId = sidEl.GetString();
+                        if (pluginPayload.TryGetProperty("title", out var titleEl))
+                            title = titleEl.GetString();
+                    }
+                    var ok = false;
+                    var error = (string?)null;
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(pluginId))
+                            error = "Missing pluginId.";
+                        else
+                        {
+                            var exe = Environment.ProcessPath
+                                ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                            if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe))
+                            {
+                                error = "Could not resolve BNDZ executable for a plugin window.";
+                            }
+                            else
+                            {
+                                var args = $"--plugin-window \"{pluginId.Replace("\"", "\\\"")}\"";
+                                if (!string.IsNullOrWhiteSpace(stickyId))
+                                    args += $" --sticky-id \"{stickyId.Replace("\"", "\\\"")}\"";
+                                if (!string.IsNullOrWhiteSpace(title))
+                                    args += $" --plugin-title \"{title.Replace("\"", "\\\"")}\"";
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = exe,
+                                    Arguments = args,
+                                    WorkingDirectory = Path.GetDirectoryName(exe) ?? "",
+                                    UseShellExecute = true,
+                                });
+                                ok = true;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        error = ex.Message;
+                    }
+                    var response = new { type = "OPEN_PLUGIN_WINDOW_RESULT", id = idProp, payload = new { ok, error } };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                 }
@@ -3609,12 +4197,15 @@ namespace BNDZ
                 else if (type == "REFRESH_WORKSPACE")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    PushDrivesUpdate();
+                    // Reply immediately — drive rescans can hang on flaky volumes and must not block IPC.
                     var response = new { type = "REFRESH_WORKSPACE_RESULT", id = idProp, payload = true };
                     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    PostToUi(() => {
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts));
+                    PostToUi(() =>
+                    {
+                        try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                        catch { }
                     });
+                    PushDrivesUpdate();
                 }
                 else if (type == "SET_FILE_ATTRIBUTES")
                 {
@@ -3700,12 +4291,29 @@ namespace BNDZ
                 else if (type == "GET_CLOUD_PROVIDERS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var providers = _cloudStorageService.GetProviders();
-
-                    var response = new { type = "CLOUD_PROVIDERS_RESULT", id = idProp, payload = providers };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    PostToUi(() => {
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var providers = _cloudStorageService.GetProviders();
+                            var response = new { type = "CLOUD_PROVIDERS_RESULT", id = idProp, payload = providers };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() =>
+                            {
+                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); }
+                                catch { }
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            var response = new { type = "CLOUD_PROVIDERS_RESULT", id = idProp, payload = Array.Empty<object>(), error = ex.Message };
+                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                            PostToUi(() =>
+                            {
+                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); }
+                                catch { }
+                            });
+                        }
                     });
                 }
                 else if (type == "GET_SHELL_ICON")
@@ -3960,7 +4568,15 @@ namespace BNDZ
                                 PostWindowStateChanged();
                                 break;
                             case "close":
-                                RequestCloseFromUI("x");
+                                if (App.IsPluginWindow)
+                                {
+                                    _allowClose = true;
+                                    Close();
+                                }
+                                else
+                                {
+                                    RequestCloseFromUI("x");
+                                }
                                 break;
                             case "drag":
                                 BeginWindowDrag();
@@ -4510,6 +5126,31 @@ namespace BNDZ
                             "audio" => svc.GetAudioFiles(limit),
                             "documents" => svc.GetDocumentFiles(limit),
                             "large" => svc.GetLargeFiles(limit),
+                            "problems" => LibraryHealthService.Instance.ListProblems(null, limit)
+                                .Select(p => (object)new
+                                {
+                                    id = p.Id,
+                                    name = Path.GetFileName(p.Path) is { Length: > 0 } n ? n : p.Path,
+                                    type = "file",
+                                    path = p.Path,
+                                    size = 0L,
+                                    modified = p.ScannedUtc,
+                                    extension = "",
+                                    detail = p.Detail,
+                                    kind = p.Kind,
+                                    severity = p.Severity,
+                                }).ToList(),
+                            "inbound" => InboundVolumeService.Instance.ListEntries()
+                                .Select(e => (object)new
+                                {
+                                    id = e.Id,
+                                    name = e.Name,
+                                    type = e.Type == "files" ? "directory" : "file",
+                                    path = e.Path,
+                                    size = e.Size,
+                                    modified = e.CreatedUtc,
+                                    extension = "",
+                                }).ToList(),
                             _ => [],
                         };
                         var items = BndzTagSidecarStore.EnrichDirResults(rawItems, _tagSidecarStore);
@@ -4837,13 +5478,198 @@ namespace BNDZ
                         graphEl = graphPayload.Clone();
                     _ = Task.Run(() =>
                     {
-                        var runner = new BndzAutomationRunnerService(_ghostLinkService);
+                        _automationRunnerDeps.HostWindow = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                        var runner = new BndzAutomationRunnerService(_automationRunnerDeps);
                         var result = runner.Run(graphEl);
                         var response = new
                         {
                             type = "AUTOMATION_RUN_RESULT",
                             id = idProp,
                             payload = new { ok = result.Ok, log = result.Log, error = result.Error },
+                        };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "SYNC_AUTOMATION_LIVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    JsonElement graphEl = default;
+                    if (root.TryGetProperty("payload", out var graphPayload))
+                        graphEl = graphPayload.Clone();
+                    _ = Task.Run(() =>
+                    {
+                        var watchStatus = _automationWatcher.SyncFromGraph(graphEl);
+                        var scheduleStatus = _automationScheduler.SyncFromGraph(graphEl);
+                        _automationEventTriggers.SyncFromGraph(graphEl);
+                        _ = Task.Run(() =>
+                        {
+                            try { _automationEventTriggers.FireStartup(); }
+                            catch { /* best effort */ }
+                        });
+                        var response = new
+                        {
+                            type = "AUTOMATION_LIVE_STATUS",
+                            id = idProp,
+                            payload = new
+                            {
+                                watchers = watchStatus.Watchers,
+                                schedules = scheduleStatus.Schedules,
+                            },
+                        };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "GET_AUTOMATION_LIVE_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var watchStatus = _automationWatcher.GetStatus();
+                    var scheduleStatus = _automationScheduler.GetStatus();
+                    var response = new
+                    {
+                        type = "AUTOMATION_LIVE_STATUS",
+                        id = idProp,
+                        payload = new
+                        {
+                            watchers = watchStatus.Watchers,
+                            schedules = scheduleStatus.Schedules,
+                        },
+                    };
+                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                }
+                else if (type == "FIRE_AUTOMATION_SPATIAL_PINS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var paths = new List<string>();
+                    if (root.TryGetProperty("payload", out var pinPayload))
+                    {
+                        if (pinPayload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var p in pathsEl.EnumerateArray())
+                            {
+                                var s = p.GetString();
+                                if (!string.IsNullOrWhiteSpace(s)) paths.Add(s);
+                            }
+                        }
+                    }
+                    // Ack immediately — RunGraph can take minutes and must not block IPC (timeout).
+                    var armedCount = _automationEventTriggers.CountArmedSpatialPins();
+                    {
+                        var ack = new
+                        {
+                            type = "AUTOMATION_SPATIAL_PIN_RESULT",
+                            id = idProp,
+                            payload = new
+                            {
+                                ok = true,
+                                fired = armedCount,
+                                queued = true,
+                                log = new[] { armedCount == 0
+                                    ? "No armed spatialPin pipelines — paths queued for editor seed only."
+                                    : $"Queued {armedCount} armed spatialPin pipeline(s)." },
+                                error = (string?)null,
+                            },
+                        };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(ack, jsonOptions)));
+                    }
+                    if (armedCount > 0 && paths.Count > 0)
+                    {
+                        _ = Task.Run(() =>
+                        {
+                            try
+                            {
+                                _automationRunnerDeps.HostWindow = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                                var results = _automationEventTriggers.FireSpatialPins(paths);
+                                var ok = results.Count == 0 || results.All(r => r.Ok);
+                                var log = results.SelectMany(r => r.Log ?? Enumerable.Empty<string>()).ToList();
+                                var error = results.FirstOrDefault(r => !r.Ok)?.Error;
+                                var done = new
+                                {
+                                    type = "AUTOMATION_SPATIAL_PIN_DONE",
+                                    payload = new { ok, fired = results.Count, log, error },
+                                };
+                                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done, jsonOptions)));
+                            }
+                            catch (Exception ex)
+                            {
+                                var done = new
+                                {
+                                    type = "AUTOMATION_SPATIAL_PIN_DONE",
+                                    payload = new { ok = false, fired = 0, log = new[] { ex.Message }, error = ex.Message },
+                                };
+                                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                                PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(done, jsonOptions)));
+                            }
+                        });
+                    }
+                }
+                else if (type == "ANALYZE_MUSIC_FILE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    string musicPath = "";
+                    if (root.TryGetProperty("payload", out var musicPayload)
+                        && musicPayload.TryGetProperty("path", out var mpEl))
+                        musicPath = NormalizeFsPath(mpEl.GetString() ?? "");
+                    _ = Task.Run(async () =>
+                    {
+                        var result = await BNDZ.Services.Music.MusicAnalysisService.AnalyzeAsync(musicPath).ConfigureAwait(false);
+                        if (result.Ok)
+                            result.SidecarTags = BNDZ.Services.Music.MusicAnalysisService.BuildSidecarTagKeys(result);
+                        var response = new { type = "ANALYZE_MUSIC_RESULT", id = idProp, payload = result };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "ANALYZE_MUSIC_BATCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var musicPaths = new List<string>();
+                    var writeTags = false;
+                    if (root.TryGetProperty("payload", out var batchPayload))
+                    {
+                        if (batchPayload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var p in pathsEl.EnumerateArray())
+                            {
+                                var s = NormalizeFsPath(p.GetString() ?? "");
+                                if (!string.IsNullOrWhiteSpace(s)) musicPaths.Add(s);
+                            }
+                        }
+                        if (batchPayload.TryGetProperty("writeTags", out var wt))
+                        {
+                            writeTags = wt.ValueKind switch
+                            {
+                                JsonValueKind.True => true,
+                                JsonValueKind.False => false,
+                                JsonValueKind.String => string.Equals(wt.GetString(), "true", StringComparison.OrdinalIgnoreCase),
+                                JsonValueKind.Number => wt.TryGetInt32(out var n) && n != 0,
+                                _ => false,
+                            };
+                        }
+                    }
+                    _ = Task.Run(async () =>
+                    {
+                        var results = await BNDZ.Services.Music.MusicAnalysisService.AnalyzeManyAsync(musicPaths, writeTags).ConfigureAwait(false);
+                        foreach (var r in results)
+                        {
+                            if (r.Ok)
+                                r.SidecarTags = BNDZ.Services.Music.MusicAnalysisService.BuildSidecarTagKeys(r);
+                        }
+                        var response = new
+                        {
+                            type = "ANALYZE_MUSIC_BATCH_RESULT",
+                            id = idProp,
+                            payload = new
+                            {
+                                ok = results.All(r => r.Ok) || results.Any(r => r.Ok),
+                                results,
+                                analyzed = results.Count(r => r.Ok),
+                                failed = results.Count(r => !r.Ok),
+                            },
                         };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
@@ -5245,8 +6071,174 @@ namespace BNDZ
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error processing WebView message: {ex.Message}");
+                Debug.WriteLine($"Error processing WebView message: {ex.Message}");
+                try
+                {
+                    // Always try to unblock the frontend promise when we know the request id.
+                    using var errDoc = JsonDocument.Parse(messageStr);
+                    var errRoot = errDoc.RootElement;
+                    var errId = errRoot.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var errType = errRoot.TryGetProperty("type", out var tEl) ? tEl.GetString() : null;
+                    if (!string.IsNullOrEmpty(errId) && !string.IsNullOrEmpty(errType))
+                    {
+                        var resultType = LicenseService.ResolveIpcResultType(errType);
+                        var payload = new { error = ex.Message };
+                        var response = new { type = resultType, id = errId, payload };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                            catch { }
+                        });
+                    }
+                }
+                catch { /* best-effort */ }
             }
+        }
+
+        /// <summary>
+        /// High-priority IPC that must never wait behind DriveInfo / license / catalog work.
+        /// Returns true when the request was fully handled (caller should return).
+        /// </summary>
+        private bool TryHandleFastIpc(string type, string? idProp, JsonElement root)
+        {
+            if (type == "IPC_PING")
+            {
+                var response = new { type = "IPC_PING_RESULT", id = idProp, payload = new { ok = true, utc = DateTime.UtcNow.ToString("o") } };
+                PostToUi(() =>
+                {
+                    try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response)); }
+                    catch { }
+                });
+                return true;
+            }
+
+            if (type == "REFRESH_WORKSPACE")
+            {
+                var response = new { type = "REFRESH_WORKSPACE_RESULT", id = idProp, payload = true };
+                var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                PostToUi(() =>
+                {
+                    try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                    catch { }
+                });
+                PushDrivesUpdate();
+                return true;
+            }
+
+            if (type == "GET_FILE_TRANSFER_QUEUE")
+            {
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var response = new { type = "FILE_TRANSFER_QUEUE_RESULT", id = idProp, payload = _fileTransferQueue.GetQueueState() };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response)); }
+                            catch { }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new
+                        {
+                            type = "FILE_TRANSFER_QUEUE_RESULT",
+                            id = idProp,
+                            payload = new { queuedCount = 0, activeCount = 0, jobs = Array.Empty<object>(), error = ex.Message },
+                        };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response)); }
+                            catch { }
+                        });
+                    }
+                });
+                return true;
+            }
+
+            if (type == "RAM_STAGING_LIST_ZONES")
+            {
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var zones = _ramStagingService.ListZones().Select(z => z.ToDto()).ToList();
+                        var status = _ramStagingService.GetStatus();
+                        PostMeshIpcResult(idProp, "RAM_STAGING_LIST_ZONES_RESULT", new { zones, status });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "RAM_STAGING_LIST_ZONES_RESULT", new
+                        {
+                            zones = Array.Empty<object>(),
+                            status = new { error = ex.Message },
+                            error = ex.Message,
+                        });
+                    }
+                });
+                return true;
+            }
+
+            if (type == "GET_DRIVES")
+            {
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var drives = _cloudStorageService.GetAnnotatedDrives();
+                        var response = new { type = "DRIVES_RESULT", id = idProp, payload = drives };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                            catch { }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "DRIVES_RESULT", id = idProp, payload = Array.Empty<object>(), error = ex.Message };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                            catch { }
+                        });
+                    }
+                });
+                return true;
+            }
+
+            if (type == "GET_CLOUD_PROVIDERS")
+            {
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var providers = _cloudStorageService.GetProviders();
+                        var response = new { type = "CLOUD_PROVIDERS_RESULT", id = idProp, payload = providers };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                            catch { }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "CLOUD_PROVIDERS_RESULT", id = idProp, payload = Array.Empty<object>(), error = ex.Message };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                            catch { }
+                        });
+                    }
+                });
+                return true;
+            }
+
+            return false;
         }
         
         private void CoreWebView2_WebResourceRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestedEventArgs e)
@@ -5619,6 +6611,19 @@ namespace BNDZ
                         plannedTargets = FileOperationPathPlanner.Plan(action == "rename" ? "move" : action, sources, target, recreateSourceStructure);
                     }
 
+                    try
+                    {
+                        var plannedDests = plannedTargets?.Select(p => p.Dest).ToList();
+                        ProjectSandboxService.Instance.RecordIntent(
+                            operationId,
+                            action,
+                            sources,
+                            string.IsNullOrWhiteSpace(target) ? null : target,
+                            null,
+                            plannedDests);
+                    }
+                    catch { }
+
                     if (engine == "teracopy" && action is "copy" or "move")
                     {
                         var result = _externalCopyHandler.Execute(
@@ -5711,6 +6716,27 @@ namespace BNDZ
                             ?? FileOperationPathPlanner.Plan(action, sources, target, recreateSourceStructure);
                         _tagSidecarStore.CopyMetadata(mappings);
                     }
+
+                    try
+                    {
+                        if (action is "copy" or "move")
+                        {
+                            foreach (var s in sources)
+                            {
+                                var destFile = plannedTargets?.Where(pt => string.Equals(pt.Src, s, StringComparison.OrdinalIgnoreCase))
+                                    .Select(pt => pt.Dest).FirstOrDefault();
+                                if (string.IsNullOrEmpty(destFile))
+                                    destFile = !string.IsNullOrEmpty(target) ? Path.Combine(target, Path.GetFileName(s)) : s;
+                                FileLineageService.Instance.RecordEdge(s, destFile, action);
+                            }
+                        }
+                        else if (action == "delete")
+                        {
+                            foreach (var s in sources)
+                                FileLineageService.Instance.RecordEdge(s, s, "delete");
+                        }
+                    }
+                    catch { }
 
                     _conflictBatchResolution.TryRemove(operationId, out var _unusedBatchResolution);
                     _fileTransferQueue.MarkCompleted(operationId);
@@ -6517,6 +7543,7 @@ namespace BNDZ
                     meta["File Size"] = fi.Length.ToString();
                     meta["Created"] = fi.CreationTimeUtc.ToString("o");
                     meta["Modified"] = fi.LastWriteTimeUtc.ToString("o");
+                    meta["Accessed"] = fi.LastAccessTimeUtc.ToString("o");
                     meta["Archive"] = fi.Attributes.HasFlag(FileAttributes.Archive).ToString().ToLower();
                     meta["Hidden"] = fi.Attributes.HasFlag(FileAttributes.Hidden).ToString().ToLower();
                     meta["System"] = fi.Attributes.HasFlag(FileAttributes.System).ToString().ToLower();
@@ -6528,6 +7555,7 @@ namespace BNDZ
                     var di = new DirectoryInfo(path);
                     meta["Created"] = di.CreationTimeUtc.ToString("o");
                     meta["Modified"] = di.LastWriteTimeUtc.ToString("o");
+                    meta["Accessed"] = di.LastAccessTimeUtc.ToString("o");
                     meta["Archive"] = di.Attributes.HasFlag(FileAttributes.Archive).ToString().ToLower();
                     meta["Hidden"] = di.Attributes.HasFlag(FileAttributes.Hidden).ToString().ToLower();
                     meta["System"] = di.Attributes.HasFlag(FileAttributes.System).ToString().ToLower();

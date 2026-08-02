@@ -16,6 +16,27 @@ export interface JumpSettingEntry {
 /** Hand-curated extras for tabs/controls that are mostly selects, themes, or section hubs. */
 const CURATED_EXTRAS: JumpSettingEntry[] = [
   {
+    tab: 'Highlights & Dark Mode',
+    label: 'Grid style / zebra stripes',
+    key: 'selectConfig5',
+    description: 'Alternate row zebra striping for the file list',
+    keywords: ['zebra', 'zebra stripes', 'grid style', 'alternate rows', 'stripes', 'list background', 'banding'],
+  },
+  {
+    tab: 'Appearance',
+    label: 'Show selection quick actions bar',
+    key: 'showQuickActionsBar',
+    description: 'Floating bar when multiple files are selected (N selected)',
+    keywords: ['bar', 'quick actions', 'quick actions bar', 'selection bar', 'selected', 'n selected', 'actions bar'],
+  },
+  {
+    tab: 'Appearance',
+    label: 'Selection highlight extent',
+    key: 'listSelectionChrome',
+    description: 'Paint selection on the full row, name only, or through the second column',
+    keywords: ['selection', 'highlight', 'name only', 'full row', 'second column', 'chrome', 'selected row'],
+  },
+  {
     tab: 'Themes',
     label: 'Workspace theme',
     description: 'Pick dark, light, or accent themes for the whole app',

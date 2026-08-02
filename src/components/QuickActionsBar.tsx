@@ -91,8 +91,20 @@ export function buildDefaultQuickActions(handlers: {
   onProperties: () => void;
   onBatchRename: () => void;
   onQuickLook: () => void;
+  onMeshDrop?: () => void;
+  onRamStaging?: () => void;
+  onGhostLink?: () => void;
+  onTag?: () => void;
+  onCompare?: () => void;
   canPaste: boolean;
 }): QuickAction[] {
+  const extra: QuickAction[] = [];
+  if (handlers.onMeshDrop) extra.push({ id: 'meshdrop', label: 'Mesh Drop', icon: 'emblem-shared', onClick: handlers.onMeshDrop, accent: 'sky' });
+  if (handlers.onRamStaging) extra.push({ id: 'ram', label: 'RAM Stage', icon: 'hard_drive_ui', onClick: handlers.onRamStaging, accent: 'amber' });
+  if (handlers.onGhostLink) extra.push({ id: 'ghost', label: 'Ghost-Link', icon: 'emblem-symbolic-link', onClick: handlers.onGhostLink });
+  if (handlers.onTag) extra.push({ id: 'tag', label: 'Tag', icon: 'tag_manager', onClick: handlers.onTag, accent: 'emerald' });
+  if (handlers.onCompare) extra.push({ id: 'compare', label: 'Compare', icon: 'compare', onClick: handlers.onCompare });
+
   return [
     { id: 'quicklook', label: 'Quick Look', icon: 'toggle_preview', onClick: handlers.onQuickLook, accent: 'sky' },
     { id: 'copy', label: 'Copy', icon: 'copy', onClick: handlers.onCopy },
@@ -100,6 +112,7 @@ export function buildDefaultQuickActions(handlers: {
     { id: 'paste', label: 'Paste', icon: 'paste', onClick: handlers.onPaste, disabled: !handlers.canPaste },
     { id: 'path', label: 'Copy Path', icon: 'copy_path', onClick: handlers.onCopyPath },
     { id: 'rename', label: 'Batch Rename', icon: 'batch_rename', onClick: handlers.onBatchRename, accent: 'emerald' },
+    ...extra,
     { id: 'terminal', label: 'Terminal', icon: 'terminal', onClick: handlers.onOpenTerminal },
     { id: 'explorer', label: 'Explorer', icon: 'explorer', onClick: handlers.onOpenExplorer },
     { id: 'properties', label: 'Properties', icon: 'sys_properties', onClick: handlers.onProperties },

@@ -197,6 +197,68 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
     onNavigate(normalizePanePath(targetWin));
   }, [onNavigate, pathA, pathB]);
 
+  const [syncing, setSyncing] = useState(false);
+
+  const syncFiltered = useCallback(async (direction: 'a-to-b' | 'b-to-a' | 'differents') => {
+    if (!pathA.trim() || !pathB.trim() || !dirResults.length) return;
+    setSyncing(true);
+    let count = 0;
+    try {
+      const rows = direction === 'differents'
+        ? dirResults.filter(r => normalizeCompareStatus(r.status) === 'different')
+        : direction === 'a-to-b'
+          ? dirResults.filter(r => normalizeCompareStatus(r.status) === 'onlyA')
+          : dirResults.filter(r => normalizeCompareStatus(r.status) === 'onlyB');
+      for (const row of rows) {
+        if (row.isDirectory) continue;
+        const rel = String(row.relativePath || row.name || '').trim();
+        if (!rel) continue;
+        const srcBase = direction === 'b-to-a' ? pathB : pathA;
+        const destBase = direction === 'b-to-a' ? pathA : pathB;
+        const src = joinWinPath(srcBase, rel);
+        const dest = joinWinPath(destBase, rel);
+        const destDir = parentWinPath(dest);
+        await IPC.executeFsOperation(`cmp-mkdir-${count}`, 'create-dir', destDir, '');
+        await IPC.executeFsOperation(`cmp-copy-${count}`, 'copy', src, dest);
+        count++;
+      }
+      pushToast({ kind: 'success', title: 'Sync from diff', message: `Queued ${count} file(s).` });
+      await runDirCompare();
+    } catch {
+      pushToast({ kind: 'error', title: 'Sync failed', message: 'Could not sync filtered differences.' });
+    } finally {
+      setSyncing(false);
+    }
+  }, [pathA, pathB, dirResults, runDirCompare]);
+
+  const exportDiffCsv = useCallback(async () => {
+    const rows = filteredDirResults.length ? filteredDirResults : dirResults;
+    if (!rows.length) return;
+    const header = 'status,name,relativePath,isDirectory';
+    const lines = rows.map(r => {
+      const status = normalizeCompareStatus(r.status);
+      const name = String(r.name || '').replace(/"/g, '""');
+      const rel = String(r.relativePath || '').replace(/"/g, '""');
+      return `"${status}","${name}","${rel}",${r.isDirectory ? '1' : '0'}`;
+    });
+    const csv = [header, ...lines].join('\n');
+    try {
+      await navigator.clipboard.writeText(csv);
+      pushToast({ kind: 'success', title: 'Exported', message: `${rows.length} row(s) copied as CSV.` });
+    } catch {
+      pushToast({ kind: 'warning', title: 'Clipboard', message: 'Could not copy CSV.' });
+    }
+  }, [filteredDirResults, dirResults]);
+
+  const openDualPane = useCallback(() => {
+    if (!pathA.trim() || !pathB.trim()) return;
+    window.dispatchEvent(new CustomEvent('bndz-open-dual-pane', {
+      detail: { pathA: normalizePanePath(pathA), pathB: normalizePanePath(pathB) },
+    }));
+    onNavigate?.(normalizePanePath(pathA));
+    pushToast({ kind: 'info', title: 'Dual pane', message: 'Opened path A — set path B in the other pane if dual-pane is enabled.' });
+  }, [pathA, pathB, onNavigate]);
+
   const heroMeta =
     mode === 'files' && fileResult?.ok
       ? (fileResult.identical ? 'Files are identical' : 'Files differ')
@@ -227,14 +289,21 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
           typeLabel={mode === 'files' ? 'Binary file diff' : 'Directory diff'}
           meta={<span className="bndz-panel-muted text-xs">{heroMeta}</span>}
           actions={
-            <PluginHeroActionButton
-              icon={loading ? 'loading' : 'compare_ui'}
-              variant="primary"
-              onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
-              disabled={loading || !pathA.trim() || !pathB.trim()}
-            >
-              Compare
-            </PluginHeroActionButton>
+            <>
+              <PluginHeroActionButton
+                icon={loading ? 'loading' : 'compare_ui'}
+                variant="primary"
+                onClick={() => void (mode === 'files' ? runFileCompare() : runDirCompare())}
+                disabled={loading || !pathA.trim() || !pathB.trim()}
+              >
+                Compare
+              </PluginHeroActionButton>
+              {mode === 'dirs' && dirResults.length > 0 && (
+                <PluginHeroActionButton icon="refresh" onClick={() => void runDirCompare()} disabled={loading}>
+                  Re-compare
+                </PluginHeroActionButton>
+              )}
+            </>
           }
         />
 
@@ -363,7 +432,7 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
           {mode === 'dirs' && dirResults.length > 0 && (
             <PluginCard className="flex-1 min-h-0 overflow-hidden !p-0 !py-0 flex flex-col">
               <div className="px-3 py-2 border-b border-white/[0.06] flex flex-col gap-2 shrink-0 bg-[rgba(12,16,24,0.95)] backdrop-blur-sm z-10">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="bndz-plugin-section-title">Diff results</span>
                   <span className="bndz-plugin-kind-pill">{filteredDirResults.length}/{dirResults.length}</span>
                 </div>
@@ -385,6 +454,23 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
                       )}
                     </button>
                   ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <PluginToolbarButton icon="sync" disabled={syncing || !filterCounts.onlyA} onClick={() => void syncFiltered('a-to-b')}>
+                    Copy Only A→B
+                  </PluginToolbarButton>
+                  <PluginToolbarButton icon="sync" disabled={syncing || !filterCounts.onlyB} onClick={() => void syncFiltered('b-to-a')}>
+                    Copy Only B→A
+                  </PluginToolbarButton>
+                  <PluginToolbarButton icon="copy" disabled={syncing || !filterCounts.different} onClick={() => void syncFiltered('differents')}>
+                    Overwrite Differents
+                  </PluginToolbarButton>
+                  <PluginToolbarButton icon="copy_path" onClick={() => void exportDiffCsv()}>
+                    Export CSV
+                  </PluginToolbarButton>
+                  <PluginToolbarButton icon="view_split" onClick={openDualPane}>
+                    Dual pane
+                  </PluginToolbarButton>
                 </div>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar">

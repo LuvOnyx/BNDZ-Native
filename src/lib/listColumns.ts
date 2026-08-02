@@ -138,9 +138,17 @@ export function formatAttributesLabel(attrs?: string[]): string {
   return attrs.map(a => short[a.toLowerCase()] || a.slice(0, 1).toUpperCase()).join('');
 }
 
-export function formatFsDateTime(value?: string): string {
-  if (!value) return '';
-  const d = new Date(value);
+export function formatFsDateTime(value?: string | number): string {
+  if (value == null || value === '') return '';
+  let d: Date;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    d = new Date(value < 1e12 ? value * 1000 : value);
+  } else if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    const n = Number(value);
+    d = new Date(n < 1e12 ? n * 1000 : n);
+  } else {
+    d = new Date(value);
+  }
   if (Number.isNaN(d.getTime())) return '';
   return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }

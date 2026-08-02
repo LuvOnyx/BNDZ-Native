@@ -10,8 +10,11 @@ export const BNDZ_LARGE = '/bndz/large';
 export const BNDZ_CANVAS = '/bndz/canvas';
 export const BNDZ_AUTOMATION = '/bndz/automation';
 export const BNDZ_RAM_ROOT = '/bndz/ram';
+export const BNDZ_PROBLEMS = '/bndz/problems';
+export const BNDZ_INBOUND = '/bndz/inbound';
+export const BNDZ_SANDBOX = '/bndz/sandbox';
 
-export type BndzVirtualView = 'recent' | 'media' | 'audio' | 'documents' | 'large';
+export type BndzVirtualView = 'recent' | 'media' | 'audio' | 'documents' | 'large' | 'problems' | 'inbound';
 export type BndzWorkspaceView = 'canvas' | 'automation';
 
 export function isBndzVirtualPath(path: string): boolean {
@@ -29,6 +32,23 @@ export function parseBndzRamZoneId(path: string): string | null {
   if (!n.startsWith(`${BNDZ_RAM_ROOT}/`)) return null;
   const zoneId = n.slice(BNDZ_RAM_ROOT.length + 1).split('/')[0];
   return zoneId || null;
+}
+
+/** True when path is inside a RAM zone (writable mount), not the /bndz/ram picker. */
+export function isBndzRamWritablePath(path: string): boolean {
+  return !!parseBndzRamZoneId(path);
+}
+
+/**
+ * Pane paths that accept copy/move/paste/drop onto a real filesystem.
+ * Includes RAM staging zone mounts; excludes smart views and /bndz/ram root.
+ */
+export function isFsDropTargetPath(path: string): boolean {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  if (!n || n === '/' || n === '/this-pc') return false;
+  if (isBndzRamWritablePath(n)) return true;
+  if (isBndzVirtualPath(n)) return false;
+  return true;
 }
 
 export function bndzRamVirtualPath(zoneId: string): string {
@@ -68,6 +88,8 @@ export function parseBndzVirtualView(path: string): BndzVirtualView | null {
   if (n === BNDZ_AUDIO) return 'audio';
   if (n === BNDZ_DOCUMENTS) return 'documents';
   if (n === BNDZ_LARGE) return 'large';
+  if (n === BNDZ_PROBLEMS) return 'problems';
+  if (n === BNDZ_INBOUND) return 'inbound';
   return null;
 }
 
@@ -82,6 +104,12 @@ export function bndzVirtualLabel(view: BndzVirtualView): string {
     case 'audio': return 'Audio library';
     case 'documents': return 'Documents';
     case 'large': return 'Large files';
+    case 'problems': return 'Library problems';
+    case 'inbound': return 'Inbound';
+    default: {
+      const _exhaustive: never = view;
+      return _exhaustive;
+    }
   }
 }
 
@@ -89,5 +117,24 @@ export function bndzWorkspaceLabel(view: BndzWorkspaceView): string {
   switch (view) {
     case 'canvas': return 'Spatial Canvas';
     case 'automation': return 'Automation';
+    default: {
+      const _exhaustive: never = view;
+      return _exhaustive;
+    }
   }
+}
+
+export function isBndzProblemsPath(path: string): boolean {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  return n === BNDZ_PROBLEMS || n.startsWith(`${BNDZ_PROBLEMS}/`);
+}
+
+export function isBndzInboundPath(path: string): boolean {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  return n === BNDZ_INBOUND || n.startsWith(`${BNDZ_INBOUND}/`);
+}
+
+export function isBndzSandboxPath(path: string): boolean {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  return n === BNDZ_SANDBOX || n.startsWith(`${BNDZ_SANDBOX}/`);
 }

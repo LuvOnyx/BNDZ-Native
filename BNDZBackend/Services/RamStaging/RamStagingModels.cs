@@ -24,6 +24,10 @@ public sealed class RamStagingZone
     public RamZoneState State { get; set; } = RamZoneState.Mounting;
     public string MountPath { get; set; } = "";
     public string? DriveLetter { get; set; }
+    /// <summary>AIM six-digit device id (or similar) for clean dismount.</summary>
+    public string? ProviderDeviceId { get; set; }
+    /// <summary>imdisk | aim | fast</summary>
+    public string? Provider { get; set; }
     public long SizeBudgetMb { get; set; } = 4096;
     public long UsedBytes { get; set; }
     public bool IsDirty { get; set; }
@@ -39,6 +43,8 @@ public sealed class RamStagingZone
         state = State.ToString().ToLowerInvariant(),
         mountPath = MountPath,
         driveLetter = DriveLetter,
+        provider = Provider,
+        providerDeviceId = ProviderDeviceId,
         sizeBudgetMb = SizeBudgetMb,
         usedBytes = UsedBytes,
         isDirty = IsDirty,

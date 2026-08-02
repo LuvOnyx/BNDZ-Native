@@ -91,10 +91,12 @@ function formatWhen(iso?: string): string {
 
 export default function WorkspaceToolsTabContent({
   openBottomPlugin,
+  openMeshDrop,
   localConfig,
   updateLocalConfig,
 }: {
   openBottomPlugin?: (id: string) => void;
+  openMeshDrop?: () => void;
   localConfig: WorkspaceConfig;
   updateLocalConfig: (updates: Partial<WorkspaceConfig>) => void;
 }) {
@@ -110,6 +112,18 @@ export default function WorkspaceToolsTabContent({
   const [ramStatus, setRamStatus] = useState<{ imDiskAvailable?: boolean }>({});
   const [syncJobs, setSyncJobs] = useState<SyncJob[]>([]);
   const [toolLoading, setToolLoading] = useState(false);
+  const [recentBoards, setRecentBoards] = useState<Array<{ id: string; name: string; pinCount: number; active: boolean }>>([]);
+  const [recentPipelines, setRecentPipelines] = useState<Array<{ id: string; name: string; armed?: boolean }>>([]);
+
+  useEffect(() => {
+    if (toolTab !== 'spatial-automation') return;
+    void import('../../lib/spatialCanvasStore').then(m => m.listSpatialBoards().then(setRecentBoards).catch(() => setRecentBoards([])));
+    void import('../../lib/automationStore').then(m =>
+      m.loadAutomationLibrary().then(lib =>
+        setRecentPipelines(lib.pipelines.map(p => ({ id: p.id, name: p.name || 'Pipeline', armed: !!(p as any).armed }))),
+      ).catch(() => setRecentPipelines([])),
+    );
+  }, [toolTab]);
 
   const refreshMesh = useCallback(async () => {
     const [r, h] = await Promise.all([IPC.meshGetSyncRules(), IPC.meshListHosts()]);
@@ -392,6 +406,24 @@ export default function WorkspaceToolsTabContent({
 
             {toolTab === 'mesh-drop' && (
               <div className="space-y-4">
+                <div className="bndz-mesh-dashboard">
+                  <div className="bndz-mesh-stat">
+                    <div className="bndz-mesh-stat-value">{localConfig.meshDropLanDiscovery !== false ? 'On' : 'Off'}</div>
+                    <div className="bndz-mesh-stat-label">LAN discovery</div>
+                  </div>
+                  <div className="bndz-mesh-stat">
+                    <div className="bndz-mesh-stat-value">{(localConfig.meshDropSignalingRelayUrl || '').trim() ? 'Set' : '—'}</div>
+                    <div className="bndz-mesh-stat-label">Relay</div>
+                  </div>
+                  <div className="bndz-mesh-stat">
+                    <div className="bndz-mesh-stat-value">{(localConfig.meshDropTurnUrl || '').trim() ? 'Set' : '—'}</div>
+                    <div className="bndz-mesh-stat-label">TURN</div>
+                  </div>
+                  <div className="bndz-mesh-stat">
+                    <div className="bndz-mesh-stat-value">{(localConfig.meshDropStunServers || '').split(';').filter(Boolean).length || 1}</div>
+                    <div className="bndz-mesh-stat-label">STUN hosts</div>
+                  </div>
+                </div>
                 <SettingsSection title="WebRTC signaling">
                   <PluginFieldLabel>STUN servers (semicolon-separated)</PluginFieldLabel>
                   <input
@@ -439,7 +471,9 @@ export default function WorkspaceToolsTabContent({
                     onChange={e => updateLocalConfig({ meshDropSignalingRelayUrl: e.target.value })}
                   />
                   <div className="mt-3">
-                    <PluginToolbarButton onClick={() => openBottomPlugin?.('mesh-drop')}>Open Mesh Drop panel</PluginToolbarButton>
+                    <PluginToolbarButton onClick={() => (openMeshDrop ?? (() => openBottomPlugin?.('mesh-drop')))()}>
+                      Open Mesh Drop panel
+                    </PluginToolbarButton>
                   </div>
                 </SettingsSection>
               </div>
@@ -705,6 +739,59 @@ export default function WorkspaceToolsTabContent({
                   />
                 </div>
 
+                {(recentBoards.length > 0 || recentPipelines.length > 0) && (
+                  <SettingsSection title="Recent boards & pipelines">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <div className="text-[10px] uppercase tracking-wide text-white/35">Spatial boards</div>
+                        {recentBoards.length === 0 ? (
+                          <p className="text-[11px] text-white/30">No boards yet</p>
+                        ) : recentBoards.slice(0, 5).map(b => (
+                          <button
+                            key={b.id}
+                            type="button"
+                            className="bndz-ws-tools-row w-full text-left"
+                            onClick={() => {
+                              void import('../../lib/spatialCanvasStore').then(m => m.switchSpatialBoard(b.id));
+                              window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: BNDZ_CANVAS } }));
+                            }}
+                          >
+                            <div className="bndz-ws-tools-row-body">
+                              <div className="bndz-ws-tools-row-title">
+                                {b.name}{b.active ? <span className="bndz-ws-tools-pill is-live">Active</span> : null}
+                              </div>
+                              <div className="bndz-ws-tools-row-meta">{b.pinCount} pin(s)</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[10px] uppercase tracking-wide text-white/35">Pipelines</div>
+                        {recentPipelines.length === 0 ? (
+                          <p className="text-[11px] text-white/30">No pipelines yet</p>
+                        ) : recentPipelines.slice(0, 5).map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="bndz-ws-tools-row w-full text-left"
+                            onClick={() => {
+                              window.dispatchEvent(new CustomEvent('bndz-automation-select-pipeline', { detail: { id: p.id } }));
+                              window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: BNDZ_AUTOMATION } }));
+                            }}
+                          >
+                            <div className="bndz-ws-tools-row-body">
+                              <div className="bndz-ws-tools-row-title">
+                                {p.name}{p.armed ? <span className="bndz-ws-tools-pill is-live">Armed</span> : null}
+                              </div>
+                              <div className="bndz-ws-tools-row-meta">{p.id}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </SettingsSection>
+                )}
+
                 <SettingsSection title="Spatial Canvas">
                   <p className="text-[11px] text-gray-500 mb-3 max-w-[640px]">
                     Infinite board for file references — drag from any pane, pan with Alt+drag or middle mouse, zoom with Ctrl+scroll.
@@ -815,7 +902,7 @@ export default function WorkspaceToolsTabContent({
                   <div className="mt-2">
                     <Checkbox
                       label="Quick Actions Bar (multi-select strip below omnibar)"
-                      checked={localConfig.showQuickActionsBar !== false}
+                      checked={localConfig.showQuickActionsBar === true}
                       onChange={e => updateLocalConfig({ showQuickActionsBar: e.target.checked })}
                     />
                   </div>
@@ -828,7 +915,7 @@ export default function WorkspaceToolsTabContent({
                   </div>
                   <div className="mt-2">
                     <Checkbox
-                      label="GPU inspection shaders (histogram / loupe in preview)"
+                      label="GPU inspection shaders (luma inspect / loupe in preview)"
                       checked={localConfig.gpuInspection !== false}
                       onChange={e => updateLocalConfig({ gpuInspection: e.target.checked })}
                     />
@@ -843,7 +930,7 @@ export default function WorkspaceToolsTabContent({
                       })}
                     >
                       <option value="passthrough">Standard (ImageZoom)</option>
-                      <option value="histogram">Histogram overlay</option>
+                      <option value="histogram">Luma inspect</option>
                       <option value="loupe">Loupe magnifier</option>
                     </select>
                   </div>

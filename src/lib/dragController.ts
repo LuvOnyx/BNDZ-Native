@@ -49,6 +49,12 @@ export function isWithinDoubleClickGuard() {
   return Date.now() - lastPointerDownAt < DOUBLE_CLICK_GUARD_MS;
 }
 
+/**
+ * Whether a new list press may arm a file-drag session.
+ * Must be evaluated BEFORE markPointerDown() on the current press — otherwise
+ * the freshly stamped timestamp always trips the double-click guard and drag
+ * never arms (HTML5 draggable is also disabled on rows).
+ */
 export function canStartDragFromList(disallowDrag?: boolean): boolean {
   if (disallowDrag) return false;
   if (marqueeActive) return false;

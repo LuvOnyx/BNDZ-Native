@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Icons8Icon } from '../Icons8Icon';
 import WorkspaceMenuPanel, { WorkspaceMenuItem, WorkspaceMenuSep } from '../workspace/WorkspaceMenuPanel';
 import SpatialCanvasCard from '../workspace/SpatialCanvasCard';
+import SpatialStickyNote from '../workspace/SpatialStickyNote';
 import SpatialSpringBoard from '../../workstation/spatial/SpatialSpringBoard';
 import { readBndzFileDragData, hasBndzFileDrag } from '../../lib/bndzDrag';
 import { getFileDragSession } from '../../lib/fileDragSession';
@@ -11,7 +12,9 @@ import {
   loadSpatialCanvas, hydrateSpatialCanvasFromJson, invalidateSpatialCanvasCache,
   resetSpatialCanvasPersisted,
   listSpatialBoards, switchSpatialBoard, createSpatialBoard, deleteSpatialBoard, renameSpatialBoard,
-  type CanvasItem, type SpatialCanvasDoc,
+  duplicateSpatialBoard,
+  createSticky, SPATIAL_STICKY_COLORS, SPATIAL_STICKY_W, SPATIAL_STICKY_H,
+  type CanvasItem, type SpatialCanvasDoc, type SpatialSticky,
 } from '../../lib/spatialCanvasStore';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { toPanePath } from '../../lib/shellPaths';
@@ -51,8 +54,8 @@ type Props = {
   onOpenPath?: (path: string) => void;
 };
 
-const CARD_W = 172;
-const CARD_H = 148;
+const CARD_W = 228;
+const CARD_H = 176;
 
 function newItem(path: string, x: number, y: number): CanvasItem {
   const name = path.split(/[/\\]/).pop() || path;
@@ -80,6 +83,19 @@ function cardIntersectsMarquee(
   return item.x < rx && item.x + CARD_W > lx && item.y < ry && item.y + CARD_H > ly;
 }
 
+function stickyIntersectsMarquee(
+  sticky: SpatialSticky,
+  m: { x1: number; y1: number; x2: number; y2: number },
+) {
+  const w = sticky.w ?? SPATIAL_STICKY_W;
+  const h = sticky.h ?? SPATIAL_STICKY_H;
+  const lx = Math.min(m.x1, m.x2);
+  const ly = Math.min(m.y1, m.y2);
+  const rx = Math.max(m.x1, m.x2);
+  const ry = Math.max(m.y1, m.y2);
+  return sticky.x < rx && sticky.x + w > lx && sticky.y < ry && sticky.y + h > ly;
+}
+
 export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props) {
   const { config } = useAppConfig();
   const autoSave = config.spatialCanvasAutoSave !== false;
@@ -99,6 +115,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const [status, setStatus] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingStickyId, setEditingStickyId] = useState<string | null>(null);
   const [displayZoom, setDisplayZoom] = useState(1);
   const [showRelations, setShowRelations] = useState(true);
   const [showMinimap, setShowMinimap] = useState(true);
@@ -108,6 +125,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [boardList, setBoardList] = useState<Array<{ id: string; name: string; pinCount: number; active: boolean }>>([]);
   const [showBoardPicker, setShowBoardPicker] = useState(false);
+  const [pinSearch, setPinSearch] = useState('');
   const [tagMap, setTagMap] = useState<Map<string, string[]>>(new Map());
   const [boardSize, setBoardSize] = useState({ w: 800, h: 600 });
   const minimapRef = useRef<ConstellationMinimapHandle>(null);
@@ -135,16 +153,30 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   });
   const spacePanDown = useRef(false);
   const draggingRef = useRef<string | null>(null);
+  const dragKindRef = useRef<'item' | 'sticky'>('item');
   const dragElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const dragOffsetRef = useRef({ dx: 0, dy: 0 });
   const dragRafRef = useRef(0);
+  /** Armed card/sticky drag waiting for MIN_MARQUEE_PX movement before committing to drag. */
+  const pendingCardDragRef = useRef<{
+    kind: 'item' | 'sticky';
+    clientX: number;
+    clientY: number;
+    id: string;
+    groupIds: string[];
+    starts: Map<string, { x: number; y: number }>;
+    originX: number;
+    originY: number;
+    ox: number;
+    oy: number;
+  } | null>(null);
   const rafRef = useRef(0);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef(createSpatialCanvasHistory());
   const { menu, closeMenu, onContextMenu } = useWorkspaceContextMenu(surfaceRef);
   const splash = useWorkspaceSplash('spatial-canvas', {
     isReady: doc !== null,
-    isEmpty: Boolean(doc && doc.items.length === 0),
+    isEmpty: Boolean(doc && doc.items.length === 0 && (doc.stickies?.length ?? 0) === 0),
     resetEmptyHintOnMount: false,
   });
 
@@ -168,14 +200,22 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const commitDoc = useCallback((next: SpatialCanvasDoc, save = true, recordHistory = true) => {
     const prev = docRef.current;
     const prevItems = prev?.items.length ?? 0;
-    if (recordHistory && save && prev && stableDocJson(prev) !== stableDocJson(next)) {
+    const prevStickies = prev?.stickies?.length ?? 0;
+    const normalized: SpatialCanvasDoc = {
+      ...next,
+      stickies: Array.isArray(next.stickies) ? next.stickies : [],
+    };
+    if (recordHistory && save && prev && stableDocJson(prev) !== stableDocJson(normalized)) {
       historyRef.current.pushBefore(prev);
     }
-    docRef.current = next;
-    setDoc(next);
-    engine.setTransform(next.panX, next.panY, next.zoom, true);
+    docRef.current = normalized;
+    setDoc(normalized);
+    engine.setTransform(normalized.panX, normalized.panY, normalized.zoom, true);
     if (!save || !autoSave) return;
-    if (next.items.length !== prevItems) {
+    if (
+      normalized.items.length !== prevItems
+      || (normalized.stickies?.length ?? 0) !== prevStickies
+    ) {
       scheduleSave();
       void flushAutosave(true);
       return;
@@ -296,14 +336,22 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const renderedItems = useMemo(() => {
     if (!doc) return [];
     const t = engine.getTransform();
-    return visibleItems(doc.items, {
+    const q = pinSearch.trim().toLowerCase();
+    const base = q
+      ? doc.items.filter(it => {
+          const name = (it.name || it.path || '').toLowerCase();
+          const note = (it.note || '').toLowerCase();
+          return name.includes(q) || note.includes(q) || (it.path || '').toLowerCase().includes(q);
+        })
+      : doc.items;
+    return visibleItems(base, {
       panX: t.panX,
       panY: t.panY,
       zoom: t.zoom,
       w: boardSize.w,
       h: boardSize.h,
     }, CARD_W, CARD_H);
-  }, [doc, boardSize, displayZoom, engine]);
+  }, [doc, boardSize, displayZoom, engine, pinSearch]);
 
   useEffect(() => {
     let active = true;
@@ -357,6 +405,24 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     setShowBoardPicker(false);
     await refreshBoards();
     setStatus(`Created ${d.name}`);
+  }, [engine, flushAutosave, seedAutosave, refreshBoards]);
+
+  const duplicateBoard = useCallback(async () => {
+    try {
+      await flushAutosave(true);
+      const d = await duplicateSpatialBoard(docRef.current.id);
+      historyRef.current = createSpatialCanvasHistory();
+      docRef.current = d;
+      setDoc(d);
+      engine.setTransform(d.panX, d.panY, d.zoom, true);
+      seedAutosave(stableDocJson(d));
+      setSelectedIds([]);
+      setShowBoardPicker(false);
+      await refreshBoards();
+      setStatus(`Duplicated → ${d.name}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Could not duplicate board');
+    }
   }, [engine, flushAutosave, seedAutosave, refreshBoards]);
 
   const removeBoard = useCallback(async (boardId: string) => {
@@ -523,9 +589,19 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const d = docRef.current;
     if (!d || !ids.length) return;
     const drop = new Set(ids);
-    commitDoc({ ...d, items: d.items.filter(it => !drop.has(it.id)) });
+    const nextItems = d.items.filter(it => !drop.has(it.id));
+    const nextStickies = (d.stickies ?? []).filter(s => !drop.has(s.id)).map(s => (
+      s.tetherToId && drop.has(s.tetherToId) ? { ...s, tetherToId: undefined } : s
+    ));
+    const removedPins = d.items.length - nextItems.length;
+    const removedStickies = (d.stickies ?? []).length - nextStickies.length;
+    if (!removedPins && !removedStickies) return;
+    commitDoc({ ...d, items: nextItems, stickies: nextStickies });
     setSelectedIds(prev => prev.filter(id => !drop.has(id)));
-    setStatus(`Removed ${ids.length} card${ids.length === 1 ? '' : 's'}`);
+    const parts: string[] = [];
+    if (removedPins) parts.push(`${removedPins} card${removedPins === 1 ? '' : 's'}`);
+    if (removedStickies) parts.push(`${removedStickies} sticky${removedStickies === 1 ? '' : 'ies'}`);
+    setStatus(`Removed ${parts.join(' · ')}`);
     closeMenu();
   }, [commitDoc, closeMenu]);
 
@@ -535,11 +611,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const clearBoard = useCallback(() => {
     const d = docRef.current;
     if (!d) return;
-    const empty = { ...d, items: [], panX: 0, panY: 0, zoom: 1, updatedAt: Date.now() };
+    const empty = { ...d, items: [], stickies: [], panX: 0, panY: 0, zoom: 1, updatedAt: Date.now() };
     docRef.current = empty;
     setDoc(empty);
     setSelectedIds([]);
     setEditingNoteId(null);
+    setEditingStickyId(null);
     engine.setTransform(0, 0, 1, true);
     setStatus('Board cleared');
     resetWorkspaceSplash('spatial-canvas');
@@ -574,10 +651,75 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     });
   }, [commitDoc]);
 
+  const addStickyNote = useCallback((at?: { x: number; y: number }, opts?: { tetherToId?: string; startEdit?: boolean }) => {
+    const d = docRef.current;
+    if (!d) return;
+    const t = engine.getTransform();
+    const fallback = {
+      x: (-t.panX + boardSize.w / 2) / t.zoom - SPATIAL_STICKY_W / 2,
+      y: (-t.panY + boardSize.h / 2) / t.zoom - SPATIAL_STICKY_H / 2,
+    };
+    const sticky = createSticky({
+      x: at?.x ?? fallback.x,
+      y: at?.y ?? fallback.y,
+      tetherToId: opts?.tetherToId,
+    });
+    commitDoc({ ...d, stickies: [...(d.stickies ?? []), sticky] });
+    setSelectedIds([sticky.id]);
+    if (opts?.startEdit !== false) setEditingStickyId(sticky.id);
+    setStatus('Sticky note added');
+    closeMenu();
+    return sticky;
+  }, [commitDoc, engine, boardSize, closeMenu]);
+
+  const updateStickyText = useCallback((id: string, text: string) => {
+    const d = docRef.current;
+    if (!d) return;
+    commitDoc({
+      ...d,
+      stickies: (d.stickies ?? []).map(s => (s.id === id ? { ...s, text } : s)),
+    });
+    setEditingStickyId(null);
+  }, [commitDoc]);
+
+  const setStickyColor = useCallback((id: string, color: string) => {
+    const d = docRef.current;
+    if (!d) return;
+    commitDoc({
+      ...d,
+      stickies: (d.stickies ?? []).map(s => (s.id === id ? { ...s, color } : s)),
+    });
+    closeMenu();
+  }, [commitDoc, closeMenu]);
+
+  const tetherSticky = useCallback((stickyId: string, pinId: string | undefined) => {
+    const d = docRef.current;
+    if (!d) return;
+    commitDoc({
+      ...d,
+      stickies: (d.stickies ?? []).map(s => (
+        s.id === stickyId ? { ...s, tetherToId: pinId || undefined } : s
+      )),
+    });
+    setStatus(pinId ? 'Sticky tethered to pin' : 'Sticky untethered');
+    closeMenu();
+  }, [commitDoc, closeMenu]);
+
+  const addStickyBesidePin = useCallback((pin: CanvasItem) => {
+    addStickyNote(
+      { x: pin.x + CARD_W + 20, y: pin.y + 8 },
+      { tetherToId: pin.id, startEdit: true },
+    );
+  }, [addStickyNote]);
+
   const fitBoard = useCallback(() => {
     const d = docRef.current;
-    if (!d || !d.items.length || !boardRef.current) {
-      if (d) commitDoc({ ...d, panX: 0, panY: 0, zoom: 1 });
+    const stickies = d?.stickies ?? [];
+    if (!d || (!d.items.length && !stickies.length) || !boardRef.current) {
+      if (d) {
+        // Empty board: true identity at world origin (no content to frame).
+        commitDoc({ ...d, panX: 0, panY: 0, zoom: 1 });
+      }
       return;
     }
     const rect = boardRef.current.getBoundingClientRect();
@@ -588,28 +730,71 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       maxX = Math.max(maxX, it.x + CARD_W);
       maxY = Math.max(maxY, it.y + CARD_H);
     });
+    stickies.forEach(s => {
+      const w = s.w ?? SPATIAL_STICKY_W;
+      const h = s.h ?? SPATIAL_STICKY_H;
+      minX = Math.min(minX, s.x);
+      minY = Math.min(minY, s.y);
+      maxX = Math.max(maxX, s.x + w);
+      maxY = Math.max(maxY, s.y + h);
+    });
     const pad = 48;
-    const bw = maxX - minX + pad * 2;
-    const bh = maxY - minY + pad * 2;
+    const contentW = Math.max(1, maxX - minX);
+    const contentH = Math.max(1, maxY - minY);
+    const bw = contentW + pad * 2;
+    const bh = contentH + pad * 2;
     const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
-    const panX = (rect.width - bw * zoom) / 2 - minX * zoom + pad * zoom;
-    const panY = (rect.height - bh * zoom) / 2 - minY * zoom + pad * zoom;
+    // Center the content bounding box in the viewport (world ↔ screen via pan + scale).
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const panX = rect.width / 2 - cx * zoom;
+    const panY = rect.height / 2 - cy * zoom;
     commitDoc({ ...d, panX, panY, zoom });
     setStatus('Fitted to board');
     closeMenu();
   }, [commitDoc, minZoom, maxZoom, closeMenu]);
 
+  /** Zoom = 100% while keeping the current world point under the board center. */
+  const resetZoomPreserveCenter = useCallback(() => {
+    const d = docRef.current;
+    const el = boardRef.current;
+    if (!d || !el) return;
+    const t = engine.getTransform();
+    const vw = el.clientWidth;
+    const vh = el.clientHeight;
+    const worldX = (-t.panX + vw / 2) / t.zoom;
+    const worldY = (-t.panY + vh / 2) / t.zoom;
+    const zoom = 1;
+    const panX = vw / 2 - worldX * zoom;
+    const panY = vh / 2 - worldY * zoom;
+    commitDoc({ ...d, panX, panY, zoom });
+    setStatus('Zoom reset to 100%');
+    closeMenu();
+  }, [commitDoc, engine, closeMenu]);
+
   const arrangeGrid = useCallback(() => {
     const d = docRef.current;
-    if (!d || !d.items.length) return;
-    const cols = Math.ceil(Math.sqrt(d.items.length));
+    if (!d) return;
+    const stickies = d.stickies ?? [];
+    if (!d.items.length && !stickies.length) return;
+    const total = d.items.length + stickies.length;
+    const cols = Math.ceil(Math.sqrt(total));
     const gap = 20;
     const items = d.items.map((it, i) => ({
       ...it,
       x: 40 + (i % cols) * (CARD_W + gap),
       y: 40 + Math.floor(i / cols) * (CARD_H + gap),
     }));
-    commitDoc({ ...d, items });
+    const offset = d.items.length;
+    const nextStickies = stickies.map((s, i) => {
+      const idx = offset + i;
+      return {
+        ...s,
+        x: 40 + (idx % cols) * (CARD_W + gap),
+        y: 40 + Math.floor(idx / cols) * (CARD_H + gap),
+      };
+    });
+    commitDoc({ ...d, items, stickies: nextStickies });
     setStatus('Arranged in grid');
     closeMenu();
   }, [commitDoc, closeMenu]);
@@ -643,11 +828,22 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         commitDoc({
           ...d,
           items: [...d.items, ...parsed.items.map(it => ({ ...it, id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }))],
+          stickies: [
+            ...(d.stickies ?? []),
+            ...(parsed.stickies ?? []).map(s => ({
+              ...s,
+              id: `sticky_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            })),
+          ],
           panX: parsed.panX ?? d.panX,
           panY: parsed.panY ?? d.panY,
           zoom: parsed.zoom ?? d.zoom,
         });
-        setStatus(`Imported ${parsed.items.length} pin${parsed.items.length === 1 ? '' : 's'}`);
+        const stickyCount = parsed.stickies?.length ?? 0;
+        setStatus(
+          `Imported ${parsed.items.length} pin${parsed.items.length === 1 ? '' : 's'}`
+          + (stickyCount ? ` · ${stickyCount} sticky${stickyCount === 1 ? '' : 'ies'}` : ''),
+        );
       };
       reader.readAsText(file);
     };
@@ -754,7 +950,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       const snapped = snapPosition(it.x + dx, it.y + dy, 24, snapEnabled);
       return { ...it, x: snapped.x, y: snapped.y };
     });
-    commitDoc({ ...d, items });
+    const stickies = (d.stickies ?? []).map(s => {
+      if (!sel.has(s.id)) return s;
+      const snapped = snapPosition(s.x + dx, s.y + dy, 24, snapEnabled);
+      return { ...s, x: snapped.x, y: snapped.y };
+    });
+    commitDoc({ ...d, items, stickies });
   }, [selectedIds, commitDoc, snapEnabled]);
 
   const fitSelection = useCallback(() => {
@@ -772,11 +973,15 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       maxY = Math.max(maxY, it.y + CARD_H);
     });
     const pad = 56;
-    const bw = maxX - minX + pad * 2;
-    const bh = maxY - minY + pad * 2;
+    const contentW = Math.max(1, maxX - minX);
+    const contentH = Math.max(1, maxY - minY);
+    const bw = contentW + pad * 2;
+    const bh = contentH + pad * 2;
     const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
-    const panX = (rect.width - bw * zoom) / 2 - minX * zoom + pad * zoom;
-    const panY = (rect.height - bh * zoom) / 2 - minY * zoom + pad * zoom;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const panX = rect.width / 2 - cx * zoom;
+    const panY = rect.height / 2 - cy * zoom;
     commitDoc({ ...d, panX, panY, zoom });
     setStatus(`Framed ${picked.length} selected pin${picked.length === 1 ? '' : 's'}`);
   }, [selectedIds, commitDoc, minZoom, maxZoom]);
@@ -815,8 +1020,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     { id: 'zin', label: 'Zoom in', group: 'View', shortcut: 'Ctrl++', onRun: () => zoomBy(1.15) },
     { id: 'zout', label: 'Zoom out', group: 'View', shortcut: 'Ctrl+-', onRun: () => zoomBy(0.87) },
     { id: 'fit', label: 'Fit all pins', group: 'View', onRun: fitBoard },
+    { id: 'reset-zoom', label: 'Reset zoom (100%)', group: 'View', onRun: resetZoomPreserveCenter },
     { id: 'fit-sel', label: 'Frame selection', group: 'View', shortcut: 'Ctrl+Shift+F', onRun: fitSelection },
     { id: 'grid', label: 'Arrange grid', group: 'Layout', onRun: arrangeGrid },
+    { id: 'sticky', label: 'Add sticky note', group: 'Edit', onRun: () => addStickyNote() },
     { id: 'relations', label: showRelations ? 'Hide relation lines' : 'Show relation lines', group: 'View', onRun: () => setShowRelations(v => !v) },
     { id: 'snap', label: snapEnabled ? 'Disable snap' : 'Enable snap', group: 'Layout', onRun: () => setSnapEnabled(v => !v) },
     { id: 'export', label: 'Export constellation', group: 'File', onRun: exportBoard },
@@ -830,7 +1037,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     { id: 'paste', label: 'Paste pins', group: 'Edit', shortcut: 'Ctrl+V', onRun: () => pastePins() },
     { id: 'copy', label: 'Copy selected paths', group: 'Edit', shortcut: 'Ctrl+C', onRun: copySelectedPaths },
     { id: 'automation', label: 'Send selection to automation', group: 'Workflow', shortcut: 'Ctrl+Shift+A', onRun: sendSelectionToAutomation },
-  ], [zoomBy, fitBoard, fitSelection, arrangeGrid, showRelations, snapEnabled, exportBoard, importBoard, snapshotBoard, undoDoc, redoDoc, cutSelectedPins, duplicateSelectedPins, pastePins, copySelectedPaths, sendSelectionToAutomation]);
+  ], [zoomBy, fitBoard, resetZoomPreserveCenter, fitSelection, arrangeGrid, addStickyNote, showRelations, snapEnabled, exportBoard, importBoard, snapshotBoard, undoDoc, redoDoc, cutSelectedPins, duplicateSelectedPins, pastePins, copySelectedPaths, sendSelectionToAutomation]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -868,7 +1075,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         removeSelected();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        setSelectedIds(d.items.map(it => it.id));
+        setSelectedIds([
+          ...d.items.map(it => it.id),
+          ...(d.stickies ?? []).map(s => s.id),
+        ]);
       } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undoDoc();
@@ -936,8 +1146,19 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         invalidateSpatialVisual();
       });
     };
+    const onFocus = () => {
+      // Cross-process sticky widgets write the same meta store — refresh when FM regains focus.
+      onDocChanged();
+    };
     window.addEventListener('bndz-spatial-doc-changed', onDocChanged);
-    return () => window.removeEventListener('bndz-spatial-doc-changed', onDocChanged);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') onFocus();
+    });
+    return () => {
+      window.removeEventListener('bndz-spatial-doc-changed', onDocChanged);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const updateMarqueeDom = useCallback((m: { x1: number; y1: number; x2: number; y2: number }) => {
@@ -1018,7 +1239,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       const w = Math.abs(m.x2 - m.x1);
       const h = Math.abs(m.y2 - m.y1);
       if (w >= MIN_MARQUEE_PX && h >= MIN_MARQUEE_PX) {
-        const hits = d.items.filter(it => cardIntersectsMarquee(it, m)).map(it => it.id);
+        const pinHits = d.items.filter(it => cardIntersectsMarquee(it, m)).map(it => it.id);
+        const stickyHits = (d.stickies ?? []).filter(s => stickyIntersectsMarquee(s, m)).map(s => s.id);
+        const hits = [...pinHits, ...stickyHits];
         if (m.additive) setSelectedIds(prev => [...new Set([...prev, ...hits])]);
         else setSelectedIds(hits);
       }
@@ -1028,29 +1251,50 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     if (draggingRef.current) {
       const drag = itemDrag.current;
       const moveIds = new Set(drag.groupIds);
-      const items = d.items.map(it => {
-        if (!moveIds.has(it.id)) return it;
-        const el = dragElsRef.current.get(it.id);
-        const start = drag.starts.get(it.id);
-        if (!el || !start) return it;
-        const m = el.style.transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
-        const dx = m ? parseFloat(m[1]) : 0;
-        const dy = m ? parseFloat(m[2]) : 0;
-        el.style.transform = '';
-        el.classList.remove('is-dragging');
-        let nx = start.x + dx;
-        let ny = start.y + dy;
-        const others = d.items.filter(o => !moveIds.has(o.id)).map(o => ({ x: o.x, y: o.y }));
-        const mag = magneticOffset(nx, ny, others, CARD_W, CARD_H);
-        const snapped = snapPosition(mag.x, mag.y, 24, snapEnabled);
-        return { ...it, x: snapped.x, y: snapped.y };
-      });
-      dragElsRef.current.clear();
-      draggingRef.current = null;
-      commitDoc({ ...d, items });
-      setDraggingId(null);
+      if (dragKindRef.current === 'sticky') {
+        const stickies = (d.stickies ?? []).map(s => {
+          if (!moveIds.has(s.id)) return s;
+          const el = dragElsRef.current.get(s.id);
+          const start = drag.starts.get(s.id);
+          if (!el || !start) return s;
+          const m = el.style.transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
+          const dx = m ? parseFloat(m[1]) : 0;
+          const dy = m ? parseFloat(m[2]) : 0;
+          el.style.transform = '';
+          el.classList.remove('is-dragging');
+          const snapped = snapPosition(start.x + dx, start.y + dy, 24, snapEnabled);
+          return { ...s, x: snapped.x, y: snapped.y };
+        });
+        dragElsRef.current.clear();
+        draggingRef.current = null;
+        commitDoc({ ...d, stickies });
+        setDraggingId(null);
+      } else {
+        const items = d.items.map(it => {
+          if (!moveIds.has(it.id)) return it;
+          const el = dragElsRef.current.get(it.id);
+          const start = drag.starts.get(it.id);
+          if (!el || !start) return it;
+          const m = el.style.transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
+          const dx = m ? parseFloat(m[1]) : 0;
+          const dy = m ? parseFloat(m[2]) : 0;
+          el.style.transform = '';
+          el.classList.remove('is-dragging');
+          let nx = start.x + dx;
+          let ny = start.y + dy;
+          const others = d.items.filter(o => !moveIds.has(o.id)).map(o => ({ x: o.x, y: o.y }));
+          const mag = magneticOffset(nx, ny, others, CARD_W, CARD_H);
+          const snapped = snapPosition(mag.x, mag.y, 24, snapEnabled);
+          return { ...it, x: snapped.x, y: snapped.y };
+        });
+        dragElsRef.current.clear();
+        draggingRef.current = null;
+        commitDoc({ ...d, items });
+        setDraggingId(null);
+      }
     }
 
+    pendingCardDragRef.current = null;
     interacting.current = false;
   }, [commitTransform, hideMarquee, commitDoc, snapEnabled, applyLiveTransform, engine]);
 
@@ -1081,32 +1325,75 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       return;
     }
 
-    const groupIds = wasSelected ? selectedIds : [item.id];
-    if (!wasSelected) setSelectedIds([item.id]);
+    const groupIds = wasSelected
+      ? selectedIds.filter(id => d.items.some(it => it.id === id))
+      : [item.id];
+    // Always select on pointerdown so inspector updates on first click.
+    setSelectedIds(groupIds);
 
-    interacting.current = true;
     const pt = screenToBoard(e.clientX, e.clientY);
     const starts = new Map<string, { x: number; y: number }>();
-    const els = new Map<string, HTMLElement>();
     d.items.forEach(it => {
-      if (groupIds.includes(it.id)) {
-        starts.set(it.id, { x: it.x, y: it.y });
-        const el = boardRef.current?.querySelector(`[data-spatial-card="${it.id}"]`) as HTMLElement | null;
-        if (el) {
-          els.set(it.id, el);
-          el.classList.add('is-dragging');
-        }
-      }
+      if (groupIds.includes(it.id)) starts.set(it.id, { x: it.x, y: it.y });
     });
-    dragElsRef.current = els;
-    itemDrag.current = {
-      id: item.id, ox: pt.x - item.x, oy: pt.y - item.y,
-      originX: item.x, originY: item.y, groupIds, starts,
+    pendingCardDragRef.current = {
+      kind: 'item',
+      clientX: e.clientX,
+      clientY: e.clientY,
+      id: item.id,
+      groupIds,
+      starts,
+      originX: item.x,
+      originY: item.y,
+      ox: pt.x - item.x,
+      oy: pt.y - item.y,
     };
-    draggingRef.current = item.id;
-    setDraggingId(item.id);
+    interacting.current = true;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, [selectedSet, selectedIds, screenToBoard]);
+
+  const onStickyPointerDown = useCallback((e: React.PointerEvent, sticky: SpatialSticky) => {
+    const d = docRef.current;
+    e.stopPropagation();
+    if (!d) return;
+    if (e.button === 2) return;
+    if (e.button !== 0) return;
+    if (editingStickyId === sticky.id) return;
+    focusWorkspaceSurface(surfaceRef.current);
+    const wasSelected = selectedSet.has(sticky.id);
+    const multi = e.ctrlKey || e.metaKey;
+
+    if (multi) {
+      if (wasSelected) setSelectedIds(selectedIds.filter(id => id !== sticky.id));
+      else setSelectedIds([...selectedIds, sticky.id]);
+      return;
+    }
+
+    const groupIds = wasSelected
+      ? selectedIds.filter(id => (d.stickies ?? []).some(s => s.id === id))
+      : [sticky.id];
+    setSelectedIds(groupIds);
+
+    const pt = screenToBoard(e.clientX, e.clientY);
+    const starts = new Map<string, { x: number; y: number }>();
+    (d.stickies ?? []).forEach(s => {
+      if (groupIds.includes(s.id)) starts.set(s.id, { x: s.x, y: s.y });
+    });
+    pendingCardDragRef.current = {
+      kind: 'sticky',
+      clientX: e.clientX,
+      clientY: e.clientY,
+      id: sticky.id,
+      groupIds,
+      starts,
+      originX: sticky.x,
+      originY: sticky.y,
+      ox: pt.x - sticky.x,
+      oy: pt.y - sticky.y,
+    };
+    interacting.current = true;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [selectedSet, selectedIds, screenToBoard, editingStickyId]);
 
   const onBoardPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -1141,6 +1428,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       updateMarqueeDom(m);
       if (!marqueeRef.current.additive) setSelectedIds([]);
       setEditingNoteId(null);
+      setEditingStickyId(null);
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
   };
@@ -1174,6 +1462,39 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         });
       }
       return;
+    }
+    if (pendingCardDragRef.current && !draggingRef.current) {
+      const pending = pendingCardDragRef.current;
+      const dist = Math.hypot(e.clientX - pending.clientX, e.clientY - pending.clientY);
+      if (dist >= MIN_MARQUEE_PX) {
+        const d = docRef.current;
+        if (!d) return;
+        dragKindRef.current = pending.kind;
+        const els = new Map<string, HTMLElement>();
+        const selector = pending.kind === 'sticky' ? 'data-spatial-sticky' : 'data-spatial-card';
+        pending.groupIds.forEach(id => {
+          const el = boardRef.current?.querySelector(`[${selector}="${id}"]`) as HTMLElement | null;
+          if (el) {
+            els.set(id, el);
+            el.classList.add('is-dragging');
+          }
+        });
+        dragElsRef.current = els;
+        itemDrag.current = {
+          id: pending.id,
+          ox: pending.ox,
+          oy: pending.oy,
+          originX: pending.originX,
+          originY: pending.originY,
+          groupIds: pending.groupIds,
+          starts: pending.starts,
+        };
+        draggingRef.current = pending.id;
+        setDraggingId(pending.id);
+        pendingCardDragRef.current = null;
+      } else {
+        return;
+      }
     }
     if (draggingRef.current) {
       const pt = screenToBoard(e.clientX, e.clientY);
@@ -1260,6 +1581,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   };
 
   const menuItem = doc?.items.find(it => it.id === menu?.targetId) ?? null;
+  const menuSticky = doc?.stickies?.find(s => s.id === menu?.targetId) ?? null;
+  const selectedPinForTether = doc?.items.find(it => selectedSet.has(it.id)) ?? null;
+  const boardIsEmpty = doc ? doc.items.length === 0 && (doc.stickies?.length ?? 0) === 0 : true;
 
   if (!doc) {
     return (
@@ -1284,16 +1608,16 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       {splash.visible && (
         <WorkspaceSplash
           workspaceId="spatial-canvas"
-          eyebrow="Constellation board"
+          eyebrow="Project map"
           title="Spatial Canvas"
-          subtitle="Pin references across every folder on an infinite orrery — originals never move on disk."
+          subtitle="Map folders and free sticky notes on an infinite board — pins are references; originals stay on disk."
           icon="view_grid"
           accent="#c48b4a"
           features={[
-            { icon: 'upload', title: 'Drop from anywhere', desc: 'Drag files from any pane onto the board' },
-            { icon: 'notepad', title: 'Sticky notes', desc: 'Right-click a card to annotate' },
+            { icon: 'upload', title: 'Drop folders', desc: 'Drag project folders from any pane onto the map' },
+            { icon: 'notepad', title: 'Free sticky notes', desc: 'Park notes beside folders — optional tether to a pin' },
             { icon: 'zoom_in_ui', title: 'Pan & zoom', desc: 'Scroll to pan · Ctrl+scroll to zoom' },
-            { icon: 'keyboard_ui', title: 'Marquee select', desc: 'Drag empty space to box-select cards' },
+            { icon: 'keyboard_ui', title: 'Marquee select', desc: 'Drag empty space to box-select cards and stickies' },
           ]}
           onDismiss={() => splash.dismiss()}
         />
@@ -1358,10 +1682,29 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                 >
                   + New board
                 </button>
+                <button
+                  type="button"
+                  className="w-full mt-0.5 px-2 py-1.5 rounded text-[11px] text-sky-200/90 hover:bg-sky-500/10 text-left"
+                  onClick={() => void duplicateBoard()}
+                >
+                  Duplicate current board
+                </button>
+                <div className="mt-2 pt-2 border-t border-white/10">
+                  <input
+                    className="w-full px-2 py-1.5 rounded bg-black/30 border border-white/10 text-[11px] text-gray-200"
+                    placeholder="Find pins…"
+                    value={pinSearch}
+                    onChange={e => setPinSearch(e.target.value)}
+                  />
+                  {pinSearch.trim() && (
+                    <p className="text-[10px] text-white/40 mt-1">{renderedItems.length} match(es)</p>
+                  )}
+                </div>
               </div>
             )}
             <p className="bndz-ws-chrome-desc">
               {doc.items.length} pin{doc.items.length === 1 ? '' : 's'}
+              {(doc.stickies?.length ?? 0) > 0 ? ` · ${doc.stickies!.length} sticky${doc.stickies!.length === 1 ? '' : 'ies'}` : ''}
               {selectedIds.length > 0 ? ` · ${selectedIds.length} selected` : ''}
               {autoSave ? ' · autosave on' : ''}
             </p>
@@ -1384,7 +1727,8 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
               { id: 'zin', label: 'Zoom in', iconSrc: '/launcher-icons/magnifier.png', onClick: () => zoomBy(1.15) },
               { id: 'zout', label: 'Zoom out', iconSrc: '/launcher-icons/minus_ui.png', onClick: () => zoomBy(0.87) },
               { id: 'fit', label: 'Fit all', iconSrc: '/Ui/details-view.svg', onClick: fitBoard },
-              { id: 'grid', label: 'Arrange grid', iconSrc: '/Ui/icons.svg', disabled: !doc.items.length, onClick: arrangeGrid },
+              { id: 'grid', label: 'Arrange grid', iconSrc: '/Ui/icons.svg', disabled: boardIsEmpty, onClick: arrangeGrid },
+              { id: 'sticky', label: 'Sticky note', iconSrc: '/launcher-icons/emblem-documents.svg', onClick: () => addStickyNote() },
               { id: 'links', label: 'Relations', iconSrc: '/launcher-icons/emblem-shared.svg', active: showRelations, onClick: () => setShowRelations(v => !v) },
               { id: 'export', label: 'Export', iconSrc: '/launcher-icons/emblem-downloads.svg', onClick: exportBoard },
               { id: 'palette', label: 'Commands', iconSrc: '/Ui/keybinds-keyboard.svg', onClick: () => setPaletteOpen(true) },
@@ -1393,14 +1737,14 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                 id: 'clear',
                 label: 'Clear board',
                 iconSrc: '/launcher-icons/trash_ui.png',
-                disabled: !doc.items.length,
+                disabled: boardIsEmpty,
                 onClick: clearBoard,
               },
               {
                 id: 'reset',
-                label: 'Reset view',
+                label: 'Reset zoom',
                 iconSrc: '/launcher-icons/emblem-synchronizing.svg',
-                onClick: () => commitDoc({ ...doc, zoom: 1, panX: 0, panY: 0 }),
+                onClick: () => resetZoomPreserveCenter(),
               },
             ]}
           />
@@ -1448,6 +1792,31 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                   {renderedItems.length}/{doc.items.length} visible
                 </div>
               )}
+              {(doc.stickies ?? []).some(s => s.tetherToId) && (
+                <svg className="bndz-spatial-tethers" aria-hidden>
+                  {(doc.stickies ?? []).map(s => {
+                    if (!s.tetherToId) return null;
+                    const pin = doc.items.find(it => it.id === s.tetherToId);
+                    if (!pin) return null;
+                    const sw = s.w ?? SPATIAL_STICKY_W;
+                    const sh = s.h ?? SPATIAL_STICKY_H;
+                    const x1 = s.x + sw / 2;
+                    const y1 = s.y + sh / 2;
+                    const x2 = pin.x + CARD_W / 2;
+                    const y2 = pin.y + CARD_H / 2;
+                    return (
+                      <line
+                        key={`tether_${s.id}`}
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        className="bndz-spatial-tether-line"
+                      />
+                    );
+                  })}
+                </svg>
+              )}
               {spatialV2 ? (
                 <SpatialSpringBoard
                   items={renderedItems}
@@ -1465,6 +1834,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                   }}
                   onNoteBlur={(id, val) => { updateNote(id, val); setEditingNoteId(null); }}
                   onNoteCancel={() => setEditingNoteId(null)}
+                  onReveal={revealItem}
+                  onAutomate={(it) => dispatchAutomationFromPin([it.path], { navigate: true })}
+                  onAddStickyBeside={addStickyBesidePin}
                 />
               ) : (
                 <>
@@ -1506,20 +1878,51 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                   }}
                   onNoteBlur={(id, val) => { updateNote(id, val); setEditingNoteId(null); }}
                   onNoteCancel={() => setEditingNoteId(null)}
+                  onReveal={revealItem}
+                  onAutomate={(it) => dispatchAutomationFromPin([it.path], { navigate: true })}
+                  onAddStickyBeside={addStickyBesidePin}
                 />
               ))}
                 </>
               )}
+              {(doc.stickies ?? []).map(sticky => (
+                <SpatialStickyNote
+                  key={sticky.id}
+                  sticky={sticky}
+                  selected={selectedSet.has(sticky.id)}
+                  dragging={draggingId === sticky.id}
+                  editing={editingStickyId === sticky.id}
+                  onPointerDown={onStickyPointerDown}
+                  onContextMenu={(e, s) => {
+                    if (!selectedSet.has(s.id)) setSelectedIds(prev => {
+                      const pins = prev.filter(id => doc.items.some(it => it.id === id));
+                      return [...pins, s.id];
+                    });
+                    onContextMenu(e, 'spatial-sticky', s.id);
+                  }}
+                  onBeginEdit={setEditingStickyId}
+                  onCommitText={updateStickyText}
+                  onCancelEdit={() => setEditingStickyId(null)}
+                  onDelete={removeItem}
+                />
+              ))}
             </div>
-            {doc.items.length === 0 && (
+            {boardIsEmpty && (
               <div className="bndz-spatial-empty absolute inset-0 flex flex-col items-center justify-center text-center p-8 z-10">
                 <div className="bndz-spatial-empty-orbit pointer-events-none" aria-hidden />
                 <img src="/Ui/preview-Big Folder.svg" alt="" className="w-16 h-16 opacity-40 mb-4 pointer-events-none" />
-                <p className="text-sm text-gray-200 font-semibold">Build a project board</p>
+                <p className="text-sm text-gray-200 font-semibold">Drop folders to build a project map</p>
                 <p className="text-[11px] text-gray-500 mt-1.5 max-w-[340px] pointer-events-none">
-                  Pins are references only — originals stay on disk. Drop files here or pin common folders to start.
+                  Pins are references only — originals stay on disk. Add free sticky notes beside folders to plan the layout.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mt-5 max-w-[420px]">
+                  <button
+                    type="button"
+                    className="bndz-spatial-empty-cta bndz-spatial-empty-cta--sticky"
+                    onClick={() => addStickyNote()}
+                  >
+                    Add sticky note
+                  </button>
                   {[
                     { label: 'Pin Downloads', path: '/shell:Downloads' },
                     { label: 'Pin Desktop', path: '/shell:Desktop' },
@@ -1538,10 +1941,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] text-gray-600 mt-4 pointer-events-none">Or drag folders from any pane · right-click → Pin to Spatial Canvas</p>
+                <p className="text-[10px] text-gray-600 mt-4 pointer-events-none">Or drag folders from any pane · right-click board → Add sticky note</p>
               </div>
             )}
-            {showMinimap && doc.items.length > 0 && (
+            {showMinimap && !boardIsEmpty && (
               <ConstellationMinimap
                 ref={minimapRef}
                 items={doc.items}
@@ -1556,7 +1959,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           </div>
 
           <footer className="bndz-ws-rail bndz-ws-rail--spatial shrink-0">
-            <span className="bndz-ws-rail-stat">{doc.items.length} pinned</span>
+            <span className="bndz-ws-rail-stat">
+              {doc.items.length} pinned
+              {(doc.stickies?.length ?? 0) > 0 ? ` · ${doc.stickies!.length} notes` : ''}
+            </span>
             <span className="bndz-ws-rail-hint">Ctrl+scroll zoom · scroll pan · Space/Alt/right-drag pan · Ctrl+Shift+P commands</span>
             <button ref={zoomPillRef} type="button" className="bndz-ws-rail-zoom-pill" onClick={() => setShowMinimap(v => !v)}>
               {(displayZoom * 100).toFixed(0)}%
@@ -1566,6 +1972,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
 
         <SpatialInspector
           items={doc.items}
+          stickies={doc.stickies ?? []}
           selectedIds={selectedIds}
           snapshotCount={snapshots.length}
           boardName={doc.name}
@@ -1577,6 +1984,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           onAddTag={addTagToPath}
           onRemoveTag={removeTagFromPath}
           onBatchAddTag={batchAddTags}
+          onUpdateStickyText={updateStickyText}
         />
 
         {showSnapshots && (
@@ -1619,6 +2027,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           <WorkspaceMenuItem label="Reveal in Explorer" icon="explorer" onClick={() => revealItem(menuItem)} />
           <WorkspaceMenuItem label="Copy path" icon="copy_path" onClick={() => copyPath(menuItem)} />
           <WorkspaceMenuSep />
+          <WorkspaceMenuItem label="Add sticky beside" icon="notepad" onClick={() => addStickyBesidePin(menuItem)} />
           <WorkspaceMenuItem label="Copy path to automation" icon="copy" onClick={() => {
             setWorkspaceClipboard({ kind: 'spatial-pins', paths: [menuItem.path] });
             dispatchAutomationFromPin([menuItem.path], { navigate: true });
@@ -1635,6 +2044,20 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           <WorkspaceMenuItem label="Duplicate" icon="copy" onClick={() => { duplicateSelectedPins(); closeMenu(); }} disabled={!selectedIds.includes(menuItem.id)} />
           <WorkspaceMenuItem label="Cut" icon="copy" onClick={() => { cutSelectedPins(); closeMenu(); }} disabled={!selectedIds.includes(menuItem.id)} />
           <WorkspaceMenuItem label="Edit note" icon="notepad" onClick={() => { setEditingNoteId(menuItem.id); closeMenu(); }} />
+          <WorkspaceMenuItem
+            label="Pop out pin note"
+            icon="external_link"
+            onClick={() => {
+              const pin = menuItem;
+              closeMenu();
+              void import('../../lib/ipcBridge').then(({ IPC }) =>
+                IPC.openPluginWindow('sticky-note', {
+                  stickyId: pin.id,
+                  title: pin.name || 'Pin note',
+                }),
+              );
+            }}
+          />
           <WorkspaceMenuItem label="Remove from board" icon="delete" danger onClick={() => removeItem(menuItem.id)} />
           {selectedIds.length > 1 && (
             <WorkspaceMenuItem label={`Remove ${selectedIds.length} selected`} icon="delete" danger onClick={() => removeSelected()} />
@@ -1642,13 +2065,71 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         </WorkspaceMenuPanel>
       )}
 
+      {menu?.kind === 'spatial-sticky' && menuSticky && (
+        <WorkspaceMenuPanel variant="spatial" x={menu.x} y={menu.y}>
+          <WorkspaceMenuItem
+            label="Edit"
+            icon="notepad"
+            onClick={() => { setEditingStickyId(menuSticky.id); closeMenu(); }}
+          />
+          {selectedPinForTether && selectedPinForTether.id !== menuSticky.tetherToId && (
+            <WorkspaceMenuItem
+              label={`Tether to ${selectedPinForTether.name}`}
+              icon="link"
+              onClick={() => tetherSticky(menuSticky.id, selectedPinForTether.id)}
+            />
+          )}
+          {menuSticky.tetherToId && (
+            <WorkspaceMenuItem
+              label="Untether"
+              icon="link"
+              onClick={() => tetherSticky(menuSticky.id, undefined)}
+            />
+          )}
+          <WorkspaceMenuSep />
+          {SPATIAL_STICKY_COLORS.map((color, i) => (
+            <WorkspaceMenuItem
+              key={color}
+              label={['Paper yellow', 'Mint', 'Rose', 'Sky'][i] || 'Color'}
+              icon="notepad"
+              onClick={() => setStickyColor(menuSticky.id, color)}
+            />
+          ))}
+          <WorkspaceMenuSep />
+          <WorkspaceMenuItem
+            label="Pop out to desktop"
+            icon="external_link"
+            onClick={() => {
+              const s = menuSticky;
+              closeMenu();
+              void import('../../lib/ipcBridge').then(({ IPC }) =>
+                IPC.openPluginWindow('sticky-note', {
+                  stickyId: s.id,
+                  title: (s.text || 'Sticky').slice(0, 40),
+                }),
+              );
+            }}
+          />
+          <WorkspaceMenuItem label="Delete sticky" icon="delete" danger onClick={() => removeItem(menuSticky.id)} />
+        </WorkspaceMenuPanel>
+      )}
+
       {menu?.kind === 'spatial-board' && (
         <WorkspaceMenuPanel variant="spatial" x={menu.x} y={menu.y}>
-          <WorkspaceMenuItem label="Fit all cards" icon="zoom_in_ui" onClick={fitBoard} />
-          <WorkspaceMenuItem label="Arrange grid" icon="view_grid" onClick={arrangeGrid} disabled={!doc.items.length} />
-          <WorkspaceMenuItem label="Reset zoom" icon="reset_ui" onClick={() => { commitDoc({ ...doc, zoom: 1, panX: 0, panY: 0 }); closeMenu(); }} />
+          <WorkspaceMenuItem
+            label="Add sticky note"
+            icon="notepad"
+            onClick={() => {
+              const pt = screenToBoard(menu.x, menu.y);
+              addStickyNote(pt);
+            }}
+          />
           <WorkspaceMenuSep />
-          <WorkspaceMenuItem label="Clear board" icon="delete" danger onClick={clearBoard} disabled={!doc.items.length} />
+          <WorkspaceMenuItem label="Fit all cards" icon="zoom_in_ui" onClick={fitBoard} />
+          <WorkspaceMenuItem label="Arrange grid" icon="view_grid" onClick={arrangeGrid} disabled={boardIsEmpty} />
+          <WorkspaceMenuItem label="Reset zoom" icon="reset_ui" onClick={() => { resetZoomPreserveCenter(); }} />
+          <WorkspaceMenuSep />
+          <WorkspaceMenuItem label="Clear board" icon="delete" danger onClick={clearBoard} disabled={boardIsEmpty} />
         </WorkspaceMenuPanel>
       )}
     </div>

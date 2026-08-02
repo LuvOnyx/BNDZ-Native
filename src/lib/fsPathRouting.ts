@@ -1,7 +1,8 @@
 /** Route drag/drop paths between local Windows FS and mesh remote panes. */
 
+import { isBndzRamPath } from './bndzVirtualViews';
 import { isMeshPath, normalizeMeshPath, parseMeshPath } from './meshPaths';
-import { toWindowsPath } from './pathUtils';
+import { normalizePanePath, toWindowsPath } from './pathUtils';
 
 export type DropRoute =
   | { kind: 'local'; op: 'copy' | 'move' }
@@ -11,9 +12,27 @@ export type DropRoute =
   | { kind: 'mesh-relay'; srcHostId: string; destHostId: string; remoteDestDir: string; move: boolean }
   | { kind: 'mesh-drop-send'; paths: string[] };
 
-/** Preserve mesh pane paths; normalize local paths to Windows shape. */
+/** Synthetic dest when dropping onto a Mesh Drop inbox surface. */
+export const MESH_DROP_INBOX_DEST = '__bndz_mesh_drop_inbox__';
+
+/**
+ * Preserve mesh + RAM virtual pane paths; normalize other local paths to Windows shape.
+ * CRITICAL: never run toWindowsPath on /bndz/ram/… — that yields unbound bndz\ram\… garbage.
+ */
 export function canonicalDropPath(path: string): string {
+  if (!path) return '';
+  if (path === MESH_DROP_INBOX_DEST) return MESH_DROP_INBOX_DEST;
   if (isMeshPath(path)) return normalizeMeshPath(path);
+
+  const slashed = path.replace(/\\/g, '/').replace(/\/+$/, '');
+  // Already-mangled virtual RAM path from an earlier toWindowsPath pass.
+  if (slashed === 'bndz/ram' || slashed.startsWith('bndz/ram/')) {
+    return normalizePanePath(`/${slashed}`);
+  }
+  const pane = normalizePanePath(path);
+  if (isBndzRamPath(pane) || isBndzRamPath(path)) {
+    return pane;
+  }
   return toWindowsPath(path);
 }
 
@@ -39,7 +58,10 @@ export function resolveDropRoute(
   destPath: string,
   meshDropInbox?: boolean,
 ): DropRoute {
-  if (meshDropInbox && sourcePaths.length > 0 && !sourcePaths.some(isMeshPath)) {
+  const inbox = meshDropInbox
+    || destPath === MESH_DROP_INBOX_DEST
+    || canonicalDropPath(destPath) === MESH_DROP_INBOX_DEST;
+  if (inbox && sourcePaths.length > 0 && !sourcePaths.some(isMeshPath)) {
     return { kind: 'mesh-drop-send', paths: sourcePaths.map(canonicalDropPath) };
   }
   const destCanon = canonicalDropPath(destPath);

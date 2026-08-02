@@ -59,7 +59,12 @@ public sealed class BndzLensService
             if (entry != null)
             {
                 size = entry.TryGetValue("size", out var s) && s is long sl ? sl : 0;
-                modified = entry.TryGetValue("modified", out var m) && m is long ml ? ml : 0;
+                if (entry.TryGetValue("modifiedUnix", out var mu) && mu is long mul)
+                    modified = mul;
+                else if (entry.TryGetValue("modified", out var m) && m is long ml)
+                    modified = ml;
+                else if (entry.TryGetValue("modified", out m) && m is string ms && DateTimeOffset.TryParse(ms, out var dto))
+                    modified = dto.ToUnixTimeSeconds();
                 mediaKind = entry.TryGetValue("mediaKind", out var mk) ? mk as string : null;
                 focusName = entry.TryGetValue("name", out var n) ? n as string ?? focusName : focusName;
                 focus = new
@@ -194,17 +199,30 @@ public sealed class BndzLensService
         var name = row.GetType().GetProperty("name")?.GetValue(row) as string
             ?? Path.GetFileName(ToWinPath(path));
         var size = row.GetType().GetProperty("size")?.GetValue(row) as long? ?? 0L;
-        var modified = row.GetType().GetProperty("modified")?.GetValue(row) as long? ?? 0L;
+        var modifiedProp = row.GetType().GetProperty("modified")?.GetValue(row);
+        long modified = 0;
+        if (modifiedProp is long l) modified = l;
+        else if (modifiedProp is string s && DateTimeOffset.TryParse(s, out var dto)) modified = dto.ToUnixTimeSeconds();
+        var createdProp = row.GetType().GetProperty("created")?.GetValue(row);
+        long created = 0;
+        if (createdProp is long cl) created = cl;
+        else if (createdProp is string cs && DateTimeOffset.TryParse(cs, out var cto)) created = cto.ToUnixTimeSeconds();
         var type = row.GetType().GetProperty("type")?.GetValue(row) as string ?? "file";
+        var ext = row.GetType().GetProperty("extension")?.GetValue(row) as string;
+        var mediaKind = row.GetType().GetProperty("mediaKind")?.GetValue(row) as string;
+        if (string.IsNullOrWhiteSpace(mediaKind))
+            mediaKind = ClassifyExt(!string.IsNullOrWhiteSpace(ext) ? $".{ext}" : Path.GetExtension(name));
         return new
         {
             path,
             name,
             size,
             modified,
+            created,
             type,
             relation,
-            mediaKind = ClassifyExt(Path.GetExtension(name)),
+            extension = ext,
+            mediaKind,
         };
     }
 

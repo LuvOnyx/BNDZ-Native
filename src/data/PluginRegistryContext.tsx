@@ -14,6 +14,11 @@ import ActionLogPlugin, { ActionLogPluginDef } from '../components/plugins/Actio
 import ComparePlugin, { ComparePluginDef } from '../components/plugins/ComparePlugin';
 import MeshPlugin, { MeshPluginDef } from '../components/plugins/MeshPlugin';
 import GhostLinkPlugin, { GhostLinkPluginDef } from '../components/plugins/GhostLinkPlugin';
+import RamStagingPlugin, { RamStagingPluginDef } from '../components/plugins/RamStagingPlugin';
+import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plugins/ProjectSandboxPlugin';
+import LibraryHealthPlugin, { LibraryHealthPluginDef } from '../components/plugins/LibraryHealthPlugin';
+import CapacitySolverPlugin, { CapacitySolverPluginDef } from '../components/plugins/CapacitySolverPlugin';
+import InboundVolumePlugin, { InboundVolumePluginDef } from '../components/plugins/InboundVolumePlugin';
 import { useAppConfig } from './configContext';
 
 export type PluginManifest = {
@@ -43,6 +48,11 @@ export const DEFAULT_INSTALLED_PLUGINS = [
     'action-log',
     'compare',
     'ghost-link',
+    'ram-staging',
+    'project-sandbox',
+    'library-health',
+    'capacity-solver',
+    'inbound-volume',
 ];
 
 /** Advanced plugins installed on first use */
@@ -165,6 +175,46 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: GhostLinkPlugin,
+    },
+    {
+        ...RamStagingPluginDef,
+        description: 'RAM-disk staging zones — stage projects at memory speed, flush on eject. Browse at /bndz/ram.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: RamStagingPlugin,
+    },
+    {
+        ...ProjectSandboxPluginDef,
+        description: 'Isolated sandbox sessions — experiment freely, checkpoint, commit or discard changes.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: ProjectSandboxPlugin,
+    },
+    {
+        ...LibraryHealthPluginDef,
+        description: 'Scan libraries for broken links, naming conflicts, permission issues, and orphans.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: LibraryHealthPlugin,
+    },
+    {
+        ...CapacitySolverPluginDef,
+        description: 'Analyze storage and build cleanup plans to free space on any volume.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: CapacitySolverPlugin,
+    },
+    {
+        ...InboundVolumePluginDef,
+        description: 'Clipboard catcher and inbound file watcher — capture, review, and copy into your library.',
+        isInstalled: true,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: InboundVolumePlugin,
     },
 ];
 

@@ -9,6 +9,8 @@ coverage/
 # .NET build outputs
 BNDZBackend/bin/
 BNDZBackend/obj/
+BNDZBackend/_build_verify_out/
+BNDZBackend/_build*/
 **/bin/
 **/obj/
 TestResults/

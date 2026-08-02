@@ -24,6 +24,8 @@ interface ShellNativeIconProps {
   preferThumbnail?: boolean;
   eager?: boolean;
   hero?: boolean;
+  /** Lock first painted src — prevents shell↔thumb flash on Spatial/drag cards. */
+  stableSrc?: boolean;
 }
 
 export function ShellNativeIcon({
@@ -33,10 +35,13 @@ export function ShellNativeIcon({
   preferThumbnail,
   eager = false,
   hero = false,
+  stableSrc = false,
 }: ShellNativeIconProps) {
   const { config } = useAppConfig();
   const [visible, setVisible] = useState(eager);
   const [svgInline, setSvgInline] = useState<string | null>(null);
+  const [thumbSettled, setThumbSettled] = useState(!stableSrc);
+  const lockedSrcRef = useRef<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const ext = path ? extFromPath(path) : '';
@@ -56,7 +61,19 @@ export function ShellNativeIcon({
 
   useEffect(() => {
     setSvgInline(null);
-  }, [path]);
+    lockedSrcRef.current = null;
+    setThumbSettled(!stableSrc);
+  }, [path, stableSrc]);
+
+  useEffect(() => {
+    if (!stableSrc || !useThumb) {
+      setThumbSettled(true);
+      return;
+    }
+    setThumbSettled(false);
+    const t = window.setTimeout(() => setThumbSettled(true), 140);
+    return () => window.clearTimeout(t);
+  }, [path, stableSrc, useThumb]);
 
   useEffect(() => {
     if (eager) {
@@ -95,7 +112,14 @@ export function ShellNativeIcon({
     return () => { active = false; };
   }, [visible, path, dirFlag, ext, thumbSrc]);
 
-  const src = (useThumb && thumbSrc) || svgInline || shellSrc;
+  // Prefer thumb when requested; briefly withhold shell so stableSrc doesn't lock the wrong bitmap.
+  const candidate = (useThumb && thumbSrc) || svgInline || ((thumbSettled || !useThumb) ? shellSrc : null) || null;
+  if (stableSrc) {
+    if (candidate && !lockedSrcRef.current) lockedSrcRef.current = candidate;
+  } else {
+    lockedSrcRef.current = candidate;
+  }
+  const src = stableSrc ? (lockedSrcRef.current || candidate) : candidate;
   const heroScale = hero ? 1.06 : 1;
 
   return (

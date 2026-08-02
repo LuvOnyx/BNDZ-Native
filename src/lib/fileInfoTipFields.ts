@@ -12,6 +12,7 @@ export const STANDARD_FILE_INFO_FIELDS: FileInfoTipField[] = [
   { id: 'type', label: 'Type', metadataKey: '__type__', group: 'standard' },
   { id: 'modified', label: 'Modified', metadataKey: '__modified__', group: 'standard' },
   { id: 'created', label: 'Created', metadataKey: '__created__', group: 'standard' },
+  { id: 'accessed', label: 'Accessed', metadataKey: 'Accessed', group: 'standard' },
   { id: 'path', label: 'Path', metadataKey: '__path__', group: 'standard' },
   { id: 'tags', label: 'Tags', metadataKey: '__tags__', group: 'standard' },
   { id: 'owner', label: 'Owner', metadataKey: 'Owner', group: 'standard' },

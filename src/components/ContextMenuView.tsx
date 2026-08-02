@@ -18,7 +18,10 @@ import {
 } from '../lib/contextMenuActions';
 import { normalizePanePath, toWindowsPath, joinPanePath, joinPanePathForFs, isValidShellTarget, isRecycleBinPath, RECYCLE_BIN_PATH } from '../lib/pathUtils';
 import { isQueuedIpcResult } from '../lib/transferIpc';
-import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isFsDropTargetPath, BNDZ_CANVAS, BNDZ_AUTOMATION } from '../lib/bndzVirtualViews';
+import { createItemInPane } from '../lib/ramStagingPaths';
+import { dispatchAutomationFromPin } from '../lib/workspace/automationPendingSeed';
+import { pinPathsToSpatialCanvas } from '../lib/spatialCanvasStore';
 import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites, collapseKnownFolderShadowPath } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
@@ -61,6 +64,7 @@ interface ContextMenuViewProps {
   onOpenMeshDrop?: (paths: string[]) => void;
   onGhostLinkOffload?: (paths: string[]) => void | Promise<void>;
   onGhostLinkRestore?: (path: string) => void | Promise<void>;
+  onStageToRam?: (paths: string[]) => void | Promise<void>;
   setIsSmartToolsOpen: (v: boolean) => void;
   setToastMessage: (msg: string) => void;
   setInlineRename: (v: { path: string; entityId: string; currentName: string } | null) => void;
@@ -97,7 +101,7 @@ interface ContextMenuViewProps {
 
 function ContextMenuView({
   menu, onClose, config, updateConfig, activePaneId, addTab,
-  onOpenBatchRename, onOpenMeshDrop, onGhostLinkOffload, onGhostLinkRestore, setIsSmartToolsOpen, setToastMessage, setInlineRename,
+  onOpenBatchRename, onOpenMeshDrop, onGhostLinkOffload, onGhostLinkRestore, onStageToRam, setIsSmartToolsOpen, setToastMessage, setInlineRename,
   setClipboardState, executePaste, onDeletePaths, onEmptyRecycleBin, onRefreshList, onRefreshTree,
   onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
@@ -498,6 +502,15 @@ function ContextMenuView({
                 onClose();
               }}
             />
+            <ContextMenuItem
+              label="Detect BPM + Key"
+              iconVerb="music"
+              onClick={e => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('bndz-open-smart-tools', { detail: { tab: 'music' } }));
+                onClose();
+              }}
+            />
             <div className="bndz-context-menu-sep" />
             {[
               ['Create folders 01-12.bat', 'Assets/Resources/Scripts/Create folders 01-12.bat'],
@@ -521,16 +534,19 @@ function ContextMenuView({
           </ContextSubmenu>
         )}
 
-        {!isBndzVirtualPath(menu.path) && !isRecycleBinPath(menu.path) && normalizePanePath(menu.path) !== '/' && (
+        {isFsDropTargetPath(menu.path) && !isRecycleBinPath(menu.path) && (
           <ContextSubmenu label="New" iconVerb="newfolder" groupClass="bg-new">
             <ContextMenuItem
               label="Folder"
               iconVerb="folder"
               onClick={async e => {
                 e.stopPropagation();
-                const IPC = await runIpc();
-                IPC.executeFsOperation(`new-folder-${Date.now()}`, 'create-dir', joinPanePathForFs(menu.path, 'New folder'), '');
-                runRefresh();
+                const r = await createItemInPane(menu.path, 'New folder', 'dir');
+                setToastMessage(r.ok ? 'Folder created.' : (r.error || 'Failed to create folder.'));
+                if (r.ok) {
+                  runRefresh();
+                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                }
                 onClose();
               }}
             />
@@ -540,9 +556,12 @@ function ContextMenuView({
               iconVerb="filetext"
               onClick={async e => {
                 e.stopPropagation();
-                const IPC = await runIpc();
-                IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(menu.path, 'New Text Document.txt'), '');
-                runRefresh();
+                const r = await createItemInPane(menu.path, 'New Text Document.txt', 'file');
+                setToastMessage(r.ok ? 'Text document created.' : (r.error || 'Failed to create file.'));
+                if (r.ok) {
+                  runRefresh();
+                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                }
                 onClose();
               }}
             />
@@ -551,9 +570,12 @@ function ContextMenuView({
               iconVerb="filetext"
               onClick={async e => {
                 e.stopPropagation();
-                const IPC = await runIpc();
-                IPC.executeFsOperation(`new-file-${Date.now()}`, 'create-file', joinPanePathForFs(menu.path, 'New Document.md'), '');
-                runRefresh();
+                const r = await createItemInPane(menu.path, 'New Document.md', 'file');
+                setToastMessage(r.ok ? 'Markdown document created.' : (r.error || 'Failed to create file.'));
+                if (r.ok) {
+                  runRefresh();
+                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                }
                 onClose();
               }}
             />
@@ -563,10 +585,19 @@ function ContextMenuView({
               onClick={async e => {
                 e.stopPropagation();
                 const IPC = await runIpc();
-                const zipPath = joinPanePathForFs(menu.path, 'New Compressed Folder.zip');
+                const base = await (await import('../lib/ramStagingPaths')).resolvePanePathForFs(menu.path);
+                if (!base || /^bndz\\/i.test(base)) {
+                  setToastMessage('Cannot create archives here.');
+                  onClose();
+                  return;
+                }
+                const zipPath = `${base.replace(/\\+$/, '')}\\New Compressed Folder.zip`;
                 const res = await IPC.createArchive([], zipPath, 'zip');
                 setToastMessage(isQueuedIpcResult(res) ? 'Archive queued — see transfer panel.' : (res.ok ? 'Compressed folder created.' : (res.error || 'Failed to create zip.')));
-                if (!isQueuedIpcResult(res) && res.ok) runRefresh();
+                if (!isQueuedIpcResult(res) && res.ok) {
+                  runRefresh();
+                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                }
                 onClose();
               }}
             />
@@ -576,11 +607,42 @@ function ContextMenuView({
               onClick={async e => {
                 e.stopPropagation();
                 const IPC = await runIpc();
-                const linkPath = joinPanePathForFs(menu.path, 'New Shortcut.lnk');
-                const target = toWindowsPath(menu.path);
+                const base = await (await import('../lib/ramStagingPaths')).resolvePanePathForFs(menu.path);
+                if (!base || /^bndz\\/i.test(base)) {
+                  setToastMessage('Cannot create shortcuts here.');
+                  onClose();
+                  return;
+                }
+                const linkPath = `${base.replace(/\\+$/, '')}\\New Shortcut.lnk`;
+                const target = base;
                 const res = await IPC.createLink(linkPath, target, 'shortcut');
                 setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
-                if (!isQueuedIpcResult(res) && res.success) runRefresh();
+                if (!isQueuedIpcResult(res) && res.success) {
+                  runRefresh();
+                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                }
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              label="Symbolic Link"
+              iconVerb="link"
+              onClick={async e => {
+                e.stopPropagation();
+                const IPC = await runIpc();
+                const base = await (await import('../lib/ramStagingPaths')).resolvePanePathForFs(menu.path);
+                if (!base || /^bndz\\/i.test(base)) {
+                  setToastMessage('Cannot create symlinks here.');
+                  onClose();
+                  return;
+                }
+                const linkPath = `${base.replace(/\\+$/, '')}\\New Symlink`;
+                const res = await IPC.createLink(linkPath, base, 'symlink');
+                setToastMessage(res.success ? 'Symbolic link created.' : (res.error || 'Failed to create symlink. Try running as Administrator.'));
+                if (res.success) {
+                  runRefresh();
+                  window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: menu.path } }));
+                }
                 onClose();
               }}
             />
@@ -1075,6 +1137,37 @@ function ContextMenuView({
         />
       )}
 
+      {!isBackground && targetPaths.length > 0 && (
+        <ContextMenuItem
+          label="Pin to Spatial Canvas"
+          iconVerb="map"
+          onClick={() => {
+            void pinPathsToSpatialCanvas(targetPaths.map(p => toWindowsPath(p))).then(count => {
+              if (count > 0) {
+                setToastMessage(`Pinned ${count} item${count === 1 ? '' : 's'} to Spatial Canvas`);
+                window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: BNDZ_CANVAS } }));
+              } else {
+                setToastMessage('Items already pinned on Spatial Canvas');
+              }
+            });
+            onClose();
+          }}
+        />
+      )}
+
+      {!isBackground && targetPaths.length > 0 && (
+        <ContextMenuItem
+          label="Send to Automation"
+          iconVerb="emblem-shared"
+          onClick={() => {
+            dispatchAutomationFromPin(targetPaths.map(p => toWindowsPath(p)), { navigate: true });
+            setToastMessage('Opened Automations with selected paths');
+            window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: BNDZ_AUTOMATION } }));
+            onClose();
+          }}
+        />
+      )}
+
       {!isBackground && targetPaths.length > 0 && IPC.isNative && (
         <>
           <ContextMenuItem
@@ -1086,6 +1179,11 @@ function ContextMenuView({
             label="Ghost-Link offload…"
             iconVerb="emblem-symbolic-link"
             onClick={() => { void onGhostLinkOffload?.(targetPaths); onClose(); }}
+          />
+          <ContextMenuItem
+            label="Stage to RAM…"
+            iconVerb="hard_drive_ui"
+            onClick={() => { void onStageToRam?.(targetPaths); onClose(); }}
           />
         </>
       )}
@@ -1115,12 +1213,16 @@ function ContextMenuView({
       )}
 
       {config.customContextMenuActions?.filter((action: any) => {
-        if (action.id === 'separator') return true;
+        const isSep = action.id === 'separator' || String(action.id || '').startsWith('separator_')
+          || action.command === 'separator' || action.name === 'separator' || action.name === '—';
+        if (isSep) return true;
         const label = (action.name || action.label || '').toLowerCase();
         const q = menuFilter.trim().toLowerCase();
         return !q || label.includes(q);
       }).map((action: any, idx: number) => {
-        if (action.id === 'separator') return <div key={idx} className="bndz-context-menu-sep" />;
+        const isSep = action.id === 'separator' || String(action.id || '').startsWith('separator_')
+          || action.command === 'separator' || action.name === 'separator' || action.name === '—';
+        if (isSep) return <div key={idx} className="bndz-context-menu-sep" />;
         const cmd = (action.command || '').trim();
         const iconVerb =
           action.id === 'copy-path' || cmd === 'copyPath' ? 'copypath'

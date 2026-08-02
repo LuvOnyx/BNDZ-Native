@@ -16,13 +16,28 @@ import {
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
 import { toWindowsPath } from '../../lib/pathUtils';
-import { listCatalogs, type CatalogEntry } from '../../lib/catalog';
+import { listCatalogs, upsertCatalog, type CatalogEntry } from '../../lib/catalog';
 import {
   loadSmartCollections,
   upsertSmartCollection,
   removeSmartCollection,
   type SmartCollection,
 } from '../../lib/smartCollections';
+import { pushToast } from '../ToastHost';
+
+const PRESET_KEY = 'bndz-find-presets-v1';
+const PROPERTY_CHIPS: Array<{ label: string; token: string }> = [
+  { label: 'Images', token: 'ext:png;jpg;jpeg;gif;webp;svg' },
+  { label: 'Docs', token: 'ext:pdf;doc;docx;txt;md' },
+  { label: 'Video', token: 'ext:mp4;mkv;mov;avi' },
+  { label: 'Audio', token: 'ext:mp3;wav;flac;m4a' },
+  { label: '>10MB', token: 'size:>10mb' },
+  { label: 'Today', token: 'dm:today' },
+  { label: 'This week', token: 'dm:thisweek' },
+];
+
+type SearchMode = 'local' | 'global' | 'duplicates' | 'advanced';
+type FindPreset = { name: string; query: string; mode: SearchMode; regex: boolean; content: boolean; roots: string };
 
 export const FindPluginDef = {
     id: "find",
@@ -30,8 +45,6 @@ export const FindPluginDef = {
     icon: 'find',
     targetPanel: "bottom"
 };
-
-type SearchMode = 'local' | 'global' | 'duplicates' | 'advanced';
 
 const SEARCH_HISTORY_MAX = 15;
 
@@ -51,6 +64,14 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
     const [dupProgress, setDupProgress] = useState<{ percent: number; message?: string } | null>(null);
     const [savedCatalogs, setSavedCatalogs] = useState<CatalogEntry[]>([]);
     const [smartCollections, setSmartCollections] = useState<SmartCollection[]>(() => loadSmartCollections());
+    const [selectedResultPaths, setSelectedResultPaths] = useState<Set<string>>(() => new Set());
+    const [findPresets, setFindPresets] = useState<FindPreset[]>(() => {
+        try {
+            const raw = localStorage.getItem(PRESET_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch { return []; }
+    });
     const searchHistory: string[] = Array.isArray(config?.findSearchHistory)
         ? config.findSearchHistory.filter((q: unknown): q is string => typeof q === 'string')
         : [];
@@ -168,6 +189,46 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
 
     const navigateTo = (path: string) => {
         if (path) window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path } }));
+    };
+
+    const toggleQueryToken = (token: string) => {
+        setQuery(prev => {
+            const parts = prev.split(/\s+/).filter(Boolean);
+            if (parts.includes(token)) return parts.filter(p => p !== token).join(' ');
+            return [...parts, token].join(' ').trim();
+        });
+    };
+
+    const saveFindPreset = () => {
+        const name = window.prompt('Preset name');
+        if (!name?.trim()) return;
+        const next = [
+            ...findPresets.filter(p => p.name !== name.trim()),
+            { name: name.trim(), query, mode, regex: regexEnabled, content: searchContent, roots: extraRoots },
+        ];
+        setFindPresets(next);
+        localStorage.setItem(PRESET_KEY, JSON.stringify(next));
+        pushToast({ kind: 'success', title: 'Preset saved', message: name.trim() });
+    };
+
+    const resultActions = async (action: 'dropstack' | 'catalog' | 'copy') => {
+        const paths = [...selectedResultPaths];
+        if (!paths.length) return;
+        if (action === 'copy') {
+            await navigator.clipboard.writeText(paths.join('\n'));
+            pushToast({ kind: 'success', title: 'Copied', message: `${paths.length} path(s)` });
+            return;
+        }
+        if (action === 'dropstack') {
+            window.dispatchEvent(new CustomEvent('bndz-drop-stack-stage', { detail: { paths } }));
+            return;
+        }
+        if (action === 'catalog') {
+            const name = window.prompt('Catalog name', `Find ${new Date().toLocaleDateString()}`);
+            if (!name?.trim()) return;
+            await upsertCatalog({ name: name.trim(), paths: paths.map(p => toWindowsPath(p)) });
+            pushToast({ kind: 'success', title: 'Catalog', message: `Saved ${paths.length} path(s)` });
+        }
     };
 
     return (
@@ -368,7 +429,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                 </PluginSidebar>
                 <div className="flex-1 flex flex-col min-w-0">
                     {mode !== 'duplicates' && (
-                        <div className="p-3 border-b border-white/[0.06] shrink-0">
+                        <div className="p-3 border-b border-white/[0.06] shrink-0 space-y-2">
                             <div className="relative">
                                 <Icons8Icon id="search" size={14} className="absolute left-3 top-2.5 opacity-60" />
                                 <input
@@ -379,6 +440,49 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     className={`${PLUGIN_INPUT_CLASS} pl-9 py-2 text-sm`}
                                 />
                             </div>
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                                {PROPERTY_CHIPS.map(chip => {
+                                    const on = query.split(/\s+/).includes(chip.token);
+                                    return (
+                                        <button
+                                            key={chip.token}
+                                            type="button"
+                                            onClick={() => toggleQueryToken(chip.token)}
+                                            className={`bndz-plugin-kind-pill text-[10px] ${on ? 'bg-sky-500/20 border-sky-400/40 text-sky-200' : 'text-slate-400 hover:bg-white/[0.06]'}`}
+                                        >
+                                            {chip.label}
+                                        </button>
+                                    );
+                                })}
+                                <PluginToolbarButton icon="bookmark" onClick={saveFindPreset}>Save preset</PluginToolbarButton>
+                                {findPresets.length > 0 && (
+                                    <select
+                                        className={PLUGIN_SELECT_CLASS}
+                                        defaultValue=""
+                                        onChange={e => {
+                                            const p = findPresets.find(x => x.name === e.target.value);
+                                            if (!p) return;
+                                            setQuery(p.query); setMode(p.mode); setRegexEnabled(p.regex);
+                                            setSearchContent(p.content); setExtraRoots(p.roots);
+                                            e.target.value = '';
+                                        }}
+                                    >
+                                        <option value="">Presets…</option>
+                                        {findPresets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                                    </select>
+                                )}
+                            </div>
+                            {selectedResultPaths.size > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    <PluginToolbarButton icon="folder_open_ui" onClick={() => {
+                                        const first = [...selectedResultPaths][0];
+                                        if (first) navigateTo(first.replace(/\\[^\\]+$/, '').replace(/^([A-Za-z]):/, '/$1:'));
+                                    }}>Reveal</PluginToolbarButton>
+                                    <PluginToolbarButton icon="dropstack" onClick={() => void resultActions('dropstack')}>Drop Stack</PluginToolbarButton>
+                                    <PluginToolbarButton icon="bookmark" onClick={() => void resultActions('catalog')}>Catalog</PluginToolbarButton>
+                                    <PluginToolbarButton icon="copy_path" onClick={() => void resultActions('copy')}>Copy paths</PluginToolbarButton>
+                                </div>
+                            )}
                         </div>
                     )}
                     <div className="flex-1 overflow-y-auto bndz-scrollbar">
@@ -418,29 +522,48 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                             />
                         ) : (
                             <div className="flex flex-col min-h-0">
-                              <div className="sticky top-0 z-10 grid grid-cols-[minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-[10px] uppercase tracking-[0.08em] text-white/35 border-b border-white/[0.06]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+                              <div className="sticky top-0 z-10 grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-[10px] uppercase tracking-[0.08em] text-white/35 border-b border-white/[0.06]" style={{ background: 'var(--bndz-surface-chrome)' }}>
+                                <span />
                                 <span>Name</span>
                                 <span>Path</span>
                                 <span>Type</span>
                               </div>
                               <div className="flex-1">
-                                {results.map((r, i) => (
+                                {results.map((r, i) => {
+                                  const path = String(r.path || '');
+                                  const checked = selectedResultPaths.has(path);
+                                  return (
                                   <div
-                                    key={`${r.path}-${i}`}
-                                    className="grid grid-cols-[minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors"
-                                    onDoubleClick={() => navigateTo(r.path)}
-                                    title={r.snippet ? `${r.path}\n${r.snippet}` : r.path}
+                                    key={`${path}-${i}`}
+                                    className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''}`}
+                                    onDoubleClick={() => navigateTo(path)}
+                                    title={r.snippet ? `${path}\n${r.snippet}` : path}
                                   >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => {
+                                        setSelectedResultPaths(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(path)) next.delete(path);
+                                          else next.add(path);
+                                          return next;
+                                        });
+                                      }}
+                                      onClick={e => e.stopPropagation()}
+                                      className="self-center"
+                                    />
                                     <div className="min-w-0">
                                       <span className="text-gray-100 truncate font-medium block">{r.name}</span>
                                       {r.snippet && (
                                         <span className="text-[10px] text-white/35 truncate block mt-0.5 leading-snug">{r.snippet}</span>
                                       )}
                                     </div>
-                                    <span className="text-white/40 font-mono text-[11px] truncate">{r.path}</span>
+                                    <span className="text-white/40 font-mono text-[11px] truncate">{path}</span>
                                     <span className="bndz-plugin-kind-pill w-fit self-center">{r.matchType === 'content' || r.snippet ? 'grep' : r.isDirectory ? 'dir' : 'file'}</span>
                                   </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                         )}

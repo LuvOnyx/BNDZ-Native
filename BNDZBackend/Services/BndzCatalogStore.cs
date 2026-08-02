@@ -223,6 +223,15 @@ public sealed class BndzCatalogStore
         var path = type.GetProperty("path")?.GetValue(hit)?.ToString()?.TrimStart('/') ?? "";
         var isDir = type.GetProperty("isDirectory")?.GetValue(hit) is true;
         var size = type.GetProperty("size")?.GetValue(hit) is long l ? l : 0L;
+        var modified = type.GetProperty("modified")?.GetValue(hit);
+        var created = type.GetProperty("created")?.GetValue(hit);
+        var extension = type.GetProperty("extension")?.GetValue(hit)?.ToString();
+        if (string.IsNullOrWhiteSpace(extension) && !isDir && !string.IsNullOrWhiteSpace(name))
+        {
+            var ext = Path.GetExtension(name);
+            if (!string.IsNullOrWhiteSpace(ext))
+                extension = ext.TrimStart('.').ToLowerInvariant();
+        }
         var win = path.Replace('/', '\\');
         var side = tags.Get(win);
         return new
@@ -232,6 +241,9 @@ public sealed class BndzCatalogStore
             type = isDir ? "directory" : "file",
             path,
             size,
+            extension,
+            modified,
+            created,
             catalogSearch = true,
             searchEngine = engine,
             tags = side?.Tags ?? new List<string>(),

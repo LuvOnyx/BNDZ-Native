@@ -222,14 +222,18 @@ namespace BNDZ.Services
                         var ds = di.GetAccessControl();
                         meta["Owner"] = ds.GetOwner(typeof(NTAccount))?.ToString() ?? "Unknown";
                         meta["ACL Rule"] = SummarizeAcl(ds);
+                        meta["Created"] = di.CreationTime.ToString("g");
+                        meta["Modified"] = di.LastWriteTime.ToString("g");
+                        meta["Accessed"] = di.LastAccessTime.ToString("g");
                     } else {
                         var fi = new FileInfo(filePath);
                         var fs = fi.GetAccessControl();
                         meta["Owner"] = fs.GetOwner(typeof(NTAccount))?.ToString() ?? "Unknown";
                         meta["ACL Rule"] = SummarizeAcl(fs);
                         meta["File Size"] = fi.Length.ToString();
-                        meta["Created"] = fi.CreationTime.ToString();
-                        meta["Modified"] = fi.LastWriteTime.ToString();
+                        meta["Created"] = fi.CreationTime.ToString("g");
+                        meta["Modified"] = fi.LastWriteTime.ToString("g");
+                        meta["Accessed"] = fi.LastAccessTime.ToString("g");
                         meta["Archive"] = (fi.Attributes & FileAttributes.Archive) == FileAttributes.Archive ? "true" : "false";
                         meta["ReadOnly"] = (fi.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly ? "true" : "false";
                         meta["System"] = (fi.Attributes & FileAttributes.System) == FileAttributes.System ? "true" : "false";

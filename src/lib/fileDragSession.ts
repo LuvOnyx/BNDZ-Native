@@ -3,7 +3,7 @@
  * Used by BNDZUI pointer-drag session to resolve tabs, breadcrumbs, list folders, and nav tree targets.
  */
 
-import { isBndzVirtualPath } from './bndzVirtualViews';
+import { isFsDropTargetPath } from './bndzVirtualViews';
 import { joinPanePath } from './pathUtils';
 
 export type TabHoverTarget = { paneId: string; tabIndex: number; tabId: string };
@@ -390,7 +390,7 @@ export function resolveNativeFileDropTarget(
     });
   }
 
-  if ((isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') && htmlDropTarget?.tabPath) {
+  if ((!isFsDropTargetPath(destPath)) && htmlDropTarget?.tabPath) {
     destPath = htmlDropTarget.tabPath;
     if (!hover && htmlDropTarget.paneId) {
       const pane = panes.find(p => p.id === htmlDropTarget.paneId);
@@ -398,19 +398,19 @@ export function resolveNativeFileDropTarget(
     }
   }
 
-  if ((isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') && hover) {
+  if ((!isFsDropTargetPath(destPath)) && hover) {
     const pane = panes.find(p => p.id === hover!.paneId);
     const tabPath = pane?.tabs[hover!.tabIndex]?.path;
-    if (tabPath && !isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+    if (tabPath && isFsDropTargetPath(tabPath)) {
       destPath = tabPath;
     }
   }
 
   // Last resort: active pane folder when hit-test misses (WebView2 coord drift).
-  if (isBndzVirtualPath(destPath) || destPath === '/' || destPath === '/this-pc') {
+  if (!isFsDropTargetPath(destPath)) {
     const activePane = panes.find(p => p.id === activePaneId) ?? panes[0];
     const tabPath = activePane?.tabs[activePane.activeTabIndex]?.path;
-    if (tabPath && !isBndzVirtualPath(tabPath) && tabPath !== '/' && tabPath !== '/this-pc') {
+    if (tabPath && isFsDropTargetPath(tabPath)) {
       destPath = tabPath;
       if (!hover && activePane) {
         hover = { paneId: activePane.id, tabIndex: activePane.activeTabIndex };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RAM_ROOT, BNDZ_RECENT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
+import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RAM_ROOT, BNDZ_RECENT, BNDZ_PROBLEMS, BNDZ_INBOUND, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
 import { getIndexStatusCached } from '../../lib/indexStatusCache';
 import { loadSpatialCanvas } from '../../lib/spatialCanvasStore';
@@ -52,6 +52,18 @@ const VIEWS = [
     icon: 'hard_drive_ui',
     accent: '#c48b4a',
     desc: 'Largest files — sorted and visualized by size',
+  },
+  {
+    path: BNDZ_PROBLEMS,
+    icon: 'warning',
+    accent: '#f59e0b',
+    desc: 'Broken links, naming conflicts, and integrity issues',
+  },
+  {
+    path: BNDZ_INBOUND,
+    icon: 'download_ui',
+    accent: '#60a5fa',
+    desc: 'Clipboard captures and inbound file staging',
   },
 ] as const;
 

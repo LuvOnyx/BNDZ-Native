@@ -13,9 +13,7 @@ type Props = {
   isDirectory?: boolean;
   /** Curated EXIF / TagLib facts (camera, duration, etc.). */
   facts?: PreviewMetaFact[];
-  onOpen?: () => void;
   onReveal?: () => void;
-  onCopyPath?: () => void;
 };
 
 function formatSize(bytes: number) {
@@ -38,9 +36,9 @@ function formatModified(value: Props['modified']) {
   return formatFsDate(String(value));
 }
 
-/** Flat metadata ribbon — adapted from Spacedrive inspector header patterns, BNDZ-native. */
+/** Flat metadata ribbon — single action cluster (no duplicate open/copy from tabstrip). */
 export default function PreviewMetadataStrip({
-  name, path, size, modified, kindLabel, isDirectory, facts, onOpen, onReveal, onCopyPath,
+  name, path, size, modified, kindLabel, isDirectory, facts, onReveal,
 }: Props) {
   const shownFacts = (facts || []).filter(f => f.value).slice(0, 6);
 
@@ -69,23 +67,13 @@ export default function PreviewMetadataStrip({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {onOpen && (
-            <button type="button" className="bndz-preview-action-btn" onClick={onOpen} title="Open">
-              <Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" />
-            </button>
-          )}
-          {onReveal && (
+        {onReveal && (
+          <div className="flex items-center gap-1 shrink-0">
             <button type="button" className="bndz-preview-action-btn" onClick={onReveal} title="Show in folder">
-              {isDirectory ? <Icons8Icon id="folder_open_ui" size={18} className="bndz-preview-action-icon" /> : <Icons8Icon id="disk_mgmt" size={18} className="bndz-preview-action-icon" />}
+              <Icons8Icon id={isDirectory ? 'folder_open_ui' : 'explorer'} size={18} className="bndz-preview-action-icon" />
             </button>
-          )}
-          {onCopyPath && path && (
-            <button type="button" className="bndz-preview-action-btn" onClick={onCopyPath} title="Copy path">
-              <Icons8Icon id="copy" size={18} className="bndz-preview-action-icon" />
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -137,6 +137,21 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           />
           <span className="text-[12px] text-white/90">Show selection quick actions bar</span>
         </label>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Selection highlight</div>
+            <div className="text-[10px] text-white/40 mt-0.5">How far the selection fill paints</div>
+          </div>
+          <select
+            className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[4px] rounded-sm outline-none min-w-[220px]"
+            value={localConfig.listSelectionChrome || 'fullRow'}
+            onChange={e => patch({ listSelectionChrome: e.target.value as 'fullRow' | 'nameOnly' | 'throughSecondColumn' })}
+          >
+            <option value="fullRow">Full row</option>
+            <option value="nameOnly">Name only</option>
+            <option value="throughSecondColumn">Through second column</option>
+          </select>
+        </div>
         <VariantSelect<SelectionStyle>
           label="List selection"
           description="How selected rows look in details/list views"

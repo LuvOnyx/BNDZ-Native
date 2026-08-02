@@ -42,6 +42,9 @@ export interface SettingsRuntimeContext {
     applyColorFilters: boolean;
     showHiddenInList: boolean;
     zebraRows: boolean;
+    /** 1 = subtle, 2 = stronger alternate rows */
+    zebraIntensity: 1 | 2;
+    selectionChrome: 'fullRow' | 'nameOnly' | 'throughSecondColumn';
   };
   sort: {
     method: string;
@@ -131,6 +134,10 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       applyColorFilters: config.applyColorFiltersToTheList !== false && config.enableColorFilters !== false,
     showHiddenInList: !!config.showHiddenSystemFoldersInTree,
     zebraRows: !!config.selectConfig5 && config.selectConfig5 !== 'Solid Color' && config.selectConfig5 !== false,
+    zebraIntensity: String(config.selectConfig5 || '').includes('(2)') ? 2 : 1,
+    selectionChrome: (config.listSelectionChrome === 'nameOnly' || config.listSelectionChrome === 'throughSecondColumn')
+      ? config.listSelectionChrome
+      : 'fullRow',
     showSelectionHighlight: config.listShowSelectionHighlight !== false,
     showSelectionCheckboxes: !!config.listShowSelectionCheckboxes,
     dimmedIcons: !!config.dimmedIcons,
@@ -896,6 +903,29 @@ function applyListStyleDataset(config: AppConfig, root: HTMLElement): void {
   root.dataset.mirrorTreeBoxInList = config.mirrorTreeBoxColorInList ? 'true' : 'false';
   root.dataset.matchTraceBreadcrumb = config.matchColorWithBreadcrumbBar ? 'true' : 'false';
   root.dataset.matchPinTrace = config.matchColorWithTreePathTracing ? 'true' : 'false';
+
+  const selChrome = config.listSelectionChrome === 'nameOnly' || config.listSelectionChrome === 'throughSecondColumn'
+    ? config.listSelectionChrome
+    : 'fullRow';
+  root.dataset.listSelChrome = selChrome;
+
+  const zebraIntensity = String(config.selectConfig5 || '').includes('(2)') ? '2' : '1';
+  root.dataset.zebraIntensity = zebraIntensity;
+  // Visible zebra even when the color pack is off (avoid near-invisible #1e1e1e on dark lists).
+  if (!config.applyColors) {
+    root.style.setProperty(
+      '--list-alt-bg',
+      zebraIntensity === '2' ? 'rgba(255,255,255,0.075)' : 'rgba(255,255,255,0.042)',
+    );
+  } else {
+    const cur = root.style.getPropertyValue('--list-alt-bg').trim();
+    if (!cur || cur === '#1e1e1e' || cur === '#1E1E1E') {
+      root.style.setProperty(
+        '--list-alt-bg',
+        zebraIntensity === '2' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.045)',
+      );
+    }
+  }
 
   if (config.matchColorWithBreadcrumbBar) {
     const trace = config.colorConfig23;
