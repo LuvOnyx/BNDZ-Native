@@ -14,7 +14,11 @@ void import('./lib/automationStore').then(({ restoreArmedAutomationsOnBoot }) =>
   void restoreArmedAutomationsOnBoot();
 });
 
-/** Explorer → BNDZ: host opens AllowExternalDrop gate; page reports hover for drop targeting. */
+/**
+ * Explorer → BNDZ hover bridge. Host keeps AllowExternalDrop=true (except during BNDZ OLE)
+ * so Chromium accepts the drag; NavigationStarting intercepts file: drops (Path A).
+ * JS reports hover coords for list targeting; preventDefault avoids default open.
+ */
 function installExternalOleDragBridge() {
   let lastHoverMs = 0;
   const hasFilePayload = (types: readonly string[]) =>
@@ -38,7 +42,7 @@ function installExternalOleDragBridge() {
   const onDrop = (e: DragEvent) => {
     const types = e.dataTransfer?.types;
     if (!types?.length || !hasFilePayload(types)) return;
-    // Host handles via NavigationStarting once AllowExternalDrop gate is open.
+    // Host handles via NavigationStarting / WPF PreviewDrop — do not stopPropagation.
     e.preventDefault();
   };
 

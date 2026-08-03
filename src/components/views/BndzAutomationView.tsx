@@ -185,6 +185,7 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
+        nodeDragThreshold={4}
         nodesDraggable
         nodesConnectable
         elementsSelectable
@@ -373,7 +374,7 @@ const AutomationInspector = React.memo(function AutomationInspector({
   };
 
   return (
-    <aside className="bndz-automation-inspector shrink-0 overflow-y-auto bndz-scrollbar">
+    <aside className="bndz-automation-inspector shrink-0 bndz-scrollbar">
       <div className="bndz-automation-inspector-head">
         <span className="bndz-automation-inspector-title">Inspector</span>
         {selectedNode && (
@@ -382,10 +383,11 @@ const AutomationInspector = React.memo(function AutomationInspector({
           </span>
         )}
       </div>
+      <div className="bndz-automation-inspector-scroll overflow-y-auto bndz-scrollbar flex-1 min-h-0">
       {!selectedNode ? (
         <div className="bndz-automation-inspector-empty">
           <Icons8Icon id="zap_ui" size={28} className="opacity-25 mb-2" />
-          <p>Select a block to edit properties, or add one from the library.</p>
+          <p>Select a block to edit its properties, or click the library to add one.</p>
         </div>
       ) : (
         <div className="bndz-automation-inspector-body">
@@ -505,6 +507,27 @@ const AutomationInspector = React.memo(function AutomationInspector({
           </ul>
         </div>
       )}
+      {liveStatus?.recentRuns && liveStatus.recentRuns.length > 0 && (
+        <div className="bndz-automation-log">
+          <div className="bndz-automation-log-head">Watcher runs</div>
+          <ul className="bndz-automation-history-list">
+            {liveStatus.recentRuns.slice(0, 10).map((run, i) => (
+              <li key={`${run.triggeredAt}-${i}`} className={`bndz-automation-history-item${run.ok ? '' : ' is-failed'}`}>
+                <div className="bndz-automation-history-meta">
+                  <span>{run.pipelineName}</span>
+                  <span>{new Date(run.triggeredAt).toLocaleTimeString()}</span>
+                </div>
+                <div className="text-[10px] text-gray-400 truncate">{run.triggerPath} · {run.fileCount} file(s)</div>
+                {run.error && <div className="bndz-automation-history-error">{run.error}</div>}
+                {run.log.length > 0 && (
+                  <pre className="bndz-automation-log-body bndz-mono text-[10px]">{run.log.slice(-4).join('\n')}</pre>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      </div>
     </aside>
   );
 });
@@ -587,12 +610,20 @@ function makeFlowNode(
   };
 }
 
-function applySeedToGraph(
-  nodes: Node<NodeData>[],
-  seed: { type: AutomationNodeType; fields: Record<string, string> },
-): Node<NodeData>[] {
-  const id = `n_${Date.now()}`;
-  return [...nodes, makeFlowNode(seed.type, id, 120 + nodes.length * 40, 80 + nodes.length * 30, seed.fields)];
+/**
+ * Compute flow-space position that maps to the current viewport center,
+ * offset so a ~260×140 node lands centered.
+ */
+function viewportCenterPosition(
+  rfInstance: ReactFlowInstance | null | undefined,
+  surface: HTMLElement | null | undefined,
+): { x: number; y: number } {
+  const el = surface?.querySelector('.bndz-automation-flow') as HTMLElement | null;
+  if (!rfInstance || !el) return { x: 120, y: 80 };
+  const rect = el.getBoundingClientRect();
+  const screenCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  const flowPos = rfInstance.screenToFlowPosition(screenCenter);
+  return { x: flowPos.x - 130, y: flowPos.y - 70 };
 }
 
 export default function BndzAutomationView() {
@@ -686,6 +717,17 @@ export default function BndzAutomationView() {
     seedAutosave(stableGraphJson({ id: g.id, name: g.name, armed: !!g.armed }, n, e, vp));
   }, [setNodes, setEdges, seedAutosave]);
 
+  // Declared before applySeed — dep array must not read addNode while still in TDZ.
+  const addNode = useCallback((type: AutomationNodeType, at?: { x: number; y: number }, fields?: Record<string, string>) => {
+    const id = `n_${Date.now()}`;
+    const pos = at ?? viewportCenterPosition(rfInstanceRef.current, surfaceRef.current);
+    const newNode: Node<NodeData> = { ...makeFlowNode(type, id, pos.x, pos.y, fields), selected: true };
+    setNodes(nds => nds.map(n => n.selected ? { ...n, selected: false } : n).concat(newNode));
+    setSelectedNodeId(id);
+    closeMenu();
+    scheduleSave();
+  }, [setNodes, closeMenu, scheduleSave]);
+
   const applySeed = useCallback((seed?: AutomationPendingSeed | null) => {
     const s = seed ?? consumeAutomationSeed();
     if (!s) return;
@@ -707,17 +749,15 @@ export default function BndzAutomationView() {
       setGraphName(graph.name);
       scheduleSave();
       setStatus(`Loaded starter: ${graph.name}`);
+      requestAnimationFrame(() => {
+        rfInstanceRef.current?.fitView({ padding: 0.18, duration: 280, maxZoom: 1.25 });
+      });
       return;
     }
     if (!s.type) return;
-    setNodes(nds => {
-      const next = applySeedToGraph(nds, { type: s.type!, fields: s.fields || {} });
-      nodesRef.current = next;
-      scheduleSave();
-      return next;
-    });
+    addNode(s.type, undefined, s.fields || {});
     setStatus(`Added ${NODE_DEFS[s.type].label} block`);
-  }, [setNodes, setEdges, scheduleSave, pipelineId, graphName]);
+  }, [setNodes, setEdges, scheduleSave, pipelineId, graphName, addNode]);
 
   const scheduleViewportSave = useCallback(() => {
     if (viewportSaveTimer.current) clearTimeout(viewportSaveTimer.current);
@@ -878,15 +918,6 @@ export default function BndzAutomationView() {
     scheduleSave();
   }, [setEdges, scheduleSave]);
 
-  const addNode = useCallback((type: AutomationNodeType, at?: { x: number; y: number }, fields?: Record<string, string>) => {
-    const id = `n_${Date.now()}`;
-    const newNode = makeFlowNode(type, id, at?.x ?? 120 + nodes.length * 40, at?.y ?? 80 + nodes.length * 30, fields);
-    setNodes(nds => [...nds, newNode]);
-    setSelectedNodeId(id);
-    closeMenu();
-    scheduleSave();
-  }, [nodes.length, setNodes, closeMenu, scheduleSave]);
-
   const deleteNode = useCallback((id: string) => {
     setNodes(nds => nds.filter(n => n.id !== id));
     setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
@@ -950,8 +981,8 @@ export default function BndzAutomationView() {
   const pasteNode = useCallback(() => {
     const clip = getWorkspaceClipboard();
     if (clip?.kind !== 'automation-node') return;
-    addNode(clip.nodeType as AutomationNodeType, { x: 160 + nodes.length * 24, y: 100 + nodes.length * 20 }, clip.fields);
-  }, [addNode, nodes.length]);
+    addNode(clip.nodeType as AutomationNodeType, undefined, clip.fields);
+  }, [addNode]);
 
   const disconnectNode = useCallback((id: string) => {
     setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
@@ -1213,6 +1244,9 @@ export default function BndzAutomationView() {
     setSelectedNodeId(null);
     setStatus(`${g.name} ready — edit folder paths then Arm / Run`);
     scheduleSave();
+    requestAnimationFrame(() => {
+      rfInstanceRef.current?.fitView({ padding: 0.18, duration: 280, maxZoom: 1.25 });
+    });
   }, [pipelineId, setNodes, setEdges, scheduleSave]);
 
   const loadTemplate = useCallback((template: 'deploy' | 'backup') => {
@@ -1274,6 +1308,7 @@ export default function BndzAutomationView() {
   }, []);
 
   const onNodeDragStart = useCallback((_e: React.MouseEvent, node: Node) => {
+    setSelectedNodeId(node.id);
     nodeDraggingRef.current = true;
     chromeFrozenRef.current = {
       nodes: nodesRef.current.length,
@@ -1283,7 +1318,6 @@ export default function BndzAutomationView() {
     dragPendingPosRef.current.clear();
     const surface = surfaceRef.current;
     const ids = new Set<string>([node.id]);
-    // Multi-select: cache all selected node DOMs once.
     for (const n of nodesRef.current) {
       if (n.selected) ids.add(n.id);
     }
@@ -1315,25 +1349,38 @@ export default function BndzAutomationView() {
     setFlowDraggingClass(false);
     nodesRef.current = flushed;
     setNodes(flushed);
+    const sel = flushed.find(n => n.selected);
+    if (sel) setSelectedNodeId(sel.id);
     scheduleSave();
   }, [scheduleSave, setNodes, setFlowDraggingClass, flushDragTransforms]);
 
-  /** Mid-drag: refs + rAF translate3d only — never RF/React store. */
+  /** Mid-drag: refs + rAF translate3d for position/dimensions — select changes pass through to React state. */
   const onNodesChange = useCallback<OnNodesChange<Node<NodeData>>>((changes) => {
-    const onlyDragPos = changes.length > 0 && changes.every(c =>
-      c.type === 'position' || c.type === 'dimensions' || c.type === 'select',
-    );
-    if (nodeDraggingRef.current && onlyDragPos) {
-      const base = pendingDragNodes.current ?? nodesRef.current;
-      const next = applyNodeChanges(changes as NodeChange<Node<NodeData>>[], base);
-      pendingDragNodes.current = next;
-      nodesRef.current = next;
+    if (nodeDraggingRef.current) {
+      const dragChanges: NodeChange<Node<NodeData>>[] = [];
+      const passthrough: NodeChange<Node<NodeData>>[] = [];
       for (const c of changes) {
-        if (c.type !== 'position' || !c.position || !('id' in c) || !c.id) continue;
-        dragPendingPosRef.current.set(c.id, c.position);
+        if (c.type === 'position' || c.type === 'dimensions') {
+          dragChanges.push(c);
+        } else {
+          passthrough.push(c);
+        }
       }
-      if (!dragRafRef.current) {
-        dragRafRef.current = requestAnimationFrame(flushDragTransforms);
+      if (dragChanges.length > 0) {
+        const base = pendingDragNodes.current ?? nodesRef.current;
+        const next = applyNodeChanges(dragChanges, base);
+        pendingDragNodes.current = next;
+        nodesRef.current = next;
+        for (const c of dragChanges) {
+          if (c.type !== 'position' || !c.position || !('id' in c) || !c.id) continue;
+          dragPendingPosRef.current.set(c.id, c.position);
+        }
+        if (!dragRafRef.current) {
+          dragRafRef.current = requestAnimationFrame(flushDragTransforms);
+        }
+      }
+      if (passthrough.length > 0) {
+        onNodesChangeBase(passthrough);
       }
       return;
     }
@@ -1367,7 +1414,7 @@ export default function BndzAutomationView() {
     <div
       ref={surfaceRef}
       tabIndex={0}
-      className="bndz-automation bndz-ws-skin--automation flex flex-col h-full min-h-0 outline-none"
+      className={`bndz-automation bndz-ws-skin--automation flex flex-col h-full min-h-0 outline-none${running ? ' is-running' : ''}${armed && liveWatchers > 0 ? ' is-armed-live' : ''}`}
       data-bndz-surface
       data-bndz-workspace-surface
       onPointerDown={e => {
@@ -1616,6 +1663,11 @@ export default function BndzAutomationView() {
           <WorkspaceMenuItem label="Add notify" icon="bell" onClick={() => addNode('notifyToast')} />
           <WorkspaceMenuItem label="Add remote deploy" icon="cloud_ui" onClick={() => addNode('rsyncDeploy')} />
           <WorkspaceMenuItem label="Add log block" icon="notepad" onClick={() => addNode('log')} />
+          <WorkspaceMenuSep />
+          <WorkspaceMenuItem label="Open Sandbox" icon="layers_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'project-sandbox' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Library Health" icon="shield_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'library-health' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Inbound Volume" icon="download_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'inbound-volume' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Branching Time" icon="history_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'branching-time' } })); closeMenu(); }} />
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Clear pipeline" icon="delete" danger disabled={nodes.length === 0 && edges.length === 0} onClick={clearPipeline} />
         </WorkspaceMenuPanel>

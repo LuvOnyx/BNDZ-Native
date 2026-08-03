@@ -11,7 +11,7 @@ export type PinCluster = {
 export type PinRelation = {
   fromId: string;
   toId: string;
-  reason: 'folder' | 'tag' | 'extension';
+  reason: 'folder' | 'tag' | 'extension' | 'lineage';
 };
 
 export function parentFolder(p: string): string {

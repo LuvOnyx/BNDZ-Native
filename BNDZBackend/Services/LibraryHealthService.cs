@@ -410,6 +410,94 @@ public sealed class LibraryHealthService : IDisposable
         return list;
     }
 
+    public HealthFixResult FixProblem(string problemId)
+    {
+        var problem = ListProblems().FirstOrDefault(p => p.Id == problemId);
+        if (problem == null)
+            return new HealthFixResult { Ok = false, Error = "Problem not found — it may have been cleared." };
+
+        try
+        {
+            switch (problem.Kind)
+            {
+                case "EmptyDir":
+                    if (Directory.Exists(problem.Path))
+                    {
+                        var children = Directory.EnumerateFileSystemEntries(problem.Path).Any();
+                        if (children)
+                            return new HealthFixResult { Ok = false, Error = "Directory is no longer empty." };
+                        Directory.Delete(problem.Path, recursive: false);
+                        RemoveProblem(problemId);
+                        return new HealthFixResult { Ok = true, Action = "Deleted empty directory." };
+                    }
+                    RemoveProblem(problemId);
+                    return new HealthFixResult { Ok = true, Action = "Directory already removed." };
+
+                case "OrphanSidecar":
+                    if (File.Exists(problem.Path))
+                    {
+                        File.Delete(problem.Path);
+                        RemoveProblem(problemId);
+                        return new HealthFixResult { Ok = true, Action = "Deleted orphaned sidecar file." };
+                    }
+                    RemoveProblem(problemId);
+                    return new HealthFixResult { Ok = true, Action = "Sidecar already removed." };
+
+                case "BrokenLink":
+                    if (File.Exists(problem.Path))
+                    {
+                        File.Delete(problem.Path);
+                        RemoveProblem(problemId);
+                        return new HealthFixResult { Ok = true, Action = "Removed broken symlink/shortcut." };
+                    }
+                    else if (Directory.Exists(problem.Path))
+                    {
+                        Directory.Delete(problem.Path, recursive: false);
+                        RemoveProblem(problemId);
+                        return new HealthFixResult { Ok = true, Action = "Removed broken directory link." };
+                    }
+                    RemoveProblem(problemId);
+                    return new HealthFixResult { Ok = true, Action = "Link already removed." };
+
+                case "MissingTarget":
+                    if (File.Exists(problem.Path))
+                    {
+                        File.Delete(problem.Path);
+                        RemoveProblem(problemId);
+                        return new HealthFixResult { Ok = true, Action = "Removed shortcut with missing target." };
+                    }
+                    RemoveProblem(problemId);
+                    return new HealthFixResult { Ok = true, Action = "Shortcut already removed." };
+
+                case "LongPath":
+                    return new HealthFixResult { Ok = false, Error = "Long paths require manual renaming — BNDZ cannot auto-shorten." };
+
+                case "AclDenied":
+                    return new HealthFixResult { Ok = false, Error = "Permission issues require manual resolution or elevated privileges." };
+
+                default:
+                    return new HealthFixResult { Ok = false, Error = $"No auto-fix available for problem kind '{problem.Kind}'." };
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new HealthFixResult { Ok = false, Error = "Access denied — run as administrator or check permissions." };
+        }
+        catch (Exception ex)
+        {
+            return new HealthFixResult { Ok = false, Error = ex.Message };
+        }
+    }
+
+    private void RemoveProblem(string problemId)
+    {
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM problems WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", problemId);
+        cmd.ExecuteNonQuery();
+    }
+
     public void ClearProblems(string? rootPrefix = null)
     {
         using var conn = OpenConnection();
@@ -510,4 +598,11 @@ public sealed class HealthSummaryDto
     public int Total { get; set; }
     public Dictionary<string, int> BySeverity { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int> ByKind { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class HealthFixResult
+{
+    public bool Ok { get; set; }
+    public string? Action { get; set; }
+    public string? Error { get; set; }
 }

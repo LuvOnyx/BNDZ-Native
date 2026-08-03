@@ -6,6 +6,7 @@ import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
 import { audioPlaybackSession } from '../../lib/audioPlaybackSession';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
 
 type Props = {
   path: string;
@@ -90,6 +91,35 @@ export default function AudioWaveformEditor({ path, title }: Props) {
     setAnalysis(null);
     setStatus(null);
     setReady(false);
+
+    let active = true;
+    const winPath = toWindowsPath(path);
+    void getExtendedMetadataCached(winPath, { priority: 900 }).then(entry => {
+      if (!active) return;
+      const bpmStr = entry.meta['BPM'];
+      const keyStr = entry.meta['Musical Key'];
+      const camelotStr = entry.meta['Camelot'];
+      if (!bpmStr && !keyStr) return;
+      const bpm = bpmStr ? parseFloat(bpmStr) : undefined;
+      let key: string | undefined;
+      let mode: string | undefined;
+      if (keyStr) {
+        if (keyStr.endsWith('m')) {
+          key = keyStr.slice(0, -1);
+          mode = 'minor';
+        } else {
+          key = keyStr;
+          mode = 'major';
+        }
+      }
+      setAnalysis(prev => prev ?? {
+        bpm: bpm && bpm > 0 ? bpm : undefined,
+        key,
+        mode,
+        camelot: camelotStr || undefined,
+      });
+    }).catch(() => {});
+    return () => { active = false; };
   }, [path]);
 
   useEffect(() => {

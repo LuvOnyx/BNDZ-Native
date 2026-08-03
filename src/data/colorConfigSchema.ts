@@ -38,6 +38,11 @@ export const COLOR_CONFIG_SECTIONS: { id: string; title: string; description?: s
     title: 'Plugin Heroes',
     description: 'Mandatory multi-stop gradient for bottom plugin hero panels',
   },
+  {
+    id: 'command-deck',
+    title: 'Command Deck',
+    description: 'Floating context bar above the bottom plugin panel',
+  },
 ];
 
 /** Default plugin hero — classic left wash → mid → cyan veil (visible over panel bg). */
@@ -109,6 +114,24 @@ export const COLOR_CONFIG_FIELDS: ColorConfigField[] = [
     fillMode: 'gradient',
     minStops: 3,
     applyAs: 'background',
+  },
+
+  {
+    key: 'colorConfig50',
+    label: 'Command Deck Fill',
+    default: '{"mode":"gradient","angle":165,"stops":[{"color":"#161c26f0","pos":0},{"color":"#0e1016fa","pos":100}]}',
+    previewText: '#e0f2fe',
+    section: 'command-deck',
+    fillMode: 'any',
+    applyAs: 'background',
+  },
+  {
+    key: 'colorConfig51',
+    label: 'Command Deck Border / Accent',
+    default: '#99c9f038',
+    previewText: '#0e1016',
+    section: 'command-deck',
+    applyAs: 'foreground',
   },
 ];
 

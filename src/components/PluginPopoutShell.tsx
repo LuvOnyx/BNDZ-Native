@@ -14,7 +14,7 @@ type Props = {
 
 /** Slim second-process chrome — one plugin (or sticky widget) fills the viewport. */
 export default function PluginPopoutShell({ initial }: Props) {
-  const { pluginRegistry, ensurePluginInstalled } = usePluginRegistry();
+  const { pluginRegistry } = usePluginRegistry();
   const [boot, setBoot] = useState<PluginWindowBoot>(initial);
 
   useEffect(() => {
@@ -37,12 +37,6 @@ export default function PluginPopoutShell({ initial }: Props) {
     (window as any).chrome?.webview?.addEventListener('message', onMsg);
     return () => (window as any).chrome?.webview?.removeEventListener('message', onMsg);
   }, []);
-
-  useEffect(() => {
-    if (boot.pluginId && boot.pluginId !== 'sticky-note') {
-      ensurePluginInstalled?.(boot.pluginId);
-    }
-  }, [boot.pluginId, ensurePluginInstalled]);
 
   const stickyMode = isStickyPluginMode(boot);
   const plugin = useMemo(

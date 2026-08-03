@@ -269,6 +269,16 @@ export type AutomationLiveStatus = {
     lastTriggeredAt?: number;
     lastError?: string;
   }>;
+  recentRuns?: Array<{
+    pipelineId: string;
+    pipelineName: string;
+    triggerPath: string;
+    triggeredAt: number;
+    ok: boolean;
+    log: string[];
+    error?: string;
+    fileCount: number;
+  }>;
 };
 
 export async function runAutomationGraph(graph: AutomationGraph): Promise<{ ok: boolean; log: string[]; error?: string }> {

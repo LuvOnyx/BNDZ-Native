@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 
@@ -175,18 +176,85 @@ public class CloudStorageService
         return providers;
     }
 
+    // TTL cache — serialises concurrent DriveInfo probes so multiple rapid callers
+    // (BNDZ_UI_READY → PushDrivesUpdate, GET_DRIVES, CONTINUUM_FINGERPRINT_REQUEST)
+    // share one in-flight enumeration instead of each running their own 400ms-per-drive probes.
+    private static readonly SemaphoreSlim _drivesWorkSemaphore = new(1, 1);
+    private static volatile List<object>? _annotatedDrivesCache;
+    private static long _annotatedDrivesCacheExpiryTicks = long.MinValue;
+
     /// <summary>
     /// Drive list with cloud ownership flags so the UI can keep local Drives vs Cloud Drives correct.
+    /// Never drops a ready volume solely because VolumeLabel/size timed out — that left This PC empty.
+    /// Callers are always inside Task.Run; blocking on the semaphore is intentional and safe.
     /// </summary>
     public List<object> GetAnnotatedDrives()
+    {
+        // Hot path: return fresh cached snapshot without acquiring the semaphore.
+        var cached = _annotatedDrivesCache;
+        if (cached != null && DateTime.UtcNow.Ticks < Volatile.Read(ref _annotatedDrivesCacheExpiryTicks))
+            return cached;
+
+        // Serialize expensive work so latecomers get the freshly-built result for free.
+        _drivesWorkSemaphore.Wait();
+        try
+        {
+            // Re-check after acquiring — another caller may have already refreshed.
+            cached = _annotatedDrivesCache;
+            if (cached != null && DateTime.UtcNow.Ticks < Volatile.Read(ref _annotatedDrivesCacheExpiryTicks))
+                return cached;
+
+            var result = BuildAnnotatedDrivesCore();
+
+            if (result.Count > 0)
+            {
+                _annotatedDrivesCache = result;
+                Volatile.Write(ref _annotatedDrivesCacheExpiryTicks, DateTime.UtcNow.AddSeconds(2.5).Ticks);
+            }
+            else if (_annotatedDrivesCache is { Count: > 0 })
+            {
+                // Return stale data rather than an empty list.
+                return _annotatedDrivesCache;
+            }
+
+            return result;
+        }
+        finally
+        {
+            _drivesWorkSemaphore.Release();
+        }
+    }
+
+    private List<object> BuildAnnotatedDrivesCore()
     {
         var dedicated = BuildDedicatedCloudVolumeMap();
         var list = new List<object>();
 
-        foreach (var d in EnumerateReadyDrives())
+        DriveInfo[] all;
+        try { all = DriveInfo.GetDrives(); }
+        catch { all = Array.Empty<DriveInfo>(); }
+
+        foreach (var d in all)
         {
-            if (!TryReadDriveMeta(d, out var label, out var total, out var free, out var format))
+            // Skip obvious non-volumes; still include Fixed/Removable/Ram even when IsReady is slow.
+            if (d.DriveType is DriveType.Unknown or DriveType.NoRootDirectory)
                 continue;
+            if (d.DriveType == DriveType.Network)
+                continue; // network letters live under Network tree, not This PC local drives
+
+            var ready = TryDriveReady(d, timeoutMs: 400);
+            // Fixed drives: include even when readiness probe times out (common with GDFS / antivirus).
+            if (!ready && d.DriveType != DriveType.Fixed && d.DriveType != DriveType.Ram)
+                continue;
+
+            var hasMeta = TryReadDriveMeta(d, out var label, out var total, out var free, out var format, timeoutMs: 400);
+            if (!hasMeta)
+            {
+                label = "";
+                total = 0;
+                free = 0;
+                format = "";
+            }
 
             var letter = (d.Name.Length >= 2 ? d.Name.Substring(0, 2) : d.Name).ToUpperInvariant(); // "G:"
             dedicated.TryGetValue(letter, out var cloud);
@@ -199,7 +267,7 @@ public class CloudStorageService
             list.Add(new
             {
                 name = "/" + d.Name.Replace("\\", ""),
-                label,
+                label = string.IsNullOrWhiteSpace(label) ? "Local Disk" : label,
                 totalSpace = total,
                 freeSpace = free,
                 fileSystem = format,

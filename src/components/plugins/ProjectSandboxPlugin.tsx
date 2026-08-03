@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
@@ -24,7 +24,7 @@ export const ProjectSandboxPluginDef = {
   icon: 'layers_ui',
   description: 'Isolated sandbox sessions — experiment freely, commit or discard changes.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
+  installOnFirstUse: true,
 };
 
 type TabId = 'active' | 'history' | 'checkpoints';
@@ -36,6 +36,12 @@ type Session = {
   status: string;
   createdUtc?: string;
   fileCount?: number;
+};
+
+type SessionStatus = {
+  pendingOpsCount: number;
+  shadowSizeBytes: number;
+  lastCheckpoint: { id: string; name: string; createdUtc?: string } | null;
 };
 
 type Checkpoint = {
@@ -74,6 +80,12 @@ function relativeTime(utc?: string): string {
   return `${Math.floor(ms / 86_400_000)}d ago`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function ProjectSandboxPlugin({
   currentPath,
 }: {
@@ -84,9 +96,11 @@ export default function ProjectSandboxPlugin({
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [cpName, setCpName] = useState('');
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(async () => {
     const [active, all] = await Promise.all([
@@ -103,6 +117,32 @@ export default function ProjectSandboxPlugin({
   }, [expandedSession]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const loadSessionStatus = useCallback(async (sessionId: string) => {
+    try {
+      const r = await IPC.sandboxGetStatus(sessionId);
+      if (r.error) return;
+      setSessionStatus({
+        pendingOpsCount: r.pendingOpsCount ?? 0,
+        shadowSizeBytes: r.shadowSizeBytes ?? 0,
+        lastCheckpoint: r.lastCheckpoint ?? null,
+      });
+    } catch {
+      setSessionStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (statusPollRef.current) clearInterval(statusPollRef.current);
+    const activeSession = activeSessions[0];
+    if (activeSession) {
+      void loadSessionStatus(activeSession.id);
+      statusPollRef.current = setInterval(() => void loadSessionStatus(activeSession.id), 8000);
+    } else {
+      setSessionStatus(null);
+    }
+    return () => { if (statusPollRef.current) clearInterval(statusPollRef.current); };
+  }, [activeSessions, loadSessionStatus]);
 
   const loadCheckpoints = useCallback(async (sessionId: string) => {
     const r = await IPC.sandboxListCheckpoints(sessionId);
@@ -135,9 +175,15 @@ export default function ProjectSandboxPlugin({
   const commitSession = async (sessionId: string) => {
     setBusy(true);
     try {
-      const r = await IPC.sandboxCommit(sessionId);
-      if (r.error) throw new Error(r.error);
-      pushToast({ kind: 'success', title: 'Committed', message: 'Sandbox changes applied to disk.' });
+      const r = await IPC.sandboxCommit(sessionId) as any;
+      if (r.error) {
+        const details = Array.isArray(r.details) && r.details.length > 0
+          ? ` — ${r.details[0]}` : '';
+        pushToast({ kind: 'error', title: 'Commit refused', message: `${r.error}${details}` });
+        return;
+      }
+      const opsMsg = typeof r.opsProcessed === 'number' ? ` (${r.opsProcessed} ops applied)` : '';
+      pushToast({ kind: 'success', title: 'Committed', message: `Sandbox changes applied to disk${opsMsg}.` });
       await refresh();
     } catch (e) {
       pushToast({ kind: 'error', title: 'Commit failed', message: String(e) });
@@ -149,9 +195,15 @@ export default function ProjectSandboxPlugin({
   const discardSession = async (sessionId: string) => {
     setBusy(true);
     try {
-      const r = await IPC.sandboxDiscard(sessionId);
-      if (r.error) throw new Error(r.error);
-      pushToast({ kind: 'success', title: 'Discarded', message: 'Sandbox reverted — original files unchanged.' });
+      const r = await IPC.sandboxDiscard(sessionId) as any;
+      const opsMsg = typeof r.opsProcessed === 'number' ? `${r.opsProcessed} operation(s) reversed` : 'Original files unchanged';
+      if (r.error) {
+        const detailStr = Array.isArray(r.details) && r.details.length > 0
+          ? ` — ${r.details.slice(0, 3).join('; ')}` : '';
+        pushToast({ kind: 'warning', title: 'Partial discard', message: `${opsMsg}. ${r.error}${detailStr}` });
+      } else {
+        pushToast({ kind: 'success', title: 'Discarded', message: `${opsMsg}.` });
+      }
       await refresh();
     } catch (e) {
       pushToast({ kind: 'error', title: 'Discard failed', message: String(e) });
@@ -166,9 +218,11 @@ export default function ProjectSandboxPlugin({
     try {
       const r = await IPC.sandboxCheckpoint(sessionId, cpName.trim());
       if (r.error) throw new Error(r.error);
+      const savedName = cpName.trim();
       setCpName('');
-      pushToast({ kind: 'success', title: 'Checkpoint saved', message: cpName.trim() });
+      pushToast({ kind: 'success', title: 'Checkpoint saved', message: savedName });
       await loadCheckpoints(sessionId);
+      if (activeSessions[0]?.id === sessionId) await loadSessionStatus(sessionId);
     } catch (e) {
       pushToast({ kind: 'error', title: 'Checkpoint failed', message: String(e) });
     } finally {
@@ -183,6 +237,7 @@ export default function ProjectSandboxPlugin({
       if (r.error) throw new Error(r.error);
       pushToast({ kind: 'success', title: 'Restored', message: 'Sandbox rolled back to checkpoint.' });
       await loadCheckpoints(sessionId);
+      if (activeSessions[0]?.id === sessionId) await loadSessionStatus(sessionId);
     } catch (e) {
       pushToast({ kind: 'error', title: 'Restore failed', message: String(e) });
     } finally {
@@ -250,12 +305,38 @@ export default function ProjectSandboxPlugin({
           }
         />
 
-        {activeSessions.length > 0 && (
-          <div className="shrink-0 px-5 py-2 border-b border-white/[0.06] bg-emerald-500/[0.06] flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-              {activeSessions.length} sandbox session{activeSessions.length > 1 ? 's' : ''} running
-            </span>
+        {/* ── Live session status bar ── */}
+        {activeSessions.length > 0 && sessionStatus && (
+          <div className="shrink-0 px-5 py-2.5 border-b border-white/[0.06] bg-emerald-500/[0.06]">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                  Active
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                <span className="inline-flex items-center gap-1">
+                  <Icons8Icon id="data_transfer" size={10} className="text-emerald-400/60" />
+                  <span className="font-mono font-semibold text-white">{sessionStatus.pendingOpsCount}</span> pending ops
+                </span>
+                <span className="text-white/10">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <Icons8Icon id="data_backup" size={10} className="text-emerald-400/60" />
+                  {formatBytes(sessionStatus.shadowSizeBytes)} shadow
+                </span>
+                {sessionStatus.lastCheckpoint && (
+                  <>
+                    <span className="text-white/10">|</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Icons8Icon id="bookmark_ui" size={10} className="text-amber-400/60" />
+                      <span className="text-amber-300/80 truncate max-w-[120px]">{sessionStatus.lastCheckpoint.name}</span>
+                      <span className="text-gray-500">{relativeTime(sessionStatus.lastCheckpoint.createdUtc)}</span>
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -279,6 +360,29 @@ export default function ProjectSandboxPlugin({
                       </div>
                       <span className="text-[10px] text-gray-500">{relativeTime(s.createdUtc)}</span>
                     </div>
+
+                    {/* Session stats row */}
+                    {sessionStatus && (
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="bg-black/20 rounded-lg px-3 py-2 text-center">
+                          <div className="text-sm font-bold text-white font-mono">{sessionStatus.pendingOpsCount}</div>
+                          <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Operations</div>
+                        </div>
+                        <div className="bg-black/20 rounded-lg px-3 py-2 text-center">
+                          <div className="text-sm font-bold text-white font-mono">{formatBytes(sessionStatus.shadowSizeBytes)}</div>
+                          <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Shadow size</div>
+                        </div>
+                        <div className="bg-black/20 rounded-lg px-3 py-2 text-center">
+                          <div className="text-sm font-bold text-white truncate">
+                            {sessionStatus.lastCheckpoint?.name ?? '—'}
+                          </div>
+                          <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">
+                            {sessionStatus.lastCheckpoint ? `CP ${relativeTime(sessionStatus.lastCheckpoint.createdUtc)}` : 'No checkpoint'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap gap-2 mt-3">
                       <PluginToolbarButton icon="check" onClick={() => void commitSession(s.id)} disabled={busy}>
                         Commit
@@ -308,20 +412,26 @@ export default function ProjectSandboxPlugin({
                   description="Previous sandbox sessions will appear here."
                 />
               ) : (
-                sessions.map(s => (
-                  <PluginCard key={s.id}>
-                    <div className="flex items-center gap-3">
-                      <Icons8Icon id={s.status === 'active' ? 'zap_ui' : 'check'} size={14}
-                        className={s.status === 'active' ? 'text-emerald-400' : 'text-gray-500'} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-white truncate">{s.name}</div>
-                        <div className="bndz-mono text-[10px] text-gray-500 truncate">{s.rootPath}</div>
+                sessions.map(s => {
+                  const statusStyle = s.status === 'active'
+                    ? 'text-emerald-400' : s.status === 'committed'
+                    ? 'text-sky-400' : s.status === 'discarded'
+                    ? 'text-amber-400' : 'text-gray-500';
+                  return (
+                    <PluginCard key={s.id}>
+                      <div className="flex items-center gap-3">
+                        <Icons8Icon id={s.status === 'active' ? 'zap_ui' : s.status === 'committed' ? 'check' : 'reset_ui'} size={14}
+                          className={statusStyle} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-white truncate">{s.name}</div>
+                          <div className="bndz-mono text-[10px] text-gray-500 truncate">{s.rootPath}</div>
+                        </div>
+                        <span className={`text-[10px] shrink-0 font-semibold uppercase tracking-wider ${statusStyle}`}>{s.status}</span>
+                        <span className="text-[10px] text-gray-600 shrink-0">{relativeTime(s.createdUtc)}</span>
                       </div>
-                      <span className="text-[10px] text-gray-500 shrink-0">{s.status}</span>
-                      <span className="text-[10px] text-gray-600 shrink-0">{relativeTime(s.createdUtc)}</span>
-                    </div>
-                  </PluginCard>
-                ))
+                    </PluginCard>
+                  );
+                })
               )}
             </div>
           )}

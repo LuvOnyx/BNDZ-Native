@@ -1567,7 +1567,7 @@ export const IPC = {
     return Promise.resolve(null);
   },
 
-  getVirtualViewContents(view: 'recent' | 'media' | 'audio' | 'documents' | 'large', limit = 500): Promise<any[]> {
+  getVirtualViewContents(view: 'recent' | 'media' | 'audio' | 'documents' | 'large' | 'problems' | 'inbound' | 'portal-health' | 'portal-magnets' | 'portal-sandboxes' | 'portal-capture', limit = 500): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_virtualView`;
       return _nativeCall<{ items: any[] }>(
@@ -1688,7 +1688,7 @@ export const IPC = {
   }> {
     if (this.isNative) {
       const id = `${Date.now()}_lensStage`;
-      return _nativeCall('GET_LENS_STAGE', 'LENS_STAGE_RESULT', id, { path }, 120000)
+      return _nativeCall('GET_LENS_STAGE', 'LENS_STAGE_RESULT', id, { path }, 20000)
         .then((payload: any) => {
           if (payload?.error) throw new Error(payload.error);
           return {
@@ -2827,6 +2827,61 @@ export const IPC = {
     return _nativeCall<any>('SANDBOX_RESTORE_CHECKPOINT', 'SANDBOX_RESTORE_CHECKPOINT_RESULT', id, { sessionId, checkpointId }, 60000);
   },
 
+  sandboxGetStatus(sessionId: string): Promise<{
+    sessionId?: string; status?: string; name?: string; rootWinPath?: string;
+    pendingOpsCount?: number; shadowSizeBytes?: number; createdUtc?: string;
+    lastCheckpoint?: { id: string; name: string; createdUtc?: string } | null;
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ error: 'Native host required' });
+    const id = `${Date.now()}_sandboxStatus`;
+    return _nativeCall<any>('SANDBOX_GET_STATUS', 'SANDBOX_GET_STATUS_RESULT', id, { sessionId }, 15000);
+  },
+
+  branchWatch(rootPath: string): Promise<{ ok: boolean; watched?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_branchWatch`;
+    return _nativeCall<any>('BRANCH_WATCH', 'BRANCH_WATCH_RESULT', id, { rootPath }, 15000);
+  },
+
+  branchListWatched(): Promise<{ watched: string[] }> {
+    if (!this.isNative) return Promise.resolve({ watched: [] });
+    const id = `${Date.now()}_branchWatched`;
+    return _nativeCall<any>('BRANCH_LIST_WATCHED', 'BRANCH_LIST_WATCHED_RESULT', id, {}, 15000)
+      .then(r => ({ watched: Array.isArray(r?.watched) ? r.watched : [] }));
+  },
+
+  branchCreate(rootPath: string, name: string, parentBranchId?: string): Promise<{ ok: boolean; branch?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_branchCreate`;
+    return _nativeCall<any>('BRANCH_CREATE', 'BRANCH_CREATE_RESULT', id, { rootPath, name, parentBranchId }, 600000);
+  },
+
+  branchList(rootPath?: string): Promise<{ branches: any[] }> {
+    if (!this.isNative) return Promise.resolve({ branches: [] });
+    const id = `${Date.now()}_branchList`;
+    return _nativeCall<any>('BRANCH_LIST', 'BRANCH_LIST_RESULT', id, { rootPath }, 30000)
+      .then(r => ({ branches: Array.isArray(r?.branches) ? r.branches : [] }));
+  },
+
+  branchPeek(branchId: string): Promise<{ ok: boolean; peek?: any }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_branchPeek`;
+    return _nativeCall<any>('BRANCH_PEEK', 'BRANCH_PEEK_RESULT', id, { branchId }, 30000);
+  },
+
+  branchRestore(branchId: string, relPaths?: string[]): Promise<{ ok: boolean; restored?: number; skipped?: number; errors?: string[] }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, errors: ['Native host required'] });
+    const id = `${Date.now()}_branchRestore`;
+    return _nativeCall<any>('BRANCH_RESTORE', 'BRANCH_RESTORE_RESULT', id, { branchId, relPaths }, 600000);
+  },
+
+  branchDelete(branchId: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_branchDelete`;
+    return _nativeCall<any>('BRANCH_DELETE', 'BRANCH_DELETE_RESULT', id, { branchId }, 15000);
+  },
+
   healthScan(rootPath: string): Promise<{ ok: boolean; problemCount?: number; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_healthScan`;
@@ -2858,6 +2913,12 @@ export const IPC = {
     return _nativeCall<any>('HEALTH_CLEAR', 'HEALTH_CLEAR_RESULT', id, { rootPrefix }, 15000);
   },
 
+  healthFixProblem(problemId: string): Promise<{ ok: boolean; action?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_healthFix`;
+    return _nativeCall<any>('HEALTH_FIX_PROBLEM', 'HEALTH_FIX_PROBLEM_RESULT', id, { problemId }, 30000);
+  },
+
   lineageGet(path: string, depth?: number): Promise<{ edges: any[]; inbound?: any[]; outbound?: any[]; timeline?: any[] }> {
     if (!this.isNative) return Promise.resolve({ edges: [] });
     const id = `${Date.now()}_lineageGet`;
@@ -2883,10 +2944,91 @@ export const IPC = {
       .then(r => ({ edges: Array.isArray(r?.edges) ? r.edges : [] }));
   },
 
+  lineageContentDag(path: string, depth?: number): Promise<{ focusHash: string; nodes: any[]; edges: any[] }> {
+    if (!this.isNative) return Promise.resolve({ focusHash: '', nodes: [], edges: [] });
+    const id = `${Date.now()}_lineageDag`;
+    return _nativeCall<any>('LINEAGE_CONTENT_DAG', 'LINEAGE_CONTENT_DAG_RESULT', id, { path, depth }, 30000)
+      .then(r => ({
+        focusHash: r?.focusHash ?? r?.FocusHash ?? '',
+        nodes: Array.isArray(r?.nodes ?? r?.Nodes) ? (r?.nodes ?? r?.Nodes) : [],
+        edges: Array.isArray(r?.edges ?? r?.Edges) ? (r?.edges ?? r?.Edges) : [],
+      }));
+  },
+
+  lineageHashFile(path: string): Promise<{ ok: boolean; hash?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_lineageHash`;
+    return _nativeCall<any>('LINEAGE_HASH_FILE', 'LINEAGE_HASH_FILE_RESULT', id, { path }, 60000)
+      .then(r => ({ ok: !!r?.ok, hash: r?.hash ?? r?.Hash, error: r?.error }));
+  },
+
   capacityBuildPlan(path: string, targetFreeBytes?: number): Promise<{ ok: boolean; plan?: any; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_capPlan`;
     return _nativeCall<any>('CAPACITY_BUILD_PLAN', 'CAPACITY_BUILD_PLAN_RESULT', id, { path, targetFreeBytes }, 120000);
+  },
+
+  capacityWhatIf(path: string, scrubbers: {
+    keepHotDays?: number;
+    recencyDays?: number;
+    minFileSizeMb?: number;
+    includeDuplicates?: boolean;
+    includeGhostOffload?: boolean;
+    includeArchive?: boolean;
+    includeEmptyDirs?: boolean;
+  }, targetFreeBytes?: number): Promise<{ ok: boolean; projection?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_capWhatIf`;
+    return _nativeCall<any>('CAPACITY_WHAT_IF', 'CAPACITY_WHAT_IF_RESULT', id, { path, scrubbers, targetFreeBytes }, 120000);
+  },
+
+  capacityApprove(path: string, actionIds: string[]): Promise<{ ok: boolean; actionsDispatched?: number; bytesTargeted?: number; dispatchedOperationIds?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_capApprove`;
+    return _nativeCall<any>('CAPACITY_APPROVE', 'CAPACITY_APPROVE_RESULT', id, { path, actionIds }, 120000);
+  },
+
+  budgetGovernorGetPolicies(): Promise<{ ok: boolean; policies?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_govPolicies`;
+    return _nativeCall<any>('BUDGET_GOVERNOR_GET_POLICIES', 'BUDGET_GOVERNOR_GET_POLICIES_RESULT', id, {}, 15000);
+  },
+
+  budgetGovernorSetPolicy(policy: {
+    volumeRoot: string;
+    enforcement: 'off' | 'soft' | 'hard';
+    softLimitBytes: number;
+    hardLimitBytes: number;
+    enabled?: boolean;
+  }): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_govSetPolicy`;
+    return _nativeCall<any>('BUDGET_GOVERNOR_SET_POLICY', 'BUDGET_GOVERNOR_SET_POLICY_RESULT', id, policy, 15000);
+  },
+
+  budgetGovernorRemovePolicy(volumeRoot: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_govRemove`;
+    return _nativeCall<any>('BUDGET_GOVERNOR_REMOVE_POLICY', 'BUDGET_GOVERNOR_REMOVE_POLICY_RESULT', id, { volumeRoot }, 15000);
+  },
+
+  budgetGovernorCheck(targetPath: string, incomingBytes: number): Promise<{
+    ok: boolean;
+    allowed?: boolean;
+    softWarning?: boolean;
+    hardBlock?: boolean;
+    message?: string;
+    currentUsedBytes?: number;
+    afterUsedBytes?: number;
+    softLimitBytes?: number;
+    hardLimitBytes?: number;
+    totalBytes?: number;
+    afterUsedPct?: number;
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_govCheck`;
+    return _nativeCall<any>('BUDGET_GOVERNOR_CHECK', 'BUDGET_GOVERNOR_CHECK_RESULT', id, { targetPath, incomingBytes }, 15000);
   },
 
   inboundList(): Promise<{ entries: any[]; watching?: boolean }> {
@@ -2938,5 +3080,460 @@ export const IPC = {
         root: r?.root ?? r?.path ?? '',
         watching: !!r?.watching,
       }));
+  },
+
+  inboundCopyToLibrary(entryId: string, destination: string): Promise<{
+    ok: boolean; copiedCount?: number; failedCount?: number;
+    copiedNames?: string[]; errors?: string[]; error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_inboundCopyLib`;
+    return _nativeCall<any>('INBOUND_COPY_TO_LIBRARY', 'INBOUND_COPY_TO_LIBRARY_RESULT', id, { entryId, destination }, 120000);
+  },
+
+  captureInboxStatus(): Promise<{
+    captureFolder: string; watching: boolean; captureCount: number; lastCapture?: any;
+  }> {
+    if (!this.isNative) return Promise.resolve({ captureFolder: '', watching: false, captureCount: 0 });
+    const id = `${Date.now()}_capInboxStatus`;
+    return _nativeCall<any>('CAPTURE_INBOX_STATUS', 'CAPTURE_INBOX_STATUS_RESULT', id, {}, 15000)
+      .then(r => ({
+        captureFolder: r?.captureFolder ?? r?.CaptureFolder ?? '',
+        watching: !!(r?.watching ?? r?.Watching),
+        captureCount: r?.captureCount ?? r?.CaptureCount ?? 0,
+        lastCapture: r?.lastCapture ?? r?.LastCapture,
+      }));
+  },
+
+  captureFromClipboard(): Promise<{ ok: boolean; entry?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_capFromClip`;
+    return _nativeCall<any>('CAPTURE_FROM_CLIPBOARD', 'CAPTURE_FROM_CLIPBOARD_RESULT', id, {}, 20000);
+  },
+
+  captureInboxSetFolder(folder: string): Promise<{ ok: boolean; captureFolder?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_capSetFolder`;
+    return _nativeCall<any>('CAPTURE_INBOX_SET_FOLDER', 'CAPTURE_INBOX_SET_FOLDER_RESULT', id, { folder }, 15000)
+      .then(r => ({ ok: !!r?.ok, captureFolder: r?.captureFolder ?? r?.CaptureFolder }));
+  },
+
+  captureInboxStartWatching(): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_capWatch`;
+    return _nativeCall<any>('CAPTURE_INBOX_START_WATCHING', 'CAPTURE_INBOX_START_WATCHING_RESULT', id, {}, 15000);
+  },
+
+  captureInboxStopWatching(): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_capStopWatch`;
+    return _nativeCall<any>('CAPTURE_INBOX_STOP_WATCHING', 'CAPTURE_INBOX_STOP_WATCHING_RESULT', id, {}, 15000);
+  },
+
+  captureInboxList(limit = 50): Promise<{ captures: any[]; watching: boolean; captureFolder: string }> {
+    if (!this.isNative) return Promise.resolve({ captures: [], watching: false, captureFolder: '' });
+    const id = `${Date.now()}_capList`;
+    return _nativeCall<any>('CAPTURE_INBOX_LIST', 'CAPTURE_INBOX_LIST_RESULT', id, { limit }, 15000)
+      .then(r => ({
+        captures: Array.isArray(r?.captures) ? r.captures : [],
+        watching: !!(r?.watching ?? r?.Watching),
+        captureFolder: r?.captureFolder ?? r?.CaptureFolder ?? '',
+      }));
+  },
+
+  realityCheckScan(rootPath: string): Promise<{
+    ok: boolean; rootPath?: string; projectFileCount?: number;
+    totalRefs?: number; missingCount?: number; okCount?: number;
+    scannedUtc?: string; references?: any[]; error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_rcScan`;
+    return _nativeCall<any>('REALITY_CHECK_SCAN', 'REALITY_CHECK_SCAN_RESULT', id, { rootPath }, 300000);
+  },
+
+  realityCheckSetActive(active: boolean): Promise<{ ok: boolean; active?: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_rcActive`;
+    return _nativeCall<any>('REALITY_CHECK_SET_ACTIVE', 'REALITY_CHECK_SET_ACTIVE_RESULT', id, { active }, 15000);
+  },
+
+  realityCheckGetState(): Promise<{
+    active: boolean; missingPaths: string[]; lastScan?: any;
+  }> {
+    if (!this.isNative) return Promise.resolve({ active: false, missingPaths: [] });
+    const id = `${Date.now()}_rcState`;
+    return _nativeCall<any>('REALITY_CHECK_GET_STATE', 'REALITY_CHECK_GET_STATE_RESULT', id, {}, 15000)
+      .then(r => ({
+        active: !!(r?.active ?? r?.Active),
+        missingPaths: Array.isArray(r?.missingPaths) ? r.missingPaths : [],
+        lastScan: r?.lastScan ?? r?.LastScan,
+      }));
+  },
+
+  contentDnaScan(folderPath: string, includeSubfolders = true): Promise<{ ok: boolean; scanned?: number; folder?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_dnaScan`;
+    return _nativeCall<any>('CONTENT_DNA_SCAN', 'CONTENT_DNA_SCAN_RESULT', id, { folderPath, includeSubfolders }, 45000)
+      .catch(err => ({ ok: false, error: String(err?.message || err) }));
+  },
+
+  contentDnaForPath(path: string, maxResults = 12): Promise<{
+    ok: boolean;
+    path?: string;
+    kind?: string;
+    relatives?: Array<{ path: string; kind: string; score: number; reason: string }>;
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_dnaPath`;
+    return _nativeCall<any>('CONTENT_DNA_FOR_PATH', 'CONTENT_DNA_FOR_PATH_RESULT', id, { path, maxResults }, 20000)
+      .then(r => ({
+        ok: !!r?.ok,
+        path: r?.path,
+        kind: r?.kind,
+        relatives: Array.isArray(r?.relatives) ? r.relatives : [],
+        error: r?.error,
+      }))
+      .catch(err => ({ ok: false, error: String(err?.message || err), relatives: [] }));
+  },
+
+  twinVolumeCompare(leftRoot: string, rightRoot: string, useHashing = true): Promise<{
+    ok: boolean;
+    leftRoot?: string;
+    rightRoot?: string;
+    items?: Array<{
+      relativePath: string;
+      status: string;
+      leftPath?: string;
+      rightPath?: string;
+      leftSize?: number;
+      rightSize?: number;
+      leftModifiedUtc?: string;
+      rightModifiedUtc?: string;
+    }>;
+    summary?: Record<string, number>;
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_twinCmp`;
+    return _nativeCall<any>('TWIN_VOLUME_COMPARE', 'TWIN_VOLUME_COMPARE_RESULT', id, { leftRoot, rightRoot, useHashing }, 300000);
+  },
+
+  twinVolumeResolve(leftRoot: string, rightRoot: string, relativePath: string, direction: 'leftToRight' | 'rightToLeft'): Promise<{
+    ok: boolean;
+    copiedTo?: string;
+    direction?: string;
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_twinRes`;
+    return _nativeCall<any>('TWIN_VOLUME_RESOLVE', 'TWIN_VOLUME_RESOLVE_RESULT', id, { leftRoot, rightRoot, relativePath, direction }, 120000);
+  },
+
+  jobTicketList(folderPath?: string): Promise<{ ok: boolean; tickets?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_jtList`;
+    return _nativeCall<any>('JOB_TICKET_LIST', 'JOB_TICKET_LIST_RESULT', id, { folderPath: folderPath ?? '' }, 15000);
+  },
+
+  jobTicketListOverdue(folderPaths: string[]): Promise<{ ok: boolean; overdueMap?: Record<string, { folderPath: string; count: number; earliestDueUtc: string; title: string }>; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_jtOverdue`;
+    return _nativeCall<any>('JOB_TICKET_LIST', 'JOB_TICKET_LIST_RESULT', id, { folderPaths }, 15000);
+  },
+
+  jobTicketSave(ticket: { id?: string; folderPath: string; title: string; dueUtc: string; status?: string; notes?: string }): Promise<{ ok: boolean; ticket?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_jtSave`;
+    return _nativeCall<any>('JOB_TICKET_SAVE', 'JOB_TICKET_SAVE_RESULT', id, ticket, 15000);
+  },
+
+  jobTicketDelete(ticketId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_jtDel`;
+    return _nativeCall<any>('JOB_TICKET_DELETE', 'JOB_TICKET_DELETE_RESULT', id, { id: ticketId }, 15000);
+  },
+
+  magnetList(): Promise<{ magnets: any[] }> {
+    if (!this.isNative) return Promise.resolve({ magnets: [] });
+    const id = `${Date.now()}_magnetList`;
+    return _nativeCall<any>('MAGNET_LIST', 'MAGNET_LIST_RESULT', id, {}, 15000)
+      .then(r => ({ magnets: Array.isArray(r?.magnets) ? r.magnets : [] }));
+  },
+
+  magnetSave(magnet: Record<string, unknown>): Promise<{ ok: boolean; magnet?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_magnetSave`;
+    return _nativeCall<any>('MAGNET_SAVE', 'MAGNET_SAVE_RESULT', id, magnet, 15000);
+  },
+
+  magnetDelete(magnetId: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_magnetDel`;
+    return _nativeCall<any>('MAGNET_DELETE', 'MAGNET_DELETE_RESULT', id, { id: magnetId }, 15000);
+  },
+
+  magnetApplyDrop(
+    magnetId: string,
+    paths: string[],
+    action: 'copy' | 'move' = 'copy',
+    operationId?: string,
+  ): Promise<{ ok: boolean; transferred?: number; destinations?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const opId = operationId ?? `magnet-${Date.now()}`;
+    const id = `${Date.now()}_magnetApply`;
+    return _nativeCall<any>('MAGNET_APPLY_DROP', 'MAGNET_APPLY_DROP_RESULT', id, {
+      magnetId,
+      paths,
+      action,
+      operationId: opId,
+    }, 600000);
+  },
+
+  temporalDiffSnapshot(rootPath: string): Promise<{ ok: boolean; snapshotId?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_tdSnap`;
+    return _nativeCall<any>('TEMPORAL_DIFF_SNAPSHOT', 'TEMPORAL_DIFF_SNAPSHOT_RESULT', id, { rootPath }, 300000);
+  },
+
+  temporalDiffCompare(
+    rootPath: string,
+    minutesAgo: number,
+    checkpointId?: string,
+  ): Promise<{ ok: boolean; diff?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_tdCompare`;
+    return _nativeCall<any>('TEMPORAL_DIFF_COMPARE', 'TEMPORAL_DIFF_COMPARE_RESULT', id, {
+      rootPath,
+      minutesAgo,
+      checkpointId,
+    }, 300000);
+  },
+
+  temporalDiffListSnapshots(rootPath: string, limit = 20): Promise<{ ok: boolean; snapshots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, snapshots: [] });
+    const id = `${Date.now()}_tdList`;
+    return _nativeCall<any>('TEMPORAL_DIFF_LIST_SNAPSHOTS', 'TEMPORAL_DIFF_LIST_SNAPSHOTS_RESULT', id, {
+      rootPath,
+      limit,
+    }, 30000);
+  },
+
+  verbForgeList(): Promise<{ ok: boolean; verbs?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_verbList`;
+    return _nativeCall<any>('VERB_FORGE_LIST', 'VERB_FORGE_LIST_RESULT', id, {}, 15000);
+  },
+
+  verbForgeSave(verb: {
+    id?: string;
+    label: string;
+    verbKey?: string;
+    targetClass?: string;
+    argTemplate?: string;
+    icon?: string;
+    deployed?: boolean;
+  }): Promise<{ ok: boolean; verb?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_verbSave`;
+    return _nativeCall<any>('VERB_FORGE_SAVE', 'VERB_FORGE_SAVE_RESULT', id, verb, 15000);
+  },
+
+  verbForgeDeploy(verbId: string): Promise<{ ok: boolean; message?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_verbDeploy`;
+    return _nativeCall<any>('VERB_FORGE_DEPLOY', 'VERB_FORGE_DEPLOY_RESULT', id, { id: verbId }, 15000);
+  },
+
+  verbForgeRemove(verbId: string, undeploy = true): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_verbRemove`;
+    return _nativeCall<any>('VERB_FORGE_REMOVE', 'VERB_FORGE_REMOVE_RESULT', id, { id: verbId, undeploy }, 15000);
+  },
+
+  transcodeEnqueue(
+    paths: string[],
+    format: 'jpeg' | 'png' | 'webp',
+    quality: number,
+    destFolder?: string,
+  ): Promise<{ ok: boolean; jobIds?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_transcodeEnq`;
+    return _nativeCall<any>('TRANSCODE_ENQUEUE', 'TRANSCODE_ENQUEUE_RESULT', id, { paths, format, quality, destFolder }, 120000);
+  },
+
+  transcodeStatus(): Promise<{ ok: boolean; status?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_transcodeStat`;
+    return _nativeCall<any>('TRANSCODE_STATUS', 'TRANSCODE_STATUS_RESULT', id, {}, 15000);
+  },
+
+  semanticDeskCluster(payload: {
+    folder?: string;
+    paths?: string[];
+    clusterCount?: number;
+  }): Promise<{ ok: boolean; result?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_semanticCluster`;
+    return _nativeCall<any>('SEMANTIC_DESK_CLUSTER', 'SEMANTIC_DESK_CLUSTER_RESULT', id, payload, 60000);
+  },
+
+  recycleArchList(): Promise<{ branches: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ branches: [] });
+    const id = `${Date.now()}_recycleArchList`;
+    return _nativeCall<any>('RECYCLE_ARCH_LIST', 'RECYCLE_ARCH_LIST_RESULT', id, {}, 120000)
+      .then(r => ({ branches: Array.isArray(r?.branches) ? r.branches : [], error: r?.error }));
+  },
+
+  recycleArchRestoreBranch(parentPath: string): Promise<{ restored: number; failed: number; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ restored: 0, failed: 0 });
+    const id = `${Date.now()}_recycleArchRestore`;
+    return _nativeCall<any>('RECYCLE_ARCH_RESTORE_BRANCH', 'RECYCLE_ARCH_RESTORE_BRANCH_RESULT', id, { parentPath }, 120000)
+      .then(r => ({ restored: r?.restored ?? 0, failed: r?.failed ?? 0, error: r?.error }));
+  },
+
+  helloGateList(): Promise<{ gates: Array<{ path: string; addedUtc?: string; hasPassphrase?: boolean }> }> {
+    if (!this.isNative) return Promise.resolve({ gates: [] });
+    const id = `${Date.now()}_helloGateList`;
+    return _nativeCall<any>('HELLO_GATE_LIST', 'HELLO_GATE_LIST_RESULT', id, {}, 15000)
+      .then(r => ({ gates: Array.isArray(r?.gates) ? r.gates : [] }));
+  },
+
+  helloGateAdd(path: string, passphrase?: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_helloGateAdd`;
+    return _nativeCall<any>('HELLO_GATE_ADD', 'HELLO_GATE_ADD_RESULT', id, { path, passphrase }, 15000)
+      .then(r => ({ ok: !!r?.ok, error: r?.error }));
+  },
+
+  helloGateRemove(path: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_helloGateRemove`;
+    return _nativeCall<any>('HELLO_GATE_REMOVE', 'HELLO_GATE_REMOVE_RESULT', id, { path }, 15000)
+      .then(r => ({ ok: !!r?.ok }));
+  },
+
+  helloGateCheck(path: string): Promise<{ blocked: boolean; gatePath?: string }> {
+    if (!this.isNative) return Promise.resolve({ blocked: false });
+    // Fast local JSON check — keep timeout short and fail-open so callers never hang folder UX.
+    return _nativeCall<any>('HELLO_GATE_CHECK', 'HELLO_GATE_CHECK_RESULT', '', { path }, 4000)
+      .then(r => ({ blocked: !!r?.blocked, gatePath: r?.gatePath }))
+      .catch(() => ({ blocked: false }));
+  },
+
+  helloGateUnlock(path: string, passphrase?: string): Promise<{ ok: boolean; error?: string; method?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_helloGateUnlock`;
+    return _nativeCall<any>('HELLO_GATE_UNLOCK', 'HELLO_GATE_UNLOCK_RESULT', id, { path, passphrase }, 60000)
+      .then(r => ({ ok: !!r?.ok, error: r?.error, method: r?.method }));
+  },
+
+  liveShareStart(folderPath: string): Promise<{ ok: boolean; peerId?: string; machineName?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_liveShareStart`;
+    return _nativeCall<any>('LIVE_SHARE_START', 'LIVE_SHARE_START_RESULT', id, { folderPath }, 15000)
+      .then(r => ({ ok: !!r?.ok, peerId: r?.peerId, machineName: r?.machineName }));
+  },
+
+  liveShareStop(folderPath: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_liveShareStop`;
+    return _nativeCall<any>('LIVE_SHARE_STOP', 'LIVE_SHARE_STOP_RESULT', id, { folderPath }, 15000)
+      .then(r => ({ ok: !!r?.ok }));
+  },
+
+  liveShareUpdate(folderPath: string, selectionPaths: string[], cursorPath?: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_liveShareUpdate`;
+    return _nativeCall<any>('LIVE_SHARE_UPDATE', 'LIVE_SHARE_UPDATE_RESULT', id, { folderPath, selectionPaths, cursorPath }, 15000)
+      .then(r => ({ ok: !!r?.ok }));
+  },
+
+  liveShareGetPeers(folderPath: string): Promise<{ peers: any[] }> {
+    if (!this.isNative) return Promise.resolve({ peers: [] });
+    const id = `${Date.now()}_liveSharePeers`;
+    return _nativeCall<any>('LIVE_SHARE_GET_PEERS', 'LIVE_SHARE_GET_PEERS_RESULT', id, { folderPath }, 15000)
+      .then(r => ({ peers: Array.isArray(r?.peers) ? r.peers : [] }));
+  },
+
+  policyPackList(): Promise<{ ok: boolean; packs?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_policyList`;
+    return _nativeCall<any>('POLICY_PACK_LIST', 'POLICY_PACK_LIST_RESULT', id, {}, 15000);
+  },
+
+  policyPackSave(pack: Record<string, unknown>): Promise<{ ok: boolean; pack?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_policySave`;
+    return _nativeCall<any>('POLICY_PACK_SAVE', 'POLICY_PACK_SAVE_RESULT', id, pack, 15000);
+  },
+
+  policyPackApply(folderPath: string, packId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_policyApply`;
+    return _nativeCall<any>('POLICY_PACK_APPLY', 'POLICY_PACK_APPLY_RESULT', id, { folderPath, packId }, 15000);
+  },
+
+  policyPackValidate(destinationPath: string, sourcePaths: string[]): Promise<{
+    ok: boolean; allowed?: boolean; packId?: string; packName?: string;
+    violations?: Array<{ sourcePath: string; rule: string; message: string }>; error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_policyValidate`;
+    return _nativeCall<any>('POLICY_PACK_VALIDATE', 'POLICY_PACK_VALIDATE_RESULT', id, { destinationPath, sourcePaths }, 30000);
+  },
+
+  pathHealerScan(path: string, maxResults = 200): Promise<{ ok: boolean; issues?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_pathHealScan`;
+    return _nativeCall<any>('PATH_HEALER_SCAN', 'PATH_HEALER_SCAN_RESULT', id, { path, maxResults }, 120000);
+  },
+
+  pathHealerApply(issueIds: string[], issues: any[]): Promise<{ ok: boolean; applied?: number; errors?: string[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_pathHealApply`;
+    return _nativeCall<any>('PATH_HEALER_APPLY', 'PATH_HEALER_APPLY_RESULT', id, { issueIds, issues }, 120000);
+  },
+
+  zkVaultCreate(folderPath: string, password: string, mode: 'files' | 'container' = 'files'): Promise<{ ok: boolean; vaultId?: string; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_zkCreate`;
+    return _nativeCall<any>('ZK_VAULT_CREATE', 'ZK_VAULT_CREATE_RESULT', id, { folderPath, password, mode }, 300000);
+  },
+
+  zkVaultUnlock(vaultPath: string, password: string): Promise<{ ok: boolean; session?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_zkUnlock`;
+    return _nativeCall<any>('ZK_VAULT_UNLOCK', 'ZK_VAULT_UNLOCK_RESULT', id, { vaultPath, password }, 300000);
+  },
+
+  zkVaultLock(vaultId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_zkLock`;
+    return _nativeCall<any>('ZK_VAULT_LOCK', 'ZK_VAULT_LOCK_RESULT', id, { vaultId }, 15000);
+  },
+
+  zkVaultStatus(): Promise<{ ok: boolean; status?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_zkStatus`;
+    return _nativeCall<any>('ZK_VAULT_STATUS', 'ZK_VAULT_STATUS_RESULT', id, {}, 15000);
+  },
+
+  aclDramaSnapshot(path: string): Promise<{ ok: boolean; snapshot?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_aclSnap`;
+    return _nativeCall<any>('ACL_DRAMA_SNAPSHOT', 'ACL_DRAMA_SNAPSHOT_RESULT', id, { path }, 15000);
+  },
+
+  aclDramaHistory(path: string, limit = 50): Promise<{ ok: boolean; history?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_aclHist`;
+    return _nativeCall<any>('ACL_DRAMA_HISTORY', 'ACL_DRAMA_HISTORY_RESULT', id, { path, limit }, 15000);
+  },
+
+  namespaceList(): Promise<{ ok: boolean; roots?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_nsList`;
+    return _nativeCall<any>('NAMESPACE_LIST', 'NAMESPACE_LIST_RESULT', id, {}, 15000);
   },
 };

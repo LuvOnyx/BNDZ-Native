@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
-import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RAM_ROOT, BNDZ_RECENT, BNDZ_PROBLEMS, BNDZ_INBOUND, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
+import { BNDZ_AUDIO, BNDZ_AUTOMATION, BNDZ_CANVAS, BNDZ_DOCUMENTS, BNDZ_LARGE, BNDZ_MEDIA, BNDZ_RAM_ROOT, BNDZ_RECENT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_PORTAL_ROOT, bndzVirtualLabel } from '../../lib/bndzVirtualViews';
 import { IPC } from '../../lib/ipcBridge';
 import { getIndexStatusCached } from '../../lib/indexStatusCache';
 import { loadSpatialCanvas } from '../../lib/spatialCanvasStore';
@@ -81,6 +81,27 @@ const WORKSPACES = [
     accent: '#fbbf24',
     title: 'Automation',
     desc: 'Visual pipelines for watch, filter, copy, and rsync deploy blocks',
+  },
+  {
+    path: BNDZ_TWIN_VOLUME,
+    icon: 'sync_folders',
+    accent: '#7eb8e8',
+    title: 'Twin Volume Chess',
+    desc: 'Cross-volume mirror with conflict board — resolve left/right without robocopy logs',
+  },
+  {
+    path: BNDZ_TEMPORAL_DIFF,
+    icon: 'clock_ui',
+    accent: '#34d399',
+    title: 'Time Diff',
+    desc: 'Scrub this folder now vs N minutes ago — adds, removes, and modifies',
+  },
+  {
+    path: BNDZ_PORTAL_ROOT,
+    icon: 'view_grid',
+    accent: '#c084fc',
+    title: 'BNDZ Portal',
+    desc: 'Health, Magnets, Sandboxes, Capture — BNDZ:\\ namespace roots',
   },
 ] as const;
 

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using WpfClipboard = System.Windows.Clipboard;
 
@@ -305,6 +306,79 @@ public sealed class InboundVolumeService : IDisposable
         }
     }
 
+    public InboundCopyResult CopyToLibrary(string entryId, string destinationDir)
+    {
+        if (string.IsNullOrWhiteSpace(entryId))
+            return new InboundCopyResult { Ok = false, Error = "Entry ID is required." };
+        if (string.IsNullOrWhiteSpace(destinationDir))
+            return new InboundCopyResult { Ok = false, Error = "Destination directory is required." };
+
+        var destNorm = Path.GetFullPath(destinationDir);
+        if (!Directory.Exists(destNorm))
+            return new InboundCopyResult { Ok = false, Error = $"Destination does not exist: {destNorm}" };
+
+        var entryDir = System.IO.Path.Combine(_rootPath, entryId);
+        if (!Directory.Exists(entryDir))
+            return new InboundCopyResult { Ok = false, Error = "Entry not found — it may have been deleted." };
+
+        if (!entryDir.StartsWith(_rootPath, StringComparison.OrdinalIgnoreCase))
+            return new InboundCopyResult { Ok = false, Error = "Invalid entry path." };
+
+        var copied = new List<string>();
+        var failed = new List<string>();
+
+        foreach (var srcFile in Directory.EnumerateFiles(entryDir))
+        {
+            var name = System.IO.Path.GetFileName(srcFile);
+            if (string.Equals(name, "meta.json", StringComparison.OrdinalIgnoreCase)) continue;
+
+            try
+            {
+                var destPath = System.IO.Path.Combine(destNorm, name);
+                if (File.Exists(destPath))
+                {
+                    var stem = System.IO.Path.GetFileNameWithoutExtension(name);
+                    var ext = System.IO.Path.GetExtension(name);
+                    var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                    destPath = System.IO.Path.Combine(destNorm, $"{stem}_{stamp}{ext}");
+                }
+                File.Copy(srcFile, destPath, overwrite: false);
+                copied.Add(name);
+                FileLineageService.Instance.RecordEdge(srcFile, destPath, "inbound");
+                _ = FileLineageService.Instance.RecordContentLineageOnCopyAsync(srcFile, destPath, "inbound");
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{name}: {ex.Message}");
+            }
+        }
+
+        foreach (var srcDir in Directory.EnumerateDirectories(entryDir))
+        {
+            var dirName = System.IO.Path.GetFileName(srcDir);
+            try
+            {
+                var destSubDir = System.IO.Path.Combine(destNorm, dirName);
+                CopyDirectoryRecursive(srcDir, destSubDir);
+                copied.Add(dirName);
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{dirName}: {ex.Message}");
+            }
+        }
+
+        return new InboundCopyResult
+        {
+            Ok = failed.Count == 0,
+            CopiedCount = copied.Count,
+            FailedCount = failed.Count,
+            CopiedNames = copied,
+            Errors = failed,
+            Error = failed.Count > 0 ? $"{failed.Count} item(s) failed to copy." : null,
+        };
+    }
+
     public int PurgeExpired(TimeSpan? ttl = null)
     {
         var maxAge = ttl ?? TimeSpan.FromHours(48);
@@ -384,4 +458,14 @@ public sealed class InboundVolumeService : IDisposable
             CopyDirectoryRecursive(sub, System.IO.Path.Combine(dest, System.IO.Path.GetFileName(sub)));
         }
     }
+}
+
+public sealed class InboundCopyResult
+{
+    public bool Ok { get; set; }
+    public int CopiedCount { get; set; }
+    public int FailedCount { get; set; }
+    public List<string> CopiedNames { get; set; } = new();
+    public List<string> Errors { get; set; } = new();
+    public string? Error { get; set; }
 }

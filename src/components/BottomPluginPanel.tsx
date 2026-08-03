@@ -95,7 +95,7 @@ export default function BottomPluginPanel(props: any & {
     onCommandDeckTool,
     ...pluginProps
   } = props;
-  const { pluginRegistry, ensurePluginInstalled } = usePluginRegistry();
+  const { pluginRegistry } = usePluginRegistry();
   const { config, updateConfig } = useAppConfig();
   const panelRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
@@ -108,13 +108,28 @@ export default function BottomPluginPanel(props: any & {
   }, [immersive]);
 
   const orderedPlugins = useMemo(() => {
-    const installed = pluginRegistry.filter((p: any) => p.isInstalled);
-    const order: string[] = config.bottomPluginTabOrder || [];
+    const installed = pluginRegistry.filter((p: any) => p.isInstalled === true);
+    const order: string[] = (config.bottomPluginTabOrder || []).filter(
+      (id: string) => installed.some((p: any) => p.id === id),
+    );
     if (!order.length) return installed;
     const ordered = order.map(id => installed.find((p: any) => p.id === id)).filter(Boolean) as any[];
     const rest = installed.filter((p: any) => !order.includes(p.id));
     return [...ordered, ...rest];
   }, [pluginRegistry, config.bottomPluginTabOrder]);
+
+  // Persist scrub: drop uninstalled IDs from saved tab order so they cannot resurrect.
+  useEffect(() => {
+    const order = config.bottomPluginTabOrder || [];
+    if (!order.length) return;
+    const installedIds = new Set(
+      pluginRegistry.filter((p: any) => p.isInstalled === true).map((p: any) => p.id),
+    );
+    const cleaned = order.filter((id: string) => installedIds.has(id));
+    if (cleaned.length !== order.length) {
+      updateConfig({ bottomPluginTabOrder: cleaned });
+    }
+  }, [pluginRegistry, config.bottomPluginTabOrder, updateConfig]);
 
   const [activeTab, setActiveTab] = useState<string | null>(
     orderedPlugins.length > 0 ? orderedPlugins[0].id : null,
@@ -163,12 +178,11 @@ export default function BottomPluginPanel(props: any & {
     const idx = orderedPlugins.findIndex((p: { id: string }) => p.id === activeTab);
     if (idx < 0) return;
     const next = orderedPlugins[(idx + direction + orderedPlugins.length) % orderedPlugins.length];
-    ensurePluginInstalled?.(next.id);
     setActiveTab(next.id);
     if (config.bottomPanelRememberTab !== false) {
       updateConfig({ bottomPanelLastTab: next.id });
     }
-  }, [activeTab, orderedPlugins, ensurePluginInstalled, config.bottomPanelRememberTab, updateConfig]);
+  }, [activeTab, orderedPlugins, config.bottomPanelRememberTab, updateConfig]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -186,7 +200,8 @@ export default function BottomPluginPanel(props: any & {
   }, [cycleTab]);
 
   const handleTabClick = (id: string) => {
-    ensurePluginInstalled?.(id);
+    // Impossible to activate a tab for an uninstalled plugin.
+    if (!orderedPlugins.some((p: any) => p.id === id)) return;
     setActiveTab(id);
     setOverflowOpen(false);
     if (config.bottomPanelRememberTab !== false) {
@@ -210,17 +225,27 @@ export default function BottomPluginPanel(props: any & {
       'storage-cleanup': 'storage-cleanup',
       'index-folder': 'find',
       waveform: 'metadata',
+      'analyze-audio': 'metadata',
       'media-tab': 'metadata',
-      // Inspection shaders / Quick Look require Command Deck handler — do not open Properties.
       'ghost-link': 'ghost-link',
       'ram-staging': 'ram-staging',
+      'flush-ram-zone': 'ram-staging',
       dropstack: 'dropstack',
       catalog: 'catalog',
       'folder-sync': 'folder-sync',
+      'project-sandbox': 'project-sandbox',
+      'library-health': 'library-health',
+      'capacity-solver': 'capacity-solver',
+      'inbound-volume': 'inbound-volume',
+      'branching-time': 'branching-time',
+      'transcode-rack': 'transcode-rack',
+      'semantic-desk': 'semantic-desk',
+      'shell-verb-forge': 'shell-verb-forge',
     };
     const tab = tabMap[id];
-    if (tab) handleTabClick(tab);
-  }, [onCommandDeckTool, ensurePluginInstalled, config.bottomPanelRememberTab, updateConfig]);
+    // Hard invariant: never switch to a tab for an uninstalled plugin.
+    if (tab && orderedPlugins.some((p: any) => p.id === tab)) handleTabClick(tab);
+  }, [onCommandDeckTool, config.bottomPanelRememberTab, updateConfig, orderedPlugins]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;

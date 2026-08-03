@@ -3,6 +3,7 @@ import { ShellNativeIcon } from '../ShellNativeIcon';
 import { IPC } from '../../lib/ipcBridge';
 import TagStudioPanel from './TagStudioPanel';
 import type { CanvasItem, SpatialSticky } from '../../lib/spatialCanvasStore';
+import type { PinIntelligence } from '../../lib/workspace/useSpatialIntelligence';
 
 function pathLooksLikeDir(p: string): boolean {
   const base = p.split(/[/\\]/).pop() || '';
@@ -15,6 +16,7 @@ type Props = {
   selectedIds: string[];
   snapshotCount?: number;
   boardName?: string;
+  intelligence?: PinIntelligence;
   onOpen: (item: CanvasItem) => void;
   onReveal: (item: CanvasItem) => void;
   onCopyPath: (item: CanvasItem) => void;
@@ -26,12 +28,24 @@ type Props = {
   onUpdateStickyText?: (id: string, text: string) => void;
 };
 
+function openBottomPlugin(id: string, context?: Record<string, string>) {
+  window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id, ...context } }));
+}
+
+function formatBytesInspector(bytes: number): string {
+  if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  return `${(bytes / 1e3).toFixed(0)} KB`;
+}
+
 export default function SpatialInspector({
   items,
   stickies = [],
   selectedIds,
   snapshotCount = 0,
   boardName,
+  intelligence,
   onOpen,
   onReveal,
   onCopyPath,
@@ -185,6 +199,94 @@ export default function SpatialInspector({
               />
             </div>
           </>
+        )}
+        {intelligence && !intelligence.loading && (
+          <div className="bndz-spatial-intel-sections">
+            {intelligence.health && intelligence.health.total > 0 && (
+              <div className="bndz-spatial-intel-section">
+                <div className="bndz-spatial-intel-section-head">
+                  <span className="bndz-spatial-intel-section-title">Problems</span>
+                  <button
+                    type="button"
+                    className="bndz-spatial-intel-link"
+                    onClick={() => openBottomPlugin('library-health', { rootPath: primary!.path })}
+                  >
+                    Open Health →
+                  </button>
+                </div>
+                <div className="bndz-spatial-intel-row">
+                  {intelligence.health.critical > 0 && (
+                    <span className="bndz-spatial-intel-stat bndz-spatial-intel-stat--critical">
+                      {intelligence.health.critical} critical
+                    </span>
+                  )}
+                  {intelligence.health.warning > 0 && (
+                    <span className="bndz-spatial-intel-stat bndz-spatial-intel-stat--warning">
+                      {intelligence.health.warning} warning
+                    </span>
+                  )}
+                  {intelligence.health.info > 0 && (
+                    <span className="bndz-spatial-intel-stat bndz-spatial-intel-stat--info">
+                      {intelligence.health.info} info
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            {intelligence.lineage && (intelligence.lineage.inboundCount > 0 || intelligence.lineage.outboundCount > 0) && (
+              <div className="bndz-spatial-intel-section">
+                <div className="bndz-spatial-intel-section-head">
+                  <span className="bndz-spatial-intel-section-title">Lineage</span>
+                  <button
+                    type="button"
+                    className="bndz-spatial-intel-link"
+                    onClick={() => openBottomPlugin('branching-time', { path: primary!.path })}
+                  >
+                    Open Lineage →
+                  </button>
+                </div>
+                <div className="bndz-spatial-intel-row">
+                  <span className="bndz-spatial-intel-stat">{intelligence.lineage.inboundCount} inbound</span>
+                  <span className="bndz-spatial-intel-stat">{intelligence.lineage.outboundCount} outbound</span>
+                </div>
+                {intelligence.lineage.recentOp && (
+                  <div className="bndz-spatial-intel-hint">
+                    Last: {intelligence.lineage.recentOp}
+                    {intelligence.lineage.recentUtc ? ` · ${new Date(intelligence.lineage.recentUtc).toLocaleDateString()}` : ''}
+                  </div>
+                )}
+              </div>
+            )}
+            {intelligence.capacity && (
+              <div className="bndz-spatial-intel-section">
+                <div className="bndz-spatial-intel-section-head">
+                  <span className="bndz-spatial-intel-section-title">Capacity</span>
+                  <button
+                    type="button"
+                    className="bndz-spatial-intel-link"
+                    onClick={() => openBottomPlugin('capacity-solver', { path: primary!.path })}
+                  >
+                    Open Solver →
+                  </button>
+                </div>
+                <div className="bndz-spatial-intel-capacity-bar">
+                  <div
+                    className="bndz-spatial-intel-capacity-fill"
+                    style={{ width: `${intelligence.capacity.usedPercent}%` }}
+                  />
+                </div>
+                <div className="bndz-spatial-intel-row">
+                  <span className="bndz-spatial-intel-stat">{intelligence.capacity.usedPercent}% used</span>
+                  <span className="bndz-spatial-intel-stat">{formatBytesInspector(intelligence.capacity.freeBytes)} free</span>
+                </div>
+                {intelligence.capacity.deficitBytes > 0 && (
+                  <div className="bndz-spatial-intel-hint bndz-spatial-intel-hint--warning">
+                    Deficit: {formatBytesInspector(intelligence.capacity.deficitBytes)} below target
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
         <p className="bndz-spatial-inspector-kbd"><kbd>Del</kbd> unpin · autosave on edit</p>
       </div>

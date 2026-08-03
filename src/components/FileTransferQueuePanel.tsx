@@ -76,9 +76,14 @@ function JobRow({
     : job.status === 'cancelled' || cancelling ? 'text-amber-300/90'
     : 'text-[#99c9f0]';
 
+  const jobAction = (job.action || '').toLowerCase();
+  const isDeleteJob = jobAction === 'delete' || jobAction === 'purge';
   const statusLabel = cancelling
     ? 'Cancelling…'
     : job.status === 'paused' ? 'Paused'
+    // Delete jobs show a verb instead of a meaningless "0%" — they finish in <1s so progress is noisy.
+    : job.status === 'running' && isDeleteJob ? 'Deleting…'
+    : job.status === 'queued' && isDeleteJob ? 'Queued'
     : job.status === 'running' || job.status === 'queued'
       ? `${Math.min(99, job.progress ?? 0)}%`
     : job.status === 'completed' ? 'Done'

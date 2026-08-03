@@ -3,6 +3,7 @@ import type { CanvasItem } from '../../lib/spatialCanvasStore';
 import SpatialCanvasCard from '../../components/workspace/SpatialCanvasCard';
 import BezierWireLayer from './BezierWireLayer';
 import type { PinRelation } from '../../lib/workspace/spatialCanvasUtils';
+import type { IntelligenceMap } from '../../lib/workspace/useSpatialIntelligence';
 
 function readLiveCardPosition(id: string, fallback: { x: number; y: number }): { x: number; y: number } {
   const el = document.querySelector(`[data-spatial-card="${id}"]`) as HTMLElement | null;
@@ -26,7 +27,9 @@ type Props = {
   editingNoteId: string | null;
   cardW: number;
   cardH: number;
+  intelligenceMap?: IntelligenceMap;
   onPointerDown: (e: React.PointerEvent, item: CanvasItem) => void;
+  onClick?: (e: React.MouseEvent, item: CanvasItem) => void;
   onDoubleClick: (item: CanvasItem) => void;
   onContextMenu: (e: React.MouseEvent, item: CanvasItem) => void;
   onNoteBlur: (id: string, value: string) => void;
@@ -45,7 +48,9 @@ export default function SpatialSpringBoard({
   editingNoteId,
   cardW,
   cardH,
+  intelligenceMap,
   onPointerDown,
+  onClick,
   onDoubleClick,
   onContextMenu,
   onNoteBlur,
@@ -79,7 +84,9 @@ export default function SpatialSpringBoard({
           editingNote={editingNoteId === item.id}
           cardW={cardW}
           cardH={cardH}
+          intelligence={intelligenceMap?.get(item.path)}
           onPointerDown={onPointerDown}
+          onClick={onClick}
           onDoubleClick={onDoubleClick}
           onContextMenu={onContextMenu}
           onNoteBlur={onNoteBlur}

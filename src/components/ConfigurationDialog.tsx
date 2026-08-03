@@ -1800,8 +1800,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <p className="text-[#a0a0a0] text-[11px] ml-6 mt-1">Right-click always opens the BNDZ menu with icons. Enable only if you want Windows shell extensions merged in.</p>
               </div>
 
-              <SectionHeader title="Default File Manager" />
-              <p className="text-[12px] text-[#e0e0e0] mb-[22px] mt-1 ml-[8px]">Note that changes will take immediate effect and modify the registry of the host system.</p>
+              <SectionHeader title="Shell Succession" />
+              <p className="text-[12px] text-[#e0e0e0] mb-[22px] mt-1 ml-[8px]">Make BNDZ the default folder handler — reversible. Changes take effect immediately for this user.</p>
 
               <div className="flex items-center gap-[42px] ml-[24px] mb-8 mt-[10px]">
                  <span className="text-[12px] text-[#e0e0e0]">Scope:</span>

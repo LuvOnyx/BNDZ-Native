@@ -18,6 +18,8 @@ import {
   type PaneTabSnapshot,
 } from './fileDragSession';
 import { recordExternalDragHover, recordPointerDragHover } from './fileDragHover';
+import { hitTestMagnetAtPoint } from '../components/DropMagnetStrip';
+import { IPC } from './ipcBridge';
 
 export type DropSource = 'externalOle' | 'archiveInternal' | 'listPointer';
 
@@ -56,7 +58,7 @@ export function registerFileDropBusContext(ctx: FileDropBusContext) {
   busContext = ctx;
   const queued = pendingDrops.splice(0);
   for (const opts of queued) {
-    if (opts.source === 'externalOle') commitExternalOleDrop(opts);
+    if (opts.source === 'externalOle') void commitExternalOleDrop(opts);
     else if (opts.source === 'archiveInternal') commitArchiveInternalDrop(opts);
     else resolveAndCommitDrop(opts);
   }
@@ -414,12 +416,30 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
  * External OLE drop from WPF host — only fires when drop landed in our window.
  * Falls back to active-pane folder when coord hit-tests miss (125% DPI, etc.).
  */
-export function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): boolean {
+export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Promise<boolean> {
   if (!opts.paths?.length) return false;
   if (!busContext) {
     pendingDrops.push(opts);
     return false;
   }
+
+  const { clientX, clientY } = resolveDropCoords(opts, 'externalOle');
+  const magnetId = hitTestMagnetAtPoint(clientX, clientY);
+  if (magnetId) {
+    const res = await IPC.magnetApplyDrop(
+      magnetId,
+      opts.paths,
+      opts.preferredEffect === 'move' ? 'move' : 'copy',
+    );
+    if (res.ok) {
+      lastDropDebug = { clientX, clientY, coordSource: 'htmlTarget', destPath: `magnet:${magnetId}`, source: 'externalOle', committed: true };
+      window.dispatchEvent(new CustomEvent('bndz-magnet-applied', { detail: { magnetId, paths: opts.paths } }));
+      return true;
+    }
+    busContext.toast(res.error || 'Magnet drop failed.');
+    return false;
+  }
+
   if (resolveAndCommitDrop(opts)) return true;
 
   // Defer to Icon Studio plugin when drop is over its surface.

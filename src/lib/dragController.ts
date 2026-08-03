@@ -3,13 +3,13 @@
  * double-clicks, marquee selection, and enforces movement threshold.
  */
 
-/** Movement before a list drag can arm (Explorer-like — reduces accidental drags). */
-const DRAG_THRESHOLD_PX = 7;
+/** Movement before a list drag can arm — high enough that marquee can win first. */
+const DRAG_THRESHOLD_PX = 12;
 const DOUBLE_CLICK_GUARD_MS = 280;
 /** Hold time before drag can start after threshold is met. */
-const DEFAULT_DRAG_DELAY_MS = 45;
-/** Faster arm when dragging an already-selected item (Explorer-like). */
-const SELECTED_DRAG_DELAY_MS = 18;
+const DEFAULT_DRAG_DELAY_MS = 70;
+/** Slightly faster arm when dragging an already-selected item. */
+const SELECTED_DRAG_DELAY_MS = 45;
 /** Defer synthetic click so native dblclick can win. */
 export const LIST_CLICK_DEFER_MS = 50;
 
@@ -63,9 +63,9 @@ export function canStartDragFromList(disallowDrag?: boolean): boolean {
 }
 
 /**
- * Prefer file drag over stealing into marquee from a select-cell pending gesture.
- * Shift always allows marquee. Ctrl prefers copy-drag. Already-selected rows never
- * lose to horizontal flicks.
+ * Prefer file drag vs converting a select-cell pending gesture into marquee.
+ * Vertical-dominant sweeps always marquee (range select). Shift always marquee.
+ * Ctrl prefers copy-drag. Already-selected rows prefer drag unless vertical.
  */
 export function preferFileDragOverMarquee(opts: {
   wasSelected: boolean;
@@ -75,10 +75,12 @@ export function preferFileDragOverMarquee(opts: {
   dy: number;
 }): boolean {
   if (opts.shiftKey) return false;
+  const verticalMarquee = opts.dy > 10 && opts.dy > opts.dx * 1.15;
+  if (verticalMarquee) return false;
   if (opts.ctrlKey) return true;
+  const horizontalMarquee = opts.dx > 14 && opts.dx > opts.dy * 1.55;
+  if (horizontalMarquee && !opts.wasSelected) return false;
   if (opts.wasSelected) return true;
-  // Unselected row that was selected on press should still prefer drag over marquee.
-  const horizontalMarquee = opts.dx > 12 && opts.dx > opts.dy * 1.55;
   return !horizontalMarquee;
 }
 

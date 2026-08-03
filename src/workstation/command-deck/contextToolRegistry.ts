@@ -16,66 +16,138 @@ export type ContextToolId =
   | 'ram-staging'
   | 'dropstack'
   | 'catalog'
-  | 'folder-sync';
+  | 'folder-sync'
+  | 'project-sandbox'
+  | 'library-health'
+  | 'capacity-solver'
+  | 'inbound-volume'
+  | 'branching-time'
+  | 'analyze-audio'
+  | 'continuum-compose'
+  | 'work-intent'
+  | 'flush-ram-zone'
+  | 'transcode-rack'
+  | 'semantic-desk'
+  | 'shell-verb-forge';
 
 export type ContextTool = {
   id: ContextToolId;
   label: string;
   icon: string;
+  /**
+   * Bottom-plugin id required to show this action.
+   * Omit only for true host-native actions (index, preview inspect, continuum, intent).
+   */
+  pluginId?: string;
+  /**
+   * 'host' = mode/role action built into the host (not a plugin chip).
+   * 'plugin' (default) = requires a bottom plugin to be meaningful.
+   */
+  kind?: 'host' | 'plugin';
 };
+
+function tool(
+  id: ContextToolId,
+  label: string,
+  icon: string,
+  pluginId?: string,
+  kind?: ContextTool['kind'],
+): ContextTool {
+  const t: ContextTool = pluginId ? { id, label, icon, pluginId } : { id, label, icon };
+  if (kind) t.kind = kind;
+  return t;
+}
+
+/**
+ * Drop tools whose plugin is not installed — never auto-install from the deck.
+ * Host tools (no pluginId) always pass. Empty installed set hides every plugin-backed tool.
+ */
+export function filterToolsForInstalled(
+  tools: ContextTool[],
+  installedIds: ReadonlySet<string> | readonly string[] | undefined | null,
+): ContextTool[] {
+  const set = !installedIds
+    ? null
+    : installedIds instanceof Set
+      ? installedIds
+      : new Set(installedIds);
+  return tools.filter(t => {
+    if (!t.pluginId) return true;
+    if (!set) return false;
+    return set.has(t.pluginId);
+  });
+}
 
 export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
   if (sig.kind === 'empty') {
     return [];
   }
   if (sig.kind === 'multi') {
-    return [
-      { id: 'compare', label: 'Compare', icon: 'compare' },
-      { id: 'batch-rename', label: 'Batch rename', icon: 'batch_rename' },
-      { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared' },
-      { id: 'dropstack', label: 'Drop Stack', icon: 'dropstack' },
-      { id: 'ram-staging', label: 'RAM Staging', icon: 'hard_drive_ui' },
-      { id: 'catalog', label: 'Catalog', icon: 'catalog' },
-      { id: 'properties', label: 'Properties', icon: 'sys_properties' },
+    const tools: ContextTool[] = [
+      tool('compare', 'Compare', 'compare', 'compare'),
+      tool('batch-rename', 'Batch rename', 'batch_rename', 'batch-rename'),
+      tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+      tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
+      tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
+      tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
+      tool('capacity-solver', 'Capacity', 'bar_chart', 'capacity-solver'),
+      tool('inbound-volume', 'Inbound', 'download', 'inbound-volume'),
+      tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
+      tool('catalog', 'Catalog', 'catalog', 'catalog'),
+      tool('properties', 'Properties', 'sys_properties', 'properties'),
     ];
+    if (sig.dominantMedia === 'audio') {
+      tools.splice(1, 0, tool('analyze-audio', 'Analyze BPM/Key', 'music_ui', 'metadata'));
+    }
+    return tools;
   }
   switch (sig.media) {
     case 'audio':
       return [
-        { id: 'waveform', label: 'Waveform', icon: 'music_ui' },
-        { id: 'media-tab', label: 'Media', icon: 'film_ui' },
-        { id: 'batch-rename', label: 'Rename', icon: 'batch_rename' },
-        { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared' },
-        { id: 'properties', label: 'Properties', icon: 'sys_properties' },
+        tool('waveform', 'Waveform', 'music_ui', 'metadata'),
+        tool('analyze-audio', 'Analyze BPM/Key', 'music_ui', 'metadata'),
+        tool('media-tab', 'Media', 'film_ui', undefined, 'host'),
+        tool('batch-rename', 'Rename', 'batch_rename', 'batch-rename'),
+        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'image':
       return [
-        { id: 'histogram', label: 'Luma inspect', icon: 'color' },
-        { id: 'loupe', label: 'Loupe', icon: 'preview' },
-        { id: 'quick-look', label: 'Quick Look', icon: 'preview' },
-        { id: 'properties', label: 'Properties', icon: 'sys_properties' },
+        tool('transcode-rack', 'Transcode', 'edit_image', 'transcode-rack'),
+        tool('histogram', 'Luma inspect', 'color', undefined, 'host'),
+        tool('loupe', 'Loupe', 'preview', undefined, 'host'),
+        tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
+        tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'video':
       return [
-        { id: 'media-tab', label: 'Media', icon: 'film_ui' },
-        { id: 'quick-look', label: 'Quick Look', icon: 'preview' },
-        { id: 'properties', label: 'Properties', icon: 'sys_properties' },
+        tool('media-tab', 'Media', 'film_ui', undefined, 'host'),
+        tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
+        tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'folder':
       return [
-        { id: 'index-folder', label: 'Index', icon: 'search' },
-        { id: 'storage-cleanup', label: 'Cleanup', icon: 'storage_cleanup' },
-        { id: 'folder-sync', label: 'Folder Sync', icon: 'sync' },
-        { id: 'ghost-link', label: 'Ghost-Link', icon: 'emblem-symbolic-link' },
-        { id: 'ram-staging', label: 'RAM Staging', icon: 'hard_drive_ui' },
-        { id: 'catalog', label: 'Catalog', icon: 'catalog' },
+        tool('semantic-desk', 'Semantic Desk', 'smart_view', 'semantic-desk'),
+        tool('index-folder', 'Index', 'search', undefined, 'host'),
+        tool('storage-cleanup', 'Cleanup', 'storage_cleanup', 'storage-cleanup'),
+        tool('folder-sync', 'Folder Sync', 'sync', 'folder-sync'),
+        tool('project-sandbox', 'Sandbox', 'folder_tree', 'project-sandbox'),
+        tool('library-health', 'Health', 'health', 'library-health'),
+        tool('branching-time', 'Branches', 'history_ui', 'branching-time'),
+        tool('ghost-link', 'Ghost-Link', 'emblem-symbolic-link', 'ghost-link'),
+        tool('ram-staging', 'RAM Staging', 'hard_drive_ui', 'ram-staging'),
+        tool('flush-ram-zone', 'Flush zone', 'hard_drive_ui', 'ram-staging'),
+        tool('continuum-compose', 'Continuum', 'view_grid', undefined, 'host'),
+        tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
+        tool('catalog', 'Catalog', 'catalog', 'catalog'),
       ];
     default:
       return [
-        { id: 'properties', label: 'Properties', icon: 'sys_properties' },
-        { id: 'batch-rename', label: 'Rename', icon: 'batch_rename' },
-        { id: 'dropstack', label: 'Drop Stack', icon: 'dropstack' },
-        { id: 'mesh-drop', label: 'Mesh Drop', icon: 'emblem-shared' },
+        tool('properties', 'Properties', 'sys_properties', 'properties'),
+        tool('batch-rename', 'Rename', 'batch_rename', 'batch-rename'),
+        tool('dropstack', 'Drop Stack', 'dropstack', 'dropstack'),
+        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
+        tool('work-intent', 'Intent', 'sparkles_ui', undefined, 'host'),
       ];
   }
 }

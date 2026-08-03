@@ -57,7 +57,8 @@ function SortableColumnHeader({
   /** Pixel width locked for the whole reorder so %/flex columns don't squash. */
   lockedWidth?: number;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  // Activator = grip only. Spreading listeners on the whole header steals column resize.
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: col.id,
   });
   const pressRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -81,6 +82,17 @@ function SortableColumnHeader({
     position: 'relative',
   };
 
+  const beginResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const header = e.currentTarget.parentElement as HTMLElement;
+    if (!header) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch { /* ignore */ }
+    onStartResize(col.id, e.clientX, header);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -88,9 +100,9 @@ function SortableColumnHeader({
       className={`bndz-list-col-header group/col ${lockedWidth ? 'shrink-0' : (col.widthClass || 'shrink-0')} ${col.sortable ? 'bndz-list-col-header--sortable' : ''} ${isActiveSort ? 'bndz-list-col-header--active' : ''} ${col.align === 'right' ? 'bndz-list-col-header--right' : ''} ${isDragging ? 'bndz-list-col-header--dragging' : ''}`}
       data-col-id={col.id}
       {...attributes}
-      {...listeners}
       onMouseDown={e => {
         if ((e.target as HTMLElement).closest('.bndz-col-resize-handle')) return;
+        if ((e.target as HTMLElement).closest('.bndz-col-reorder-grip')) return;
         pressRef.current = { x: e.clientX, y: e.clientY, moved: false };
       }}
       onMouseMove={e => {
@@ -106,7 +118,12 @@ function SortableColumnHeader({
         onToggleSort(col.id as SortColumnId);
       }}
     >
-      <div className="bndz-col-reorder-grip" title="Drag to reorder column">
+      <div
+        ref={setActivatorNodeRef}
+        className="bndz-col-reorder-grip"
+        title="Drag to reorder column"
+        {...listeners}
+      >
         <DragHandleGlyph size={10} />
       </div>
       <span className="bndz-list-col-header-label">{col.label}</span>
@@ -119,14 +136,11 @@ function SortableColumnHeader({
       <div
         draggable={false}
         className="bndz-col-resize-handle"
-        onPointerDown={e => {
-          e.stopPropagation();
-          e.preventDefault();
-        }}
+        onPointerDown={beginResize}
         onMouseDown={e => {
+          // Belt-and-suspenders: block any parent handlers / HTML5 drag.
           e.preventDefault();
           e.stopPropagation();
-          onStartResize(col.id, e.clientX, e.currentTarget.parentElement as HTMLElement);
         }}
       />
     </div>
@@ -143,7 +157,7 @@ export default function ListColumnHeaderStrip({
   onStartResize,
 }: Props) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
   const [activeId, setActiveId] = useState<ListColumnId | null>(null);
   const [lockedWidths, setLockedWidths] = useState<Partial<Record<ListColumnId, number>> | null>(null);
@@ -154,7 +168,7 @@ export default function ListColumnHeaderStrip({
     // Freeze every header to its current pixel width so % columns don't reshape mid-drag.
     const next: Partial<Record<ListColumnId, number>> = {};
     for (const col of columns) {
-      const el = document.querySelector(`[data-col-id="${col.id}"]`) as HTMLElement | null;
+      const el = document.querySelector(`[data-col-id="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(col.id) : col.id}"]`) as HTMLElement | null;
       if (el) next[col.id] = Math.round(el.getBoundingClientRect().width);
     }
     setLockedWidths(next);

@@ -27,6 +27,11 @@ export type AutomationNodeType =
   | 'applyTag'
   | 'notifyToast'
   | 'runShell'
+  | 'script'
+  | 'healthGate'
+  | 'sandboxCheckpoint'
+  | 'capacityApprove'
+  | 'branchCreate'
   | 'branch'
   | 'delay'
   | 'stopAbort'
@@ -60,6 +65,7 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
       { key: 'path', label: 'Folder path', placeholder: 'C:\\Projects\\deploy', type: 'folder' },
       { key: 'liveWatch', label: 'Live watch (armed)', placeholder: 'true', type: 'boolean' },
       { key: 'includeSubdirs', label: 'Include subfolders', placeholder: 'true', type: 'boolean' },
+      { key: 'debounceMs', label: 'Debounce (ms)', placeholder: '800' },
     ],
   },
   manualRun: {
@@ -234,6 +240,44 @@ export const NODE_DEFS: Record<AutomationNodeType, AutomationNodeDef> = {
     desc: 'Execute a shell command (safety-filtered)',
     fields: [{ key: 'command', label: 'Command', placeholder: 'echo Pipeline done' }],
   },
+  script: {
+    label: 'C# Script', color: '#e879f9', icon: 'code', category: 'action',
+    desc: 'Run a Roslyn C# snippet with sandboxed file APIs (Files, Log, OutputFiles)',
+    fields: [
+      { key: 'code', label: 'C# code', placeholder: 'Log($"Processing {Files.Count} files");' },
+    ],
+  },
+  healthGate: {
+    label: 'Health gate', color: '#10b981', icon: 'shield', category: 'action',
+    desc: 'Block pipeline if library health errors exceed threshold',
+    fields: [
+      { key: 'maxErrors', label: 'Max allowed errors', placeholder: '0' },
+    ],
+  },
+  sandboxCheckpoint: {
+    label: 'Sandbox checkpoint', color: '#6366f1', icon: 'save', category: 'action',
+    desc: 'Create a rollback checkpoint in an active sandbox session',
+    fields: [
+      { key: 'sessionId', label: 'Session ID', placeholder: 'Active sandbox session' },
+      { key: 'label', label: 'Checkpoint label', placeholder: 'auto_checkpoint' },
+    ],
+  },
+  capacityApprove: {
+    label: 'Capacity gate', color: '#f59e0b', icon: 'hard_drive_ui', category: 'action',
+    desc: 'Block pipeline if target drive has insufficient free space',
+    fields: [
+      { key: 'requiredMb', label: 'Required MB free', placeholder: '512' },
+      { key: 'drive', label: 'Drive letter (optional)', placeholder: 'C:\\' },
+    ],
+  },
+  branchCreate: {
+    label: 'Create branch', color: '#8b5cf6', icon: 'branch', category: 'action',
+    desc: 'Snapshot a folder tree into a Branching Time branch',
+    fields: [
+      { key: 'sourcePath', label: 'Source folder', placeholder: 'C:\\Projects\\MyProject', type: 'folder' },
+      { key: 'branchName', label: 'Branch name', placeholder: 'pre-deploy-snapshot' },
+    ],
+  },
   branch: {
     label: 'Branch', color: '#f59e0b', icon: 'branch', category: 'utility',
     desc: 'Split pipeline on true/false outputs',
@@ -283,7 +327,7 @@ export const PALETTE_GROUPS: Array<{ id: string; label: string; types: Automatio
   {
     id: 'actions',
     label: 'Actions',
-    types: ['copyTo', 'moveTo', 'rsyncDeploy', 'ghostLinkTo', 'stageToRam', 'recycleBin', 'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'applyTag', 'notifyToast', 'runShell'],
+    types: ['copyTo', 'moveTo', 'rsyncDeploy', 'ghostLinkTo', 'stageToRam', 'recycleBin', 'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'applyTag', 'notifyToast', 'runShell', 'script', 'healthGate', 'sandboxCheckpoint', 'capacityApprove', 'branchCreate'],
   },
   {
     id: 'utility',
@@ -301,7 +345,7 @@ export const CATEGORY_LABEL: Record<AutomationNodeCategory, string> = {
 
 export const TRIGGER_TYPES: AutomationNodeType[] = ['watchFolder', 'manualRun', 'onSchedule', 'onStartup', 'indexChanged', 'spatialPin'];
 
-export const FOLDER_FIELD_KEYS = new Set(['path', 'dest', 'source', 'coldStorageRoot', 'root']);
+export const FOLDER_FIELD_KEYS = new Set(['path', 'dest', 'source', 'coldStorageRoot', 'root', 'sourcePath']);
 
 export function isTriggerType(type: AutomationNodeType): boolean {
   return TRIGGER_TYPES.includes(type);

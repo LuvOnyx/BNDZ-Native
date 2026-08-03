@@ -87,6 +87,8 @@ interface VirtualizedNavTreeProps {
   /** External file-drop hover path (e.g. internal pointer drag from list pane). */
   fileDropTarget?: string | null;
   clipboard?: { items: string[]; action: ClipboardAction | null };
+  /** Hover-prefetch child listing for dynamic folder rows. */
+  onPrefetchPath?: (path: string) => void;
 }
 
 async function loadDirectoryChildren(
@@ -139,6 +141,7 @@ function TreeRow({
   isDragging,
   dropBefore,
   dropAfter,
+  isVirtualRow,
   onReorderDragStart,
   onDragOver,
   onDragEnd,
@@ -153,6 +156,7 @@ function TreeRow({
   clipboard,
   treeLastClickRef,
   treeRenameTimerRef,
+  onPrefetchPath,
 }: {
   row: FlatNavRow;
   config: AppConfig;
@@ -166,6 +170,7 @@ function TreeRow({
   isDragging?: boolean;
   dropBefore?: boolean;
   dropAfter?: boolean;
+  isVirtualRow?: boolean;
   onReorderDragStart?: (e: React.DragEvent, row: FlatNavRow) => void;
   onDragOver?: (e: React.DragEvent, row: FlatNavRow) => void;
   onDragEnd?: () => void;
@@ -180,6 +185,7 @@ function TreeRow({
   clipboard?: VirtualizedNavTreeProps['clipboard'];
   treeLastClickRef: React.MutableRefObject<SlowClickStamp>;
   treeRenameTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  onPrefetchPath?: (path: string) => void;
 }) {
   const isSelected = row.selected || (row.path && panePathsEqual(currentPath, row.path));
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
@@ -251,7 +257,10 @@ function TreeRow({
         onDrop?.(e, row);
       }}
       onDragEnd={canReorder ? onDragEnd : undefined}
-      onMouseEnter={tipHandlers?.onMouseEnter}
+      onMouseEnter={(e) => {
+        tipHandlers?.onMouseEnter?.(e);
+        if (row.path && row.hasChildren && onPrefetchPath) onPrefetchPath(row.path);
+      }}
       onMouseMove={tipHandlers?.onMouseMove}
       onMouseLeave={tipHandlers?.onMouseLeave}
       onClick={handleClick}
@@ -344,6 +353,29 @@ function TreeRow({
     </div>
   );
 
+  if (isVirtualRow) {
+    // Virtual mode: container has fixed height — use absolute indicators so they
+    // straddle the row boundary without expanding the slot.
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+        {dropBefore && (
+          <div
+            className="nav-tree-drop-indicator"
+            style={{ position: 'absolute', top: -1, left: 4, right: 4, margin: 0 }}
+          />
+        )}
+        {rowEl}
+        {dropAfter && (
+          <div
+            className="nav-tree-drop-indicator"
+            style={{ position: 'absolute', bottom: -1, left: 4, right: 4, margin: 0 }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Non-virtual mode: fragment lets the indicator push siblings in the flex column.
   return (
     <>
       {dropBefore && <div className="nav-tree-drop-indicator" />}
@@ -370,6 +402,7 @@ export function VirtualizedNavTree({
   indexedRoots,
   fileDropTarget: externalFileDropTarget,
   clipboard,
+  onPrefetchPath,
 }: VirtualizedNavTreeProps) {
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -382,6 +415,7 @@ export function VirtualizedNavTree({
   const effectiveFileDropTarget = externalFileDropTarget;
   const treeLastClickRef = useRef<SlowClickStamp>(null);
   const treeRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const treePrefetchTimerRef = useRef<Map<string, number>>(new Map());
   const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressTreeClickRef = useRef(false);
 
@@ -554,13 +588,46 @@ export function VirtualizedNavTree({
     e.dataTransfer.clearData();
     e.dataTransfer.setData(BNDZ_TREE_REORDER_MIME, row.treeKey);
     e.dataTransfer.effectAllowed = 'move';
+
+    // Soft-squircle ghost that matches BNDZ sidebar visual language.
     const ghost = document.createElement('div');
-    ghost.className = 'nav-tree-drag-ghost';
-    ghost.textContent = row.label;
-    ghost.style.cssText = 'position:fixed;top:-1000px;padding:4px 10px;background:#2a2a2e;border:1px solid #666;border-radius:4px;color:#fff;font-size:12px;pointer-events:none;';
+    ghost.className = 'nav-tree-reorder-ghost';
+
+    const gripEl = document.createElement('span');
+    gripEl.className = 'nav-tree-reorder-ghost-grip';
+    gripEl.innerHTML = `<svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="2" cy="2" r="1.2" fill="currentColor"/>
+      <circle cx="6" cy="2" r="1.2" fill="currentColor"/>
+      <circle cx="2" cy="6" r="1.2" fill="currentColor"/>
+      <circle cx="6" cy="6" r="1.2" fill="currentColor"/>
+      <circle cx="2" cy="10" r="1.2" fill="currentColor"/>
+      <circle cx="6" cy="10" r="1.2" fill="currentColor"/>
+    </svg>`;
+
+    const iconEl = document.createElement('span');
+    iconEl.className = 'nav-tree-reorder-ghost-icon';
+    // Use a simple folder/module SVG as placeholder icon
+    if (row.icon === 'hdd') {
+      iconEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="3.5" width="11" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 7.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z" fill="currentColor"/></svg>`;
+    } else {
+      iconEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1.5 3.5C1.5 2.67 2.17 2 3 2h2.36l1.28 1.5H10c.83 0 1.5.67 1.5 1.5v5C11.5 10.83 10.83 11.5 10 11.5H3c-.83 0-1.5-.67-1.5-1.5v-6z" stroke="currentColor" stroke-width="1.2"/></svg>`;
+    }
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'nav-tree-reorder-ghost-label';
+    labelEl.textContent = row.label;
+
+    ghost.appendChild(gripEl);
+    ghost.appendChild(iconEl);
+    ghost.appendChild(labelEl);
     document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 12, 16);
-    requestAnimationFrame(() => document.body.removeChild(ghost));
+
+    // Measure after insertion so the browser has a rendered size for setDragImage.
+    const w = ghost.offsetWidth;
+    e.dataTransfer.setDragImage(ghost, Math.min(w / 2, 80), 14);
+    requestAnimationFrame(() => {
+      if (document.body.contains(ghost)) document.body.removeChild(ghost);
+    });
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {
@@ -706,6 +773,22 @@ export function VirtualizedNavTree({
     return () => window.removeEventListener('bndz-tree-expand-drag', onExpandDrag);
   }, [config?.expandTreeNodesOnDragOver, rt.tree.lockState, flatRows, clearExpandDragTimer]);
 
+  const scheduleTreePrefetch = useCallback((path?: string) => {
+    if (!onPrefetchPath || !path) return;
+    const prev = treePrefetchTimerRef.current.get(path);
+    if (prev) window.clearTimeout(prev);
+    const timer = window.setTimeout(() => {
+      treePrefetchTimerRef.current.delete(path);
+      onPrefetchPath(path);
+    }, 120);
+    treePrefetchTimerRef.current.set(path, timer);
+  }, [onPrefetchPath]);
+
+  useEffect(() => () => {
+    treePrefetchTimerRef.current.forEach(t => window.clearTimeout(t));
+    treePrefetchTimerRef.current.clear();
+  }, []);
+
   const showTreeTips = shouldShowTreeTooltip(config);
 
   const useVirtual = flatRows.length >= VIRTUAL_THRESHOLD;
@@ -743,7 +826,7 @@ export function VirtualizedNavTree({
     });
   }, [currentPath, flatRows, config.scrollSelectedFolderToTheTop, config.scrollSubfoldersIntoView, useVirtual, virtualizer]);
 
-  const renderRow = (row: FlatNavRow) => {
+  const renderRow = (row: FlatNavRow, isVirtualRow = false) => {
     const treeTipContent = showTreeTips && !row.isPlaceholder ? buildTreeTooltipContent(row, config) : null;
     const tipHandlers = bindFloatingTooltipHandlers(treeTipContent, config, { context: 'tree', surface: 'filename' });
     return (
@@ -761,6 +844,7 @@ export function VirtualizedNavTree({
       isDragging={dragKey === row.treeKey}
       dropBefore={dropTargetKey === row.treeKey && !dropAfter}
       dropAfter={dropTargetKey === row.treeKey && dropAfter}
+      isVirtualRow={isVirtualRow}
       onReorderDragStart={handleReorderDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -775,6 +859,7 @@ export function VirtualizedNavTree({
       clipboard={clipboard}
       treeLastClickRef={treeLastClickRef}
       treeRenameTimerRef={treeRenameTimerRef}
+      onPrefetchPath={onPrefetchPath ? scheduleTreePrefetch : undefined}
     />
   );
   };
@@ -825,13 +910,13 @@ export function VirtualizedNavTree({
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  {renderRow(row)}
+                  {renderRow(row, true)}
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="flex flex-col py-0.5">{flatRows.map(renderRow)}</div>
+          <div className="flex flex-col py-0.5">{flatRows.map(row => renderRow(row, false))}</div>
         )}
       </div>
     </div>

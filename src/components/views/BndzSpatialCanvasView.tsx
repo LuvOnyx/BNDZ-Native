@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import WorkspaceMenuPanel, { WorkspaceMenuItem, WorkspaceMenuSep } from '../workspace/WorkspaceMenuPanel';
-import SpatialCanvasCard from '../workspace/SpatialCanvasCard';
 import SpatialStickyNote from '../workspace/SpatialStickyNote';
 import SpatialSpringBoard from '../../workstation/spatial/SpatialSpringBoard';
 import { readBndzFileDragData, hasBndzFileDrag } from '../../lib/bndzDrag';
@@ -34,6 +33,7 @@ import {
 import { applyMomentum } from '../../workstation/spatial/spatialPhysics';
 import { setWorkspaceClipboard, getWorkspaceClipboard } from '../../lib/workspace/workspaceClipboard';
 import { dispatchAutomationFromPin } from '../../lib/workspace/automationPendingSeed';
+import { useSpatialIntelligence, useLineageRelations } from '../../lib/workspace/useSpatialIntelligence';
 import { useWorkspaceAutosave } from '../../lib/useWorkspaceAutosave';
 import { WorkspaceInteractionEngine } from '../../lib/workspace/WorkspaceInteractionEngine';
 import {
@@ -45,6 +45,7 @@ import {
   resetWorkspacePointerChrome,
 } from '../../lib/workspace/workspaceCursorGuard';
 import { invalidateSpatialVisual } from '../../lib/workspace/spatialVisualBus';
+import { openOrRefreshContinuumBoard } from '../../lib/workspace/continuumComposeBoard';
 import { createSpatialCanvasHistory } from '../../lib/workspace/spatialCanvasHistory';
 
 const MIN_MARQUEE_PX = 4;
@@ -105,7 +106,6 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const wheelZoom = config.spatialCanvasWheelZoom !== false;
   const minZoom = typeof config.spatialCanvasMinZoom === 'number' ? config.spatialCanvasMinZoom : 0.35;
   const maxZoom = typeof config.spatialCanvasMaxZoom === 'number' ? config.spatialCanvasMaxZoom : 2.5;
-  const spatialV2 = config.spatialCanvasV2 !== false;
 
   const [doc, setDoc] = useState<SpatialCanvasDoc | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -324,14 +324,34 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     };
   }, [doc?.items, doc?.updatedAt]);
 
+  const intelligenceMap = useSpatialIntelligence(doc?.items ?? [], IPC.isNative);
+  const lineageEdges = useLineageRelations(doc?.items ?? [], intelligenceMap, showRelations && IPC.isNative);
+
   const clusters = useMemo(
     () => (doc ? computeClusters(doc.items, CARD_W, CARD_H) : []),
     [doc],
   );
-  const relations = useMemo(
+  const baseRelations = useMemo(
     () => (doc && showRelations ? computeRelations(doc.items, tagMap) : []),
     [doc, showRelations, tagMap],
   );
+  const relations = useMemo(() => {
+    if (!showRelations || !lineageEdges.length || !doc) return baseRelations;
+    const itemsByPath = new Map(doc.items.map(it => [it.path.toLowerCase(), it.id]));
+    const existingKeys = new Set(baseRelations.map(r => [r.fromId, r.toId].sort().join('|')));
+    const lineageRelations = lineageEdges
+      .map(edge => {
+        const fromId = itemsByPath.get(edge.fromPath.toLowerCase());
+        const toId = itemsByPath.get(edge.toPath.toLowerCase());
+        if (!fromId || !toId) return null;
+        const key = [fromId, toId].sort().join('|');
+        if (existingKeys.has(key)) return null;
+        existingKeys.add(key);
+        return { fromId, toId, reason: 'lineage' as const };
+      })
+      .filter(Boolean) as Array<{ fromId: string; toId: string; reason: 'lineage' }>;
+    return [...baseRelations, ...lineageRelations];
+  }, [baseRelations, lineageEdges, doc, showRelations]);
 
   const renderedItems = useMemo(() => {
     if (!doc) return [];
@@ -516,10 +536,13 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const addPaths = useCallback((paths: string[], at?: { x: number; y: number }) => {
     const d = docRef.current;
     if (!d || !paths.length) return;
-    const base = at || screenToBoard(
-      boardRef.current!.clientWidth / 2 + boardRef.current!.getBoundingClientRect().left,
-      boardRef.current!.clientHeight / 2 + boardRef.current!.getBoundingClientRect().top,
-    );
+    const board = boardRef.current;
+    const base = at || (board
+      ? screenToBoard(
+          board.clientWidth / 2 + board.getBoundingClientRect().left,
+          board.clientHeight / 2 + board.getBoundingClientRect().top,
+        )
+      : { x: 0, y: 0 });
     const items = [...d.items];
     let added = 0;
     paths.forEach((p, i) => {
@@ -754,6 +777,27 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     closeMenu();
   }, [commitDoc, minZoom, maxZoom, closeMenu]);
 
+  const openContinuumBoard = useCallback(async () => {
+    await flushAutosave(true);
+    const d = await openOrRefreshContinuumBoard();
+    historyRef.current = createSpatialCanvasHistory();
+    docRef.current = d;
+    setDoc(d);
+    engine.setTransform(d.panX, d.panY, d.zoom, true);
+    seedAutosave(stableDocJson(d));
+    setSelectedIds([]);
+    setShowBoardPicker(false);
+    await refreshBoards();
+    requestAnimationFrame(() => fitBoard());
+    setStatus('Continuum board live — Sandbox · Health · Inbound · RAM · Capacity · Automation');
+  }, [engine, flushAutosave, seedAutosave, refreshBoards, fitBoard]);
+
+  useEffect(() => {
+    const onOpen = () => { void openContinuumBoard(); };
+    window.addEventListener('bndz-open-continuum', onOpen);
+    return () => window.removeEventListener('bndz-open-continuum', onOpen);
+  }, [openContinuumBoard]);
+
   /** Zoom = 100% while keeping the current world point under the board center. */
   const resetZoomPreserveCenter = useCallback(() => {
     const d = docRef.current;
@@ -795,9 +839,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       };
     });
     commitDoc({ ...d, items, stickies: nextStickies });
+    fitBoard();
     setStatus('Arranged in grid');
     closeMenu();
-  }, [commitDoc, closeMenu]);
+  }, [commitDoc, fitBoard, closeMenu]);
 
   const exportBoard = useCallback(() => {
     const d = docRef.current;
@@ -1395,6 +1440,11 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, [selectedSet, selectedIds, screenToBoard, editingStickyId]);
 
+  const onCardClick = useCallback((e: React.MouseEvent, item: CanvasItem) => {
+    if (e.ctrlKey || e.metaKey) return;
+    if (!selectedSet.has(item.id)) setSelectedIds([item.id]);
+  }, [selectedSet]);
+
   const onBoardPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     focusWorkspaceSurface(surfaceRef.current);
@@ -1652,21 +1702,21 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
               </button>
             </div>
             {showBoardPicker && (
-              <div className="bndz-spatial-board-picker absolute z-40 mt-1 min-w-[220px] rounded-lg border border-white/10 bg-[#1a1d24] shadow-xl p-2">
+              <div className="bndz-spatial-board-picker">
                 {boardList.map(b => (
-                  <div key={b.id} className="flex items-center gap-1">
+                  <div key={b.id} className="bndz-spatial-board-picker-row">
                     <button
                       type="button"
-                      className={`flex-1 text-left px-2 py-1.5 rounded text-[11px] ${b.active ? 'bg-amber-500/20 text-amber-100' : 'text-gray-300 hover:bg-white/5'}`}
+                      className={`bndz-spatial-board-picker-item${b.active ? ' is-active' : ''}`}
                       onClick={() => void switchBoard(b.id)}
                     >
                       {b.name}
-                      <span className="text-gray-500 ml-1">· {b.pinCount}</span>
+                      <span className="bndz-spatial-board-picker-count">· {b.pinCount}</span>
                     </button>
                     {boardList.length > 1 && (
                       <button
                         type="button"
-                        className="px-1.5 py-1 text-[10px] text-red-300/80 hover:text-red-200"
+                        className="bndz-spatial-board-picker-del"
                         title="Delete board"
                         onClick={() => void removeBoard(b.id)}
                       >
@@ -1675,29 +1725,38 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                     )}
                   </div>
                 ))}
-                <button
-                  type="button"
-                  className="w-full mt-1 px-2 py-1.5 rounded text-[11px] text-amber-200/90 hover:bg-amber-500/10 text-left"
-                  onClick={() => void newBoard()}
-                >
-                  + New board
-                </button>
-                <button
-                  type="button"
-                  className="w-full mt-0.5 px-2 py-1.5 rounded text-[11px] text-sky-200/90 hover:bg-sky-500/10 text-left"
-                  onClick={() => void duplicateBoard()}
-                >
-                  Duplicate current board
-                </button>
-                <div className="mt-2 pt-2 border-t border-white/10">
+                <div className="bndz-spatial-board-picker-actions">
+                  <button
+                    type="button"
+                    className="bndz-spatial-board-picker-action bndz-spatial-board-picker-action--amber"
+                    onClick={() => void newBoard()}
+                  >
+                    + New board
+                  </button>
+                  <button
+                    type="button"
+                    className="bndz-spatial-board-picker-action bndz-spatial-board-picker-action--emerald"
+                    onClick={() => void openContinuumBoard()}
+                  >
+                    Open Continuum
+                  </button>
+                  <button
+                    type="button"
+                    className="bndz-spatial-board-picker-action bndz-spatial-board-picker-action--sky"
+                    onClick={() => void duplicateBoard()}
+                  >
+                    Duplicate current board
+                  </button>
+                </div>
+                <div className="bndz-spatial-board-picker-search">
                   <input
-                    className="w-full px-2 py-1.5 rounded bg-black/30 border border-white/10 text-[11px] text-gray-200"
+                    className="bndz-spatial-board-picker-search-input"
                     placeholder="Find pins…"
                     value={pinSearch}
                     onChange={e => setPinSearch(e.target.value)}
                   />
                   {pinSearch.trim() && (
-                    <p className="text-[10px] text-white/40 mt-1">{renderedItems.length} match(es)</p>
+                    <p className="bndz-spatial-board-picker-search-hint">{renderedItems.length} match(es)</p>
                   )}
                 </div>
               </div>
@@ -1817,74 +1876,28 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                   })}
                 </svg>
               )}
-              {spatialV2 ? (
-                <SpatialSpringBoard
-                  items={renderedItems}
-                  relations={showRelations ? relations : []}
-                  selectedSet={selectedSet}
-                  draggingId={draggingId}
-                  editingNoteId={editingNoteId}
-                  cardW={CARD_W}
-                  cardH={CARD_H}
-                  onPointerDown={onCardPointerDown}
-                  onDoubleClick={openItem}
-                  onContextMenu={(e, it) => {
-                    if (!selectedSet.has(it.id)) setSelectedIds([it.id]);
-                    onContextMenu(e, 'spatial-card', it.id);
-                  }}
-                  onNoteBlur={(id, val) => { updateNote(id, val); setEditingNoteId(null); }}
-                  onNoteCancel={() => setEditingNoteId(null)}
-                  onReveal={revealItem}
-                  onAutomate={(it) => dispatchAutomationFromPin([it.path], { navigate: true })}
-                  onAddStickyBeside={addStickyBesidePin}
-                />
-              ) : (
-                <>
-              {showRelations && relations.length > 0 && (
-                <svg className="bndz-spatial-relations" aria-hidden>
-                  {relations.map((rel, i) => {
-                    const a = doc.items.find(it => it.id === rel.fromId);
-                    const b = doc.items.find(it => it.id === rel.toId);
-                    if (!a || !b) return null;
-                    const x1 = a.x + CARD_W / 2;
-                    const y1 = a.y + CARD_H / 2;
-                    const x2 = b.x + CARD_W / 2;
-                    const y2 = b.y + CARD_H / 2;
-                    const mx = (x1 + x2) / 2;
-                    return (
-                      <path
-                        key={`${rel.fromId}_${rel.toId}_${i}`}
-                        d={`M ${x1} ${y1} Q ${mx} ${y1} ${x2} ${y2}`}
-                        className={`bndz-relation-line bndz-relation-line--${rel.reason}`}
-                      />
-                    );
-                  })}
-                </svg>
-              )}
-              {renderedItems.map(item => (
-                <SpatialCanvasCard
-                  key={item.id}
-                  item={item}
-                  selected={selectedSet.has(item.id)}
-                  dragging={draggingId === item.id}
-                  editingNote={editingNoteId === item.id}
-                  cardW={CARD_W}
-                  cardH={CARD_H}
-                  onPointerDown={onCardPointerDown}
-                  onDoubleClick={openItem}
-                  onContextMenu={(e, it) => {
-                    if (!selectedSet.has(it.id)) setSelectedIds([it.id]);
-                    onContextMenu(e, 'spatial-card', it.id);
-                  }}
-                  onNoteBlur={(id, val) => { updateNote(id, val); setEditingNoteId(null); }}
-                  onNoteCancel={() => setEditingNoteId(null)}
-                  onReveal={revealItem}
-                  onAutomate={(it) => dispatchAutomationFromPin([it.path], { navigate: true })}
-                  onAddStickyBeside={addStickyBesidePin}
-                />
-              ))}
-                </>
-              )}
+              <SpatialSpringBoard
+                items={renderedItems}
+                relations={showRelations ? relations : []}
+                selectedSet={selectedSet}
+                draggingId={draggingId}
+                editingNoteId={editingNoteId}
+                cardW={CARD_W}
+                cardH={CARD_H}
+                intelligenceMap={intelligenceMap}
+                onPointerDown={onCardPointerDown}
+                onClick={onCardClick}
+                onDoubleClick={openItem}
+                onContextMenu={(e, it) => {
+                  if (!selectedSet.has(it.id)) setSelectedIds([it.id]);
+                  onContextMenu(e, 'spatial-card', it.id);
+                }}
+                onNoteBlur={(id, val) => { updateNote(id, val); setEditingNoteId(null); }}
+                onNoteCancel={() => setEditingNoteId(null)}
+                onReveal={revealItem}
+                onAutomate={(it) => dispatchAutomationFromPin([it.path], { navigate: true })}
+                onAddStickyBeside={addStickyBesidePin}
+              />
               {(doc.stickies ?? []).map(sticky => (
                 <SpatialStickyNote
                   key={sticky.id}
@@ -1908,40 +1921,42 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
               ))}
             </div>
             {boardIsEmpty && (
-              <div className="bndz-spatial-empty absolute inset-0 flex flex-col items-center justify-center text-center p-8 z-10">
+              <div className="bndz-spatial-empty absolute inset-0 flex flex-col items-center justify-center z-10 p-8">
                 <div className="bndz-spatial-empty-orbit pointer-events-none" aria-hidden />
-                <img src="/Ui/preview-Big Folder.svg" alt="" className="w-16 h-16 opacity-40 mb-4 pointer-events-none" />
-                <p className="text-sm text-gray-200 font-semibold">Drop folders to build a project map</p>
-                <p className="text-[11px] text-gray-500 mt-1.5 max-w-[340px] pointer-events-none">
-                  Pins are references only — originals stay on disk. Add free sticky notes beside folders to plan the layout.
-                </p>
-                <div className="flex flex-wrap justify-center gap-2 mt-5 max-w-[420px]">
-                  <button
-                    type="button"
-                    className="bndz-spatial-empty-cta bndz-spatial-empty-cta--sticky"
-                    onClick={() => addStickyNote()}
-                  >
-                    Add sticky note
-                  </button>
-                  {[
-                    { label: 'Pin Downloads', path: '/shell:Downloads' },
-                    { label: 'Pin Desktop', path: '/shell:Desktop' },
-                    { label: 'Pin Pictures', path: '/shell:My Pictures' },
-                    { label: 'Pin Documents', path: '/shell:Personal' },
-                  ].map(btn => (
+                <div className="bndz-spatial-empty-glass text-center">
+                  <img src="/Ui/preview-Big Folder.svg" alt="" className="w-14 h-14 opacity-35 mb-3 pointer-events-none mx-auto" />
+                  <p className="text-sm font-semibold mb-1" style={{ color: 'rgba(240,232,218,0.92)' }}>Drop folders to build a project map</p>
+                  <p className="text-[11px] mt-1 mb-5 max-w-[320px] pointer-events-none leading-relaxed" style={{ color: 'rgba(180,172,152,0.72)' }}>
+                    Pins are references only — originals stay on disk.<br />Add sticky notes to annotate your layout.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2 max-w-[400px] mx-auto">
                     <button
-                      key={btn.path}
                       type="button"
-                      className="bndz-spatial-empty-cta"
-                      onClick={() => {
-                        addPaths([btn.path], { x: 120 + Math.random() * 80, y: 100 + Math.random() * 60 });
-                      }}
+                      className="bndz-spatial-empty-cta bndz-spatial-empty-cta--sticky"
+                      onClick={() => addStickyNote()}
                     >
-                      {btn.label}
+                      Add sticky note
                     </button>
-                  ))}
+                    {[
+                      { label: 'Pin Downloads', path: '/shell:Downloads' },
+                      { label: 'Pin Desktop', path: '/shell:Desktop' },
+                      { label: 'Pin Pictures', path: '/shell:My Pictures' },
+                      { label: 'Pin Documents', path: '/shell:Personal' },
+                    ].map(btn => (
+                      <button
+                        key={btn.path}
+                        type="button"
+                        className="bndz-spatial-empty-cta"
+                        onClick={() => {
+                          addPaths([btn.path], { x: 120 + Math.random() * 80, y: 100 + Math.random() * 60 });
+                        }}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] mt-4 pointer-events-none" style={{ color: 'rgba(120,112,96,0.8)' }}>Drag folders from any pane · right-click board → Add sticky note</p>
                 </div>
-                <p className="text-[10px] text-gray-600 mt-4 pointer-events-none">Or drag folders from any pane · right-click board → Add sticky note</p>
               </div>
             )}
             {showMinimap && !boardIsEmpty && (
@@ -1976,6 +1991,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           selectedIds={selectedIds}
           snapshotCount={snapshots.length}
           boardName={doc.name}
+          intelligence={(() => {
+            const sel = doc.items.find(it => selectedIds.includes(it.id));
+            return sel ? intelligenceMap.get(sel.path) : undefined;
+          })()}
           onOpen={openItem}
           onReveal={revealItem}
           onCopyPath={copyPath}
@@ -2128,6 +2147,11 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           <WorkspaceMenuItem label="Fit all cards" icon="zoom_in_ui" onClick={fitBoard} />
           <WorkspaceMenuItem label="Arrange grid" icon="view_grid" onClick={arrangeGrid} disabled={boardIsEmpty} />
           <WorkspaceMenuItem label="Reset zoom" icon="reset_ui" onClick={() => { resetZoomPreserveCenter(); }} />
+          <WorkspaceMenuSep />
+          <WorkspaceMenuItem label="Open Sandbox" icon="layers_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'project-sandbox' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Library Health" icon="shield_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'library-health' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Inbound Volume" icon="download_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'inbound-volume' } })); closeMenu(); }} />
+          <WorkspaceMenuItem label="Open Branching Time" icon="history_ui" onClick={() => { window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'branching-time' } })); closeMenu(); }} />
           <WorkspaceMenuSep />
           <WorkspaceMenuItem label="Clear board" icon="delete" danger onClick={clearBoard} disabled={boardIsEmpty} />
         </WorkspaceMenuPanel>

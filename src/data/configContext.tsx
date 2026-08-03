@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { formatLibrariesForConfig } from '../lib/iconLibraryUtils';
 import { SETTINGS_DEFAULTS, SETTINGS_VALUE_PATCHES } from '../lib/settingsDefaults';
-import { applySettingsRuntime, applyBackendSettings } from '../lib/settingsRuntime';
+import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { DEFAULT_CUSTOM_COLUMNS, resolveCustomColumns, type CustomColumnDef } from '../lib/customColumns';
 import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/fileInfoTipFields';
 import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib/hoverBoxConfig';
@@ -114,7 +114,22 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     sidebarOrder: ['storage', 'quick', 'cloud', 'tree'],
     folderSizeBarStyle: 'bar',
     appearanceNavTreeColors: 'subtle',
-    installedPlugins: ['properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters', 'storage-cleanup', 'folder-sync', 'catalog'],
+    installedPlugins: [
+        'properties',
+        'context-menu-manager',
+        'batch-rename',
+        'find',
+        'dropstack',
+        'filters',
+        'metadata',
+        'storage-cleanup',
+        'folder-sync',
+        'catalog',
+        'action-log',
+        'compare',
+        'ghost-link',
+        'ram-staging',
+    ],
     customColumns: DEFAULT_CUSTOM_COLUMNS.map(c => ({ ...c })),
     shellInfoTipStandardFields: [...DEFAULT_STANDARD_FIELD_IDS],
     shellInfoTipExtraFields: [...DEFAULT_EXTRA_FIELD_IDS],
@@ -411,6 +426,8 @@ export async function persistConfigNow(
     const merged = normalizeConfig({ ...current, ...patch });
     setConfig(merged);
     applySettingsRuntime(merged);
+    // Explicit persist paths may force shell sync (Settings toggles call IPC directly too).
+    const { applyBackendSettings } = await import('../lib/settingsRuntime');
     applyBackendSettings(merged);
     if (settingsSaveTimer) {
         clearTimeout(settingsSaveTimer);
@@ -440,7 +457,8 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
                     // Apply settings immediately so the splash/gate is not blocked on icon libs.
                     setConfig(cfg);
                     applySettingsRuntime(cfg);
-                    applyBackendSettings(cfg);
+                    // Soft fingerprint-gated shell sync only — forced registry rewrites on boot
+                    // previously stalled the host ("BNDZ is not responding").
                     setLoaded(true);
 
                     if (IPC.isNative) {
@@ -462,15 +480,17 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         });
     }, []);
 
-    const updateConfig = (newVals: Partial<AppConfig>) => {
+    const updateConfig = useCallback((newVals: Partial<AppConfig>) => {
         setConfig(prev => {
             const merged = normalizeConfig({ ...prev, ...newVals });
             scheduleSettingsSave(merged);
+            // applySettingsRuntime already soft-schedules shell sync via fingerprint.
+            // Never call applyBackendSettings(force) here — that rewrote HKCU shell verbs
+            // on every column/intent/plugin tweak and hung the WPF host after first paint.
             applySettingsRuntime(merged);
-            applyBackendSettings(merged);
             return merged;
         });
-    };
+    }, []);
 
     if (!loaded) {
         return (

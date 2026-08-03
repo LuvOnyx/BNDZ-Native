@@ -66,6 +66,8 @@ public static class MediaTagMetadataService
             SetIfEmpty(meta, "Track", tag.Track.ToString());
         SetIfEmpty(meta, "Comment", tag.Comment);
 
+        EnrichProducerFields(meta, tag, filePath);
+
         if (file.Properties != null)
         {
             if (file.Properties.Duration > TimeSpan.Zero && !meta.ContainsKey("Duration"))
@@ -161,11 +163,96 @@ public static class MediaTagMetadataService
         catch { /* best-effort */ }
     }
 
+    private static readonly Dictionary<string, string> CamelotMajor = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["B"] = "1B", ["F#"] = "2B", ["Db"] = "3B", ["C#"] = "3B", ["Ab"] = "4B", ["G#"] = "4B",
+        ["Eb"] = "5B", ["D#"] = "5B", ["Bb"] = "6B", ["A#"] = "6B", ["F"] = "7B", ["C"] = "8B",
+        ["G"] = "9B", ["D"] = "10B", ["A"] = "11B", ["E"] = "12B",
+    };
+    private static readonly Dictionary<string, string> CamelotMinor = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Ab"] = "1A", ["G#"] = "1A", ["Eb"] = "2A", ["D#"] = "2A", ["Bb"] = "3A", ["A#"] = "3A",
+        ["F"] = "4A", ["C"] = "5A", ["G"] = "6A", ["D"] = "7A", ["A"] = "8A", ["E"] = "9A",
+        ["B"] = "10A", ["F#"] = "11A", ["Db"] = "12A", ["C#"] = "12A",
+    };
+
+    private static void EnrichProducerFields(Dictionary<string, string> meta, TagLib.Tag tag, string filePath)
+    {
+        if (tag.BeatsPerMinute > 0)
+            SetIfEmpty(meta, "BPM", tag.BeatsPerMinute.ToString());
+
+        var cached = ProducerMetaCache.Get(filePath)
+            ?? LoadFromIndex(filePath);
+
+        var comment = tag.Comment ?? "";
+        if (string.IsNullOrWhiteSpace(meta.GetValueOrDefault("BPM")) && cached?.Bpm > 0)
+            SetIfEmpty(meta, "BPM", ((int)Math.Round(cached.Bpm)).ToString());
+
+        string? keyStr = cached?.Key;
+        string? modeStr = cached?.Mode;
+        string? camelotStr = cached?.Camelot;
+
+        if (string.IsNullOrWhiteSpace(keyStr))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                comment, @"BNDZ\s+([A-G]#?)\s+(min|maj)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                keyStr = match.Groups[1].Value;
+                modeStr = match.Groups[2].Value.Equals("min", StringComparison.OrdinalIgnoreCase) ? "minor" : "major";
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(keyStr))
+        {
+            var mShort = string.Equals(modeStr, "minor", StringComparison.OrdinalIgnoreCase) ? "m" : "";
+            SetIfEmpty(meta, "Musical Key", $"{keyStr}{mShort}");
+        }
+
+        if (string.IsNullOrWhiteSpace(camelotStr) && !string.IsNullOrWhiteSpace(keyStr))
+        {
+            var map = string.Equals(modeStr, "minor", StringComparison.OrdinalIgnoreCase) ? CamelotMinor : CamelotMajor;
+            map.TryGetValue(keyStr, out camelotStr);
+        }
+
+        if (!string.IsNullOrWhiteSpace(camelotStr))
+            SetIfEmpty(meta, "Camelot", camelotStr);
+    }
+
     private static void SetIfEmpty(Dictionary<string, string> meta, string key, string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         if (meta.TryGetValue(key, out var existing) && !string.IsNullOrWhiteSpace(existing)) return;
         meta[key] = value.Trim();
+    }
+
+    private static ProducerMetaCache.Entry? LoadFromIndex(string filePath)
+    {
+        try
+        {
+            var (bpm, key, camelot) = BndzFileIndexService.Instance.GetProducerMeta(filePath);
+            if (bpm <= 0 && string.IsNullOrWhiteSpace(key)) return null;
+            string? mode = null;
+            if (!string.IsNullOrWhiteSpace(key) && key!.EndsWith("m"))
+            {
+                mode = "minor";
+                key = key[..^1];
+            }
+            else if (!string.IsNullOrWhiteSpace(key))
+            {
+                mode = "major";
+            }
+            var entry = new ProducerMetaCache.Entry(bpm, key, mode, camelot, DateTime.UtcNow.Ticks);
+            ProducerMetaCache.Set(filePath, bpm, key, mode, camelot);
+            return entry;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Store analysis results so GET_EXTENDED_METADATA returns BPM/Key/Camelot without re-analysis.</summary>
+    public static void CacheProducerResult(string filePath, double bpm, string? key, string? mode, string? camelot)
+    {
+        ProducerMetaCache.Set(filePath, bpm, key, mode, camelot);
     }
 
     /// <summary>Write editable TagLib fields (title/album/artists/genre/comment/year/track).</summary>
@@ -201,6 +288,45 @@ public static class MediaTagMetadataService
         catch (Exception ex)
         {
             return (false, ex.Message);
+        }
+    }
+}
+
+/// <summary>
+/// In-memory cache for producer analysis results so extended-metadata IPC can
+/// return BPM/Key/Camelot without triggering a full ffmpeg analysis each time.
+/// Populated after ANALYZE_MUSIC_FILE / ANALYZE_MUSIC_BATCH.
+/// </summary>
+internal static class ProducerMetaCache
+{
+    internal sealed record Entry(double Bpm, string? Key, string? Mode, string? Camelot, long Ticks);
+
+    private static readonly Dictionary<string, Entry> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object Lock = new();
+    private const int MaxEntries = 4096;
+
+    internal static void Set(string path, double bpm, string? key, string? mode, string? camelot)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        var norm = path.Replace('/', '\\');
+        lock (Lock)
+        {
+            if (Cache.Count >= MaxEntries)
+            {
+                var oldest = Cache.OrderBy(kv => kv.Value.Ticks).Take(MaxEntries / 4).Select(kv => kv.Key).ToList();
+                foreach (var k in oldest) Cache.Remove(k);
+            }
+            Cache[norm] = new Entry(bpm, key, mode, camelot, DateTime.UtcNow.Ticks);
+        }
+    }
+
+    internal static Entry? Get(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var norm = path.Replace('/', '\\');
+        lock (Lock)
+        {
+            return Cache.TryGetValue(norm, out var e) ? e : null;
         }
     }
 }

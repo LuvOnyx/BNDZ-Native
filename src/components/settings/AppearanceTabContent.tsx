@@ -235,6 +235,34 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           options={DENSITY_OPTIONS}
           onChange={v => patch({ appearanceDensity: v, rowHeight: undefined })}
         />
+        <label className="flex items-start gap-3 py-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={localConfig.adaptiveListDensity !== false}
+            onChange={e => patch({ adaptiveListDensity: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90 leading-snug">
+            Adaptive list density
+            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+              Densifies rows during fast scroll; expands when idle or when items are selected.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 py-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={!!localConfig.liveShareCursorEnabled}
+            onChange={e => patch({ liveShareCursorEnabled: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90 leading-snug">
+            Live Share cursor
+            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+              Broadcast selection and cursor in shared folders so mesh peers see your focus (Remote Mesh plugin).
+            </span>
+          </span>
+        </label>
         <VariantSelect<TabStyle>
           label="Tab strip"
           description="Tab bar visual style"

@@ -12,12 +12,17 @@ public sealed class AutomationRunnerDeps
     public BndzTagSidecarStore? TagStore { get; init; }
     public ArchiveService? ArchiveService { get; init; }
     public ShellContextMenuService? ShellContext { get; init; }
+    public LibraryHealthService? HealthService { get; init; }
+    public ProjectSandboxService? SandboxService { get; init; }
+    public BranchingTimeService? BranchingService { get; init; }
     public IntPtr HostWindow { get; set; }
+    public bool DryRun { get; set; }
 }
 
 public sealed class BndzAutomationRunnerService
 {
     private readonly AutomationRunnerDeps _deps;
+    private readonly BndzAutomationScriptHost _scriptHost = new();
 
     private static readonly HashSet<string> DefaultArchiveExts = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -43,6 +48,9 @@ public sealed class BndzAutomationRunnerService
             var edges = ParseEdges(graph);
             if (nodes.Count == 0)
                 return Fail(log, "Pipeline has no blocks.");
+
+            if (graph.TryGetProperty("dryRun", out var drEl) && drEl.ValueKind == JsonValueKind.True)
+                _deps.DryRun = true;
 
             List<string>? triggerFiles = null;
             if (graph.TryGetProperty("triggerFiles", out var tf) && tf.ValueKind == JsonValueKind.Array)
@@ -253,6 +261,17 @@ public sealed class BndzAutomationRunnerService
                 return BatchCounter(files, node, log);
             case "log":
                 return LogCheckpoint(node, log, files);
+            case "script":
+                return RunScript(node, files, log);
+            case "healthGate":
+                return HealthGate(node, files, log);
+            case "sandboxCheckpoint":
+                return SandboxCheckpoint(node, files, log);
+            case "capacityApprove":
+                return CapacityApprove(node, files, log);
+            case "branchCreate":
+                BranchCreate(node, log);
+                return files;
             default:
                 log.Add($"  ! Unknown block: {node.Type}");
                 return files;
@@ -895,6 +914,169 @@ public sealed class BndzAutomationRunnerService
         Directory.CreateDirectory(dest);
         var args = $"\"{source}\" \"{dest}\" /E /COPY:DAT /R:1 /W:1 /NFL /NDL /NJH /NJS /NP";
         RunProcess("robocopy.exe", args, log, successLabel: "Robocopy deploy completed.", robocopy: true);
+    }
+
+    private List<string> RunScript(AutomationNode node, List<string> files, List<string> log)
+    {
+        var code = BndzAutomationExtensions.GetField(node.Data, "code");
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            log.Add("  ! Script: no code provided.");
+            return files;
+        }
+        if (code.Length > 50_000)
+        {
+            log.Add("  ! Script: code exceeds 50KB limit.");
+            return files;
+        }
+
+        var result = _scriptHost.Execute(code, files, _deps.DryRun);
+        foreach (var msg in result.Log)
+            log.Add($"  · [script] {msg}");
+
+        if (!result.Ok)
+        {
+            log.Add($"  ✗ Script failed: {result.Error}");
+            return files;
+        }
+
+        if (result.OutputFiles.Count > 0)
+        {
+            log.Add($"  · Script produced {result.OutputFiles.Count} output file(s)");
+            return result.OutputFiles;
+        }
+        return files;
+    }
+
+    private List<string> HealthGate(AutomationNode node, List<string> files, List<string> log)
+    {
+        if (_deps.HealthService == null)
+        {
+            log.Add("  ! Health gate: LibraryHealthService unavailable.");
+            return files;
+        }
+
+        var maxErrors = 0;
+        if (int.TryParse(BndzAutomationExtensions.GetField(node.Data, "maxErrors", "0"), out var me))
+            maxErrors = Math.Max(0, me);
+
+        var summary = _deps.HealthService.GetSummary();
+        summary.BySeverity.TryGetValue("error", out var errorCount);
+        summary.BySeverity.TryGetValue("warning", out var warnCount);
+        log.Add($"  · Health gate: {errorCount} error(s), {warnCount} warning(s) from index");
+
+        if (errorCount > maxErrors)
+        {
+            log.Add($"  ✗ Health gate FAILED: {errorCount} errors exceed threshold ({maxErrors}).");
+            throw new InvalidOperationException($"Health gate: {errorCount} errors exceed max {maxErrors}");
+        }
+
+        log.Add("  · Health gate PASSED.");
+        return files;
+    }
+
+    private List<string> SandboxCheckpoint(AutomationNode node, List<string> files, List<string> log)
+    {
+        if (_deps.SandboxService == null)
+        {
+            log.Add("  ! Sandbox checkpoint: ProjectSandboxService unavailable.");
+            return files;
+        }
+
+        var sessionId = BndzAutomationExtensions.GetField(node.Data, "sessionId");
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            log.Add("  ! Sandbox checkpoint: sessionId required (active sandbox session).");
+            return files;
+        }
+
+        var label = BndzAutomationExtensions.GetField(node.Data, "label", $"auto_{DateTimeOffset.UtcNow:yyyyMMdd_HHmmss}");
+
+        if (_deps.DryRun)
+        {
+            log.Add($"  · [dry-run] Would create sandbox checkpoint '{label}' on session {sessionId}");
+            return files;
+        }
+
+        try
+        {
+            var dto = _deps.SandboxService.CreateCheckpoint(sessionId, label);
+            log.Add($"  · Sandbox checkpoint created: {label} (id={dto.Id})");
+        }
+        catch (Exception ex)
+        {
+            log.Add($"  ! Sandbox checkpoint failed: {ex.Message}");
+        }
+        return files;
+    }
+
+    private List<string> CapacityApprove(AutomationNode node, List<string> files, List<string> log)
+    {
+        var requiredMb = 512L;
+        if (long.TryParse(BndzAutomationExtensions.GetField(node.Data, "requiredMb", "512"), out var mb) && mb > 0)
+            requiredMb = mb;
+
+        var targetDrive = BndzAutomationExtensions.GetField(node.Data, "drive");
+        if (string.IsNullOrWhiteSpace(targetDrive))
+        {
+            if (files.Count > 0)
+                targetDrive = Path.GetPathRoot(files[0]) ?? "C:\\";
+            else
+                targetDrive = "C:\\";
+        }
+
+        try
+        {
+            var driveInfo = new DriveInfo(targetDrive[..1]);
+            var freeMb = driveInfo.AvailableFreeSpace / (1024 * 1024);
+            log.Add($"  · Capacity check: {freeMb} MB free on {driveInfo.Name} (need {requiredMb} MB)");
+
+            if (freeMb < requiredMb)
+            {
+                log.Add($"  ✗ Capacity gate FAILED: only {freeMb} MB available, {requiredMb} MB required.");
+                throw new InvalidOperationException($"Capacity: {freeMb} MB < {requiredMb} MB required");
+            }
+            log.Add("  · Capacity gate PASSED.");
+        }
+        catch (InvalidOperationException) { throw; }
+        catch (Exception ex)
+        {
+            log.Add($"  ! Capacity check error: {ex.Message}");
+        }
+        return files;
+    }
+
+    private void BranchCreate(AutomationNode node, List<string> log)
+    {
+        if (_deps.BranchingService == null)
+        {
+            log.Add("  ! Branch create: BranchingTimeService unavailable.");
+            return;
+        }
+
+        var sourcePath = BndzAutomationExtensions.GetField(node.Data, "sourcePath");
+        var branchName = BndzAutomationExtensions.GetField(node.Data, "branchName");
+        if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(branchName))
+        {
+            log.Add("  ! Branch create: sourcePath and branchName required.");
+            return;
+        }
+
+        if (_deps.DryRun)
+        {
+            log.Add($"  · [dry-run] Would create branch '{branchName}' from {sourcePath}");
+            return;
+        }
+
+        try
+        {
+            var dto = _deps.BranchingService.CreateBranch(sourcePath, branchName);
+            log.Add($"  · Branch created: '{dto.Name}' (id={dto.Id})");
+        }
+        catch (Exception ex)
+        {
+            log.Add($"  ! Branch create failed: {ex.Message}");
+        }
     }
 
     private static bool TryParseRemoteTarget(string remote, out string userHost, out string remotePath)

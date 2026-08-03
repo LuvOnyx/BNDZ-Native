@@ -1,7 +1,7 @@
 import React from 'react';
 import { StorageUsageBar } from './StorageUsageBar';
 import { ShellNativeIcon } from './ShellNativeIcon';
-import { formatDriveLetter } from '../lib/displayPath';
+import { formatDriveDisplayName, formatDriveLetter, formatDriveVolumeLabel } from '../lib/displayPath';
 
 export type DriveCardData = {
   name: string;
@@ -35,11 +35,10 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
     ? ((drive.totalSpace - drive.freeSpace) / drive.totalSpace) * 100
     : 0;
   const letter = formatDriveLetter(drive.name);
-  const rawLabel = (drive.label || '').trim();
-  const displayLabel = !rawLabel || rawLabel.replace(/\\/g, '') === letter.replace(/\\/g, '')
-    ? letter
-    : rawLabel;
-  const showLetterSuffix = displayLabel.replace(/\\/g, '').toLowerCase() !== letter.replace(/\\/g, '').toLowerCase();
+  const vol = formatDriveVolumeLabel(drive.label, letter);
+  const displayLabel = vol || letter;
+  const showLetterSuffix = !!vol && vol.replace(/\\/g, '').toLowerCase() !== letter.replace(/\\/g, '').toLowerCase();
+  const title = formatDriveDisplayName(drive.label, drive.name);
   const freeOfTotal = `${formatBytes(drive.freeSpace)} free of ${formatBytes(drive.totalSpace)}`;
   const gridIcon = Math.max(28, Math.min(120, iconSize ?? 40));
   const listIcon = Math.max(16, Math.min(64, iconSize ?? 28));
@@ -50,7 +49,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
         className={`bndz-list-select-cell flex flex-col items-center w-full gap-1.5 p-2.5 rounded-[var(--bndz-radius-sm)] bg-white/[0.03] border transition-colors ${selected ? 'border-[#0078d4]/50 bg-[#094771]/25' : 'border-white/[0.06]'}`}
       >
         <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={gridIcon} eager />
-        <div className="text-[11px] font-medium text-center truncate w-full text-white/90" title={showLetterSuffix ? `${displayLabel} (${letter})` : letter}>
+        <div className="text-[11px] font-medium text-center truncate w-full text-white/90" title={title}>
           {displayLabel}{showLetterSuffix ? <span className="text-white/40"> ({letter})</span> : null}
         </div>
         <StorageUsageBar usedPct={usedPct} height={6} className="w-full" />
@@ -69,7 +68,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
             <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={listIcon} eager />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-medium truncate text-white/90" title={showLetterSuffix ? `${displayLabel} (${letter})` : letter}>
+            <div className="text-[11px] font-medium truncate text-white/90" title={title}>
               {displayLabel}{showLetterSuffix ? <span className="text-white/40"> ({letter})</span> : null}
             </div>
           </div>
@@ -85,7 +84,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
   if (layout === 'details') {
     return (
       <div className="flex-1 flex items-center min-w-0 gap-3">
-        <div className="bndz-list-select-cell w-[30%] min-w-[110px] max-w-[280px] px-2 truncate text-[11px] text-white/90">
+        <div className="bndz-list-select-cell w-[30%] min-w-[110px] max-w-[280px] px-2 truncate text-[11px] text-white/90" title={title}>
           {displayLabel}{showLetterSuffix ? <span className="text-white/35"> ({letter})</span> : null}
         </div>
         <div className="bndz-list-select-cell w-[14%] max-w-[110px] px-2 text-[11px] text-white/50 truncate">{drive.type || drive.format || 'Local Disk'}</div>
@@ -104,7 +103,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
     <div className="px-3 py-1.5 cursor-pointer hover:bg-white/[0.04] border-l-2 border-transparent hover:border-[#0078d4]/40 transition-colors">
       <div className="flex items-center gap-2 mb-1 text-white/80">
         <ShellNativeIcon path={drive.path || drive.name} isDir={false} size={14} eager />
-        <span className="text-[11px] font-medium truncate">{displayLabel}</span>
+        <span className="text-[11px] font-medium truncate" title={title}>{displayLabel}</span>
         {showLetterSuffix ? <span className="text-[10px] text-white/35 truncate">({letter})</span> : null}
       </div>
       <StorageUsageBar usedPct={usedPct} height={4} className="mb-1" />

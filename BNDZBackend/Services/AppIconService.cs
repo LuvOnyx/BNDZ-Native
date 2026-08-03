@@ -11,12 +11,12 @@ using System.Windows.Media.Imaging;
 
 namespace BNDZ.Services
 {
-    /// <summary>Builds a multi-resolution window/taskbar icon from the official BNDZ PNG assets.</summary>
+    /// <summary>Builds a multi-resolution window/taskbar icon from the official BNDZ square-master PNG.</summary>
     public static class AppIconService
     {
         private static readonly int[] IconSizes = { 16, 20, 24, 32, 48, 60, 64, 128, 256 };
 
-        /// <summary>Writes multi-size ICO to disk for ApplicationIcon embedding in the .exe.</summary>
+        /// <summary>Writes multi-size ICO to disk from a square master PNG.</summary>
         public static void SaveIcoToDisk(string pngPath, string icoPath)
         {
             using var source = Image.FromFile(pngPath);
@@ -24,14 +24,26 @@ namespace BNDZ.Services
             WriteIco(source, fs);
         }
 
+        /// <summary>
+        /// Ensures Assets/BNDZ.ico exists. No-ops if the file is already present — the ICO is
+        /// pre-baked into the EXE via ApplicationIcon and must never be overwritten from the wide
+        /// light banner at startup. Only regenerates if the file is missing (first-install edge case),
+        /// and only from the square master (bndz-square.png or bndz-app.png), never from BNDZ-light.png.
+        /// </summary>
         public static void EnsureApplicationIco()
         {
             try
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string icoPath = Path.Combine(baseDir, "Assets", "BNDZ.ico");
-                string? png = ResolveBrandPng(baseDir);
+
+                // ICO already present — preserve it; do NOT overwrite from any PNG.
+                if (File.Exists(icoPath)) return;
+
+                // Regenerate only from the square master, never the wide light banner.
+                string? png = ResolveSquareMasterPng(baseDir);
                 if (png == null) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(icoPath)!);
                 SaveIcoToDisk(png, icoPath);
             }
             catch (Exception ex)
@@ -40,16 +52,44 @@ namespace BNDZ.Services
             }
         }
 
+        /// <summary>
+        /// Loads window icon from Assets/BNDZ.ico first. Falls back to building from the
+        /// square master PNG if the ICO is somehow absent. Never rebuilds from BNDZ-light.png.
+        /// </summary>
         public static void ApplyToWindow(Window window)
         {
             if (window == null) return;
             try
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string? path = ResolveBrandPng(baseDir);
-                if (path == null) return;
+                string icoPath = Path.Combine(baseDir, "Assets", "BNDZ.ico");
 
-                window.Icon = CreateMultiSizeIcon(path);
+                // Prefer the pre-built multi-frame ICO. BitmapImage often picks a poor/single
+                // frame from .ico files — use IconBitmapDecoder and the largest frame so the
+                // taskbar/title-bar glyph stays full-size (Windows downscales as needed).
+                if (File.Exists(icoPath))
+                {
+                    var decoder = new IconBitmapDecoder(
+                        new Uri(icoPath, UriKind.Absolute),
+                        BitmapCreateOptions.None,
+                        BitmapCacheOption.OnLoad);
+                    BitmapFrame? best = null;
+                    foreach (var frame in decoder.Frames)
+                    {
+                        if (best == null || frame.PixelWidth > best.PixelWidth)
+                            best = frame;
+                    }
+                    if (best != null)
+                    {
+                        window.Icon = best;
+                        return;
+                    }
+                }
+
+                // Fallback: build from square master PNG (never the wide banner).
+                string? png = ResolveSquareMasterPng(baseDir);
+                if (png != null)
+                    window.Icon = CreateMultiSizeIcon(png);
             }
             catch (Exception ex)
             {
@@ -57,11 +97,14 @@ namespace BNDZ.Services
             }
         }
 
-        /// <summary>Prefer the classic light brand PNG, then dark.</summary>
-        private static string? ResolveBrandPng(string baseDir)
+        /// <summary>
+        /// Prefers bndz-square.png (square app icon master) over the wide light/dark banners.
+        /// Used only as a fallback when BNDZ.ico is absent.
+        /// </summary>
+        private static string? ResolveSquareMasterPng(string baseDir)
         {
             var assets = Path.Combine(baseDir, "Assets");
-            foreach (var name in new[] { "BNDZ-light.png", "BNDZ-dark.png" })
+            foreach (var name in new[] { "bndz-square.png", "bndz-app.png" })
             {
                 var p = Path.Combine(assets, name);
                 if (File.Exists(p)) return p;
@@ -122,7 +165,7 @@ namespace BNDZ.Services
 
             bool taskbarSlot = w <= 60;
             bool wideBanner = src.Width > src.Height * 1.35f;
-            // Full app icons (square squircle PNGs) already include the plate — don't double-frame.
+            // Square squircle marks already include the plate — don't double-frame.
             bool finishedAppIcon = Math.Abs(src.Width - src.Height) <= src.Width * 0.08f;
 
             if (taskbarSlot && !finishedAppIcon)
@@ -142,18 +185,15 @@ namespace BNDZ.Services
             float scale;
             if (finishedAppIcon)
             {
-                // Square finished marks: cover-crop so the glyph fills taskbar/desktop
-                // slots (contain left the brand looking tiny in Explorer/taskbar).
+                // Square finished marks: cover-crop so the glyph fills taskbar/desktop slots.
                 float zoom = taskbarSlot
-                    ? (w <= 16 ? 1.55f : w <= 24 ? 1.42f : w <= 32 ? 1.32f : w <= 48 ? 1.22f : 1.12f)
-                    : 1.06f;
+                    ? (w <= 16 ? 1.72f : w <= 24 ? 1.58f : w <= 32 ? 1.45f : w <= 48 ? 1.32f : 1.18f)
+                    : 1.08f;
                 scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * zoom;
             }
             else if (taskbarSlot)
-                scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * (w <= 24 ? 1.42f : w <= 48 ? 1.32f : 1.22f);
+                scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * (w <= 24 ? 1.55f : w <= 48 ? 1.42f : 1.28f);
             else if (wideBanner)
-                // Wide light banner: cover-crop into the square ICO slot so the
-                // folder glyph fills the chrome (same idea as object-cover in UI).
                 scale = Math.Max(w / (float)src.Width, h / (float)src.Height) * (taskbarSlot ? 1.08f : 1f);
             else
                 scale = Math.Max((w * 0.94f) / src.Width, (h * 0.94f) / src.Height);

@@ -15,6 +15,36 @@ export function formatDriveLetter(pathOrName: string): string {
   return p;
 }
 
+/**
+ * Volume label for UI — strips a trailing `(C:)` / `(C:\)` so callers can append
+ * the letter once without `Windows (C:) (C:)`.
+ */
+export function formatDriveVolumeLabel(label: string | null | undefined, letterHint?: string): string {
+  const raw = (label || '').trim();
+  if (!raw) return '';
+  const letter = letterHint ? formatDriveLetter(letterHint).replace(/\\/g, '') : '';
+  let cleaned = raw
+    .replace(/\s*\([A-Za-z]:\\?\)\s*$/i, '')
+    .replace(/\s+[A-Za-z]:\\?\s*$/i, '')
+    .trim();
+  if (letter && cleaned.replace(/\\/g, '').toLowerCase() === letter.toLowerCase()) return '';
+  return cleaned;
+}
+
+/** Single display string: `Local Disk (C:)` — never doubles the letter suffix. */
+export function formatDriveDisplayName(
+  label: string | null | undefined,
+  pathOrName: string,
+  fallback = 'Local Disk',
+): string {
+  const letter = formatDriveLetter(pathOrName);
+  const vol = formatDriveVolumeLabel(label, letter);
+  const base = vol || fallback;
+  if (!letter || /^[A-Za-z]:$/.test(base.replace(/\\/g, ''))) return letter || base;
+  if (base.replace(/\\/g, '').toLowerCase() === letter.replace(/\\/g, '').toLowerCase()) return letter;
+  return `${base} (${letter})`;
+}
+
 /** Drive root label for lists / size map — always `C:\`, never `/C:`. */
 export function formatDriveRootLabel(pathOrName: string): string {
   const letter = formatDriveLetter(pathOrName);

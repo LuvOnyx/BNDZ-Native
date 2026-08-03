@@ -1,9 +1,12 @@
+import type React from 'react';
 import type { AppConfig } from '../data/configContext';
 import { customColumnListId, resolveCustomColumns } from './customColumns';
 
-export type BuiltinListColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'label' | 'comment' | 'path';
+export type BuiltinListColumnId =
+  | 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'label' | 'comment' | 'path'
+  | 'ghostState' | 'coldTarget' | 'ramZone';
 export type ListColumnId = BuiltinListColumnId | `custom:${string}`;
-export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags';
+export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags' | 'ghostState' | 'ramZone';
 
 export interface ListColumnDef {
   id: ListColumnId;
@@ -12,20 +15,42 @@ export interface ListColumnDef {
   widthPx?: number;
   align?: 'left' | 'right';
   sortable?: boolean;
+  /** When true, this column takes all remaining space (flex-fill); widthPx becomes min-width. */
+  flexFill?: boolean;
 }
 
 export const LIST_COLUMN_DEFS: ListColumnDef[] = [
-  { id: 'name', label: 'Name', widthClass: 'w-[35%] min-w-[140px] max-w-[360px]', sortable: true },
-  { id: 'type', label: 'Type', widthClass: 'w-[14%] min-w-[80px] max-w-[140px]', sortable: true },
-  { id: 'size', label: 'Size', widthClass: 'w-[12%] min-w-[72px] max-w-[110px]', align: 'right', sortable: true },
-  { id: 'modified', label: 'Modified', widthClass: 'w-[18%] min-w-[120px] max-w-[180px]', sortable: true },
-  { id: 'created', label: 'Created', widthClass: 'w-[18%] min-w-[120px] max-w-[180px]', sortable: true },
-  { id: 'attributes', label: 'Attributes', widthClass: 'w-[12%] min-w-[90px] max-w-[140px]' },
-  { id: 'tags', label: 'Tags', widthClass: 'min-w-[80px] max-w-[160px]', sortable: true },
-  { id: 'label', label: 'Label', widthClass: 'w-[14%] min-w-[90px] max-w-[180px]' },
-  { id: 'comment', label: 'Comment', widthClass: 'flex-1 min-w-[100px]' },
-  { id: 'path', label: 'Path', widthClass: 'w-[30%] min-w-[160px] max-w-[400px]' },
+  // Fixed pixel widths so column resize actually sticks (flex-fill fought live resize).
+  { id: 'name', label: 'Name', widthClass: 'shrink-0', widthPx: 280, sortable: true },
+  { id: 'type', label: 'Type', widthClass: 'shrink-0', widthPx: 100, sortable: true },
+  { id: 'size', label: 'Size', widthClass: 'shrink-0', widthPx: 90, align: 'right', sortable: true },
+  { id: 'modified', label: 'Modified', widthClass: 'shrink-0', widthPx: 150, sortable: true },
+  { id: 'created', label: 'Created', widthClass: 'shrink-0', widthPx: 150, sortable: true },
+  { id: 'attributes', label: 'Attributes', widthClass: 'shrink-0', widthPx: 100 },
+  { id: 'tags', label: 'Tags', widthClass: 'shrink-0', widthPx: 120, sortable: true },
+  { id: 'label', label: 'Label', widthClass: 'shrink-0', widthPx: 120 },
+  { id: 'comment', label: 'Comment', widthClass: 'shrink-0', widthPx: 160 },
+  { id: 'path', label: 'Path', widthClass: 'shrink-0', widthPx: 240 },
+  { id: 'ghostState', label: 'Ghost', widthClass: 'shrink-0', widthPx: 90, sortable: true },
+  { id: 'coldTarget', label: 'Cold target', widthClass: 'shrink-0', widthPx: 180 },
+  { id: 'ramZone', label: 'RAM zone', widthClass: 'shrink-0', widthPx: 120, sortable: true },
 ];
+
+export const DEFAULT_LIST_COLUMN_PX: Record<BuiltinListColumnId, number> = {
+  name: 280,
+  type: 100,
+  size: 90,
+  modified: 150,
+  created: 150,
+  attributes: 100,
+  tags: 120,
+  label: 120,
+  comment: 160,
+  path: 240,
+  ghostState: 90,
+  coldTarget: 180,
+  ramZone: 120,
+};
 
 export const DEFAULT_LIST_COLUMN_VISIBILITY: Record<ListColumnId, boolean> = {
   name: true,
@@ -38,6 +63,9 @@ export const DEFAULT_LIST_COLUMN_VISIBILITY: Record<ListColumnId, boolean> = {
   label: false,
   comment: false,
   path: false,
+  ghostState: false,
+  coldTarget: false,
+  ramZone: false,
 };
 
 export function resolveListColumnVisibility(
@@ -95,9 +123,10 @@ export function getVisibleListColumns(
     .map(id => byId.get(id as BuiltinListColumnId))
     .filter((col): col is ListColumnDef => !!col && vis[col.id as BuiltinListColumnId])
     .map(col => {
-      const px = widths[col.id];
-      if (!px || px < 48) return col;
-      return { ...col, widthClass: '', widthPx: px };
+      const saved = widths[col.id];
+      const fallback = col.widthPx || DEFAULT_LIST_COLUMN_PX[col.id as BuiltinListColumnId] || 100;
+      const px = saved && saved >= 48 ? saved : fallback;
+      return { ...col, widthClass: 'shrink-0', widthPx: px };
     });
 
   const customCols = resolveCustomColumns(config)
@@ -118,9 +147,18 @@ export function getVisibleListColumns(
   return [...builtin, ...customCols];
 }
 
-export function getColumnStyle(col: ListColumnDef): { width: number; minWidth: number; maxWidth: number; flexShrink: 0 } | undefined {
-  if (!col.widthPx) return undefined;
-  return { width: col.widthPx, minWidth: col.widthPx, maxWidth: col.widthPx, flexShrink: 0 };
+export function getColumnStyle(col: ListColumnDef): React.CSSProperties {
+  const px = col.widthPx
+    || (DEFAULT_LIST_COLUMN_PX[col.id as BuiltinListColumnId] ?? 100);
+  // Fixed widths only — flex-fill on Name made live resize snap back after persist.
+  return {
+    width: px,
+    minWidth: px,
+    maxWidth: px,
+    flexShrink: 0,
+    flexGrow: 0,
+    flexBasis: px,
+  };
 }
 
 export function formatAttributesLabel(attrs?: string[]): string {

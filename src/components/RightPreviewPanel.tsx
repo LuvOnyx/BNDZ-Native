@@ -35,6 +35,9 @@ import BndzLensStage from './preview/BndzLensStage';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IPC } from '../lib/ipcBridge';
 import FileLineagePanel from './preview/FileLineagePanel';
+import AclDramaPanel from './preview/AclDramaPanel';
+import ContentDnaRelativesPanel from './preview/ContentDnaRelativesPanel';
+import JobTicketPanel from './preview/JobTicketPanel';
 
 type PreviewTab = 'preview' | 'details' | 'media';
 
@@ -1032,11 +1035,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     )}
 
                     <FileLineagePanel path={path || null} onNavigate={onNavigate} />
+                    <AclDramaPanel path={path || null} />
+                    <ContentDnaRelativesPanel path={path || null} onNavigate={onNavigate} />
+                    {isDir && <JobTicketPanel folderPath={path || null} />}
                 </div>
                 )}
 
                 {activeTab === 'preview' && (
                 isDir ? (
+                  <>
                   <div className="shrink-0 border-t border-white/[0.06] bg-[#252526] grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
                     <div className="min-w-0 flex flex-col justify-center">
                       <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
@@ -1051,6 +1058,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                       {renderFolderDock()}
                     </div>
                   </div>
+                  <JobTicketPanel folderPath={path || null} />
+                  </>
                 ) : !isArchive && !isTorrent ? (
                 <div className="px-4 py-3 border-t border-white/[0.06] bg-[#252526] shrink-0">
                    <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>

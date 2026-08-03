@@ -23,7 +23,7 @@ export const LibraryHealthPluginDef = {
   icon: 'shield_ui',
   description: 'Scan libraries for broken links, naming conflicts, permission issues, and orphans.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: false,
+  installOnFirstUse: true,
 };
 
 type TabId = 'summary' | 'problems';
@@ -33,7 +33,9 @@ type Problem = {
   path: string;
   severity: 'critical' | 'warning' | 'info';
   kind: string;
-  message: string;
+  detail: string;
+  fixHint: string;
+  fixable: boolean;
 };
 
 type Summary = {
@@ -43,25 +45,39 @@ type Summary = {
   info: number;
 };
 
+const FIXABLE_KINDS = new Set(['EmptyDir', 'OrphanSidecar', 'BrokenLink', 'MissingTarget']);
+
+const KIND_META: Record<string, { icon: string; label: string; color: string }> = {
+  EmptyDir:       { icon: 'folder_ui',      label: 'Empty folder',    color: 'text-sky-400' },
+  OrphanSidecar:  { icon: 'link_broken',     label: 'Orphan sidecar',  color: 'text-sky-400' },
+  BrokenLink:     { icon: 'link_broken',     label: 'Broken link',     color: 'text-red-400' },
+  MissingTarget:  { icon: 'warning',         label: 'Missing target',  color: 'text-amber-400' },
+  LongPath:       { icon: 'data_warning',    label: 'Long path',       color: 'text-amber-400' },
+  AclDenied:      { icon: 'lock_ui',         label: 'Access denied',   color: 'text-amber-400' },
+};
+
 function normalizeProblem(raw: Record<string, unknown>): Problem {
   const rawSeverity = String(raw.severity ?? raw.Severity ?? '').toLowerCase();
   const severity: Problem['severity'] =
     rawSeverity === 'critical' || rawSeverity === 'error' ? 'critical'
       : rawSeverity === 'warning' || rawSeverity === 'warn' ? 'warning'
         : 'info';
+  const kind = String(raw.kind ?? raw.Kind ?? 'unknown');
   return {
     id: String(raw.id ?? raw.Id ?? `p_${Math.random().toString(36).slice(2, 9)}`),
     path: String(raw.path ?? raw.Path ?? ''),
     severity,
-    kind: String(raw.kind ?? raw.Kind ?? 'unknown'),
-    message: String(raw.message ?? raw.Message ?? raw.detail ?? raw.Detail ?? raw.fixHint ?? raw.FixHint ?? ''),
+    kind,
+    detail: String(raw.detail ?? raw.Detail ?? raw.message ?? raw.Message ?? ''),
+    fixHint: String(raw.fixHint ?? raw.FixHint ?? ''),
+    fixable: FIXABLE_KINDS.has(kind),
   };
 }
 
-const SEVERITY_STYLES: Record<string, { dot: string; text: string; bg: string }> = {
-  critical: { dot: 'bg-red-400', text: 'text-red-300', bg: 'bg-red-500/[0.08] border-red-500/20' },
-  warning: { dot: 'bg-amber-400', text: 'text-amber-300', bg: 'bg-amber-500/[0.08] border-amber-500/20' },
-  info: { dot: 'bg-sky-400', text: 'text-sky-300', bg: 'bg-sky-500/[0.06] border-sky-500/15' },
+const SEVERITY_STYLES: Record<string, { dot: string; text: string; bg: string; badge: string }> = {
+  critical: { dot: 'bg-red-400', text: 'text-red-300', bg: 'bg-red-500/[0.08] border-red-500/20', badge: 'bg-red-500/20 text-red-300 border-red-500/30' },
+  warning: { dot: 'bg-amber-400', text: 'text-amber-300', bg: 'bg-amber-500/[0.08] border-amber-500/20', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/25' },
+  info: { dot: 'bg-sky-400', text: 'text-sky-300', bg: 'bg-sky-500/[0.06] border-sky-500/15', badge: 'bg-sky-500/15 text-sky-300 border-sky-500/20' },
 };
 
 function splitPath(full: string): { leaf: string; parent: string } {
@@ -82,15 +98,21 @@ export default function LibraryHealthPlugin({
   const [summary, setSummary] = useState<Summary>({ total: 0, critical: 0, warning: 0, info: 0 });
   const [problems, setProblems] = useState<Problem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [fixingId, setFixingId] = useState<string | null>(null);
   const [scanRoot, setScanRoot] = useState<string | null>(null);
+  const [filterKind, setFilterKind] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const [s, p] = await Promise.all([
-      IPC.healthGetSummary(),
-      IPC.healthListProblems(undefined, 200),
-    ]);
-    setSummary(s);
-    setProblems((p.problems || []).map(x => normalizeProblem(x as Record<string, unknown>)));
+    try {
+      const [s, p] = await Promise.all([
+        IPC.healthGetSummary(),
+        IPC.healthListProblems(undefined, 500),
+      ]);
+      setSummary(s);
+      setProblems((p.problems || []).map(x => normalizeProblem(x as Record<string, unknown>)));
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Health refresh failed', message: String(e) });
+    }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -134,12 +156,38 @@ export default function LibraryHealthPlugin({
     }
   };
 
+  const fixProblem = async (problem: Problem) => {
+    setFixingId(problem.id);
+    try {
+      const r = await IPC.healthFixProblem(problem.id);
+      if (r.ok) {
+        pushToast({ kind: 'success', title: 'Fixed', message: r.action || `Resolved ${problem.kind}.` });
+        await refresh();
+      } else {
+        pushToast({ kind: 'error', title: 'Fix failed', message: r.error || 'Unknown error.' });
+      }
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Fix failed', message: String(e) });
+    } finally {
+      setFixingId(null);
+    }
+  };
+
   const revealPath = (winPath: string) => {
     if (!winPath) return;
     window.dispatchEvent(new CustomEvent('bndz-navigate', {
       detail: { path: winPath.replace(/^([A-Za-z]):\\/, '/$1/').replace(/\\/g, '/') },
     }));
   };
+
+  const filteredProblems = filterKind
+    ? problems.filter(p => p.kind === filterKind)
+    : problems;
+
+  const kindCounts = problems.reduce<Record<string, number>>((acc, p) => {
+    acc[p.kind] = (acc[p.kind] ?? 0) + 1;
+    return acc;
+  }, {});
 
   const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = [
     { id: 'summary', label: 'Summary', icon: 'piechart_ui' },
@@ -180,7 +228,7 @@ export default function LibraryHealthPlugin({
           typeLabel="Integrity scanner"
           meta={
             <span className="bndz-panel-muted text-xs">
-              {summary.total} issue{summary.total === 1 ? '' : 's'} ·
+              {summary.total} issue{summary.total === 1 ? '' : 's'}
               {summary.critical > 0 && <span className="text-red-400 ml-1">{summary.critical} critical</span>}
               {summary.warning > 0 && <span className="text-amber-400 ml-1">{summary.warning} warning</span>}
               {summary.info > 0 && <span className="text-sky-400 ml-1">{summary.info} info</span>}
@@ -215,8 +263,9 @@ export default function LibraryHealthPlugin({
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                Scanning {scanRoot}…
+                Scanning…
               </span>
+              <span className="text-[10px] text-gray-500 truncate">{scanRoot}</span>
             </div>
           </div>
         )}
@@ -230,6 +279,38 @@ export default function LibraryHealthPlugin({
                 <PluginStatCard label="Warnings" value={String(summary.warning)} sub="Permissions · conflicts" iconId="data_warning" />
                 <PluginStatCard label="Info" value={String(summary.info)} sub="Naming · orphans" iconId="data_information" />
               </div>
+
+              {/* Kind breakdown with clickable badges */}
+              {Object.keys(kindCounts).length > 0 && (
+                <PluginCard>
+                  <PluginSectionTitle icon="piechart_ui">Problem breakdown</PluginSectionTitle>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {Object.entries(kindCounts)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([kind, count]) => {
+                        const meta = KIND_META[kind];
+                        const isActive = filterKind === kind;
+                        return (
+                          <button
+                            key={kind}
+                            className={`
+                              inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
+                              border transition-all cursor-pointer
+                              ${isActive
+                                ? 'bg-white/10 border-white/20 text-white shadow-[0_0_8px_rgba(255,255,255,0.08)]'
+                                : 'bg-black/20 border-white/[0.06] text-gray-400 hover:bg-white/[0.04] hover:border-white/10'}
+                            `}
+                            onClick={() => { setFilterKind(isActive ? null : kind); setActiveTab('problems'); }}
+                          >
+                            <Icons8Icon id={meta?.icon ?? 'warning'} size={12} className={meta?.color ?? 'text-gray-400'} />
+                            <span>{meta?.label ?? kind}</span>
+                            <span className="font-mono text-[10px] text-gray-500 ml-0.5">{count}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </PluginCard>
+              )}
 
               <PluginCard>
                 <PluginSectionTitle icon="shield_ui">About Library Health</PluginSectionTitle>
@@ -245,32 +326,75 @@ export default function LibraryHealthPlugin({
 
           {activeTab === 'problems' && (
             <div className="p-5 space-y-2">
-              {problems.length === 0 ? (
+              {/* Active filter indicator */}
+              {filterKind && (
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[10px] text-gray-500">Filtering:</span>
+                  <button
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/[0.06] border border-white/10 text-[10px] text-gray-300 hover:bg-white/10"
+                    onClick={() => setFilterKind(null)}
+                  >
+                    <Icons8Icon id={KIND_META[filterKind]?.icon ?? 'warning'} size={10} className={KIND_META[filterKind]?.color ?? ''} />
+                    {KIND_META[filterKind]?.label ?? filterKind}
+                    <Icons8Icon id="close_ui" size={8} className="text-gray-500 ml-1" />
+                  </button>
+                  <span className="text-[10px] text-gray-600">{filteredProblems.length} result{filteredProblems.length === 1 ? '' : 's'}</span>
+                </div>
+              )}
+
+              {filteredProblems.length === 0 ? (
                 <PluginEmptyState
                   icon="shield_ui"
-                  title="No problems found"
-                  description="Scan a folder to check for broken links, naming conflicts, and integrity issues."
+                  title={filterKind ? `No ${KIND_META[filterKind]?.label ?? filterKind} problems` : 'No problems found'}
+                  description={filterKind ? 'Try clearing the filter or scanning another folder.' : 'Scan a folder to check for broken links, naming conflicts, and integrity issues.'}
                 />
               ) : (
-                problems.map(p => {
+                filteredProblems.map(p => {
                   const sev = SEVERITY_STYLES[p.severity] || SEVERITY_STYLES.info;
+                  const kindMeta = KIND_META[p.kind];
                   const { leaf, parent } = splitPath(p.path);
+                  const isFixing = fixingId === p.id;
                   return (
                     <div key={p.id} className={`bndz-plugin-card flex items-start gap-3 border ${sev.bg}`}>
                       <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${sev.dot}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${sev.text}`}>{p.severity}</span>
-                          <span className="text-[10px] text-gray-500">{p.kind}</span>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          {/* Severity badge */}
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${sev.badge}`}>
+                            {p.severity}
+                          </span>
+                          {/* Kind badge */}
+                          {kindMeta && (
+                            <span className={`inline-flex items-center gap-1 text-[10px] ${kindMeta.color}`}>
+                              <Icons8Icon id={kindMeta.icon} size={10} />
+                              {kindMeta.label}
+                            </span>
+                          )}
+                          {!kindMeta && <span className="text-[10px] text-gray-500">{p.kind}</span>}
                         </div>
-                        <div className="text-xs text-white mt-0.5">{p.message}</div>
+                        <div className="text-xs text-white mt-0.5">{p.detail}</div>
+                        {p.fixHint && (
+                          <div className="text-[10px] text-gray-500 mt-0.5 italic">{p.fixHint}</div>
+                        )}
                         <div className="bndz-mono text-[10px] text-gray-500 truncate mt-0.5" title={p.path}>
                           {parent && <span>{parent}\</span>}{leaf}
                         </div>
                       </div>
-                      <PluginToolbarButton icon="folder_open_ui" onClick={() => revealPath(p.path)} title="Reveal in pane">
-                        Open
-                      </PluginToolbarButton>
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <PluginToolbarButton icon="folder_open_ui" onClick={() => revealPath(p.path)} title="Reveal in pane">
+                          Open
+                        </PluginToolbarButton>
+                        {p.fixable && (
+                          <PluginToolbarButton
+                            icon="check"
+                            onClick={() => void fixProblem(p)}
+                            disabled={isFixing || busy}
+                            title={`Auto-fix: ${p.fixHint || p.kind}`}
+                          >
+                            {isFixing ? 'Fixing…' : 'Fix'}
+                          </PluginToolbarButton>
+                        )}
+                      </div>
                     </div>
                   );
                 })

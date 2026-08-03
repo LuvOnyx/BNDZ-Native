@@ -69,6 +69,8 @@ namespace BNDZ
         private readonly BndzAutomationWatcherService _automationWatcher;
         private readonly BndzAutomationSchedulerService _automationScheduler;
         private readonly BndzAutomationEventTriggerService _automationEventTriggers;
+        private readonly DropMagnetService _dropMagnetService = DropMagnetService.Instance;
+        private readonly TemporalDiffService _temporalDiffService = TemporalDiffService.Instance;
 
         private ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
         private ConcurrentQueue<object> _fseventBuffer = new();
@@ -97,7 +99,8 @@ namespace BNDZ
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
             InitializeComponent();
-            // Chromium OLE gate — open for Explorer drops; closed during BNDZ-initiated drags.
+            // AllowExternalDrop=true: WebView2's own OLE target will be replaced by BNDZ's
+            // native IDropTarget via RegisterWebView2OleDropTarget() after CoreWebView2 init.
             MainWebView.AllowExternalDrop = true;
             _fileService = fileService;
             _aiService = aiService;
@@ -119,11 +122,15 @@ namespace BNDZ
                 TagStore = _tagSidecarStore,
                 ArchiveService = _archiveService,
                 ShellContext = _shellContextMenuService,
+                HealthService = LibraryHealthService.Instance,
+                SandboxService = ProjectSandboxService.Instance,
+                BranchingService = BranchingTimeService.Instance,
                 HostWindow = new System.Windows.Interop.WindowInteropHelper(this).Handle,
             };
             _automationWatcher = new BndzAutomationWatcherService(_automationRunnerDeps);
             _automationScheduler = new BndzAutomationSchedulerService(_automationRunnerDeps);
             _automationEventTriggers = new BndzAutomationEventTriggerService(_automationRunnerDeps);
+            _ = Task.Run(() => _automationWatcher.RestorePersistedWatchers());
             _meshDropService.SetSessionChangedHandler(evt =>
             {
                 PostToUi(() =>
@@ -244,6 +251,8 @@ namespace BNDZ
             
             SetupDebouncedWatcher();
             InitializeWebViewAsync();
+            // Pre-warm the license cache so the first IPC message doesn't block on a cold license check.
+            _ = Task.Run(() => { try { LicenseService.GetStatusCached(); } catch { } });
         }
 
         private void ApplyStartupWindowPlacement()
@@ -684,18 +693,17 @@ namespace BNDZ
         private string? _lastExternalDropFingerprint;
         private double? _lastExternalDragWebViewX;
         private double? _lastExternalDragWebViewY;
+        /// <summary>Environment.TickCount64 at the last PostExternalFileDragHover call — throttle guard.</summary>
+        private long _lastHoverTickMs;
 
+        // AllowExternalDrop stays true so WebView2 does not install a blocking target
+        // before we call RegisterDragDrop on its HWND (see SetupNativeFileDrop /
+        // RegisterWebView2OleDropTarget).  The WPF Preview* handlers below remain
+        // as a fallback for drops over non-WebView2 areas (sidebar, toolbar, tabs).
         private void SyncAllowExternalDrop()
         {
-            try
-            {
-                // Open for Explorer/Desktop drops; close only while BNDZ owns the OLE session.
-                MainWebView.AllowExternalDrop = !_bndzOleDragActive;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Drop] AllowExternalDrop: {ex.Message}");
-            }
+            try { MainWebView.AllowExternalDrop = true; }
+            catch (Exception ex) { Debug.WriteLine($"[Drop] AllowExternalDrop: {ex.Message}"); }
         }
 
         private void PostNavigationFileDrop(string localPath)
@@ -790,6 +798,12 @@ namespace BNDZ
 
         private void PostExternalFileDragHover(double webViewX, double webViewY)
         {
+            // Throttle: at most one hover message per ~16 ms (~60 fps). Without this guard,
+            // rapid DragOver floods the JS side with hundreds of messages per second.
+            var now = Environment.TickCount64;
+            if (now - _lastHoverTickMs < 16) return;
+            _lastHoverTickMs = now;
+
             var msg = new
             {
                 type = "EXTERNAL_FILES_DRAG_HOVER",
@@ -843,23 +857,19 @@ namespace BNDZ
         {
             AllowDrop = true;
             MainWebView.AllowDrop = true;
-            // Critical: when true (default), Chromium owns OLE drops and WPF Drop never fires —
-            // React then sees File objects with no .path in WebView2. Force host-owned drops.
-            void EnforceHostOwnedDrops() => SyncAllowExternalDrop();
-            EnforceHostOwnedDrops();
-            Loaded += (_, __) => EnforceHostOwnedDrops();
-            Activated += (_, __) => EnforceHostOwnedDrops();
+
+            // ── WPF fallback: handles drops over non-WebView2 areas (sidebar, tabs, toolbar).
+            // The native OLE path below owns drops over the WebView2 HWND; these handlers
+            // are the safety net for anything outside it (and for the rare case where
+            // RegisterDragDrop on the Chrome HWND could not be completed).
 
             string ResolvePreferredDropEffect(System.Windows.DragEventArgs e)
             {
-                // Ctrl = copy (Explorer convention).
                 if ((e.KeyStates & System.Windows.DragDropKeyStates.ControlKey) != 0)
                     return "copy";
-                // Shift = move when allowed.
                 if ((e.KeyStates & System.Windows.DragDropKeyStates.ShiftKey) != 0
                     && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
                     return "move";
-                // In-app OLE re-entry keeps move intent; true external apps always copy into BNDZ.
                 if (_bndzOleDragActive && (e.AllowedEffects & System.Windows.DragDropEffects.Move) != 0)
                     return "move";
                 return "copy";
@@ -873,7 +883,6 @@ namespace BNDZ
                     e.Handled = true;
                     return;
                 }
-
                 var preferred = ResolvePreferredDropEffect(e);
                 var want = preferred == "move"
                     ? System.Windows.DragDropEffects.Move
@@ -881,7 +890,6 @@ namespace BNDZ
                 var allowed = e.AllowedEffects & want;
                 if (allowed == System.Windows.DragDropEffects.None)
                     allowed = e.AllowedEffects & (System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
-                // Never leave Effects=None when files are present — Explorer won't raise Drop.
                 e.Effects = allowed == System.Windows.DragDropEffects.None
                     ? System.Windows.DragDropEffects.Copy
                     : allowed;
@@ -892,10 +900,8 @@ namespace BNDZ
                 PostExternalFileDragHover(pt.X, pt.Y);
             }
 
-            void OnDrop(object sender, System.Windows.DragEventArgs e)
+            void OnWpfDrop(object sender, System.Windows.DragEventArgs e)
             {
-                // Do not bail on e.Handled — Window + WebView both preview-tunnel;
-                // the first empty attempt must not block the second.
                 try
                 {
                     var files = ExternalDropHelper.ExtractPaths(e.Data);
@@ -911,31 +917,83 @@ namespace BNDZ
                     else
                     {
                         var formats = ExternalDropHelper.GetAvailableFormats(e.Data);
-                        PostExternalFileDropFailed(formats, "No extractable paths in drop payload.");
+                        PostExternalFileDropFailed(formats, "No extractable paths in drop payload (WPF path).");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[Drop] {ex.Message}");
+                    Debug.WriteLine($"[Drop/WPF] {ex.Message}");
                     PostExternalFileDropFailed(Array.Empty<string>(), ex.Message);
                 }
             }
 
-            // handledEventsToo: Chromium/WebView2 sometimes marks DragOver handled before we see it.
             AddHandler(System.Windows.DragDrop.PreviewDragEnterEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
-            AddHandler(System.Windows.DragDrop.PreviewDragOverEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
-            AddHandler(System.Windows.DragDrop.PreviewDropEvent, new System.Windows.DragEventHandler(OnDrop), true);
-            MainWebView.AddHandler(System.Windows.DragDrop.PreviewDragEnterEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
-            MainWebView.AddHandler(System.Windows.DragDrop.PreviewDragOverEvent, new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
-            MainWebView.AddHandler(System.Windows.DragDrop.PreviewDropEvent, new System.Windows.DragEventHandler(OnDrop), true);
-            MainWebView.DragEnter += (_, e) => AcceptFileDrag(e);
-            MainWebView.DragOver += (_, e) => AcceptFileDrag(e);
-            MainWebView.Drop += OnDrop;
+            AddHandler(System.Windows.DragDrop.PreviewDragOverEvent,  new System.Windows.DragEventHandler((_, e) => AcceptFileDrag(e)), true);
+            AddHandler(System.Windows.DragDrop.PreviewDropEvent,       new System.Windows.DragEventHandler(OnWpfDrop), true);
 
-            // Re-assert after each navigation — some WebView2 builds reset AllowExternalDrop.
-            MainWebView.CoreWebView2.NavigationCompleted += (_, __) => EnforceHostOwnedDrops();
-            MainWebView.CoreWebView2.DOMContentLoaded += (_, __) => EnforceHostOwnedDrops();
-            _ = Dispatcher.BeginInvoke(new Action(() => EnforceHostOwnedDrops()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            // ── Native OLE path: register our IDropTarget on the WebView2 child HWND.
+            // Must run after CoreWebView2 is initialized (HWND exists).
+            RegisterWebView2OleDropTarget();
+
+            // Re-register after navigation that might recreate the HWND, and eagerly on idle.
+            MainWebView.CoreWebView2.NavigationCompleted += (_, __) => SyncAllowExternalDrop();
+            _ = Dispatcher.BeginInvoke(new Action(RegisterWebView2OleDropTarget),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+
+        /// <summary>
+        /// (Re)register BNDZ's native OLE <c>IDropTarget</c> on the WebView2 child HWND.
+        /// Safe to call multiple times — revokes any previous registration first.
+        /// Must be called on the UI thread after CoreWebView2 is initialized.
+        /// </summary>
+        private void RegisterWebView2OleDropTarget()
+        {
+            var windowHwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (windowHwnd == IntPtr.Zero) return;
+
+            // Screen-coords → WebView2-client-coords (handles DPI + ZoomFactor + JS scale).
+            System.Windows.Point OleScreenToWebViewClient(double screenX, double screenY)
+            {
+                var wvPt = MainWebView.PointFromScreen(new System.Windows.Point(screenX, screenY));
+                try
+                {
+                    var zoom = MainWebView.ZoomFactor;
+                    if (zoom > 0.01 && Math.Abs(zoom - 1.0) > 0.001)
+                        wvPt = new System.Windows.Point(wvPt.X / zoom, wvPt.Y / zoom);
+                }
+                catch { /* best-effort */ }
+                if (Math.Abs(_webviewJsScaleX - 1.0) > 0.02 || Math.Abs(_webviewJsScaleY - 1.0) > 0.02)
+                    wvPt = new System.Windows.Point(wvPt.X * _webviewJsScaleX, wvPt.Y * _webviewJsScaleY);
+                return wvPt;
+            }
+
+            // onHover: throttled, dispatched to UI thread (already on UI thread via STA OLE).
+            void OleHover(double screenX, double screenY)
+            {
+                var now = Environment.TickCount64;
+                if (now - _lastHoverTickMs < 16) return;
+                _lastHoverTickMs = now;
+
+                var pt = OleScreenToWebViewClient(screenX, screenY);
+                _lastExternalDragWebViewX = pt.X;
+                _lastExternalDragWebViewY = pt.Y;
+                PostExternalFileDragHover(pt.X, pt.Y);
+            }
+
+            // onDrop: convert coords, apply dedup guard, post EXTERNAL_FILES_DROPPED.
+            void OleDrop(string[] paths, double screenX, double screenY, uint grfEffect, bool fromBndzOle)
+            {
+                var pt = OleScreenToWebViewClient(screenX, screenY);
+                var resolved = ResolveDropCoords(pt);
+                var effect = grfEffect == 2u ? "move" : "copy"; // DROPEFFECT_MOVE=2
+                PostExternalFileDrop(paths, resolved.X, resolved.Y, effect, "ole");
+            }
+
+            WebView2DropTargetService.Register(
+                windowHwnd,
+                OleDrop,
+                OleHover,
+                () => _bndzOleDragActive);
         }
 
         private void PostIconResult(string? id, string? payload)
@@ -1095,6 +1153,16 @@ namespace BNDZ
 
         private async Task StreamDirContentsAsync(string path, string? idProp, CancellationToken ct)
         {
+            var resolvedForGate = ShellPathResolver.ResolveForShell(path);
+            if (string.IsNullOrEmpty(resolvedForGate)) resolvedForGate = ShellPathResolver.NormalizeIncoming(path);
+            if (!string.IsNullOrWhiteSpace(resolvedForGate)
+                && HelloGateService.Instance.IsBlocked(resolvedForGate))
+            {
+                var gatePath = HelloGateService.Instance.GetBlockingGatePath(resolvedForGate) ?? resolvedForGate;
+                await PostToUiAsync(() => PostDirContentsError(idProp, path, $"HELLO_GATE_BLOCKED:{gatePath}")).ConfigureAwait(false);
+                return;
+            }
+
             var firstPaint = DirListingSharedBuffer.FirstPaintPageSize;
             var streamChunk = DirListingSharedBuffer.StreamChunkSize;
             var all = new List<DirListingSharedBuffer.DirEntryDto>();
@@ -1272,9 +1340,11 @@ namespace BNDZ
 
             var webEnv = await CoreWebView2Environment.CreateAsync(null, profileDir, webEnvOptions);
             _webViewEnvironment = webEnv;
+            // Keep AllowExternalDrop=true so WebView2 does not install a *blocking* OLE target
+            // before RegisterWebView2OleDropTarget can replace it with BNDZ's own IDropTarget.
             MainWebView.AllowExternalDrop = true;
             await MainWebView.EnsureCoreWebView2Async(webEnv);
-            SyncAllowExternalDrop();
+            SyncAllowExternalDrop(); // now sets true
 
             if (MainWebView.CoreWebView2 == null)
                 throw new InvalidOperationException("WebView2 initialized but CoreWebView2 is still null.");
@@ -1391,9 +1461,16 @@ namespace BNDZ
         {
             PostToUi(() => {
                 System.Windows.MessageBox.Show($"WebView2 Process Failed: {e.ProcessFailedKind}\nReason: {e.Reason}", "Renderer Crash or IPC Bridge Timeout", MessageBoxButton.OK, MessageBoxImage.Error);
-                // Attempt recovery by reloading
+                // Attempt recovery by reloading, then re-register our drop target once
+                // the new renderer HWND is live.
                 try
                 {
+                    void ReregisterOnNavComplete(object? s, CoreWebView2NavigationCompletedEventArgs _ev)
+                    {
+                        MainWebView.CoreWebView2.NavigationCompleted -= ReregisterOnNavComplete;
+                        RegisterWebView2OleDropTarget();
+                    }
+                    MainWebView.CoreWebView2.NavigationCompleted += ReregisterOnNavComplete;
                     MainWebView.Reload();
                 }
                 catch { }
@@ -1486,8 +1563,14 @@ namespace BNDZ
                     catch { /* best-effort */ }
                     PostToUi(FlushPendingOpenPath);
                     PostToUi(FlushPendingPluginWindow);
-                    try { InboundVolumeService.Instance.StartWatching(); } catch { }
-                    try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
+                    PushDrivesUpdate();
+                    // Offload I/O-bound startup work off the UI/IPC thread to avoid hitching
+                    // the WebView message pump at first paint.
+                    _ = Task.Run(() =>
+                    {
+                        try { InboundVolumeService.Instance.StartWatching(); } catch { }
+                        try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
+                    });
                 }
                 else if (type == "EXECUTE_BATCH_RENAME")
                 {
@@ -1650,8 +1733,9 @@ namespace BNDZ
                     {
                         try
                         {
+                            // _bndzOleDragActive lets our IDropTarget recognise internal re-entry
+                            // and honour move intent when the drag lands back on BNDZ.
                             _bndzOleDragActive = true;
-                            SyncAllowExternalDrop();
                             var dataObject = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, pathArray);
                             System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
                         }
@@ -1662,7 +1746,6 @@ namespace BNDZ
                         finally
                         {
                             _bndzOleDragActive = false;
-                            SyncAllowExternalDrop();
                         }
                     }
 
@@ -2734,9 +2817,19 @@ namespace BNDZ
                 else if (type == "GHOST_LINK_GET_STATS")
                 {
                     var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                    var stats = _ghostLinkService.GetStats();
-                    var ghosts = _ghostLinkService.ListGhosts();
-                    PostMeshIpcResult(idProp, "GHOST_LINK_GET_STATS_RESULT", new { stats, ghosts });
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var stats = _ghostLinkService.GetStats();
+                            var ghosts = _ghostLinkService.ListGhosts();
+                            PostMeshIpcResult(idProp, "GHOST_LINK_GET_STATS_RESULT", new { stats, ghosts });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "GHOST_LINK_GET_STATS_RESULT", new { error = ex.Message, stats = (object?)null, ghosts = Array.Empty<object>() });
+                        }
+                    });
                 }
                 else if (type == "RAM_STAGING_LIST_ZONES")
                 {
@@ -2931,8 +3024,8 @@ namespace BNDZ
                     {
                         try
                         {
-                            ProjectSandboxService.Instance.Commit(sessionId);
-                            PostMeshIpcResult(idProp, "SANDBOX_COMMIT_RESULT", new { ok = true });
+                            var result = ProjectSandboxService.Instance.Commit(sessionId);
+                            PostMeshIpcResult(idProp, "SANDBOX_COMMIT_RESULT", new { ok = result.Ok, error = result.Error, opsProcessed = result.OpsProcessed, details = result.Details });
                         }
                         catch (Exception ex)
                         {
@@ -2948,12 +3041,29 @@ namespace BNDZ
                     {
                         try
                         {
-                            ProjectSandboxService.Instance.Discard(sessionId);
-                            PostMeshIpcResult(idProp, "SANDBOX_DISCARD_RESULT", new { ok = true });
+                            var result = ProjectSandboxService.Instance.Discard(sessionId);
+                            PostMeshIpcResult(idProp, "SANDBOX_DISCARD_RESULT", new { ok = result.Ok, error = result.Error, opsProcessed = result.OpsProcessed, details = result.Details });
                         }
                         catch (Exception ex)
                         {
                             PostMeshIpcResult(idProp, "SANDBOX_DISCARD_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "SANDBOX_GET_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var sessionId = root.GetProperty("payload").TryGetProperty("sessionId", out var sEl) ? sEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var status = ProjectSandboxService.Instance.GetSessionStatus(sessionId);
+                            PostMeshIpcResult(idProp, "SANDBOX_GET_STATUS_RESULT", status);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SANDBOX_GET_STATUS_RESULT", new { error = ex.Message });
                         }
                     });
                 }
@@ -3001,6 +3111,220 @@ namespace BNDZ
                         catch (Exception ex)
                         {
                             PostMeshIpcResult(idProp, "SANDBOX_RESTORE_CHECKPOINT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Branching Time (content-addressed time machine) ──
+                else if (type == "BRANCH_WATCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var rootPath = root.GetProperty("payload").TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            BranchingTimeService.Instance.WatchRoot(rootPath);
+                            PostMeshIpcResult(idProp, "BRANCH_WATCH_RESULT", new { ok = true, watched = BranchingTimeService.Instance.ListWatchedRoots() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_WATCH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_LIST_WATCHED")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "BRANCH_LIST_WATCHED_RESULT", new { watched = BranchingTimeService.Instance.ListWatchedRoots() });
+                    });
+                }
+                else if (type == "BRANCH_CREATE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPath = payload.TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nEl) ? nEl.GetString() ?? "" : "";
+                    var parentId = payload.TryGetProperty("parentBranchId", out var pEl) ? pEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var branch = BranchingTimeService.Instance.CreateBranch(rootPath, name, parentId);
+                            PostMeshIpcResult(idProp, "BRANCH_CREATE_RESULT", new { ok = true, branch });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_CREATE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var rootPath = root.GetProperty("payload").TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "BRANCH_LIST_RESULT", new { branches = BranchingTimeService.Instance.ListBranches(rootPath) });
+                    });
+                }
+                else if (type == "BRANCH_PEEK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var branchId = root.GetProperty("payload").TryGetProperty("branchId", out var bEl) ? bEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        var peek = BranchingTimeService.Instance.PeekBranch(branchId);
+                        PostMeshIpcResult(idProp, "BRANCH_PEEK_RESULT", new { ok = peek != null, peek });
+                    });
+                }
+                else if (type == "BRANCH_RESTORE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var branchId = payload.TryGetProperty("branchId", out var bEl) ? bEl.GetString() ?? "" : "";
+                    string[]? relPaths = null;
+                    if (payload.TryGetProperty("relPaths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        relPaths = pathsEl.EnumerateArray()
+                            .Select(e => e.GetString() ?? "")
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .ToArray();
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = BranchingTimeService.Instance.Restore(branchId, relPaths);
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_RESULT", result);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_RESULT", new { ok = false, restored = 0, skipped = 0, errors = new[] { ex.Message } });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_DELETE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var branchId = root.GetProperty("payload").TryGetProperty("branchId", out var bEl) ? bEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        var ok = BranchingTimeService.Instance.DeleteBranch(branchId);
+                        PostMeshIpcResult(idProp, "BRANCH_DELETE_RESULT", new { ok });
+                    });
+                }
+                // ── Drop Magnet Recipes ──
+                else if (type == "MAGNET_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "MAGNET_LIST_RESULT", new { magnets = _dropMagnetService.ListMagnets() });
+                    });
+                }
+                else if (type == "MAGNET_SAVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var recipe = JsonSerializer.Deserialize<DropMagnetRecipe>(payload.GetRawText(), IpcJsonOptions)
+                                ?? throw new InvalidOperationException("Invalid magnet payload.");
+                            var saved = _dropMagnetService.SaveMagnet(recipe);
+                            PostMeshIpcResult(idProp, "MAGNET_SAVE_RESULT", new { ok = true, magnet = saved });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "MAGNET_SAVE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "MAGNET_DELETE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var magnetId = root.GetProperty("payload").TryGetProperty("id", out var mEl) ? mEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        var ok = _dropMagnetService.DeleteMagnet(magnetId);
+                        PostMeshIpcResult(idProp, "MAGNET_DELETE_RESULT", new { ok });
+                    });
+                }
+                else if (type == "MAGNET_APPLY_DROP")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var magnetId = payload.TryGetProperty("magnetId", out var midEl) ? midEl.GetString() ?? "" : "";
+                    var action = payload.TryGetProperty("action", out var actEl) ? actEl.GetString() ?? "copy" : "copy";
+                    var sources = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in pathsEl.EnumerateArray())
+                        {
+                            var p = el.GetString();
+                            if (!string.IsNullOrWhiteSpace(p)) sources.Add(NormalizeFsPath(p));
+                        }
+                    }
+                    var operationId = payload.TryGetProperty("operationId", out var opEl) ? opEl.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
+                    _ = HandleMagnetApplyDropAsync(operationId, magnetId, sources, action, idProp);
+                }
+                // ── Temporal Diff Pane ──
+                else if (type == "TEMPORAL_DIFF_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var rootPath = root.GetProperty("payload").TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var snapshotId = _temporalDiffService.TakeSnapshot(rootPath);
+                            PostMeshIpcResult(idProp, "TEMPORAL_DIFF_SNAPSHOT_RESULT", new { ok = true, snapshotId });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "TEMPORAL_DIFF_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "TEMPORAL_DIFF_COMPARE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPath = payload.TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    var minutesAgo = payload.TryGetProperty("minutesAgo", out var mEl) && mEl.ValueKind == JsonValueKind.Number ? mEl.GetInt32() : 15;
+                    var checkpointId = payload.TryGetProperty("checkpointId", out var cpEl) ? cpEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = _temporalDiffService.Compare(rootPath, minutesAgo, checkpointId);
+                            PostMeshIpcResult(idProp, "TEMPORAL_DIFF_COMPARE_RESULT", new { ok = true, diff = result });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "TEMPORAL_DIFF_COMPARE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "TEMPORAL_DIFF_LIST_SNAPSHOTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPath = payload.TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    var limit = payload.TryGetProperty("limit", out var limEl) && limEl.ValueKind == JsonValueKind.Number ? limEl.GetInt32() : 20;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var snapshots = _temporalDiffService.ListSnapshots(rootPath, limit);
+                            PostMeshIpcResult(idProp, "TEMPORAL_DIFF_LIST_SNAPSHOTS_RESULT", new { ok = true, snapshots });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "TEMPORAL_DIFF_LIST_SNAPSHOTS_RESULT", new { ok = false, error = ex.Message });
                         }
                     });
                 }
@@ -3059,6 +3383,23 @@ namespace BNDZ
                         PostMeshIpcResult(idProp, "HEALTH_CLEAR_RESULT", new { ok = true });
                     });
                 }
+                else if (type == "HEALTH_FIX_PROBLEM")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var problemId = root.GetProperty("payload").TryGetProperty("problemId", out var pEl) ? pEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = LibraryHealthService.Instance.FixProblem(problemId);
+                            PostMeshIpcResult(idProp, "HEALTH_FIX_PROBLEM_RESULT", new { ok = result.Ok, action = result.Action, error = result.Error });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "HEALTH_FIX_PROBLEM_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
                 // ── Phase 9+ selling-pillar IPC: Lineage ──
                 else if (type == "LINEAGE_GET")
                 {
@@ -3068,7 +3409,9 @@ namespace BNDZ
                     var depth = payload.TryGetProperty("depth", out var dEl) && dEl.ValueKind == JsonValueKind.Number ? dEl.GetInt32() : 8;
                     _ = Task.Run(() =>
                     {
-                        PostMeshIpcResult(idProp, "LINEAGE_GET_RESULT", FileLineageService.Instance.GetLineage(linPath, depth));
+                        var lineage = FileLineageService.Instance.GetLineage(linPath, depth);
+                        lineage.ContentDag = FileLineageService.Instance.GetContentDag(linPath, 4);
+                        PostMeshIpcResult(idProp, "LINEAGE_GET_RESULT", lineage);
                     });
                 }
                 else if (type == "LINEAGE_GET_RECENT")
@@ -3078,6 +3421,41 @@ namespace BNDZ
                     _ = Task.Run(() =>
                     {
                         PostMeshIpcResult(idProp, "LINEAGE_GET_RECENT_RESULT", new { edges = FileLineageService.Instance.GetRecent(linLimit) });
+                    });
+                }
+                else if (type == "LINEAGE_CONTENT_DAG")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var dagPath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var dagDepth = payload.TryGetProperty("depth", out var dEl) && dEl.ValueKind == JsonValueKind.Number ? dEl.GetInt32() : 4;
+                    _ = Task.Run(() =>
+                    {
+                        var dag = FileLineageService.Instance.GetContentDag(dagPath, dagDepth);
+                        PostMeshIpcResult(idProp, "LINEAGE_CONTENT_DAG_RESULT", dag);
+                    });
+                }
+                else if (type == "LINEAGE_HASH_FILE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var hashPath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var hash = await FileLineageService.Instance.ComputeContentHashAsync(hashPath).ConfigureAwait(false);
+                            if (!string.IsNullOrEmpty(hash))
+                            {
+                                var size = File.Exists(hashPath) ? new FileInfo(hashPath).Length : 0;
+                                FileLineageService.Instance.RecordContentNode(hash, hashPath, size);
+                            }
+                            PostMeshIpcResult(idProp, "LINEAGE_HASH_FILE_RESULT", new { ok = true, hash = hash ?? "", path = hashPath });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "LINEAGE_HASH_FILE_RESULT", new { ok = false, error = ex.Message });
+                        }
                     });
                 }
                 // ── Phase 9+ selling-pillar IPC: Capacity Solver ──
@@ -3098,6 +3476,747 @@ namespace BNDZ
                         {
                             PostMeshIpcResult(idProp, "CAPACITY_BUILD_PLAN_RESULT", new { ok = false, error = ex.Message });
                         }
+                    });
+                }
+                else if (type == "CAPACITY_WHAT_IF")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var capPath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    long? targetFreeBytes = payload.TryGetProperty("targetFreeBytes", out var tfEl) && tfEl.ValueKind == JsonValueKind.Number ? tfEl.GetInt64() : null;
+                    var scrubbers = new WhatIfParams();
+                    if (payload.TryGetProperty("scrubbers", out var sEl))
+                    {
+                        if (sEl.TryGetProperty("keepHotDays", out var kd) && kd.ValueKind == JsonValueKind.Number) scrubbers.KeepHotDays = kd.GetInt32();
+                        if (sEl.TryGetProperty("recencyDays", out var rd) && rd.ValueKind == JsonValueKind.Number) scrubbers.RecencyDays = rd.GetInt32();
+                        if (sEl.TryGetProperty("minFileSizeMb", out var ms) && ms.ValueKind == JsonValueKind.Number) scrubbers.MinFileSizeMb = ms.GetInt64();
+                        if (sEl.TryGetProperty("includeDuplicates", out var id2)) scrubbers.IncludeDuplicates = id2.ValueKind != JsonValueKind.False;
+                        if (sEl.TryGetProperty("includeGhostOffload", out var ig)) scrubbers.IncludeGhostOffload = ig.ValueKind != JsonValueKind.False;
+                        if (sEl.TryGetProperty("includeArchive", out var ia)) scrubbers.IncludeArchive = ia.ValueKind != JsonValueKind.False;
+                        if (sEl.TryGetProperty("includeEmptyDirs", out var ie)) scrubbers.IncludeEmptyDirs = ie.ValueKind != JsonValueKind.False;
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var projection = CapacitySolverService.Instance.WhatIf(capPath, scrubbers, targetFreeBytes);
+                            PostMeshIpcResult(idProp, "CAPACITY_WHAT_IF_RESULT", new { ok = true, projection });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "CAPACITY_WHAT_IF_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "CAPACITY_APPROVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var capPath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var actionIds = new List<string>();
+                    if (payload.TryGetProperty("actionIds", out var aEl) && aEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in aEl.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) actionIds.Add(s);
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = CapacitySolverService.Instance.Approve(capPath, actionIds);
+                            PostMeshIpcResult(idProp, "CAPACITY_APPROVE_RESULT", new { ok = result.Ok, result.ActionsDispatched, result.BytesTargeted, result.DispatchedOperationIds, result.Error });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "CAPACITY_APPROVE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BUDGET_GOVERNOR_GET_POLICIES")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_GET_POLICIES_RESULT", new { ok = true, policies = BudgetGovernorService.Instance.GetPolicies() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_GET_POLICIES_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BUDGET_GOVERNOR_SET_POLICY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var volumeRoot = payload.TryGetProperty("volumeRoot", out var vr) ? vr.GetString() ?? "" : "";
+                            var enforcement = payload.TryGetProperty("enforcement", out var ef) ? ef.GetString() ?? "off" : "off";
+                            long softLimit = payload.TryGetProperty("softLimitBytes", out var sl) && sl.ValueKind == JsonValueKind.Number ? sl.GetInt64() : 0;
+                            long hardLimit = payload.TryGetProperty("hardLimitBytes", out var hl) && hl.ValueKind == JsonValueKind.Number ? hl.GetInt64() : 0;
+                            bool enabled = !payload.TryGetProperty("enabled", out var en) || en.ValueKind != JsonValueKind.False;
+
+                            var policy = new VolumeQuotaPolicy
+                            {
+                                VolumeRoot = volumeRoot,
+                                Enforcement = enforcement switch
+                                {
+                                    "soft" => QuotaEnforcement.Soft,
+                                    "hard" => QuotaEnforcement.Hard,
+                                    _ => QuotaEnforcement.Off,
+                                },
+                                SoftLimitBytes = softLimit,
+                                HardLimitBytes = hardLimit,
+                                Enabled = enabled,
+                            };
+                            BudgetGovernorService.Instance.SetPolicy(policy);
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_SET_POLICY_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_SET_POLICY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BUDGET_GOVERNOR_REMOVE_POLICY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var volumeRoot = payload.TryGetProperty("volumeRoot", out var vr) ? vr.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            BudgetGovernorService.Instance.RemovePolicy(volumeRoot);
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_REMOVE_POLICY_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_REMOVE_POLICY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BUDGET_GOVERNOR_CHECK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var targetPath = payload.TryGetProperty("targetPath", out var tp) ? tp.GetString() ?? "" : "";
+                    long incomingBytes = payload.TryGetProperty("incomingBytes", out var ib) && ib.ValueKind == JsonValueKind.Number ? ib.GetInt64() : 0;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var check = BudgetGovernorService.Instance.CheckTransfer(targetPath, incomingBytes);
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_CHECK_RESULT", new
+                            {
+                                ok = true,
+                                check.Allowed,
+                                check.SoftWarning,
+                                check.HardBlock,
+                                check.Message,
+                                check.CurrentUsedBytes,
+                                check.AfterUsedBytes,
+                                check.SoftLimitBytes,
+                                check.HardLimitBytes,
+                                check.TotalBytes,
+                                check.AfterUsedPct,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BUDGET_GOVERNOR_CHECK_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Policy Packs ──
+                else if (type == "POLICY_PACK_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            PostMeshIpcResult(idProp, "POLICY_PACK_LIST_RESULT", new { ok = true, packs = PolicyPackService.Instance.ListPacks() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "POLICY_PACK_LIST_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "POLICY_PACK_SAVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var pack = JsonSerializer.Deserialize<PolicyPack>(payload.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (pack == null) throw new InvalidOperationException("Invalid pack payload");
+                            var saved = PolicyPackService.Instance.SavePack(pack);
+                            PostMeshIpcResult(idProp, "POLICY_PACK_SAVE_RESULT", new { ok = true, pack = saved });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "POLICY_PACK_SAVE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "POLICY_PACK_APPLY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folder = payload.TryGetProperty("folderPath", out var fp) ? fp.GetString() ?? "" : "";
+                    var packId = payload.TryGetProperty("packId", out var pid) ? pid.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            PolicyPackService.Instance.ApplyPackToFolder(folder, packId);
+                            PostMeshIpcResult(idProp, "POLICY_PACK_APPLY_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "POLICY_PACK_APPLY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "POLICY_PACK_VALIDATE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var dest = payload.TryGetProperty("destinationPath", out var dp) ? dp.GetString() ?? "" : "";
+                    var sources = new List<string>();
+                    if (payload.TryGetProperty("sourcePaths", out var sp) && sp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in sp.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) sources.Add(s);
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = PolicyPackService.Instance.ValidateTransfer(dest, sources, _tagSidecarStore);
+                            PostMeshIpcResult(idProp, "POLICY_PACK_VALIDATE_RESULT", new
+                            {
+                                ok = true,
+                                allowed = result.Allowed,
+                                packId = result.PackId,
+                                packName = result.PackName,
+                                violations = result.Violations,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "POLICY_PACK_VALIDATE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Path Healer ──
+                else if (type == "PATH_HEALER_SCAN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPath = payload.TryGetProperty("path", out var rp) ? rp.GetString() ?? "" : "";
+                    int max = payload.TryGetProperty("maxResults", out var mr) && mr.ValueKind == JsonValueKind.Number ? mr.GetInt32() : 200;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var issues = PathHealerService.Instance.Scan(rootPath, max);
+                            PostMeshIpcResult(idProp, "PATH_HEALER_SCAN_RESULT", new { ok = true, issues });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "PATH_HEALER_SCAN_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "PATH_HEALER_APPLY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var issueIds = new List<string>();
+                    if (payload.TryGetProperty("issueIds", out var ids) && ids.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in ids.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) issueIds.Add(s);
+                        }
+                    }
+                    var scanned = new List<PathHealIssue>();
+                    if (payload.TryGetProperty("issues", out var iss) && iss.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in iss.EnumerateArray())
+                        {
+                            try
+                            {
+                                var issue = JsonSerializer.Deserialize<PathHealIssue>(item.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                                if (issue != null) scanned.Add(issue);
+                            }
+                            catch { /* skip */ }
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = PathHealerService.Instance.Apply(issueIds, scanned);
+                            PostMeshIpcResult(idProp, "PATH_HEALER_APPLY_RESULT", new { ok = result.Ok, applied = result.Applied, errors = result.Errors });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "PATH_HEALER_APPLY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Zero-Knowledge Vault ──
+                else if (type == "ZK_VAULT_CREATE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folder = payload.TryGetProperty("folderPath", out var fp) ? fp.GetString() ?? "" : "";
+                    var password = payload.TryGetProperty("password", out var pw) ? pw.GetString() ?? "" : "";
+                    var mode = payload.TryGetProperty("mode", out var md) ? md.GetString() ?? "files" : "files";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var vaultId = ZkVaultService.Instance.CreateVault(folder, password, mode);
+                            PostMeshIpcResult(idProp, "ZK_VAULT_CREATE_RESULT", new { ok = true, vaultId });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "ZK_VAULT_CREATE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "ZK_VAULT_UNLOCK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var vaultPath = payload.TryGetProperty("vaultPath", out var vp) ? vp.GetString() ?? "" : "";
+                    var password = payload.TryGetProperty("password", out var pw) ? pw.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var session = ZkVaultService.Instance.UnlockVault(vaultPath, password);
+                            PostMeshIpcResult(idProp, "ZK_VAULT_UNLOCK_RESULT", new { ok = true, session });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "ZK_VAULT_UNLOCK_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "ZK_VAULT_LOCK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var vaultId = payload.TryGetProperty("vaultId", out var vid) ? vid.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var ok = ZkVaultService.Instance.LockVault(vaultId);
+                            PostMeshIpcResult(idProp, "ZK_VAULT_LOCK_RESULT", new { ok });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "ZK_VAULT_LOCK_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "ZK_VAULT_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var status = ZkVaultService.Instance.GetStatus();
+                            PostMeshIpcResult(idProp, "ZK_VAULT_STATUS_RESULT", new { ok = true, status });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "ZK_VAULT_STATUS_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── ACL Drama ──
+                else if (type == "ACL_DRAMA_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var winPath = payload.TryGetProperty("path", out var pp) ? pp.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var snap = AclDramaService.Instance.Snapshot(winPath);
+                            PostMeshIpcResult(idProp, "ACL_DRAMA_SNAPSHOT_RESULT", new { ok = true, snapshot = snap });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "ACL_DRAMA_SNAPSHOT_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "ACL_DRAMA_HISTORY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var winPath = payload.TryGetProperty("path", out var pp) ? pp.GetString() ?? "" : "";
+                    int limit = payload.TryGetProperty("limit", out var lim) && lim.ValueKind == JsonValueKind.Number ? lim.GetInt32() : 50;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var history = AclDramaService.Instance.GetHistory(winPath, limit);
+                            PostMeshIpcResult(idProp, "ACL_DRAMA_HISTORY_RESULT", new { ok = true, history });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "ACL_DRAMA_HISTORY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Namespace Portal ──
+                else if (type == "NAMESPACE_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            PostMeshIpcResult(idProp, "NAMESPACE_LIST_RESULT", new { ok = true, roots = BndzNamespaceService.Instance.ListRoots() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "NAMESPACE_LIST_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Shell Verb Forge ──
+                else if (type == "VERB_FORGE_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            PostMeshIpcResult(idProp, "VERB_FORGE_LIST_RESULT", new { ok = true, verbs = ShellVerbForgeService.Instance.List() });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "VERB_FORGE_LIST_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "VERB_FORGE_SAVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var entry = new ShellVerbForgeEntry
+                            {
+                                Id = payload.TryGetProperty("id", out var idEl2) ? idEl2.GetString() ?? "" : "",
+                                Label = payload.TryGetProperty("label", out var lbl) ? lbl.GetString() ?? "" : "",
+                                VerbKey = payload.TryGetProperty("verbKey", out var vk) ? vk.GetString() ?? "" : "",
+                                TargetClass = payload.TryGetProperty("targetClass", out var tc) ? tc.GetString() ?? "*" : "*",
+                                ArgTemplate = payload.TryGetProperty("argTemplate", out var at) ? at.GetString() ?? "--open-path \"%1\"" : "--open-path \"%1\"",
+                                Icon = payload.TryGetProperty("icon", out var ic) ? ic.GetString() ?? "" : "",
+                                Deployed = payload.TryGetProperty("deployed", out var dp) && dp.ValueKind != JsonValueKind.False,
+                            };
+                            var saved = ShellVerbForgeService.Instance.Save(entry);
+                            PostMeshIpcResult(idProp, "VERB_FORGE_SAVE_RESULT", new { ok = true, verb = saved });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "VERB_FORGE_SAVE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "VERB_FORGE_DEPLOY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var verbId = root.GetProperty("payload").TryGetProperty("id", out var vid) ? vid.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        var result = ShellVerbForgeService.Instance.Deploy(verbId);
+                        PostMeshIpcResult(idProp, "VERB_FORGE_DEPLOY_RESULT", new { ok = result.Ok, message = result.Message });
+                    });
+                }
+                else if (type == "VERB_FORGE_REMOVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var verbId = payload.TryGetProperty("id", out var vid) ? vid.GetString() ?? "" : "";
+                    var undeploy = payload.TryGetProperty("undeploy", out var ud) && ud.ValueKind != JsonValueKind.False;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            if (undeploy)
+                                ShellVerbForgeService.Instance.Undeploy(verbId);
+                            var removed = ShellVerbForgeService.Instance.Remove(verbId);
+                            PostMeshIpcResult(idProp, "VERB_FORGE_REMOVE_RESULT", new { ok = removed });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "VERB_FORGE_REMOVE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Format Transcode Rack ──
+                else if (type == "TRANSCODE_ENQUEUE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pEl) && pEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in pEl.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) paths.Add(s);
+                        }
+                    }
+                    var format = payload.TryGetProperty("format", out var fmt) ? fmt.GetString() ?? "jpeg" : "jpeg";
+                    var quality = payload.TryGetProperty("quality", out var qEl) && qEl.ValueKind == JsonValueKind.Number ? qEl.GetInt32() : 90;
+                    var destFolder = payload.TryGetProperty("destFolder", out var df) ? df.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var ids = TranscodeRackService.Instance.Enqueue(paths, format, quality, destFolder);
+                            PostMeshIpcResult(idProp, "TRANSCODE_ENQUEUE_RESULT", new { ok = true, jobIds = ids });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "TRANSCODE_ENQUEUE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "TRANSCODE_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var status = TranscodeRackService.Instance.GetStatus();
+                            PostMeshIpcResult(idProp, "TRANSCODE_STATUS_RESULT", new { ok = true, status });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "TRANSCODE_STATUS_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Semantic Desk ──
+                else if (type == "SEMANTIC_DESK_CLUSTER")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folder = payload.TryGetProperty("folder", out var fEl) ? fEl.GetString() ?? "" : "";
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pEl) && pEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in pEl.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) paths.Add(s);
+                        }
+                    }
+                    int? desiredK = payload.TryGetProperty("clusterCount", out var kEl) && kEl.ValueKind == JsonValueKind.Number
+                        ? kEl.GetInt32()
+                        : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            SemanticDeskClusterResult result;
+                            if (paths.Count > 0)
+                                result = SemanticDeskService.Instance.ClusterPaths(paths, desiredK);
+                            else
+                                result = SemanticDeskService.Instance.ClusterFolder(folder, desiredK);
+                            PostMeshIpcResult(idProp, "SEMANTIC_DESK_CLUSTER_RESULT", new { ok = true, result });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SEMANTIC_DESK_CLUSTER_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Content DNA ──
+                else if (type == "CONTENT_DNA_SCAN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folderPath = payload.TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() ?? "" : "";
+                    var includeSub = !payload.TryGetProperty("includeSubfolders", out var subEl) || subEl.ValueKind != JsonValueKind.False;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = ContentDnaService.Instance.ScanFolder(folderPath, includeSub);
+                            PostMeshIpcResult(idProp, "CONTENT_DNA_SCAN_RESULT", new { ok = result.Ok, scanned = result.Scanned, folder = result.Folder, error = result.Error });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "CONTENT_DNA_SCAN_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "CONTENT_DNA_FOR_PATH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var path = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var maxResults = payload.TryGetProperty("maxResults", out var mEl) && mEl.ValueKind == JsonValueKind.Number ? mEl.GetInt32() : 12;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = ContentDnaService.Instance.GetRelativesForPath(path, maxResults);
+                            PostMeshIpcResult(idProp, "CONTENT_DNA_FOR_PATH_RESULT", result);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "CONTENT_DNA_FOR_PATH_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Twin Volume Chess ──
+                else if (type == "TWIN_VOLUME_COMPARE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var leftRoot = payload.TryGetProperty("leftRoot", out var lEl) ? lEl.GetString() ?? "" : "";
+                    var rightRoot = payload.TryGetProperty("rightRoot", out var rEl) ? rEl.GetString() ?? "" : "";
+                    var useHashing = !payload.TryGetProperty("useHashing", out var hEl) || hEl.ValueKind != JsonValueKind.False;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = TwinVolumeService.Instance.Compare(leftRoot, rightRoot, useHashing);
+                            PostMeshIpcResult(idProp, "TWIN_VOLUME_COMPARE_RESULT", result);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "TWIN_VOLUME_COMPARE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "TWIN_VOLUME_RESOLVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var leftRoot = payload.TryGetProperty("leftRoot", out var lEl) ? lEl.GetString() ?? "" : "";
+                    var rightRoot = payload.TryGetProperty("rightRoot", out var rEl) ? rEl.GetString() ?? "" : "";
+                    var relativePath = payload.TryGetProperty("relativePath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    var direction = payload.TryGetProperty("direction", out var dEl) ? dEl.GetString() ?? "leftToRight" : "leftToRight";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = TwinVolumeService.Instance.Resolve(leftRoot, rightRoot, relativePath, direction);
+                            PostMeshIpcResult(idProp, "TWIN_VOLUME_RESOLVE_RESULT", result);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "TWIN_VOLUME_RESOLVE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Job Tickets ──
+                else if (type == "JOB_TICKET_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var folderPath = root.GetProperty("payload").TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var tickets = JobTicketService.Instance.List(string.IsNullOrWhiteSpace(folderPath) ? null : folderPath);
+                            PostMeshIpcResult(idProp, "JOB_TICKET_LIST_RESULT", new { ok = true, tickets });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "JOB_TICKET_LIST_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "JOB_TICKET_LIST_OVERDUE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var paths = new List<string>();
+                    if (root.GetProperty("payload").TryGetProperty("folderPaths", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in arr.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) paths.Add(s);
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var overdueMap = JobTicketService.Instance.GetOverdueMapForFolders(paths);
+                            PostMeshIpcResult(idProp, "JOB_TICKET_LIST_OVERDUE_RESULT", new { ok = true, overdueMap });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "JOB_TICKET_LIST_OVERDUE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "JOB_TICKET_SAVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var ticket = JsonSerializer.Deserialize<JobTicket>(payload.GetRawText(), IpcJsonOptions)
+                                ?? throw new InvalidOperationException("Invalid ticket payload.");
+                            var saved = JobTicketService.Instance.Save(ticket);
+                            PostMeshIpcResult(idProp, "JOB_TICKET_SAVE_RESULT", new { ok = true, ticket = saved });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "JOB_TICKET_SAVE_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "JOB_TICKET_DELETE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var ticketId = root.GetProperty("payload").TryGetProperty("ticketId", out var tEl) ? tEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        var ok = JobTicketService.Instance.Delete(ticketId);
+                        PostMeshIpcResult(idProp, "JOB_TICKET_DELETE_RESULT", new { ok });
                     });
                 }
                 // ── Phase 9+ selling-pillar IPC: Inbound Volume ──
@@ -3178,6 +4297,155 @@ namespace BNDZ
                         path = inboundRootPath,
                         root = inboundRootPath,
                         watching = InboundVolumeService.Instance.IsWatching,
+                    });
+                }
+                else if (type == "INBOUND_COPY_TO_LIBRARY")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var entryIdVal = payload.TryGetProperty("entryId", out var entEl) ? entEl.GetString() ?? "" : "";
+                    var destDir = payload.TryGetProperty("destination", out var destEl) ? destEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = InboundVolumeService.Instance.CopyToLibrary(entryIdVal, destDir);
+                            PostMeshIpcResult(idProp, "INBOUND_COPY_TO_LIBRARY_RESULT", new { ok = result.Ok, copiedCount = result.CopiedCount, failedCount = result.FailedCount, copiedNames = result.CopiedNames, errors = result.Errors, error = result.Error });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "INBOUND_COPY_TO_LIBRARY_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Capture Inbox (screenshot/clipboard → named PNG via OCR) ──
+                else if (type == "CAPTURE_INBOX_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var status = CaptureInboxService.Instance.GetStatus();
+                        PostMeshIpcResult(idProp, "CAPTURE_INBOX_STATUS_RESULT", new
+                        {
+                            captureFolder = status.CaptureFolder,
+                            watching = status.Watching,
+                            captureCount = status.CaptureCount,
+                            lastCapture = status.LastCapture,
+                        });
+                    });
+                }
+                else if (type == "CAPTURE_FROM_CLIPBOARD")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var entry = CaptureInboxService.Instance.CaptureFromClipboardNow();
+                            PostMeshIpcResult(idProp, "CAPTURE_FROM_CLIPBOARD_RESULT", new { ok = entry != null, entry });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "CAPTURE_FROM_CLIPBOARD_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "CAPTURE_INBOX_SET_FOLDER")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folder = payload.TryGetProperty("folder", out var fEl) ? fEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        var ok = CaptureInboxService.Instance.SetCaptureFolder(folder);
+                        PostMeshIpcResult(idProp, "CAPTURE_INBOX_SET_FOLDER_RESULT", new { ok, captureFolder = CaptureInboxService.Instance.GetCaptureFolder() });
+                    });
+                }
+                else if (type == "CAPTURE_INBOX_START_WATCHING")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        CaptureInboxService.Instance.StartWatching();
+                        PostMeshIpcResult(idProp, "CAPTURE_INBOX_START_WATCHING_RESULT", new { ok = true });
+                    });
+                }
+                else if (type == "CAPTURE_INBOX_STOP_WATCHING")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        CaptureInboxService.Instance.StopWatching();
+                        PostMeshIpcResult(idProp, "CAPTURE_INBOX_STOP_WATCHING_RESULT", new { ok = true });
+                    });
+                }
+                else if (type == "CAPTURE_INBOX_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var limit = payload.TryGetProperty("limit", out var limEl) && limEl.TryGetInt32(out var limVal) ? limVal : 50;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "CAPTURE_INBOX_LIST_RESULT", new
+                        {
+                            captures = CaptureInboxService.Instance.ListCaptures(limit),
+                            watching = CaptureInboxService.Instance.IsWatching,
+                            captureFolder = CaptureInboxService.Instance.GetCaptureFolder(),
+                        });
+                    });
+                }
+                // ── Reality Check Mode (project refs vs on-disk) ──
+                else if (type == "REALITY_CHECK_SCAN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPath = payload.TryGetProperty("rootPath", out var rpEl) ? rpEl.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var result = await RealityCheckService.Instance.ScanAsync(rootPath);
+                            PostMeshIpcResult(idProp, "REALITY_CHECK_SCAN_RESULT", new
+                            {
+                                ok = true,
+                                rootPath = result.RootPath,
+                                projectFileCount = result.ProjectFileCount,
+                                totalRefs = result.TotalRefs,
+                                missingCount = result.MissingCount,
+                                okCount = result.OkCount,
+                                scannedUtc = result.ScannedUtc,
+                                references = result.References,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "REALITY_CHECK_SCAN_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "REALITY_CHECK_SET_ACTIVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var active = payload.TryGetProperty("active", out var actEl) && actEl.ValueKind == JsonValueKind.True;
+                    _ = Task.Run(() =>
+                    {
+                        RealityCheckService.Instance.SetActive(active);
+                        PostMeshIpcResult(idProp, "REALITY_CHECK_SET_ACTIVE_RESULT", new { ok = true, active });
+                    });
+                }
+                else if (type == "REALITY_CHECK_GET_STATE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var scan = RealityCheckService.Instance.GetLastScan();
+                        PostMeshIpcResult(idProp, "REALITY_CHECK_GET_STATE_RESULT", new
+                        {
+                            active = RealityCheckService.Instance.IsActive,
+                            missingPaths = RealityCheckService.Instance.GetMissingPaths(),
+                            lastScan = scan,
+                        });
                     });
                 }
                 else if (type == "AI_BATCH_RENAME")
@@ -3289,36 +4557,6 @@ namespace BNDZ
                     path = path.Replace("/", "\\");
                     if (path.EndsWith(":") && path.Length == 2) path += "\\";
                     MonitorDirectory(path);
-                }
-                else if (type == "GET_DRIVES")
-                {
-                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    _ = Task.Run(() =>
-                    {
-                        try
-                        {
-                            var drives = _cloudStorageService.GetAnnotatedDrives();
-                            var response = new { type = "DRIVES_RESULT", id = idProp, payload = drives };
-                            var jsonOptsDrives = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            var responseJson = JsonSerializer.Serialize(response, jsonOptsDrives);
-                            PostToUi(() =>
-                            {
-                                IpcDebugLog($"[SEND] {responseJson}");
-                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(responseJson); }
-                                catch { }
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            var response = new { type = "DRIVES_RESULT", id = idProp, payload = Array.Empty<object>(), error = ex.Message };
-                            var jsonOptsDrives = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            PostToUi(() =>
-                            {
-                                try { MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptsDrives)); }
-                                catch { }
-                            });
-                        }
-                    });
                 }
                 else if (type == "PERFORM_GLOBAL_SEARCH")
                 {
@@ -5039,16 +6277,6 @@ namespace BNDZ
                         });
                     });
                 }
-                else if (type == "GET_NETWORK_LOCATIONS")
-                {
-                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var nodes = _networkLocationsService.GetTreeNodes();
-                    var response = new { type = "NETWORK_LOCATIONS_RESULT", id = idProp, payload = nodes };
-                    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    PostToUi(() => {
-                        MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
-                    });
-                }
                 else if (type == "GET_APP_VERSION")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
@@ -5151,6 +6379,10 @@ namespace BNDZ
                                     modified = e.CreatedUtc,
                                     extension = "",
                                 }).ToList(),
+                            "portal-health" => BndzNamespaceService.Instance.ResolvePortalView("health", limit),
+                            "portal-magnets" => BndzNamespaceService.Instance.ResolvePortalView("magnets", limit),
+                            "portal-sandboxes" => BndzNamespaceService.Instance.ResolvePortalView("sandboxes", limit),
+                            "portal-capture" => BndzNamespaceService.Instance.ResolvePortalView("capture", limit),
                             _ => [],
                         };
                         var items = BndzTagSidecarStore.EnrichDirResults(rawItems, _tagSidecarStore);
@@ -5507,6 +6739,7 @@ namespace BNDZ
                             try { _automationEventTriggers.FireStartup(); }
                             catch { /* best effort */ }
                         });
+                        var recentRuns = _automationWatcher.GetRecentRuns(20);
                         var response = new
                         {
                             type = "AUTOMATION_LIVE_STATUS",
@@ -5515,6 +6748,7 @@ namespace BNDZ
                             {
                                 watchers = watchStatus.Watchers,
                                 schedules = scheduleStatus.Schedules,
+                                recentRuns,
                             },
                         };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -5526,6 +6760,7 @@ namespace BNDZ
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var watchStatus = _automationWatcher.GetStatus();
                     var scheduleStatus = _automationScheduler.GetStatus();
+                    var recentRuns = _automationWatcher.GetRecentRuns(20);
                     var response = new
                     {
                         type = "AUTOMATION_LIVE_STATUS",
@@ -5534,6 +6769,7 @@ namespace BNDZ
                         {
                             watchers = watchStatus.Watchers,
                             schedules = scheduleStatus.Schedules,
+                            recentRuns,
                         },
                     };
                     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -5618,7 +6854,11 @@ namespace BNDZ
                     {
                         var result = await BNDZ.Services.Music.MusicAnalysisService.AnalyzeAsync(musicPath).ConfigureAwait(false);
                         if (result.Ok)
+                        {
                             result.SidecarTags = BNDZ.Services.Music.MusicAnalysisService.BuildSidecarTagKeys(result);
+                            MediaTagMetadataService.CacheProducerResult(musicPath, result.Bpm, result.Key, result.Mode, result.Camelot);
+                            BndzFileIndexService.Instance.StoreProducerMeta(musicPath, result.Bpm, result.Key + (result.Mode == "minor" ? "m" : ""), result.Camelot);
+                        }
                         var response = new { type = "ANALYZE_MUSIC_RESULT", id = idProp, payload = result };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
@@ -5657,7 +6897,14 @@ namespace BNDZ
                         foreach (var r in results)
                         {
                             if (r.Ok)
+                            {
                                 r.SidecarTags = BNDZ.Services.Music.MusicAnalysisService.BuildSidecarTagKeys(r);
+                                if (!string.IsNullOrWhiteSpace(r.Path))
+                                {
+                                    MediaTagMetadataService.CacheProducerResult(r.Path, r.Bpm, r.Key, r.Mode, r.Camelot);
+                                    BndzFileIndexService.Instance.StoreProducerMeta(r.Path, r.Bpm, r.Key + (r.Mode == "minor" ? "m" : ""), r.Camelot);
+                                }
+                            }
                         }
                         var response = new
                         {
@@ -5751,6 +6998,157 @@ namespace BNDZ
                         }
                     }
                     _ = HandlePurgeRecycleItemsAsync(idProp, purgePaths);
+                }
+                // ── Recycle Archaeology ──
+                else if (type == "RECYCLE_ARCH_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var branches = await RecycleArchaeologyService.Instance.ListBranchesAsync().ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "RECYCLE_ARCH_LIST_RESULT", new { branches });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "RECYCLE_ARCH_LIST_RESULT", new { branches = Array.Empty<object>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "RECYCLE_ARCH_RESTORE_BRANCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var parentPath = root.GetProperty("payload").TryGetProperty("parentPath", out var ppEl) ? ppEl.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var (restored, failed) = RecycleArchaeologyService.Instance.RestoreBranch(parentPath);
+                            PostMeshIpcResult(idProp, "RECYCLE_ARCH_RESTORE_BRANCH_RESULT", new { restored, failed });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "RECYCLE_ARCH_RESTORE_BRANCH_RESULT", new { restored = 0, failed = 0, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Hello-Gated Paths ──
+                else if (type == "HELLO_GATE_LIST")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var gates = HelloGateService.Instance.ListGates().Select(g => new { path = g.Path, addedUtc = g.AddedUtc, hasPassphrase = !string.IsNullOrEmpty(g.PassphraseHash) });
+                    PostMeshIpcResult(idProp, "HELLO_GATE_LIST_RESULT", new { gates });
+                }
+                else if (type == "HELLO_GATE_ADD")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var gatePath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var passphrase = payload.TryGetProperty("passphrase", out var passEl) ? passEl.GetString() : null;
+                    try
+                    {
+                        HelloGateService.Instance.AddGate(gatePath, passphrase);
+                        PostMeshIpcResult(idProp, "HELLO_GATE_ADD_RESULT", new { ok = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        PostMeshIpcResult(idProp, "HELLO_GATE_ADD_RESULT", new { ok = false, error = ex.Message });
+                    }
+                }
+                else if (type == "HELLO_GATE_REMOVE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var gatePath = root.GetProperty("payload").TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var ok = HelloGateService.Instance.RemoveGate(gatePath);
+                    PostMeshIpcResult(idProp, "HELLO_GATE_REMOVE_RESULT", new { ok });
+                }
+                else if (type == "HELLO_GATE_CHECK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var checkPath = root.GetProperty("payload").TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var resolved = ShellPathResolver.ResolveForShell(checkPath);
+                    if (string.IsNullOrEmpty(resolved)) resolved = ShellPathResolver.NormalizeIncoming(checkPath);
+                    var blocked = HelloGateService.Instance.IsBlocked(resolved);
+                    var gatePath = HelloGateService.Instance.GetBlockingGatePath(resolved);
+                    PostMeshIpcResult(idProp, "HELLO_GATE_CHECK_RESULT", new { blocked, gatePath });
+                }
+                else if (type == "HELLO_GATE_UNLOCK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var unlockPath = payload.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                    var passphrase = payload.TryGetProperty("passphrase", out var passEl) ? passEl.GetString() : null;
+                    var resolved = ShellPathResolver.ResolveForShell(unlockPath);
+                    if (string.IsNullOrEmpty(resolved)) resolved = ShellPathResolver.NormalizeIncoming(unlockPath);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var result = await HelloGateService.Instance.UnlockAsync(resolved, passphrase).ConfigureAwait(false);
+                            if (!result.ok && result.error?.Contains("Passphrase required", StringComparison.OrdinalIgnoreCase) == true
+                                && string.IsNullOrWhiteSpace(passphrase))
+                            {
+                                string? hostPass = null;
+                                await PostToUiAsync(() =>
+                                {
+                                    var dlg = new BNDZ.Dialogs.HelloGatePasswordDialog(resolved) { Owner = this };
+                                    if (dlg.ShowDialog() == true) hostPass = dlg.Passphrase;
+                                }).ConfigureAwait(false);
+                                if (!string.IsNullOrWhiteSpace(hostPass))
+                                    result = await HelloGateService.Instance.UnlockAsync(resolved, hostPass).ConfigureAwait(false);
+                            }
+                            PostMeshIpcResult(idProp, "HELLO_GATE_UNLOCK_RESULT", new { ok = result.ok, error = result.error, method = result.method });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "HELLO_GATE_UNLOCK_RESULT", new { ok = false, error = ex.Message, method = "error" });
+                        }
+                    });
+                }
+                // ── Live Share Cursor ──
+                else if (type == "LIVE_SHARE_START")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var folderPath = root.GetProperty("payload").TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() ?? "" : "";
+                    var resolved = ShellPathResolver.ResolveForShell(folderPath);
+                    if (string.IsNullOrEmpty(resolved)) resolved = ShellPathResolver.NormalizeIncoming(folderPath);
+                    var session = LiveShareCursorService.Instance.Start(resolved);
+                    PostMeshIpcResult(idProp, "LIVE_SHARE_START_RESULT", new { ok = true, peerId = session.PeerId, machineName = session.MachineName });
+                }
+                else if (type == "LIVE_SHARE_STOP")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var folderPath = root.GetProperty("payload").TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() ?? "" : "";
+                    var resolved = ShellPathResolver.ResolveForShell(folderPath);
+                    if (string.IsNullOrEmpty(resolved)) resolved = ShellPathResolver.NormalizeIncoming(folderPath);
+                    LiveShareCursorService.Instance.Stop(resolved);
+                    PostMeshIpcResult(idProp, "LIVE_SHARE_STOP_RESULT", new { ok = true });
+                }
+                else if (type == "LIVE_SHARE_UPDATE")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var folderPath = payload.TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() ?? "" : "";
+                    var resolved = ShellPathResolver.ResolveForShell(folderPath);
+                    if (string.IsNullOrEmpty(resolved)) resolved = ShellPathResolver.NormalizeIncoming(folderPath);
+                    string[] selection = Array.Empty<string>();
+                    if (payload.TryGetProperty("selectionPaths", out var selEl) && selEl.ValueKind == JsonValueKind.Array)
+                    {
+                        selection = selEl.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+                    }
+                    var cursorPath = payload.TryGetProperty("cursorPath", out var curEl) ? curEl.GetString() : null;
+                    LiveShareCursorService.Instance.Update(resolved, selection, cursorPath);
+                    PostMeshIpcResult(idProp, "LIVE_SHARE_UPDATE_RESULT", new { ok = true });
+                }
+                else if (type == "LIVE_SHARE_GET_PEERS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var folderPath = root.GetProperty("payload").TryGetProperty("folderPath", out var fpEl) ? fpEl.GetString() ?? "" : "";
+                    var resolved = ShellPathResolver.ResolveForShell(folderPath);
+                    if (string.IsNullOrEmpty(resolved)) resolved = ShellPathResolver.NormalizeIncoming(folderPath);
+                    var peers = LiveShareCursorService.Instance.GetPeers(resolved);
+                    PostMeshIpcResult(idProp, "LIVE_SHARE_GET_PEERS_RESULT", new { peers });
                 }
                 else if (type == "COMPARE_DIRECTORIES")
                 {
@@ -6209,6 +7607,38 @@ namespace BNDZ
                 return true;
             }
 
+            if (type == "GET_NETWORK_LOCATIONS")
+            {
+                // DriveInfo.IsReady / WSL UNC / portable COM must never run on the UI thread —
+                // that was freezing the host on startup ("BNDZ is not responding") and blocking
+                // DRIVES_RESULT delivery so This PC / Drives showed empty.
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var nodes = _networkLocationsService.GetTreeNodes();
+                        var response = new { type = "NETWORK_LOCATIONS_RESULT", id = idProp, payload = nodes };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                            catch { }
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        var response = new { type = "NETWORK_LOCATIONS_RESULT", id = idProp, payload = Array.Empty<object>(), error = ex.Message };
+                        var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() =>
+                        {
+                            try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOpts)); }
+                            catch { }
+                        });
+                    }
+                });
+                return true;
+            }
+
             if (type == "GET_CLOUD_PROVIDERS")
             {
                 _ = Task.Run(() =>
@@ -6455,11 +7885,12 @@ namespace BNDZ
         private async Task RunTransferWorkAsync(
         string operationId,
         Func<CancellationToken, Task> work,
-        FileTransferPriority priority = FileTransferPriority.Normal)
+        FileTransferPriority priority = FileTransferPriority.Normal,
+        bool deleteLane = false)
         {
             var prefs = FileOperationPreferences.Current;
             if (prefs.QueueOperations)
-                await _fileTransferQueue.EnqueueAsync(operationId, work, default, priority).ConfigureAwait(false);
+                await _fileTransferQueue.EnqueueAsync(operationId, work, default, priority, deleteLane).ConfigureAwait(false);
             else
                 await _fileTransferQueue.RunImmediateAsync(operationId, work).ConfigureAwait(false);
         }
@@ -6493,7 +7924,8 @@ namespace BNDZ
             Func<CancellationToken, Task> work,
             FileTransferPriority priority = FileTransferPriority.Normal,
             string? ipcIdProp = null,
-            string? ipcResultType = null)
+            string? ipcResultType = null,
+            bool deleteLane = false)
         {
             var prefs = FileOperationPreferences.Current;
 
@@ -6501,7 +7933,7 @@ namespace BNDZ
             {
                 try
                 {
-                    await RunTransferWorkAsync(operationId, work, priority).ConfigureAwait(false);
+                    await RunTransferWorkAsync(operationId, work, priority, deleteLane).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -6550,6 +7982,29 @@ namespace BNDZ
             }
             var engine = FileOperationPreferences.ResolveOperationEngine(action, sources, target);
             var label = BuildFileOpLabel(action, sources, labelOverride);
+
+            if (action is "copy" or "move" && !string.IsNullOrWhiteSpace(target))
+            {
+                try
+                {
+                    var policyCheck = PolicyPackService.Instance.ValidateTransfer(target, sources, _tagSidecarStore);
+                    if (!policyCheck.Allowed)
+                    {
+                        var policyMsg = policyCheck.Violations.FirstOrDefault()?.Message
+                            ?? $"Policy pack '{policyCheck.PackName ?? "pack"}' blocked this transfer.";
+                        _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority, target);
+                        _fileTransferQueue.MarkFailed(operationId, policyMsg);
+                        if (!string.IsNullOrEmpty(idProp))
+                            PostMeshIpcResult(idProp, "EXECUTE_FS_OPERATION_RESULT", new { ok = false, error = policyMsg, policyBlocked = true, violations = policyCheck.Violations });
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PolicyPack] transfer check failed: {ex.Message}");
+                }
+            }
+
             _fileTransferQueue.RegisterJob(operationId, action, label, engine, Math.Max(sources.Count, 1), "fs", priority, target);
 
             if (prefs.DefaultRepeatOnCollision && (action == "copy" || action == "move"))
@@ -6728,6 +8183,7 @@ namespace BNDZ
                                 if (string.IsNullOrEmpty(destFile))
                                     destFile = !string.IsNullOrEmpty(target) ? Path.Combine(target, Path.GetFileName(s)) : s;
                                 FileLineageService.Instance.RecordEdge(s, destFile, action);
+                                _ = FileLineageService.Instance.RecordContentLineageOnCopyAsync(s, destFile, action);
                             }
                         }
                         else if (action == "delete")
@@ -6794,7 +8250,9 @@ namespace BNDZ
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, priority, idProp, "FS_OPERATION_RESULT").ConfigureAwait(false);
+            // Deletes go to the fast-lane so they are never blocked by an in-progress copy/move.
+            var isDeleteOp = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, priority, idProp, "FS_OPERATION_RESULT", deleteLane: isDeleteOp).ConfigureAwait(false);
         }
 
         private Task PostFsOperationResultAsync(string? idProp, bool ok, string? error, bool background = false)
@@ -7060,7 +8518,7 @@ namespace BNDZ
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "EMPTY_RECYCLE_BIN_RESULT").ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "EMPTY_RECYCLE_BIN_RESULT", deleteLane: true).ConfigureAwait(false);
         }
 
         private async Task HandleRestoreRecycleItemsAsync(string? idProp, List<string> restorePaths)
@@ -7110,7 +8568,7 @@ namespace BNDZ
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "PURGE_RECYCLE_ITEMS_RESULT").ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "PURGE_RECYCLE_ITEMS_RESULT", deleteLane: true).ConfigureAwait(false);
         }
 
         private async Task HandleUndoRedoAsync(bool undo, string? idProp, string? entryId = null)
@@ -7323,6 +8781,109 @@ namespace BNDZ
             }
 
             await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "EXECUTE_BATCH_RENAME_RESULT").ConfigureAwait(false);
+        }
+
+        private async Task HandleMagnetApplyDropAsync(
+            string operationId,
+            string magnetId,
+            List<string> sources,
+            string action,
+            string? idProp)
+        {
+            var magnet = _dropMagnetService.GetMagnet(magnetId);
+            if (magnet == null || !magnet.Enabled)
+            {
+                await PostIpcResultAsync("MAGNET_APPLY_DROP_RESULT", idProp, new { ok = false, error = "Magnet not found or disabled." }).ConfigureAwait(false);
+                return;
+            }
+            if (sources.Count == 0)
+            {
+                await PostIpcResultAsync("MAGNET_APPLY_DROP_RESULT", idProp, new { ok = false, error = "No files to apply." }).ConfigureAwait(false);
+                return;
+            }
+
+            var plan = _dropMagnetService.BuildTransferPlan(sources, magnet);
+            if (plan.Entries.Count == 0)
+            {
+                await PostIpcResultAsync("MAGNET_APPLY_DROP_RESULT", idProp, new { ok = false, error = "No valid source paths." }).ConfigureAwait(false);
+                return;
+            }
+
+            var move = string.Equals(action, "move", StringComparison.OrdinalIgnoreCase);
+            var label = $"Magnet · {magnet.Name}";
+            _fileTransferQueue.RegisterJob(operationId, move ? "move" : "copy", label, "bndz", plan.Entries.Count, "magnet", FileTransferPriority.High, magnet.TargetPath);
+
+            async Task ExecuteCoreAsync(CancellationToken ct)
+            {
+                var completed = new List<string>();
+                try
+                {
+                    Directory.CreateDirectory(magnet.TargetPath);
+                    var total = plan.Entries.Count;
+                    var done = 0;
+                    foreach (var entry in plan.Entries)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var destDir = Path.GetDirectoryName(entry.Destination);
+                        if (!string.IsNullOrWhiteSpace(destDir))
+                            Directory.CreateDirectory(destDir);
+
+                        if (move)
+                        {
+                            if (File.Exists(entry.Source))
+                                File.Move(entry.Source, entry.Destination, overwrite: true);
+                            else if (Directory.Exists(entry.Source))
+                                Directory.Move(entry.Source, entry.Destination);
+                        }
+                        else
+                        {
+                            if (File.Exists(entry.Source))
+                                File.Copy(entry.Source, entry.Destination, overwrite: true);
+                            else if (Directory.Exists(entry.Source))
+                                CopyDirectoryForMagnet(entry.Source, entry.Destination);
+                        }
+
+                        completed.Add(entry.Destination);
+                        done++;
+                        _fileTransferQueue.UpdateProgress(operationId, (int)(done * 100.0 / total), entry.Destination, done, total);
+                    }
+
+                    if (magnet.Tags.Count > 0)
+                        _tagSidecarStore.ApplyTags(completed, magnet.Tags);
+
+                    _fileTransferQueue.MarkCompleted(operationId);
+                    await PostIpcResultAsync("MAGNET_APPLY_DROP_RESULT", idProp, new
+                    {
+                        ok = true,
+                        magnetId = magnet.Id,
+                        magnetName = magnet.Name,
+                        transferred = completed.Count,
+                        destinations = completed,
+                    }).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    _fileTransferQueue.MarkCancelled(operationId);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _fileTransferQueue.MarkFailed(operationId, ex.Message);
+                    await PostIpcResultAsync("MAGNET_APPLY_DROP_RESULT", idProp, new { ok = false, error = ex.Message }).ConfigureAwait(false);
+                    throw;
+                }
+            }
+
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "MAGNET_APPLY_DROP_RESULT").ConfigureAwait(false);
+        }
+
+        private static void CopyDirectoryForMagnet(string sourceDir, string destDir)
+        {
+            Directory.CreateDirectory(destDir);
+            foreach (var file in Directory.GetFiles(sourceDir))
+                File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite: true);
+            foreach (var dir in Directory.GetDirectories(sourceDir))
+                CopyDirectoryForMagnet(dir, Path.Combine(destDir, Path.GetFileName(dir)));
         }
 
         private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp, bool mirrorMode = false)

@@ -139,22 +139,28 @@ export default function BndzLensStage({
 
   useEffect(() => {
     if (!path || isDir || !IPC.isNative || collapsed) {
-      if (!collapsed) setStage(null);
+      if (!collapsed) {
+        setStage(null);
+        setLoading(false);
+      }
       return;
     }
     let active = true;
     setLoading(true);
     setStage(null);
     const t = window.setTimeout(() => {
-      IPC.getLensStage(path).then(payload => {
-        if (!active) return;
-        setStage(payload);
-        setLoading(false);
-      }).catch(() => {
-        if (!active) return;
-        setStage({ error: 'Lens unavailable.' });
-        setLoading(false);
-      });
+      IPC.getLensStage(path)
+        .then(payload => {
+          if (!active) return;
+          setStage(payload);
+        })
+        .catch(() => {
+          if (!active) return;
+          setStage({ error: 'Lens unavailable.' });
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
     }, 120);
     return () => {
       active = false;

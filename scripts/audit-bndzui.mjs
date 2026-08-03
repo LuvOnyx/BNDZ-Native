@@ -39,7 +39,7 @@ for (const m of src.matchAll(/<([A-Z][A-Za-z0-9]*)\b/g)) jsx.add(m[1]);
 const skip = new Set([
   'React', 'Suspense', 'Fragment', 'AnimatePresence', 'motion',
   'ToolbarButton', 'Spinner', 'InlineRenameInput', 'Icon',
-  'HTMLDivElement', 'HTMLInputElement', 'HTMLUListElement',
+  'HTMLElement', 'HTMLDivElement', 'HTMLInputElement', 'HTMLUListElement',
   'Record', 'Set', 'Map', 'ReturnType', 'PaneState', 'KeyboardEvent', 'MouseEvent',
   'RenameOperation', 'VisualFilter', 'TabState', 'DriveInfo', 'ShortcutInfo',
   'VirtualDirectory', 'FSEntity', 'ToastKind', 'PaletteAction', 'ListColumnId',
@@ -89,7 +89,57 @@ for (const m of src.matchAll(/^(\s*)(\w+Ref)\.current\s*=/gm)) {
   }
 }
 
+/** useState destructure setters/getters */
+for (const m of src.matchAll(/\[\s*(\w+)\s*,\s*(set\w+)\s*\]/g)) {
+  declLine.set(m[1], declLine.get(m[1]) ?? 0);
+  declLine.set(m[2], declLine.get(m[2]) ?? 0);
+}
+/** Hook / object destructures: const { a, b: c } = ... */
+for (const m of src.matchAll(/const\s*\{([^}]+)\}\s*=/g)) {
+  for (const part of m[1].split(',')) {
+    const raw = part.trim();
+    if (!raw || raw.startsWith('...')) continue;
+    let name = raw;
+    if (raw.includes(':')) {
+      // { publish: publishLiveShare } → publishLiveShare; { peers } → peers
+      name = raw.split(':').pop().trim();
+    }
+    name = name.split('=')[0].trim();
+    if (/^[A-Za-z_$][\w$]*$/.test(name)) declLine.set(name, declLine.get(name) ?? 0);
+  }
+}
+
+/** Undeclared identifiers in useEffect / useCallback / useMemo dependency arrays */
+const undeclaredDeps = [];
+const hookRe = /use(?:Effect|Callback|Memo)\s*\(/g;
+let hm;
+while ((hm = hookRe.exec(src)) !== null) {
+  const start = hm.index;
+  const slice = src.slice(start, start + 8000);
+  const depMatch = slice.match(/\},\s*\[([\s\S]*?)\]\s*\)/);
+  if (!depMatch) continue;
+  const effectStartLine = src.slice(0, start).split(/\r?\n/).length;
+  const deps = depMatch[1]
+    .split(',')
+    .map(s => s.trim().replace(/\.\w+$/, ''))
+    .filter(Boolean);
+  for (const dep of deps) {
+    if (!/^[A-Za-z_$][\w$]*$/.test(dep)) continue;
+    if (importNames.has(dep)) continue;
+    if (declLine.has(dep)) continue;
+    if (/^(true|false|null|undefined)$/.test(dep)) continue;
+    undeclaredDeps.push({ dep, effectLine: effectStartLine });
+  }
+}
+
+/** Folder load must not serialize HELLO_GATE_CHECK before GET_DIR_CONTENTS (timeout blocks panes). */
+const beginFetchGateBlocked = /helloGateCheck\s*\([\s\S]{0,400}?getDirContents\s*\(/;
+
 let failed = false;
+if (beginFetchGateBlocked.test(src)) {
+  failed = true;
+  console.error('Hello Gate must not block getDirContents — use DIR_CONTENTS HELLO_GATE_BLOCKED handling instead.');
+}
 const criticalSymbols = ['IPC'];
 for (const sym of criticalSymbols) {
   const used = new RegExp(`\\b${sym}\\.`).test(src);
@@ -117,8 +167,34 @@ if (refTdz.length) {
     console.error(`  - ${refName}: assigned line ${useLine}, declared line ${dl}`);
   }
 }
+if (undeclaredDeps.length) {
+  failed = true;
+  console.error('Undeclared hook dependency identifiers (runtime ReferenceError risk):');
+  for (const { dep, effectLine } of undeclaredDeps) {
+    console.error(`  - ${dep}: used in deps ~line ${effectLine}`);
+  }
+}
+
+/** Stale Assets/ui drift: shipped bundle must not serialize helloGateCheck before listing. */
+const assetsDir = path.join(ROOT, 'BNDZBackend/Assets/ui/assets');
+try {
+  const indexes = fs.readdirSync(assetsDir)
+    .filter((f) => /^index-.*\.js$/.test(f))
+    .map((f) => ({ f, t: fs.statSync(path.join(assetsDir, f)).mtimeMs }))
+    .sort((a, b) => b.t - a.t);
+  if (indexes.length) {
+    const latest = fs.readFileSync(path.join(assetsDir, indexes[0].f), 'utf8');
+    if (/helloGateCheck\([^)]*\)\.then/.test(latest)) {
+      failed = true;
+      console.error(`Stale UI bundle ${indexes[0].f}: still serializes helloGateCheck before dir load — run npm run build.`);
+    }
+  }
+} catch {
+  /* assets may be absent in pure lint environments */
+}
+
 if (!failed) {
-  console.log('BNDZUI audit passed (imports + TDZ deps + ref order).');
+  console.log('BNDZUI audit passed (imports + TDZ + refs + undeclared deps + hello-gate + assets).');
   process.exit(0);
 }
 process.exit(1);

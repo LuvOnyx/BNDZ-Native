@@ -525,6 +525,22 @@ export default function BndzHomeView({
           </div>
           <div className="bndz-ws-launch-grid">
             <WorkspaceLaunchCard
+              title="Continuum"
+              desc="One Spatial board where Sandbox, Health, Inbound, RAM, Capacity, and Automation cohere — live pillars in under 30 seconds."
+              icon="view_grid"
+              accent="#34d399"
+              badge="Compose"
+              badgeVariant="gold"
+              features={['Live badges', 'Pillar pins', 'One-click open']}
+              onClick={() => {
+                onNavigate(BNDZ_CANVAS);
+                window.setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
+                }, 120);
+              }}
+              className="is-canvas"
+            />
+            <WorkspaceLaunchCard
               title="Spatial Canvas"
               desc="Premium freeform board — organize references across every folder without moving files on disk."
               icon="view_grid"

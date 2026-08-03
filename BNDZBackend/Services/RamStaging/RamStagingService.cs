@@ -28,8 +28,9 @@ public sealed class RamStagingService : IDisposable
         Directory.CreateDirectory(dir);
         _configPath = Path.Combine(dir, "zones.json");
         _mappingsPath = Path.Combine(dir, "mappings.json");
-        LoadZones();
-        LoadMappings();
+        // Defer Directory.Exists mount-path probes off the UI thread — stale drive letters from
+        // a previous session can hang synchronously for several hundred ms each.
+        _ = System.Threading.Tasks.Task.Run(() => { LoadZones(); LoadMappings(); });
         _memoryTimer = new System.Threading.Timer(_ => CheckMemoryPressure(), null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30));
     }
 

@@ -250,7 +250,7 @@ export function entitySortName(entity: any): string {
 export function resolveSortColumn(config: AppConfig, pane?: PaneSortState): SortColumnId {
   if (pane?.sortColumn) return pane.sortColumn as SortColumnId;
   const persisted = config.listSortColumn as SortColumnId | undefined;
-  if (persisted === 'name' || persisted === 'type' || persisted === 'size' || persisted === 'modified' || persisted === 'created' || persisted === 'tags') {
+  if (persisted === 'name' || persisted === 'type' || persisted === 'size' || persisted === 'modified' || persisted === 'created' || persisted === 'tags' || persisted === 'ghostState' || persisted === 'ramZone') {
     return persisted;
   }
   const method = config.sortMethod || 'Natural';
@@ -349,6 +349,19 @@ export function compareEntities(
       return -mul;
     }
     const cmp = tagA.localeCompare(tagB);
+    if (cmp !== 0) return mul * cmp;
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'ghostState') {
+    const gA = a.isGhostLink ? 1 : 0;
+    const gB = b.isGhostLink ? 1 : 0;
+    if (gA !== gB) return mul * (gA - gB);
+    return naturalCompare(entitySortName(a), entitySortName(b), config);
+  }
+  if (col === 'ramZone') {
+    const zA = String(a.ramZoneId || a.ramZone || '');
+    const zB = String(b.ramZoneId || b.ramZone || '');
+    const cmp = zA.localeCompare(zB);
     if (cmp !== 0) return mul * cmp;
     return naturalCompare(entitySortName(a), entitySortName(b), config);
   }
@@ -752,7 +765,8 @@ function cssVarAcceptsGradient(cssVar: string): boolean {
     cssVar === '--highlight-bg' ||
     cssVar === '--unfocused-highlight-bg' ||
     cssVar === '--tag-bg' ||
-    cssVar === '--plugin-hero-fill'
+    cssVar === '--plugin-hero-fill' ||
+    cssVar === '--command-deck-fill'
   );
 }
 
@@ -801,6 +815,18 @@ function applyStatusNeonAndPluginHeroVars(config: AppConfig, root: HTMLElement):
   }
 }
 
+function applyCommandDeckVars(config: AppConfig, root: HTMLElement): void {
+  const raw50 = config.colorConfig50;
+  if (isFillValue(raw50)) {
+    root.style.setProperty('--command-deck-fill', fillToBackground(raw50));
+  }
+  const raw51 = config.colorConfig51;
+  if (isFillValue(raw51)) {
+    const solid = fillToSolid(raw51);
+    root.style.setProperty('--command-deck-border', solid);
+  }
+}
+
 function applyColorCssVars(config: AppConfig, root: HTMLElement): void {
   for (const [cssVar, configKey] of COLOR_CSS_MAP) {
     applyFillVar(root, cssVar, config[configKey]);
@@ -818,6 +844,7 @@ function applyColorCssVars(config: AppConfig, root: HTMLElement): void {
     applyFillVar(root, cssVar, config[configKey]);
   }
   applyStatusNeonAndPluginHeroVars(config, root);
+  applyCommandDeckVars(config, root);
   const radius = config.tooltipCornerRadius;
   if (typeof radius === 'number' && radius >= 0) {
     root.style.setProperty('--tooltip-radius', `${radius}px`);

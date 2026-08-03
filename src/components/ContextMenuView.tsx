@@ -51,6 +51,8 @@ const SORT_BY_OPTIONS: Array<{ value: SortColumnId; label: string }> = [
   { value: 'modified', label: 'Date modified' },
   { value: 'created', label: 'Date created' },
   { value: 'tags', label: 'Tags' },
+  { value: 'ghostState', label: 'Ghost' },
+  { value: 'ramZone', label: 'RAM zone' },
 ];
 
 interface ContextMenuViewProps {
@@ -1125,6 +1127,80 @@ function ContextMenuView({
                 if (res.ok) window.dispatchEvent(new CustomEvent('bndz-index-roots-changed'));
               });
             });
+            onClose();
+          }}
+        />
+        <ContextMenuItem
+          label="Require Hello to open"
+          iconVerb="lock"
+          onClick={() => {
+            const winPath = toWindowsPath(normEntityPath);
+            const passphrase = window.prompt('Optional backup passphrase (leave blank for Hello-only):', '');
+            void import('../lib/ipcBridge').then(({ IPC }) => {
+              IPC.helloGateAdd(winPath, passphrase || undefined).then(res => {
+                setToastMessage(res.ok ? `Hello gate enabled for ${menu.entityName || 'folder'}.` : (res.error || 'Failed to add gate.'));
+              });
+            });
+            onClose();
+          }}
+        />
+        <ContextMenuItem
+          label="Remove Hello gate"
+          iconVerb="unlock"
+          onClick={() => {
+            void import('../lib/ipcBridge').then(({ IPC }) => {
+              IPC.helloGateRemove(toWindowsPath(normEntityPath)).then(res => {
+                setToastMessage(res.ok ? 'Hello gate removed.' : 'No gate on this folder.');
+              });
+            });
+            onClose();
+          }}
+        />
+        <ContextMenuItem
+          label="Create ZK Vault"
+          iconVerb="lock"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'zk-vault' } }));
+            onClose();
+          }}
+        />
+        <ContextMenuItem
+          label="Unlock ZK Vault"
+          iconVerb="key"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'zk-vault' } }));
+            onClose();
+          }}
+        />
+        <ContextMenuItem
+          label="Attach Job Ticket"
+          iconVerb="clock_ui"
+          onClick={() => {
+            const title = window.prompt('Job ticket title:', menu.entityName ? `${menu.entityName} delivery` : 'Production ticket');
+            if (!title?.trim()) { onClose(); return; }
+            const due = new Date(Date.now() + 24 * 3_600_000);
+            void import('../lib/ipcBridge').then(({ IPC }) => {
+              void IPC.jobTicketSave({
+                folderPath: toWindowsPath(normEntityPath),
+                title: title.trim(),
+                dueUtc: due.toISOString(),
+                status: 'open',
+              }).then(res => {
+                setToastMessage(res.ok ? 'Job ticket attached.' : (res.error || 'Could not save ticket.'));
+                if (res.ok) window.dispatchEvent(new CustomEvent('bndz-job-ticket-changed'));
+              });
+            });
+            onClose();
+          }}
+        />
+        <ContextMenuItem
+          label="Twin Volume Chess"
+          iconVerb="sync_folders"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('bndz-twin-volume-seed', {
+              detail: { leftRoot: toWindowsPath(normEntityPath) },
+            }));
+            window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: '/bndz/twin-volume' } }));
             onClose();
           }}
         />

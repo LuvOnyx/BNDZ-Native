@@ -43,6 +43,9 @@ export function updateFluidDragPointer(x: number, y: number) {
 
 export function updateFluidDragMeta(patch: Partial<FluidDragMeta>) {
   if (!activeMeta) return;
+  // Skip notify if nothing changed — prevents spurious FluidDragStack re-renders.
+  const keys = Object.keys(patch) as (keyof FluidDragMeta)[];
+  if (keys.every(k => (activeMeta as FluidDragMeta)[k] === (patch as FluidDragMeta)[k])) return;
   activeMeta = { ...activeMeta, ...patch };
   notify();
 }

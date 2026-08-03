@@ -48,10 +48,17 @@ namespace BNDZ
             if (e.Args.Length >= 1 && e.Args[0] == "--generate-icon")
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string light = Path.Combine(baseDir, "Assets", "BNDZ-light.png");
-                string ico = Path.Combine(baseDir, "Assets", "BNDZ.ico");
-                if (File.Exists(light))
-                    AppIconService.SaveIcoToDisk(light, ico);
+                string assets  = Path.Combine(baseDir, "Assets");
+                string ico     = Path.Combine(assets, "BNDZ.ico");
+                // Use the square master PNG — never the wide light banner.
+                string? squarePng = null;
+                foreach (var name in new[] { "bndz-square.png", "bndz-app.png" })
+                {
+                    var candidate = Path.Combine(assets, name);
+                    if (File.Exists(candidate)) { squarePng = candidate; break; }
+                }
+                if (squarePng != null)
+                    AppIconService.SaveIcoToDisk(squarePng, ico);
                 Current.Shutdown();
                 return;
             }
@@ -158,6 +165,14 @@ namespace BNDZ
 
             BndzFileManagerIpcService.Instance.RegisterMain(mainWindow);
             BndzFileManagerIpcService.Instance.Start();
+
+            try
+            {
+                var exe = ResolveAppExecutablePath();
+                if (!string.IsNullOrEmpty(exe))
+                    BndzNamespaceService.Instance.TryRegisterShellIntegration(exe);
+            }
+            catch { /* best effort */ }
         }
 
         /// <summary>
@@ -336,6 +351,12 @@ namespace BNDZ
             {
                 if (args[i] == "--open-path" && i + 1 < args.Length)
                     return args[++i];
+                if (args[i] == "--open-url" && i + 1 < args.Length)
+                {
+                    var url = args[++i];
+                    var pane = BndzNamespaceService.Instance.ResolveProtocolUrl(url);
+                    if (!string.IsNullOrEmpty(pane)) return pane;
+                }
             }
 
             foreach (var arg in args)
@@ -343,6 +364,12 @@ namespace BNDZ
                 if (string.IsNullOrWhiteSpace(arg) || arg.StartsWith('-')) continue;
                 try
                 {
+                    if (arg.StartsWith("bndz://", StringComparison.OrdinalIgnoreCase)
+                        || arg.StartsWith("file://bndz/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var pane = BndzNamespaceService.Instance.ResolveProtocolUrl(arg);
+                        if (!string.IsNullOrEmpty(pane)) return pane;
+                    }
                     if (File.Exists(arg) || Directory.Exists(arg))
                         return arg;
                 }

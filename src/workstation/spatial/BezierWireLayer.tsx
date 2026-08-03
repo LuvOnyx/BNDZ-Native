@@ -24,6 +24,7 @@ export default function BezierWireLayer({ items, relations, cardW, cardH, getIte
     if (!ctx) return;
 
     const strokeFor = (reason: PinRelation['reason']) => {
+      if (reason === 'lineage') return { stroke: 'rgba(168, 130, 255, 0.78)', glow: 'rgba(139, 92, 246, 0.35)' };
       if (reason === 'tag') return { stroke: 'rgba(120, 210, 255, 0.72)', glow: 'rgba(56, 189, 248, 0.35)' };
       if (reason === 'folder') return { stroke: 'rgba(255, 210, 120, 0.65)', glow: 'rgba(251, 191, 36, 0.28)' };
       return { stroke: 'rgba(190, 195, 220, 0.5)', glow: 'rgba(148, 163, 184, 0.2)' };

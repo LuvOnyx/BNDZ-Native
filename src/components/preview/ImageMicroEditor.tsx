@@ -33,6 +33,42 @@ function editedPathFor(sourcePath: string): string {
   return `${win.slice(0, dot)}_edited${win.slice(dot)}`;
 }
 
+function RotateCCWGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M3.5 8A4.5 4.5 0 0 1 8 3.5V2L5.5 4 8 6V4.5A3.5 3.5 0 1 0 11.5 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function RotateCWGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M12.5 8A4.5 4.5 0 0 0 8 3.5V2L10.5 4 8 6V4.5A3.5 3.5 0 1 1 4.5 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function FlipHGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="1.5" y="4" width="5.5" height="8" rx="1" stroke="currentColor" strokeWidth="1.25" opacity="0.55"/>
+      <rect x="9" y="4" width="5.5" height="8" rx="1" stroke="currentColor" strokeWidth="1.25"/>
+      <line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" strokeWidth="1.1" strokeDasharray="1.5 1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function FlipVGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="4" y="1.5" width="8" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.25" opacity="0.55"/>
+      <rect x="4" y="9" width="8" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.25"/>
+      <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.1" strokeDasharray="1.5 1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 export default function ImageMicroEditor({ path, title, onSaved }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -138,20 +174,6 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
     }
   };
 
-  const slider = (label: string, key: keyof Pick<Adjustments, 'brightness' | 'contrast' | 'saturation'>, min: number, max: number) => (
-    <label className="bndz-image-editor-slider">
-      <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={adjust[key]}
-        onChange={e => setAdjust(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-      />
-      <span className="bndz-mono">{adjust[key]}</span>
-    </label>
-  );
-
   if (loading) {
     return (
       <div className="bndz-image-editor flex items-center justify-center h-full gap-2 text-gray-500">
@@ -175,32 +197,126 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
       <div className="bndz-image-editor-stage flex-1 min-h-0 flex items-center justify-center p-3 pattern-checkerboard">
         <canvas ref={canvasRef} className="bndz-image-editor-canvas max-w-full max-h-full object-contain" />
       </div>
-      <div className="bndz-image-editor-toolbar shrink-0 border-t border-white/10 bg-black/25 p-3 flex flex-col gap-2">
-        <div className="text-[11px] text-gray-400 truncate" title={title}>{title || 'Image editor'}</div>
-        <div className="flex flex-wrap gap-1.5">
-          <button type="button" className="bndz-image-editor-btn" onClick={() => setAdjust(p => ({ ...p, rotation: p.rotation - 90 }))} title="Rotate left">
-            Rotate L
-          </button>
-          <button type="button" className="bndz-image-editor-btn" onClick={() => setAdjust(p => ({ ...p, rotation: p.rotation + 90 }))} title="Rotate right">
-            Rotate R
-          </button>
-          <button type="button" className="bndz-image-editor-btn" onClick={() => setAdjust(p => ({ ...p, flipX: !p.flipX }))} title="Flip horizontal">
-            Flip H
-          </button>
-          <button type="button" className="bndz-image-editor-btn" onClick={() => setAdjust(p => ({ ...p, flipY: !p.flipY }))} title="Flip vertical">
-            Flip V
-          </button>
-          <button type="button" className="bndz-image-editor-btn" onClick={reset}>Reset</button>
-          <button type="button" className="bndz-image-editor-btn bndz-image-editor-btn--primary" onClick={() => void saveCopy()} disabled={busy}>
-            {busy ? 'Saving…' : 'Save copy'}
-          </button>
+
+      <div className="bndz-image-editor-strip shrink-0">
+        {/* Title row */}
+        <div className="bndz-image-editor-strip-title">
+          <img src="/Ui/edit-image.svg" alt="" className="w-3.5 h-3.5 opacity-60" />
+          <span className="truncate">{title || 'Image editor'}</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {slider('Brightness', 'brightness', 40, 180)}
-          {slider('Contrast', 'contrast', 40, 180)}
-          {slider('Saturation', 'saturation', 0, 200)}
+
+        {/* Instrument row */}
+        <div className="bndz-image-editor-instrument-row">
+
+          {/* Transform rack — rotate & flip wells */}
+          <div className="bndz-image-editor-rack" role="group" aria-label="Transform">
+            <span className="bndz-image-editor-rack-label">Transform</span>
+            <div className="bndz-image-editor-rack-wells">
+              <button
+                type="button"
+                className="bndz-image-editor-well"
+                title="Rotate left 90°"
+                onClick={() => setAdjust(p => ({ ...p, rotation: p.rotation - 90 }))}
+              >
+                <RotateCCWGlyph />
+              </button>
+              <button
+                type="button"
+                className="bndz-image-editor-well"
+                title="Rotate right 90°"
+                onClick={() => setAdjust(p => ({ ...p, rotation: p.rotation + 90 }))}
+              >
+                <RotateCWGlyph />
+              </button>
+              <button
+                type="button"
+                className={`bndz-image-editor-well${adjust.flipX ? ' is-active' : ''}`}
+                title="Flip horizontal"
+                onClick={() => setAdjust(p => ({ ...p, flipX: !p.flipX }))}
+              >
+                <FlipHGlyph />
+              </button>
+              <button
+                type="button"
+                className={`bndz-image-editor-well${adjust.flipY ? ' is-active' : ''}`}
+                title="Flip vertical"
+                onClick={() => setAdjust(p => ({ ...p, flipY: !p.flipY }))}
+              >
+                <FlipVGlyph />
+              </button>
+            </div>
+          </div>
+
+          <div className="bndz-image-editor-strip-sep" aria-hidden />
+
+          {/* Adjustments rack */}
+          <div className="bndz-image-editor-rack bndz-image-editor-rack--adj" role="group" aria-label="Adjustments">
+            <span className="bndz-image-editor-rack-label">Adjustments</span>
+            <div className="bndz-image-editor-adj-sliders">
+              {(
+                [
+                  { key: 'brightness', label: 'Brt', min: 40, max: 180, def: 100 },
+                  { key: 'contrast',   label: 'Cnt', min: 40, max: 180, def: 100 },
+                  { key: 'saturation', label: 'Sat', min: 0,  max: 200, def: 100 },
+                ] as const
+              ).map(({ key, label, min, max, def }) => (
+                <label key={key} className="bndz-image-editor-adj-row">
+                  <span className="bndz-image-editor-adj-label">{label}</span>
+                  <input
+                    type="range"
+                    className="bndz-image-editor-slider-input"
+                    min={min}
+                    max={max}
+                    value={adjust[key as keyof typeof adjust] as number}
+                    onChange={e => setAdjust(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                  />
+                  <span
+                    className={`bndz-image-editor-adj-val${(adjust[key as keyof typeof adjust] as number) !== def ? ' is-modified' : ''}`}
+                  >
+                    {adjust[key as keyof typeof adjust]}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="bndz-image-editor-strip-sep" aria-hidden />
+
+          {/* Actions */}
+          <div className="bndz-image-editor-rack bndz-image-editor-rack--actions" role="group" aria-label="Actions">
+            <span className="bndz-image-editor-rack-label">Output</span>
+            <div className="bndz-image-editor-rack-wells bndz-image-editor-rack-wells--col">
+              <button
+                type="button"
+                className="bndz-image-editor-action-btn"
+                title="Reset all adjustments"
+                onClick={reset}
+              >
+                <Icons8Icon id="reset_ui" size={13} />
+                <span>Reset</span>
+              </button>
+              <button
+                type="button"
+                className="bndz-image-editor-action-btn bndz-image-editor-action-btn--primary"
+                title="Save as _edited copy"
+                onClick={() => void saveCopy()}
+                disabled={busy}
+              >
+                <Icons8Icon id="emblem_checked" size={13} />
+                <span>{busy ? 'Saving…' : 'Save copy'}</span>
+              </button>
+            </div>
+          </div>
         </div>
-        {status && <div className="text-[10px] text-emerald-400/90">{status}</div>}
+
+        {/* Status line */}
+        {status && (
+          <div className="bndz-image-editor-status">
+            <span className={status.toLowerCase().includes('fail') || status.toLowerCase().includes('error') ? 'is-error' : ''}>
+              {status}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -133,7 +133,10 @@ export function scheduleBackendSettings(config: AppConfig, force = false): void 
     if (!cfg) return;
 
     const fp = shellFingerprint(cfg);
-    if (!force && fp === lastAppliedFingerprint) return;
+    // Always fingerprint-gate. `force` only bypasses debounce coalescing intent —
+    // never rewrites HKCU shell verbs when nothing shell-related changed.
+    if (fp === lastAppliedFingerprint) return;
+    void force;
 
     applyChain = applyChain
       .then(() => applyBackendSettingsInner(cfg))

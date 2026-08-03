@@ -105,12 +105,23 @@ internal sealed class PersistedTransferJob
 
 /// <summary>
 /// Serializes file operations with job tracking, cancellation, priority lanes, and optional persistence.
+/// Deletes run on a dedicated fast-lane (<see cref="_deleteGate"/>) so they are never blocked by
+/// an in-progress copy or move on the main transfer lane.
 /// </summary>
 public sealed class FileTransferQueueService
 {
+    // ── Main transfer lane (copy / move / archive / rename / …) ─────────────────────
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _pendingLock = new();
     private readonly List<QueuedWork> _pending = new();
+
+    // ── Delete fast-lane — runs concurrently with the transfer lane ──────────────────
+    private readonly SemaphoreSlim _deleteGate = new(1, 1);
+    private readonly object _deletePendingLock = new();
+    private readonly List<QueuedWork> _deletePending = new();
+    private int _deleteQueuedCount;
+    private int _deleteActiveCount;
+
     private readonly ConcurrentDictionary<string, FileTransferJob> _jobs = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancelSources = new();
     private readonly ConcurrentDictionary<string, Process> _attachedProcesses = new();
@@ -142,8 +153,8 @@ public sealed class FileTransferQueueService
         _persistPath = Path.Combine(dir, "file_transfer_queue.json");
     }
 
-    public int QueuedCount => _queuedCount;
-    public int ActiveCount => _activeCount;
+    public int QueuedCount => _queuedCount + _deleteQueuedCount;
+    public int ActiveCount => _activeCount + _deleteActiveCount;
 
     public void SetPersistenceEnabled(bool enabled) => _persistEnabled = enabled;
 
@@ -404,6 +415,15 @@ public sealed class FileTransferQueueService
                 Interlocked.Decrement(ref _queuedCount);
             }
         }
+        lock (_deletePendingLock)
+        {
+            var deleteIdx = _deletePending.FindIndex(p => p.OperationId == operationId);
+            if (deleteIdx >= 0)
+            {
+                _deletePending.RemoveAt(deleteIdx);
+                Interlocked.Decrement(ref _deleteQueuedCount);
+            }
+        }
 
         KillAttachedProcess(operationId);
 
@@ -455,6 +475,15 @@ public sealed class FileTransferQueueService
                 Interlocked.Decrement(ref _queuedCount);
             }
         }
+        lock (_deletePendingLock)
+        {
+            var deleteIdx = _deletePending.FindIndex(p => p.OperationId == operationId);
+            if (deleteIdx >= 0)
+            {
+                _deletePending.RemoveAt(deleteIdx);
+                Interlocked.Decrement(ref _deleteQueuedCount);
+            }
+        }
 
         if (_cancelSources.TryGetValue(operationId, out var cts))
         {
@@ -483,6 +512,7 @@ public sealed class FileTransferQueueService
         }
 
         var priority = _priorityById.TryGetValue(operationId, out var p) ? p : FileTransferPriority.Normal;
+        var isDelete = string.Equals(job.Action, "delete", StringComparison.OrdinalIgnoreCase);
         job.Status = FileTransferJobStatus.Queued;
         job.Error = null;
         job.Progress = 0;
@@ -490,30 +520,52 @@ public sealed class FileTransferQueueService
         job.CompletedUtc = null;
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (_pendingLock)
+        if (isDelete)
         {
-            // Avoid double-queue if already pending
-            if (_pending.Any(w => w.OperationId == operationId))
+            lock (_deletePendingLock)
             {
-                NotifyChanged();
-                return true;
+                if (_deletePending.Any(w => w.OperationId == operationId))
+                {
+                    NotifyChanged();
+                    return true;
+                }
+                _deletePending.Add(new QueuedWork { OperationId = operationId, Work = work, Completion = tcs, Priority = priority });
+                _deletePending.Sort((a, b) =>
+                {
+                    var byPriority = b.Priority.CompareTo(a.Priority);
+                    return byPriority != 0 ? byPriority : a.EnqueuedUtc.CompareTo(b.EnqueuedUtc);
+                });
+                Interlocked.Increment(ref _deleteQueuedCount);
             }
-            _pending.Add(new QueuedWork
-            {
-                OperationId = operationId,
-                Work = work,
-                Completion = tcs,
-                Priority = priority,
-            });
-            _pending.Sort((a, b) =>
-            {
-                var byPriority = b.Priority.CompareTo(a.Priority);
-                return byPriority != 0 ? byPriority : a.EnqueuedUtc.CompareTo(b.EnqueuedUtc);
-            });
-            Interlocked.Increment(ref _queuedCount);
+            NotifyChanged();
+            _ = ProcessDeleteQueueAsync();
         }
-        NotifyChanged();
-        _ = ProcessQueueAsync();
+        else
+        {
+            lock (_pendingLock)
+            {
+                if (_pending.Any(w => w.OperationId == operationId))
+                {
+                    NotifyChanged();
+                    return true;
+                }
+                _pending.Add(new QueuedWork
+                {
+                    OperationId = operationId,
+                    Work = work,
+                    Completion = tcs,
+                    Priority = priority,
+                });
+                _pending.Sort((a, b) =>
+                {
+                    var byPriority = b.Priority.CompareTo(a.Priority);
+                    return byPriority != 0 ? byPriority : a.EnqueuedUtc.CompareTo(b.EnqueuedUtc);
+                });
+                Interlocked.Increment(ref _queuedCount);
+            }
+            NotifyChanged();
+            _ = ProcessQueueAsync();
+        }
         return true;
     }
 
@@ -524,33 +576,58 @@ public sealed class FileTransferQueueService
         return cts.Token;
     }
 
+    /// <param name="deleteLane">
+    /// When <c>true</c> the work is queued on the dedicated delete fast-lane so it runs
+    /// concurrently with any in-progress copy or move on the main transfer lane.
+    /// </param>
     public async Task EnqueueAsync(
         string operationId,
         Func<CancellationToken, Task> work,
         CancellationToken cancellationToken = default,
-        FileTransferPriority priority = FileTransferPriority.Normal)
+        FileTransferPriority priority = FileTransferPriority.Normal,
+        bool deleteLane = false)
     {
         _workById[operationId] = work;
         _priorityById[operationId] = priority;
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (_pendingLock)
+
+        if (deleteLane)
         {
-            _pending.Add(new QueuedWork
+            lock (_deletePendingLock)
             {
-                OperationId = operationId,
-                Work = work,
-                Completion = tcs,
-                Priority = priority,
-            });
-            _pending.Sort((a, b) =>
-            {
-                var byPriority = b.Priority.CompareTo(a.Priority);
-                return byPriority != 0 ? byPriority : a.EnqueuedUtc.CompareTo(b.EnqueuedUtc);
-            });
-            Interlocked.Increment(ref _queuedCount);
+                _deletePending.Add(new QueuedWork { OperationId = operationId, Work = work, Completion = tcs, Priority = priority });
+                _deletePending.Sort((a, b) =>
+                {
+                    var byPriority = b.Priority.CompareTo(a.Priority);
+                    return byPriority != 0 ? byPriority : a.EnqueuedUtc.CompareTo(b.EnqueuedUtc);
+                });
+                Interlocked.Increment(ref _deleteQueuedCount);
+            }
+            NotifyChanged();
+            _ = ProcessDeleteQueueAsync();
         }
-        NotifyChanged();
-        _ = ProcessQueueAsync();
+        else
+        {
+            lock (_pendingLock)
+            {
+                _pending.Add(new QueuedWork
+                {
+                    OperationId = operationId,
+                    Work = work,
+                    Completion = tcs,
+                    Priority = priority,
+                });
+                _pending.Sort((a, b) =>
+                {
+                    var byPriority = b.Priority.CompareTo(a.Priority);
+                    return byPriority != 0 ? byPriority : a.EnqueuedUtc.CompareTo(b.EnqueuedUtc);
+                });
+                Interlocked.Increment(ref _queuedCount);
+            }
+            NotifyChanged();
+            _ = ProcessQueueAsync();
+        }
+
         using var reg = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
         await tcs.Task.ConfigureAwait(false);
     }
@@ -648,6 +725,78 @@ public sealed class FileTransferQueueService
             }
             if (hasMore)
                 _ = ProcessQueueAsync();
+        }
+    }
+
+    /// <summary>
+    /// Worker loop for the delete fast-lane.  Mirrors <see cref="ProcessQueueAsync"/> but
+    /// uses <see cref="_deleteGate"/> so deletes never wait behind copy/move work.
+    /// </summary>
+    private async Task ProcessDeleteQueueAsync()
+    {
+        if (!await _deleteGate.WaitAsync(0).ConfigureAwait(false))
+            return;
+
+        try
+        {
+            while (true)
+            {
+                QueuedWork? item;
+                lock (_deletePendingLock)
+                {
+                    if (_deletePending.Count == 0) break;
+                    item = _deletePending[0];
+                    _deletePending.RemoveAt(0);
+                }
+
+                Interlocked.Decrement(ref _deleteQueuedCount);
+                if (_jobs.TryGetValue(item.OperationId, out var preJob) && preJob.Status == FileTransferJobStatus.Cancelled)
+                {
+                    item.Completion.TrySetCanceled();
+                    continue;
+                }
+                Interlocked.Increment(ref _deleteActiveCount);
+                if (_jobs.TryGetValue(item.OperationId, out var job) && job.Status == FileTransferJobStatus.Queued)
+                {
+                    job.Status = FileTransferJobStatus.Running;
+                    job.StartedUtc = DateTime.UtcNow;
+                }
+                NotifyChanged();
+
+                try
+                {
+                    var token = RegisterCancellation(item.OperationId);
+                    await item.Work(token).ConfigureAwait(false);
+                    item.Completion.TrySetResult(true);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (!(_jobs.TryGetValue(item.OperationId, out var pausedJob)
+                          && pausedJob.Status == FileTransferJobStatus.Paused))
+                    {
+                        MarkCancelled(item.OperationId);
+                    }
+                    item.Completion.TrySetCanceled();
+                }
+                catch (Exception ex)
+                {
+                    MarkFailed(item.OperationId, ex.Message);
+                    item.Completion.TrySetException(ex);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _deleteActiveCount);
+                    NotifyChanged();
+                }
+            }
+        }
+        finally
+        {
+            _deleteGate.Release();
+            bool hasMore;
+            lock (_deletePendingLock) { hasMore = _deletePending.Count > 0; }
+            if (hasMore)
+                _ = ProcessDeleteQueueAsync();
         }
     }
 

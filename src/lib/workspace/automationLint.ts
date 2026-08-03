@@ -11,7 +11,7 @@ export type LintIssue = {
 const TERMINAL_TYPES = new Set<AutomationNodeType>([
   'log', 'notifyToast', 'recycleBin', 'delay', 'moveTo', 'copyTo', 'rsyncDeploy', 'runShell',
   'compressArchive', 'extractArchive', 'syncFolders', 'generateThumbnail', 'stopAbort',
-  'ghostLinkTo', 'stageToRam',
+  'ghostLinkTo', 'stageToRam', 'script', 'healthGate', 'sandboxCheckpoint', 'capacityApprove', 'branchCreate',
 ]);
 
 /** Fields that must be non-empty for the given block type. */
@@ -29,6 +29,9 @@ const REQUIRED_FIELDS: Partial<Record<AutomationNodeType, string[]>> = {
   filterTag: ['tag'],
   filterContent: ['pattern'],
   runShell: ['command'],
+  script: ['code'],
+  sandboxCheckpoint: ['sessionId'],
+  branchCreate: ['sourcePath', 'branchName'],
   onSchedule: ['intervalMinutes'],
   stopAbort: ['message'],
   batchCounter: ['limit'],
@@ -278,6 +281,11 @@ function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
     case 'applyTag': return `Tag "${d.tag || '(unset)'}"`;
     case 'notifyToast': return `Toast: ${d.title || 'BNDZ'}`;
     case 'runShell': return `Shell: ${d.command || '(unset)'}`;
+    case 'script': return `C# Script (${String(d.code || '').length} chars)`;
+    case 'healthGate': return `Health gate: max ${d.maxErrors || '0'} errors`;
+    case 'sandboxCheckpoint': return `Sandbox checkpoint: ${d.label || 'auto'}`;
+    case 'capacityApprove': return `Capacity ≥ ${d.requiredMb || '512'} MB on ${d.drive || 'auto'}`;
+    case 'branchCreate': return `Branch "${d.branchName || '(unset)'}" from ${d.sourcePath || '(unset)'}`;
     case 'branch': return `Branch: ${d.condition || 'anyFiles'}`;
     case 'delay': return `Wait ${d.seconds || '1'}s`;
     case 'stopAbort': return `Abort: ${d.message || 'stop'}`;

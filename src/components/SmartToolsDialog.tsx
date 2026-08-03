@@ -6,6 +6,8 @@ import { IPC } from '../lib/ipcBridge';
 import BndzAssistantPanel from './assistant/BndzAssistantPanel';
 import BndzDuplicatesPanel from './duplicates/BndzDuplicatesPanel';
 import MusicStudioPanel from './music/MusicStudioPanel';
+import RecycleArchaeologyPanel from './smarttools/RecycleArchaeologyPanel';
+import PathHealerPanel from './smarttools/PathHealerPanel';
 import {
   ORGANIZE_BUCKETS,
   applyOrganizePlan,
@@ -16,7 +18,7 @@ import {
   type OrganizePlanEntry,
 } from '../lib/storageOrganize';
 
-export type SmartToolsTab = 'assistant' | 'organize' | 'duplicates' | 'music';
+export type SmartToolsTab = 'assistant' | 'organize' | 'duplicates' | 'music' | 'healer' | 'recycle';
 
 interface SmartToolsDialogProps {
   isOpen?: boolean;
@@ -50,6 +52,8 @@ function normalizeTab(tab?: SmartToolsDialogProps['initialTab']): SmartToolsTab 
   if (tab === 'duplicates') return 'duplicates';
   if (tab === 'organize') return 'organize';
   if (tab === 'music') return 'music';
+  if (tab === 'healer') return 'healer';
+  if (tab === 'recycle') return 'recycle';
   if (tab === 'assistant') return 'assistant';
   return 'assistant';
 }
@@ -209,6 +213,9 @@ export default function SmartToolsDialog({
       <div className="bndz-plugin-tabstrip flex border-b border-white/[0.06] shrink-0">
         {([
           { id: 'organize' as const, label: 'Organize', iconId: 'category_ui' },
+          { id: 'recycle' as const, label: 'Recycle', iconId: 'trash_ui' },
+          { id: 'healer' as const, label: 'Path Healer', iconId: 'link_broken' },
+          { id: 'recycle' as const, label: 'Recycle Arch', iconId: 'trash_ui' },
           { id: 'music' as const, label: 'Music', iconId: 'music_ui' },
           { id: 'assistant' as const, label: 'Assistant', iconId: 'sparkles_ui' },
           { id: 'duplicates' as const, label: 'Duplicates', iconId: 'copy' },
@@ -379,6 +386,20 @@ export default function SmartToolsDialog({
               </div>
             )}
           </div>
+        )}
+
+        {tab === 'healer' && currentPath && (
+          <PathHealerPanel
+            rootPath={currentPath}
+            onNavigate={p => {
+              onNavigate?.(p.startsWith('/') ? p : `/${p.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:')}`);
+              onClose();
+            }}
+          />
+        )}
+
+        {tab === 'recycle' && (
+          <RecycleArchaeologyPanel />
         )}
 
         {tab === 'music' && (

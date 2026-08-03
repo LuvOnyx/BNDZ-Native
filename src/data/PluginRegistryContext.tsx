@@ -19,6 +19,15 @@ import ProjectSandboxPlugin, { ProjectSandboxPluginDef } from '../components/plu
 import LibraryHealthPlugin, { LibraryHealthPluginDef } from '../components/plugins/LibraryHealthPlugin';
 import CapacitySolverPlugin, { CapacitySolverPluginDef } from '../components/plugins/CapacitySolverPlugin';
 import InboundVolumePlugin, { InboundVolumePluginDef } from '../components/plugins/InboundVolumePlugin';
+import BranchingTimePlugin, { BranchingTimePluginDef } from '../components/plugins/BranchingTimePlugin';
+import PolicyPackPlugin, { PolicyPackPluginDef } from '../components/plugins/PolicyPackPlugin';
+import ZkVaultPlugin, { ZkVaultPluginDef } from '../components/plugins/ZkVaultPlugin';
+import DropMagnetPlugin, { DropMagnetPluginDef } from '../components/plugins/DropMagnetPlugin';
+import CaptureInboxPlugin, { CaptureInboxPluginDef } from '../components/plugins/CaptureInboxPlugin';
+import RealityCheckPlugin, { RealityCheckPluginDef } from '../components/plugins/RealityCheckPlugin';
+import ShellVerbForgePlugin, { ShellVerbForgePluginDef } from '../components/plugins/ShellVerbForgePlugin';
+import TranscodeRackPlugin, { TranscodeRackPluginDef } from '../components/plugins/TranscodeRackPlugin';
+import SemanticDeskPlugin, { SemanticDeskPluginDef } from '../components/plugins/SemanticDeskPlugin';
 import { useAppConfig } from './configContext';
 
 export type PluginManifest = {
@@ -42,6 +51,7 @@ export const DEFAULT_INSTALLED_PLUGINS = [
     'find',
     'dropstack',
     'filters',
+    'metadata',
     'storage-cleanup',
     'folder-sync',
     'catalog',
@@ -49,14 +59,24 @@ export const DEFAULT_INSTALLED_PLUGINS = [
     'compare',
     'ghost-link',
     'ram-staging',
+];
+
+/** Advanced plugins installed on first use from the marketplace */
+export const FIRST_USE_PLUGINS: string[] = [
     'project-sandbox',
     'library-health',
     'capacity-solver',
     'inbound-volume',
+    'branching-time',
+    'drop-magnet',
+    'capture-inbox',
+    'reality-check',
+    'shell-verb-forge',
+    'transcode-rack',
+    'semantic-desk',
+    'policy-packs',
+    'zk-vault',
 ];
-
-/** Advanced plugins installed on first use */
-export const FIRST_USE_PLUGINS: string[] = [];
 
 const ALL_PLUGINS: PluginManifest[] = [
     {
@@ -117,7 +137,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...MetadataPluginDef,
-        isInstalled: false,
+        isInstalled: true,
         component: MetadataPlugin,
     },
     {
@@ -187,7 +207,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...ProjectSandboxPluginDef,
         description: 'Isolated sandbox sessions — experiment freely, checkpoint, commit or discard changes.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: ProjectSandboxPlugin,
@@ -195,7 +215,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...LibraryHealthPluginDef,
         description: 'Scan libraries for broken links, naming conflicts, permission issues, and orphans.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: LibraryHealthPlugin,
@@ -203,7 +223,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...CapacitySolverPluginDef,
         description: 'Analyze storage and build cleanup plans to free space on any volume.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: CapacitySolverPlugin,
@@ -211,10 +231,80 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...InboundVolumePluginDef,
         description: 'Clipboard catcher and inbound file watcher — capture, review, and copy into your library.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: InboundVolumePlugin,
+    },
+    {
+        ...BranchingTimePluginDef,
+        description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: BranchingTimePlugin,
+    },
+    {
+        ...DropMagnetPluginDef,
+        description: 'Named landing pads — drop files to rename, tag, and route in one release.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: DropMagnetPlugin,
+    },
+    {
+        ...CaptureInboxPluginDef,
+        description: 'Screenshot and clipboard images saved as named PNG files via Windows OCR.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: CaptureInboxPlugin,
+    },
+    {
+        ...RealityCheckPluginDef,
+        description: 'Compare on-disk assets against project and DAW session references — missing files glow in the list.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: RealityCheckPlugin,
+    },
+    {
+        ...ShellVerbForgePluginDef,
+        description: 'Forge custom Explorer shell verbs in HKCU that launch BNDZ with path arguments.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: ShellVerbForgePlugin,
+    },
+    {
+        ...TranscodeRackPluginDef,
+        description: 'Batch image transcode rack — JPEG, PNG, WebP encode queue with live progress.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: TranscodeRackPlugin,
+    },
+    {
+        ...SemanticDeskPluginDef,
+        description: 'Semantic desk overlay — cluster folder items into 3–8 piles with list group headers.',
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: SemanticDeskPlugin,
+    },
+    {
+        ...PolicyPackPluginDef,
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: PolicyPackPlugin,
+    },
+    {
+        ...ZkVaultPluginDef,
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: ZkVaultPlugin,
     },
 ];
 
@@ -222,21 +312,67 @@ const PluginRegistryContext = createContext<any>(null);
 
 export const PluginRegistryProvider = ({ children }: { children: ReactNode }) => {
     const { config, updateConfig } = useAppConfig();
-    const [plugins, setPlugins] = useState<PluginManifest[]>(ALL_PLUGINS);
-    const [hydrated, setHydrated] = useState(false);
-
-    useEffect(() => {
-        if (hydrated) return;
-        const saved = config.installedPlugins as string[] | undefined;
-        const merged = ALL_PLUGINS.map(p => ({
+    // Start from DEFAULT install set — never flash ALL_PLUGINS hardcoded isInstalled:true into the deck.
+    const [plugins, setPlugins] = useState<PluginManifest[]>(() =>
+        ALL_PLUGINS.map(p => ({
             ...p,
-            isInstalled: saved
+            isInstalled: DEFAULT_INSTALLED_PLUGINS.includes(p.id),
+        })),
+    );
+
+    // Re-sync whenever persisted install list changes. Drop catalog-unknown IDs (stale),
+    // but preserve legitimate store installs that exist in ALL_PLUGINS.
+    // Also scrubs stale tab-config keys that point at uninstalled plugins — belt-and-suspenders
+    // guard for configs saved before the uninstall scrub path was added.
+    useEffect(() => {
+        const catalogIds = new Set(ALL_PLUGINS.map(p => p.id));
+        const savedRaw = config.installedPlugins as string[] | undefined;
+        const saved = Array.isArray(savedRaw)
+            ? savedRaw.filter(id => catalogIds.has(id))
+            : undefined;
+
+        const installedSet = new Set(
+            Array.isArray(saved) ? saved : DEFAULT_INSTALLED_PLUGINS,
+        );
+
+        // One-time scrub of stale IDs from persisted config.
+        const configPatch: Record<string, unknown> = {};
+        if (Array.isArray(savedRaw) && saved && saved.length !== savedRaw.length) {
+            configPatch.installedPlugins = saved;
+        }
+        // Scrub tab-config keys pointing at plugins that are no longer installed.
+        const lastTab = config.bottomPanelLastTab as string | undefined;
+        if (lastTab && !installedSet.has(lastTab)) {
+            configPatch.bottomPanelLastTab = '';
+        }
+        const defaultPlugin = config.bottomPanelDefaultPlugin as string | undefined;
+        if (defaultPlugin && !installedSet.has(defaultPlugin)) {
+            configPatch.bottomPanelDefaultPlugin = '';
+        }
+        const tabOrder = config.bottomPluginTabOrder as string[] | undefined;
+        if (Array.isArray(tabOrder) && tabOrder.some(id => !installedSet.has(id))) {
+            configPatch.bottomPluginTabOrder = tabOrder.filter(id => installedSet.has(id));
+        }
+        if (Object.keys(configPatch).length > 0) {
+            updateConfig(configPatch as any);
+        }
+
+        const next = ALL_PLUGINS.map(p => ({
+            ...p,
+            isInstalled: Array.isArray(saved)
                 ? saved.includes(p.id)
                 : DEFAULT_INSTALLED_PLUGINS.includes(p.id),
         }));
-        setPlugins(merged);
-        setHydrated(true);
-    }, [config.installedPlugins, hydrated]);
+        setPlugins(prev => {
+            if (
+                prev.length === next.length
+                && prev.every((p, i) => p.id === next[i].id && p.isInstalled === next[i].isInstalled)
+            ) {
+                return prev;
+            }
+            return next;
+        });
+    }, [config.installedPlugins, config.bottomPanelLastTab, config.bottomPanelDefaultPlugin, config.bottomPluginTabOrder, updateConfig]);
 
     const ensurePluginInstalled = useCallback((id: string) => {
         setPlugins(prev => {
@@ -251,12 +387,23 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
 
     const togglePluginInstall = useCallback((id: string) => {
         setPlugins(prev => {
+            const wasInstalled = prev.find(p => p.id === id)?.isInstalled;
             const next = prev.map(p => p.id === id ? { ...p, isInstalled: !p.isInstalled } : p);
             const installedIds = next.filter(p => p.isInstalled).map(p => p.id);
-            updateConfig({ installedPlugins: installedIds });
+            const patch: Record<string, unknown> = { installedPlugins: installedIds };
+            // On uninstall: scrub tab order + default tab so dead buttons cannot resurrect.
+            if (wasInstalled) {
+                const order = (config.bottomPluginTabOrder || []) as string[];
+                if (order.includes(id)) {
+                    patch.bottomPluginTabOrder = order.filter(t => t !== id);
+                }
+                if (config.bottomPanelDefaultPlugin === id) patch.bottomPanelDefaultPlugin = '';
+                if (config.bottomPanelLastTab === id) patch.bottomPanelLastTab = '';
+            }
+            updateConfig(patch as any);
             return next;
         });
-    }, [updateConfig]);
+    }, [updateConfig, config.bottomPluginTabOrder, config.bottomPanelDefaultPlugin, config.bottomPanelLastTab]);
 
     const addPluginToRegistry = useCallback((manifest: PluginManifest) => {
         setPlugins(prev => {
@@ -276,7 +423,8 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
             pluginRegistry: plugins,
             togglePluginInstall,
             addPluginToRegistry,
-            ensurePluginInstalled,
+            // ensurePluginInstalled intentionally NOT exposed — callers must use togglePluginInstall
+            // via the Plugin Store; auto-installing on navigate/open is forbidden.
         }}>
             {children}
         </PluginRegistryContext.Provider>

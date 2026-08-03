@@ -108,6 +108,7 @@ public sealed class BndzFileIndexService : IDisposable
                 """;
             cmd.ExecuteNonQuery();
             EnsureCreatedColumn(conn);
+            EnsureProducerColumns(conn);
             EnsureFtsBackfill(conn);
             EnsureMetaKv(conn);
             BackfillCreatedDates(conn);
@@ -126,6 +127,77 @@ public sealed class BndzFileIndexService : IDisposable
         using var idx = conn.CreateCommand();
         idx.CommandText = "CREATE INDEX IF NOT EXISTS idx_files_created ON files(created DESC)";
         idx.ExecuteNonQuery();
+    }
+
+    private static void EnsureProducerColumns(SqliteConnection conn)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM pragma_table_info('files') WHERE name='bpm'";
+        if (Convert.ToInt64(check.ExecuteScalar()) != 0) return;
+        using var alter = conn.CreateCommand();
+        alter.CommandText = """
+            ALTER TABLE files ADD COLUMN bpm REAL;
+            ALTER TABLE files ADD COLUMN musical_key TEXT;
+            ALTER TABLE files ADD COLUMN camelot TEXT;
+            """;
+        alter.ExecuteNonQuery();
+        using var idx = conn.CreateCommand();
+        idx.CommandText = "CREATE INDEX IF NOT EXISTS idx_files_bpm ON files(bpm) WHERE bpm IS NOT NULL";
+        idx.ExecuteNonQuery();
+    }
+
+    /// <summary>Store BPM/Key/Camelot for a file in the index.</summary>
+    public void StoreProducerMeta(string path, double bpm, string? musicalKey, string? camelot)
+    {
+        EnsureSchema();
+        var panePath = ToPanePath(path);
+        if (string.IsNullOrWhiteSpace(panePath)) return;
+        try
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE files SET bpm = $bpm, musical_key = $key, camelot = $cam
+                WHERE path = $p
+                """;
+            cmd.Parameters.AddWithValue("$bpm", bpm > 0 ? bpm : DBNull.Value);
+            cmd.Parameters.AddWithValue("$key", string.IsNullOrWhiteSpace(musicalKey) ? DBNull.Value : musicalKey);
+            cmd.Parameters.AddWithValue("$cam", string.IsNullOrWhiteSpace(camelot) ? DBNull.Value : camelot);
+            cmd.Parameters.AddWithValue("$p", panePath);
+            cmd.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/ProducerMeta] {ex.Message}");
+        }
+    }
+
+    /// <summary>Retrieve stored producer metadata for a file path.</summary>
+    public (double bpm, string? key, string? camelot) GetProducerMeta(string path)
+    {
+        EnsureSchema();
+        var panePath = ToPanePath(path);
+        if (string.IsNullOrWhiteSpace(panePath)) return (0, null, null);
+        try
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT bpm, musical_key, camelot FROM files WHERE path = $p";
+            cmd.Parameters.AddWithValue("$p", panePath);
+            using var r = cmd.ExecuteReader();
+            if (r.Read())
+            {
+                var bpm = r.IsDBNull(0) ? 0.0 : r.GetDouble(0);
+                var key = r.IsDBNull(1) ? null : r.GetString(1);
+                var cam = r.IsDBNull(2) ? null : r.GetString(2);
+                return (bpm, key, cam);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/ProducerMeta] {ex.Message}");
+        }
+        return (0, null, null);
     }
 
     /// <summary>Gradually backfill creation timestamps for rows indexed before the created column existed.</summary>

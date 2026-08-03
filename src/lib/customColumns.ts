@@ -33,6 +33,9 @@ export const DEFAULT_CUSTOM_COLUMNS: CustomColumnDef[] = [
   { id: 'genre', label: 'Genre', propertyKey: 'Genre', pattern: '{Media}', enabled: false, widthPx: 100 },
   { id: 'year', label: 'Year', propertyKey: 'Year', pattern: '{Media}', enabled: false, widthPx: 64 },
   { id: 'track', label: 'Track', propertyKey: 'Track', pattern: '{Media}', enabled: false, widthPx: 64 },
+  { id: 'bpm', label: 'BPM', propertyKey: 'BPM', pattern: '{Media}', enabled: false, widthPx: 64 },
+  { id: 'musical_key', label: 'Key', propertyKey: 'Musical Key', pattern: '{Media}', enabled: false, widthPx: 72 },
+  { id: 'camelot', label: 'Camelot', propertyKey: 'Camelot', pattern: '{Media}', enabled: false, widthPx: 64 },
   { id: 'gps', label: 'GPS', propertyKey: 'GPS', pattern: '{Photo}', enabled: false, widthPx: 140 },
   { id: 'lens_model', label: 'Lens Model', propertyKey: 'Lens Model', pattern: '{Photo}', enabled: false, widthPx: 140 },
   { id: 'focal_length', label: 'Focal Length', propertyKey: 'Focal Length', pattern: '{Photo}', enabled: false, widthPx: 100 },
@@ -125,5 +128,6 @@ export const CUSTOM_COLUMN_PROPERTY_OPTIONS = [
   'Dimensions', 'Aspect Ratio', 'Date Taken', 'Camera Model', 'F-Stop', 'Exposure Time',
   'Focal Length', 'ISO Speed', 'Lens Model', 'GPS', 'Duration', 'Sample Rate', 'Bit Depth',
   'Audio Bitrate', 'Channels', 'Title', 'Album', 'Artists', 'Genre', 'Year', 'Track',
+  'BPM', 'Musical Key', 'Camelot',
   'File Version', 'Authors', 'Owner', 'ACL Rule', 'md5',
 ] as const;

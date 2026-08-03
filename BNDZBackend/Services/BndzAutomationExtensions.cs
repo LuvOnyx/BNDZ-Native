@@ -73,7 +73,8 @@ internal static class BndzAutomationExtensions
         type is "watchFolder" or "manualRun" or "onSchedule" or "onStartup" or "indexChanged" or "spatialPin";
 
     public static bool IsTerminalType(string type) =>
-        type is "log" or "notifyToast" or "recycleBin" or "delay" or "stopAbort";
+        type is "log" or "notifyToast" or "recycleBin" or "delay" or "stopAbort"
+            or "script" or "healthGate" or "sandboxCheckpoint" or "capacityApprove" or "branchCreate";
 
     public static List<string> ExistingFiles(IEnumerable<string> files) =>
         files.Where(p => File.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

@@ -10,12 +10,16 @@ if (-not $Root) {
     $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 }
 
-$BndzPng = Join-Path $Root "BNDZBackend\Assets\BNDZ-light.png"
+# Use the square app-icon master, never the wide light banner.
+$BndzPng = Join-Path $Root "BNDZBackend\Assets\bndz-square.png"
+if (-not (Test-Path $BndzPng)) {
+    $BndzPng = Join-Path $Root "BNDZBackend\Assets\bndz-app.png"
+}
 $BndzIco = Join-Path $Root "BNDZBackend\Assets\BNDZ.ico"
 $BackendProj = Join-Path $Root "BNDZBackend\BNDZ.csproj"
 
 if (-not (Test-Path $BndzPng)) {
-    throw "BNDZ icon PNG not found: $BndzPng"
+    throw "BNDZ square-master icon PNG not found. Run regenerate-ico.ps1 first to create bndz-square.png."
 }
 
 if ($GenerateIco -or -not (Test-Path $BndzIco) -or (Get-Item $BndzIco).Length -lt 4096) {

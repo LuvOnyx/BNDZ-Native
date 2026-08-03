@@ -70,13 +70,15 @@ type Props = {
 };
 
 export default function MeshPlugin({ onNavigate, currentPath }: Props) {
-  const [tab, setTab] = useState<'hosts' | 'mirror' | 'terminal'>('hosts');
+  const [tab, setTab] = useState<'hosts' | 'mirror' | 'terminal' | 'liveshare'>('hosts');
   const [hosts, setHosts] = useState<MeshHost[]>([]);
   const [rules, setRules] = useState<MeshSyncRule[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
+  const [liveShareOn, setLiveShareOn] = useState(false);
+  const [livePeers, setLivePeers] = useState<any[]>([]);
 
   const refreshRules = useCallback(async () => {
     const [h, r] = await Promise.all([IPC.meshListHosts(), IPC.meshGetSyncRules()]);
@@ -97,6 +99,38 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
       setHosts((list as Record<string, unknown>[]).map(normalizeMeshHost));
     });
   }, []);
+
+  useEffect(() => {
+    if (!liveShareOn || !currentPath || currentPath.startsWith('/mesh')) return;
+    const win = currentPath.replace(/^\//, '').replace(/\//g, '\\');
+    const poll = window.setInterval(() => {
+      void IPC.liveShareGetPeers(win).then(r => setLivePeers(r.peers || []));
+    }, 900);
+    return () => window.clearInterval(poll);
+  }, [liveShareOn, currentPath]);
+
+  const toggleLiveShare = async () => {
+    if (!currentPath || currentPath.startsWith('/mesh')) {
+      setStatus('Open a local folder to share cursor state.');
+      return;
+    }
+    const win = currentPath.replace(/^\//, '').replace(/\//g, '\\');
+    setBusy(true);
+    try {
+      if (liveShareOn) {
+        await IPC.liveShareStop(win);
+        setLiveShareOn(false);
+        setLivePeers([]);
+        setStatus('Live Share stopped.');
+        window.dispatchEvent(new CustomEvent('bndz-live-share-changed', { detail: { active: false } }));
+      } else {
+        await IPC.liveShareStart(win);
+        setLiveShareOn(true);
+        setStatus('Live Share active — peers see your selection in this folder.');
+        window.dispatchEvent(new CustomEvent('bndz-live-share-changed', { detail: { active: true } }));
+      }
+    } finally { setBusy(false); }
+  };
 
   const openTerminal = async (hostId?: string, local = false) => {
     setBusy(true);
@@ -155,14 +189,14 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
     >
       <div className="flex flex-col h-full min-h-0">
         <div className="flex gap-1 px-3 pt-2 shrink-0">
-          {(['hosts', 'mirror', 'terminal'] as const).map(t => (
+          {(['hosts', 'mirror', 'terminal', 'liveshare'] as const).map(t => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               className={`px-3 py-1 text-xs font-semibold rounded-md capitalize ${tab === t ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30' : 'text-gray-500 hover:text-gray-300'}`}
             >
-              {t}
+              {t === 'liveshare' ? 'Live Share' : t}
             </button>
           ))}
         </div>
@@ -262,6 +296,44 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {tab === 'liveshare' && (
+            <div className="space-y-3">
+              <PluginCard className="!p-4">
+                <h3 className="text-sm font-semibold text-gray-100 mb-1">Live Share Cursor</h3>
+                <p className="text-[11px] text-white/45 mb-3 leading-relaxed">
+                  Peers browsing the same shared folder see your selection and cursor path highlighted in the list.
+                  State is broadcast via local mesh files under %LocalAppData%\\BNDZ\\LiveShare.
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <PluginToolbarButton onClick={() => void toggleLiveShare()} disabled={busy}>
+                    {liveShareOn ? 'Stop Live Share' : 'Start Live Share'}
+                  </PluginToolbarButton>
+                  {currentPath && !currentPath.startsWith('/mesh') && (
+                    <span className="text-[10px] text-sky-300/70 bndz-mono truncate max-w-[280px]" title={currentPath}>
+                      Folder: {currentPath}
+                    </span>
+                  )}
+                </div>
+              </PluginCard>
+              {liveShareOn && (
+                <div className="space-y-2">
+                  <PluginFieldLabel>Active peers</PluginFieldLabel>
+                  {livePeers.length === 0 ? (
+                    <PluginEmptyState icon="users_ui" title="No peers yet" description="Other BNDZ instances in the same shared folder will appear here." />
+                  ) : livePeers.map(p => (
+                    <PluginCard key={p.peerId} className="!p-2.5 text-[11px]">
+                      <div className="font-medium text-sky-200">{p.machineName || 'Peer'}</div>
+                      <div className="text-white/40 mt-1">
+                        {p.selectionPaths?.length || 0} selected
+                        {p.cursorPath ? ` · cursor: ${String(p.cursorPath).split(/[/\\]/).pop()}` : ''}
+                      </div>
+                    </PluginCard>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

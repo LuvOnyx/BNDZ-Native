@@ -11,7 +11,6 @@ import { useClipboard } from '../data/ClipboardContext';
 import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
-import WorkIntentSwitcher from './WorkIntentSwitcher';
 import FileTransferQueuePanel from './FileTransferQueuePanel';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
 import { SizeBar, type SizeBarStyle } from './SizeBar';
@@ -104,10 +103,12 @@ import MeshDropDialog from './meshdrop/MeshDropDialog';
 import { filterSupplementalNativeItems, type ContextMenuSurface } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
 import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals } from '../lib/nativeIconService';
+import { isRealityCheckActive, isRealityCheckMissing, subscribeRealityCheck } from '../lib/realityCheckState';
 import { mergeDirEntryChunks } from '../lib/dirListingStream';
 import { markScrolling as markIconQueueScrolling, getIconQueueDepth } from '../lib/iconRequestQueue';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
 import BottomPluginPanel from './BottomPluginPanel';
+import RightPreviewPanel from './RightPreviewPanel';
 import { LeftSidebar } from './LeftSidebar';
 import { ThumbnailIcon } from './ThumbnailIcon';
 import { ShellNativeIcon } from './ShellNativeIcon';
@@ -121,6 +122,7 @@ import {
 import { shouldSuppressNativeEntityTitle } from '../lib/tooltipSettings';
 import CustomColumnCell from './CustomColumnCell';
 import { parseCustomColumnListId, resolveCustomColumns, setCustomColumnEnabled } from '../lib/customColumns';
+import { invalidateExtendedMetadata } from '../lib/extendedMetadataCache';
 import { hideFloatingTooltip, getFloatingTooltip, isShiftKeyHeld, subscribeShiftKey, getHoverPending, subscribeFloatingTooltip } from '../lib/floatingTooltip';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import FloatingTooltipHost from './FloatingTooltipHost';
@@ -142,12 +144,13 @@ import { VirtualizedFileList } from './VirtualizedFileList';
 import MillerColumnsView from './MillerColumnsView';
 import BranchViewStrip from './BranchViewStrip';
 import { flattenGroupedList, isGroupHeaderRow, LIST_GROUP_BY_OPTIONS, resolveStickyGroupHeader, type ListGroupBy, type ListRowItem } from '../lib/listGrouping';
+import { isSemanticDeskActive } from '../lib/semanticDeskRuntime';
 import { cloudBadgeForPath, cloudSidebarStatusLabel, type CloudProvider } from '../lib/cloudStatus';
 import { VirtualizedNavTree } from './VirtualizedNavTree';
 import TutorialOverlay from './TutorialOverlay';
 import DestinationPickerModal from './DestinationPickerModal';
 import QuitConfirmDialog from './QuitConfirmDialog';
-import RightPreviewPanel from './RightPreviewPanel';
+import { JobTicketOverdueBadge } from './preview/JobTicketPanel';
 import SearchToolbar, { type SearchScope, type SearchKindFilter } from '../spacedrive/port/SearchToolbar';
 import FolderSizeTreemap from './views/FolderSizeTreemap';
 import FolderSizeListView from './views/FolderSizeListView';
@@ -158,15 +161,30 @@ import BndzHubView from './views/BndzHubView';
 import BndzHomeView from './views/BndzHomeView';
 import BndzSpatialCanvasView from './views/BndzSpatialCanvasView';
 import BndzAutomationView from './views/BndzAutomationView';
+import BndzTwinVolumeChessView from './views/BndzTwinVolumeChessView';
+import BndzTemporalDiffView from './views/BndzTemporalDiffView';
 import BndzRecentsView from './views/BndzRecentsView';
+import DropMagnetStrip from './DropMagnetStrip';
+import HelloGateOverlay from './HelloGateOverlay';
+import { useLiveShareCursor, isPathInPeerSelection } from '../lib/liveShareCursor';
+import { initAdaptiveListDensity, onAdaptiveListScroll, onAdaptiveListFocus } from '../lib/adaptiveListDensity';
+import { useJobTicketOverdueMap } from '../lib/useJobTicketOverdueMap';
 import BndzQuickPreview from './preview/BndzQuickPreview';
 import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
 import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzWorkspacePath, isBndzRamPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzTwinVolumePath, isBndzTemporalDiffPath, isBndzWorkspacePath, isBndzRamPath, isBndzPortalPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, parseBndzPortalView, bndzVirtualPath, bndzVirtualLabel, bndzPortalVirtualView, bndzRamVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_PORTAL_ROOT, BNDZ_PORTAL_HEALTH, BNDZ_PORTAL_MAGNETS, BNDZ_PORTAL_SANDBOXES, BNDZ_PORTAL_CAPTURE } from '../lib/bndzVirtualViews';
 import { invalidateRamZoneMountCache, remapRamListingEntries, refreshRamZoneMounts, resolvePanePathForFs, resolveRamStagingFsPath, resolveRamZoneMountPath, entityFsPath } from '../lib/ramStagingPaths';
+import {
+  WORK_INTENT_ORDER,
+  WORK_INTENT_PACKS,
+  applyWorkIntentPack,
+  intentRequiresStrictConfirm,
+  readFolderIntentContract,
+  type WorkIntentId,
+} from '../lib/workIntent';
 import { EmblemIcon } from './EmblemIcon';
 import { isWorkspacePointerTarget } from '../lib/workspace/workspaceFocus';
 import { bindGlobalChromeCursorReset, bindGlobalSpatialCursorGuard } from '../lib/workspace/workspaceCursorGuard';
@@ -209,7 +227,7 @@ import { canonicalDropPath, resolveDropRoute, MESH_DROP_INBOX_DEST } from '../li
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
 import { formatTransferProgressLine } from '../lib/fileTransferQueue';
 import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites, collapseKnownFolderShadowPath, orderRapidAccessItems, knownFolderDedupeKey } from '../lib/rapidAccessDefaults';
-import { resolveFileDragHoverAtPoint, setExternalDragHover, setPointerDragHover, clearPointerDragHover, recordExternalDragHover } from '../lib/fileDragHover';
+import { resolveFileDragHoverAtPoint, setExternalDragHover, setPointerDragHover, clearPointerDragHover, clearExternalDragHover, recordExternalDragHover } from '../lib/fileDragHover';
 import { registerFileDropBusContext, commitExternalOleDrop, commitArchiveInternalDrop } from '../lib/fileDropBus';
 import DropDebugOverlay from './DropDebugOverlay';
 import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, resolveEntityPanePath, isShellKnownFolderRoot, shellKnownFolderParent, resolveShellKnownFolderToFs, resolveShellPropertiesPath } from '../lib/shellPaths';
@@ -218,7 +236,7 @@ import { installUiZoomGuard } from '../lib/uiZoomGuard';
 import { getIndexStatusCached, invalidateIndexStatusCache } from '../lib/indexStatusCache';
 import { pushToast, dismissToast, type ToastKind } from './ToastHost';
 import { getPaneTabLabel } from '../lib/paneLabels';
-import { formatAddressBarPath, formatDriveLetter, formatDriveRootLabel, getBreadcrumbSegments, parseUserPathToPane, resolveUserPathToPane } from '../lib/displayPath';
+import { formatAddressBarPath, formatDriveDisplayName, formatDriveLetter, formatDriveRootLabel, formatDriveVolumeLabel, getBreadcrumbSegments, parseUserPathToPane, resolveUserPathToPane } from '../lib/displayPath';
 import { isVirtualCatalogPath } from '../lib/virtualPaths';
 import { listCatalogs } from '../lib/catalog';
 import { dispatchCustomEvent } from '../lib/customEventActions';
@@ -441,7 +459,7 @@ export default function BNDZUI() {
   const keyboardMap = useMemo(() => buildSettingsRuntime(config).keyboard, [config]);
   const fileOpsRt = useMemo(() => buildFileOpsRuntime(config), [config]);
   const settingsRt = useMemo(() => buildSettingsRuntime(config), [config]);
-  const { ensurePluginInstalled } = usePluginRegistry();
+  const { pluginRegistry } = usePluginRegistry();
 
   // Real undo/redo availability for the main toolbar — previously always-enabled regardless
   // of whether there was anything to undo/redo.
@@ -520,6 +538,9 @@ export default function BNDZUI() {
     scheduleQuickActionsBar: (_show: boolean, _immediate?: boolean) => {},
   });
 
+  /** Per-pane DOM elements for the marquee rect — updated imperatively, zero React renders. */
+  const marqueeRectByPaneRef = useRef<Map<string, HTMLElement>>(new Map());
+
   const beginMarqueeGesture = React.useCallback((
     paneId: string,
     listEl: HTMLElement,
@@ -542,6 +563,7 @@ export default function BNDZUI() {
     };
     setMarquee(marqueeState);
     setMarqueeActive(true);
+    document.documentElement.dataset.marqueeActive = '1';
     (window as any)._marqueeDragOccurred = false;
     if (capturePointerId != null) {
       try { listEl.setPointerCapture(capturePointerId); } catch { /* ignore */ }
@@ -585,32 +607,46 @@ export default function BNDZUI() {
       const finalSelected = state.additive
         ? [...new Set([...state.baseSelection, ...selected])]
         : selected;
+      const key = finalSelected.join('\0');
+      if (key === lastSelectionKey) return;
+      lastSelectionKey = key;
       const ops = marqueeOpsRef.current;
       ops.setSelectedItems(finalSelected, state.activePane);
-      ops.scheduleSelectionChrome(finalSelected, true);
+      // selectionChromeReady is dead state — row chrome derives from selectedItems directly.
+      // Calling scheduleSelectionChrome here caused an extra React commit per marquee frame.
       ops.scheduleQuickActionsBar(finalSelected.length > 0, true);
     };
 
-    let marqueeRaf = 0;
-    let rectRaf = 0;
+    // Single merged RAF: imperative rect style write + selection diff in one frame.
+    let mergedRaf = 0;
     let pendingMarqueeState: typeof marqueeState | null = null;
-    let pendingRectState: typeof marqueeState | null = null;
-    const scheduleMarqueeSelection = (state: typeof marqueeState) => {
+    let lastSelectionKey = '';
+
+    const scheduleMergedFrame = (state: typeof marqueeState) => {
       pendingMarqueeState = state;
-      if (marqueeRaf) return;
-      marqueeRaf = window.requestAnimationFrame(() => {
-        marqueeRaf = 0;
-        if (pendingMarqueeState) applyMarqueeSelection(pendingMarqueeState);
+      if (mergedRaf) return;
+      mergedRaf = window.requestAnimationFrame(() => {
+        mergedRaf = 0;
+        const s = pendingMarqueeState;
+        if (!s) return;
         pendingMarqueeState = null;
-      });
-    };
-    const scheduleMarqueeRect = (state: typeof marqueeState) => {
-      pendingRectState = state;
-      if (rectRaf) return;
-      rectRaf = window.requestAnimationFrame(() => {
-        rectRaf = 0;
-        if (pendingRectState) setMarquee({ ...pendingRectState });
-        pendingRectState = null;
+        const t0 = (window as any).__BNDZ_PERF_DEBUG__ ? performance.now() : 0;
+        // Imperative rect update — zero React renders per frame.
+        const rectEl = marqueeRectByPaneRef.current.get(paneId);
+        if (rectEl) {
+          const left = Math.min(s.startX, s.currX);
+          const top = Math.min(s.startY, s.currY);
+          const w = Math.abs(s.startX - s.currX);
+          const h = Math.abs(s.startY - s.currY);
+          rectEl.style.left = `${left}px`;
+          rectEl.style.top = `${top}px`;
+          rectEl.style.width = `${w}px`;
+          rectEl.style.height = `${h}px`;
+        }
+        applyMarqueeSelection(s);
+        if ((window as any).__BNDZ_PERF_DEBUG__) {
+          console.log(`[BNDZ perf] marquee RAF work: ${(performance.now() - t0).toFixed(2)}ms`);
+        }
       });
     };
 
@@ -619,23 +655,17 @@ export default function BNDZUI() {
         (window as any)._marqueeDragOccurred = true;
       }
       const p = marqueePointInList(listEl, ev.clientX, ev.clientY);
-      const next = { ...marqueeState, currX: p.x, currY: p.y };
       marqueeState.currX = p.x;
       marqueeState.currY = p.y;
-      scheduleMarqueeRect(next);
-      scheduleMarqueeSelection(next);
+      scheduleMergedFrame({ ...marqueeState });
       autoScrollNearEdges(listEl, ev.clientY, { edgePx: 56, maxStepPx: 28 });
     };
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      if (marqueeRaf) {
-        window.cancelAnimationFrame(marqueeRaf);
-        marqueeRaf = 0;
-      }
-      if (rectRaf) {
-        window.cancelAnimationFrame(rectRaf);
-        rectRaf = 0;
+      if (mergedRaf) {
+        window.cancelAnimationFrame(mergedRaf);
+        mergedRaf = 0;
       }
       if (capturePointerId != null) {
         try { listEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
@@ -649,13 +679,12 @@ export default function BNDZUI() {
         // Plain click on empty canvas / marquee gutter — clear selection (Explorer-class).
         const ops = marqueeOpsRef.current;
         ops.setSelectedItems([], paneId);
-        ops.scheduleSelectionChrome([], true);
         ops.scheduleQuickActionsBar(false, true);
       }
       // Suppress the trailing click so row handlers do not re-select after a gutter hit.
       (window as any)._marqueeDragOccurred = true;
       pendingMarqueeState = null;
-      pendingRectState = null;
+      delete document.documentElement.dataset.marqueeActive;
       setMarquee(null);
       setMarqueeActive(false);
     };
@@ -664,6 +693,7 @@ export default function BNDZUI() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [drives, setDrives] = useState<DriveInfo[]>([]);
+  const [drivesReady, setDrivesReady] = useState(false);
   const [cloudProviders, setCloudProviders] = useState<CloudProvider[]>([]);
   const [shortcuts, setShortcuts] = useState<ShortcutInfo[]>([]);
   const [networkNodes, setNetworkNodes] = useState<any[]>([]);
@@ -674,6 +704,13 @@ export default function BNDZUI() {
   const [listKindFilter, setListKindFilter] = useState<ListKindFilter>('all');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [smartViewsExpanded, setSmartViewsExpanded] = useState(true);
+  const [portalExpanded, setPortalExpanded] = useState(true);
+  const [externalDragActive, setExternalDragActive] = useState(false);
+  const [externalDragPaths, setExternalDragPaths] = useState<string[]>([]);
+  const [ramStagingExpanded, setRamStagingExpanded] = useState(true);
+  const [ghostColdExpanded, setGhostColdExpanded] = useState(false);
+  const [sidebarRamZones, setSidebarRamZones] = useState<{ id: string; name: string; isDirty?: boolean; driveLetter?: string }[]>([]);
+  const lastFolderIntentRef = useRef<string>('');
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
   const quickPreviewOpenRef = useRef(false);
   const openQuickPreviewRef = useRef<((startIndex?: number) => void) | null>(null);
@@ -710,17 +747,27 @@ export default function BNDZUI() {
 
   useEffect(() => {
     let unsubDrives: (() => void) | undefined;
+    let cancelled = false;
+    const applyDrives = (d: unknown) => {
+      if (cancelled) return;
+      setDrives(Array.isArray(d) ? d : []);
+      setDrivesReady(true);
+    };
     import('../lib/ipcBridge').then(({ IPC }) => {
-      IPC.getSystemDrives().then(d => setDrives(Array.isArray(d) ? d : []));
-      IPC.getCloudProviders().then(p => setCloudProviders(Array.isArray(p) ? p : []));
-      IPC.getSystemShortcuts().then(setShortcuts);
-      IPC.getNetworkLocations().then(setNetworkNodes);
-      IPC.getTagsConfig().then(setAvailableTags);
-      unsubDrives = IPC.onDrivesChanged((newDrives) => {
-          setDrives(Array.isArray(newDrives) ? newDrives : []);
-      });
+      const pull = () => IPC.getSystemDrives().then(applyDrives).catch(() => applyDrives([]));
+      void pull();
+      // Retry once — first paint often races host DriveInfo probes.
+      window.setTimeout(() => { if (!cancelled) void pull(); }, 1200);
+      IPC.getCloudProviders().then(p => { if (!cancelled) setCloudProviders(Array.isArray(p) ? p : []); });
+      IPC.getSystemShortcuts().then(s => { if (!cancelled) setShortcuts(s); });
+      IPC.getNetworkLocations().then(n => { if (!cancelled) setNetworkNodes(n); });
+      IPC.getTagsConfig().then(t => { if (!cancelled) setAvailableTags(t); });
+      unsubDrives = IPC.onDrivesChanged((newDrives) => applyDrives(newDrives));
     });
-    return () => { if (unsubDrives) unsubDrives(); };
+    return () => {
+      cancelled = true;
+      if (unsubDrives) unsubDrives();
+    };
   }, []);
 
   useEffect(() => {
@@ -755,7 +802,7 @@ export default function BNDZUI() {
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(["/", "/workspace"]));
   const [isSmartToolsOpen, setIsSmartToolsOpen] = useState(false);
-  const [smartToolsTab, setSmartToolsTab] = useState<'assistant' | 'organize' | 'duplicates' | 'music'>('assistant');
+  const [smartToolsTab, setSmartToolsTab] = useState<'assistant' | 'organize' | 'duplicates' | 'music' | 'healer' | 'recycle'>('assistant');
   const [smartToolsPrompt, setSmartToolsPrompt] = useState<string | undefined>();
   const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState(config.previewPanelOpen !== false);
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(config.bottomPanelOpen !== false);
@@ -1198,6 +1245,14 @@ export default function BNDZUI() {
   const typeAheadPrefixRef = useRef('');
   const typeAheadAtRef = useRef(0);
 
+  const installedPluginIds = React.useMemo(
+    () => (pluginRegistry || [])
+      .filter((p: { isInstalled?: boolean }) => p.isInstalled)
+      .map((p: { id: string }) => p.id),
+    [pluginRegistry],
+  );
+  const installedPluginIdSet = React.useMemo(() => new Set(installedPluginIds), [installedPluginIds]);
+
   const openBottomPlugin = React.useCallback((pluginId: string, launch?: BottomPluginLaunchContext) => {
     // Mesh Drop is a dialog, not a bottom plugin — never open a phantom tab.
     if (pluginId === 'mesh-drop') {
@@ -1206,11 +1261,16 @@ export default function BNDZUI() {
       setShowMeshDropDialog(true);
       return;
     }
-    ensurePluginInstalled?.(pluginId);
+    // Never auto-install — only open plugins the user already has installed.
+    if (!installedPluginIdSet.has(pluginId)) {
+      const label = (pluginRegistry || []).find((p: { id: string }) => p.id === pluginId)?.name || pluginId;
+      setToastMessage(`“${label}” isn’t installed. Add it from the Plugin Store.`, 'warning');
+      return;
+    }
     setIsBottomPanelOpen(true);
     setBottomPluginTab(pluginId);
     if (launch) setBottomPluginLaunch(launch);
-  }, [ensurePluginInstalled]);
+  }, [installedPluginIdSet, pluginRegistry]);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [rapidAccessPopupOpen, setRapidAccessPopupOpen] = useState(false);
   const [tagAssignmentActive, setTagAssignmentActive] = useState(false);
@@ -1481,8 +1541,13 @@ export default function BNDZUI() {
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [streamingPaths, setStreamingPaths] = useState<Set<string>>(new Set());
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
-  const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => void>(() => {});
+  const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => Promise<void> | undefined>(() => undefined);
+  const dirFetchTransientRetryRef = useRef<Record<string, number>>({});
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
+  const [prefetchingPaths, setPrefetchingPaths] = useState<Set<string>>(() => new Set());
+  const [, setRealityCheckTick] = useState(0);
+
+  useEffect(() => subscribeRealityCheck(() => setRealityCheckTick(t => t + 1)), []);
 
   const [panes, setPanes] = useState<PaneState[]>([
      { 
@@ -1598,7 +1663,9 @@ export default function BNDZUI() {
             : t === 'duplicates' ? 'duplicates'
               : t === 'organize' ? 'organize'
                 : t === 'music' ? 'music'
-                  : 'assistant',
+                  : t === 'healer' ? 'healer'
+                    : t === 'recycle' ? 'recycle'
+                      : 'assistant',
         );
       }
       if (detail?.prompt) setSmartToolsPrompt(detail.prompt);
@@ -1652,6 +1719,39 @@ export default function BNDZUI() {
     }
 
     if (isBndzVirtualPath(path)) {
+      const portalView = parseBndzPortalView(path);
+      if (portalView) {
+        const virtualKey = `portal-${portalView}` as const;
+        dirFetchInFlightRef.current.add(path);
+        setLoadingPaths(prev => new Set(prev).add(path));
+        return IPC.getVirtualViewContents(virtualKey, configRef.current.globalSearchLimit || 500).then(items => {
+          const normalized = normalizeDirEntries(items || []);
+          cachePathContents(path, normalized);
+          prefetchListingVisuals(normalized, path, {
+            includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+          });
+        }).catch(() => cachePathContents(path, [])).finally(() => {
+          dirFetchInFlightRef.current.delete(path);
+          setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+        });
+      }
+
+      const normPortal = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+      if (normPortal === BNDZ_PORTAL_ROOT) {
+        dirFetchInFlightRef.current.add(path);
+        setLoadingPaths(prev => new Set(prev).add(path));
+        const portalEntries = [
+          { id: 'portal:health', name: 'Health', type: 'directory', path: BNDZ_PORTAL_HEALTH, typeDescription: 'Library health', iconColor: '#f59e0b' },
+          { id: 'portal:magnets', name: 'Magnets', type: 'directory', path: BNDZ_PORTAL_MAGNETS, typeDescription: 'Pinned magnets', iconColor: '#c084fc' },
+          { id: 'portal:sandboxes', name: 'Sandboxes', type: 'directory', path: BNDZ_PORTAL_SANDBOXES, typeDescription: 'Sandbox sessions', iconColor: '#34d399' },
+          { id: 'portal:capture', name: 'Capture', type: 'directory', path: BNDZ_PORTAL_CAPTURE, typeDescription: 'Inbound capture', iconColor: '#60a5fa' },
+        ];
+        cachePathContents(path, portalEntries);
+        dirFetchInFlightRef.current.delete(path);
+        setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+        return Promise.resolve();
+      }
+
       const view = parseBndzVirtualView(path);
       if (!view || isBndzWorkspacePath(path)) {
         if (isBndzRamPath(path)) {
@@ -1746,25 +1846,86 @@ export default function BNDZUI() {
     setStreamingPaths(prev => new Set(prev).add(path));
     const loadStarted = performance.now();
 
+    // Backend already enforces Hello Gate inside GET_DIR_CONTENTS. Do not serialize a separate
+    // HELLO_GATE_CHECK here — a check timeout used to replace the whole pane with
+    // "IPC timeout: HELLO_GATE_CHECK_RESULT" and never load Desktop.
+    const clearStream = () => {
+      setStreamingPaths(prev => {
+        if (!prev.has(path)) return prev;
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+    };
+
+    const applyHelloGateBlock = (gatePath: string) => {
+      const key = normalizePanePath(path);
+      setHelloGateBlocked(prev => ({ ...prev, [key]: gatePath || key }));
+      setPathLoadErrors(prev => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      // Empty cache so the pane leaves the infinite "Streaming…" skeleton and shows the gate UI.
+      setPathContentsCache(prev => setPathCacheEntry(prev, key, prev[key] !== undefined ? prev[key] : []));
+      clearStream();
+    };
+
     return IPC.getDirContents(path).then(data => {
       const normalized = normalizeDirEntries(data);
       cachePathContents(path, normalized);
-      if (normalized.length === 0) {
-        setStreamingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
-      }
-      setPathLoadErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
+      dirFetchTransientRetryRef.current[path] = 0;
+      if (normalized.length === 0) clearStream();
+      setHelloGateBlocked(prev => {
+        const key = normalizePanePath(path);
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setPathLoadErrors(prev => {
+        const next = { ...prev };
+        delete next[path];
+        delete next[normalizePanePath(path)];
+        return next;
+      });
       setLastLoadDurationMs(Math.round(performance.now() - loadStarted));
       prefetchListingVisuals(normalized, path, {
         includeFolderThumbs: configRef.current.showFolderThumbnails === true,
       });
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not load folder contents.';
-      setPathLoadErrors(prev => ({ ...prev, [path]: message }));
+      const gateMatch = /^HELLO_GATE_BLOCKED(?::(.*))?$/.exec(message);
+      if (gateMatch) {
+        applyHelloGateBlock((gateMatch[1] || path).trim() || path);
+        return;
+      }
+      const isTransient = /^IPC timeout:/i.test(message) || /timed out/i.test(message);
+      const hadCache = pathContentsCacheRef.current[path] !== undefined;
+      // Keep prior listing on transient failures; only stamp an empty cache when we have nothing to show.
       setPathContentsCache(prev => setPathCacheEntry(prev, path, prev[path] !== undefined ? prev[path] : []));
-      setStreamingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+      if (isTransient && !hadCache) {
+        const retries = dirFetchTransientRetryRef.current[path] || 0;
+        if (retries < 1) {
+          dirFetchTransientRetryRef.current[path] = retries + 1;
+          // force:true — empty [] cache would otherwise skip the quiet retry.
+          window.setTimeout(() => {
+            void beginDirFetchRef.current?.(path, { force: true });
+          }, 900);
+        }
+      }
+      setPathLoadErrors(prev => ({ ...prev, [path]: message }));
+      clearStream();
     }).finally(() => {
       dirFetchInFlightRef.current.delete(path);
-      setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+      setLoadingPaths(prev => {
+        if (!prev.has(path)) return prev;
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+      clearStream();
     });
   }, [cachePathContents]);
 
@@ -1869,14 +2030,26 @@ export default function BNDZUI() {
     if (dirFetchInFlightRef.current.has(path)) return;
     if (isVirtualCatalogPath(path) || isBndzVirtualPath(path)) return;
     dirFetchInFlightRef.current.add(path);
+    setPrefetchingPaths(prev => new Set(prev).add(path));
     try {
       const { IPC } = await import('../lib/ipcBridge');
       const data = await IPC.getDirContents(path);
-      cachePathContents(path, normalizeDirEntries(data));
+      const normalized = normalizeDirEntries(data);
+      cachePathContents(path, normalized);
+      prefetchListingVisuals(normalized, path, {
+        iconLimit: 96,
+        thumbLimit: 64,
+        includeFolderThumbs: false,
+      });
     } catch {
       /* hover prefetch is best-effort */
     } finally {
       dirFetchInFlightRef.current.delete(path);
+      setPrefetchingPaths(prev => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
     }
   }, [cachePathContents]);
 
@@ -1890,7 +2063,7 @@ export default function BNDZUI() {
     const timer = window.setTimeout(() => {
       prefetchTimersRef.current.delete(path);
       void prefetchPathQuiet(path);
-    }, 200);
+    }, 120);
     prefetchTimersRef.current.set(path, timer);
   }, [prefetchPathQuiet]);
 
@@ -2048,6 +2221,8 @@ export default function BNDZUI() {
   const activePaneIdRef = useRef(activePaneId);
   activePaneIdRef.current = activePaneId;
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const [helloGateBlocked, setHelloGateBlocked] = useState<Record<string, string>>({});
+  const [liveShareForced, setLiveShareForced] = useState(false);
   const selectionAnchorRef = useRef<{ paneId: string; itemId: string } | null>(null);
   const listGestureRef = useRef<{
     paneId: string;
@@ -2072,9 +2247,29 @@ export default function BNDZUI() {
   const [columnPicker, setColumnPicker] = useState<{ x: number; y: number } | null>(null);
   const [renamingFavoritePath, setRenamingFavoritePath] = useState<string | null>(null);
   const [favoriteDrag, setFavoriteDrag] = useState<{ sourcePath: string; overPath: string | null; insertAfter?: boolean } | null>(null);
-  const [breadcrumbDropTarget, setBreadcrumbDropTarget] = useState<string | null>(null);
-  const [navTreeFileDropTarget, setNavTreeFileDropTarget] = useState<string | null>(null);
-  const [fileDragFavoriteTarget, setFileDragFavoriteTarget] = useState<string | null>(null);
+  const [breadcrumbDropTarget, setBreadcrumbDropTargetState] = useState<string | null>(null);
+  const breadcrumbDropTargetRef = useRef<string | null>(null);
+  const setBreadcrumbDropTarget = (v: string | null) => {
+    if (breadcrumbDropTargetRef.current === v) return;
+    breadcrumbDropTargetRef.current = v;
+    setBreadcrumbDropTargetState(v);
+  };
+  const [navTreeFileDropTarget, setNavTreeFileDropTargetState] = useState<string | null>(null);
+  const navTreeFileDropTargetRef = useRef<string | null>(null);
+  const setNavTreeFileDropTarget = (v: string | null) => {
+    if (navTreeFileDropTargetRef.current === v) return;
+    navTreeFileDropTargetRef.current = v;
+    setNavTreeFileDropTargetState(v);
+  };
+  const [fileDragFavoriteTarget, setFileDragFavoriteTargetState] = useState<string | null>(null);
+  const fileDragFavoriteTargetRef = useRef<string | null>(null);
+  const setFileDragFavoriteTarget = (v: string | null) => {
+    if (fileDragFavoriteTargetRef.current === v) return;
+    fileDragFavoriteTargetRef.current = v;
+    setFileDragFavoriteTargetState(v);
+  };
+  /** Last hover coords+state from the drag-hover RAF — used to skip duplicate hit-tests in onMove. */
+  const lastDragHoverStateRef = useRef<{ x: number; y: number; state: import('../lib/fileDragHover').FileDragHoverState } | null>(null);
   const nativeOleDragRef = useRef(false);
   const suppressRowClickRef = useRef(false);
 
@@ -2098,29 +2293,52 @@ export default function BNDZUI() {
   const dualPaneInitRef = useRef(false);
   const startColumnResize = (colId: ListColumnId, startX: number, headerEl: HTMLElement) => {
     columnResizeActiveRef.current = true;
+    document.documentElement.dataset.colResizing = '1';
     const startWidth = headerEl.getBoundingClientRect().width;
     const folderKey = normalizePanePath(currentPath || '/');
-    const onMove = (ev: MouseEvent) => {
-      const next = Math.max(56, Math.min(520, startWidth + (ev.clientX - startX)));
-      const rounded = Math.round(next);
-      updateConfig({
-        listColumnWidths: { ...(config.listColumnWidths || {}), [colId]: rounded },
-        listColumnWidthsByPath: {
-          ...(config.listColumnWidthsByPath || {}),
-          [folderKey]: {
-            ...((config.listColumnWidthsByPath || {})[folderKey] || {}),
-            [colId]: rounded,
-          },
-        },
+    let finalWidth = Math.round(startWidth);
+
+    const applyLiveWidth = (w: number) => {
+      const sel = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? `[data-col-id="${CSS.escape(String(colId))}"]`
+        : `[data-col-id="${String(colId).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`;
+      document.querySelectorAll<HTMLElement>(sel).forEach(el => {
+        el.style.width = `${w}px`;
+        el.style.minWidth = `${w}px`;
+        el.style.maxWidth = `${w}px`;
+        el.style.flexBasis = `${w}px`;
+        el.style.flexGrow = '0';
+        el.style.flexShrink = '0';
       });
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      finalWidth = Math.max(56, Math.min(640, Math.round(startWidth + (ev.clientX - startX))));
+      applyLiveWidth(finalWidth);
     };
     const onUp = () => {
       columnResizeActiveRef.current = false;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      delete document.documentElement.dataset.colResizing;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      // Read latest config via ref — mid-drag updates must not clobber sibling widths.
+      const cfg = configRef.current;
+      const folderWidths = {
+        ...((cfg.listColumnWidthsByPath || {})[folderKey] || {}),
+        [colId]: finalWidth,
+      };
+      updateConfig({
+        listColumnWidths: { ...(cfg.listColumnWidths || {}), [colId]: finalWidth },
+        listColumnWidthsByPath: {
+          ...(cfg.listColumnWidthsByPath || {}),
+          [folderKey]: folderWidths,
+        },
+      });
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   const runUndoRedo = React.useCallback(async (redo = false) => {
@@ -2961,6 +3179,12 @@ export default function BNDZUI() {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const unsub = IPC.onFileTransferQueueChanged(state => {
       let shouldRefresh = false;
+      // Track whether every newly-completed job in this batch was a delete so we can
+      // use a shorter (or zero) refresh delay — tombstones already removed the rows
+      // optimistically, so the only reason to refresh is to confirm FS truth.
+      let batchIsDeleteOnly = true;
+      let hasDeleteFailure = false;
+
       for (const job of state.jobs) {
         if (!refreshCategories.has(job.category || 'fs')) continue;
         if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
@@ -2973,6 +3197,11 @@ export default function BNDZUI() {
             dismissToast(`xfer-${job.operationId}`);
             const label = meta?.label || job.label || 'items';
             const action = (job.action || meta?.op || '').toLowerCase();
+
+            const isDelete = action === 'delete' || meta?.op === 'delete';
+            if (!isDelete) batchIsDeleteOnly = false;
+            if (isDelete && job.status === 'failed') hasDeleteFailure = true;
+
             if (job.status === 'failed') {
               const failTitle = action === 'delete' ? 'Delete failed'
                 : action.includes('archive') || job.operationId.startsWith('archive-') ? 'Compression failed'
@@ -2984,7 +3213,7 @@ export default function BNDZUI() {
                 message: job.error || label,
               });
             } else if (job.status === 'completed') {
-              const doneVerb = action === 'delete' || meta?.op === 'delete' ? 'Deleted'
+              const doneVerb = isDelete ? 'Deleted'
                 : action === 'move' || meta?.op === 'move' || action === 'mesh-move' ? 'Move complete'
                 : action === 'copy' || meta?.op === 'copy' || action === 'mesh-copy' ? 'Copy complete'
                 : action === 'mesh-upload' ? 'Upload complete'
@@ -3002,7 +3231,12 @@ export default function BNDZUI() {
       }
       if (shouldRefresh) {
         if (refreshTimer) clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => refreshWorkspace(), 400);
+        // Delete completions: refresh immediately — tombstones already hid the rows so the only
+        // purpose of the refresh is FS truth confirmation, which should feel instant.
+        // A failed delete also needs an immediate refresh to restore tombstoned rows.
+        // Copy/move/archive: keep the 400ms anti-flicker buffer.
+        const delay = (batchIsDeleteOnly || hasDeleteFailure) ? 0 : 400;
+        refreshTimer = setTimeout(() => refreshWorkspace(), delay);
       }
     });
     return () => {
@@ -3094,6 +3328,37 @@ export default function BNDZUI() {
     id: 'fallback', path: '/', history: ['/'], historyIndex: 0, selectedItems: [],
   };
   const currentPath = activeTab.path;
+  const liveShareEnabled = config.liveShareCursorEnabled === true || liveShareForced;
+  const { peers: liveSharePeers, publish: publishLiveShare } = useLiveShareCursor(currentPath, liveShareEnabled);
+
+  useEffect(() => {
+    const onLiveShare = (ev: Event) => {
+      setLiveShareForced(!!(ev as CustomEvent<{ active?: boolean }>).detail?.active);
+    };
+    window.addEventListener('bndz-live-share-changed', onLiveShare);
+    return () => window.removeEventListener('bndz-live-share-changed', onLiveShare);
+  }, []);
+
+  useEffect(() => {
+    initAdaptiveListDensity(config.adaptiveListDensity !== false);
+  }, [config.adaptiveListDensity]);
+
+  useEffect(() => {
+    onAdaptiveListFocus(!!focusedItemId || (activeTab.selectedItems?.length ?? 0) > 0);
+  }, [focusedItemId, activeTab.selectedItems]);
+
+  useEffect(() => {
+    if (!liveShareEnabled || !currentPath) return;
+    const norm = normalizePanePath(currentPath);
+    const contents = pathContentsCache[norm] || [];
+    const selPaths = (activeTab.selectedItems || []).map(sid => {
+      const ent = contents.find((c: any) => c.id === sid);
+      return ent ? joinPanePath(currentPath, ent) : '';
+    }).filter(Boolean);
+    const cursorEnt = focusedItemId ? contents.find((c: any) => c.id === focusedItemId) : null;
+    const cursorPath = cursorEnt ? joinPanePath(currentPath, cursorEnt) : undefined;
+    publishLiveShare(selPaths, cursorPath);
+  }, [liveShareEnabled, currentPath, activeTab.selectedItems, focusedItemId, publishLiveShare, pathContentsCache]);
 
   const workspaceToolActive = useMemo(
     () => panes.some(pane => {
@@ -3335,6 +3600,7 @@ export default function BNDZUI() {
 
   const currentDirItems = pathContentsCache[currentPath];
   const currentDirCount = currentDirItems?.length ?? 0;
+  const jobTicketOverdueMap = useJobTicketOverdueMap(currentPath, currentDirItems);
 
   // Cancel in-flight scan when leaving a path — keep completed signatures so revisits skip IPC.
   useEffect(() => {
@@ -3796,11 +4062,23 @@ export default function BNDZUI() {
     }))
   ), [cloudNav]);
 
-  /** Drives shown in This PC / tree / letter bar — exclude dedicated cloud volume letters only. */
-  const navigationDrives = useMemo(
-    () => drives.filter(d => !isCloudOwnedDrive(d)),
-    [drives],
-  );
+  /** Drives shown in This PC / tree / letter bar — exclude dedicated cloud volume letters only,
+   *  and also exclude any drive letters currently mounted as RAM staging zones. */
+  const navigationDrives = useMemo(() => {
+    const ramLetters = new Set(
+      sidebarRamZones
+        .map(z => z.driveLetter?.toUpperCase().replace(/[^A-Z]/g, ''))
+        .filter(Boolean) as string[],
+    );
+    return drives.filter(d => {
+      if (isCloudOwnedDrive(d)) return false;
+      if (ramLetters.size === 0) return true;
+      const letter = (d.name || '').replace(/^\/+/, '').replace(/[^A-Za-z:]/g, '').toUpperCase();
+      // letter is "C:" — check both with and without colon
+      const letterOnly = letter.replace(':', '');
+      return !ramLetters.has(letter) && !ramLetters.has(letterOnly);
+    });
+  }, [drives, sidebarRamZones]);
 
   const wslRootNode = useMemo(
     () => networkNodes.find((n: { kind?: string; name?: string }) =>
@@ -3887,6 +4165,84 @@ export default function BNDZUI() {
     if (wslDistroNodes.length > 0) setLinuxExpanded(true);
   }, [wslDistroNodes.length]);
 
+  // Tier-1 sidebar: live RAM zones for nav tree.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      if (!IPC.isNative) return;
+      void IPC.ramStagingListZones().then(r => {
+        if (cancelled) return;
+        const zones = (Array.isArray(r.zones) ? r.zones : []).map((z: any) => ({
+          id: String(z.id ?? z.Id ?? ''),
+          name: String(z.name ?? z.Name ?? z.id ?? 'Zone'),
+          isDirty: !!(z.isDirty ?? z.IsDirty),
+          driveLetter: z.driveLetter ?? z.DriveLetter ?? undefined,
+        })).filter(z => z.id);
+        setSidebarRamZones(prev => {
+          if (
+            prev.length === zones.length
+            && prev.every((p, i) => p.id === zones[i].id && p.name === zones[i].name && p.isDirty === zones[i].isDirty && p.driveLetter === zones[i].driveLetter)
+          ) {
+            return prev;
+          }
+          return zones;
+        });
+      }).catch(() => { /* optional */ });
+    };
+    refresh();
+    window.addEventListener('bndz-ram-zone-changed', refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('bndz-ram-zone-changed', refresh);
+    };
+  }, []);
+
+  // Work Intent: folder `.bndz-intent` contract on navigate (never omnibar).
+  // Path-only deps + refs — avoid updateConfig/openBottomPlugin identity storms.
+  const workIntentIdRef = useRef(config.workIntentId || 'browse');
+  workIntentIdRef.current = config.workIntentId || 'browse';
+  const updateConfigRef = useRef(updateConfig);
+  updateConfigRef.current = updateConfig;
+  const openBottomPluginRef = useRef(openBottomPlugin);
+  openBottomPluginRef.current = openBottomPlugin;
+  const setToastMessageRef = useRef(setToastMessage);
+  setToastMessageRef.current = setToastMessage;
+
+  const activePanePath = (() => {
+    const pane = panes.find(p => p.id === activePaneId) || panes[0];
+    return pane?.tabs[pane.activeTabIndex]?.path || '';
+  })();
+
+  useEffect(() => {
+    const path = activePanePath;
+    if (!path || path === lastFolderIntentRef.current) return;
+    lastFolderIntentRef.current = path;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const intentId = await readFolderIntentContract(path);
+          if (cancelled || !intentId) return;
+          if (workIntentIdRef.current === intentId) return;
+          const { patch, toast } = applyWorkIntentPack(intentId, {
+            fromContract: true,
+            installedPluginIds: installedPluginIdSet,
+          });
+          updateConfigRef.current(patch);
+          setToastMessageRef.current(toast);
+          // Do not auto-open/install plugins on navigate — that chained ensurePluginInstalled
+          // → updateConfig → shell apply and contributed to host freezes.
+        } catch {
+          /* contract optional */
+        }
+      })();
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activePanePath]);
+
   const treeData = useMemo(() => {
     const raw: NavTreeBuildNode[] = [
       {
@@ -3952,6 +4308,7 @@ export default function BNDZUI() {
           })),
           { label: 'Problems', path: BNDZ_PROBLEMS, icon: 'warning', iconColor: '#f59e0b' },
           { label: 'Inbound', path: BNDZ_INBOUND, icon: 'download_ui', iconColor: '#60a5fa' },
+          { label: 'Time Diff', path: BNDZ_TEMPORAL_DIFF, icon: 'clock_ui', iconColor: '#38bdf8' },
         ],
       },
       {
@@ -3975,6 +4332,69 @@ export default function BNDZUI() {
         onClick: () => setCurrentPath(BNDZ_AUTOMATION),
       },
       {
+        treeKey: 'twin-volume',
+        draggable: true,
+        label: 'Twin Volume Chess',
+        path: BNDZ_TWIN_VOLUME,
+        icon: 'sync_folders',
+        iconColor: '#7eb8e8',
+        useShellIcon: false,
+        onClick: () => setCurrentPath(BNDZ_TWIN_VOLUME),
+      },
+      {
+        treeKey: 'bndz-portal',
+        draggable: true,
+        label: 'BNDZ Portal',
+        path: BNDZ_PORTAL_ROOT,
+        icon: 'globe_ui',
+        iconColor: '#38bdf8',
+        useShellIcon: false,
+        expanded: portalExpanded,
+        onClick: () => setCurrentPath(BNDZ_PORTAL_ROOT),
+        onToggle: () => setPortalExpanded(!portalExpanded),
+        childrenItems: [
+          { label: 'Health', path: BNDZ_PORTAL_HEALTH, icon: 'shield_ui', iconColor: '#f59e0b' },
+          { label: 'Magnets', path: BNDZ_PORTAL_MAGNETS, icon: 'magnet_ui', iconColor: '#c084fc' },
+          { label: 'Sandboxes', path: BNDZ_PORTAL_SANDBOXES, icon: 'folder_ui', iconColor: '#34d399' },
+          { label: 'Capture', path: BNDZ_PORTAL_CAPTURE, icon: 'download_ui', iconColor: '#60a5fa' },
+        ],
+      },
+      ...(installedPluginIdSet.has('ram-staging') && sidebarRamZones.length > 0
+        ? [{
+            treeKey: 'ram-staging',
+            draggable: true as const,
+            label: 'RAM Staging',
+            path: BNDZ_RAM_ROOT,
+            icon: 'hard_drive_ui',
+            iconColor: '#a78bfa',
+            useShellIcon: false as const,
+            expanded: ramStagingExpanded,
+            onClick: () => setCurrentPath(BNDZ_RAM_ROOT),
+            onToggle: () => setRamStagingExpanded(!ramStagingExpanded),
+            childrenItems: sidebarRamZones.map(z => ({
+              label: z.isDirty ? `${z.name} · dirty` : z.name,
+              path: bndzRamVirtualPath(z.id),
+              icon: 'hard_drive_ui',
+              iconColor: z.isDirty ? '#fbbf24' : '#a78bfa',
+            })),
+          }]
+        : []),
+      ...(config.ghostLinkColdStorageRoot
+        ? [{
+            treeKey: 'ghost-cold',
+            draggable: true as const,
+            label: 'Ghost cold',
+            path: toPanePath(config.ghostLinkColdStorageRoot),
+            icon: 'emblem-symbolic-link',
+            iconColor: '#c4b5fd',
+            useShellIcon: false as const,
+            expanded: ghostColdExpanded,
+            onClick: () => guardedSetCurrentPath(toPanePath(config.ghostLinkColdStorageRoot)),
+            onToggle: () => setGhostColdExpanded(!ghostColdExpanded),
+            childrenItems: [] as { label: string; path: string; icon: string; iconColor: string }[],
+          }]
+        : []),
+      {
         treeKey: 'this-pc',
         draggable: true,
         label: 'This PC',
@@ -3988,7 +4408,7 @@ export default function BNDZUI() {
         onClick: () => setCurrentPath('/'),
         onToggle: () => setThisPcExpanded(!thisPcExpanded),
         childrenItems: navigationDrives.map(d => ({
-          label: `${d.label || 'Local Disk'} (${d.name.replace(/^\//, '')})`,
+          label: formatDriveDisplayName(d.label, d.name),
           icon: 'hard_drive_ui',
           iconColor: d.name.includes('C:') ? '#6db4e6' : '#aaa',
           path: toPanePath(d.name),
@@ -4076,15 +4496,26 @@ export default function BNDZUI() {
         onClick: () => guardedSetCurrentPath(RECYCLE_BIN_PATH),
       },
     ];
-    const keys = raw.map(n => n.treeKey).filter(Boolean) as string[];
+    // Deduplicate nodes with the same treeKey (safety guard for ram-staging and any conditional nodes).
+    const seen = new Set<string>();
+    const deduped = raw.filter(n => {
+      if (!n.treeKey || !seen.has(n.treeKey)) {
+        if (n.treeKey) seen.add(n.treeKey);
+        return true;
+      }
+      return false;
+    });
+    const keys = deduped.map(n => n.treeKey).filter(Boolean) as string[];
     const order = mergeNavTreeOrder(config.navTreeOrder, keys);
-    return applyNavTreeOrder(raw, order);
+    return applyNavTreeOrder(deduped, order);
   }, [
     drives, navigationDrives, currentPath, thisPcExpanded, libraryFolderItems,
     networkOnlyNodes, networkExpanded, homeTreePath, wslLinuxPath,
     wslRootNode, wslDistroNodes,
     linuxExpanded, librariesExpanded, smartViewsExpanded, config.navTreeOrder,
     config.meshShowInNavTree, meshHosts, meshExpanded,
+    ramStagingExpanded, ghostColdExpanded, sidebarRamZones, config.ghostLinkColdStorageRoot,
+    installedPluginIdSet,
   ]);
 
   useEffect(() => {
@@ -4216,6 +4647,9 @@ export default function BNDZUI() {
   const handlePaneScroll = (paneId: string, e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const top = el.scrollTop;
+    if (config.adaptiveListDensity !== false) {
+      onAdaptiveListScroll(top);
+    }
     listScrollTopsRef.current[paneId] = top;
     markIconQueueScrolling();
 
@@ -4381,6 +4815,17 @@ export default function BNDZUI() {
           confirmLabel: 'Move',
         });
         if (!approved) return;
+      } else if (intentRequiresStrictConfirm(config) && op === 'move' && route.kind === 'local') {
+        const labelPreview = canonSources.length === 1
+          ? (canonSources[0].split(/[/\\]/).pop() || 'item')
+          : `${canonSources.length} items`;
+        const approved = await confirm({
+          title: 'Intent · strict confirm',
+          message: `Archive/Clean intent requires confirm before moving ${labelPreview} to ${destCanon}.`,
+          type: 'warning',
+          confirmLabel: 'Move',
+        });
+        if (!approved) return;
       }
 
       const opId = `drop-int-${Date.now()}`;
@@ -4427,8 +4872,60 @@ export default function BNDZUI() {
         return;
       }
 
+      // Budget governor — soft warn / hard block before local copy/move lands.
+      try {
+        if (IPC.isNative) {
+          let incomingBytes = 0;
+          for (const src of canonSources) {
+            const srcNorm = normalizePanePath(src);
+            let ent = findEntityInCache(pathContentsCache, srcNorm)
+              || findEntityInCache(pathContentsCache, src);
+            if (!ent) {
+              for (const items of Object.values(pathContentsCache)) {
+                const hit = items?.find((i: any) =>
+                  normalizePanePath(i?.path || i?.id || '') === srcNorm);
+                if (hit) { ent = hit; break; }
+              }
+            }
+            if (ent) incomingBytes += Number(ent.size) || 0;
+          }
+          const check = await IPC.budgetGovernorCheck(destCanon, incomingBytes);
+          if (check.hardBlock) {
+            dismissToast(`xfer-${opId}`);
+            pushToast({
+              kind: 'error',
+              title: 'Budget governor blocked drop',
+              message: check.message || 'Hard quota would be exceeded on this volume.',
+            });
+            return;
+          }
+          if (check.softWarning) {
+            pushToast({
+              kind: 'warning',
+              title: 'Approaching volume budget',
+              message: check.message || 'Soft quota warning for this volume.',
+            });
+          }
+
+          const winSources = canonSources.map(s => toWindowsPath(s));
+          const policy = await IPC.policyPackValidate(toWindowsPath(destCanon), winSources);
+          if (policy.ok && policy.allowed === false) {
+            dismissToast(`xfer-${opId}`);
+            const msg = policy.violations?.[0]?.message
+              || `Policy pack '${policy.packName || 'pack'}' blocked this drop.`;
+            pushToast({
+              kind: 'error',
+              title: 'Policy pack blocked drop',
+              message: msg,
+            });
+            return;
+          }
+        }
+      } catch {
+        /* governor / policy optional — never block drops on IPC failure */
+      }
+
       // Drop onto RAM zone root → stage API (preserves folder trees into the mount).
-      const { IPC } = await import('../lib/ipcBridge');
       const ramZoneId = parseBndzRamZoneId(destCanon);
       const ramZoneRoot = ramZoneId ? bndzRamVirtualPath(ramZoneId) : null;
       if (ramZoneId && ramZoneRoot && normalizePanePath(destCanon) === ramZoneRoot) {
@@ -5312,6 +5809,7 @@ export default function BNDZUI() {
 
   const applyFileDragHoverAtPoint = React.useCallback((clientX: number, clientY: number) => {
     const hover = resolveFileDragHoverAtPoint(clientX, clientY, panesRef.current);
+    lastDragHoverStateRef.current = { x: clientX, y: clientY, state: hover };
     setNavTreeFileDropTarget(hover.navTreePath);
     setBreadcrumbDropTarget(hover.breadcrumbPath);
     setFileDragFavoriteTarget(hover.favoritePath);
@@ -5327,9 +5825,20 @@ export default function BNDZUI() {
   }, [resolveTabHoverAtPoint]);
 
   useEffect(() => {
+    // Coalesce hover updates — accumulate coords into a pending ref, flush once per animation
+    // frame. This prevents 3+ React setState calls from firing on every raw pointermove.
+    let hoverRafId = 0;
+    let pendingHoverX = 0;
+    let pendingHoverY = 0;
     const onPointerDragMove = (e: Event) => {
       const { clientX, clientY } = (e as CustomEvent<PointerFileDragMoveDetail>).detail;
-      applyFileDragHoverAtPoint(clientX, clientY);
+      pendingHoverX = clientX;
+      pendingHoverY = clientY;
+      if (hoverRafId) return;
+      hoverRafId = window.requestAnimationFrame(() => {
+        hoverRafId = 0;
+        applyFileDragHoverAtPoint(pendingHoverX, pendingHoverY);
+      });
     };
     const onPointerDragActive = (e: Event) => {
       const active = !!(e as CustomEvent<{ active?: boolean }>).detail?.active;
@@ -5339,6 +5848,7 @@ export default function BNDZUI() {
     window.addEventListener(POINTER_FILE_DRAG_MOVE, onPointerDragMove);
     window.addEventListener(POINTER_FILE_DRAG_ACTIVE, onPointerDragActive);
     return () => {
+      if (hoverRafId) window.cancelAnimationFrame(hoverRafId);
       window.removeEventListener(POINTER_FILE_DRAG_MOVE, onPointerDragMove);
       window.removeEventListener(POINTER_FILE_DRAG_ACTIVE, onPointerDragActive);
     };
@@ -5523,12 +6033,33 @@ export default function BNDZUI() {
       const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : null;
       const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : null;
       if (clientX == null || clientY == null) return;
+      setExternalDragActive(true);
       setExternalDragHover(clientX, clientY);
       applyFileDragHoverAtPoint(clientX, clientY);
     };
+    const onExternalDragEnd = () => {
+      setExternalDragActive(false);
+      setExternalDragPaths([]);
+      clearExternalDragHover();
+    };
     window.addEventListener('bndz-external-drag-hover', onExternalDragHover);
-    return () => window.removeEventListener('bndz-external-drag-hover', onExternalDragHover);
+    window.addEventListener('bndz-external-drop', onExternalDragEnd);
+    window.addEventListener('bndz-external-drop-failed', onExternalDragEnd);
+    return () => {
+      window.removeEventListener('bndz-external-drag-hover', onExternalDragHover);
+      window.removeEventListener('bndz-external-drop', onExternalDragEnd);
+      window.removeEventListener('bndz-external-drop-failed', onExternalDragEnd);
+    };
   }, [applyFileDragHoverAtPoint]);
+
+  useEffect(() => {
+    const onMagnetApplied = () => {
+      setExternalDragActive(false);
+      setExternalDragPaths([]);
+    };
+    window.addEventListener('bndz-magnet-applied', onMagnetApplied);
+    return () => window.removeEventListener('bndz-magnet-applied', onMagnetApplied);
+  }, []);
 
   useLayoutEffect(() => {
     registerFileDropBusContext({
@@ -5582,7 +6113,7 @@ export default function BNDZUI() {
     });
   }, [applyFileDragHoverAtPoint, addTab, bottomPluginTab]);
 
-  // Host: AllowExternalDrop toggled by OLE session — WPF PreviewDrop + NavigationStarting file: fallback.
+  // Host: AllowExternalDrop=true (except BNDZ OLE) — Path A file: nav + Path B WPF PreviewDrop + forceCommit.
   useEffect(() => {
     const onExternalDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -5599,7 +6130,8 @@ export default function BNDZUI() {
       // Spatial / Automation canvas owns its own drop surface.
       if (hitTestWorkspaceSurfaceAtPoint(clientX, clientY)) return;
 
-      commitExternalOleDrop({
+      setExternalDragPaths(paths);
+      void commitExternalOleDrop({
         paths,
         webViewX: typeof detail.webViewX === 'number' ? detail.webViewX : undefined,
         webViewY: typeof detail.webViewY === 'number' ? detail.webViewY : undefined,
@@ -6463,12 +6995,12 @@ export default function BNDZUI() {
         const letter = formatDriveLetter(normalizedName);
         return {
             id: `drive-${normalizedName}`,
-            name: d.label ? `${d.label} (${letter})` : formatDriveRootLabel(normalizedName),
+            name: formatDriveDisplayName(d.label, normalizedName),
             type: "directory",
             path: normalizedName,
             size: d.totalSpace,
             tags: [],
-            typeDescription: `${d.label || letter} Drive (${d.format || d.fileSystem || 'Local'})`,
+            typeDescription: `${formatDriveVolumeLabel(d.label, letter) || letter} Drive (${d.format || d.fileSystem || 'Local'})`,
             driveInfo: d
         };
     });
@@ -6643,9 +7175,11 @@ export default function BNDZUI() {
         });
     }
 
-    const listGroupBy = (config.listGroupBy as ListGroupBy) || 'none';
+    const listGroupBy: ListGroupBy = isSemanticDeskActive()
+      ? 'semantic'
+      : (config.listGroupBy as ListGroupBy) || 'none';
     const listRows = contents && computedViewMode === 'details' && listGroupBy !== 'none'
-      ? flattenGroupedList(contents, listGroupBy)
+      ? flattenGroupedList(contents, listGroupBy, panePath)
       : (contents || []);
     stickyScrollMetaRef.current[pane.id] = {
       rows: listGroupBy !== 'none' && computedViewMode === 'details' ? (listRows as ListRowItem[]) : [],
@@ -6941,6 +7475,46 @@ export default function BNDZUI() {
               {(entity.path || joinPanePath(panePath, entity)).replace(/^\//, '')}
             </div>
           );
+        case 'ghostState': {
+          const ghost = !!(entity as any).isGhostLink;
+          return (
+            <div key={colId} className={`bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`} title={ghost ? ((entity as any).linkTarget || 'Ghost link') : ''}>
+              {ghost ? (
+                <span className="inline-flex items-center gap-1 text-violet-300/90 text-[11px] font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400/90" />
+                  Ghost
+                </span>
+              ) : (
+                <span className="text-gray-600 text-[11px]">—</span>
+              )}
+            </div>
+          );
+        }
+        case 'coldTarget': {
+          const target = String((entity as any).linkTarget || '');
+          return (
+            <div key={colId} className={`bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px] ${mutedColClass}`} title={target}>
+              {target ? target.replace(/^\//, '') : <span className="text-gray-600">—</span>}
+            </div>
+          );
+        }
+        case 'ramZone': {
+          const fullPath = normalizePanePath(entity.path || joinPanePath(panePath, entity));
+          const zoneId = parseBndzRamZoneId(fullPath);
+          const label = zoneId || String((entity as any).ramZoneId || (entity as any).ramZone || '');
+          return (
+            <div key={colId} className={`bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis ${mutedColClass}`} title={label || undefined}>
+              {label ? (
+                <span className="inline-flex items-center gap-1 text-sky-300/90 text-[11px] font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400/90" />
+                  {label}
+                </span>
+              ) : (
+                <span className="text-gray-600 text-[11px]">—</span>
+              )}
+            </div>
+          );
+        }
         default:
           return null;
       }
@@ -7232,8 +7806,9 @@ export default function BNDZUI() {
                      <img src={launcherIconUrl('folder_size_sync')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
             </div>
-            {/* Fixed-width slot keeps the filter box from shifting when the view changes */}
-            <div className="shrink-0 mx-1 flex items-center gap-1.5 w-[230px]">
+            {/* Fixed-width slot keeps the filter box from shifting when the view changes.
+                Explicit Details only gets the density slider — neutral default has Group by only. */}
+            <div className="shrink-0 mx-1 flex items-center justify-end gap-1.5 w-[230px]">
               {currentTab.viewMode === 'details' && (
                 <>
                   <input
@@ -7311,6 +7886,8 @@ export default function BNDZUI() {
            className={`fs-list-header bndz-list-header-bar flex text-[11px] shrink-0 select-none ${!settingsRt.list.verticalGridLines ? 'bndz-list-header-bar--no-grid' : ''}`}
            onContextMenu={e => { e.preventDefault(); setColumnPicker({ x: e.clientX, y: e.clientY }); }}
         >
+           {/* Must mirror details row chrome (marquee lead + checkbox + icon) or columns drift. */}
+           <div className="bndz-list-marquee-lead shrink-0" aria-hidden />
            {listRt.showSelectionCheckboxes && (
              <div className="bndz-list-col-header bndz-list-col-header--gutter w-5 shrink-0" aria-hidden />
            )}
@@ -7362,6 +7939,30 @@ export default function BNDZUI() {
           />
         )}
 
+        {helloGateBlocked[normPanePath] ? (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#0a0e14]/92 backdrop-blur-sm">
+            <HelloGateOverlay
+              folderPath={normPanePath}
+              gatePath={helloGateBlocked[normPanePath]}
+              onUnlocked={() => {
+                setHelloGateBlocked(prev => {
+                  const next = { ...prev };
+                  delete next[normPanePath];
+                  return next;
+                });
+                void refetchPath(normPanePath);
+              }}
+              onCancel={() => {
+                setHelloGateBlocked(prev => {
+                  const next = { ...prev };
+                  delete next[normPanePath];
+                  return next;
+                });
+                setCurrentPath('/', pane.id);
+              }}
+            />
+          </div>
+        ) : null}
         {/* List Items */}
         <div 
            ref={(node) => { paneScrollElsRef.current[pane.id] = node; }}
@@ -7369,7 +7970,9 @@ export default function BNDZUI() {
            data-list-body
            tabIndex={-1}
            className={`flex-1 min-h-0 overflow-y-auto focus:outline-none relative bndz-scrollbar bndz-file-list-scroll cursor-default ${
-             listGroupBy !== 'none' && computedViewMode === 'details' ? 'px-1 pb-1 pt-0' : 'p-1'
+             computedViewMode === 'details'
+               ? (listGroupBy !== 'none' ? 'pb-1 pt-0' : 'py-1')
+               : 'p-1'
            }${isBndzWorkspacePath(normPanePath) ? ' bndz-list-body--workspace' : ''}${pointerFileDragActive ? ' bndz-list-body--file-drag' : ''}`}
            style={config.applyColors ? { color: 'var(--list-text)' } : { color: '#fff' }}
            onScroll={e => handlePaneScroll(pane.id, e)}
@@ -7411,7 +8014,8 @@ export default function BNDZUI() {
 
               const buildSelectMeta = (): MarqueeSelectMeta | undefined => {
                 const rows = listRows?.length ?? 0;
-                if (rows < 80) return undefined;
+                // Always use arithmetic hit-test for non-empty lists — O(n) AABB vs O(n×5×elementsFromPoint).
+                if (rows === 0) return undefined;
                 if (computedViewMode === 'grid' || computedViewMode === 'list') {
                   const minW = computedViewMode === 'list'
                     ? paneListMetrics.tileWidth
@@ -7534,6 +8138,8 @@ export default function BNDZUI() {
 
               const syncDragModifiers = (e: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }) => {
                 const copy = isCopyDragModifier(e);
+                // Guard: modifier unchanged — no-op to prevent spurious React commits on every move.
+                if (dropModifierRef.current.copy === copy) return;
                 dropModifierRef.current.copy = copy;
                 if (listGestureRef.current?.mode === 'drag') {
                   listGestureRef.current.copyDrag = copy;
@@ -7542,8 +8148,8 @@ export default function BNDZUI() {
                   if (session && session.op !== (copy ? 'copy' : 'move')) {
                     beginFileDragSession({ ...session, op: copy ? 'copy' : 'move' });
                   }
-                  setListDragGhost(g => (g ? { ...g, copy, dropHint } : g));
-                  if (fluidDragEnabled) updateFluidDragMeta({ copy, dropHint });
+                  if (!fluidDragEnabled) setListDragGhost(g => (g ? { ...g, copy, dropHint } : g));
+                  else updateFluidDragMeta({ copy, dropHint });
                 }
               };
 
@@ -7599,6 +8205,12 @@ export default function BNDZUI() {
               };
 
               let dragPointerY: number | null = null;
+              // Throttle drop-target hit-tests — only re-run when pointer moves > 2px.
+              let lastHitTestX = -999;
+              let lastHitTestY = -999;
+              // Cached chrome DOMRects for O(1) in-app-chrome check during drag (populated at arm).
+              let chromeCacheRects: DOMRect[] = [];
+              let cachedNavTreeScroll: HTMLElement | null = null;
               const dragScrollLoop = createDragAutoScrollLoop(
                 () => listEl,
                 () => dragPointerY,
@@ -7627,14 +8239,19 @@ export default function BNDZUI() {
 
                 if (listGestureRef.current.mode === 'pending') {
                   const g = listGestureRef.current;
+                  // Use pre-press selection only — selectedOnPress must not lock out marquee.
                   const preferDrag = preferFileDragOverMarquee({
-                    wasSelected: g.wasSelected || g.selectedOnPress,
+                    wasSelected: g.wasSelected,
                     shiftKey: g.shiftKey,
                     ctrlKey: g.ctrlKey,
                     dx,
                     dy,
                   });
-                  const marqueeIntent = !preferDrag && (g.shiftKey || (dx > 10 && dx > dy * 1.5));
+                  const marqueeIntent = !preferDrag && (
+                    g.shiftKey
+                    || (dy > 8 && dy > dx * 1.15)
+                    || (dx > 10 && dx > dy * 1.5)
+                  );
                   if (marqueeIntent && (dx > 6 || dy > 6)) {
                     suppressRowClickRef.current = true;
                     (window as any)._marqueeDragOccurred = true;
@@ -7671,6 +8288,26 @@ export default function BNDZUI() {
                   internalDragRef.current = true;
                   setPointerFileDragActive(true);
                   tabFileDragHoverRef.current = null;
+
+                  // Snapshot chrome zone DOMRects once at arm-time for O(1) point-in-rect
+                  // hit-testing during pointermove — avoids elementsFromPoint + closest() thrash.
+                  const CHROME_SNAP_SELECTORS = [
+                    '[data-pane-id]', '[data-list-body]', '.bndz-chrome-sidebar',
+                    '.bndz-chrome-tabstrip', '.bndz-chrome-toolbar', '.bndz-chrome-omnibar',
+                    '.bndz-chrome-menubar', '.bndz-chrome-workspace', '.bndz-chrome-bottom',
+                    '.bndz-chrome-preview', '.bndz-chrome-statusbar', '[data-breadcrumb-path]',
+                    '[data-nav-path]', '.bndz-archive-root', '.sidebar-pin-row',
+                    '[data-new-tab-zone]', '[data-bndz-workspace-surface]',
+                  ];
+                  chromeCacheRects = [];
+                  for (const sel of CHROME_SNAP_SELECTORS) {
+                    document.querySelectorAll<HTMLElement>(sel).forEach(el => {
+                      const r = el.getBoundingClientRect();
+                      if (r.width > 0 || r.height > 0) chromeCacheRects.push(r);
+                    });
+                  }
+                  // Also cache the nav-tree scroll element used for auto-scroll.
+                  cachedNavTreeScroll = document.querySelector('.nav-tree-scroll') as HTMLElement | null;
                   const anchorEnt = contents?.find((c: any) => c.id === entityId);
                   const dragPaths = buildDragPaths(entityId, dragSelection);
                   beginFileDragSession({
@@ -7693,7 +8330,8 @@ export default function BNDZUI() {
                       items: dragItems,
                     }, { x: ev.clientX, y: ev.clientY });
                     setMotionDragPhase('dragging');
-                    void prefetchFluidDragThumbs(dragItems, 10);
+                    // Defer thumb prefetch so it does not block the drag-arm tick.
+                    setTimeout(() => void prefetchFluidDragThumbs(dragItems, 10), 0);
                   } else {
                     armDragGhost(setListDragGhost, {
                       label: anchorEnt?.name || 'Item',
@@ -7717,21 +8355,39 @@ export default function BNDZUI() {
                   dragPointerY = ev.clientY;
                   dragScrollLoop.start();
                   autoScrollNearEdges(listEl, ev.clientY, { edgePx: 64, maxStepPx: 32 });
-                  const treeScroll = document.querySelector('.nav-tree-scroll') as HTMLElement | null;
-                  if (treeScroll) autoScrollNearEdges(treeScroll, ev.clientY, { edgePx: 48, maxStepPx: 24 });
-                  dispatchPointerFileDragMove(ev.clientX, ev.clientY);
-                  const hover = tabFileDragHoverRef.current;
-                  const hoverPath = hover
-                    ? panesRef.current.find(p => p.id === hover.paneId)?.tabs[hover.tabIndex]?.path
-                    : null;
-                  if (!hitTestNavTreeAtPoint(ev.clientX, ev.clientY) && !resolveBreadcrumbHoverAtPoint(ev.clientX, ev.clientY)) {
-                    resolveDropTarget(ev.clientX, ev.clientY, hoverPath ? contentsForPanePath(hoverPath) : contents);
-                  } else {
-                    setDragTargetHighlight(null);
-                  }
+                  if (cachedNavTreeScroll) autoScrollNearEdges(cachedNavTreeScroll, ev.clientY, { edgePx: 48, maxStepPx: 24 });
+                  const _dragPerfT0 = (window as any).__BNDZ_PERF_DEBUG__ ? performance.now() : 0;
                   updateListDragGhost(ev);
 
-                  const overInternalChrome = isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY);
+                  // Only re-run expensive hit-tests when pointer moves > 2px.
+                  const hitMoved = Math.abs(ev.clientX - lastHitTestX) > 2 || Math.abs(ev.clientY - lastHitTestY) > 2;
+                  if (hitMoved) {
+                    lastHitTestX = ev.clientX;
+                    lastHitTestY = ev.clientY;
+                    // Fire hover update (RAF-coalesced via dispatchPointerFileDragMove; stores result
+                    // in lastDragHoverStateRef for the gate below).
+                    dispatchPointerFileDragMove(ev.clientX, ev.clientY);
+                    // tabFileDragHoverRef is already updated synchronously by dispatchPointerFileDragMove above.
+                    const hover = tabFileDragHoverRef.current;
+                    const hoverPath = hover
+                      ? panesRef.current.find(p => p.id === hover.paneId)?.tabs[hover.tabIndex]?.path
+                      : null;
+                    // Use the last computed hover state (1-frame lag is imperceptible) to decide
+                    // whether a folder target exists — avoids repeating the 5-probe elementsFromPoint
+                    // calls that already ran in the hover RAF from the previous pointer tick.
+                    const lastHover = lastDragHoverStateRef.current?.state;
+                    if (!lastHover?.navTreePath && !lastHover?.breadcrumbPath) {
+                      resolveDropTarget(ev.clientX, ev.clientY, hoverPath ? contentsForPanePath(hoverPath) : contents);
+                    } else {
+                      setDragTargetHighlight(null);
+                    }
+                  }
+
+                  // O(1) chrome-zone check via cached DOMRects (replaces elementsFromPoint + closest() thrash).
+                  const cx = ev.clientX, cy = ev.clientY;
+                  const overInternalChrome = chromeCacheRects.some(
+                    r => cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom,
+                  );
                   if (overInternalChrome) {
                     outsideChromeStreak = 0;
                   } else {
@@ -7769,6 +8425,9 @@ export default function BNDZUI() {
                         startOleDrag(localPaths);
                       }
                     }
+                  }
+                  if ((window as any).__BNDZ_PERF_DEBUG__) {
+                    console.log(`[BNDZ perf] drag onMove work: ${(performance.now() - _dragPerfT0).toFixed(2)}ms`);
                   }
                 }
               };
@@ -8147,6 +8806,20 @@ export default function BNDZUI() {
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzAutomationPath(normPanePath) && (
             <BndzAutomationView />
           )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzTwinVolumePath(normPanePath) && (
+            <BndzTwinVolumeChessView />
+          )}
+          {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && isBndzTemporalDiffPath(normPanePath) && (
+            <BndzTemporalDiffView
+              watchFolder={(() => {
+                const ap = panes.find(p => p.id === activePaneId);
+                const prev = ap?.tabs[Math.max(0, (ap?.activeTabIndex ?? 0) - 1)]?.path
+                  ?? ap?.tabs.find(t => isFsDropTargetPath(normalizePanePath(t.path)))?.path;
+                return prev && isFsDropTargetPath(normalizePanePath(prev)) ? prev : undefined;
+              })()}
+              onNavigate={p => setCurrentPath(p, pane.id)}
+            />
+          )}
           {!isPaneLoading && !(isGlobal && (isGlobalSearchLoading || (isFindingTabActive && currentTab.findingLoading))) && normPanePath === BNDZ_VIEWS_ROOT && (
             <BndzHubView
               onNavigate={p => setCurrentPath(p, pane.id)}
@@ -8291,7 +8964,9 @@ export default function BNDZUI() {
                     <>
                       <Icons8Icon id="warning" size={28} className="opacity-70 text-rose-300" />
                       <span className="text-[12px] text-rose-200/90 max-w-md">
-                        {pathLoadErrors[normPanePath]}
+                        {/^IPC timeout:/i.test(pathLoadErrors[normPanePath])
+                          ? 'Folder load timed out. The host may be busy — retry in a moment.'
+                          : pathLoadErrors[normPanePath]}
                       </span>
                       <button
                         type="button"
@@ -8320,7 +8995,7 @@ export default function BNDZUI() {
                   return (
                     <div
                       className={`z-10 flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-wider text-[#99c9f0] bg-[#252526] border-y border-[#454545] ${
-                        stickyOn ? '' : 'sticky top-0'
+                        stickyOn ? 'sticky top-0' : ''
                       }`}
                       style={{ height: detailsRowHeight, boxSizing: 'border-box' }}
                     >
@@ -8338,6 +9013,8 @@ export default function BNDZUI() {
                 const isDrive = !!(entity as any).driveInfo;
                 const drive = (entity as any).driveInfo;
                 const entityWinPath = resolveEntityWindowsPath(panePath, entity);
+                const realityMissing = isRealityCheckActive() && !isDir && isRealityCheckMissing(entityWinPath);
+                const folderPrefetching = isDir && prefetchingPaths.has(normalizePanePath(buildEntityPath(entity)));
                 const clipboardMark = getClipboardMarkForEntity(entityWinPath, clipboard);
                 const iconDimClass = [
                   clipboardMark && listRt.dimmedIcons ? 'bndz-icon-dimmed' : '',
@@ -8368,6 +9045,7 @@ export default function BNDZUI() {
                 
                 const displayName = getDisplayName(entity, config, panePath);
                 const cloudBadge = cloudBadgeForPath(toWindowsPath(joinPanePath(panePath, entity)), cloudProviders);
+                const jobTicketOverdue = isDir ? jobTicketOverdueMap[entityWinPath.toLowerCase()] : undefined;
                     
                 const commitInlineRename = () => {
                   if (!inlineRename || inlineRename.entityId !== entity.id || inlineRename.path !== panePath) return;
@@ -8424,6 +9102,9 @@ export default function BNDZUI() {
                 );
                 const suppressNativeTitle = shouldSuppressNativeEntityTitle(config);
 
+                const entityPanePath = buildEntityPath(entity);
+                const peerShare = liveSharePeers.length ? isPathInPeerSelection(entityPanePath, liveSharePeers) : null;
+
                 const zebraAlt = listRt.zebraRows && !showSelectionChrome && rowIndex % 2 === 1;
                 const isGridMode = computedViewMode === 'grid';
                 const isListMode = computedViewMode === 'list';
@@ -8432,15 +9113,19 @@ export default function BNDZUI() {
                   <div 
                     id={`fs-item-${entity.id}`}
                     data-id={entity.id}
+                    data-peer-label={peerShare ? peerShare.machineName : undefined}
                     className={`fs-item-wrapper ${isGridMode ? 'fs-grid-item' : 'fs-list-item'} ${isGridMode ? 'flex flex-col items-center justify-center rounded w-full' : isListMode ? 'flex items-center text-[12px] rounded w-full min-w-0' : `flex items-center text-[12px] ${isDrive ? "mb-1 p-1" : ""}`} border border-transparent cursor-default
                       ${showSelectionChrome ? `fs-item-selected ${listRt.underlineSelected ? 'underline decoration-[#007acc]' : ''}` : mouseRt.highlightHovered ? 'hover:bg-[#2a2d2e]' : ''}
                       ${focusedItemId === entity.id && !showSelectionChrome ? "ring-1 ring-inset ring-white/30" : ""}
+                      ${peerShare ? 'fs-item-wrapper--peer-share' : ''}
                       ${dragTargetId === entity.id && isDir ? "ring-2 ring-inset ring-[#0078d4] bg-[#094771]/30" : ""}
                       ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}
                       ${config.coloredLines && clipboardMark ? 'fs-item-clipboard-colored-line' : ''}
                       ${colorFilterResult?.className || ''}
                       ${config.coloredLines && colorFilterResult && !clipboardMark ? 'border-l-2 border-l-[#0078d4]/50' : ''}
-                      ${syncOpacity ? "opacity-50" : ""}`}
+                      ${syncOpacity ? "opacity-50" : ""}
+                      ${realityMissing ? 'bndz-reality-missing' : ''}
+                      ${folderPrefetching ? 'bndz-prefetch-warm' : ''}`}
                     data-sel-chrome={config.listSelectionChrome || 'fullRow'}
                     style={{
                         ...(isGridMode ? {
@@ -8562,18 +9247,11 @@ export default function BNDZUI() {
                       e.preventDefault();
                     }}
                   >
-                     {isDrive && drive ? (
+                     {isDrive && drive && computedViewMode !== 'details' ? (
                         computedViewMode === 'grid' ? (
                           <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="grid" selected={showSelectionChrome} iconSize={isThisPc ? thisPcGridMetrics.icon : gridMetrics.icon} />
-                        ) : computedViewMode === 'list' ? (
-                          <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="list" selected={showSelectionChrome} iconSize={isThisPc ? thisPcListMetrics.icon : listMetrics.icon} />
                         ) : (
-                        <>
-                           <div className={`${detailsIconColClass} bndz-list-select-cell flex justify-center shrink-0`}>
-                              <ShellNativeIcon path={entity.path || drive.name} isDir={false} size={detailsIconSize} eager />
-                           </div>
-                           <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="details" selected={showSelectionChrome} />
-                        </>
+                          <DriveCard drive={{ ...drive, path: entity.path || drive.name }} layout="list" selected={showSelectionChrome} iconSize={isThisPc ? thisPcListMetrics.icon : listMetrics.icon} />
                         )
                      ) : (
                         <>
@@ -8639,6 +9317,9 @@ export default function BNDZUI() {
                                    <EmblemIcon id="emblem-symbolic-link" size={12} />
                                  </span>
                                )}
+                               {jobTicketOverdue && (
+                                 <JobTicketOverdueBadge count={jobTicketOverdue.count} title={jobTicketOverdue.title} />
+                               )}
                                {filterResult?.badgeColor && (
                                    <div className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
                                )}
@@ -8678,7 +9359,7 @@ export default function BNDZUI() {
                                      {colIdx > 0 && (
                                        <div className="bndz-list-col-gutter shrink-0 self-stretch min-h-[20px]" aria-hidden />
                                      )}
-                                     <div className={`${col.widthClass || 'shrink-0'} shrink-0`} style={getColumnStyle(col)}>
+                                     <div className={col.widthClass || 'shrink-0'} data-col-id={col.id} style={getColumnStyle(col)}>
                                        {renderDetailColumn(col.id, entity, {
                                          isDir, displayName: displayLabel, renameInput, filterResult, filterColor, entityTags, panePath,
                                        })}
@@ -8704,12 +9385,16 @@ export default function BNDZUI() {
           )}
           {marquee && marquee.activePane === pane.id && !isBndzWorkspacePath(normPanePath) && (
              <div 
+                ref={(el) => {
+                  if (el) marqueeRectByPaneRef.current.set(pane.id, el);
+                  else marqueeRectByPaneRef.current.delete(pane.id);
+                }}
                 className="absolute bg-[#094771]/35 border border-[#0078d4] z-50 pointer-events-none"
                 style={{
-                    left: Math.min(marquee.startX, marquee.currX),
-                    top: Math.min(marquee.startY, marquee.currY),
-                    width: Math.abs(marquee.startX - marquee.currX),
-                    height: Math.abs(marquee.startY - marquee.currY)
+                    left: marquee.startX,
+                    top: marquee.startY,
+                    width: 0,
+                    height: 0,
                 }}
              />
           )}
@@ -8915,7 +9600,12 @@ export default function BNDZUI() {
         openBottomPlugin('ghost-link');
         break;
       case 'ram-staging':
-        openBottomPlugin('ram-staging');
+        if (bottomSelectionTargets.paths.length > 0) {
+          // Files selected — open plugin and pass paths for staging.
+          openBottomPlugin('ram-staging', { paths: bottomSelectionTargets.paths });
+        } else {
+          openBottomPlugin('ram-staging');
+        }
         break;
       case 'dropstack':
         openBottomPlugin('dropstack');
@@ -8926,8 +9616,83 @@ export default function BNDZUI() {
       case 'folder-sync':
         openBottomPlugin('folder-sync');
         break;
-      default:
+      case 'project-sandbox':
+        openBottomPlugin('project-sandbox');
         break;
+      case 'library-health':
+        openBottomPlugin('library-health');
+        break;
+      case 'capacity-solver':
+        openBottomPlugin('capacity-solver');
+        break;
+      case 'inbound-volume':
+        openBottomPlugin('inbound-volume');
+        break;
+      case 'branching-time':
+        openBottomPlugin('branching-time');
+        break;
+      case 'analyze-audio': {
+        const audioPaths = bottomSelectionTargets.paths.filter(p => {
+          const ext = p.split('.').pop()?.toLowerCase() ?? '';
+          return ['mp3', 'flac', 'm4a', 'aac', 'ogg', 'wav', 'wma', 'opus', 'aiff', 'ape'].includes(ext);
+        });
+        if (audioPaths.length === 0) {
+          setToastMessage('No audio files selected.', 'warning');
+          break;
+        }
+        setToastMessage(`Analyzing ${audioPaths.length} audio file${audioPaths.length > 1 ? 's' : ''}…`, 'info');
+        void IPC.analyzeMusicBatch(audioPaths.map(p => toWindowsPath(p)), true).then(res => {
+          if (res.ok) {
+            setToastMessage(
+              `Analyzed ${res.analyzed ?? audioPaths.length} file${(res.analyzed ?? audioPaths.length) > 1 ? 's' : ''} — BPM + Key written`,
+              'success',
+            );
+            for (const p of audioPaths) invalidateExtendedMetadata(p);
+          } else {
+            setToastMessage(res.error || 'Analysis failed', 'warning');
+          }
+        });
+        break;
+      }
+      case 'continuum-compose':
+        setCurrentPath(BNDZ_CANVAS);
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
+        }, 120);
+        break;
+      case 'work-intent': {
+        const order = WORK_INTENT_ORDER;
+        const cur = (config.workIntentId || 'browse') as WorkIntentId;
+        const idx = order.indexOf(cur);
+        const next = order[(idx >= 0 ? idx + 1 : 0) % order.length];
+        const { patch, toast } = applyWorkIntentPack(next, { installedPluginIds: installedPluginIdSet });
+        updateConfig(patch);
+        setToastMessage(toast);
+        // Only open when pack resolved an installed plugin — never toast-spam missing ones.
+        if (patch.bottomPanelDefaultPlugin) openBottomPlugin(String(patch.bottomPanelDefaultPlugin));
+        break;
+      }
+      case 'flush-ram-zone': {
+        const zoneId = parseBndzRamZoneId(bottomSelectionTargets.paths[0] || '')
+          || sidebarRamZones[0]?.id;
+        if (!zoneId) {
+          setToastMessage('No RAM zone to flush.', 'warning');
+          break;
+        }
+        void IPC.ramStagingFlushZone(zoneId).then(r => {
+          setToastMessage(r.ok ? `Flushed zone ${zoneId}` : (r.error || 'Flush failed'), r.ok ? 'success' : 'warning');
+          if (r.ok) {
+            invalidateRamZoneMountCache();
+            window.dispatchEvent(new CustomEvent('bndz-ram-zone-changed'));
+          }
+        });
+        break;
+      }
+      default: {
+        const _exhaustive: never = id;
+        void _exhaustive;
+        break;
+      }
     }
   }, [
     openBottomPlugin,
@@ -8936,6 +9701,10 @@ export default function BNDZUI() {
     updateConfig,
     openPreviewWithTab,
     setToastMessage,
+    setCurrentPath,
+    config.workIntentId,
+    installedPluginIdSet,
+    sidebarRamZones,
   ]);
 
   const uiRadius = config.uiCornerRadius === 'sharp' ? '0px' : config.uiCornerRadius === 'round' ? '12px' : '6px';
@@ -9581,16 +10350,16 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Personal'))}><Icons8Icon id="file_ui" size={14} /> Documents</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setCurrentPath('/shell:Downloads'))}><Icons8Icon id="arrow_down_circle_ui" size={14} /> Downloads</div>
                     <MenubarSubmenu label="Drives">
-                      {(drives || []).length === 0 ? (
+                      {(navigationDrives || []).length === 0 ? (
                         <div className="px-3 py-1 text-sm text-gray-500 italic">(No drives)</div>
                       ) : (
-                        drives.map((d: any) => (
+                        navigationDrives.map((d: any) => (
                           <div
                             key={d.name}
                             className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200"
                             onMouseDown={menuAct(() => setCurrentPath(d.name))}
                           >
-                            {formatDriveRootLabel(d.name)}{d.label ? ` — ${d.label}` : ''}
+                            {formatDriveDisplayName(d.label, d.name)}
                           </div>
                         ))
                       )}
@@ -9705,6 +10474,29 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setIsTagManagerOpen(true); closeMenu(); })}><Icons8Icon id="tag_manager" size={14} /> Manage Tags...</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { setBottomPluginTab('batch-rename'); if (!isBottomPanelOpen) toggleBottomPanel(); closeMenu(); })}><Icons8Icon id="batch_rename" size={14} /> Batch Rename</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
+                    <MenubarSubmenu label="Intent">
+                      {WORK_INTENT_ORDER.map(id => {
+                        const pack = WORK_INTENT_PACKS[id];
+                        const active = (config.workIntentId || 'browse') === id;
+                        return (
+                          <div
+                            key={id}
+                            className={`px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm flex items-center gap-2 ${active ? 'text-amber-200' : 'text-gray-200'}`}
+                            onMouseDown={menuAct(() => {
+                              const { patch, toast } = applyWorkIntentPack(id, { installedPluginIds: installedPluginIdSet });
+                              updateConfig(patch);
+                              setToastMessage(toast);
+                              if (patch.bottomPanelDefaultPlugin) {
+                                openBottomPlugin(String(patch.bottomPanelDefaultPlugin));
+                              }
+                            })}
+                          >
+                            <span className="flex-1">{pack.label}</span>
+                            {active && <span className="text-[10px] uppercase tracking-wide text-amber-300/80">active</span>}
+                          </div>
+                        );
+                      })}
+                    </MenubarSubmenu>
                     <MenubarSubmenu label="Customize">
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void navigateToAppDataFolder('ini'); })}>Open Configuration File</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => {
@@ -10358,7 +11150,6 @@ export default function BNDZUI() {
       {/* Omni-Filter Bar + docked selection actions (opt-in via Appearance) */}
       <div className="shrink-0 relative z-30">
       <div data-tutorial="omnibar" className="bndz-chrome-omnibar flex px-2 py-1 items-center border-b border-[#333] shrink-0 gap-2" style={{ background: 'var(--toolbar-bg, var(--bndz-surface-chrome))' }}>
-         <WorkIntentSwitcher openBottomPlugin={openBottomPlugin} />
          <Icons8Icon id="search" size={14} className="mr-2 opacity-60" />
          <input 
             ref={omniFilterRef}
@@ -10470,7 +11261,9 @@ export default function BNDZUI() {
                   showMiniTree={config.showMiniTree !== false}
                   onSectionOrderChange={(order: string[]) => updateConfig({ sidebarOrder: order })}
                   onBackgroundClick={() => { setSelectedItems([], activePaneId); scheduleSelectionChrome([], true); scheduleQuickActionsBar(false); setFocusedItemId(null); setLastClickData(null); setInlineRename(null); }}
-                  drivesContent={navigationDrives.length > 0 && navigationDrives.map(drive => (
+                  drivesContent={
+                    navigationDrives.length > 0 ? (
+                      navigationDrives.map(drive => (
                      <div
                         key={drive.name}
                         onClick={() => guardedSetCurrentPath(drive.name)}
@@ -10478,7 +11271,33 @@ export default function BNDZUI() {
                      >
                         <DriveCard drive={{ ...drive, path: drive.name }} layout="compact" />
                      </div>
-                  ))}
+                      ))
+                    ) : (
+                      <div className="mx-3 my-2 px-3 py-3 text-center rounded-md border border-dashed border-[#333] bg-[#151515]/80">
+                        <p className="text-[10px] text-gray-500 leading-relaxed">
+                          {drivesReady ? 'No local drives detected.' : 'Scanning local drives…'}
+                        </p>
+                        {drivesReady && (
+                          <button
+                            type="button"
+                            className="mt-2 text-[10px] px-2 py-0.5 rounded border border-white/15 text-gray-400 hover:text-white hover:bg-white/5"
+                            onClick={() => {
+                              setDrivesReady(false);
+                              void IPC.getSystemDrives().then(d => {
+                                setDrives(Array.isArray(d) ? d : []);
+                                setDrivesReady(true);
+                              }).catch(() => {
+                                setDrives([]);
+                                setDrivesReady(true);
+                              });
+                            }}
+                          >
+                            Retry
+                          </button>
+                        )}
+                      </div>
+                    )
+                  }
                   quickAccessContent={
                      rapidAccessItems.length > 0 ? (
                         rapidAccessItems.map((s) => {
@@ -10604,6 +11423,7 @@ export default function BNDZUI() {
                       currentPath={currentPath}
                       indexedRoots={indexedRoots}
                       fileDropTarget={navTreeFileDropTarget}
+                      onPrefetchPath={schedulePrefetchPath}
                       onNavigate={guardedSetCurrentPath}
                       onContextMenu={(e, path, name) => path && handleContextMenuRequest(e, path, path, true, name, undefined, 'tree-item')}
                       onBackgroundContextMenu={(e) => handleContextMenuRequest(e, currentPath, null, true, null, undefined, 'tree-background')}
@@ -10737,6 +11557,8 @@ export default function BNDZUI() {
                             <CommandDeckShell
                               signature={commandDeckSignature}
                               onTool={handleCommandDeckTool}
+                              installedPluginIds={installedPluginIds}
+                              currentPath={currentPath}
                             />
                           </div>
                         )}
@@ -11537,6 +12359,14 @@ export default function BNDZUI() {
       />
 
       <TutorialOverlay forceShow={showTutorial} onClose={() => setShowTutorial(false)} />
+      <DropMagnetStrip
+        externalDragActive={externalDragActive}
+        pendingPaths={externalDragPaths}
+        onApplied={() => {
+          setExternalDragActive(false);
+          setExternalDragPaths([]);
+        }}
+      />
       <BndzQuickPreview
         open={quickPreviewOpen && ((homeQuickPreview?.items.length ?? 0) > 0 || quickPreviewItems.length > 0)}
         items={homeQuickPreview?.items?.length ? homeQuickPreview.items : quickPreviewItems}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icons8Icon } from '../../components/Icons8Icon';
 import {
   disarmFluidDrag,
@@ -73,11 +73,27 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
   const entranceRef = useRef(0);
   const rafRef = useRef(0);
   const runningRef = useRef(false);
+  // Cached DOM refs — populated after each render to avoid querySelectorAll in the RAF loop.
+  const leadElRef = useRef<HTMLElement | null>(null);
+  const badgeElRef = useRef<HTMLElement | null>(null);
+  const pillElRef = useRef<HTMLElement | null>(null);
+  const fanCardsRef = useRef<HTMLElement[]>([]);
 
   const isMulti = meta.count > 1;
   /** Multi: every visible item is a fan card — no separate lead chip covering the span. */
   const fanItems = isMulti ? items : [];
   const leadItem = items[0];
+
+  // Re-populate cached node refs synchronously after every render.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    leadElRef.current = root.querySelector('[data-fluid-lead]') as HTMLElement | null;
+    badgeElRef.current = root.querySelector('[data-fluid-badge]') as HTMLElement | null;
+    pillElRef.current = root.querySelector('[data-fluid-pill]') as HTMLElement | null;
+    const cards = root.querySelectorAll('[data-fluid-card]');
+    fanCardsRef.current = Array.from(cards) as HTMLElement[];
+  });
 
   useEffect(() => {
     const { pointer } = getMotionBusSnapshot();
@@ -119,16 +135,13 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
     const tick = () => {
       runningRef.current = false;
       const { pointer, snapTension } = getMotionBusSnapshot();
-      const root = rootRef.current;
-      if (!root) {
-        schedule();
-        return;
-      }
+      if (!rootRef.current) return;
 
       const targetX = pointer.x + CURSOR_OFFSET_X;
       const targetY = pointer.y + CURSOR_OFFSET_Y;
       const smooth = smoothRef.current;
-      entranceRef.current = Math.min(1, entranceRef.current + 0.18);
+      const entranceBefore = entranceRef.current;
+      entranceRef.current = Math.min(1, entranceBefore + 0.18);
       const entrance = 1 - Math.pow(1 - entranceRef.current, 2.6);
       smooth.x = lerp(smooth.x, targetX, FOLLOW);
       smooth.y = lerp(smooth.y, targetY, FOLLOW);
@@ -137,21 +150,20 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
       const mountScale = 0.9 + entrance * 0.1;
       smooth.scale = lerp(smooth.scale, mountScale - snapTension * 0.06, 0.35);
 
-      const stack = root.querySelector('[data-fluid-fan]') as HTMLElement | null;
-      const lead = root.querySelector('[data-fluid-lead]') as HTMLElement | null;
-      const badge = root.querySelector('[data-fluid-badge]') as HTMLElement | null;
-      const pill = root.querySelector('[data-fluid-pill]') as HTMLElement | null;
+      // Use cached DOM refs — populated by useLayoutEffect, no querySelectorAll per frame.
+      const lead = leadElRef.current;
+      const badge = badgeElRef.current;
+      const pill = pillElRef.current;
+      const cards = fanCardsRef.current;
 
       if (lead) {
         lead.style.transform =
           `translate3d(${smooth.x}px, ${smooth.y}px, 0) rotate(${smooth.rot}deg) scale(${smooth.scale})`;
       }
 
-      if (stack) {
-        const cards = stack.querySelectorAll('[data-fluid-card]');
+      if (cards.length) {
         const n = cards.length;
-        cards.forEach((node, i) => {
-          const el = node as HTMLElement;
+        cards.forEach((el, i) => {
           // Arc fan centered on cursor — front card (i=0) sits nearest the pointer
           const t = n <= 1 ? 0 : i / (n - 1) - 0.5;
           const fan = t * FAN_SPREAD * (n + 1) * 0.55 * entrance;
@@ -175,10 +187,14 @@ function FluidDragStackInner({ meta }: { meta: FluidDragMeta }) {
 
       if (badge) {
         badge.style.transform =
-          `translate3d(${smooth.x + 40}px, ${smooth.y + 28 + fanItems.length * 7}px, 0) scale(${smooth.scale})`;
+          `translate3d(${smooth.x + 40}px, ${smooth.y + 28 + cards.length * 7}px, 0) scale(${smooth.scale})`;
       }
 
-      schedule();
+      // Self-reschedule only while entrance is still animating.
+      // Once complete, subscribeMotionPointer and subscribeFluidDrag wake the loop on every pointer move.
+      if (entranceBefore < 1) {
+        schedule();
+      }
     };
 
     schedule();

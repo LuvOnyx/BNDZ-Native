@@ -9,12 +9,12 @@ export function isListMarqueeSurface(target: EventTarget | null): boolean {
 
 /**
  * Interactive hit target for click / select / file-drag.
- * Whole row counts (not just text cells) so hit boxes feel solid;
- * exclusive marquee pads/gutters stay marquee-only.
+ * Only explicit select cells — marquee lead/trail/pad/gutters stay marquee-only.
+ * Grid/list tiles expand hit area in the list pointer handler.
  */
 export function isListSelectCellTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el) return false;
   if (isListMarqueeSurface(target)) return false;
-  return !!el.closest('.bndz-list-select-cell, .fs-item-wrapper');
+  return !!el.closest('.bndz-list-select-cell');
 }

@@ -1,6 +1,8 @@
 /** File Pilot / Finder-style list grouping for details view. */
 
-export type ListGroupBy = 'none' | 'type' | 'date' | 'size' | 'name';
+import { isSemanticDeskActive, semanticClusterLabelForEntity } from './semanticDeskRuntime';
+
+export type ListGroupBy = 'none' | 'type' | 'date' | 'size' | 'name' | 'semantic';
 
 export type ListGroupHeader = {
   kind: 'group';
@@ -65,12 +67,13 @@ function nameGroup(entity: Record<string, unknown>): string {
   return '#';
 }
 
-function groupKey(entity: Record<string, unknown>, groupBy: ListGroupBy): string {
+function groupKey(entity: Record<string, unknown>, groupBy: ListGroupBy, panePath?: string): string {
   switch (groupBy) {
     case 'type': return extensionGroup(entity);
     case 'date': return dateGroup(entity);
     case 'size': return sizeGroup(entity);
     case 'name': return nameGroup(entity);
+    case 'semantic': return panePath ? semanticClusterLabelForEntity(entity, panePath) : 'Unclustered';
     default: return '';
   }
 }
@@ -94,12 +97,17 @@ function sortGroupKeys(keys: string[], groupBy: ListGroupBy): string[] {
 }
 
 /** Flatten sorted entities into rows with sticky group headers. */
-export function flattenGroupedList(items: Record<string, unknown>[], groupBy: ListGroupBy): ListRowItem[] {
+export function flattenGroupedList(
+  items: Record<string, unknown>[],
+  groupBy: ListGroupBy,
+  panePath?: string,
+): ListRowItem[] {
   if (groupBy === 'none' || !items.length) return items;
+  if (groupBy === 'semantic' && !isSemanticDeskActive()) return items;
 
   const buckets = new Map<string, Record<string, unknown>[]>();
   for (const item of items) {
-    const key = groupKey(item, groupBy);
+    const key = groupKey(item, groupBy, panePath);
     const list = buckets.get(key);
     if (list) list.push(item);
     else buckets.set(key, [item]);
@@ -125,6 +133,7 @@ export const LIST_GROUP_BY_OPTIONS: { value: ListGroupBy; label: string }[] = [
   { value: 'date', label: 'Date modified' },
   { value: 'size', label: 'Size' },
   { value: 'name', label: 'Name' },
+  { value: 'semantic', label: 'Semantic Desk' },
 ];
 
 /** Active sticky group for a scroll position (uniform row height virtualizer). */

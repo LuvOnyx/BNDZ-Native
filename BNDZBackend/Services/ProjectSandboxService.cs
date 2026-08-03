@@ -188,7 +188,7 @@ public sealed class ProjectSandboxService
         }
     }
 
-    public void Commit(string sessionId)
+    public SandboxOperationResult Commit(string sessionId)
     {
         lock (_lock)
         {
@@ -196,6 +196,17 @@ public sealed class ProjectSandboxService
                 throw new KeyNotFoundException($"Session '{sessionId}' not found.");
             if (session.Status != "active")
                 throw new InvalidOperationException($"Session '{sessionId}' is already {session.Status}.");
+
+            var journal = ReadJournal(sessionId);
+            var validationErrors = ValidateDestinations(journal, session.RootWinPath);
+            if (validationErrors.Count > 0)
+                return new SandboxOperationResult
+                {
+                    Ok = false,
+                    Error = $"Commit refused: {validationErrors.Count} unsafe operation(s) detected.",
+                    Details = validationErrors,
+                    OpsProcessed = 0,
+                };
 
             var shadowDir = Path.Combine(SessionDir(sessionId), "shadow");
             try
@@ -210,10 +221,16 @@ public sealed class ProjectSandboxService
 
             session.Status = "committed";
             PersistSession(session);
+
+            return new SandboxOperationResult
+            {
+                Ok = true,
+                OpsProcessed = journal.Count,
+            };
         }
     }
 
-    public void Discard(string sessionId)
+    public SandboxOperationResult Discard(string sessionId)
     {
         lock (_lock)
         {
@@ -224,6 +241,8 @@ public sealed class ProjectSandboxService
 
             var journal = ReadJournal(sessionId);
             var shadowDir = Path.Combine(SessionDir(sessionId), "shadow");
+            var failedOps = new List<string>();
+            int reversed = 0;
 
             for (int i = journal.Count - 1; i >= 0; i--)
             {
@@ -235,8 +254,14 @@ public sealed class ProjectSandboxService
                         case "copy":
                             foreach (var d in entry.Destinations)
                             {
-                                // Only delete concrete item paths — never wipe a shared parent folder.
                                 if (string.IsNullOrWhiteSpace(d)) continue;
+
+                                if (IsBatchRootMove(entry, d))
+                                {
+                                    failedOps.Add($"Skipped unsafe batch-root removal: {d}");
+                                    continue;
+                                }
+
                                 if (File.Exists(d)) File.Delete(d);
                                 else if (Directory.Exists(d)
                                     && entry.Sources.Any(s =>
@@ -247,6 +272,7 @@ public sealed class ProjectSandboxService
                                     Directory.Delete(d, true);
                                 }
                             }
+                            reversed++;
                             break;
 
                         case "move":
@@ -257,16 +283,9 @@ public sealed class ProjectSandboxService
                                 if (string.IsNullOrEmpty(dst)) continue;
                                 if (!(File.Exists(dst) || Directory.Exists(dst))) continue;
 
-                                // Refuse to relocate a directory that is a shared batch target root.
-                                if (Directory.Exists(dst)
-                                    && entry.Sources.Count > 1
-                                    && entry.Destinations.Count == 1
-                                    && string.Equals(
-                                        NormalizePath(entry.Destinations[0]),
-                                        NormalizePath(dst),
-                                        StringComparison.OrdinalIgnoreCase))
+                                if (IsBatchRootMove(entry, dst))
                                 {
-                                    Debug.WriteLine($"[Sandbox] Skip unsafe discard move of batch root {dst}");
+                                    failedOps.Add($"Skipped unsafe batch-root move: {dst} → {src}");
                                     continue;
                                 }
 
@@ -276,6 +295,7 @@ public sealed class ProjectSandboxService
                                 if (File.Exists(dst)) File.Move(dst, src, overwrite: true);
                                 else if (Directory.Exists(dst)) Directory.Move(dst, src);
                             }
+                            reversed++;
                             break;
 
                         case "delete":
@@ -291,6 +311,7 @@ public sealed class ProjectSandboxService
                                     File.Copy(shadowFile, originalPath, overwrite: true);
                                 }
                             }
+                            reversed++;
                             break;
 
                         case "rename":
@@ -301,6 +322,7 @@ public sealed class ProjectSandboxService
                                 if (!string.IsNullOrEmpty(dst) && File.Exists(dst))
                                     File.Move(dst, src);
                             }
+                            reversed++;
                             break;
 
                         case "write":
@@ -313,11 +335,17 @@ public sealed class ProjectSandboxService
                                 else if (File.Exists(originalPath))
                                     File.Delete(originalPath);
                             }
+                            reversed++;
+                            break;
+
+                        default:
+                            failedOps.Add($"Unknown op kind '{entry.Kind}' for {entry.OpId}");
                             break;
                     }
                 }
                 catch (Exception ex)
                 {
+                    failedOps.Add($"Op {entry.OpId} ({entry.Kind}): {ex.Message}");
                     Debug.WriteLine($"[Sandbox] Discard reversal failed for op {entry.OpId}: {ex.Message}");
                 }
             }
@@ -334,6 +362,16 @@ public sealed class ProjectSandboxService
 
             session.Status = "discarded";
             PersistSession(session);
+
+            return new SandboxOperationResult
+            {
+                Ok = failedOps.Count == 0,
+                OpsProcessed = reversed,
+                Details = failedOps,
+                Error = failedOps.Count > 0
+                    ? $"{failedOps.Count} operation(s) could not be fully reversed."
+                    : null,
+            };
         }
     }
 
@@ -434,6 +472,100 @@ public sealed class ProjectSandboxService
             else
                 Directory.CreateDirectory(shadowDest);
         }
+    }
+
+    public SandboxSessionStatusDto GetSessionStatus(string sessionId)
+    {
+        lock (_lock)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session))
+                throw new KeyNotFoundException($"Session '{sessionId}' not found.");
+
+            var journal = ReadJournal(sessionId);
+            var cpRoot = Path.Combine(SessionDir(sessionId), "checkpoints");
+            SandboxCheckpointDto? lastCp = null;
+
+            if (Directory.Exists(cpRoot))
+            {
+                foreach (var dir in Directory.EnumerateDirectories(cpRoot).OrderByDescending(d => d))
+                {
+                    var metaFile = Path.Combine(dir, "checkpoint.json");
+                    if (!File.Exists(metaFile)) continue;
+                    try
+                    {
+                        var meta = JsonSerializer.Deserialize<CheckpointMeta>(File.ReadAllText(metaFile), Json);
+                        if (meta != null)
+                        {
+                            lastCp = new SandboxCheckpointDto { Id = meta.Id, Name = meta.Name, CreatedUtc = meta.CreatedUtc };
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            long shadowBytes = 0;
+            var shadowDir = Path.Combine(SessionDir(sessionId), "shadow");
+            if (Directory.Exists(shadowDir))
+            {
+                try
+                {
+                    foreach (var f in Directory.EnumerateFiles(shadowDir, "*", SearchOption.AllDirectories))
+                    {
+                        try { shadowBytes += new FileInfo(f).Length; } catch { }
+                    }
+                }
+                catch { }
+            }
+
+            return new SandboxSessionStatusDto
+            {
+                SessionId = session.Id,
+                Status = session.Status,
+                RootWinPath = session.RootWinPath,
+                Name = session.Name,
+                CreatedUtc = session.CreatedUtc,
+                PendingOpsCount = journal.Count,
+                LastCheckpoint = lastCp,
+                ShadowSizeBytes = shadowBytes,
+            };
+        }
+    }
+
+    /// <summary>
+    /// Validate all journal destinations before commit — refuse if any destination
+    /// points outside the session root (sandbox escape) or is a bare drive root.
+    /// </summary>
+    private static List<string> ValidateDestinations(List<JournalEntry> journal, string sessionRoot)
+    {
+        var errors = new List<string>();
+        var normalizedRoot = NormalizePath(sessionRoot);
+
+        foreach (var entry in journal)
+        {
+            foreach (var dest in entry.Destinations)
+            {
+                if (string.IsNullOrWhiteSpace(dest)) continue;
+                var normDest = NormalizePath(dest);
+
+                if (normDest.Length <= 3 && normDest.EndsWith(":\\", StringComparison.Ordinal))
+                {
+                    errors.Add($"Op {entry.OpId}: destination is a bare drive root ({normDest})");
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    private static bool IsBatchRootMove(JournalEntry entry, string destPath)
+    {
+        if (entry.Sources.Count <= 1 || entry.Destinations.Count != 1) return false;
+        return Directory.Exists(destPath)
+            && string.Equals(
+                NormalizePath(entry.Destinations[0]),
+                NormalizePath(destPath),
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ResolveMoveDestination(JournalEntry entry, int sourceIndex)
@@ -575,6 +707,26 @@ public sealed class SandboxCheckpointDto
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string CreatedUtc { get; set; } = "";
+}
+
+public sealed class SandboxSessionStatusDto
+{
+    public string SessionId { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string RootWinPath { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string CreatedUtc { get; set; } = "";
+    public int PendingOpsCount { get; set; }
+    public SandboxCheckpointDto? LastCheckpoint { get; set; }
+    public long ShadowSizeBytes { get; set; }
+}
+
+public sealed class SandboxOperationResult
+{
+    public bool Ok { get; set; }
+    public string? Error { get; set; }
+    public int OpsProcessed { get; set; }
+    public List<string> Details { get; set; } = new();
 }
 
 internal sealed class CheckpointMeta
