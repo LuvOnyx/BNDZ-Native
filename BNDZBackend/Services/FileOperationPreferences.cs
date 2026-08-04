@@ -9,9 +9,9 @@ public sealed class FileOperationPreferences
 {
     public static FileOperationPreferences Current { get; private set; } = new();
 
-    /// <summary>bndz | native | teracopy</summary>
-    public string Engine { get; set; } = "bndz";
-    public string CopyHandler { get; set; } = "bndz";
+    /// <summary>bndz | native | teracopy — default native so BNDZ is a shell file manager.</summary>
+    public string Engine { get; set; } = "native";
+    public string CopyHandler { get; set; } = "native";
 
     public bool QueueOperations { get; set; } = true;
     public bool BackgroundProcessing { get; set; } = true;
@@ -143,10 +143,12 @@ public sealed class FileOperationPreferences
 
     private static string ReadCopyHandler(JsonElement root)
     {
-        if (!root.TryGetProperty("selectCopyHandler", out var prop)) return "bndz";
+        if (!root.TryGetProperty("selectCopyHandler", out var prop)) return "native";
         var h = prop.GetString() ?? "";
         if (h.Contains("TeraCopy", StringComparison.OrdinalIgnoreCase)) return "teracopy";
         if (h.Contains("Windows", StringComparison.OrdinalIgnoreCase) || h.Contains("Default", StringComparison.OrdinalIgnoreCase))
+            return "native";
+        if (string.IsNullOrWhiteSpace(h) || h is "false" or "True" or "False")
             return "native";
         return "bndz";
     }
@@ -162,7 +164,8 @@ public sealed class FileOperationPreferences
             if (v is "bndz" or "managed" or "internal") return "bndz";
         }
 
-        return copyHandler == "native" ? "native" : "bndz";
+        // No explicit engine → Windows shell (native FM default).
+        return "native";
     }
 
     private static string ReadDateFormat(JsonElement root)

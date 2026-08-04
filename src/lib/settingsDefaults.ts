@@ -174,8 +174,8 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   dualPaneOpen: false,
   syncDualPaneScroll: true,
   enableBackgroundProcessing: true,
-  /** bndz = managed engine with in-app queue/progress; native = Windows shell transfers */
-  fileOperationEngine: 'bndz',
+  /** native = Windows IFileOperation (Explorer progress/undo); bndz = managed queue engine */
+  fileOperationEngine: 'native',
   nativeShellShowProgress: true,
     persistTransferQueue: true,
     showTransferQueuePanel: true,
@@ -402,7 +402,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   selectConfig7: 'BNDZ Style (Rounded)',
   selectConfig8: 'Solid',
   selectConfig9: '2',
-  selectCopyHandler: false,
+  selectCopyHandler: 'Default Windows handler',
   selectLastUsedSubfolder: false,
   selectListItemsOnMouseHover: false,
   selectMatchOnDropDown: false,

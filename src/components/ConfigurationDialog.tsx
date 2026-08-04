@@ -1422,9 +1422,9 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               <SectionHeader title="Transfer engine" />
               <div className="ml-2 mb-4 space-y-[6px]">
                 <p className="text-[12px] text-[#b0b0b0] max-w-[620px] leading-relaxed">
-                  Choose how copy, move, delete, and rename run. <strong className="text-gray-200">BNDZ</strong> uses the
-                  in-app queue with detailed progress, conflict prompts, and action-log undo. <strong className="text-gray-200">Windows</strong> delegates
-                  to the shell (Explorer-style progress and shell undo for recycle-bin deletes).
+                  Choose how copy, move, delete, and rename run. Default is <strong className="text-gray-200">Windows shell</strong>
+                  (Explorer-style progress and shell undo). <strong className="text-gray-200">BNDZ</strong> uses the
+                  in-app queue with detailed progress, conflict prompts, and action-log undo.
                 </p>
                 <div className="flex flex-col gap-1 mt-2">
                   <span className="text-[12px] text-[#e0e0e0]">File operation engine:</span>

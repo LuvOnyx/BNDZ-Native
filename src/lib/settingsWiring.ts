@@ -125,7 +125,7 @@ export function buildShellRuntime(config: AppConfig) {
 
 /** File transfer / undo engine */
 export function buildFileOpsRuntime(config: AppConfig) {
-  const engine = readSettingString(config, 'fileOperationEngine', 'bndz');
+  const engine = readSettingString(config, 'fileOperationEngine', 'native');
   const useNative = engine === 'native' || engine === 'windows';
   const singleStepRaw = config.allowOnlySingleStepUndoRedo;
   const singleStepUndo = singleStepRaw === true

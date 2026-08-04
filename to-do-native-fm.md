@@ -54,7 +54,7 @@ Highest user-visible “web app” leak: cut/copy stay in `sessionStorage`.
 
 ## Phase C — File ops = Explorer parity
 
-- [ ] Default copy/move/delete through `NativeShellFileOperationService` (`IFileOperation`)
+- [x] Default copy/move/delete through `NativeShellFileOperationService` (`IFileOperation`) — `fileOperationEngine: 'native'`
 - [ ] Consistent undo with shell when possible; Action Log mirrors Explorer undo
 - [ ] Conflict UI at Explorer quality (replace/skip/keep both) on shell path
 - [ ] Recycle Bin pane: original path columns + restore/purge using `RecycleBinService`
