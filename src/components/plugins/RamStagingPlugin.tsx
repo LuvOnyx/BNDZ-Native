@@ -363,7 +363,14 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
                 key={z.id}
                 className={`bndz-ram-zone-card${z.isDirty ? ' is-dirty' : ''}`}
                 onDragOver={e => {
-                  if (hasBndzFileDrag(e) || e.dataTransfer.types.includes('text/plain')) {
+                  // HTML5 internal + Explorer FileList drops (path may arrive via File.path in WebView2).
+                  // Host OLE drops still go through fileDropBus → list/paste stagePaths as primary.
+                  if (
+                    hasBndzFileDrag(e)
+                    || e.dataTransfer.types.includes('text/plain')
+                    || e.dataTransfer.types.includes('Files')
+                    || Array.from(e.dataTransfer.files || []).length > 0
+                  ) {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'copy';
                   }
@@ -371,9 +378,13 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
                 onDrop={e => {
                   e.preventDefault();
                   const payload = readBndzFileDragData(e);
+                  const fromPlain = (e.dataTransfer.getData('text/plain') || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                  const fromFiles = Array.from(e.dataTransfer.files || [])
+                    .map(f => String((f as File & { path?: string }).path || '').trim())
+                    .filter(Boolean);
                   const paths = payload?.paths?.length
                     ? payload.paths
-                    : (e.dataTransfer.getData('text/plain') || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                    : (fromPlain.length ? fromPlain : fromFiles);
                   if (paths.length) void stagePaths(z.id, paths);
                 }}
               >

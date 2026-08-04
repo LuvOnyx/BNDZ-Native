@@ -796,6 +796,40 @@ namespace BNDZ
         /// <summary>True while BNDZ-initiated DoDragDrop is running (OLE re-entry into our window).</summary>
         private bool _bndzOleDragActive;
 
+        /// <summary>
+        /// Attach a shell drag image via IDragSourceHelper::InitializeFromWindow (Explorer-class ghost).
+        /// </summary>
+        private void AttachShellDragImage(System.Windows.DataObject dataObject, string[] paths)
+        {
+            if (dataObject == null || paths == null || paths.Length == 0) return;
+            try
+            {
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                if (hwnd == IntPtr.Zero) return;
+
+                var clsid = Type.GetTypeFromCLSID(new Guid("DE5BF786-477A-11D2-839D-00C04FD918D0"));
+                if (clsid == null) return;
+                var helperObj = Activator.CreateInstance(clsid);
+                if (helperObj is not Vanara.PInvoke.Shell32.IDragSourceHelper helper) return;
+
+                var oleUnk = System.Runtime.InteropServices.Marshal.GetIUnknownForObject(dataObject);
+                try
+                {
+                    var comData = (System.Runtime.InteropServices.ComTypes.IDataObject)
+                        System.Runtime.InteropServices.Marshal.GetObjectForIUnknown(oleUnk);
+                    helper.InitializeFromWindow(new Vanara.PInvoke.HWND(hwnd), IntPtr.Zero, comData);
+                }
+                finally
+                {
+                    System.Runtime.InteropServices.Marshal.Release(oleUnk);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[START_DRAG] IDragSourceHelper: {ex.Message}");
+            }
+        }
+
         private void PostExternalFileDragHover(double webViewX, double webViewY)
         {
             // Throttle: at most one hover message per ~16 ms (~60 fps). Without this guard,
@@ -1736,7 +1770,19 @@ namespace BNDZ
                             // _bndzOleDragActive lets our IDropTarget recognise internal re-entry
                             // and honour move intent when the drag lands back on BNDZ.
                             _bndzOleDragActive = true;
-                            var dataObject = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, pathArray);
+                            var dataObject = new System.Windows.DataObject();
+                            dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
+                            // Explorer interop: Preferred DropEffect = Copy|Link (5). Ctrl/Shift still toggle.
+                            dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(5)));
+                            try
+                            {
+                                // Shell multi-file drag image when available (IDragSourceHelper).
+                                AttachShellDragImage(dataObject, pathArray);
+                            }
+                            catch (Exception dragImgEx)
+                            {
+                                Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}");
+                            }
                             System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
                         }
                         catch (Exception ex)
@@ -8717,6 +8763,7 @@ namespace BNDZ
         {
             try
             {
+                if (!FileOperationPreferences.Current.LogActions) return;
                 action = (action ?? "").ToLowerInvariant();
                 switch (action)
                 {

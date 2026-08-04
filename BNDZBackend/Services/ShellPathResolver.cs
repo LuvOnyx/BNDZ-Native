@@ -10,7 +10,38 @@ public static class ShellPathResolver
     public const string ThisPcClsid = "::{20D04FE0-3AEA-1069-A2D8-08002B30309D}";
     public const string NetworkClsid = "::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}";
     public const string LibrariesClsid = "::{031E4825-7B94-4DC3-B131-E946B44C8DD5}";
+    public const string ControlPanelClsid = "::{26EE0668-A00A-44D7-9371-BEB064C98683}";
     public const string PortableDevicesClsid = PortableDeviceService.PortableDevicesClsid;
+
+    public static bool IsControlPanelPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var p = path.Replace('\\', '/').Trim();
+        while (p.StartsWith("/")) p = p[1..];
+        return p.Equals("shell:ControlPanel", StringComparison.OrdinalIgnoreCase)
+            || p.Equals(ControlPanelClsid, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsLibrariesPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var p = path.Replace('\\', '/').Trim();
+        while (p.StartsWith("/")) p = p[1..];
+        return p.Equals("shell:Libraries", StringComparison.OrdinalIgnoreCase)
+            || p.Equals(LibrariesClsid, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsThisPcPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var trimmed = path.Trim();
+        if (trimmed is "/" or "\\" or "") return true;
+        var p = trimmed.Replace('\\', '/').Trim();
+        while (p.StartsWith("/")) p = p[1..];
+        return p.Equals(ThisPcClsid, StringComparison.OrdinalIgnoreCase)
+            || p.Equals("shell:MyComputerFolder", StringComparison.OrdinalIgnoreCase)
+            || p.Equals("shell:ThisPCFolder", StringComparison.OrdinalIgnoreCase);
+    }
 
     public static string NormalizeIncoming(string? path)
     {
@@ -51,6 +82,7 @@ public static class ShellPathResolver
             var shellLower = trimmed.ToLowerInvariant();
             if (shellLower == "shell:recyclebin") return RecycleBinClsid;
             if (shellLower == "shell:libraries") return LibrariesClsid;
+            if (shellLower == "shell:controlpanel") return ControlPanelClsid;
             if (shellLower is "shell:mycomputerfolder" or "shell:thispcfolder") return ThisPcClsid;
             if (shellLower == "shell:networkplacesfolder") return NetworkClsid;
             if (shellLower is "shell:portabledevices" or "shell:portable devices") return PortableDevicesClsid;

@@ -6,6 +6,7 @@ import { resolveShellIconPath } from './shellPaths';
 export const NETWORK_PATH = '//';
 export const THIS_PC_PATH = '/';
 export const LIBRARIES_PATH = '/shell:Libraries';
+export const CONTROL_PANEL_PATH = '/shell:ControlPanel';
 
 /** Synthetic entity representing the current pane location (tree roots, virtual folders). */
 export function getLocationEntityFromPath(path: string | null | undefined): FSEntity | null {
@@ -45,6 +46,15 @@ export function getLocationEntityFromPath(path: string | null | undefined): FSEn
       name: 'Libraries',
       type: 'directory',
       path: LIBRARIES_PATH,
+      isVirtual: true,
+    } as FSEntity;
+  }
+  if (p.toLowerCase() === CONTROL_PANEL_PATH.toLowerCase()) {
+    return {
+      id: 'loc:control-panel',
+      name: 'Control Panel',
+      type: 'directory',
+      path: CONTROL_PANEL_PATH,
       isVirtual: true,
     } as FSEntity;
   }

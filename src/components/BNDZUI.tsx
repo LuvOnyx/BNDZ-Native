@@ -100,7 +100,7 @@ import AddressAutocompleteDropdown from './AddressAutocompleteDropdown';
 import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
 import MeshDropDialog from './meshdrop/MeshDropDialog';
-import { filterSupplementalNativeItems, type ContextMenuSurface } from '../lib/contextMenuActions';
+import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
 import { TabContextMenu } from './TabContextMenu';
 import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals } from '../lib/nativeIconService';
 import { isRealityCheckActive, isRealityCheckMissing, subscribeRealityCheck } from '../lib/realityCheckState';
@@ -221,7 +221,7 @@ import {
   getClipboardMarkForEntity,
   resolveEntityWindowsPath,
 } from '../lib/clipboardVisual';
-import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath, panePathsEqual } from '../lib/pathUtils';
+import { findEntityInCache, joinPanePath, joinPanePathForFs, toWindowsPath, normalizePanePath, watcherDirToPanePath, RECYCLE_BIN_PATH, isRecycleBinPath, panePathsEqual, isValidShellTarget } from '../lib/pathUtils';
 import { isMeshPath } from '../lib/meshPaths';
 import { canonicalDropPath, resolveDropRoute, MESH_DROP_INBOX_DEST } from '../lib/fsPathRouting';
 import { executeMeshTransfer, hydrateMeshPathsForDrag } from '../lib/meshTransfer';
@@ -230,7 +230,7 @@ import { buildRapidAccessDefaults, mergeRapidAccessItems, dedupePinnedFavorites,
 import { resolveFileDragHoverAtPoint, setExternalDragHover, setPointerDragHover, clearPointerDragHover, clearExternalDragHover, recordExternalDragHover } from '../lib/fileDragHover';
 import { registerFileDropBusContext, commitExternalOleDrop, commitArchiveInternalDrop } from '../lib/fileDropBus';
 import DropDebugOverlay from './DropDebugOverlay';
-import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, resolveEntityPanePath, isShellKnownFolderRoot, shellKnownFolderParent, resolveShellKnownFolderToFs, resolveShellPropertiesPath } from '../lib/shellPaths';
+import { toPanePath, SHELL_CLSID, KNOWN_FOLDER_SHELL, shellIconIsDirectory, resolveEntityPanePath, isShellKnownFolderRoot, shellKnownFolderParent, resolveShellKnownFolderToFs, resolveShellPropertiesPath, CONTROL_PANEL_PATH } from '../lib/shellPaths';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { installUiZoomGuard } from '../lib/uiZoomGuard';
 import { getIndexStatusCached, invalidateIndexStatusCache } from '../lib/indexStatusCache';
@@ -2343,19 +2343,15 @@ export default function BNDZUI() {
 
   const runUndoRedo = React.useCallback(async (redo = false) => {
     const fileOps = buildFileOpsRuntime(config);
-    if (fileOps.useNativeEngine && !(redo ? canRedo : canUndo)) {
-      pushToast({
-        kind: 'warning',
-        title: redo ? 'Redo' : 'Undo',
-        message: 'The Windows shell engine does not log new actions. Switch to the BNDZ engine in Settings → File Operations to record undoable operations.',
-      });
-      return;
-    }
     if (!(redo ? canRedo : canUndo)) {
       pushToast({
         kind: 'info',
         title: redo ? 'Redo' : 'Undo',
-        message: redo ? 'Nothing to redo.' : 'Nothing to undo.',
+        message: redo
+          ? 'Nothing to redo.'
+          : (fileOps.useNativeEngine
+            ? 'Nothing to undo. Shell transfers are logged when Action Log is enabled — try Ctrl+Z after a copy/move/delete, or use Explorer undo for the shell stack.'
+            : 'Nothing to undo.'),
       });
       return;
     }
@@ -2835,11 +2831,38 @@ export default function BNDZUI() {
 
   // Context Menu State
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [fileMenuShellNewItems, setFileMenuShellNewItems] = useState<NativeContextMenuItem[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, entityId: string | null, path: string, entityName: string | null, entityExtension?: string | null, isDirectory: boolean, isGhostLink?: boolean, surface?: ContextMenuSurface, nativeContextItems?: any[], selectedPaths?: string[] } | null>(null);
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; paneId: string; tabIndex: number } | null>(null);
 
   useContextMenuDismissOnLeave(!!contextMenu, () => setContextMenu(null));
   useContextMenuDismissOnLeave(!!tabContextMenu, () => setTabContextMenu(null));
+
+  // Optionally merge Windows shell "New" cascade into the File → New menubar when available.
+  useEffect(() => {
+    if (openMenuId !== 'File') return;
+    let cancelled = false;
+    const pane = panes.find(p => p.id === activePaneId) || panes[0];
+    const tab = pane ? resolvePaneTab(pane) : null;
+    const folderPath = tab?.path;
+    if (!folderPath || isRecycleBinPath(folderPath) || !isValidShellTarget(folderPath)) {
+      setFileMenuShellNewItems([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const { IPC } = await import('../lib/ipcBridge');
+        if (!IPC.isNative) return;
+        const items = await IPC.fetchNativeContextMenuItems(toWindowsPath(folderPath));
+        if (cancelled) return;
+        const { cascade } = takeShellCascadeByLabel(filterSupplementalNativeItems(items), 'New');
+        setFileMenuShellNewItems(cascade?.children?.length ? cascade.children : []);
+      } catch {
+        if (!cancelled) setFileMenuShellNewItems([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [openMenuId, panes, activePaneId]);
 
   const handleContextMenuRequest = (
     e: React.MouseEvent,
@@ -4295,6 +4318,18 @@ export default function BNDZUI() {
         expanded: librariesExpanded,
         onToggle: () => setLibrariesExpanded(!librariesExpanded),
         childrenItems: libraryFolderItems,
+      },
+      {
+        treeKey: 'control-panel',
+        draggable: true,
+        label: 'Control Panel',
+        path: CONTROL_PANEL_PATH,
+        iconPath: SHELL_CLSID.controlPanel,
+        icon: 'settings_ui',
+        iconColor: '#6db4e6',
+        useShellIcon: true,
+        leaf: true,
+        onClick: () => setCurrentPath(CONTROL_PANEL_PATH),
       },
       {
         treeKey: 'smart-views',
@@ -7490,6 +7525,22 @@ export default function BNDZUI() {
               {(entity.path || joinPanePath(panePath, entity)).replace(/^\//, '')}
             </div>
           );
+        case 'originalLocation': {
+          const loc = String((entity as any).originalLocation || '');
+          return (
+            <div key={colId} className="bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px]" title={loc}>
+              {loc || <span className="text-gray-600">—</span>}
+            </div>
+          );
+        }
+        case 'originalPath': {
+          const op = String((entity as any).originalPath || '');
+          return (
+            <div key={colId} className="bndz-list-select-cell px-2 text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis font-mono text-[10px]" title={op}>
+              {op || <span className="text-gray-600">—</span>}
+            </div>
+          );
+        }
         case 'ghostState': {
           const ghost = !!(entity as any).isGhostLink;
           return (
@@ -9928,6 +9979,31 @@ export default function BNDZUI() {
                               const res = await IPC.createLink(`${target}.lnk`, target, 'shortcut');
                               setToastMessage(isQueuedIpcResult(res) ? 'Shortcut queued — see transfer panel.' : (res.success ? 'Shortcut created.' : (res.error || 'Failed to create shortcut.')));
                             })}>Shortcut</div>
+                            {fileMenuShellNewItems.length > 0 && (
+                              <>
+                                <div className="h-[1px] bg-[#444] my-1" />
+                                <div className="px-3 py-0.5 text-[10px] uppercase tracking-wide text-gray-500 select-none">Windows New</div>
+                                {fileMenuShellNewItems.map((item, i) => {
+                                  if (item.separator) return <div key={`shell-new-sep-${i}`} className="h-[1px] bg-[#444] my-1" />;
+                                  if (item.children?.length) return null;
+                                  const verb = resolveNativeItemVerb(item);
+                                  if (!verb) return null;
+                                  const label = item.label || item.id || verb;
+                                  return (
+                                    <div
+                                      key={`shell-new-${item.id || verb || i}`}
+                                      className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200"
+                                      onMouseDown={menuAct(() => {
+                                        const folder = toWindowsPath(currentTab.path);
+                                        import('../lib/ipcBridge').then(({ IPC }) => IPC.executeContextMenuVerb(folder, verb));
+                                      })}
+                                    >
+                                      {label}
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            )}
                     </MenubarSubmenu>
 
                     <MenubarSubmenu label="Copy / Move / Backup" iconId="copy_to">
@@ -10590,6 +10666,8 @@ export default function BNDZUI() {
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Pictures'))}>Pictures</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Music'))}>Music</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:My Video'))}>Videos</div>
+                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath('/shell:Libraries'))}>Libraries</div>
+                      <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => setCurrentPath(CONTROL_PANEL_PATH))}>Control Panel</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData</div>
                     </MenubarSubmenu>
                     <MenubarSubmenu label="Manage Rapid access">
@@ -12183,7 +12261,10 @@ export default function BNDZUI() {
         >
           <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-500">Choose columns</div>
           {LIST_COLUMN_DEFS.map(col => {
-            const visibility = resolveListColumnVisibility(config, { isGlobalSearch: isGlobal });
+            const visibility = resolveListColumnVisibility(config, {
+              isGlobalSearch: isGlobal,
+              folderPath: normalizePanePath(currentTab.path),
+            });
             const visible = col.id === 'name' || visibility[col.id];
             return (
               <label
@@ -12195,7 +12276,10 @@ export default function BNDZUI() {
                   checked={visible}
                   disabled={col.id === 'name'}
                   onChange={() => {
-                    const current = resolveListColumnVisibility(config, { isGlobalSearch: isGlobal });
+                    const current = resolveListColumnVisibility(config, {
+                      isGlobalSearch: isGlobal,
+                      folderPath: normalizePanePath(currentTab.path),
+                    });
                     updateConfig({ listColumnVisibility: { ...current, [col.id]: !current[col.id] } });
                   }}
                   className="accent-[#0078d4]"

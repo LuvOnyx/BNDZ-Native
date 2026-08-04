@@ -1618,12 +1618,22 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       addPaths(payload.paths, pt);
       pinned = true;
     } else {
-      const plain = e.dataTransfer.getData('text/plain');
-      if (plain) {
-        const paths = plain.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-        if (paths.length) {
-          addPaths(paths, pt);
-          pinned = true;
+      // Explorer → Spatial: HTML5 FileList may carry Windows .path (Chromium).
+      const fromFiles = Array.from(e.dataTransfer.files || [])
+        .map(f => (f as File & { path?: string }).path || '')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (fromFiles.length) {
+        addPaths(fromFiles, pt);
+        pinned = true;
+      } else {
+        const plain = e.dataTransfer.getData('text/plain');
+        if (plain) {
+          const paths = plain.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+          if (paths.length) {
+            addPaths(paths, pt);
+            pinned = true;
+          }
         }
       }
     }

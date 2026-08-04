@@ -1,9 +1,11 @@
 import type React from 'react';
 import type { AppConfig } from '../data/configContext';
 import { customColumnListId, resolveCustomColumns } from './customColumns';
+import { isRecycleBinPath } from './pathUtils';
 
 export type BuiltinListColumnId =
   | 'name' | 'type' | 'size' | 'modified' | 'created' | 'attributes' | 'tags' | 'label' | 'comment' | 'path'
+  | 'originalLocation' | 'originalPath'
   | 'ghostState' | 'coldTarget' | 'ramZone';
 export type ListColumnId = BuiltinListColumnId | `custom:${string}`;
 export type SortColumnId = 'name' | 'type' | 'size' | 'modified' | 'created' | 'tags' | 'ghostState' | 'ramZone';
@@ -31,6 +33,8 @@ export const LIST_COLUMN_DEFS: ListColumnDef[] = [
   { id: 'label', label: 'Label', widthClass: 'shrink-0', widthPx: 120 },
   { id: 'comment', label: 'Comment', widthClass: 'shrink-0', widthPx: 160 },
   { id: 'path', label: 'Path', widthClass: 'shrink-0', widthPx: 240 },
+  { id: 'originalLocation', label: 'Original location', widthClass: 'shrink-0', widthPx: 220 },
+  { id: 'originalPath', label: 'Original path', widthClass: 'shrink-0', widthPx: 280 },
   { id: 'ghostState', label: 'Ghost', widthClass: 'shrink-0', widthPx: 90, sortable: true },
   { id: 'coldTarget', label: 'Cold target', widthClass: 'shrink-0', widthPx: 180 },
   { id: 'ramZone', label: 'RAM zone', widthClass: 'shrink-0', widthPx: 120, sortable: true },
@@ -47,6 +51,8 @@ export const DEFAULT_LIST_COLUMN_PX: Record<BuiltinListColumnId, number> = {
   label: 120,
   comment: 160,
   path: 240,
+  originalLocation: 220,
+  originalPath: 280,
   ghostState: 90,
   coldTarget: 180,
   ramZone: 120,
@@ -63,6 +69,8 @@ export const DEFAULT_LIST_COLUMN_VISIBILITY: Record<ListColumnId, boolean> = {
   label: false,
   comment: false,
   path: false,
+  originalLocation: false,
+  originalPath: false,
   ghostState: false,
   coldTarget: false,
   ramZone: false,
@@ -70,12 +78,18 @@ export const DEFAULT_LIST_COLUMN_VISIBILITY: Record<ListColumnId, boolean> = {
 
 export function resolveListColumnVisibility(
   config: AppConfig,
-  options?: { isGlobalSearch?: boolean },
+  options?: { isGlobalSearch?: boolean; folderPath?: string },
 ): Record<ListColumnId, boolean> {
   const stored = (config.listColumnVisibility || {}) as Partial<Record<ListColumnId, boolean>>;
   const merged = { ...DEFAULT_LIST_COLUMN_VISIBILITY, ...stored };
   merged.name = true;
   if (options?.isGlobalSearch) merged.path = true;
+  // Recycle Bin: surface original location/path (and path) even when hidden by default.
+  if (isRecycleBinPath(options?.folderPath)) {
+    merged.originalLocation = true;
+    merged.originalPath = true;
+    merged.path = true;
+  }
   return merged;
 }
 
@@ -111,7 +125,10 @@ export function getVisibleListColumns(
   config: AppConfig,
   options?: { isGlobalSearch?: boolean; folderPath?: string },
 ): ListColumnDef[] {
-  const vis = resolveListColumnVisibility(config, options);
+  const vis = resolveListColumnVisibility(config, {
+    isGlobalSearch: options?.isGlobalSearch,
+    folderPath: options?.folderPath,
+  });
   const globalWidths = (config.listColumnWidths || {}) as Partial<Record<string, number>>;
   const byPath = ((config as any).listColumnWidthsByPath || {}) as Record<string, Partial<Record<string, number>>>;
   const folderKey = (options?.folderPath || '').replace(/\\/g, '/');

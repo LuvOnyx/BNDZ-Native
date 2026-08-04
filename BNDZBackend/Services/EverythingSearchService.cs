@@ -200,6 +200,14 @@ public class EverythingSearchService
         if (preferEverything && TrySearchEverything(query, limit, primaryRoot, results))
             return (results.Take(limit).ToList(), "everything");
 
+        // Prefer index/Windows Search for global queries — skip whole-disk FS walks when
+        // preferBndzIndex was on and no scoped root was provided.
+        if (preferBndzIndex && !useRegex && !booleanMode && !searchContent
+            && string.IsNullOrEmpty(primaryRoot))
+        {
+            return (results, "indexed");
+        }
+
         var fs = SearchFilesystem(query, limit, useRegex, primaryRoot);
         if (fs.Count > 0) return (fs, "indexed");
 

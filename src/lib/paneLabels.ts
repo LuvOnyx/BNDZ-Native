@@ -31,6 +31,7 @@ export function getPaneTabLabel(path: string): string {
   if (lower === '/shell:profile' || lower === '/shell:home') return 'Profile';
   if (lower === '/shell:pictureslibrary') return 'Gallery';
   if (lower === '/shell:libraries') return 'Libraries';
+  if (lower === '/shell:controlpanel') return 'Control Panel';
   const leaf = p.split('/').filter(Boolean).pop() || p;
   if (leaf.toLowerCase() === 'workspace') return 'Workspace';
   if (/^shell:/i.test(leaf)) return leaf.slice('shell:'.length);

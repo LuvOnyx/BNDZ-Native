@@ -145,12 +145,12 @@ public sealed class NativeShellFileOperationService
         Action<string, int, string, long, long, double, int, int>? onProgress,
         int total)
     {
-        var flags = ShellFileOperations.OperationFlags.NoConfirmation
-            | ShellFileOperations.OperationFlags.NoErrorUI;
+        // Allow Explorer-quality conflict UI (replace/skip/rename) — never silent overwrite.
+        var flags = default(ShellFileOperations.OperationFlags);
         if (!(action == "delete" && bypassRecycleBin))
             flags |= ShellFileOperations.OperationFlags.AllowUndo;
         if (!showProgress)
-            flags |= ShellFileOperations.OperationFlags.Silent;
+            flags |= ShellFileOperations.OperationFlags.Silent | ShellFileOperations.OperationFlags.NoConfirmation;
 
         using var op = new ShellFileOperations { Options = flags };
         var completed = 0;

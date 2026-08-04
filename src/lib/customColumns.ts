@@ -16,20 +16,20 @@ const MEDIA_EXTS = new Set(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma', 'm
 
 /** Metadata columns — hidden until user enables them in Choose Columns. */
 export const DEFAULT_CUSTOM_COLUMNS: CustomColumnDef[] = [
-  { id: 'dimensions', label: 'Dimensions', propertyKey: 'Dimensions', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: false, widthPx: 110 },
+  { id: 'dimensions', label: 'Dimensions', propertyKey: 'Dimensions', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: true, widthPx: 110 },
   { id: 'aspect_ratio', label: 'Aspect Ratio', propertyKey: 'Aspect Ratio', pattern: 'png;gif;bmp;webp;ico;cur;{Photo};ink', enabled: false, widthPx: 90 },
   { id: 'date_taken', label: 'Date Taken', propertyKey: 'Date Taken', pattern: '{Photo}', enabled: false, widthPx: 140 },
   { id: 'camera_model', label: 'Camera Model', propertyKey: 'Camera Model', pattern: '{Photo}', enabled: false, widthPx: 140 },
   { id: 'f_stop', label: 'F-Stop', propertyKey: 'F-Stop', pattern: '{Photo}', enabled: false, widthPx: 72 },
   { id: 'exposure_time', label: 'Exposure Time', propertyKey: 'Exposure Time', pattern: '{Photo}', enabled: false, widthPx: 100 },
-  { id: 'length', label: 'Length', propertyKey: 'Duration', pattern: '{Media}', enabled: false, widthPx: 90 },
+  { id: 'length', label: 'Length', propertyKey: 'Duration', pattern: '{Media}', enabled: true, widthPx: 90 },
   { id: 'sample_rate', label: 'Sample Rate', propertyKey: 'Sample Rate', pattern: '{Media}', enabled: false, widthPx: 100 },
   { id: 'bit_depth', label: 'Bit Depth', propertyKey: 'Bit Depth', pattern: '{Media}', enabled: false, widthPx: 80 },
   { id: 'bit_rate', label: 'Bit Rate', propertyKey: 'Audio Bitrate', pattern: '{Media}', enabled: false, widthPx: 90 },
   { id: 'channels', label: 'Channels', propertyKey: 'Channels', pattern: '{Media}', enabled: false, widthPx: 80 },
   { id: 'title', label: 'Title', propertyKey: 'Title', pattern: '{Media}', enabled: false, widthPx: 160 },
   { id: 'album', label: 'Album', propertyKey: 'Album', pattern: '{Media}', enabled: false, widthPx: 140 },
-  { id: 'artists', label: 'Artists', propertyKey: 'Artists', pattern: '{Media}', enabled: false, widthPx: 140 },
+  { id: 'artists', label: 'Artists', propertyKey: 'Artists', pattern: '{Media}', enabled: true, widthPx: 140 },
   { id: 'genre', label: 'Genre', propertyKey: 'Genre', pattern: '{Media}', enabled: false, widthPx: 100 },
   { id: 'year', label: 'Year', propertyKey: 'Year', pattern: '{Media}', enabled: false, widthPx: 64 },
   { id: 'track', label: 'Track', propertyKey: 'Track', pattern: '{Media}', enabled: false, widthPx: 64 },

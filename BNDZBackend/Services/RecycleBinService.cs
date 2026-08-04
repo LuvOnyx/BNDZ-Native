@@ -70,6 +70,29 @@ public static class RecycleBinService
                         }
                         catch { }
 
+                        string? originalLocation = null;
+                        string? originalPath = null;
+                        try
+                        {
+                            if (item.Properties.TryGetValue(PKEY_Recycle_DeletedFrom, out var fromVal) && fromVal is string from)
+                            {
+                                originalLocation = from;
+                                var leaf = item.Name ?? name;
+                                originalPath = Path.Combine(from, leaf);
+                            }
+                        }
+                        catch { /* optional recycle PKEY */ }
+
+                        DateTime? dateDeleted = null;
+                        try
+                        {
+                            // PKEY_Recycle_DateDeleted ({9b174b33-40ff-11d2-a27e-00c04fc30871}, pid 3)
+                            var pkeyDeleted = new Ole32.PROPERTYKEY(new Guid("9b174b33-40ff-11d2-a27e-00c04fc30871"), 3);
+                            if (item.Properties.TryGetValue(pkeyDeleted, out var delVal) && delVal is DateTime delDt)
+                                dateDeleted = delDt.ToUniversalTime();
+                        }
+                        catch { }
+
                         results.Add(new
                         {
                             id = parsingName,
@@ -80,6 +103,9 @@ public static class RecycleBinService
                             extension = isFolder ? "" : Path.GetExtension(name).TrimStart('.').ToLowerInvariant(),
                             modified = modified.ToString("O"),
                             isRecycleItem = true,
+                            originalLocation,
+                            originalPath,
+                            deleted = (dateDeleted ?? modified).ToString("O"),
                         });
                     }
                 }

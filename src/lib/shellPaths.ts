@@ -6,8 +6,22 @@ export const SHELL_CLSID = {
   thisPc: '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}',
   network: '::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}',
   libraries: '::{031E4825-7B94-4DC3-B131-E946B44C8DD5}',
+  controlPanel: '::{26EE0668-A00A-44D7-9371-BEB064C98683}',
   portableDevices: '::{35786D3C-B076-497C-A057-7DCC04A3D85}',
 } as const;
+
+/** Canonical virtual pane path for Control Panel */
+export const CONTROL_PANEL_PATH = '/shell:ControlPanel';
+
+export function isControlPanelPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const p = normalizePanePath(path);
+  const lower = p.replace(/^\//, '').toLowerCase();
+  return p.toLowerCase() === CONTROL_PANEL_PATH.toLowerCase()
+    || lower === 'shell:controlpanel'
+    || p === SHELL_CLSID.controlPanel
+    || lower === SHELL_CLSID.controlPanel.toLowerCase();
+}
 
 /** Windows shell: known-folder names for native library icons */
 export const KNOWN_FOLDER_SHELL: Record<string, string> = {
@@ -36,6 +50,8 @@ export const SPECIAL_FOLDER_PANE_PATHS: Record<string, string> = {
   profile: '/shell:Profile',
   gallery: '/shell:PicturesLibrary',
   libraries: '/shell:Libraries',
+  'control panel': CONTROL_PANEL_PATH,
+  controlpanel: CONTROL_PANEL_PATH,
   'this pc': '/',
   'recycle bin': RECYCLE_BIN_PATH,
   network: '//',
@@ -113,6 +129,7 @@ export function isShellKnownFolderRoot(path: string | null | undefined): boolean
 export function shellKnownFolderParent(path: string): string {
   const lower = normalizePanePath(path).toLowerCase();
   if (lower === '/shell:libraries') return '/';
+  if (lower === '/shell:controlpanel') return '/';
   if (lower === '/shell:profile' || lower === '/shell:home') return '/';
   if (isShellKnownFolderRoot(path)) return '/shell:Profile';
   if (lower.startsWith('/shell:')) return '/';
@@ -174,6 +191,7 @@ export function resolveShellIconPath(path: string | null | undefined): string {
       const token = `shell:${rest}`;
       if (token.toLowerCase() === 'shell:recyclebin') return SHELL_CLSID.recycleBin;
       if (token.toLowerCase() === 'shell:libraries') return SHELL_CLSID.libraries;
+      if (token.toLowerCase() === 'shell:controlpanel') return SHELL_CLSID.controlPanel;
       if (token.toLowerCase() === 'shell:portabledevices') return SHELL_CLSID.portableDevices;
       return token;
     }
@@ -184,6 +202,7 @@ export function resolveShellIconPath(path: string | null | undefined): string {
   }
 
   if (pane === '/shell:Libraries' || pane.toLowerCase() === '/shell:libraries') return SHELL_CLSID.libraries;
+  if (isControlPanelPath(pane)) return SHELL_CLSID.controlPanel;
   if (pane === '/shell:PortableDevices' || pane.toLowerCase() === '/shell:portabledevices') return SHELL_CLSID.portableDevices;
   if (pane === '/') return SHELL_CLSID.thisPc;
   if (pane === '//' || pane === '\\\\') return SHELL_CLSID.network;

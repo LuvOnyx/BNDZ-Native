@@ -113,19 +113,11 @@ export const IPC = {
             const response = await window.fetch(virtualUrl);
             if (response.ok) return await response.text();
         } else {
-            const cleanPath = path.startsWith('C:\\') ? path.replace('C:\\', '/') : path;
-            const res = await fetch('/api/fs/read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: cleanPath })
-            });
-            if (res.ok) {
-                const data = await res.json();
-                return data.content;
-            }
+            return Promise.reject(new Error('Native host required'));
         }
         return "";
-    } catch {
+    } catch (err) {
+        if (err instanceof Error && err.message === 'Native host required') throw err;
         return `// Content of ${path}\n`;
     }
   },
@@ -886,19 +878,7 @@ export const IPC = {
         error: r?.error,
       }));
     }
-    return fetch('/api/fs/scan-duplicates', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rootPath, recursive, minSizeBytes }),
-    })
-      .then(async res => {
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          return { groups: [], error: err.error || res.statusText };
-        }
-        return res.json();
-      })
-      .catch(err => ({ groups: [], error: err instanceof Error ? err.message : 'Scan failed' }));
+    return Promise.resolve({ groups: [], error: 'Native host required' });
   },
 
   cancelDuplicateScan(): void {
@@ -1067,16 +1047,7 @@ export const IPC = {
     if (action === 'undo' || action === 'redo' || action === 'copy') {
       return { ok: true };
     }
-    const res = await fetch('/api/fs/operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, source, target }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `FS operation failed (${res.status})`);
-    }
-    return { ok: true };
+    return { ok: false, error: 'Native host required' };
   },
 
   executeBatchRename(
@@ -2003,12 +1974,7 @@ export const IPC = {
         }),
       );
     }
-    // Web backend route
-    return fetch('/api/fs/list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: path.startsWith('C:\\') ? path.replace('C:\\', '/') : path })
-    }).then(res => res.json()).then(data => data.items || []);
+    return Promise.reject(new Error('Native host required'));
   },
 
   performGlobalSearch(
