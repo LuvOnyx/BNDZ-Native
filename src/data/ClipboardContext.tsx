@@ -1,11 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { toWindowsPath, normalizePanePath } from '../lib/pathUtils';
 import { isBndzVirtualPath, isBndzRamWritablePath, isBndzRamPath, parseBndzRamZoneId, bndzRamVirtualPath } from '../lib/bndzVirtualViews';
 import { resolvePanePathForFs } from '../lib/ramStagingPaths';
 import { IPC } from '../lib/ipcBridge';
 import { pushToast } from '../components/ToastHost';
 import { useAppConfig } from './configContext';
-import { resolveRecreateStructureForPaste } from '../lib/pastePlanning';
+import { resolveRecreateStructureForPasteAsync } from '../lib/pastePlanning';
+import { requestNativeConfirm } from '../lib/nativeDialog';
 
 const CLIPBOARD_STORAGE_KEY = 'bndz-clipboard-v1';
 const CLIPBOARD_HISTORY_KEY = 'bndz-clipboard-history-v1';
@@ -61,6 +62,14 @@ function sameClipboard(a: ClipboardState, b: ClipboardState): boolean {
     && a.items.every((p, i) => p === b.items[i]);
 }
 
+function pathsEqualIgnoreCase(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const norm = (p: string) => p.replace(/\//g, '\\').toLowerCase();
+  const sa = a.map(norm).sort();
+  const sb = b.map(norm).sort();
+  return sa.every((p, i) => p === sb[i]);
+}
+
 export type ClipboardAction = 'copy' | 'cut' | '';
 
 export interface ClipboardState {
@@ -91,11 +100,32 @@ export type PasteOptions = {
 
 const ClipboardContext = createContext<ClipboardContextValue | null>(null);
 
+async function resolveWinClipboardPaths(items: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const p of items) {
+    if (!p) continue;
+    if (isBndzRamPath(p) || p.startsWith('/bndz/')) {
+      const resolved = await resolvePanePathForFs(p);
+      if (resolved && !resolved.toLowerCase().startsWith('bndz\\') && /^[A-Za-z]:\\/.test(resolved)) {
+        out.push(resolved);
+      }
+      continue;
+    }
+    const win = toWindowsPath(p);
+    if (win && /^[A-Za-z]:\\/.test(win)) out.push(win);
+  }
+  return out;
+}
+
 export function ClipboardProvider({ children }: { children: React.ReactNode }) {
   const [clipboard, setClipboard] = useState<ClipboardState>(loadStoredClipboard);
   const [clipboardHistory, setClipboardHistory] = useState<ClipboardHistoryEntry[]>(loadClipboardHistory);
   const { config } = useAppConfig();
   const logClipboard = !!config.logClipboardContentsAndEnableRestore;
+  const clipboardRef = useRef(clipboard);
+  clipboardRef.current = clipboard;
+  /** Skip one focus import right after we push to the shell clipboard. */
+  const skipNextShellImportRef = useRef(false);
 
   const pushHistory = useCallback((prev: ClipboardState) => {
     if (!logClipboard || !prev.items.length || !prev.action) return;
@@ -107,23 +137,40 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     });
   }, [logClipboard]);
 
-  const setClipboardState = useCallback((items: string[], action: ClipboardAction) => {
-    // Keep original path strings — resolve to Windows FS paths at paste time.
-    // Blind toWindowsPath mangles /bndz/ram/... into bndz\ram\...
+  const applyLocalClipboard = useCallback((items: string[], action: ClipboardAction) => {
     const normalized = items.map(p => {
       const t = (p || '').trim();
       if (!t) return '';
       if (isBndzRamPath(t) || t.startsWith('/bndz/')) return normalizePanePath(t);
       return toWindowsPath(t);
     }).filter(Boolean);
-    if (!normalized.length || !action) return;
+    if (!normalized.length || !action) return null;
     const next = { items: normalized, action };
     setClipboard(prev => {
       if (!sameClipboard(prev, next)) pushHistory(prev);
       return next;
     });
     persistClipboard(next);
+    return next;
   }, [pushHistory]);
+
+  const setClipboardState = useCallback((items: string[], action: ClipboardAction) => {
+    // Keep original path strings — resolve to Windows FS paths at paste / shell sync time.
+    // Blind toWindowsPath mangles /bndz/ram/... into bndz\ram\...
+    const next = applyLocalClipboard(items, action);
+    if (!next || !IPC.isNative) return;
+
+    void (async () => {
+      try {
+        const winPaths = await resolveWinClipboardPaths(next.items);
+        if (!winPaths.length) return;
+        skipNextShellImportRef.current = true;
+        await IPC.setShellClipboard(winPaths, next.action === 'cut' ? 'cut' : 'copy');
+      } catch {
+        /* local clipboard still works for in-app paste */
+      }
+    })();
+  }, [applyLocalClipboard]);
 
   const copyToClipboard = useCallback((items: string[]) => {
     setClipboardState(items, 'copy');
@@ -143,11 +190,32 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     const [entry, ...rest] = clipboardHistory;
     setClipboardHistory(rest);
     persistClipboardHistory(rest);
-    const restored = { items: [...entry.items], action: entry.action };
-    setClipboard(restored);
-    persistClipboard(restored);
+    setClipboardState([...entry.items], entry.action);
     return true;
-  }, [clipboardHistory]);
+  }, [clipboardHistory, setClipboardState]);
+
+  const importShellClipboard = useCallback(async () => {
+    if (!IPC.isNative) return;
+    if (skipNextShellImportRef.current) {
+      skipNextShellImportRef.current = false;
+      return;
+    }
+    try {
+      const shell = await IPC.getShellClipboard();
+      if (!shell?.ok || !shell.paths?.length) return;
+      const action: ClipboardAction = shell.action === 'cut' || shell.cut ? 'cut' : 'copy';
+      const items = shell.paths.map(p => toWindowsPath(p)).filter(Boolean);
+      if (!items.length) return;
+      const cur = clipboardRef.current;
+      // Prefer shell when paths differ (Explorer → BNDZ) or cut/copy effect changed.
+      if (cur.items.length && cur.action && pathsEqualIgnoreCase(cur.items, items) && cur.action === action) {
+        return;
+      }
+      applyLocalClipboard(items, action);
+    } catch {
+      /* ignore */
+    }
+  }, [applyLocalClipboard]);
 
   useEffect(() => {
     persistClipboard(clipboard);
@@ -161,20 +229,47 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
         setClipboard(prev => (sameClipboard(prev, stored) ? prev : stored));
       }
       if (logClipboard) setClipboardHistory(loadClipboardHistory());
+      void importShellClipboard();
     };
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
+    // First paint: pick up Explorer clipboard if user copied before opening BNDZ.
+    void importShellClipboard();
     return () => {
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
     };
-  }, [clipboard, logClipboard]);
+  }, [clipboard, logClipboard, importShellClipboard]);
 
   const executePaste = useCallback(async (targetDir: string, options?: PasteOptions) => {
-    if (!clipboard.items.length || !clipboard.action) return;
     const panePath = targetDir.replace(/\\/g, '/');
     // Block smart-view / workspace virtual paths — RAM staging zone mounts are real disks.
     if (isBndzVirtualPath(panePath) && !isBndzRamWritablePath(panePath)) return;
+
+    // Prefer live Windows FileDrop (Explorer → BNDZ) when present.
+    let sourceItems = clipboard.items;
+    let sourceAction: ClipboardAction = clipboard.action;
+    if (IPC.isNative) {
+      try {
+        const shell = await IPC.getShellClipboard();
+        if (shell?.ok && shell.paths?.length) {
+          const shellAction: ClipboardAction = shell.action === 'cut' || shell.cut ? 'cut' : 'copy';
+          const shellItems = shell.paths.map(p => toWindowsPath(p)).filter(Boolean);
+          if (shellItems.length) {
+            sourceItems = shellItems;
+            sourceAction = shellAction;
+            // Keep UI cut ghosting / Paste enablement in sync.
+            if (!clipboard.items.length || !pathsEqualIgnoreCase(clipboard.items, shellItems) || clipboard.action !== shellAction) {
+              applyLocalClipboard(shellItems, shellAction);
+            }
+          }
+        }
+      } catch {
+        /* fall back to in-app clipboard */
+      }
+    }
+
+    if (!sourceItems.length || !sourceAction) return;
 
     const zoneId = parseBndzRamZoneId(panePath);
     const zoneRoot = zoneId ? bndzRamVirtualPath(zoneId) : null;
@@ -182,7 +277,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
 
     // Zone root: use dedicated stage API (reliable folder trees into the mount).
     if (atZoneRoot && zoneId) {
-      const winSources = (await Promise.all(clipboard.items.map(async p => {
+      const winSources = (await Promise.all(sourceItems.map(async p => {
         if (isBndzRamPath(p) || p.startsWith('/bndz/')) return (await resolvePanePathForFs(p)) || '';
         return toWindowsPath(p);
       }))).filter(s => s && !s.toLowerCase().startsWith('bndz\\'));
@@ -193,7 +288,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
           throw new Error((r as { error?: string }).error || 'Stage failed');
         }
         window.dispatchEvent(new CustomEvent('bndz-refresh-path', { detail: { path: zoneRoot } }));
-        if (options?.forceAction === 'cut' || clipboard.action === 'cut') clearClipboard();
+        if (options?.forceAction === 'cut' || sourceAction === 'cut') clearClipboard();
       } catch (e) {
         pushToast({ kind: 'error', title: 'Paste failed', message: e instanceof Error ? e.message : String(e) });
       }
@@ -203,9 +298,9 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     const dest = (await resolvePanePathForFs(targetDir)).replace(/\\$/, '');
     if (!dest || dest.toLowerCase().startsWith('bndz\\')) return;
 
-    const effectiveAction = options?.forceAction || clipboard.action;
+    const effectiveAction = options?.forceAction || sourceAction;
     const op = effectiveAction === 'cut' ? 'move' : 'copy';
-    const winSources = (await Promise.all(clipboard.items.map(async p => {
+    const winSources = (await Promise.all(sourceItems.map(async p => {
       if (isBndzRamPath(p) || p.startsWith('/bndz/')) return (await resolvePanePathForFs(p)) || '';
       return toWindowsPath(p);
     }))).filter(s => s && !s.toLowerCase().startsWith('bndz\\'));
@@ -220,7 +315,14 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       : options?.recreateSourceStructure === false
         ? false
         : (op === 'copy'
-          ? resolveRecreateStructureForPaste(config, winSources, msg => window.confirm(msg))
+          ? await resolveRecreateStructureForPasteAsync(config, winSources, async (msg) =>
+              requestNativeConfirm({
+                title: 'Paste',
+                message: msg,
+                type: 'warning',
+                confirmLabel: 'Recreate structure',
+                cancelLabel: 'Paste flat',
+              }))
           : false);
 
     const res = await IPC.executeFsOperation(opId, op, winSources, dest, false, label, 'high', recreateSourceStructure);
@@ -236,7 +338,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
     if (effectiveAction === 'cut') {
       clearClipboard();
     }
-  }, [clipboard, clearClipboard, config]);
+  }, [clipboard, clearClipboard, config, applyLocalClipboard]);
 
   return (
     <ClipboardContext.Provider value={{

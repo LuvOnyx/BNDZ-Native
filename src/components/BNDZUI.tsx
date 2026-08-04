@@ -2877,8 +2877,8 @@ export default function BNDZUI() {
         ? (pathContentsCache[targetPath] || []).find((item: FSEntity) => item.id === entityId)
         : null;
 
-      // Always use the BNDZ context menu. Native shell verbs are merged only when enabled.
-      // Do NOT call IPC.showNativeContextMenu — the backend stub is a no-op / must not open Explorer.
+      // Always use the BNDZ context menu. Native shell verbs are merged when enabled (default on).
+      // Shift+right-click opens the live Windows shell popup (Vanara IContextMenu) for full extension parity.
       setContextMenu({
           x: e.clientX,
           y: e.clientY,
@@ -2896,13 +2896,27 @@ export default function BNDZUI() {
       // Skip native shell verb fetch for virtual locations — they produce empty/separator-only menus.
       if (isVirtualLocation) return;
 
+      const shellPaths = (selectedPaths?.length
+        ? selectedPaths
+        : [winPath]).map(p => toWindowsPath(p)).filter(Boolean);
+
+      // Shift+right-click → real host shell menu (multi-select aware).
+      if (e.shiftKey && shellPaths.length > 0) {
+        void import('../lib/ipcBridge').then(({ IPC }) => {
+          IPC.showNativeContextMenu(shellPaths, Math.round(e.screenX), Math.round(e.screenY));
+        });
+        setContextMenu(null);
+        return;
+      }
+
       // Pure BNDZ menu (icons + product verbs) unless user opted into merging shell verbs.
       const mergeShellVerbs = !!(config.useNativeOSContextMenu || config.nativeContextMenu);
       if (!mergeShellVerbs) return;
 
       void import('../lib/nativeContextMenuCache').then(({ getCachedNativeContextMenu, setCachedNativeContextMenu }) => {
         if (requestId !== contextMenuRequestRef.current) return;
-        const cachedNative = getCachedNativeContextMenu(winPath) as any[] | null;
+        const cacheKey = shellPaths.length === 1 ? shellPaths[0] : shellPaths.slice().sort().join('|');
+        const cachedNative = getCachedNativeContextMenu(cacheKey) as any[] | null;
         if (cachedNative?.length) {
           setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
             ? { ...prev, nativeContextItems: cachedNative }
@@ -2910,15 +2924,16 @@ export default function BNDZUI() {
         }
       });
 
-      // Fetch live shell extensions for the supplemental block (IContextMenu).
+      // Fetch live shell extensions for the supplemental block (IContextMenu / multi-select).
       const runFetch = () => {
         void (async () => {
           try {
             const { IPC } = await import('../lib/ipcBridge');
             const { setCachedNativeContextMenu } = await import('../lib/nativeContextMenuCache');
-            const nativeItems = await IPC.fetchNativeContextMenuItems(winPath);
+            const nativeItems = await IPC.fetchNativeContextMenuItems(shellPaths.length > 1 ? shellPaths : shellPaths[0]);
             if (requestId !== contextMenuRequestRef.current) return;
-            if (nativeItems?.length) setCachedNativeContextMenu(winPath, nativeItems);
+            const cacheKey = shellPaths.length === 1 ? shellPaths[0] : shellPaths.slice().sort().join('|');
+            if (nativeItems?.length) setCachedNativeContextMenu(cacheKey, nativeItems);
             setContextMenu(prev => (requestId === contextMenuRequestRef.current && prev)
               && nativeContextSignature(prev.nativeContextItems) !== nativeContextSignature(nativeItems)
               ? { ...prev, nativeContextItems: nativeItems }
@@ -10403,14 +10418,8 @@ export default function BNDZUI() {
                     </MenubarSubmenu>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => setShowHistoryDialog(true))}>History…</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      // Native FM: jump straight into the address bar — never browser prompt().
                       focusAddressBar();
-                      const dest = prompt('Go to path:', formatAddressBarPath(currentTab.path));
-                      if (!dest) return;
-                      import('../lib/ipcBridge').then(async ({ IPC }) => {
-                        const pane = await import('../lib/displayPath').then(m => m.resolveUserPathToPane(dest, p => IPC.expandEnvironmentPath(p)));
-                        if (pane) setCurrentPath(pane);
-                        else setToastMessage('Could not resolve that path.');
-                      });
                     })}>Go to… / Go Now</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('app'); })}>Application Folder</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData Folder</div>

@@ -40,3 +40,18 @@ export function resolveRecreateStructureForPaste(
     'Paste items from different folders?\n\nRecreate the source folder structure under the destination.',
   );
 }
+
+/** Async variant — prefer host ModalProvider confirm over window.confirm. */
+export async function resolveRecreateStructureForPasteAsync(
+  config: AppConfig,
+  sources: string[],
+  askUser: (message: string) => Promise<boolean>,
+): Promise<boolean> {
+  if (!needsRecreateSourceStructure(sources)) return false;
+  const mode = readRecreateStructureSetting(config);
+  if (mode === 'Never') return false;
+  if (mode === 'Always') return true;
+  return askUser(
+    'Paste items from different folders?\n\nRecreate the source folder structure under the destination.',
+  );
+}

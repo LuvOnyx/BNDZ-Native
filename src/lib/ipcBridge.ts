@@ -1276,6 +1276,44 @@ export const IPC = {
     }
   },
 
+  /** Put real FS paths on the Windows clipboard (CF_HDROP + Preferred DropEffect) like Explorer. */
+  setShellClipboard(paths: string[], action: 'copy' | 'cut'): Promise<{ ok?: boolean; count?: number; cut?: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, count: 0 });
+    const normalize = (p: string) => {
+      let s = (p || '').trim();
+      if (!s || s.startsWith('::{') || s.toLowerCase().startsWith('shell:')) return s;
+      if (s.startsWith('/bndz/')) return ''; // virtual — caller must resolve first
+      if (s.startsWith('/')) s = s.substring(1);
+      s = s.replace(/\//g, '\\');
+      while (s.includes('\\\\')) s = s.replace('\\\\', '\\');
+      if (/^[A-Za-z]:$/.test(s)) s += '\\';
+      return s;
+    };
+    const winPaths = paths.map(normalize).filter(p => p && /^[A-Za-z]:\\/.test(p));
+    if (!winPaths.length) return Promise.resolve({ ok: false, count: 0 });
+    const id = `${Date.now()}_setShellClipboard`;
+    return _nativeCall<{ ok?: boolean; count?: number; cut?: boolean }>(
+      'SET_SHELL_CLIPBOARD',
+      'SET_SHELL_CLIPBOARD_RESULT',
+      id,
+      { paths: winPaths, cut: action === 'cut' },
+      10000,
+    ).catch(() => ({ ok: false, count: 0 }));
+  },
+
+  /** Read Explorer-compatible FileDrop clipboard for paste / cut ghosting. */
+  getShellClipboard(): Promise<{ ok?: boolean; paths?: string[]; action?: '' | 'copy' | 'cut'; cut?: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, paths: [], action: '' });
+    const id = `${Date.now()}_getShellClipboard`;
+    return _nativeCall<{ ok?: boolean; paths?: string[]; action?: '' | 'copy' | 'cut'; cut?: boolean }>(
+      'GET_SHELL_CLIPBOARD',
+      'GET_SHELL_CLIPBOARD_RESULT',
+      id,
+      {},
+      8000,
+    ).catch(() => ({ ok: false, paths: [], action: '' }));
+  },
+
   shellExecute(
     action: 'open' | 'openWith' | 'copyPath' | 'compress' | 'openTerminal' | 'openExplorer' | 'executeScript' | string,
     path: string | string[],
@@ -1863,10 +1901,14 @@ export const IPC = {
     return Promise.resolve(null);
   },
 
-  fetchNativeContextMenuItems(path: string): Promise<any[]> {
+  fetchNativeContextMenuItems(path: string | string[]): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_ctxItems`;
-      return _nativeCall<any[]>('GET_CONTEXT_MENU_ITEMS', 'CONTEXT_MENU_ITEMS_RESULT', id, { path });
+      const paths = (Array.isArray(path) ? path : [path]).filter(Boolean);
+      return _nativeCall<any[]>('GET_CONTEXT_MENU_ITEMS', 'CONTEXT_MENU_ITEMS_RESULT', id, {
+        path: paths[0],
+        paths,
+      });
     }
     return Promise.resolve([
       { id: 'open',       label: 'Open',       icon: 'Open'     },
@@ -1878,6 +1920,17 @@ export const IPC = {
       { id: 'delete',     label: 'Delete',     icon: 'Trash'    },
       { id: 'properties', label: 'Properties', icon: 'Settings' },
     ]);
+  },
+
+  /** Live Windows shell popup (Vanara IContextMenu / TrackPopupMenu) — never opens Explorer. */
+  showNativeContextMenu(path: string | string[], x: number, y: number) {
+    if (!this.isNative) return;
+    const paths = (Array.isArray(path) ? path : [path]).filter(Boolean);
+    if (!paths.length) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'SHOW_CONTEXT_MENU',
+      payload: { path: paths[0], paths, x, y },
+    });
   },
 
   fetchShareMenuItems(path: string): Promise<ShareMenuItem[]> {
@@ -2016,12 +2069,6 @@ export const IPC = {
       return _nativeCall<any[]>('GET_SUB_DIRECTORIES', 'SUBDIR_RESULT', id, { path, showHidden });
     }
     return Promise.resolve([]);
-  },
-
-  showNativeContextMenu(path: string, x: number, y: number) {
-    if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'SHOW_CONTEXT_MENU', payload: { path, x, y } });
-    }
   },
 
   /**
@@ -2189,9 +2236,8 @@ export const IPC = {
         ),
       );
     }
-    return new Promise(resolve =>
-      setTimeout(() => resolve({ 'Audio Bitrate': '320 kbps', 'Dimensions': '1920x1080' }), 50)
-    );
+    // Never fake EXIF/media fields outside the host — hybrid tell.
+    return Promise.resolve({});
   },
 
   writeMediaTags(path: string, fields: Record<string, string | null | undefined>): Promise<{ ok?: boolean; error?: string }> {

@@ -4,6 +4,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Vanara.PInvoke;
+using Vanara.Windows.Shell;
+using static Vanara.PInvoke.Shell32;
 
 namespace BNDZ.Services;
 
@@ -93,24 +96,67 @@ public sealed class ShellContextMenuService
     }
 
     /// <summary>
-    /// Reserved for a real IContextMenu / TrackPopupMenuEx host.
-    /// Must NEVER open Explorer — that made right-click feel like navigating/opening folders.
-    /// Callers should use GetContextMenuItems + the BNDZ UI menu instead.
+    /// Show the live Windows shell context menu via Vanara TrackPopupMenu host.
+    /// Never opens Explorer — invokes IContextMenu in-process only.
     /// </summary>
     public void ShowNativeContextMenu(IntPtr hwnd, string path, int screenX, int screenY)
+        => ShowNativeContextMenu(hwnd, new[] { path }, screenX, screenY);
+
+    /// <summary>Multi-select shell context menu (same-parent items → IShellItemArray).</summary>
+    public void ShowNativeContextMenu(IntPtr hwnd, IEnumerable<string> rawPaths, int screenX, int screenY)
     {
-        // Intentionally no-op. Opening explorer.exe /select was a regression.
-        Debug.WriteLine($"ShowNativeContextMenu ignored (use GetContextMenuItems): {NormalizePath(path)} @ {screenX},{screenY}");
+        var paths = NormalizeExistingPaths(rawPaths);
+        if (paths.Count == 0) return;
+
+        try
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                var items = new List<ShellItem>(paths.Count);
+                try
+                {
+                    foreach (var p in paths)
+                        items.Add(new ShellItem(p));
+
+                    using var menu = ShellContextMenu.CreateFromItems(items, out var keepAlive);
+                    try
+                    {
+                        var owner = hwnd != IntPtr.Zero ? new HWND(hwnd) : HWND.NULL;
+                        menu.ShowContextMenu(
+                            new POINT(screenX, screenY),
+                            CMF.CMF_NORMAL | CMF.CMF_EXPLORE | CMF.CMF_CANRENAME | CMF.CMF_EXTENDEDVERBS,
+                            onMenuItemClicked: null,
+                            hWnd: owner);
+                    }
+                    finally
+                    {
+                        keepAlive?.Dispose();
+                    }
+                }
+                finally
+                {
+                    foreach (var it in items)
+                        it.Dispose();
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"ShowNativeContextMenu failed: {ex.Message}");
+        }
     }
 
     public List<MenuItemDto> GetContextMenuItems(string path)
+        => GetContextMenuItems(new[] { path });
+
+    public List<MenuItemDto> GetContextMenuItems(IEnumerable<string> rawPaths)
     {
-        path = NormalizePath(path);
+        var paths = NormalizeExistingPaths(rawPaths);
         var items = new List<MenuItemDto>();
-        if (string.IsNullOrEmpty(path)) return items;
+        if (paths.Count == 0) return items;
 
         // Prefer live IContextMenu enumeration (third-party shell extensions + OS cascades).
-        var enumerated = ShellContextMenuEnumerator.Enumerate(path);
+        var enumerated = ShellContextMenuEnumerator.Enumerate(paths);
         if (enumerated.Count > 0)
         {
             foreach (var e in enumerated)
@@ -119,6 +165,7 @@ public sealed class ShellContextMenuService
         }
 
         // Fallback if COM enumeration fails (locked path, virtual namespace, etc.)
+        var path = paths[0];
         bool isDir = Directory.Exists(path);
         bool isFile = File.Exists(path);
         if (!isDir && !isFile) return items;
@@ -143,6 +190,21 @@ public sealed class ShellContextMenuService
         items.Add(new MenuItemDto { Id = "properties", Label = "Properties", Verb = "properties", Icon = "settings", Kind = "builtin" });
 
         return items;
+    }
+
+    private static List<string> NormalizeExistingPaths(IEnumerable<string>? rawPaths)
+    {
+        var paths = new List<string>();
+        if (rawPaths == null) return paths;
+        foreach (var p in rawPaths)
+        {
+            var n = ShellPathResolver.ResolveForShell(NormalizePath(p));
+            if (string.IsNullOrEmpty(n)) continue;
+            if (!File.Exists(n) && !Directory.Exists(n)) continue;
+            if (!paths.Contains(n, StringComparer.OrdinalIgnoreCase))
+                paths.Add(n);
+        }
+        return paths;
     }
 
     private static MenuItemDto ToDto(ShellContextMenuEnumerator.EnumeratedItem e)
@@ -266,7 +328,7 @@ public sealed class ShellContextMenuService
                     if (verb.StartsWith("shellcmd:", StringComparison.OrdinalIgnoreCase)
                         && uint.TryParse(verb.AsSpan("shellcmd:".Length), out var cmdOffset))
                     {
-                        return ShellContextMenuEnumerator.Invoke(paths[0], cmdOffset);
+                        return ShellContextMenuEnumerator.Invoke(paths, cmdOffset);
                     }
 
                     // Non-builtin verb — prefer IContextMenu when we have a commandId in the verb payload:
@@ -326,6 +388,65 @@ public sealed class ShellContextMenuService
             {
                 Debug.WriteLine($"Process.Start fallback failed: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Public entry for FM cut/copy: put real filesystem paths on the Windows clipboard
+    /// exactly like Explorer (CF_HDROP + Preferred DropEffect).
+    /// </summary>
+    public bool TrySetShellClipboard(IEnumerable<string> rawPaths, bool cut)
+    {
+        var paths = new List<string>();
+        foreach (var p in rawPaths ?? Array.Empty<string>())
+        {
+            var n = ShellPathResolver.ResolveForShell(NormalizePath(p));
+            if (string.IsNullOrEmpty(n)) continue;
+            if (!File.Exists(n) && !Directory.Exists(n)) continue;
+            paths.Add(n);
+        }
+        if (paths.Count == 0) return false;
+        return SetClipboardFileDrop(paths, cut);
+    }
+
+    /// <summary>Read Explorer-compatible FileDrop clipboard (paths + cut/copy effect).</summary>
+    public (List<string> Paths, bool Cut, bool Ok) TryGetShellClipboard()
+    {
+        try
+        {
+            return System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                var list = new List<string>();
+                bool isCut = false;
+                if (!System.Windows.Clipboard.ContainsFileDropList())
+                    return (list, false, false);
+
+                foreach (string? f in System.Windows.Clipboard.GetFileDropList())
+                {
+                    if (string.IsNullOrEmpty(f)) continue;
+                    var n = NormalizePath(f);
+                    if (!string.IsNullOrEmpty(n)) list.Add(n);
+                }
+                if (list.Count == 0) return (list, false, false);
+
+                try
+                {
+                    if (System.Windows.Clipboard.GetDataObject()?.GetData("Preferred DropEffect") is MemoryStream ms)
+                    {
+                        var b = new byte[4];
+                        if (ms.Read(b, 0, 4) == 4)
+                            isCut = (BitConverter.ToInt32(b, 0) & 2) == 2;
+                    }
+                }
+                catch { /* Prefer DropEffect optional */ }
+
+                return (list, isCut, true);
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"TryGetShellClipboard failed: {ex.Message}");
+            return (new List<string>(), false, false);
         }
     }
 

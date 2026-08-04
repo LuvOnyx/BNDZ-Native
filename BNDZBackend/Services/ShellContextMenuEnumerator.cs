@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using Vanara.PInvoke;
@@ -42,14 +43,16 @@ internal static class ShellContextMenuEnumerator
     }
 
     public static List<EnumeratedItem> Enumerate(string path)
+        => Enumerate(new[] { path });
+
+    public static List<EnumeratedItem> Enumerate(IReadOnlyList<string> paths)
     {
-        path = Normalize(path);
-        if (string.IsNullOrEmpty(path)) return new();
-        if (!File.Exists(path) && !Directory.Exists(path)) return new();
+        var normalized = NormalizeMany(paths);
+        if (normalized.Count == 0) return new();
 
         try
         {
-            return WithContextMenu(path, (cm, hMenu) =>
+            return WithContextMenu(normalized, (cm, hMenu) =>
             {
                 // EXPLORE + CANRENAME match Explorer; EXTENDEDVERBS picks up shift-key / advanced verbs when present.
                 var hr = cm.QueryContextMenu(hMenu, 0, CmdFirst, CmdLast,
@@ -72,13 +75,16 @@ internal static class ShellContextMenuEnumerator
     }
 
     public static bool Invoke(string path, uint commandOffset, string? verbHint = null)
+        => Invoke(new[] { path }, commandOffset, verbHint);
+
+    public static bool Invoke(IReadOnlyList<string> paths, uint commandOffset, string? verbHint = null)
     {
-        path = Normalize(path);
-        if (string.IsNullOrEmpty(path)) return false;
+        var normalized = NormalizeMany(paths);
+        if (normalized.Count == 0) return false;
 
         try
         {
-            return WithContextMenu(path, (cm, hMenu) =>
+            return WithContextMenu(normalized, (cm, hMenu) =>
             {
                 var hr = cm.QueryContextMenu(hMenu, 0, CmdFirst, CmdLast,
                     CMF.CMF_NORMAL | CMF.CMF_EXPLORE | CMF.CMF_EXTENDEDVERBS);
@@ -88,17 +94,11 @@ internal static class ShellContextMenuEnumerator
                 var cm3 = cm as IContextMenu3;
                 InitAllPopups(cm2, cm3, hMenu, 0);
 
-                _ = verbHint;
-                if (commandOffset == 0 && string.IsNullOrWhiteSpace(verbHint)) return false;
+                if (commandOffset == 0) return false;
 
-                if (commandOffset > 0)
-                {
-                    var byId = new CMINVOKECOMMANDINFOEX((int)commandOffset);
-                    cm.InvokeCommand(byId);
-                    return true;
-                }
-
-                return false;
+                var byId = new CMINVOKECOMMANDINFOEX((int)commandOffset);
+                cm.InvokeCommand(byId);
+                return true;
             });
         }
         catch (Exception ex)
@@ -243,30 +243,73 @@ internal static class ShellContextMenuEnumerator
     }
 
     private static T WithContextMenu<T>(string path, Func<IContextMenu, HMENU, T> work)
+        => WithContextMenu(new[] { path }, work);
+
+    private static T WithContextMenu<T>(IReadOnlyList<string> paths, Func<IContextMenu, HMENU, T> work)
     {
-        using var item = new ShellItem(path);
-        var parent = item.Parent;
-        if (parent == null)
-            throw new InvalidOperationException("No parent shell folder.");
+        if (paths == null || paths.Count == 0)
+            throw new ArgumentException("No paths for context menu.", nameof(paths));
 
-        using (parent)
+        var shellItems = new List<ShellItem>(paths.Count);
+        try
         {
-            var cm = parent.GetChildrenUIObjects<IContextMenu>(HWND.NULL, item);
-            if (cm == null)
-                throw new InvalidOperationException("IContextMenu unavailable.");
+            foreach (var path in paths)
+                shellItems.Add(new ShellItem(path));
 
-            var hMenu = CreatePopupMenu();
-            try
+            // Multi-select IContextMenu requires a shared parent folder (Explorer rule).
+            var parent = shellItems[0].Parent as ShellFolder;
+            if (parent == null)
+                throw new InvalidOperationException("No parent shell folder.");
+
+            using (parent)
             {
-                return work(cm, hMenu);
-            }
-            finally
-            {
-                if (hMenu != HMENU.NULL)
-                    DestroyMenu(hMenu);
-                Marshal.ReleaseComObject(cm);
+                var cm = parent.GetChildrenUIObjects<IContextMenu>(HWND.NULL, shellItems.ToArray());
+                if (cm == null)
+                    throw new InvalidOperationException("IContextMenu unavailable.");
+
+                var hMenu = CreatePopupMenu();
+                try
+                {
+                    return work(cm, hMenu);
+                }
+                finally
+                {
+                    if (hMenu != HMENU.NULL)
+                        DestroyMenu(hMenu);
+                    Marshal.ReleaseComObject(cm);
+                }
             }
         }
+        finally
+        {
+            foreach (var it in shellItems)
+                it.Dispose();
+        }
+    }
+
+    private static List<string> NormalizeMany(IReadOnlyList<string>? paths)
+    {
+        var list = new List<string>();
+        if (paths == null) return list;
+        foreach (var raw in paths)
+        {
+            var path = Normalize(raw);
+            if (string.IsNullOrEmpty(path)) continue;
+            if (!File.Exists(path) && !Directory.Exists(path)) continue;
+            if (!list.Contains(path, StringComparer.OrdinalIgnoreCase))
+                list.Add(path);
+        }
+        // Same-parent only for multi-select shell menus.
+        if (list.Count > 1)
+        {
+            var parent = Path.GetDirectoryName(list[0].TrimEnd('\\', '/')) ?? "";
+            list = list.Where(p =>
+            {
+                var d = Path.GetDirectoryName(p.TrimEnd('\\', '/')) ?? "";
+                return string.Equals(d, parent, StringComparison.OrdinalIgnoreCase);
+            }).ToList();
+        }
+        return list;
     }
 
     private static string GetMenuItemLabel(HMENU hMenu, int index)

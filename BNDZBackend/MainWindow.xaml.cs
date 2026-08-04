@@ -2054,13 +2054,26 @@ namespace BNDZ
                 else if (type == "SHOW_CONTEXT_MENU")
                 {
                     var payload = root.GetProperty("payload");
-                    string path = NormalizeFsPath(payload.GetProperty("path").GetString() ?? "");
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in pathsEl.EnumerateArray())
+                        {
+                            var p = NormalizeFsPath(el.GetString() ?? "");
+                            if (!string.IsNullOrEmpty(p)) paths.Add(p);
+                        }
+                    }
+                    if (paths.Count == 0 && payload.TryGetProperty("path", out var pathEl))
+                    {
+                        var single = NormalizeFsPath(pathEl.GetString() ?? "");
+                        if (!string.IsNullOrEmpty(single)) paths.Add(single);
+                    }
                     int x = payload.GetProperty("x").GetInt32();
                     int y = payload.GetProperty("y").GetInt32();
 
                     Dispatcher.Invoke(() => {
                         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                        _shellContextMenuService.ShowNativeContextMenu(hwnd, path, x, y);
+                        _shellContextMenuService.ShowNativeContextMenu(hwnd, paths, x, y);
                     });
                 }
                 else if (type == "SHOW_HOST_CONTEXT_MENU")
@@ -2129,17 +2142,29 @@ namespace BNDZ
                 else if (type == "GET_CONTEXT_MENU_ITEMS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    string path = "";
+                    var paths = new List<string>();
                     try {
                         var payload = root.GetProperty("payload");
-                        path = NormalizeFsPath(payload.TryGetProperty("path", out var pathEl) ? pathEl.GetString() ?? "" : "");
+                        if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var el in pathsEl.EnumerateArray())
+                            {
+                                var p = NormalizeFsPath(el.GetString() ?? "");
+                                if (!string.IsNullOrEmpty(p)) paths.Add(p);
+                            }
+                        }
+                        if (paths.Count == 0 && payload.TryGetProperty("path", out var pathEl))
+                        {
+                            var single = NormalizeFsPath(pathEl.GetString() ?? "");
+                            if (!string.IsNullOrEmpty(single)) paths.Add(single);
+                        }
                     } catch { }
 
                     _ = Task.Run(() => 
                     {
                         object? payloadObj = null;
                         try {
-                            payloadObj = _shellContextMenuService.GetContextMenuItems(path)
+                            payloadObj = _shellContextMenuService.GetContextMenuItems(paths)
                                 .Select(MapContextMenuItemDto)
                                 .ToList();
                         } catch (Exception ex) {
@@ -2225,6 +2250,52 @@ namespace BNDZ
                         string? sendToTarget = payload.TryGetProperty("sendToTarget", out var stEl) ? stEl.GetString() : null;
                         _shellContextMenuService.InvokeVerb(paths, verb, hwnd, bypassRecycle, sendToTarget);
                     });
+                }
+                else if (type == "SET_SHELL_CLIPBOARD")
+                {
+                    // Explorer-compatible CF_HDROP cut/copy so BNDZ ↔ Explorer paste works.
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var paths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in pathsEl.EnumerateArray())
+                        {
+                            var p = NormalizeFsPath(el.GetString() ?? "");
+                            if (!string.IsNullOrEmpty(p)) paths.Add(p);
+                        }
+                    }
+                    bool cut = payload.TryGetProperty("cut", out var cutEl) && cutEl.ValueKind == JsonValueKind.True;
+                    bool ok = false;
+                    try
+                    {
+                        ok = Dispatcher.Invoke(() => _shellContextMenuService.TrySetShellClipboard(paths, cut));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"SET_SHELL_CLIPBOARD failed: {ex.Message}");
+                    }
+                    PostMeshIpcResult(idProp, "SET_SHELL_CLIPBOARD_RESULT", new { ok, count = paths.Count, cut });
+                }
+                else if (type == "GET_SHELL_CLIPBOARD")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    try
+                    {
+                        var (paths, cut, ok) = Dispatcher.Invoke(() => _shellContextMenuService.TryGetShellClipboard());
+                        PostMeshIpcResult(idProp, "GET_SHELL_CLIPBOARD_RESULT", new
+                        {
+                            ok,
+                            cut,
+                            paths = paths ?? new List<string>(),
+                            action = !ok || paths == null || paths.Count == 0 ? "" : (cut ? "cut" : "copy"),
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"GET_SHELL_CLIPBOARD failed: {ex.Message}");
+                        PostMeshIpcResult(idProp, "GET_SHELL_CLIPBOARD_RESULT", new { ok = false, cut = false, paths = Array.Empty<string>(), action = "", error = ex.Message });
+                    }
                 }
                 else if (type == "GET_SHARE_MENU_ITEMS")
                 {
