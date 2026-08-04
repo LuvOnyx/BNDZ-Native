@@ -77,7 +77,8 @@ public static class RecycleBinService
                             if (item.Properties.TryGetValue(PKEY_Recycle_DeletedFrom, out var fromVal) && fromVal is string from)
                             {
                                 originalLocation = from;
-                                var leaf = item.Name ?? name;
+                                var leaf = Path.GetFileName((item.Name ?? name).TrimEnd('\\', '/'));
+                                if (string.IsNullOrWhiteSpace(leaf)) leaf = name;
                                 originalPath = Path.Combine(from, leaf);
                             }
                         }

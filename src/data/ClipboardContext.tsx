@@ -157,6 +157,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
   const setClipboardState = useCallback((items: string[], action: ClipboardAction) => {
     // Keep original path strings — resolve to Windows FS paths at paste / shell sync time.
     // Blind toWindowsPath mangles /bndz/ram/... into bndz\ram\...
+    if (IPC.isNative) skipNextShellImportRef.current = true;
     const next = applyLocalClipboard(items, action);
     if (!next || !IPC.isNative) return;
 
@@ -183,6 +184,9 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       return empty;
     });
     persistClipboard(empty);
+    if (IPC.isNative) {
+      void IPC.clearShellClipboard().catch(() => { /* best effort */ });
+    }
   }, [pushHistory]);
 
   const restorePreviousClipboard = useCallback((): boolean => {
@@ -222,7 +226,7 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
   }, [clipboard]);
 
   useEffect(() => {
-    const onBlur = () => persistClipboard(clipboard);
+    const onBlur = () => persistClipboard(clipboardRef.current);
     const onFocus = () => {
       const stored = loadStoredClipboard();
       if (stored.items.length && stored.action) {
@@ -239,14 +243,15 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
     };
-  }, [clipboard, logClipboard, importShellClipboard]);
+  }, [logClipboard, importShellClipboard]);
 
   const executePaste = useCallback(async (targetDir: string, options?: PasteOptions) => {
     const panePath = targetDir.replace(/\\/g, '/');
     // Block smart-view / workspace virtual paths — RAM staging zone mounts are real disks.
     if (isBndzVirtualPath(panePath) && !isBndzRamWritablePath(panePath)) return;
 
-    // Prefer live Windows FileDrop (Explorer → BNDZ) when present.
+    // Shell CF_HDROP wins only when local clipboard is empty, or paths match (Explorer ↔ BNDZ).
+    // Local-only clips (RAM / virtual that never synced) must not be clobbered by stale Explorer HDROP.
     let sourceItems = clipboard.items;
     let sourceAction: ClipboardAction = clipboard.action;
     if (IPC.isNative) {
@@ -256,11 +261,14 @@ export function ClipboardProvider({ children }: { children: React.ReactNode }) {
           const shellAction: ClipboardAction = shell.action === 'cut' || shell.cut ? 'cut' : 'copy';
           const shellItems = shell.paths.map(p => toWindowsPath(p)).filter(Boolean);
           if (shellItems.length) {
-            sourceItems = shellItems;
-            sourceAction = shellAction;
-            // Keep UI cut ghosting / Paste enablement in sync.
-            if (!clipboard.items.length || !pathsEqualIgnoreCase(clipboard.items, shellItems) || clipboard.action !== shellAction) {
-              applyLocalClipboard(shellItems, shellAction);
+            const localEmpty = !clipboard.items.length || !clipboard.action;
+            const sameAsShell = !localEmpty && pathsEqualIgnoreCase(clipboard.items, shellItems);
+            if (localEmpty || sameAsShell) {
+              sourceItems = shellItems;
+              sourceAction = shellAction;
+              if (localEmpty || clipboard.action !== shellAction) {
+                applyLocalClipboard(shellItems, shellAction);
+              }
             }
           }
         }

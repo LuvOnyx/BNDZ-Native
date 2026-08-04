@@ -87,7 +87,7 @@ internal static class ShellContextMenuEnumerator
             return WithContextMenu(normalized, (cm, hMenu) =>
             {
                 var hr = cm.QueryContextMenu(hMenu, 0, CmdFirst, CmdLast,
-                    CMF.CMF_NORMAL | CMF.CMF_EXPLORE | CMF.CMF_EXTENDEDVERBS);
+                    CMF.CMF_NORMAL | CMF.CMF_EXPLORE | CMF.CMF_CANRENAME | CMF.CMF_EXTENDEDVERBS);
                 if (hr.Failed) return false;
 
                 var cm2 = cm as IContextMenu2;

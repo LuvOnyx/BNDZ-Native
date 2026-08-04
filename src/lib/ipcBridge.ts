@@ -1285,6 +1285,19 @@ export const IPC = {
     ).catch(() => ({ ok: false, paths: [], action: '' }));
   },
 
+  /** Clear Windows FileDrop after a cut paste (Explorer parity). */
+  clearShellClipboard(): Promise<{ ok?: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_clearShellClipboard`;
+    return _nativeCall<{ ok?: boolean }>(
+      'CLEAR_SHELL_CLIPBOARD',
+      'CLEAR_SHELL_CLIPBOARD_RESULT',
+      id,
+      {},
+      5000,
+    ).catch(() => ({ ok: false }));
+  },
+
   shellExecute(
     action: 'open' | 'openWith' | 'copyPath' | 'compress' | 'openTerminal' | 'openExplorer' | 'executeScript' | string,
     path: string | string[],

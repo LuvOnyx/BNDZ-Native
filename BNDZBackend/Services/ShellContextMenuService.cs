@@ -106,6 +106,16 @@ public sealed class ShellContextMenuService
     public void ShowNativeContextMenu(IntPtr hwnd, IEnumerable<string> rawPaths, int screenX, int screenY)
     {
         var paths = NormalizeExistingPaths(rawPaths);
+        // Same-parent only — IShellItemArray / CreateFromItems requires a shared folder.
+        if (paths.Count > 1)
+        {
+            var parent = Path.GetDirectoryName(paths[0].TrimEnd('\\', '/')) ?? "";
+            paths = paths.Where(p =>
+            {
+                var d = Path.GetDirectoryName(p.TrimEnd('\\', '/')) ?? "";
+                return string.Equals(d, parent, StringComparison.OrdinalIgnoreCase);
+            }).ToList();
+        }
         if (paths.Count == 0) return;
 
         try
@@ -433,6 +443,7 @@ public sealed class ShellContextMenuService
                 {
                     if (System.Windows.Clipboard.GetDataObject()?.GetData("Preferred DropEffect") is MemoryStream ms)
                     {
+                        if (ms.CanSeek) ms.Position = 0;
                         var b = new byte[4];
                         if (ms.Read(b, 0, 4) == 4)
                             isCut = (BitConverter.ToInt32(b, 0) & 2) == 2;
@@ -447,6 +458,33 @@ public sealed class ShellContextMenuService
         {
             Debug.WriteLine($"TryGetShellClipboard failed: {ex.Message}");
             return (new List<string>(), false, false);
+        }
+    }
+
+    /// <summary>Clear Windows FileDrop clipboard after a cut paste (Explorer parity).</summary>
+    public bool TryClearShellClipboard()
+    {
+        try
+        {
+            return System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    if (System.Windows.Clipboard.ContainsFileDropList())
+                        System.Windows.Clipboard.Clear();
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"TryClearShellClipboard failed: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"TryClearShellClipboard failed: {ex.Message}");
+            return false;
         }
     }
 
@@ -496,6 +534,7 @@ public sealed class ShellContextMenuService
                     {
                         if (System.Windows.Clipboard.GetDataObject()?.GetData("Preferred DropEffect") is MemoryStream ms)
                         {
+                            if (ms.CanSeek) ms.Position = 0;
                             var b = new byte[4];
                             ms.Read(b, 0, 4);
                             isMove = (BitConverter.ToInt32(b, 0) & 2) == 2;

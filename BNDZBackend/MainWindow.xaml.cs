@@ -2343,6 +2343,20 @@ namespace BNDZ
                         PostMeshIpcResult(idProp, "GET_SHELL_CLIPBOARD_RESULT", new { ok = false, cut = false, paths = Array.Empty<string>(), action = "", error = ex.Message });
                     }
                 }
+                else if (type == "CLEAR_SHELL_CLIPBOARD")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    bool ok = false;
+                    try
+                    {
+                        ok = Dispatcher.Invoke(() => _shellContextMenuService.TryClearShellClipboard());
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"CLEAR_SHELL_CLIPBOARD failed: {ex.Message}");
+                    }
+                    PostMeshIpcResult(idProp, "CLEAR_SHELL_CLIPBOARD_RESULT", new { ok });
+                }
                 else if (type == "GET_SHARE_MENU_ITEMS")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;

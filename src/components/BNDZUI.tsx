@@ -9283,11 +9283,6 @@ export default function BNDZUI() {
                     onContextMenu={(e) => {
                        e.preventDefault();
                        e.stopPropagation();
-                       // Shift+right-click → folder canvas menu (New / Paste) even when the list is full.
-                       if (e.shiftKey) {
-                         void handleContextMenuRequest(e, panePath, null, true, null, undefined, 'list-background');
-                         return;
-                       }
                        contextMenuBlockRef.current = true;
                        suppressNavClickUntilRef.current = Date.now() + 800;
                        const isPart = currentTab.selectedItems.includes(entity.id);
@@ -9305,8 +9300,19 @@ export default function BNDZUI() {
                        if (!contextPaths.length) {
                          contextPaths = [joinPanePath(panePath, entity)];
                        }
-
-                       handleContextMenuRequest(e, panePath, entity.id, isDir, entity.name, contextPaths, 'list-item', entity.extension || null);
+                       // Shift+RMB on the selection → live host shell menu (handleContextMenuRequest).
+                       // Empty-canvas Shift+RMB still opens background New/Paste.
+                       const isDir = entity.type === 'directory';
+                       void handleContextMenuRequest(
+                         e,
+                         panePath,
+                         entity.id,
+                         isDir,
+                         entity.name,
+                         contextPaths,
+                         'list-item',
+                         entity.extension || null,
+                       );
                     }}
                     draggable={false}
                     onDragStart={(e) => {
