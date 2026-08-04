@@ -25,6 +25,7 @@ import { pinPathsToSpatialCanvas } from '../lib/spatialCanvasStore';
 import { resolveTagKey, entityHasTag } from '../lib/tagUtils';
 import { dedupePinnedFavorites, collapseKnownFolderShadowPath } from '../lib/rapidAccessDefaults';
 import { resolveShellPropertiesPath } from '../lib/shellPaths';
+import { isOptionalStockContextEnabled, type OptionalStockContextId } from '../lib/shellMenuPresets';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
 import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
@@ -111,6 +112,7 @@ function ContextMenuView({
   onRestoreRecycleItems, onPurgeRecycleItems, onSelectAll, onInvertSelection,
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
+  const stockOn = (id: OptionalStockContextId) => isOptionalStockContextEnabled(config, id);
   const targetPaths = resolveContextTargetPaths(menu);
   const isBackground = isContextMenuBackground(menu);
   const isRecycleLocation = isRecycleBinLocationMenu(menu);
@@ -466,7 +468,7 @@ function ContextMenuView({
 
         {config.enableContextSubmenus !== false && (
           <ContextSubmenu label="Smart Tools" iconVerb="sparkles" groupClass="bg-smart">
-            {targetPaths.length > 0 && (
+            {stockOn('ask-agent') && targetPaths.length > 0 && (
               <ContextMenuItem
                 label="Ask about selection"
                 iconVerb="sparkles"
@@ -944,7 +946,7 @@ function ContextMenuView({
 
       <div className="bndz-context-menu-sep" />
 
-      {!isBackground && targetPaths.length > 0 && (
+      {!isBackground && targetPaths.length > 0 && stockOn('ask-agent') && (
         <ContextMenuItem
           label="Ask Agent about selection"
           iconVerb="sparkles"
@@ -1118,6 +1120,7 @@ function ContextMenuView({
             onClose();
           }}
         />
+        {stockOn('index') && (
         <ContextMenuItem
           label="Index folder for search"
           iconVerb="search"
@@ -1131,6 +1134,9 @@ function ContextMenuView({
             onClose();
           }}
         />
+        )}
+        {stockOn('hello-gate') && (
+        <>
         <ContextMenuItem
           label="Require Hello to open"
           iconVerb="lock"
@@ -1161,6 +1167,10 @@ function ContextMenuView({
             onClose();
           }}
         />
+        </>
+        )}
+        {stockOn('zk-vault') && (
+        <>
         <ContextMenuItem
           label="Create ZK Vault"
           iconVerb="lock"
@@ -1177,6 +1187,9 @@ function ContextMenuView({
             onClose();
           }}
         />
+        </>
+        )}
+        {stockOn('job-ticket') && (
         <ContextMenuItem
           label="Attach Job Ticket"
           iconVerb="clock_ui"
@@ -1201,6 +1214,8 @@ function ContextMenuView({
             onClose();
           }}
         />
+        )}
+        {stockOn('cross-volume') && (
         <ContextMenuItem
           label="Cross-volume board"
           iconVerb="sync_folders"
@@ -1212,16 +1227,19 @@ function ContextMenuView({
             onClose();
           }}
         />
+        )}
         </>
       ) : (
+        stockOn('smart-rename') ? (
         <ContextMenuItem
           label="Smart Rename"
           iconVerb="sparkles"
           onClick={() => { onOpenBatchRename?.(); onClose(); }}
         />
+        ) : null
       )}
 
-      {!isBackground && targetPaths.length > 0 && (
+      {!isBackground && targetPaths.length > 0 && stockOn('spatial-pin') && (
         <ContextMenuItem
           label="Pin to Spatial Canvas"
           iconVerb="map"
@@ -1239,7 +1257,7 @@ function ContextMenuView({
         />
       )}
 
-      {!isBackground && targetPaths.length > 0 && (
+      {!isBackground && targetPaths.length > 0 && stockOn('automation') && (
         <ContextMenuItem
           label="Send to Automation"
           iconVerb="emblem-shared"
@@ -1254,21 +1272,27 @@ function ContextMenuView({
 
       {!isBackground && targetPaths.length > 0 && IPC.isNative && (
         <>
+          {stockOn('mesh-drop') && (
           <ContextMenuItem
             label="Mesh Drop…"
             iconVerb="emblem-shared"
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
+          )}
+          {stockOn('ghost-link') && (
           <ContextMenuItem
             label="Ghost-Link offload…"
             iconVerb="emblem-symbolic-link"
             onClick={() => { void onGhostLinkOffload?.(targetPaths); onClose(); }}
           />
+          )}
+          {stockOn('ram-staging') && (
           <ContextMenuItem
             label="Stage to RAM…"
             iconVerb="hard_drive_ui"
             onClick={() => { void onStageToRam?.(targetPaths); onClose(); }}
           />
+          )}
         </>
       )}
 
@@ -1509,7 +1533,7 @@ function ContextMenuView({
       <div className="bndz-context-menu-sep" />
       <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
 
-      {config.enableIconContextSubmenu && targetPaths.length === 1 && (
+      {stockOn('change-icon') && config.enableIconContextSubmenu !== false && targetPaths.length === 1 && (
         <ContextNestedSubmenu
           label={<><Icons8Icon id="picture_ui" size={14} className="mr-0.5" /> Change Icon</>}
           panelClassName="min-w-[180px]"

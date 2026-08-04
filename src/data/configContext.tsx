@@ -42,6 +42,10 @@ export interface AppConfig {
     iconLibrariesInitialized?: boolean;
     customContextMenuActions?: any[];
     globalContextMenuActions?: any[];
+    /** Optional BNDZ stock context rows (Shell Menus). Empty = short core menu. */
+    enabledStockContextMenuIds?: string[];
+    shellMenuHiddenIds?: string[];
+    shellMenuPinnedIds?: string[];
     confirmDeleteOperations?: boolean;
     allowGlobalIconOverwrite?: boolean;
     autoConvertIcons?: boolean;
@@ -305,6 +309,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
     useCustomContextMenu: true,
     enableIconContextSubmenu: true,
     enableContextSubmenus: true,
+    enabledStockContextMenuIds: [],
     injectGlobalContextMenu: false,
     allowGlobalIconOverwrite: false,
     autoConvertIcons: true,

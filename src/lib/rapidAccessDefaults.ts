@@ -89,8 +89,8 @@ export function knownFolderDedupeKey(
 
 /**
  * Prefer real filesystem paths from GET_SYSTEM_SHORTCUTS so the address bar shows
- * `C:\Users\…\Desktop` instead of `shell:Desktop`. Keep shell: only as iconPath.
- * Always collapse Desktop\Desktop shadows.
+ * `C:\Users\…\Desktop` instead of `shell:Desktop`. Use the same FS path for icon
+ * fetch (shell: tokens → white page glyphs). Always collapse Desktop\Desktop shadows.
  */
 export function buildRapidAccessDefaults(
   username: string,
@@ -114,13 +114,17 @@ export function buildRapidAccessDefaults(
     const path = collapseKnownFolderShadowPath(toPanePath(raw), shortcuts);
     const hideKey = knownFolderDedupeKey(path, shortcuts) || normPath(path);
     if (hidden.has(hideKey)) continue;
-    const iconShell = shellKey || iconMap[name];
+    // Real FS path → unique Desktop/Documents glyphs. Fall back to shell: only when
+    // we never resolved a profile folder (rare / Public edge cases).
+    const hasFsPath = !/^\/shell:/i.test(path) && !/^shell:/i.test(path);
     defaults.push({
       name,
       path,
-      iconPath: iconShell
-        ? (String(iconShell).startsWith('/') ? String(iconShell) : `/${String(iconShell)}`)
-        : undefined,
+      iconPath: hasFsPath ? path : (
+        shellKey
+          ? (String(shellKey).startsWith('/') ? String(shellKey) : `/${String(shellKey)}`)
+          : undefined
+      ),
       isDefault: true,
     });
   }
@@ -129,13 +133,16 @@ export function buildRapidAccessDefaults(
     const gPath = collapseKnownFolderShadowPath(toPanePath(galleryPath), shortcuts);
     const hideKey = knownFolderDedupeKey(gPath, shortcuts) || normPath(gPath);
     if (!hidden.has(hideKey)) {
+      const hasFsPath = !/^\/shell:/i.test(gPath) && !/^shell:/i.test(gPath);
       const galleryIcon = iconMap.Gallery || KNOWN_FOLDER_SHELL.Gallery;
       defaults.push({
         name: 'Gallery',
         path: gPath,
-        iconPath: galleryIcon
-          ? (String(galleryIcon).startsWith('/') ? String(galleryIcon) : `/${String(galleryIcon)}`)
-          : undefined,
+        iconPath: hasFsPath
+          ? gPath
+          : (galleryIcon
+            ? (String(galleryIcon).startsWith('/') ? String(galleryIcon) : `/${String(galleryIcon)}`)
+            : undefined),
         isDefault: true,
       });
     }

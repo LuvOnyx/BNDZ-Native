@@ -48,6 +48,40 @@ export const PRESET_CATEGORIES = [
   { id: 'Structure', label: 'Structure', color: '#64748b' },
 ] as const;
 
+/**
+ * Power / host extras — OFF by default so the live menu stays Explorer-short.
+ * Enable individually in Shell Menus → Optional stock items.
+ */
+export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
+  { id: 'ask-agent', label: 'Ask Agent about selection', desc: 'Open Smart Tools agent on the selection', iconVerb: 'sparkles', surfaces: ['file', 'folder'] as const },
+  { id: 'index', label: 'Index folder for search', desc: 'Kick BNDZ indexed search for this folder', iconVerb: 'search', surfaces: ['folder'] as const },
+  { id: 'hello-gate', label: 'Hello gate (require / remove)', desc: 'Biometric lock on folder open', iconVerb: 'lock', surfaces: ['folder'] as const },
+  { id: 'zk-vault', label: 'Create / Unlock ZK Vault', desc: 'Zero-knowledge vault actions', iconVerb: 'lock', surfaces: ['folder'] as const },
+  { id: 'job-ticket', label: 'Attach Job Ticket', desc: 'Production ticket on the folder', iconVerb: 'clock_ui', surfaces: ['folder'] as const },
+  { id: 'cross-volume', label: 'Cross-volume board', desc: 'Seed Twin Volume from this folder', iconVerb: 'sync_folders', surfaces: ['folder'] as const },
+  { id: 'smart-rename', label: 'Smart Rename', desc: 'Batch rename on files', iconVerb: 'sparkles', surfaces: ['file'] as const },
+  { id: 'spatial-pin', label: 'Pin to Spatial Canvas', desc: 'Drop selection onto Spatial', iconVerb: 'map', surfaces: ['file', 'folder'] as const },
+  { id: 'automation', label: 'Send to Automation', desc: 'Open Automations with selected paths', iconVerb: 'emblem-shared', surfaces: ['file', 'folder'] as const },
+  { id: 'mesh-drop', label: 'Mesh Drop…', desc: 'Ship selection over Mesh Drop', iconVerb: 'share', surfaces: ['file', 'folder'] as const },
+  { id: 'ghost-link', label: 'Ghost-Link offload…', desc: 'Offload selection to ghost links', iconVerb: 'link', surfaces: ['file', 'folder'] as const },
+  { id: 'ram-staging', label: 'Stage to RAM…', desc: 'ImDisk / AIM RAM staging', iconVerb: 'harddrive', surfaces: ['file', 'folder'] as const },
+  { id: 'change-icon', label: 'Change Icon', desc: 'Icon Studio submenu on Properties', iconVerb: 'picture_ui', surfaces: ['file', 'folder'] as const },
+] as const;
+
+export type OptionalStockContextId = (typeof OPTIONAL_STOCK_CONTEXT_ITEMS)[number]['id'];
+
+/** Default: empty — shorter core menu. */
+export const DEFAULT_ENABLED_STOCK_CONTEXT_IDS: OptionalStockContextId[] = [];
+
+export function isOptionalStockContextEnabled(
+  config: { enabledStockContextMenuIds?: string[] | null } | null | undefined,
+  id: OptionalStockContextId,
+): boolean {
+  const list = config?.enabledStockContextMenuIds;
+  if (!Array.isArray(list) || list.length === 0) return false;
+  return list.includes(id);
+}
+
 /** Built-in BNDZ right-click rows the designer previews around your custom zone. */
 export const STOCK_BNDZ_MENU: StockMenuRow[] = [
   { id: 'open', label: 'Open', iconVerb: 'open', kind: 'item', surfaces: ['file', 'folder'] },
@@ -64,19 +98,16 @@ export const STOCK_BNDZ_MENU: StockMenuRow[] = [
   { id: 'rename', label: 'Rename', iconVerb: 'rename', kind: 'item', surfaces: ['file', 'folder'] },
   { id: 'delete', label: 'Delete', iconVerb: 'delete', kind: 'item', surfaces: ['file', 'folder'] },
   { id: 'sep-2', label: '', kind: 'sep', surfaces: ['file', 'folder'] },
+  { id: 'share', label: 'Share', iconVerb: 'share', kind: 'item', surfaces: ['file', 'folder'] },
+  { id: 'tags', label: 'Tags', iconVerb: 'tag', kind: 'submenu', surfaces: ['file', 'folder'] },
   { id: 'pin', label: 'Pin to Rapid access', iconVerb: 'star', kind: 'item', surfaces: ['folder'] },
-  { id: 'index', label: 'Index folder for search', iconVerb: 'search', kind: 'item', surfaces: ['folder'] },
-  { id: 'mesh', label: 'Mesh Drop…', iconVerb: 'share', kind: 'item', surfaces: ['file', 'folder'] },
-  { id: 'ghost', label: 'Ghost-Link offload…', iconVerb: 'link', kind: 'item', surfaces: ['file', 'folder'] },
-  { id: 'ram', label: 'Stage to RAM…', iconVerb: 'harddrive', kind: 'item', surfaces: ['file', 'folder'] },
-  { id: 'health', label: 'Scan library health…', iconVerb: 'shield', kind: 'item', surfaces: ['folder'] },
-  { id: 'sandbox', label: 'Open sandbox session…', iconVerb: 'folder', kind: 'item', surfaces: ['folder'] },
-  { id: 'smart-rename', label: 'Smart Rename', iconVerb: 'sparkles', kind: 'item', surfaces: ['file'] },
   { id: 'sep-before-custom', label: '', kind: 'sep', surfaces: ['file', 'folder', 'background'] },
   { id: 'custom-zone', label: 'Your custom items', kind: 'zone', surfaces: ['file', 'folder', 'background'] },
   { id: 'sep-after-custom', label: '', kind: 'sep', surfaces: ['file', 'folder', 'background'] },
   { id: 'open-in', label: 'Open in…', iconVerb: 'open', kind: 'submenu', surfaces: ['file', 'folder'] },
-  { id: 'share', label: 'Share', iconVerb: 'share', kind: 'item', surfaces: ['file', 'folder'] },
+  { id: 'archive', label: 'Archive', iconVerb: 'archive', kind: 'submenu', surfaces: ['file', 'folder'] },
+  { id: 'create-link', label: 'Create Link', iconVerb: 'link', kind: 'submenu', surfaces: ['file', 'folder'] },
+  { id: 'copy-path', label: 'Copy Path', iconVerb: 'copypath', kind: 'item', surfaces: ['file', 'folder'] },
   { id: 'properties', label: 'Properties', iconVerb: 'properties', kind: 'item', surfaces: ['file', 'folder', 'background'] },
 ];
 

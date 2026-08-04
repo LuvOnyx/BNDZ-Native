@@ -29,10 +29,12 @@ import PluginPanelShell from './PluginPanelShell';
 import {
   PRESET_CATEGORIES,
   STOCK_BNDZ_MENU,
+  OPTIONAL_STOCK_CONTEXT_ITEMS,
   DEFAULT_STOCK_GLOBAL_ACTIONS,
   presetsForSurface,
   iconVerbForAction,
   type MenuActionSeed,
+  type OptionalStockContextId,
   type TargetMode,
 } from '../../lib/shellMenuPresets';
 import { ShellVerbForgePanel } from './ShellVerbForgePlugin';
@@ -268,6 +270,17 @@ export default function ContextMenuPlugin({
 
   const hiddenShellIds: string[] = Array.isArray(config.shellMenuHiddenIds) ? config.shellMenuHiddenIds : [];
   const pinnedShellIds: string[] = Array.isArray(config.shellMenuPinnedIds) ? config.shellMenuPinnedIds : [];
+  const enabledStockIds = useMemo(() => {
+    const raw = Array.isArray(config.enabledStockContextMenuIds) ? config.enabledStockContextMenuIds : [];
+    return new Set(raw.filter(Boolean));
+  }, [config.enabledStockContextMenuIds]);
+
+  const toggleStockItem = (id: OptionalStockContextId) => {
+    const next = new Set(enabledStockIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    updateConfig({ enabledStockContextMenuIds: [...next] });
+  };
 
   useEffect(() => {
     setGlobalActions(((config.globalContextMenuActions as MenuAction[]) || []).map(a => ({ ...a, id: a.id || uid() })));
@@ -869,10 +882,60 @@ export default function ContextMenuPlugin({
                 </div>
               )}
               {tab === 'app' && (
+                <div className="bndz-cm-shell-panel">
+                  <div className="bndz-cm-section-label mb-1.5">Optional stock items</div>
+                  <p className="text-[10px] text-white/35 mb-2.5 leading-snug">
+                    Core Open / Cut / Copy / Paste / Delete / Rename / Share / Tags / Pin / Archive / Properties stay on by default.
+                    Enable power extras here — left off keeps the right-click menu short.
+                  </p>
+                  <div className="space-y-1 max-h-[220px] overflow-y-auto bndz-scrollbar">
+                    {OPTIONAL_STOCK_CONTEXT_ITEMS.map(item => {
+                      const on = enabledStockIds.has(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => toggleStockItem(item.id)}
+                          className={`bndz-cm-shell-row w-full text-left ${on ? '' : 'opacity-55'}`}
+                        >
+                          <span className="bndz-context-menu-icon w-[14px] flex justify-center shrink-0">
+                            <ContextMenuIcon verb={item.iconVerb} size={14} />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12px] text-white truncate">{item.label}</div>
+                            <div className="text-[10px] text-white/35 truncate">{item.desc}</div>
+                          </div>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wide shrink-0 ${on ? 'text-cyan-300/90' : 'text-white/30'}`}>
+                            {on ? 'On' : 'Off'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2.5">
+                    <button
+                      type="button"
+                      className="bndz-hub-btn-ghost text-[10px] px-2 py-1"
+                      onClick={() => updateConfig({ enabledStockContextMenuIds: OPTIONAL_STOCK_CONTEXT_ITEMS.map(i => i.id) })}
+                    >
+                      Enable all
+                    </button>
+                    <button
+                      type="button"
+                      className="bndz-hub-btn-ghost text-[10px] px-2 py-1"
+                      onClick={() => updateConfig({ enabledStockContextMenuIds: [] })}
+                    >
+                      Short menu (all off)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {tab === 'app' && (
                 <div className="bndz-cm-hint">
                   <Icons8Icon id="help_ui" size={12} className="opacity-50 shrink-0 mt-0.5" />
                   <p>
-                    Dim rows are built-in BNDZ commands (always present). Highlighted rows are yours — drag presets from the library, reorder, or drop on remove. Switch File / Folder / Empty space to see how the stock menu changes.
+                    Dim optional rows stay hidden until toggled above. Highlighted rows are your custom actions — drag presets from the library, reorder, or drop on remove. Switch File / Folder / Empty space for the stock preview.
                   </p>
                 </div>
               )}

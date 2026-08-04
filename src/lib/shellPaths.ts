@@ -220,9 +220,8 @@ export function resolveShellIconPath(path: string | null | undefined): string {
     if (win.toLowerCase() === 'shell:recyclebin') return SHELL_CLSID.recycleBin;
     return win;
   }
-  const leaf = pane.split('/').filter(Boolean).pop() || '';
-  const known = KNOWN_FOLDER_SHELL[leaf];
-  if (known) return known;
+  // Keep real FS paths as-is for icon extract. Remapping leaf names like
+  // Documents → shell:Personal produced generic white file glyphs.
   return win;
 }
 
