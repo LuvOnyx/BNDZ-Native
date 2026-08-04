@@ -33,6 +33,7 @@ import type { SortColumnId } from '../lib/listColumns';
 import type { ListGroupBy } from '../lib/listGrouping';
 import { LIST_GROUP_BY_OPTIONS } from '../lib/listGrouping';
 import { IPC } from '../lib/ipcBridge';
+import { requestNativePrompt } from '../lib/nativeDialog';
 import type { ClipboardAction } from '../data/ClipboardContext';
 import {
   classifyContextItemKind,
@@ -1134,13 +1135,17 @@ function ContextMenuView({
           label="Require Hello to open"
           iconVerb="lock"
           onClick={() => {
-            const winPath = toWindowsPath(normEntityPath);
-            const passphrase = window.prompt('Optional backup passphrase (leave blank for Hello-only):', '');
-            void import('../lib/ipcBridge').then(({ IPC }) => {
-              IPC.helloGateAdd(winPath, passphrase || undefined).then(res => {
-                setToastMessage(res.ok ? `Hello gate enabled for ${menu.entityName || 'folder'}.` : (res.error || 'Failed to add gate.'));
+            void (async () => {
+              const winPath = toWindowsPath(normEntityPath);
+              const passphrase = await requestNativePrompt({
+                title: 'Hello gate',
+                message: 'Optional backup passphrase (leave blank for Hello-only)',
+                defaultValue: '',
               });
-            });
+              if (passphrase == null) return;
+              const res = await IPC.helloGateAdd(winPath, passphrase || undefined);
+              setToastMessage(res.ok ? `Hello gate enabled for ${menu.entityName || 'folder'}.` : (res.error || 'Failed to add gate.'));
+            })();
             onClose();
           }}
         />
@@ -1176,20 +1181,23 @@ function ContextMenuView({
           label="Attach Job Ticket"
           iconVerb="clock_ui"
           onClick={() => {
-            const title = window.prompt('Job ticket title:', menu.entityName ? `${menu.entityName} delivery` : 'Production ticket');
-            if (!title?.trim()) { onClose(); return; }
-            const due = new Date(Date.now() + 24 * 3_600_000);
-            void import('../lib/ipcBridge').then(({ IPC }) => {
-              void IPC.jobTicketSave({
+            void (async () => {
+              const title = await requestNativePrompt({
+                title: 'Job ticket',
+                message: 'Ticket title',
+                defaultValue: menu.entityName ? `${menu.entityName} delivery` : 'Production ticket',
+              });
+              if (!title?.trim()) return;
+              const due = new Date(Date.now() + 24 * 3_600_000);
+              const res = await IPC.jobTicketSave({
                 folderPath: toWindowsPath(normEntityPath),
                 title: title.trim(),
                 dueUtc: due.toISOString(),
                 status: 'open',
-              }).then(res => {
-                setToastMessage(res.ok ? 'Job ticket attached.' : (res.error || 'Could not save ticket.'));
-                if (res.ok) window.dispatchEvent(new CustomEvent('bndz-job-ticket-changed'));
               });
-            });
+              setToastMessage(res.ok ? 'Job ticket attached.' : (res.error || 'Could not save ticket.'));
+              if (res.ok) window.dispatchEvent(new CustomEvent('bndz-job-ticket-changed'));
+            })();
             onClose();
           }}
         />

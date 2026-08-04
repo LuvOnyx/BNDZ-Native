@@ -142,7 +142,7 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
   return (
     <BndzWindowFrame
       title="History"
-      subtitle={`${maxEntries} max · ${undoItems.length} undo · ${redoItems.length} redo`}
+      subtitle={`BNDZ Action Log · ${maxEntries} max · ${undoItems.length} undo · ${redoItems.length} redo · Explorer keeps a separate Ctrl+Z stack`}
       iconId="clock_ui"
       onClose={onClose}
       widthClass="w-[min(560px,calc(100vw-2rem))]"
@@ -174,8 +174,11 @@ export default function ActionHistoryDialog({ open, onClose, onChanged }: Props)
             </div>
           )}
           {!loading && pool.length === 0 && (
-            <div className="bndz-plugin-card text-center py-12 text-gray-500 text-xs">
-              {tab === 'undo' ? 'No actions to undo yet.' : 'Nothing to redo.'}
+            <div className="bndz-plugin-card text-center py-12 text-gray-500 text-xs space-y-1">
+              <div>{tab === 'undo' ? 'No Action Log entries to undo yet.' : 'Nothing to redo in the Action Log.'}</div>
+              <div className="text-[10px] text-gray-600">
+                Recent BNDZ transfers appear here when Action Log is enabled. Windows Explorer may keep its own undo stack.
+              </div>
             </div>
           )}
           {!loading && pool.map((entry, idx) => {

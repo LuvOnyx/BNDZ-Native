@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Security.AccessControl;
@@ -316,6 +317,35 @@ namespace BNDZ.Services
             }
             catch {}
             return meta;
+        }
+
+        /// <summary>
+        /// Batch extended metadata for visible list rows. Caps at <paramref name="max"/>,
+        /// skips missing paths, and reuses <see cref="GetExtendedMetadata"/> per path.
+        /// </summary>
+        public Dictionary<string, Dictionary<string, string>> GetExtendedMetadataBatch(IEnumerable<string> paths, int max = 64)
+        {
+            var results = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            if (paths == null || max <= 0) return results;
+
+            var taken = 0;
+            foreach (var raw in paths)
+            {
+                if (taken >= max) break;
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var path = raw.Trim();
+                if (!File.Exists(path) && !Directory.Exists(path)) continue;
+                try
+                {
+                    results[path] = GetExtendedMetadata(path);
+                    taken++;
+                }
+                catch
+                {
+                    // Skip failures — callers still have per-path fallback.
+                }
+            }
+            return results;
         }
 
         private static string SummarizeAcl(FileSystemSecurity security)

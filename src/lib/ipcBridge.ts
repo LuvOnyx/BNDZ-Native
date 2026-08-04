@@ -118,7 +118,7 @@ export const IPC = {
         return "";
     } catch (err) {
         if (err instanceof Error && err.message === 'Native host required') throw err;
-        return `// Content of ${path}\n`;
+        return '';
     }
   },
 
@@ -1045,7 +1045,7 @@ export const IPC = {
       );
     }
     if (action === 'undo' || action === 'redo' || action === 'copy') {
-      return { ok: true };
+      return { ok: false, error: 'Native host required' };
     }
     return { ok: false, error: 'Native host required' };
   },
@@ -1894,16 +1894,8 @@ export const IPC = {
         paths,
       });
     }
-    return Promise.resolve([
-      { id: 'open',       label: 'Open',       icon: 'Open'     },
-      { id: 'edit',       label: 'Edit',       icon: 'Edit'     },
-      { id: 'share',      label: 'Share',      icon: 'Share'    },
-      { separator: true },
-      { id: 'copy',       label: 'Copy',       icon: 'Copy'     },
-      { id: 'cut',        label: 'Cut',        icon: 'Cut'      },
-      { id: 'delete',     label: 'Delete',     icon: 'Trash'    },
-      { id: 'properties', label: 'Properties', icon: 'Settings' },
-    ]);
+    // Never fabricate Explorer-looking menus outside the host.
+    return Promise.resolve([]);
   },
 
   /** Live Windows shell popup (Vanara IContextMenu / TrackPopupMenu) — never opens Explorer. */
@@ -1922,9 +1914,7 @@ export const IPC = {
       const id = `${Date.now()}_shareItems`;
       return _nativeCall<ShareMenuItem[]>('GET_SHARE_MENU_ITEMS', 'SHARE_MENU_ITEMS_RESULT', id, { path });
     }
-    return Promise.resolve([
-      { id: 'share', label: 'Share with apps…', kind: 'verb', verb: 'share', group: 'main' },
-    ]);
+    return Promise.resolve([]);
   },
 
   checkPathExists(path: string): Promise<boolean> {
@@ -1932,7 +1922,7 @@ export const IPC = {
       const id = `${Date.now()}_checkPath`;
       return _nativeCall<boolean>('CHECK_PATH_EXISTS', 'CHECK_PATH_RESULT', id, { path });
     }
-    return Promise.resolve(path.length > 2);
+    return Promise.resolve(false);
   },
 
   /** Expand `%AppData%` / `shell:Desktop` / etc. to a real Windows path via the host. */
@@ -2217,6 +2207,16 @@ export const IPC = {
     }
     // Never fake EXIF/media fields outside the host — hybrid tell.
     return Promise.resolve({});
+  },
+
+  getExtendedMetadataBatch(paths: string[]): Promise<Record<string, Record<string, string>>> {
+    if (!this.isNative || !paths?.length) return Promise.resolve({});
+    return nativeCall<{ results?: Record<string, Record<string, string>> }>(
+      'GET_EXTENDED_METADATA_BATCH',
+      'EXTENDED_METADATA_BATCH_RESULT',
+      { paths },
+      60000,
+    ).then(payload => payload?.results ?? {});
   },
 
   writeMediaTags(path: string, fields: Record<string, string | null | undefined>): Promise<{ ok?: boolean; error?: string }> {

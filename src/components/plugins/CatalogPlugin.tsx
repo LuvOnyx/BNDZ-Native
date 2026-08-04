@@ -4,6 +4,7 @@ import PluginPanelShell from './PluginPanelShell';
 import { listCatalogs, upsertCatalog, deleteCatalog, type CatalogEntry } from '../../lib/catalog';
 import { VF_ROOT } from '../../lib/virtualPaths';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { requestNativePrompt } from '../../lib/nativeDialog';
 import { pushToast } from '../ToastHost';
 import { IPC } from '../../lib/ipcBridge';
 import {
@@ -152,7 +153,11 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
 
   const setOp = async (op: 'union' | 'intersect' | 'subtract') => {
     if (!selected) return;
-    const otherId = window.prompt('Other catalog id or name');
+    const otherId = await requestNativePrompt({
+      title: `Catalog ${op}`,
+      message: 'Other catalog id or name',
+      defaultValue: '',
+    });
     if (!otherId?.trim()) return;
     const other = catalogs.find(c => c.id === otherId.trim() || c.name.toLowerCase() === otherId.trim().toLowerCase());
     if (!other) {

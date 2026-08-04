@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icons8Icon, DragHandleGlyph } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { requestNativePrompt } from '../../lib/nativeDialog';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -221,8 +222,12 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
     setSelected(new Set());
   };
 
-  const renameActive = () => {
-    const name = window.prompt('Stack name', stack?.name || 'Stack');
+  const renameActive = async () => {
+    const name = await requestNativePrompt({
+      title: 'Rename drop stack',
+      message: 'Stack name',
+      defaultValue: stack?.name || 'Stack',
+    });
     if (!name?.trim()) return;
     setStacks(prev => prev.map(s => s.id === activeId ? { ...s, name: name.trim() } : s));
   };

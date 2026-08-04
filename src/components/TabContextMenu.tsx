@@ -2,6 +2,7 @@ import React from 'react';
 import ClampedFixedMenu from './ClampedFixedMenu';
 import { Icons8Icon } from './Icons8Icon';
 import { TAB_ACCENT_PRESETS } from '../lib/tabColors';
+import { IPC } from '../lib/ipcBridge';
 
 interface TabContextMenuProps {
   x: number;
@@ -27,6 +28,101 @@ interface TabContextMenuProps {
 
 const itemClass =
   'bndz-context-menu-item w-full flex items-center gap-2.5 text-[12px] text-left disabled:opacity-40 disabled:pointer-events-none';
+
+export type TabHostContextMenuOpts = {
+  clientX: number;
+  clientY: number;
+  tabLabel?: string;
+  isLocked: boolean;
+  canClose: boolean;
+  canCloseOthers: boolean;
+  canCloseRight?: boolean;
+  showRefresh?: boolean;
+  showTearOff?: boolean;
+  onLock: () => void;
+  onClose: () => void;
+  onCloseOthers: () => void;
+  onCloseRight?: () => void;
+  onCloseAll: () => void;
+  onDuplicate: () => void;
+  onTearOff?: () => void;
+  onRefresh?: () => void;
+  /** v1 host menu: Reset Color only (color presets stay on React menu / skipped). */
+  onResetColor?: () => void;
+};
+
+/**
+ * Host-owned WPF tab context menu (native). Maps selected id → callbacks.
+ * Color presets are omitted in v1 — use Reset Color or the React menu when not native.
+ */
+export async function showTabHostContextMenu(opts: TabHostContextMenuOpts): Promise<void> {
+  const items: Array<{
+    id: string;
+    label: string;
+    separator?: boolean;
+    disabled?: boolean;
+    danger?: boolean;
+    bold?: boolean;
+  }> = [
+    { id: 'lock', label: opts.isLocked ? 'Unlock Tab' : 'Lock Tab' },
+    { id: 'close', label: 'Close', disabled: !opts.canClose },
+    { id: 'closeOthers', label: 'Close Others', disabled: !opts.canCloseOthers },
+    { id: 'closeRight', label: 'Close Tabs to the Right', disabled: !opts.canCloseRight },
+    { id: 'closeAll', label: 'Close All' },
+    { id: 'sep1', label: '', separator: true },
+    { id: 'duplicate', label: 'Duplicate Tab' },
+  ];
+
+  if (opts.showTearOff && opts.onTearOff) {
+    items.push({ id: 'tearOff', label: 'Tear Off to New Stage' });
+  }
+  if (opts.showRefresh && opts.onRefresh) {
+    items.push({ id: 'refresh', label: 'Refresh Tab' });
+  }
+  if (opts.onResetColor) {
+    items.push({ id: 'sep2', label: '', separator: true });
+    items.push({ id: 'resetColor', label: 'Reset Color' });
+  }
+
+  const id = await IPC.showHostContextMenu({
+    clientX: opts.clientX,
+    clientY: opts.clientY,
+    items,
+  });
+  if (!id) return;
+
+  switch (id) {
+    case 'lock':
+      opts.onLock();
+      break;
+    case 'close':
+      opts.onClose();
+      break;
+    case 'closeOthers':
+      opts.onCloseOthers();
+      break;
+    case 'closeRight':
+      opts.onCloseRight?.();
+      break;
+    case 'closeAll':
+      opts.onCloseAll();
+      break;
+    case 'duplicate':
+      opts.onDuplicate();
+      break;
+    case 'tearOff':
+      opts.onTearOff?.();
+      break;
+    case 'refresh':
+      opts.onRefresh?.();
+      break;
+    case 'resetColor':
+      opts.onResetColor?.();
+      break;
+    default:
+      break;
+  }
+}
 
 export function TabContextMenu({
   x,

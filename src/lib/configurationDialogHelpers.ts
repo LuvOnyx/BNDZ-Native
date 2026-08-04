@@ -35,10 +35,15 @@ export function createPreviewFormatRow(rows: PreviewFormatRow[]): PreviewFormatR
   return { i: String(n), n: `*.ext${n}`, c: true };
 }
 
-export function editPreviewFormatRow(rows: PreviewFormatRow[], index: number): PreviewFormatRow[] | null {
+export async function editPreviewFormatRow(rows: PreviewFormatRow[], index: number): Promise<PreviewFormatRow[] | null> {
   const row = rows[index];
   if (!row) return null;
-  const next = window.prompt('Preview format pattern (e.g. *.png):', row.n);
+  const { requestNativePrompt } = await import('./nativeDialog');
+  const next = await requestNativePrompt({
+    title: 'Preview format',
+    message: 'Pattern (e.g. *.png)',
+    defaultValue: row.n,
+  });
   if (next == null || !next.trim()) return null;
   const copy = [...rows];
   copy[index] = { ...row, n: next.trim() };
@@ -49,10 +54,15 @@ export function removePreviewFormatRow(rows: PreviewFormatRow[], index: number):
   return rows.filter((_, i) => i !== index);
 }
 
-export function editColorFilterExpression(rows: ColorFilterRow[], index: number): ColorFilterRow[] | null {
+export async function editColorFilterExpression(rows: ColorFilterRow[], index: number): Promise<ColorFilterRow[] | null> {
   const row = rows[index];
   if (!row) return null;
-  const next = window.prompt('Color filter expression (e.g. *.jpg;*.png):', row.t);
+  const { requestNativePrompt } = await import('./nativeDialog');
+  const next = await requestNativePrompt({
+    title: 'Color filter',
+    message: 'Expression (e.g. *.jpg;*.png)',
+    defaultValue: row.t,
+  });
   if (next == null || !next.trim()) return null;
   const copy = [...rows];
   copy[index] = { ...row, t: next.trim() };

@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { IPC } from '../lib/ipcBridge';
 
 export type BreadcrumbSeg = { path: string; label: string };
 
@@ -26,9 +27,29 @@ function countSegmentsThatFit(segments: BreadcrumbSeg[], availablePx: number): n
   return Math.max(2, Math.min(segments.length, fit));
 }
 
+async function showBreadcrumbOverflowHostMenu(
+  clientX: number,
+  clientY: number,
+  mid: BreadcrumbSeg[],
+  onNavigate: (path: string, opts?: { newTab?: boolean }) => void,
+): Promise<boolean> {
+  if (!IPC.isNative || !mid.length) return false;
+  const items = mid.map((seg, i) => ({
+    id: `crumb-${i}`,
+    label: seg.label || seg.path,
+  }));
+  const id = await IPC.showHostContextMenu({ clientX, clientY, items });
+  if (!id) return true; // Host showed; user cancelled
+  const idx = Number(String(id).replace(/^crumb-/, ''));
+  if (!Number.isFinite(idx) || idx < 0 || idx >= mid.length) return true;
+  onNavigate(mid[idx].path);
+  return true;
+}
+
 /**
  * Breadcrumb rail — only collapses middle segments when the row is genuinely tight.
  * File drag hover/drop uses pointer + native OLE (see fileDragHover.ts).
+ * Overflow "…" uses the host WPF menu when native so it isn't clipped by WebView.
  */
 export function BreadcrumbTrail({
   segments,
@@ -111,13 +132,18 @@ export function BreadcrumbTrail({
             className="shrink-0 px-1.5 py-0.5 rounded-[8px] text-[11px] font-semibold text-gray-300 hover:bg-[#333] border border-transparent hover:border-[#555]"
             onClick={(e) => {
               e.stopPropagation();
-              setMenuOpen(v => !v);
+              const { clientX, clientY } = e;
+              void (async () => {
+                const usedHost = await showBreadcrumbOverflowHostMenu(clientX, clientY, mid, onNavigate);
+                if (!usedHost) setMenuOpen(v => !v);
+                else setMenuOpen(false);
+              })();
             }}
             title={`${mid.length} hidden segment(s)`}
           >
             …
           </button>
-          {menuOpen && (
+          {menuOpen && !IPC.isNative && (
             <div
               className="absolute top-full left-8 z-[80] mt-1 min-w-[180px] max-w-[320px] py-1 rounded-[10px] border border-[#454545] bg-[#1e1e22]/98 shadow-xl backdrop-blur-sm"
               onMouseLeave={() => setMenuOpen(false)}

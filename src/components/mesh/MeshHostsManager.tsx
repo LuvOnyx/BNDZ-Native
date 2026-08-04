@@ -14,6 +14,7 @@ import {
   meshHostToPayload,
   createEmptyMeshHost,
 } from '../../lib/meshTypes';
+import { requestNativeConfirm } from '../../lib/nativeDialog';
 
 type Props = {
   onNavigate?: (path: string) => void;
@@ -77,7 +78,15 @@ export default function MeshHostsManager({ onNavigate, onStatus, compact, showHe
   };
 
   const deleteHost = async (hostId: string) => {
-    if (!confirm('Remove this remote host? Sync rules referencing it will stop working.')) return;
+    const ok = await requestNativeConfirm({
+      title: 'Remove remote host',
+      message: 'Remove this remote host? Sync rules referencing it will stop working.',
+      type: 'warning',
+      confirmLabel: 'Remove',
+      cancelLabel: 'Cancel',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await IPC.meshDeleteHost(hostId);

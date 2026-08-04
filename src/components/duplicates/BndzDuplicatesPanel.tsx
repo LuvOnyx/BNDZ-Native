@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { requestNativeConfirm } from '../../lib/nativeDialog';
 import RedundancyGroupsView from '../../spacedrive/port/RedundancyGroupsView';
 
 type DupGroup = { hash?: string; size?: number; paths?: string[]; modified?: number[] };
@@ -55,9 +56,15 @@ export default function BndzDuplicatesPanel({ folderPath, onReveal }: Props) {
       setError('No duplicate extras to delete.');
       return;
     }
-    if (!window.confirm(`Move ${extras.length} duplicate file(s) to the Recycle Bin? The first copy in each group is kept.`)) {
-      return;
-    }
+    const ok = await requestNativeConfirm({
+      title: 'Delete duplicate extras',
+      message: `Move ${extras.length} duplicate file(s) to the Recycle Bin?\n\nThe first copy in each group is kept.`,
+      type: 'warning',
+      confirmLabel: 'Move to Recycle Bin',
+      cancelLabel: 'Cancel',
+      destructive: true,
+    });
+    if (!ok) return;
     setDeleting(true);
     setError(null);
     try {

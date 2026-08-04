@@ -16,6 +16,7 @@ import {
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { requestNativePrompt } from '../../lib/nativeDialog';
 import { listCatalogs, upsertCatalog, type CatalogEntry } from '../../lib/catalog';
 import {
   loadSmartCollections,
@@ -199,8 +200,8 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
         });
     };
 
-    const saveFindPreset = () => {
-        const name = window.prompt('Preset name');
+    const saveFindPreset = async () => {
+        const name = await requestNativePrompt({ title: 'Save Find preset', message: 'Preset name', defaultValue: '' });
         if (!name?.trim()) return;
         const next = [
             ...findPresets.filter(p => p.name !== name.trim()),
@@ -224,7 +225,11 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             return;
         }
         if (action === 'catalog') {
-            const name = window.prompt('Catalog name', `Find ${new Date().toLocaleDateString()}`);
+            const name = await requestNativePrompt({
+                title: 'Save to catalog',
+                message: 'Catalog name',
+                defaultValue: `Find ${new Date().toLocaleDateString()}`,
+            });
             if (!name?.trim()) return;
             await upsertCatalog({ name: name.trim(), paths: paths.map(p => toWindowsPath(p)) });
             pushToast({ kind: 'success', title: 'Catalog', message: `Saved ${paths.length} path(s)` });
@@ -341,16 +346,22 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                     className="text-[10px] text-[#7eb8e8] hover:text-[#99c9f0]"
                                     title="Save current query as a smart collection"
                                     onClick={() => {
-                                        const q = query.trim();
-                                        if (!q) return;
-                                        const name = window.prompt('Collection name', q.slice(0, 40));
-                                        if (!name) return;
-                                        setSmartCollections(upsertSmartCollection({
-                                            name,
-                                            query: q,
-                                            scopePath: mode === 'local' ? scopePath : undefined,
-                                            searchContent,
-                                        }));
+                                        void (async () => {
+                                            const q = query.trim();
+                                            if (!q) return;
+                                            const name = await requestNativePrompt({
+                                                title: 'Save smart collection',
+                                                message: 'Collection name',
+                                                defaultValue: q.slice(0, 40),
+                                            });
+                                            if (!name?.trim()) return;
+                                            setSmartCollections(upsertSmartCollection({
+                                                name: name.trim(),
+                                                query: q,
+                                                scopePath: mode === 'local' ? scopePath : undefined,
+                                                searchContent,
+                                            }));
+                                        })();
                                     }}
                                 >
                                     Save

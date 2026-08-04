@@ -30,6 +30,7 @@ export const DEFAULT_CUSTOM_COLUMNS: CustomColumnDef[] = [
   { id: 'title', label: 'Title', propertyKey: 'Title', pattern: '{Media}', enabled: false, widthPx: 160 },
   { id: 'album', label: 'Album', propertyKey: 'Album', pattern: '{Media}', enabled: false, widthPx: 140 },
   { id: 'artists', label: 'Artists', propertyKey: 'Artists', pattern: '{Media}', enabled: true, widthPx: 140 },
+  { id: 'authors', label: 'Authors', propertyKey: 'Authors', pattern: '*.*', enabled: true, widthPx: 140 },
   { id: 'genre', label: 'Genre', propertyKey: 'Genre', pattern: '{Media}', enabled: false, widthPx: 100 },
   { id: 'year', label: 'Year', propertyKey: 'Year', pattern: '{Media}', enabled: false, widthPx: 64 },
   { id: 'track', label: 'Track', propertyKey: 'Track', pattern: '{Media}', enabled: false, widthPx: 64 },

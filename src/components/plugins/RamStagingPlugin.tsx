@@ -378,13 +378,13 @@ export default function RamStagingPlugin({ onNavigate, onStatus, selectedItems, 
                 onDrop={e => {
                   e.preventDefault();
                   const payload = readBndzFileDragData(e);
-                  const fromPlain = (e.dataTransfer.getData('text/plain') || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
                   const fromFiles = Array.from(e.dataTransfer.files || [])
                     .map(f => String((f as File & { path?: string }).path || '').trim())
                     .filter(Boolean);
+                  const fromPlain = (e.dataTransfer.getData('text/plain') || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
                   const paths = payload?.paths?.length
                     ? payload.paths
-                    : (fromPlain.length ? fromPlain : fromFiles);
+                    : (fromFiles.length ? fromFiles : fromPlain);
                   if (paths.length) void stagePaths(z.id, paths);
                 }}
               >

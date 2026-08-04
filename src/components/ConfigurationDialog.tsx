@@ -138,8 +138,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   };
 
   const editColorFilter = () => {
-    const next = editColorFilterExpression(colorFilters, selectedColorFilterIdx);
-    if (next) updateLocalConfig({ colorFilters: next });
+    void (async () => {
+      const next = await editColorFilterExpression(colorFilters, selectedColorFilterIdx);
+      if (next) updateLocalConfig({ colorFilters: next });
+    })();
   };
 
   const deleteColorFilter = () => {
@@ -183,8 +185,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   };
 
   const editPreviewFormat = () => {
-    const next = editPreviewFormatRow(previewFormats, selectedPreviewFormatIdx);
-    if (next) updateLocalConfig({ previewFormats: next });
+    void (async () => {
+      const next = await editPreviewFormatRow(previewFormats, selectedPreviewFormatIdx);
+      if (next) updateLocalConfig({ previewFormats: next });
+    })();
   };
 
   const removePreviewFormat = () => {
@@ -2407,8 +2411,15 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                          className="w-[80px]"
                          disabled={localConfig.tabCaptions !== 'Custom'}
                          onClick={() => {
-                           const next = window.prompt('Custom tab caption template (e.g. <folder> - <path>):', localConfig.tabCaptionTemplate || '<folder>');
-                           if (next != null && next.trim()) updateLocalConfig({ tabCaptionTemplate: next.trim(), tabCaptions: 'Custom' });
+                           void (async () => {
+                             const { requestNativePrompt } = await import('../lib/nativeDialog');
+                             const next = await requestNativePrompt({
+                               title: 'Custom tab caption',
+                               message: 'Template (e.g. <folder> - <path>)',
+                               defaultValue: localConfig.tabCaptionTemplate || '<folder>',
+                             });
+                             if (next != null && next.trim()) updateLocalConfig({ tabCaptionTemplate: next.trim(), tabCaptions: 'Custom' });
+                           })();
                          }}
                        />
                     </div>

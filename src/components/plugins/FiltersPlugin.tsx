@@ -3,6 +3,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import { useAppConfig, VisualFilter } from '../../data/configContext';
 import { FILTER_MATCH_HINTS } from '../../lib/visualFilterEngine';
 import PluginPanelShell from './PluginPanelShell';
+import { requestNativePrompt } from '../../lib/nativeDialog';
 import {
   PluginToolbarButton,
   PluginSectionTitle,
@@ -126,12 +127,18 @@ export default function FiltersPlugin({ onFilterChange }: { onFilterChange?: (fi
                                 void navigator.clipboard.writeText(JSON.stringify(filters, null, 2));
                             }}>Export</PluginHeroActionButton>
                             <PluginHeroActionButton icon="upload" onClick={() => {
-                                const raw = window.prompt('Paste filter JSON');
-                                if (!raw) return;
-                                try {
-                                    const parsed = JSON.parse(raw);
-                                    if (Array.isArray(parsed)) persist(parsed);
-                                } catch { /* ignore */ }
+                                void (async () => {
+                                    const raw = await requestNativePrompt({
+                                        title: 'Import filters',
+                                        message: 'Paste filter JSON',
+                                        defaultValue: '',
+                                    });
+                                    if (!raw) return;
+                                    try {
+                                        const parsed = JSON.parse(raw);
+                                        if (Array.isArray(parsed)) persist(parsed);
+                                    } catch { /* ignore */ }
+                                })();
                             }}>Import</PluginHeroActionButton>
                         </>
                     }

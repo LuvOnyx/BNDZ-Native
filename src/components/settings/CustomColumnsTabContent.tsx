@@ -6,6 +6,7 @@ import {
   resolveCustomColumns,
   type CustomColumnDef,
 } from '../../lib/customColumns';
+import { requestNativePrompt } from '../../lib/nativeDialog';
 
 const ActionBtn = ({ label, className = '', onClick, disabled, title }: any) => (
   <button
@@ -35,20 +36,32 @@ export default function CustomColumnsTabContent({
 
   const editLabel = () => {
     if (!selected) return;
-    const next = window.prompt('Column label:', selected.label);
-    if (next == null || !next.trim()) return;
-    const copy = [...columns];
-    copy[selectedIdx] = { ...selected, label: next.trim() };
-    saveColumns(copy);
+    void (async () => {
+      const next = await requestNativePrompt({
+        title: 'Custom column',
+        message: 'Column label',
+        defaultValue: selected.label,
+      });
+      if (next == null || !next.trim()) return;
+      const copy = [...columns];
+      copy[selectedIdx] = { ...selected, label: next.trim() };
+      saveColumns(copy);
+    })();
   };
 
   const editPattern = () => {
     if (!selected) return;
-    const next = window.prompt('File pattern (e.g. *.jpg;{Photo};*.*):', selected.pattern);
-    if (next == null || !next.trim()) return;
-    const copy = [...columns];
-    copy[selectedIdx] = { ...selected, pattern: next.trim() };
-    saveColumns(copy);
+    void (async () => {
+      const next = await requestNativePrompt({
+        title: 'Custom column',
+        message: 'File pattern (e.g. *.jpg;{Photo};*.*)',
+        defaultValue: selected.pattern,
+      });
+      if (next == null || !next.trim()) return;
+      const copy = [...columns];
+      copy[selectedIdx] = { ...selected, pattern: next.trim() };
+      saveColumns(copy);
+    })();
   };
 
   return (

@@ -101,7 +101,8 @@ import WindowControls from './WindowControls';
 import ContextMenuView from './ContextMenuView';
 import MeshDropDialog from './meshdrop/MeshDropDialog';
 import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
-import { TabContextMenu } from './TabContextMenu';
+import { TabContextMenu, showTabHostContextMenu } from './TabContextMenu';
+import { requestNativePrompt } from '../lib/nativeDialog';
 import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals } from '../lib/nativeIconService';
 import { isRealityCheckActive, isRealityCheckMissing, subscribeRealityCheck } from '../lib/realityCheckState';
 import { mergeDirEntryChunks } from '../lib/dirListingStream';
@@ -122,7 +123,7 @@ import {
 import { shouldSuppressNativeEntityTitle } from '../lib/tooltipSettings';
 import CustomColumnCell from './CustomColumnCell';
 import { parseCustomColumnListId, resolveCustomColumns, setCustomColumnEnabled } from '../lib/customColumns';
-import { invalidateExtendedMetadata } from '../lib/extendedMetadataCache';
+import { invalidateExtendedMetadata, prefetchExtendedMetadataBatch } from '../lib/extendedMetadataCache';
 import { hideFloatingTooltip, getFloatingTooltip, isShiftKeyHeld, subscribeShiftKey, getHoverPending, subscribeFloatingTooltip } from '../lib/floatingTooltip';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import FloatingTooltipHost from './FloatingTooltipHost';
@@ -164,6 +165,8 @@ import BndzAutomationView from './views/BndzAutomationView';
 import BndzTwinVolumeChessView from './views/BndzTwinVolumeChessView';
 import BndzTemporalDiffView from './views/BndzTemporalDiffView';
 import BndzRecentsView from './views/BndzRecentsView';
+import BndzIndexEmptyState from './views/BndzIndexEmptyState';
+import { isPortableDeviceReadOnly } from '../lib/portablePaths';
 import DropMagnetStrip from './DropMagnetStrip';
 import HelloGateOverlay from './HelloGateOverlay';
 import { useLiveShareCursor, isPathInPeerSelection } from '../lib/liveShareCursor';
@@ -1975,6 +1978,12 @@ export default function BNDZUI() {
     }
     if (targetName === entity.name) return true;
 
+    if (isPortableDeviceReadOnly(panePath, config.treatPortableDevicesAsReadOnly === true)
+      || isPortableDeviceReadOnly(entity.path, config.treatPortableDevicesAsReadOnly === true)) {
+      setToastMessage('Portable device is read-only. Disable that option in Settings to rename on MTP.', 'warning');
+      return false;
+    }
+
     const sourcePath = entity.path ? normalizePanePath(entity.path) : joinPanePath(panePath, entity);
     let targetPath: string;
     if (settingsRt.rename.allowMoveOnRename && /[\\/]/.test(editedValue.trim())) {
@@ -2280,7 +2289,7 @@ export default function BNDZUI() {
   const [filterText, setFilterText] = useState("");
   const [globalSearchResults, setGlobalSearchResults] = useState<any[] | null>(null);
   const [isGlobalSearchLoading, setIsGlobalSearchLoading] = useState(false);
-  const [globalSearchEngine, setGlobalSearchEngine] = useState<'everything' | 'indexed' | null>(null);
+  const [globalSearchEngine, setGlobalSearchEngine] = useState<'everything' | 'indexed' | 'indexed-empty' | 'windows-search' | null>(null);
   const omniFilterRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const onFocusOmni = () => { try { omniFilterRef.current?.focus(); } catch { /* */ } };
@@ -2348,10 +2357,8 @@ export default function BNDZUI() {
         kind: 'info',
         title: redo ? 'Redo' : 'Undo',
         message: redo
-          ? 'Nothing to redo.'
-          : (fileOps.useNativeEngine
-            ? 'Nothing to undo. Shell transfers are logged when Action Log is enabled — try Ctrl+Z after a copy/move/delete, or use Explorer undo for the shell stack.'
-            : 'Nothing to undo.'),
+          ? 'Nothing to redo in the Action Log.'
+          : 'Nothing to undo in the Action Log. Recent shell transfers appear here when Action Log is enabled; Windows may also keep its own undo stack (Explorer Ctrl+Z).',
       });
       return;
     }
@@ -2407,7 +2414,15 @@ export default function BNDZUI() {
                      args.useEverything, args.searchContent, args.opts,
                    ).then(({ items, engine }) => {
                      setGlobalSearchResults(normalizeSearchResults(items));
-                     setGlobalSearchEngine(engine === 'everything' || engine === 'indexed+everything' ? 'everything' : 'indexed');
+                     setGlobalSearchEngine(
+                       engine === 'everything' || engine === 'indexed+everything' || (typeof engine === 'string' && engine.includes('everything'))
+                         ? 'everything'
+                         : engine === 'indexed-empty'
+                           ? 'indexed-empty'
+                           : engine === 'windows-search' || (typeof engine === 'string' && engine.includes('windows-search'))
+                             ? 'windows-search'
+                             : 'indexed',
+                     );
                      setIsGlobalSearchLoading(false);
                    }).catch(() => {
                      setGlobalSearchResults([]);
@@ -2986,6 +3001,14 @@ export default function BNDZUI() {
   };
   const handleDeleteRequest = (items: any[], path: string, isFromTree: boolean = false, options?: { permanent?: boolean }) => {
     if (items.length === 0) return;
+    if (isPortableDeviceReadOnly(path, config.treatPortableDevicesAsReadOnly === true)) {
+      pushToast({
+        kind: 'warning',
+        title: 'Portable device is read-only',
+        message: 'Turn off “Treat portable devices as read-only” in Settings to allow deletes on phones/MTP.',
+      });
+      return;
+    }
     const rt = buildSettingsRuntime(config);
     const bypassRecycle = options?.permanent ? true : rt.shell.bypassRecycle;
 
@@ -3525,6 +3548,29 @@ export default function BNDZUI() {
     setFocusedItemId(match.id);
     setSelectedItems([match.id], activePaneId);
   }, [currentPath, pathContentsCache, config.selectLastUsedSubfolder, activePaneId]);
+
+  // Details view + custom columns: batch-prefetch shell metadata for first ~40 visible files.
+  useEffect(() => {
+    const viewMode = activeTab.viewMode || 'details';
+    if (viewMode !== 'details') return;
+    const cols = resolveCustomColumns(config);
+    if (!cols.some(c => c.enabled)) return;
+    if (!currentPath || currentPath === '/' || currentPath === '/this-pc') return;
+    const norm = normalizePanePath(currentPath);
+    const items = pathContentsCache[currentPath] || pathContentsCache[norm];
+    if (!items?.length) return;
+
+    const paths: string[] = [];
+    for (const ent of items) {
+      if (!ent || ent.type === 'directory' || ent.type === 'folder') continue;
+      const panePath = joinPanePath(currentPath, ent);
+      if (!panePath) continue;
+      paths.push(toWindowsPath(panePath));
+      if (paths.length >= 40) break;
+    }
+    if (!paths.length) return;
+    void prefetchExtendedMetadataBatch(paths);
+  }, [currentPath, pathContentsCache, activeTab.viewMode, config.customColumns]);
 
   const scanCurrentFolderSizes = React.useCallback((
     forceRescan = false,
@@ -5236,7 +5282,13 @@ export default function BNDZUI() {
 
   const pasteIntoNewSubfolder = async () => {
     if (!pasteSpecialRequireClipboard()) return;
-    const name = (prompt('New subfolder name:', 'Paste') || '').trim();
+    const raw = await requestNativePrompt({
+      title: 'New subfolder name',
+      message: 'Paste clipboard items into a new subfolder.',
+      defaultValue: 'Paste',
+      confirmLabel: 'Create & paste',
+    });
+    const name = (raw || '').trim();
     if (!name) return;
     const { createItemInPane } = await import('../lib/ramStagingPaths');
     const r = await createItemInPane(currentTab.path || '/', name, 'dir');
@@ -5260,7 +5312,13 @@ export default function BNDZUI() {
     }
     const src = toWindowsPath(clipboard.items[0]);
     const base = src.split(/[/\\]/).pop() || 'item';
-    const asName = (prompt('Paste as name:', base) || '').trim();
+    const raw = await requestNativePrompt({
+      title: 'Paste Here As…',
+      message: 'Enter the destination file or folder name.',
+      defaultValue: base,
+      confirmLabel: 'Paste',
+    });
+    const asName = (raw || '').trim();
     if (!asName) return;
     const destDir = toWindowsPath(currentTab.path);
     const destFile = `${destDir}\\${asName}`;
@@ -5342,7 +5400,13 @@ export default function BNDZUI() {
   const pasteTextIntoNewFile = async () => {
     try {
       const text = await (await import('../lib/clipboardSafe')).readClipboardText();
-      const name = (prompt('New file name:', 'Clipboard.txt') || '').trim();
+      const raw = await requestNativePrompt({
+        title: 'New file name',
+        message: 'Write clipboard text into a new file.',
+        defaultValue: 'Clipboard.txt',
+        confirmLabel: 'Create',
+      });
+      const name = (raw || '').trim();
       if (!name) return;
       const path = `${toWindowsPath(currentTab.path)}\\${name}`;
       const { IPC } = await import('../lib/ipcBridge');
@@ -5371,7 +5435,13 @@ export default function BNDZUI() {
       const bytes = new Uint8Array(buf);
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       const base64 = btoa(binary);
-      const name = (prompt('PNG file name:', type === 'image/png' ? 'Clipboard.png' : 'Clipboard.jpg') || '').trim();
+      const raw = await requestNativePrompt({
+        title: 'Image file name',
+        message: 'Save the clipboard image as a new file.',
+        defaultValue: type === 'image/png' ? 'Clipboard.png' : 'Clipboard.jpg',
+        confirmLabel: 'Save',
+      });
+      const name = (raw || '').trim();
       if (!name) return;
       const path = `${toWindowsPath(currentTab.path)}\\${name}`;
       const { IPC } = await import('../lib/ipcBridge');
@@ -5383,12 +5453,17 @@ export default function BNDZUI() {
     }
   };
 
-  const editClipboardPaths = () => {
+  const editClipboardPaths = async () => {
     if (!hasFileClipboard()) {
       setToastMessage('Clipboard has no files to edit.');
       return;
     }
-    const edited = prompt('Edit clipboard paths (one per line):', clipboard.items.join('\n'));
+    const edited = await requestNativePrompt({
+      title: 'Edit Clipboard',
+      message: 'One path per line. Clear all lines to empty the clipboard.',
+      defaultValue: clipboard.items.join('\n'),
+      confirmLabel: 'Update',
+    });
     if (edited == null) return;
     const paths = edited.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     if (!paths.length) {
@@ -5757,6 +5832,49 @@ export default function BNDZUI() {
       return { ...p, tabs };
     }));
     setTabContextMenu(null);
+  };
+
+  const openTabContextMenuAt = (paneId: string, tabIndex: number, clientX: number, clientY: number) => {
+    if (IPC.isNative) {
+      void (async () => {
+        const pane = panes.find(p => p.id === paneId);
+        const tab = pane?.tabs[tabIndex];
+        if (!pane || !tab) return;
+        await showTabHostContextMenu({
+          clientX,
+          clientY,
+          tabLabel: isFindingTab(tab) ? findingTabLabel(tab) : getPaneTabLabel(tab.path),
+          isLocked: !!tab.locked,
+          canClose: pane.tabs.length > 1,
+          canCloseOthers: pane.tabs.length > 1,
+          canCloseRight: tabIndex < pane.tabs.length - 1,
+          showRefresh: true,
+          showTearOff: true,
+          onLock: () => toggleTabLock(paneId, tabIndex),
+          onClose: () => { void closeTabAt(paneId, tabIndex); },
+          onCloseOthers: () => { void closeOtherTabs(paneId, tabIndex); },
+          onCloseRight: () => { void closeTabsToRight(paneId, tabIndex); },
+          onCloseAll: () => { void closeAllTabs(paneId); },
+          onDuplicate: () => duplicateTab(paneId, tabIndex),
+          onTearOff: () => {
+            void IPC.openPathInNewWindow(tab.path).then(r => {
+              if (!r.ok) setToastMessage(r.error || 'Could not open Stage window.', 'warning');
+              else setToastMessage('Opened in a new Stage window.');
+            });
+          },
+          onRefresh: () => {
+            if (isFindingTab(tab) && tab.findingQuery) {
+              void refreshFindingTab(paneId, tab.id, tab.findingQuery, tab.findingRoot || tab.path, tab);
+            } else {
+              void refetchPath(tab.path);
+            }
+          },
+          onResetColor: () => setTabColor(paneId, tabIndex, ''),
+        });
+      })();
+      return;
+    }
+    setTabContextMenu({ x: clientX, y: clientY, paneId, tabIndex });
   };
 
   const setActiveTab = (paneId: string, tabIndex: number) => {
@@ -6753,17 +6871,29 @@ export default function BNDZUI() {
     },
     openFavorites: () => setRapidAccessPopupOpen(true),
     openEditMenu: () => setOpenMenuId('Edit'),
-    openSmallTabMenu: (x: number, y: number) => setTabContextMenu({ x, y, paneId, tabIndex: tabIndex ?? 0 }),
+    openSmallTabMenu: (x: number, y: number) => openTabContextMenuAt(paneId, tabIndex ?? 0, x, y),
     autosizeColumns: () => {
       const items = getSortedContentsForActivePane();
-      const cols = getVisibleListColumns(config);
+      const active = panes.find(x => x.id === paneId);
+      const tab = active?.tabs[active?.activeTabIndex ?? 0];
+      const folderPath = tab?.path ? normalizePanePath(tab.path) : undefined;
+      const cols = getVisibleListColumns(config, folderPath ? { folderPath } : undefined);
       const widths = computeAutosizedColumnWidths(items, cols, {
         disregardHeaders: !!config.onAutosizeDisregardTheColumnHeaders,
         alwaysAutosizeSize: !!config.alwaysAutosizeTheSizeColumn,
         limits: parseColumnAutosizeLimits(config),
       });
       if (Object.keys(widths).length > 0) {
-        updateConfig({ listColumnWidths: { ...(config.listColumnWidths || {}), ...widths } });
+        if (folderPath) {
+          const byPath = { ...(config.listColumnWidthsByPath || {}) };
+          byPath[folderPath] = { ...(byPath[folderPath] || {}), ...widths };
+          updateConfig({
+            listColumnWidths: { ...(config.listColumnWidths || {}), ...widths },
+            listColumnWidthsByPath: byPath,
+          });
+        } else {
+          updateConfig({ listColumnWidths: { ...(config.listColumnWidths || {}), ...widths } });
+        }
       }
     },
     runScript: (shell: string, script: string) => {
@@ -7088,8 +7218,14 @@ export default function BNDZUI() {
         setToastMessage(next ? 'Dual pane sync scroll enabled.' : 'Dual pane sync scroll disabled.');
       },
       onNewFindingTab: () => {
-        const q = filterText.trim() || prompt('Finding tab search query:') || '';
-        if (q) addFindingTab(activePaneId, q);
+        void (async () => {
+          const q = filterText.trim() || (await requestNativePrompt({
+            title: 'New Finding Tab',
+            message: 'Search query',
+            defaultValue: '',
+          })) || '';
+          if (q.trim()) addFindingTab(activePaneId, q.trim());
+        })();
       },
     });
     const scriptHandlers = {
@@ -7242,15 +7378,42 @@ export default function BNDZUI() {
     const buildEntityPath = (ent: any) => resolveEntityPanePath(panePath, ent);
 
     const openEntity = (entity: any) => {
+      const entityPath = buildEntityPath(entity);
+      const rawPath = String(entity.path || entityPath || '');
+      const winPath = toWindowsPath(entityPath);
+      const shellParsing = rawPath.startsWith('::{')
+        || rawPath.toLowerCase().startsWith('shell:')
+        || !!(entity as any)?.isShellItem;
+
+      // Shell namespace folders (MTP, Control Panel categories): navigate in-pane.
+      // Non-folder shell applets: ShellExecute — never fake a folder navigate.
+      if (shellParsing && entity.type === 'directory') {
+        setCurrentPath(entityPath, pane.id);
+        if (isGlobal) {
+          setFilterText('');
+          omniFilterRef.current?.blur();
+        }
+        return;
+      }
+      if (shellParsing) {
+        import('../lib/ipcBridge').then(({ IPC }) => {
+          const openPath = rawPath.startsWith('::{') || rawPath.toLowerCase().startsWith('shell:')
+            ? rawPath
+            : winPath;
+          IPC.recordPathOpen(openPath);
+          IPC.executeContextMenuVerb(openPath, 'open');
+        });
+        return;
+      }
+
       if (entity.type === 'directory') {
-        setCurrentPath(buildEntityPath(entity), pane.id);
+        setCurrentPath(entityPath, pane.id);
         if (isGlobal) {
           setFilterText('');
           omniFilterRef.current?.blur();
         }
       } else {
         import('../lib/ipcBridge').then(({ IPC }) => {
-          const winPath = toWindowsPath(buildEntityPath(entity));
           IPC.recordPathOpen(winPath);
           IPC.executeContextMenuVerb(winPath, 'open');
         });
@@ -7695,7 +7858,8 @@ export default function BNDZUI() {
           onReorder={(from, to) => reorderTab(pane.id, from, to)}
           onClose={(idx, e) => { void closeTabAt(pane.id, idx, e); }}
           onContextMenu={(idx, e) => {
-            setTabContextMenu({ x: e.clientX, y: e.clientY, paneId: pane.id, tabIndex: idx });
+            e.preventDefault();
+            openTabContextMenuAt(pane.id, idx, e.clientX, e.clientY);
           }}
           onMiddleClick={(idx) => {
             dispatchCustomEvent(config, 'middle-click-tab', buildCeaHandlers(pane.id, idx));
@@ -9042,12 +9206,24 @@ export default function BNDZUI() {
                         Retry
                       </button>
                     </>
+                  ) : isGlobal && globalSearchEngine === 'indexed-empty' ? (
+                    <BndzIndexEmptyState
+                      title="No indexed hits for this query"
+                      hint="Build or refresh the local search index so global search feels like Everything — without walking the whole disk."
+                      onIndexed={() => {
+                        void refetchPath(normPanePath);
+                      }}
+                    />
                   ) : (
                     <>
                       <Icons8Icon id="folder_open_ui" size={28} className="opacity-40" />
                       <span className="text-[11px]">
                         {isFindingTabActive && currentTab.findingError ? currentTab.findingError
                           : isFindingTabActive ? `No results for "${currentTab.findingQuery}".`
+                          : isGlobal && globalSearchEngine === 'windows-search'
+                            ? 'No Windows Search hits. Try a shorter query or enable the BNDZ index.'
+                          : isGlobal && config.enableEverythingSearch === false
+                            ? 'No results. Everything is off — enable it in Settings or build the BNDZ index.'
                           : isGlobal ? 'No global search results.'
                           : (config.showMessageWhenListIsEmpty !== false ? 'This folder is empty.' : '')}
                       </span>
@@ -9899,13 +10075,20 @@ export default function BNDZUI() {
                         <Icons8Icon id="folder_open_ui" size={14} /> Open with… <span className="ml-auto text-[10px] text-gray-500">Ctrl+Alt+Enter</span>
                       </div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                        const p = getMenuPrimaryPath();
-                        if (!p) { setToastMessage('Select an item first.'); return; }
-                        const args = prompt('Command-line arguments:', '');
-                        if (args == null) return;
-                        const win = toWindowsPath(p);
-                        const workDir = win.replace(/[\\/][^\\/]+$/, '');
-                        import('../lib/ipcBridge').then(({ IPC }) => IPC.shellExecute('runCommand', `"${win}" ${args}`, workDir));
+                        void (async () => {
+                          const p = getMenuPrimaryPath();
+                          if (!p) { setToastMessage('Select an item first.'); return; }
+                          const args = await requestNativePrompt({
+                            title: 'Open with arguments',
+                            message: 'Command-line arguments',
+                            defaultValue: '',
+                          });
+                          if (args == null) return;
+                          const win = toWindowsPath(p);
+                          const workDir = win.replace(/[\\/][^\\/]+$/, '');
+                          const { IPC } = await import('../lib/ipcBridge');
+                          IPC.shellExecute('runCommand', `"${win}" ${args}`, workDir);
+                        })();
                       })}><Icons8Icon id="cmd" size={14} /> Open with Arguments…</div>
                       <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
                         addTab(activePaneId, currentTab.path);
@@ -10208,7 +10391,7 @@ export default function BNDZUI() {
                               setToastMessage('Clipboard marked as Copied.');
                             })}
                             <div className="h-[1px] bg-[#444] my-1" />
-                            {fileRow('Edit Clipboard…', () => editClipboardPaths())}
+                            {fileRow('Edit Clipboard…', () => { void editClipboardPaths(); })}
                             <div
                               className={clipboardHistory.length ? 'px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2' : 'px-3 py-1 text-sm text-gray-500 cursor-default select-none'}
                               onMouseDown={clipboardHistory.length ? actAlways(() => {
@@ -10312,9 +10495,16 @@ export default function BNDZUI() {
                     </div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { omniFilterRef.current?.focus(); })}>Find Now / Quick Search</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
-                      const q = filterText.trim() || prompt('Global search query:') || '';
-                      if (q) setFilterText(q.startsWith('> ') ? q : `> ${q}`);
-                      omniFilterRef.current?.focus();
+                      void (async () => {
+                        const q = filterText.trim() || (await requestNativePrompt({
+                          title: 'Global search',
+                          message: 'Search query',
+                          defaultValue: '',
+                        })) || '';
+                        if (!q.trim()) return;
+                        setFilterText(q.startsWith('> ') ? q : `> ${q.trim()}`);
+                        omniFilterRef.current?.focus();
+                      })();
                     })}>Global Search…</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#e81123] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
@@ -10507,7 +10697,17 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { void navigateToAppDataFolder('appdata'); })}>AppData Folder</div>
                     <div className="h-[1px] bg-[#444] my-1"></div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => addTab(activePaneId, currentTab.path))}><Icons8Icon id="folder_open_ui" size={14} /> Open Location in New Tab</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => { const q = filterText.trim() || prompt('Finding tab query:') || ''; if (q) addFindingTab(activePaneId, q); closeMenu(); })}><Icons8Icon id="file_search_ui" size={14} /> New Finding Tab…</div>
+                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(() => {
+                      void (async () => {
+                        const q = filterText.trim() || (await requestNativePrompt({
+                          title: 'New Finding Tab',
+                          message: 'Search query',
+                          defaultValue: '',
+                        })) || '';
+                        if (q.trim()) addFindingTab(activePaneId, q.trim());
+                        closeMenu();
+                      })();
+                    })}><Icons8Icon id="file_search_ui" size={14} /> New Finding Tab…</div>
                  </MenubarPortalMenu>
              )}
          </div>
@@ -10720,7 +10920,12 @@ export default function BNDZUI() {
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200 flex items-center gap-2" onMouseDown={menuAct(async () => {
                       const paths = getSelectedEntityPaths().map(toWindowsPath);
                       if (!paths.length) { setToastMessage('Select an item first.'); return; }
-                      const comment = prompt('Comment for selected item(s):', '') ?? '';
+                      const comment = await requestNativePrompt({
+                        title: 'Tag comment',
+                        message: 'Comment for selected item(s)',
+                        defaultValue: '',
+                      });
+                      if (comment == null) return;
                       const { IPC } = await import('../lib/ipcBridge');
                       const sidecars = await Promise.all(paths.map(p => IPC.getTagSidecar(p)));
                       await IPC.setTagMetaBatchItems(paths.map((path, i) => ({
@@ -10879,12 +11084,18 @@ export default function BNDZUI() {
              {config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Window'} anchorEl={menubarAnchors.current['Window']} minWidth={200}>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => {
-                      const name = prompt('Layout preset name:', 'My Layout') || '';
-                      if (!name.trim()) return;
-                      const preset = { id: `wl-${Date.now()}`, name: name.trim(), outer: config.workspaceLayoutOuter, inner: config.workspaceLayoutInner, dualPane: isDualPane };
-                      updateConfig({ workspaceLayoutPresets: [...(config.workspaceLayoutPresets || []), preset] });
-                      setToastMessage(`Saved layout: ${name.trim()}`);
-                      closeMenu();
+                      void (async () => {
+                        const name = await requestNativePrompt({
+                          title: 'Save window layout',
+                          message: 'Layout preset name',
+                          defaultValue: 'My Layout',
+                        });
+                        if (!name?.trim()) return;
+                        const preset = { id: `wl-${Date.now()}`, name: name.trim(), outer: config.workspaceLayoutOuter, inner: config.workspaceLayoutInner, dualPane: isDualPane };
+                        updateConfig({ workspaceLayoutPresets: [...(config.workspaceLayoutPresets || []), preset] });
+                        setToastMessage(`Saved layout: ${name.trim()}`);
+                        closeMenu();
+                      })();
                     }}>Save Window Layout…</div>
                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => {
                       const presets = config.workspaceLayoutPresets || [];
@@ -11918,7 +12129,11 @@ export default function BNDZUI() {
            )}
            {isGlobal && !isGlobalSearchLoading && globalSearchEngine && (
              <span className="text-amber-400/70 ml-2">
-               Global · {globalSearchEngine === 'indexed' ? 'Indexed search' : globalSearchEngine === 'everything' ? 'Everything' : 'Filesystem'}
+               Global · {globalSearchEngine === 'indexed' ? 'Indexed search'
+                 : globalSearchEngine === 'indexed-empty' ? 'Index (no hits)'
+                 : globalSearchEngine === 'windows-search' ? 'Windows Search'
+                 : globalSearchEngine === 'everything' ? 'Everything'
+                 : 'Filesystem'}
              </span>
            )}
            {indexProgress && (!indexProgress.done || !!indexProgress.error) && (

@@ -1066,6 +1066,18 @@ namespace BNDZ
             });
         }
 
+        private void PostExtendedMetadataBatchResult(string? id, object? payload)
+        {
+            var response = new { type = "EXTENDED_METADATA_BATCH_RESULT", id, payload };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+            PostToUi(() =>
+            {
+                try { MainWebView.CoreWebView2?.PostWebMessageAsJson(responseJson); }
+                catch { }
+            });
+        }
+
         private static object DirEntryToLegacy(DirListingSharedBuffer.DirEntryDto e) => new
         {
             id = e.Id,
@@ -4884,6 +4896,57 @@ namespace BNDZ
                         }, waitMs: 12000).ConfigureAwait(false);
                         if (!ran)
                             PostExtendedMetadataResult(idProp, new Dictionary<string, string> { ["_busy"] = "true" });
+                    });
+                }
+                else if (type == "GET_EXTENDED_METADATA_BATCH")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var paths = new List<string>();
+                    var max = 64;
+                    try
+                    {
+                        var payload = root.GetProperty("payload");
+                        if (payload.TryGetProperty("max", out var maxEl) && maxEl.ValueKind == JsonValueKind.Number)
+                            max = Math.Clamp(maxEl.GetInt32(), 1, 64);
+                        if (payload.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var p in pathsEl.EnumerateArray())
+                            {
+                                var raw = p.GetString() ?? "";
+                                if (string.IsNullOrWhiteSpace(raw)) continue;
+                                paths.Add(NormalizeFsPath(raw));
+                            }
+                        }
+                    }
+                    catch { }
+
+                    var pathsCopy = paths;
+                    var maxCopy = max;
+                    _ = Task.Run(async () =>
+                    {
+                        var ran = await BndzIpcWorkQueue.TryRunMetadataAsync(() =>
+                        {
+                            Dictionary<string, Dictionary<string, string>> results;
+                            try
+                            {
+                                var nativeSvc = new NativeShellService();
+                                results = nativeSvc.GetExtendedMetadataBatch(pathsCopy, maxCopy);
+                                foreach (var kv in results)
+                                {
+                                    try { EnrichMetadataWithAcl(kv.Key, kv.Value); }
+                                    catch { }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"GET_EXTENDED_METADATA_BATCH failed: {ex.Message}");
+                                results = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+                            }
+                            PostExtendedMetadataBatchResult(idProp, new { results });
+                            return Task.CompletedTask;
+                        }, waitMs: 60000).ConfigureAwait(false);
+                        if (!ran)
+                            PostExtendedMetadataBatchResult(idProp, new { results = new Dictionary<string, Dictionary<string, string>>() });
                     });
                 }
                 else if (type == "WRITE_MEDIA_TAGS")

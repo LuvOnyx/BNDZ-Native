@@ -48,9 +48,28 @@ export function PortalComposer({
     e.preventDefault();
     dragCounter.current = 0;
     setIsDragging(false);
-    const raw = e.dataTransfer.getData('application/bndz-paths') || e.dataTransfer.getData('text/plain');
-    if (raw && onAttachPaths) {
-      const paths = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    // Prefer structured drag data / FileList .path; text/plain is last-resort only.
+    const bndzRaw = e.dataTransfer.getData('application/bndz-paths');
+    if (bndzRaw && onAttachPaths) {
+      const paths = bndzRaw.split('\n').map(s => s.trim()).filter(Boolean);
+      if (paths.length) {
+        onAttachPaths(paths);
+        return;
+      }
+    }
+    if (onAttachPaths && e.dataTransfer.files?.length) {
+      const fromFiles = Array.from(e.dataTransfer.files)
+        .map(f => (f as File & { path?: string }).path || '')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (fromFiles.length) {
+        onAttachPaths(fromFiles);
+        return;
+      }
+    }
+    const plain = e.dataTransfer.getData('text/plain');
+    if (plain && onAttachPaths) {
+      const paths = plain.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
       if (paths.length) onAttachPaths(paths);
     }
   };

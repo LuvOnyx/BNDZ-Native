@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { isQueuedIpcResult } from '../../lib/transferIpc';
+import { requestNativeConfirm, requestNativePrompt } from '../../lib/nativeDialog';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -243,8 +244,12 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         setPresets(next);
         localStorage.setItem(PRESET_KEY, JSON.stringify(next));
     };
-    const savePreset = () => {
-        const name = window.prompt('Preset name');
+    const savePreset = async () => {
+        const name = await requestNativePrompt({
+            title: 'Save rename preset',
+            message: 'Preset name',
+            defaultValue: '',
+        });
         if (!name?.trim()) return;
         const preset: RenamePreset = {
             name: name.trim(), findStr, replaceStr, useRegex, prefix, suffix, casing,
@@ -273,9 +278,13 @@ export default function BatchRenamePlugin({ activeTab, drives, config, entity, f
         if (config?.previewAllRenameSpecialOperations) {
             const lines = collisions.slice(0, 24).map(p => `${p.oldName}  →  ${p.newName}`);
             const more = collisions.length > 24 ? `\n…and ${collisions.length - 24} more` : '';
-            const ok = window.confirm(
-                `Apply ${collisions.length} rename operation(s)?\n\n${lines.join('\n')}${more}`,
-            );
+            const ok = await requestNativeConfirm({
+                title: 'Apply renames',
+                message: `Apply ${collisions.length} rename operation(s)?\n\n${lines.join('\n')}${more}`,
+                type: 'warning',
+                confirmLabel: 'Apply',
+                cancelLabel: 'Cancel',
+            });
             if (!ok) return;
         }
 

@@ -4,6 +4,7 @@ import { CloseGlyph } from '../../ChromeGlyphs';
 import { useIconStudio } from './IconStudioContext';
 import styles from './IconStudio.module.css';
 import { PluginToolbarButton, PLUGIN_INPUT_CLASS } from '../PluginPanelPrimitives';
+import { requestNativeConfirm } from '../../../lib/nativeDialog';
 
 export default function LibraryManager() {
     const { libraries, activeLibraryId, setActiveLibraryId, createLibrary, deleteLibrary, renameLibrary, importLibraryFromFolder, isImporting, resyncLibrary, exportLibrary } = useIconStudio();
@@ -80,7 +81,20 @@ export default function LibraryManager() {
                             ) : (
                                 <>
                                     <button type="button" className="p-1 text-gray-500 hover:text-white hover:bg-white/5 rounded" onClick={(e) => startRename(e, lib.id, lib.name)}><Icons8Icon id="pencil_ui" size={12} /></button>
-                                    <button type="button" className="p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete library "${lib.name}"?`)) deleteLibrary(lib.id); }}><Icons8Icon id="trash_ui" size={12} /></button>
+                                    <button type="button" className="p-1 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded" onClick={(e) => {
+                                        e.stopPropagation();
+                                        void (async () => {
+                                            const ok = await requestNativeConfirm({
+                                                title: 'Delete icon library',
+                                                message: `Delete library "${lib.name}"?`,
+                                                type: 'warning',
+                                                confirmLabel: 'Delete',
+                                                cancelLabel: 'Cancel',
+                                                destructive: true,
+                                            });
+                                            if (ok) deleteLibrary(lib.id);
+                                        })();
+                                    }}><Icons8Icon id="trash_ui" size={12} /></button>
                                 </>
                             )}
                         </div>

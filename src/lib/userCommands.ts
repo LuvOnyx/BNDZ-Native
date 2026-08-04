@@ -58,8 +58,15 @@ export function userCommandsToPalette(
     keywords: cmd.keywords,
     onRun: () => {
       if (cmd.action === 'findtab') {
-        const q = prompt('Finding tab search query:') || '';
-        if (q) handlers.newFindingTab(q);
+        void import('./nativeDialog').then(({ requestNativePrompt }) => {
+          void requestNativePrompt({
+            title: 'New Finding Tab',
+            message: 'Search query',
+            defaultValue: '',
+          }).then(q => {
+            if (q?.trim()) handlers.newFindingTab(q.trim());
+          });
+        });
         return;
       }
       if (cmd.action.startsWith('script:')) {

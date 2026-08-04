@@ -1,10 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Icons8Icon } from './Icons8Icon';
 import { ThumbnailIcon } from './ThumbnailIcon';
 import { registerEscapeLayer } from '../lib/globalEscape';
 import { BndzNativeDialog } from './BndzNativeDialog';
 import { NativeDialogCheckbox } from './native/NativeDialogShell';
-import { subscribeNativeConfirm, type NativeConfirmOptions } from '../lib/nativeDialog';
+import {
+  subscribeNativeConfirm,
+  subscribeNativePrompt,
+  type NativeConfirmOptions,
+  type NativePromptOptions,
+} from '../lib/nativeDialog';
 
 export type ModalAction = {
   label: string;
@@ -34,10 +38,15 @@ export type ModalConfig = {
 
 type ConfirmOptions = NativeConfirmOptions;
 
+type PromptState = NativePromptOptions & {
+  resolve: (value: string | null) => void;
+};
+
 type ModalContextValue = {
   showModal: (config: ModalConfig) => void;
   closeModal: () => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  prompt: (options: NativePromptOptions) => Promise<string | null>;
 };
 
 const ModalContext = createContext<ModalContextValue | null>(null);
@@ -163,9 +172,90 @@ function ConfirmModal({ config, onClose }: { config: ModalConfig; onClose: () =>
   );
 }
 
+function PromptModal({
+  state,
+  onClose,
+}: {
+  state: PromptState;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(state.defaultValue ?? '');
+  const multiline = (state.defaultValue ?? '').includes('\n');
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  const submit = () => {
+    state.resolve(value);
+    onClose();
+  };
+
+  const cancel = () => {
+    state.resolve(null);
+    onClose();
+  };
+
+  return (
+    <BndzNativeDialog
+      open
+      title={state.title}
+      tone="info"
+      variant="sheet"
+      size={multiline ? 'md' : 'sm'}
+      message={state.message}
+      onClose={cancel}
+      buttons={[
+        { label: state.cancelLabel || 'Cancel', style: 'secondary', onClick: cancel },
+        { label: state.confirmLabel || 'OK', style: 'primary', onClick: submit },
+      ]}
+    >
+      {multiline ? (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          className="bndz-native-input w-full min-h-[120px] resize-y bndz-mono text-[12px]"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              cancel();
+            }
+          }}
+        />
+      ) : (
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          type="text"
+          className="bndz-native-input w-full"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              cancel();
+            }
+          }}
+        />
+      )}
+    </BndzNativeDialog>
+  );
+}
+
 export default function ModalProvider({ children }: { children: React.ReactNode }) {
   const [modal, setModal] = useState<ModalConfig | null>(null);
+  const [promptState, setPromptState] = useState<PromptState | null>(null);
   const confirmQueueRef = useRef<((value: boolean) => void) | null>(null);
+  const promptQueueRef = useRef<((value: string | null) => void) | null>(null);
 
   const closeModal = useCallback(() => setModal(null), []);
   const showModal = useCallback((config: ModalConfig) => setModal(config), []);
@@ -173,6 +263,7 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
   const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
     return new Promise(resolve => {
       confirmQueueRef.current = resolve;
+      setPromptState(null);
       setModal({
         type: options.destructive ? 'destructive' : options.type || 'warning',
         title: options.title,
@@ -193,34 +284,45 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
     });
   }, []);
 
+  const prompt = useCallback((options: NativePromptOptions): Promise<string | null> => {
+    return new Promise(resolve => {
+      promptQueueRef.current = resolve;
+      setModal(null);
+      setPromptState({ ...options, resolve });
+    });
+  }, []);
+
+  const dismissAll = useCallback(() => {
+    if (confirmQueueRef.current) {
+      confirmQueueRef.current(false);
+      confirmQueueRef.current = null;
+    }
+    if (promptQueueRef.current) {
+      promptQueueRef.current(null);
+      promptQueueRef.current = null;
+    }
+    closeModal();
+    setPromptState(null);
+  }, [closeModal]);
+
   useEffect(() => registerEscapeLayer({
     id: 'modal',
     priority: 1000,
-    isActive: () => !!modal,
-    dismiss: () => {
-      if (confirmQueueRef.current) {
-        confirmQueueRef.current(false);
-        confirmQueueRef.current = null;
-      }
-      closeModal();
-    },
-  }), [modal, closeModal]);
+    isActive: () => !!modal || !!promptState,
+    dismiss: dismissAll,
+  }), [modal, promptState, dismissAll]);
 
   useEffect(() => {
-    if (!modal) return;
+    if (!modal && !promptState) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (confirmQueueRef.current) {
-          confirmQueueRef.current(false);
-          confirmQueueRef.current = null;
-        }
-        closeModal();
+        dismissAll();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [modal, closeModal]);
+  }, [modal, promptState, dismissAll]);
 
   useEffect(() => {
     return subscribeNativeConfirm(request => {
@@ -235,6 +337,18 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
     });
   }, [confirm]);
 
+  useEffect(() => {
+    return subscribeNativePrompt(request => {
+      prompt({
+        title: request.title,
+        message: request.message,
+        defaultValue: request.defaultValue,
+        confirmLabel: request.confirmLabel,
+        cancelLabel: request.cancelLabel,
+      }).then(request.resolve);
+    });
+  }, [prompt]);
+
   const handleClose = useCallback(() => {
     if (confirmQueueRef.current) {
       confirmQueueRef.current(false);
@@ -244,12 +358,21 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
   }, [closeModal]);
 
   return (
-    <ModalContext.Provider value={{ showModal, closeModal, confirm }}>
+    <ModalContext.Provider value={{ showModal, closeModal, confirm, prompt }}>
       {children}
       {modal && (
         modal.type === 'conflict' && modal.conflict
           ? <FileConflictModal config={modal} onClose={handleClose} />
           : <ConfirmModal config={modal} onClose={handleClose} />
+      )}
+      {promptState && (
+        <PromptModal
+          state={promptState}
+          onClose={() => {
+            promptQueueRef.current = null;
+            setPromptState(null);
+          }}
+        />
       )}
     </ModalContext.Provider>
   );

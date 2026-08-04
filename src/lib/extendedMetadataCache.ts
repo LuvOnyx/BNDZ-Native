@@ -112,6 +112,35 @@ export async function getExtendedMetadataCached(
   return job;
 }
 
+/** Prefetch shell property-store metadata for visible details rows (batch IPC). */
+export async function prefetchExtendedMetadataBatch(paths: string[]): Promise<void> {
+  if (!IPC.isNative || !paths.length) return;
+  const need: string[] = [];
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (!path) continue;
+    const key = cacheKey(path);
+    if (seen.has(key) || peekExtendedMetadata(path) || inflight.has(key)) continue;
+    seen.add(key);
+    need.push(path);
+    if (need.length >= 40) break;
+  }
+  if (!need.length) return;
+
+  try {
+    const results = await IPC.getExtendedMetadataBatch(need);
+    const now = Date.now();
+    for (const [path, meta] of Object.entries(results || {})) {
+      if (!meta || meta._busy === 'true') continue;
+      const key = cacheKey(path);
+      const prev = metaCache.get(key);
+      metaCache.set(key, { meta, md5: prev?.md5, fetchedAt: now });
+    }
+  } catch {
+    // Per-cell CustomColumnCell fetch remains the fallback.
+  }
+}
+
 export function invalidateExtendedMetadata(path: string): void {
   metaCache.delete(cacheKey(path));
   inflight.delete(cacheKey(path));

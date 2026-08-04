@@ -14,10 +14,31 @@ type NativeConfirmRequest = NativeConfirmOptions & {
 };
 
 const CONFIRM_EVENT = 'bndz-native-confirm-request';
+const PROMPT_EVENT = 'bndz-native-prompt-request';
+
+export type NativePromptOptions = {
+  title: string;
+  message?: string;
+  defaultValue?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+};
+
+type NativePromptRequest = NativePromptOptions & {
+  resolve: (value: string | null) => void;
+};
 
 export function requestNativeConfirm(options: NativeConfirmOptions): Promise<boolean> {
   return new Promise(resolve => {
     window.dispatchEvent(new CustomEvent<NativeConfirmRequest>(CONFIRM_EVENT, {
+      detail: { ...options, resolve },
+    }));
+  });
+}
+
+export function requestNativePrompt(options: NativePromptOptions): Promise<string | null> {
+  return new Promise(resolve => {
+    window.dispatchEvent(new CustomEvent<NativePromptRequest>(PROMPT_EVENT, {
       detail: { ...options, resolve },
     }));
   });
@@ -45,6 +66,15 @@ export function subscribeNativeConfirm(handler: (request: NativeConfirmRequest) 
   };
   window.addEventListener(CONFIRM_EVENT, listener);
   return () => window.removeEventListener(CONFIRM_EVENT, listener);
+}
+
+export function subscribeNativePrompt(handler: (request: NativePromptRequest) => void): () => void {
+  const listener = (event: Event) => {
+    const detail = (event as CustomEvent<NativePromptRequest>).detail;
+    if (detail) handler(detail);
+  };
+  window.addEventListener(PROMPT_EVENT, listener);
+  return () => window.removeEventListener(PROMPT_EVENT, listener);
 }
 
 export type ElevationPromptOptions = {

@@ -35,7 +35,6 @@ public sealed class NativeShellFileOperationService
     private const uint FO_COPY = 0x0002;
     private const uint FO_DELETE = 0x0003;
     private const ushort FOF_ALLOWUNDO = 0x0040;
-    private const ushort FOF_NOCONFIRMATION = 0x0010;
     private const ushort FOF_SILENT = 0x0004;
     private const ushort FOF_NOERRORUI = 0x0400;
 
@@ -145,12 +144,13 @@ public sealed class NativeShellFileOperationService
         Action<string, int, string, long, long, double, int, int>? onProgress,
         int total)
     {
-        // Allow Explorer-quality conflict UI (replace/skip/rename) — never silent overwrite.
+        // Allow Explorer-quality conflict UI always — never silent overwrite.
+        // Silent only hides the progress window; collisions still prompt.
         var flags = default(ShellFileOperations.OperationFlags);
         if (!(action == "delete" && bypassRecycleBin))
             flags |= ShellFileOperations.OperationFlags.AllowUndo;
         if (!showProgress)
-            flags |= ShellFileOperations.OperationFlags.Silent | ShellFileOperations.OperationFlags.NoConfirmation;
+            flags |= ShellFileOperations.OperationFlags.Silent;
 
         using var op = new ShellFileOperations { Options = flags };
         var completed = 0;
@@ -272,12 +272,39 @@ public sealed class NativeShellFileOperationService
     private static void QueueSingleTargetMove(ShellFileOperations op, string source, string targetPath, Action<string?> bump)
     {
         using var sourceItem = new ShellItem(source);
-        var destDir = Path.GetDirectoryName(targetPath) ?? "";
-        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+        var destDir = ParentDirectoryPath(targetPath);
+        var newName = LeafName(targetPath);
+        var isShellDest = PortableDeviceService.IsPortableDevicePath(destDir)
+            || ShellPathResolver.IsShellVirtualPath(destDir)
+            || destDir.StartsWith("::{", StringComparison.Ordinal)
+            || source.StartsWith("::{", StringComparison.Ordinal)
+            || PortableDeviceService.IsPortableDevicePath(source);
+
+        // Win32 Directory.CreateDirectory cannot create MTP / CLSID parents.
+        if (!isShellDest && !string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
             Directory.CreateDirectory(destDir);
+
         using var destFolder = new ShellFolder(destDir);
-        op.QueueMoveOperation(sourceItem, destFolder, Path.GetFileName(targetPath));
+        op.QueueMoveOperation(sourceItem, destFolder, newName);
         bump(targetPath);
+    }
+
+    private static string ParentDirectoryPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        var trimmed = path.TrimEnd('\\', '/');
+        var slash = Math.Max(trimmed.LastIndexOf('\\'), trimmed.LastIndexOf('/'));
+        if (slash <= 0) return "";
+        // Preserve "::{clsid}\child" parents for shell namespaces.
+        return trimmed[..slash];
+    }
+
+    private static string LeafName(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        var trimmed = path.TrimEnd('\\', '/');
+        var slash = Math.Max(trimmed.LastIndexOf('\\'), trimmed.LastIndexOf('/'));
+        return slash < 0 ? trimmed : trimmed[(slash + 1)..];
     }
 
     private static void ExecuteWithLegacyShell(string action, List<string> sources, string target, bool bypassRecycleBin, bool showProgress)
@@ -318,7 +345,8 @@ public sealed class NativeShellFileOperationService
     private static void ShellDelete(List<string> sources, bool bypassRecycleBin, bool showProgress)
     {
         var from = string.Join('\0', sources) + "\0\0";
-        var flags = (ushort)(FOF_NOCONFIRMATION | FOF_NOERRORUI);
+        // Never FOF_NOCONFIRMATION — Explorer always confirms collisions / recycle prompts.
+        var flags = (ushort)FOF_NOERRORUI;
         if (!bypassRecycleBin) flags |= FOF_ALLOWUNDO;
         if (!showProgress) flags |= FOF_SILENT;
 
@@ -352,7 +380,8 @@ public sealed class NativeShellFileOperationService
             to = dest + "\0\0";
         }
 
-        var flags = (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI);
+        // Never FOF_NOCONFIRMATION — silent only hides progress UI.
+        var flags = (ushort)(FOF_ALLOWUNDO | FOF_NOERRORUI);
         if (!showProgress) flags |= FOF_SILENT;
         var fileop = new SHFILEOPSTRUCT
         {

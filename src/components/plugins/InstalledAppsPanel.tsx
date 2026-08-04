@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
+import { requestNativeConfirm, showNativeAlert } from '../../lib/nativeDialog';
 import {
   PluginToolbarButton,
   PluginSectionTitle,
@@ -73,17 +74,26 @@ export default function InstalledAppsPanel() {
     });
   };
 
-  const runUninstall = async (app: InstalledApp, quiet = false) => {
+  const runUninstall = async (app: InstalledApp, quiet = false, skipConfirm = false) => {
     if (!app.canUninstall) return;
-    const ok = window.confirm(`Uninstall "${app.name}"?\n\nThis launches the program's native uninstaller (same as Windows Settings → Apps).`);
-    if (!ok) return;
+    if (!skipConfirm) {
+      const ok = await requestNativeConfirm({
+        title: 'Uninstall application',
+        message: `Uninstall "${app.name}"?\n\nThis launches the program's native uninstaller (same as Windows Settings → Apps).`,
+        type: 'warning',
+        confirmLabel: 'Uninstall',
+        cancelLabel: 'Cancel',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     setUninstalling(app.id);
     try {
       const result = await IPC.uninstallApp(app.id, quiet);
       if (!result.success) throw new Error(result.error || 'Uninstall failed to start');
       setSelected(prev => { const n = new Set(prev); n.delete(app.id); return n; });
     } catch (err: unknown) {
-      window.alert(err instanceof Error ? err.message : 'Uninstall failed');
+      showNativeAlert(err instanceof Error ? err.message : 'Uninstall failed', 'Uninstall', 'error');
     } finally {
       setUninstalling(null);
     }
@@ -92,10 +102,17 @@ export default function InstalledAppsPanel() {
   const uninstallSelected = async () => {
     const targets = apps.filter(a => selected.has(a.id) && a.canUninstall);
     if (!targets.length) return;
-    const ok = window.confirm(`Uninstall ${targets.length} application(s)? Each will open its native uninstaller sequentially.`);
+    const ok = await requestNativeConfirm({
+      title: 'Uninstall applications',
+      message: `Uninstall ${targets.length} application(s)? Each will open its native uninstaller sequentially.`,
+      type: 'warning',
+      confirmLabel: 'Uninstall',
+      cancelLabel: 'Cancel',
+      destructive: true,
+    });
     if (!ok) return;
     for (const app of targets) {
-      await runUninstall(app, true);
+      await runUninstall(app, true, true);
     }
   };
 

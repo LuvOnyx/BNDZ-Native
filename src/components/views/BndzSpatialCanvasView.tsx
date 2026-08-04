@@ -1839,7 +1839,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
               }
             }}
             onContextMenu={e => { e.stopPropagation(); onContextMenu(e, 'spatial-board'); }}
-            onDragOver={e => { if (hasBndzFileDrag(e) || e.dataTransfer.types.includes('text/plain')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+            onDragOver={e => {
+              if (hasBndzFileDrag(e) || e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('text/plain')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+              }
+            }}
             onDrop={onDrop}
           >
             <div className="bndz-spatial-vignette pointer-events-none" aria-hidden />

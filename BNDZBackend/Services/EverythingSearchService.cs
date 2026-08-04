@@ -177,6 +177,11 @@ public class EverythingSearchService
             if (preferEverything && TrySearchEverything(evQuery, limit, primaryRoot, results))
                 return (results.Take(limit).ToList(), "everything");
 
+            // Prefer index/Everything for global boolean queries — skip whole-disk FS walks
+            // when preferBndzIndex was on and no scoped root was provided (same as non-boolean).
+            if (preferBndzIndex && string.IsNullOrEmpty(primaryRoot) && !searchContent)
+                return (results, "indexed-empty");
+
             foreach (var root in roots.Count > 0 ? roots : [""])
             {
                 var partial = SearchFilesystemBoolean(ast, limit - results.Count, useRegex, root);
@@ -205,7 +210,7 @@ public class EverythingSearchService
         if (preferBndzIndex && !useRegex && !booleanMode && !searchContent
             && string.IsNullOrEmpty(primaryRoot))
         {
-            return (results, "indexed");
+            return (results, "indexed-empty");
         }
 
         var fs = SearchFilesystem(query, limit, useRegex, primaryRoot);
