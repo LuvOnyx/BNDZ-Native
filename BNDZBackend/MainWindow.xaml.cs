@@ -1419,7 +1419,7 @@ namespace BNDZ
             }
 
             if (Dispatcher.CheckAccess()) Kickoff();
-            else Dispatcher.BeginInvoke(Kickoff);
+            else _ = Dispatcher.BeginInvoke(Kickoff);
 
             try
             {
