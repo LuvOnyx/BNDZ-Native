@@ -136,6 +136,15 @@ internal static class LicenseTokenSecretEmbedded
     }
 
     Write-Host "==> Publishing .NET app" -ForegroundColor Yellow
+    # Always wipe publish output first. Reusing a dirty folder leaves stale NuGet DLLs
+    # (e.g. WebView2 1.0.2903 next to a deps.json that demands 1.0.4078) and the
+    # installed exe crashes on FileNotFoundException before any window appears.
+    if (Test-Path $PublishDir) {
+        Write-Host "    Cleaning $PublishDir" -ForegroundColor DarkGray
+        Remove-Item -LiteralPath $PublishDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $PublishDir -Force | Out-Null
+
     $publishArgs = @(
         "publish", (Join-Path $Backend "BNDZ.csproj"),
         "-c", $Configuration,

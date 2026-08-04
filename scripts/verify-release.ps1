@@ -58,6 +58,19 @@ if (Test-Path $diAbs) {
     $failures += "Missing Microsoft.Extensions.DependencyInjection.Abstractions.dll in publish output"
 }
 
+$wvWpf = Join-Path $PublishDir "Microsoft.Web.WebView2.Wpf.dll"
+if (Test-Path $wvWpf) {
+    $wvVer = [System.Reflection.AssemblyName]::GetAssemblyName($wvWpf).Version
+    # PackageReference is Microsoft.Web.WebView2 1.0.4078.44 — stale publish dirs used to ship 1.0.2903.40.
+    if ($wvVer.Build -ge 4078) {
+        Write-Host "  OK  WebView2.Wpf assemblyVersion=$wvVer" -ForegroundColor Green
+    } else {
+        $failures += "Published WebView2.Wpf is $wvVer (need >= 1.0.4078.44). Dirty publish folder left stale DLLs — build-release.ps1 must wipe PublishDir first."
+    }
+} else {
+    $failures += "Missing Microsoft.Web.WebView2.Wpf.dll in publish output"
+}
+
 $exe = Join-Path $PublishDir "BNDZ.exe"
 if (Test-Path $exe) {
     $vi = (Get-Item $exe).VersionInfo
