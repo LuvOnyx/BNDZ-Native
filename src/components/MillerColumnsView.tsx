@@ -112,7 +112,7 @@ export default function MillerColumnsView({
                 ) : (
                   <VirtualizedFileList
                     items={items}
-                    threshold={80}
+                    threshold={1}
                     rowHeight={28}
                     mode="list"
                     gap={0}

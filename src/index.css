@@ -338,7 +338,7 @@
   }
 
   .nav-tree-row:hover:not(.nav-tree-row-selected) {
-    background: linear-gradient(90deg, rgba(42, 45, 46, 0.95) 0%, rgba(32, 34, 36, 0.85) 100%);
+    background: rgba(42, 45, 46, 0.92);
   }
 
   .fs-item-wrapper {
@@ -347,7 +347,7 @@
   }
 
   .fs-item-wrapper:hover:not(.fs-item-selected) {
-    background: linear-gradient(90deg, rgba(42, 45, 46, 0.92) 0%, rgba(30, 32, 34, 0.75) 100%) !important;
+    background: rgba(42, 45, 46, 0.9) !important;
   }
 
   .fs-list-header,
@@ -1215,7 +1215,10 @@ html.theme-light .nav-tree-row:hover {
 .bndz-quick-actions-bar > div {
   background: linear-gradient(165deg, rgba(28, 32, 40, 0.96), rgba(18, 20, 26, 0.98));
   border-bottom-color: rgba(153, 201, 240, 0.14);
+}
+html[data-surface-style="glass"] .bndz-quick-actions-bar > div {
   backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
 }
 .bndz-quick-actions-bar .text-\[\#cce4f7\] {
   letter-spacing: 0.06em;
@@ -1228,6 +1231,20 @@ html.theme-light .nav-tree-row:hover {
   cursor: default;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
+}
+
+/* Mid-scroll: freeze layout transitions + chrome blur so compositor keeps monitor Hz. */
+html.bndz-scrolling .fs-list-item,
+html.bndz-scrolling .bndz-list-header-bar,
+html.bndz-scrolling .fs-item-wrapper,
+html.bndz-scrolling .nav-tree-row {
+  transition: none !important;
+}
+html.bndz-scrolling .bndz-chrome-sidebar,
+html.bndz-scrolling .bndz-chrome-omnibar,
+html.bndz-scrolling .bndz-quick-actions-bar > div {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .fs-list-item {
@@ -3848,12 +3865,7 @@ html[data-density="spacious"] .fs-list-item {
 }
 
 .bndz-list-header-bar {
-  transition: min-height 0.12s ease, padding 0.12s ease;
   min-height: calc(24px * var(--bndz-list-density, 1));
-}
-
-.fs-list-item {
-  transition: min-height 0.12s ease, padding 0.12s ease;
 }
 
 .fs-item-wrapper--peer-share {

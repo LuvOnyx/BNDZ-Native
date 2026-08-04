@@ -92,7 +92,7 @@ export default function BndzRecentsView({
   return (
     <VirtualizedFileList
       items={rows}
-      threshold={80}
+      threshold={1}
       rowHeight={28}
       className="flex flex-col w-full"
       renderItem={(row) => {

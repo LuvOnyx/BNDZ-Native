@@ -3,10 +3,12 @@ import { hideFloatingTooltip } from './floatingTooltip';
 
 let scrolling = false;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
-const SCROLL_IDLE_MS = 120;
+/** Short idle so icons resume quickly after finger-lift without fighting the scroll frame. */
+const SCROLL_IDLE_MS = 90;
 
 const MAX_CONCURRENT = 4;
-const MAX_CONCURRENT_WHILE_SCROLLING = 2;
+/** Near-zero extract work during scroll — viewport-priority jobs still allowed at full concurrency. */
+const MAX_CONCURRENT_WHILE_SCROLLING = 1;
 const VIEWPORT_PRIORITY_FLOOR = 1700;
 const MAX_PENDING = 96;
 let active = 0;
@@ -37,13 +39,21 @@ function pump() {
   }
 }
 
+function setScrollingClass(on: boolean) {
+  try {
+    document.documentElement.classList.toggle('bndz-scrolling', on);
+  } catch { /* ignore */ }
+}
+
 export function markScrolling(): void {
   scrolling = true;
+  setScrollingClass(true);
   hideFloatingTooltip();
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     scrolling = false;
     idleTimer = null;
+    setScrollingClass(false);
     pump();
   }, SCROLL_IDLE_MS);
 }
@@ -87,7 +97,6 @@ export function enqueueIconRequest<T>(fn: () => Promise<T>, priority = 0): Promi
         evicted.reject(new Error('Icon request evicted from queue'));
       }
     }
-
     pending.push({ run, priority, reject });
     pump();
   });

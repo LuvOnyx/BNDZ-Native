@@ -21,7 +21,7 @@ interface VirtualizedFileListProps<T> {
 export function VirtualizedFileList<T>({
   items,
   enabled = true,
-  threshold = 80,
+  threshold = 1,
   rowHeight = 26,
   mode = 'list',
   gridMinItemWidth = 108,

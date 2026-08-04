@@ -3401,7 +3401,7 @@ export default function BNDZUI() {
   }, []);
 
   useEffect(() => {
-    initAdaptiveListDensity(config.adaptiveListDensity !== false);
+    initAdaptiveListDensity(config.adaptiveListDensity === true);
   }, [config.adaptiveListDensity]);
 
   useEffect(() => {
@@ -4743,7 +4743,7 @@ export default function BNDZUI() {
   const handlePaneScroll = (paneId: string, e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const top = el.scrollTop;
-    if (config.adaptiveListDensity !== false) {
+    if (config.adaptiveListDensity === true) {
       onAdaptiveListScroll(top);
     }
     listScrollTopsRef.current[paneId] = top;

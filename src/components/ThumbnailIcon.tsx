@@ -203,6 +203,8 @@ export function ThumbnailIcon({
         <img
           src={displaySrc}
           alt=""
+          decoding="async"
+          loading="eager"
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           draggable={false}
           onError={() => {
@@ -224,6 +226,7 @@ export function ThumbnailIcon({
         <img
           src={usableShell}
           alt=""
+          decoding="async"
           draggable={false}
           style={{
             position: 'absolute',
@@ -232,7 +235,6 @@ export function ThumbnailIcon({
             width: Math.max(10, Math.round(size * 0.38)),
             height: Math.max(10, Math.round(size * 0.38)),
             objectFit: 'contain',
-            filter: 'drop-shadow(0 0 1px rgba(0,0,0,.8))',
             pointerEvents: 'none',
           }}
         />

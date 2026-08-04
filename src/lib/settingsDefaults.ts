@@ -704,7 +704,7 @@ export const SETTINGS_VALUE_PATCHES: Record<string, string | number | boolean> =
   appearanceSurfaceStyle: 'flat',
   appearanceCornerRadius: 'rounded',
   appearanceDensity: 'comfortable',
-  adaptiveListDensity: true,
+  adaptiveListDensity: false,
   adaptiveListDensityPersist: false,
   liveShareCursorEnabled: false,
   appearanceTabStyle: 'underline',

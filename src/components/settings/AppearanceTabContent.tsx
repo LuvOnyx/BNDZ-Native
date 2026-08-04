@@ -239,13 +239,13 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           <input
             type="checkbox"
             className="mt-0.5"
-            checked={localConfig.adaptiveListDensity !== false}
+            checked={!!localConfig.adaptiveListDensity}
             onChange={e => patch({ adaptiveListDensity: e.target.checked })}
           />
           <span className="text-[12px] text-white/90 leading-snug">
             Adaptive list density
             <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Densifies rows during fast scroll; expands when idle or when items are selected.
+              Off by default for maximum scroll Hz. When on, densifies rows during fast scroll (can cost layout frames).
             </span>
           </span>
         </label>

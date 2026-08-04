@@ -1360,7 +1360,9 @@ namespace BNDZ
             try
             {
             // WebView2 uses D3D11 compositing by default; prefer explicit GPU rasterization for smooth panel resize/scroll.
-            // --disable-frame-rate-limit unlocks vsync cap for snappier UI; --ignore-gpu-blocklist keeps GPU on blocked adapters.
+            // --disable-frame-rate-limit unlocks Chromium's internal 60fps cap so the compositor follows monitor Hz.
+            // --disable-smooth-scrolling keeps wheel input 1:1 (Explorer-like), not eased browser smooth-scroll.
+            // CanvasOopRasterization / gpu-compositing keep paint off the UI thread when the adapter allows it.
             // Custom scheme for local file streaming — WebResourceRequested does NOT fire on SetVirtualHostNameToFolderMapping hosts.
             var streamScheme = new CoreWebView2CustomSchemeRegistration(LocalStreamService.CustomScheme)
             {
@@ -1373,7 +1375,11 @@ namespace BNDZ
             // CustomSchemeRegistrations is ctor-only (read-only property). Passing null leaves
             // the getter returning null, so .Add would NullReferenceException at startup.
             var webEnvOptions = new CoreWebView2EnvironmentOptions(
-                additionalBrowserArguments: "--enable-gpu-rasterization --enable-zero-copy --disable-features=CalculateNativeWinOcclusion --disable-frame-rate-limit --ignore-gpu-blocklist",
+                additionalBrowserArguments:
+                    "--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
+                    "--enable-features=CanvasOopRasterization " +
+                    "--disable-features=CalculateNativeWinOcclusion " +
+                    "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist",
                 customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme });
 
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -1398,6 +1404,8 @@ namespace BNDZ
             // Suppress Edge/WebView2 default context menus — BNDZ uses custom React menus only
             MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             MainWebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            // Match chrome so compositor never flashes white behind the UI (native feel).
+            try { MainWebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 22, 24, 31); } catch { /* older runtimes */ }
             MainWebView.ZoomFactor = 1.0;
             MainWebView.ZoomFactorChanged += (_, _) =>
             {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { IPC } from '../lib/ipcBridge';
 
 type PerfStats = {
@@ -28,6 +28,10 @@ export default function PerfHud() {
   const [open, setOpen] = useState(readEnabled);
   const [stats, setStats] = useState<PerfStats | null>(null);
   const [queueDepth, setQueueDepth] = useState(0);
+  const [fps, setFps] = useState(0);
+  const [scrolling, setScrolling] = useState(false);
+  const framesRef = useRef(0);
+  const lastFpsAtRef = useRef(performance.now());
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,6 +47,24 @@ export default function PerfHud() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    let raf = 0;
+    const tick = (now: number) => {
+      framesRef.current += 1;
+      const elapsed = now - lastFpsAtRef.current;
+      if (elapsed >= 500) {
+        setFps(Math.round((framesRef.current * 1000) / elapsed));
+        framesRef.current = 0;
+        lastFpsAtRef.current = now;
+        setScrolling(document.documentElement.classList.contains('bndz-scrolling'));
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
 
   useEffect(() => {
     if (!open || !IPC.isNative) {
@@ -78,10 +100,12 @@ export default function PerfHud() {
 
   return (
     <div
-      className="fixed bottom-3 right-3 z-[99990] pointer-events-none select-none rounded-[10px] border border-[#3a3a3a] bg-[#1a1c20]/95 backdrop-blur-sm px-3 py-2 shadow-lg"
+      className="fixed bottom-3 right-3 z-[99990] pointer-events-none select-none rounded-[10px] border border-[#3a3a3a] bg-[#1a1c20]/95 px-3 py-2 shadow-lg"
       style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.45, minWidth: 176 }}
     >
       <div className="text-[#60a5fa] font-semibold tracking-wide mb-1">BNDZ PERF</div>
+      {row('fps', fps)}
+      {row('scroll', scrolling ? 'active' : 'idle')}
       {row('icon L1', stats?.iconL1Hits)}
       {row('icon L2', stats?.iconL2Hits)}
       {row('icon extract', stats?.iconExtracts)}

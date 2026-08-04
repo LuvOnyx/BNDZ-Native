@@ -119,7 +119,7 @@ export default function BndzMediaView({
       <div className="p-2">
         <VirtualizedFileList
           items={items}
-          threshold={80}
+          threshold={1}
           mode="grid"
           gridMinItemWidth={108}
           gridRowHeight={108}
