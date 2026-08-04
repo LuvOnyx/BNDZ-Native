@@ -7,8 +7,8 @@ let idleTimer: ReturnType<typeof setTimeout> | null = null;
 const SCROLL_IDLE_MS = 90;
 
 const MAX_CONCURRENT = 4;
-/** Near-zero extract work during scroll — viewport-priority jobs still allowed at full concurrency. */
-const MAX_CONCURRENT_WHILE_SCROLLING = 1;
+/** While scrolling, still allow a couple of extracts so icons keep warming without starving frames. */
+const MAX_CONCURRENT_WHILE_SCROLLING = 2;
 const VIEWPORT_PRIORITY_FLOOR = 1700;
 const MAX_PENDING = 96;
 let active = 0;

@@ -235,6 +235,7 @@ export function ThumbnailIcon({
             width: Math.max(10, Math.round(size * 0.38)),
             height: Math.max(10, Math.round(size * 0.38)),
             objectFit: 'contain',
+            filter: 'drop-shadow(0 0 1px rgba(0,0,0,.8))',
             pointerEvents: 'none',
           }}
         />

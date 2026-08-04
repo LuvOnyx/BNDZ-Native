@@ -2235,6 +2235,16 @@ export const IPC = {
     return Promise.resolve({});
   },
 
+  /** Honest Chromium/CDP GPU + compositor status (hardware vs SwiftShader/software). */
+  getGpuStatus(): Promise<Record<string, unknown>> {
+    if (this.isNative) {
+      const id = `${Date.now()}_gpuStatus`;
+      return _nativeCall<Record<string, unknown>>('GET_GPU_STATUS', 'GPU_STATUS_RESULT', id, {}, 8000)
+        .then(r => (r && typeof r === 'object' ? r : { ok: false, error: 'empty' }));
+    }
+    return Promise.resolve({ ok: false, error: 'Not native' });
+  },
+
   getAsyncHashes(path: string): Promise<{md5?: string, sha256?: string}> {
     if (this.isNative) {
       const id = `${Date.now()}_hashes`;

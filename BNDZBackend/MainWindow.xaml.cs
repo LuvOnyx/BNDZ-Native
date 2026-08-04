@@ -85,6 +85,9 @@ namespace BNDZ
         // private ConcurrentDictionary kept removed — use BndzHostCaches.Icons / Thumbnails.
 
         private CoreWebView2Environment? _webViewEnvironment;
+        /// <summary>Cached CDP SystemInfo.getInfo GPU report for Perf HUD (honest hardware vs software).</summary>
+        private object? _gpuStatusCache;
+        private readonly object _gpuStatusGate = new();
         /// <summary>JS innerWidth / WebView ActualWidth — corrects WPF→clientX drift at 125%+ DPI.</summary>
         private double _webviewJsScaleX = 1.0;
         private double _webviewJsScaleY = 1.0;
@@ -99,6 +102,8 @@ namespace BNDZ
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
             InitializeComponent();
+            // Prefer WPF hardware rendering for the host chrome around WebView2 (never force SoftwareOnly).
+            try { System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.Default; } catch { /* ignore */ }
             // AllowExternalDrop=true: WebView2's own OLE target will be replaced by BNDZ's
             // native IDropTarget via RegisterWebView2OleDropTarget() after CoreWebView2 init.
             MainWebView.AllowExternalDrop = true;
@@ -1355,6 +1360,225 @@ namespace BNDZ
             });
         }
 
+        /// <summary>
+        /// Honest GPU report via Chromium CDP SystemInfo.getInfo — distinguishes D3D11/iGPU/dGPU
+        /// from SwiftShader / Basic Render Driver. Flags alone do not prove hardware paint.
+        /// </summary>
+        private async Task ProbeAndCacheGpuStatusAsync()
+        {
+            try
+            {
+                var payload = await BuildGpuStatusFromCdpAsync().ConfigureAwait(true);
+                lock (_gpuStatusGate) { _gpuStatusCache = payload; }
+            }
+            catch (Exception ex)
+            {
+                lock (_gpuStatusGate)
+                {
+                    _gpuStatusCache = new
+                    {
+                        ok = false,
+                        error = ex.Message,
+                        hardwareAccelerated = (bool?)null,
+                        compositing = "unknown",
+                        renderer = "",
+                        vendor = "",
+                        adapter = "",
+                        angleBackend = "",
+                        featureStatus = new Dictionary<string, string>(),
+                        detail = "CDP SystemInfo.getInfo failed",
+                    };
+                }
+            }
+        }
+
+        private async Task<object> GetGpuStatusPayloadAsync()
+        {
+            lock (_gpuStatusGate)
+            {
+                if (_gpuStatusCache != null) return _gpuStatusCache;
+            }
+
+            var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+            void Kickoff()
+            {
+                _ = ProbeOnUiAsync();
+                async Task ProbeOnUiAsync()
+                {
+                    try
+                    {
+                        var payload = await BuildGpuStatusFromCdpAsync().ConfigureAwait(true);
+                        lock (_gpuStatusGate) { _gpuStatusCache = payload; }
+                        tcs.TrySetResult(payload);
+                    }
+                    catch (Exception ex)
+                    {
+                        tcs.TrySetException(ex);
+                    }
+                }
+            }
+
+            if (Dispatcher.CheckAccess()) Kickoff();
+            else Dispatcher.BeginInvoke(Kickoff);
+
+            try
+            {
+                return await tcs.Task.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                return new
+                {
+                    ok = false,
+                    error = ex.Message,
+                    hardwareAccelerated = (bool?)null,
+                    compositing = "unknown",
+                    renderer = "",
+                    vendor = "",
+                    adapter = "",
+                    angleBackend = "",
+                    featureStatus = new Dictionary<string, string>(),
+                    detail = "GPU status unavailable",
+                };
+            }
+        }
+
+        private async Task<object> BuildGpuStatusFromCdpAsync()
+        {
+            if (MainWebView.CoreWebView2 == null)
+                throw new InvalidOperationException("CoreWebView2 not ready");
+
+            var raw = await MainWebView.CoreWebView2
+                .CallDevToolsProtocolMethodAsync("SystemInfo.getInfo", "{}")
+                .ConfigureAwait(true);
+
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? "{}" : raw);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("gpu", out var gpu))
+            {
+                return new
+                {
+                    ok = false,
+                    error = "No gpu object in SystemInfo.getInfo",
+                    hardwareAccelerated = (bool?)null,
+                    compositing = "unknown",
+                    renderer = "",
+                    vendor = "",
+                    adapter = "",
+                    angleBackend = "",
+                    featureStatus = new Dictionary<string, string>(),
+                    detail = "Chromium returned empty GPU info",
+                };
+            }
+
+            string vendor = "";
+            string adapter = "";
+            if (gpu.TryGetProperty("devices", out var devices) && devices.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var device in devices.EnumerateArray())
+                {
+                    var vs = device.TryGetProperty("vendorString", out var vEl) ? (vEl.GetString() ?? "") : "";
+                    var ds = device.TryGetProperty("deviceString", out var dEl) ? (dEl.GetString() ?? "") : "";
+                    if (string.IsNullOrWhiteSpace(adapter) && !string.IsNullOrWhiteSpace(ds))
+                    {
+                        vendor = vs;
+                        adapter = ds;
+                    }
+                    // Prefer a real GPU over Microsoft Basic Render Driver.
+                    var blob = $"{vs} {ds}".ToLowerInvariant();
+                    if (!blob.Contains("basic render") && !blob.Contains("gdi generic") && !string.IsNullOrWhiteSpace(ds))
+                    {
+                        vendor = vs;
+                        adapter = ds;
+                        break;
+                    }
+                }
+            }
+
+            string renderer = adapter;
+            if (gpu.TryGetProperty("auxAttributes", out var aux) && aux.ValueKind == JsonValueKind.Object)
+            {
+                if (aux.TryGetProperty("glRenderer", out var glR) && glR.ValueKind == JsonValueKind.String)
+                    renderer = glR.GetString() ?? renderer;
+                else if (aux.TryGetProperty("rendererString", out var rs) && rs.ValueKind == JsonValueKind.String)
+                    renderer = rs.GetString() ?? renderer;
+            }
+
+            var featureStatus = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (gpu.TryGetProperty("featureStatus", out var feats) && feats.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in feats.EnumerateObject())
+                    featureStatus[prop.Name] = prop.Value.ValueKind == JsonValueKind.String
+                        ? (prop.Value.GetString() ?? "")
+                        : prop.Value.ToString();
+            }
+
+            var blobAll = $"{vendor} {adapter} {renderer}".ToLowerInvariant();
+            var software = blobAll.Contains("swiftshader")
+                || blobAll.Contains("llvmpipe")
+                || blobAll.Contains("basic render driver")
+                || blobAll.Contains("gdi generic");
+
+            bool? FeatureOk(string key)
+            {
+                if (!featureStatus.TryGetValue(key, out var v) || string.IsNullOrWhiteSpace(v)) return null;
+                var s = v.ToLowerInvariant();
+                if (s.Contains("disabled") || s.Contains("unavailable") || s.Contains("software")) return false;
+                if (s.Contains("enabled") || s.Contains("hardware")) return true;
+                return null;
+            }
+
+            var gpuCompositing = FeatureOk("gpu_compositing");
+            var rasterization = FeatureOk("rasterization");
+            var hardware = !software && (gpuCompositing != false) && (
+                gpuCompositing == true
+                || rasterization == true
+                || blobAll.Contains("direct3d")
+                || blobAll.Contains("d3d11")
+                || blobAll.Contains("d3d12")
+                || blobAll.Contains("nvidia")
+                || blobAll.Contains("amd")
+                || blobAll.Contains("radeon")
+                || blobAll.Contains("intel")
+                || blobAll.Contains("qualcomm"));
+
+            string angleBackend = "";
+            if (renderer.IndexOf("Direct3D12", StringComparison.OrdinalIgnoreCase) >= 0 || renderer.IndexOf("D3D12", StringComparison.OrdinalIgnoreCase) >= 0)
+                angleBackend = "Direct3D12";
+            else if (renderer.IndexOf("Direct3D11", StringComparison.OrdinalIgnoreCase) >= 0 || renderer.IndexOf("D3D11", StringComparison.OrdinalIgnoreCase) >= 0)
+                angleBackend = "Direct3D11";
+            else if (renderer.IndexOf("Vulkan", StringComparison.OrdinalIgnoreCase) >= 0)
+                angleBackend = "Vulkan";
+            else if (renderer.IndexOf("SwiftShader", StringComparison.OrdinalIgnoreCase) >= 0)
+                angleBackend = "SwiftShader";
+            else if (renderer.IndexOf("OpenGL", StringComparison.OrdinalIgnoreCase) >= 0)
+                angleBackend = "OpenGL";
+
+            var compositing = software || gpuCompositing == false ? "software"
+                : hardware ? "gpu"
+                : "unknown";
+
+            var detail = software
+                ? "Software path (SwiftShader / Basic Render) — not the user GPU"
+                : hardware
+                    ? $"Hardware GPU via {(string.IsNullOrEmpty(angleBackend) ? "Chromium compositor" : "ANGLE " + angleBackend)}"
+                    : "GPU info present; hardware status unclear";
+
+            return new
+            {
+                ok = true,
+                error = (string?)null,
+                hardwareAccelerated = hardware ? true : software ? false : (bool?)null,
+                compositing,
+                renderer,
+                vendor,
+                adapter,
+                angleBackend,
+                featureStatus,
+                detail,
+            };
+        }
+
         private async void InitializeWebViewAsync()
         {
             try
@@ -1406,6 +1630,8 @@ namespace BNDZ
             MainWebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
             // Match chrome so compositor never flashes white behind the UI (native feel).
             try { MainWebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 22, 24, 31); } catch { /* older runtimes */ }
+            // Probe Chromium GPU/compositor status once — Perf HUD reports real adapter, not assumed flags.
+            _ = ProbeAndCacheGpuStatusAsync();
             MainWebView.ZoomFactor = 1.0;
             MainWebView.ZoomFactorChanged += (_, _) =>
             {
@@ -4984,6 +5210,17 @@ namespace BNDZ
                     {
                         var payload = BndzHostCaches.GetPerfSnapshot();
                         var response = new { type = "PERF_STATS_RESULT", id = idProp, payload };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
+                }
+                else if (type == "GET_GPU_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(async () =>
+                    {
+                        var payload = await GetGpuStatusPayloadAsync().ConfigureAwait(false);
+                        var response = new { type = "GPU_STATUS_RESULT", id = idProp, payload };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => MainWebView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });

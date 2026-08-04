@@ -1,9 +1,6 @@
 /**
  * Adaptive list density — RAF-throttled scroll velocity tracking.
  * Densifies rows during fast scroll; expands when idle or selection is focused.
- *
- * Default OFF (settingsDefaults.adaptiveListDensity=false): mid-scroll CSS var
- * writes force list-row layout and fight monitor-Hz scrolling. Prefer fixed density.
  */
 
 const DENSITY_MIN = 0.82;

@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IPC } from '../lib/ipcBridge';
+import {
+  formatGpuHudLine,
+  mergeGpuStatus,
+  probeClientGpuStatus,
+  type GpuStatus,
+} from '../lib/gpuStatus';
 
 type PerfStats = {
   iconL1Hits?: number;
@@ -30,6 +36,7 @@ export default function PerfHud() {
   const [queueDepth, setQueueDepth] = useState(0);
   const [fps, setFps] = useState(0);
   const [scrolling, setScrolling] = useState(false);
+  const [gpu, setGpu] = useState<GpuStatus | null>(null);
   const framesRef = useRef(0);
   const lastFpsAtRef = useRef(performance.now());
 
@@ -67,6 +74,30 @@ export default function PerfHud() {
   }, [open]);
 
   useEffect(() => {
+    if (!open) {
+      setGpu(null);
+      return;
+    }
+    let alive = true;
+    const refreshGpu = async () => {
+      const client = probeClientGpuStatus();
+      if (!IPC.isNative) {
+        if (alive) setGpu(client);
+        return;
+      }
+      try {
+        const host = await IPC.getGpuStatus();
+        if (alive) setGpu(mergeGpuStatus(host as any, client));
+      } catch {
+        if (alive) setGpu(client);
+      }
+    };
+    refreshGpu();
+    const id = window.setInterval(refreshGpu, 4000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, [open]);
+
+  useEffect(() => {
     if (!open || !IPC.isNative) {
       setStats(null);
       return;
@@ -98,13 +129,32 @@ export default function PerfHud() {
     </div>
   );
 
+  const gpuLine = gpu ? formatGpuHudLine(gpu) : '…';
+  const gpuColor =
+    gpu?.compositing === 'gpu' && gpu.hardwareAccelerated
+      ? '#34d399'
+      : gpu?.compositing === 'software' || gpu?.hardwareAccelerated === false
+        ? '#f87171'
+        : '#fbbf24';
+
+  const adapterShort = (() => {
+    const raw = (gpu?.adapter || gpu?.renderer || '').trim();
+    if (!raw) return '—';
+    return raw.length > 42 ? `${raw.slice(0, 40)}…` : raw;
+  })();
+
   return (
     <div
       className="fixed bottom-3 right-3 z-[99990] pointer-events-none select-none rounded-[10px] border border-[#3a3a3a] bg-[#1a1c20]/95 px-3 py-2 shadow-lg"
-      style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.45, minWidth: 176 }}
+      style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.45, minWidth: 200 }}
     >
       <div className="text-[#60a5fa] font-semibold tracking-wide mb-1">BNDZ PERF</div>
       {row('fps', fps)}
+      <div className="flex justify-between gap-3">
+        <span className="text-[#8b919a]">gpu</span>
+        <span className="tabular-nums font-semibold" style={{ color: gpuColor }}>{gpuLine}</span>
+      </div>
+      {row('adapter', adapterShort)}
       {row('scroll', scrolling ? 'active' : 'idle')}
       {row('icon L1', stats?.iconL1Hits)}
       {row('icon L2', stats?.iconL2Hits)}
