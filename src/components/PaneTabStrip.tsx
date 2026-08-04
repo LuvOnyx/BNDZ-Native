@@ -158,9 +158,16 @@ function SortablePaneTab({
       } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''}`}
       {...attributes}
       {...listeners}
+      // dnd-kit defaults tabIndex=0 + role=button — WebView first-letter navigates
+      // those tabs when type-ahead is off / list isn't eating keys. Override last.
+      role="tab"
+      aria-selected={isActive}
+      tabIndex={-1}
       onMouseDown={e => {
         if ((e.target as HTMLElement).closest('[data-tab-close]')) return;
         pressRef.current = { x: e.clientX, y: e.clientY, moved: false };
+        // Keep keyboard ownership on the file list after activating a tab.
+        try { (e.currentTarget as HTMLElement).blur?.(); } catch { /* ignore */ }
       }}
       onMouseMove={e => {
         const press = pressRef.current;

@@ -115,22 +115,32 @@ export function hydrateShellGlyphMap(glyphs: Record<string, string> | null | und
   void warmImageBitmaps([...typeGlyphCache.values()].slice(0, 48));
 }
 
-/** Decode-once via createImageBitmap so subsequent paints skip PNG decode cost. */
+/** Decode-once so subsequent paints skip PNG decode cost. Prefer Image() over fetch —
+ *  bndz-media:// is cross-origin from http://bndz.local; fetch needs CORS headers. */
 const bitmapWarmed = new Set<string>();
 async function warmImageBitmaps(urls: string[]): Promise<void> {
-  if (typeof createImageBitmap !== 'function') return;
   for (const url of urls) {
     if (!url || bitmapWarmed.has(url)) continue;
     // Never warm broken legacy folder-map URLs (console ERR_FILE_NOT_FOUND flood).
     if (url.includes('/assets/native-icon/')) continue;
     bitmapWarmed.add(url);
     try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const blob = await res.blob();
-      if (!blob || blob.size === 0) continue;
-      const bmp = await createImageBitmap(blob);
-      bmp.close();
+      // data: / http(s) may use createImageBitmap via fetch; custom schemes use Image decode.
+      if (url.startsWith('data:') && typeof createImageBitmap === 'function') {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) continue;
+        const bmp = await createImageBitmap(blob);
+        bmp.close();
+        continue;
+      }
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        img.src = url;
+      });
     } catch {
       /* best-effort — never surface to console as uncaught */
     }
@@ -155,8 +165,9 @@ function commitCache(key: string, data: string | null, typeKey?: string | null, 
   if (existing?.data && !data) return;
   if (data) {
     cache.set(key, { data, status: 'ready' });
+    // Extension type glyphs only. NEVER write per-path folder icons into __folder__ —
+    // that poisons every directory with Downloads/Desktop/etc.
     if (typeKey && typeKey.startsWith('.')) typeGlyphCache.set(typeKey, data);
-    if (typeKey === FOLDER_GLYPH_KEY) typeGlyphCache.set(FOLDER_GLYPH_KEY, data);
     void warmImageBitmaps([data]);
   } else if (kind === 'shell') {
     // Transient shell misses (queue saturation / IPC timeout) must not poison for 10 minutes.
@@ -172,12 +183,10 @@ export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequ
   const entry = cache.get(key);
   if (entry?.status === 'ready' && entry.data) return entry.data;
   if (kind === 'shell') {
+    // Provisional only — do NOT cache.set ready, or per-path fetch never runs.
     if (isDirectory) {
       const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
-      if (folderGlyph) {
-        cache.set(key, { data: folderGlyph, status: 'ready' });
-        return folderGlyph;
-      }
+      if (folderGlyph) return folderGlyph;
     }
     const typeKey = hostIconCacheKey(path, isDirectory);
     if (typeKey?.startsWith('.')) {
@@ -245,13 +254,8 @@ export function requestNativeIcon(
       return Promise.resolve(glyph);
     }
   }
-  if (kind === 'shell' && isDirectory) {
-    const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
-    if (folderGlyph) {
-      commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
-      return Promise.resolve(folderGlyph);
-    }
-  }
+  // Directories: __folder__ is provisional paint only (via getCachedIcon). Always
+  // fetch the real shell icon so Downloads/Desktop/Libraries keep unique glyphs.
 
   const existing = inflight.get(key);
   if (existing) return existing;
@@ -281,7 +285,8 @@ export function requestNativeIcon(
   const queueKind = kind === 'thumbnail' ? 'thumb' as const : 'shell' as const;
   const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority, queueKind)
     .then(data => {
-      commitCache(key, data, isDirectory && kind === 'shell' ? FOLDER_GLYPH_KEY : typeKey, kind);
+      // Never pass FOLDER_GLYPH_KEY — per-path folder extracts must not poison the shared glyph.
+      commitCache(key, data, typeKey?.startsWith('.') ? typeKey : null, kind);
       return data;
     })
     .catch(() => {
@@ -310,29 +315,23 @@ function applyBatchChunk(
     const win = canonicalizeIconPath(req.path);
     const raw = lookupBatchIcon(batch, win, req.path, toWindowsPath(req.path));
     const data = toDataUrl(raw);
-    const typeKey = kind === 'shell'
-      ? (req.isDirectory ? FOLDER_GLYPH_KEY : hostIconCacheKey(req.path, req.isDirectory))
+    // Directories: store per-path only — never as __folder__.
+    const typeKey = kind === 'shell' && !req.isDirectory
+      ? hostIconCacheKey(req.path, req.isDirectory)
       : null;
     if (data) commitCache(key, data, typeKey, kind);
   }
   for (const req of chunk) {
     const key = iconKey(req.path, req.isDirectory, kind, thumbPx);
     if (!cache.get(key)?.data && !inflight.has(key)) {
-      if (kind === 'shell') {
-        if (req.isDirectory) {
-          const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
-          if (folderGlyph) {
-            commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
-            continue;
-          }
-        } else {
-          const typeKey = hostIconCacheKey(req.path, req.isDirectory);
-          if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
-            commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
-            continue;
-          }
+      if (kind === 'shell' && !req.isDirectory) {
+        const typeKey = hostIconCacheKey(req.path, req.isDirectory);
+        if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
+          commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
+          continue;
         }
       }
+      // Directories always per-path fetch (provisional __folder__ comes from getCachedIcon).
       void requestNativeIcon(req.path, req.isDirectory, kind, thumbPx);
     }
   }
@@ -357,11 +356,6 @@ export async function prefetchIconsForEntities(
     if (cache.get(key)?.data || inflight.has(key)) continue;
     if (kind === 'shell') {
       if (isDir) {
-        const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
-        if (folderGlyph) {
-          commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
-          continue;
-        }
         const dirKey = fullPath.toLowerCase();
         if (seenDirs.has(dirKey)) continue;
         seenDirs.add(dirKey);
@@ -390,13 +384,9 @@ export async function prefetchIconsForEntities(
         for (const ent of entities) {
           const fullPath = joinPanePath(panePath, ent);
           const isDir = entityShellIsDirectory(ent, fullPath);
+          if (isDir) continue; // per-path via applyBatchChunk / requestNativeIcon
           const key = iconKey(fullPath, isDir, kind);
           if (cache.get(key)?.data) continue;
-          if (isDir) {
-            const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
-            if (folderGlyph) commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
-            continue;
-          }
           const typeKey = hostIconCacheKey(fullPath, isDir);
           if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
             commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);

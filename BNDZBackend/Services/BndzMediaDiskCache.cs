@@ -106,10 +106,58 @@ public sealed class BndzMediaDiskCache : IDisposable
                 // Keep defending even after the marker — empty catalog + cached-only = blank list.
                 p.ShowCachedThumbsOnly = false;
             }
+
+            // One-shot: old RememberExtractedIcon used USEFILEATTRIBUTES for directories, mapping the
+            // Downloads (etc.) PNG onto the generic folder SYSICONINDEX + __folder__ key.
+            // Every folder then painted as Downloads. Purge icon CAS + in-memory glyph maps.
+            var v4 = Path.Combine(_root, ".v4-folder-glyph-unpoison");
+            if (!File.Exists(v4))
+            {
+                try
+                {
+                    ClearKind(Kind.Icon);
+                    BndzHostCaches.ClearIcons();
+                    ShellGlyphMapService.Instance.ClearMemory();
+                }
+                catch { /* best-effort */ }
+                File.WriteAllText(v4, "1");
+            }
         }
         catch { /* ignore */ }
 
         _policy = p;
+    }
+
+    /// <summary>Delete all catalog rows of a kind and orphaned CAS blobs.</summary>
+    public void ClearKind(Kind kind)
+    {
+        _writeLock.Wait();
+        try
+        {
+            EnsureSchema();
+            using var conn = OpenConnection();
+            var hashes = new List<string>();
+            using (var pick = conn.CreateCommand())
+            {
+                pick.CommandText = "SELECT cas_hash FROM entries WHERE kind = $kind;";
+                pick.Parameters.AddWithValue("$kind", (long)kind);
+                using var reader = pick.ExecuteReader();
+                while (reader.Read())
+                    hashes.Add(reader.GetString(0));
+            }
+            using (var del = conn.CreateCommand())
+            {
+                del.CommandText = "DELETE FROM entries WHERE kind = $kind;";
+                del.Parameters.AddWithValue("$kind", (long)kind);
+                del.ExecuteNonQuery();
+            }
+            foreach (var hash in hashes.Distinct(StringComparer.OrdinalIgnoreCase))
+                TryDeleteCasIfOrphan(conn, hash);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     /// <summary>True when the durable catalog has at least one entry of the given kind.</summary>
@@ -213,18 +261,31 @@ public sealed class BndzMediaDiskCache : IDisposable
     /// <summary>Open CAS file stream by hex hash (for native-icon URL serving).</summary>
     public Stream? OpenCasStreamByHash(string hash)
     {
-        if (string.IsNullOrWhiteSpace(hash) || hash.Length < 4) return null;
-        // Strip accidental .png suffix from URL path.
-        if (hash.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-            hash = hash[..^4];
-            if (hash.Length < 4 || !hash.All(static c =>
-                    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
-                return null;
+        var normalized = BndzMediaScheme.NormalizeHash(hash);
+        if (string.IsNullOrEmpty(normalized)) return null;
         try
         {
-            var file = CasPath(hash.ToLowerInvariant());
+            var file = CasPath(normalized);
             if (!File.Exists(file)) return null;
             return new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Read CAS PNG bytes as base64 (no data: prefix). Null on miss.</summary>
+    public string? TryReadBase64ByHash(string? hash)
+    {
+        try
+        {
+            using var stream = OpenCasStreamByHash(hash ?? "");
+            if (stream == null) return null;
+            using var ms = new MemoryStream(capacity: (int)Math.Min(stream.Length, 8 * 1024 * 1024));
+            stream.CopyTo(ms);
+            if (ms.Length == 0) return null;
+            return Convert.ToBase64String(ms.ToArray());
         }
         catch
         {

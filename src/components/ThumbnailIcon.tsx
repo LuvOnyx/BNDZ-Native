@@ -207,13 +207,18 @@ export function ThumbnailIcon({
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           draggable={false}
           onError={() => {
-            invalidateIconUrl(displaySrc);
-            if (usableThumb && displaySrc === usableThumb) {
+            const broken = displaySrc;
+            invalidateIconUrl(broken);
+            if (usableThumb && broken === usableThumb) {
+              // Fall back to shell glyph; CAS thumbs stay on custom scheme.
               setThumbBroken(true);
+              void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, 1000);
               return;
             }
-            if (usableShell && displaySrc === usableShell) {
-              setShellBroken(true);
+            if (usableShell && broken === usableShell) {
+              // Shell delivery is base64 now — clear poison and refetch once.
+              setShellBroken(false);
+              void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, 1000);
               return;
             }
             setNativeFailed(true);

@@ -11304,10 +11304,8 @@ html[data-theme] .nav-tree-row:focus-visible {
 }
 
 .bndz-list-body--file-drag .fs-item-selected {
-  opacity: 0.4;
-  filter: saturate(0.7);
-  transform: scale(0.985);
-  transition: opacity 0.14s ease, filter 0.14s ease, transform 0.14s ease;
+  opacity: 0.55;
+  filter: saturate(0.85);
 }
 .bndz-breadcrumb-slot {
   flex: 1 1 0%;

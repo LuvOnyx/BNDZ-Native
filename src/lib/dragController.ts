@@ -4,14 +4,19 @@
  */
 
 /** Movement before a list drag can arm — high enough that marquee can win first. */
-const DRAG_THRESHOLD_PX = 12;
+const DRAG_THRESHOLD_PX = 10;
 const DOUBLE_CLICK_GUARD_MS = 280;
-/** Hold time before drag can start after threshold is met. */
-const DEFAULT_DRAG_DELAY_MS = 70;
-/** Slightly faster arm when dragging an already-selected item. */
-const SELECTED_DRAG_DELAY_MS = 45;
+/**
+ * Hold after threshold before drag arms. Keep near-zero so drag feels Explorer-instant;
+ * click-vs-drag is already separated by movement threshold + LIST_CLICK_DEFER_MS.
+ */
+const DEFAULT_DRAG_DELAY_MS = 0;
+const SELECTED_DRAG_DELAY_MS = 0;
 /** Defer synthetic click so native dblclick can win. */
 export const LIST_CLICK_DEFER_MS = 50;
+
+/** Marquee arm distance once intent prefers marquee. */
+export const MARQUEE_ARM_PX = 5;
 
 type DragSession = {
   pointerId: number;
@@ -25,6 +30,7 @@ type DragSession = {
 };
 
 let marqueeActive = false;
+let marqueeDragOccurred = false;
 let lastPointerDownAt = 0;
 let session: DragSession | null = null;
 let dragThresholdMet = false;
@@ -39,6 +45,27 @@ export function setMarqueeActive(active: boolean) {
 
 export function isMarqueeActive() {
   return marqueeActive;
+}
+
+/** Replace window._marqueeDragOccurred with a module flag. */
+export function setMarqueeDragOccurred(v: boolean) {
+  marqueeDragOccurred = v;
+  try {
+    (window as any)._marqueeDragOccurred = v;
+  } catch { /* ignore */ }
+}
+
+export function consumeMarqueeDragOccurred(): boolean {
+  const v = marqueeDragOccurred || !!(window as any)._marqueeDragOccurred;
+  marqueeDragOccurred = false;
+  try {
+    (window as any)._marqueeDragOccurred = false;
+  } catch { /* ignore */ }
+  return v;
+}
+
+export function peekMarqueeDragOccurred(): boolean {
+  return marqueeDragOccurred || !!(window as any)._marqueeDragOccurred;
 }
 
 export function markPointerDown() {
@@ -75,10 +102,11 @@ export function preferFileDragOverMarquee(opts: {
   dy: number;
 }): boolean {
   if (opts.shiftKey) return false;
-  const verticalMarquee = opts.dy > 10 && opts.dy > opts.dx * 1.15;
+  const verticalMarquee = opts.dy > 8 && opts.dy > opts.dx * 1.15;
   if (verticalMarquee) return false;
   if (opts.ctrlKey) return true;
-  const horizontalMarquee = opts.dx > 14 && opts.dx > opts.dy * 1.55;
+  // Horizontal sweep on unselected → marquee (arm before drag threshold fights it).
+  const horizontalMarquee = opts.dx > 9 && opts.dx > opts.dy * 1.45;
   if (horizontalMarquee && !opts.wasSelected) return false;
   if (opts.wasSelected) return true;
   return !horizontalMarquee;

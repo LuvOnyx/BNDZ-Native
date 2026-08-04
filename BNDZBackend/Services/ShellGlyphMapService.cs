@@ -9,6 +9,10 @@ namespace BNDZ.Services;
 /// Explorer-style shell imagelist glyphs: resolve SYSICONINDEX once per iIcon,
 /// encode PNG once, share across all paths with that system icon index.
 /// Builds listing-time glyph maps (unique extensions + folder default) for first paint.
+///
+/// CRITICAL: <see cref="FolderKey"/> is ONLY the generic directory glyph (USEFILEATTRIBUTES probe).
+/// Never write Desktop/Downloads/Documents (or any per-path extract) into FolderKey — that
+/// poisons every folder in the tree and list with the wrong special-folder icon.
 /// </summary>
 public sealed class ShellGlyphMapService
 {
@@ -64,6 +68,13 @@ public sealed class ShellGlyphMapService
         _bySysIndex[iIcon] = base64Png;
     }
 
+    /// <summary>Drop in-memory glyph maps (after durable poison purge).</summary>
+    public void ClearMemory()
+    {
+        _bySysIndex.Clear();
+        _byGlyphKey.Clear();
+    }
+
     /// <summary>
     /// Resolve a type glyph using SYSICONINDEX encode-once. Returns base64 PNG or empty.
     /// </summary>
@@ -79,7 +90,7 @@ public sealed class ShellGlyphMapService
             if (iIcon >= 0)
                 _bySysIndex[iIcon] = png;
             _byGlyphKey[key] = png;
-            BndzHostCaches.Icons.AddOrUpdate(key == FolderKey ? key : key, png);
+            BndzHostCaches.Icons.AddOrUpdate(key, png);
             if (BndzMediaDiskCache.Instance.CurrentPolicy.CacheIconsOnDisk)
                 BndzMediaDiskCache.Instance.PutBase64(BndzMediaDiskCache.Kind.Icon, key, png);
         }
@@ -88,14 +99,15 @@ public sealed class ShellGlyphMapService
 
     /// <summary>
     /// Build a compact glyph map for the given listing entries (unique extensions + folder).
-    /// Keys: ".pdf", "__folder__". Values: base64 PNG or bndz-media://cas/{hash}.png when CAS-warm.
+    /// Keys: ".pdf", "__folder__". Values: base64 PNG only (never bndz-media:// — avoids list blanking).
     /// </summary>
     public Dictionary<string, string> BuildListingGlyphMap(
         IEnumerable<DirListingSharedBuffer.DirEntryDto> entries,
         int maxUnique = 64)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var folderPng = PreferCasOrBase64(FolderKey, () => GetTypeGlyphBase64(FolderKey, true));
+        // Always rebuild generic folder via GetTypeGlyphBase64 (probe) — PreferDisk alone can be poisoned.
+        var folderPng = GetTypeGlyphBase64(FolderKey, true);
         if (!string.IsNullOrEmpty(folderPng))
             map[FolderKey] = folderPng;
 
@@ -123,7 +135,7 @@ public sealed class ShellGlyphMapService
             var key = ext.StartsWith('.') ? ext.ToLowerInvariant() : ("." + ext.ToLowerInvariant());
             if (!seen.Add(key)) continue;
 
-            var png = PreferCasOrBase64(key, () => GetTypeGlyphBase64(key, false));
+            var png = PreferDiskBase64(key, () => GetTypeGlyphBase64(key, false));
             if (!string.IsNullOrEmpty(png))
                 map[key] = png;
         }
@@ -134,34 +146,29 @@ public sealed class ShellGlyphMapService
     /// <summary>
     /// Try reuse a SYSICONINDEX-cached PNG for a real path before extracting a new HICON.
     /// Returns base64 or empty when miss (caller extracts).
+    /// Never returns FolderKey for every directory — special folders (Downloads, Desktop, …)
+    /// have unique indices and must not share a poisoned generic glyph.
     /// </summary>
     public string TryResolveViaSysIconIndex(string path, bool isDirectory)
     {
         if (string.IsNullOrEmpty(path)) return "";
 
         var key = BndzHostCaches.IconCacheKey(path, isDirectory);
-        if (!string.IsNullOrEmpty(key) && key.StartsWith('.') && _byGlyphKey.TryGetValue(key, out var typeHit))
+        // Type glyphs for files by extension only.
+        if (!isDirectory && !string.IsNullOrEmpty(key) && key.StartsWith('.')
+            && _byGlyphKey.TryGetValue(key, out var typeHit))
             return typeHit;
-        if (isDirectory && _byGlyphKey.TryGetValue(FolderKey, out var folderHit))
-            return folderHit;
 
         try
         {
             var shfi = new SHFILEINFO();
+            // Real path index — NO USEFILEATTRIBUTES. That flag forces the generic folder
+            // index for every directory and made RememberExtractedIcon map Downloads PNG → generic iIcon.
             uint flags = SHGFI_SYSICONINDEX | SHGFI_LARGEICON;
-            uint attrs = 0;
-            bool isVirtual = ShellPathResolver.IsShellVirtualPath(path)
-                || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
-            if (isDirectory && !isVirtual)
-            {
-                flags |= SHGFI_USEFILEATTRIBUTES;
-                attrs = FILE_ATTRIBUTE_DIRECTORY;
-            }
-
-            SHGetFileInfo(path, attrs, ref shfi, (uint)Marshal.SizeOf(shfi), flags);
+            SHGetFileInfo(path, 0, ref shfi, (uint)Marshal.SizeOf(shfi), flags);
             if (shfi.iIcon >= 0 && _bySysIndex.TryGetValue(shfi.iIcon, out var cached))
             {
-                if (!string.IsNullOrEmpty(key) && key.StartsWith('.'))
+                if (!isDirectory && !string.IsNullOrEmpty(key) && key.StartsWith('.'))
                     _byGlyphKey.TryAdd(key, cached);
                 return cached;
             }
@@ -178,20 +185,16 @@ public sealed class ShellGlyphMapService
         try
         {
             var shfi = new SHFILEINFO();
+            // Bind PNG to the REAL path's SYSICONINDEX (no USEFILEATTRIBUTES).
             uint flags = SHGFI_SYSICONINDEX | SHGFI_LARGEICON;
-            uint attrs = 0;
-            if (isDirectory)
-            {
-                flags |= SHGFI_USEFILEATTRIBUTES;
-                attrs = FILE_ATTRIBUTE_DIRECTORY;
-            }
-            SHGetFileInfo(path, attrs, ref shfi, (uint)Marshal.SizeOf(shfi), flags);
+            SHGetFileInfo(path, 0, ref shfi, (uint)Marshal.SizeOf(shfi), flags);
             if (shfi.iIcon >= 0)
                 _bySysIndex[shfi.iIcon] = base64Png;
 
             var key = BndzHostCaches.IconCacheKey(path, isDirectory);
-            if (!string.IsNullOrEmpty(key) && (key.StartsWith('.') || isDirectory))
-                _byGlyphKey[isDirectory && !key.StartsWith('.') ? FolderKey : key] = base64Png;
+            // Extension type glyphs only — NEVER write per-path directories into FolderKey.
+            if (!isDirectory && !string.IsNullOrEmpty(key) && key.StartsWith('.'))
+                _byGlyphKey[key] = base64Png;
         }
         catch { /* ignore */ }
     }
@@ -207,31 +210,42 @@ public sealed class ShellGlyphMapService
 
     private (int iIcon, string png) ExtractGlyph(string key, bool isDirectory)
     {
-        // Prefer L2 CAS
-        var fromDisk = BndzMediaDiskCache.Instance.TryGetBase64(BndzMediaDiskCache.Kind.Icon, key);
-        if (!string.IsNullOrEmpty(fromDisk))
-            return (-1, fromDisk);
+        // Prefer L2 CAS — but FolderKey may have been poisoned (Downloads PNG). When key is
+        // FolderKey, always re-probe via USEFILEATTRIBUTES and overwrite durable store.
+        if (key != FolderKey)
+        {
+            var fromDisk = BndzMediaDiskCache.Instance.TryGetBase64(BndzMediaDiskCache.Kind.Icon, key);
+            if (!string.IsNullOrEmpty(fromDisk))
+                return (-1, fromDisk);
 
-        if (BndzHostCaches.Icons.TryGet(key, out var l1) && !string.IsNullOrEmpty(l1))
-            return (-1, l1);
+            if (BndzHostCaches.Icons.TryGet(key, out var l1) && !string.IsNullOrEmpty(l1))
+                return (-1, l1);
+        }
 
         try
         {
-            var probe = isDirectory
-                ? "C:\\Windows"
+            var probe = isDirectory || key == FolderKey
+                ? "folder"
                 : ("file" + (key.StartsWith('.') ? key : "." + key));
             var shfi = new SHFILEINFO();
             uint flags = SHGFI_ICON | SHGFI_LARGEICON | SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES;
-            uint attrs = isDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+            uint attrs = (isDirectory || key == FolderKey) ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
             SHGetFileInfo(probe, attrs, ref shfi, (uint)Marshal.SizeOf(shfi), flags);
             var iIcon = shfi.iIcon;
-            if (iIcon >= 0 && _bySysIndex.TryGetValue(iIcon, out var cached))
+            // For FolderKey, never trust a prior _bySysIndex entry — it may hold Downloads PNG
+            // under the generic folder index from the old USEFILEATTRIBUTES bug.
+            if (key != FolderKey && iIcon >= 0 && _bySysIndex.TryGetValue(iIcon, out var cached))
             {
                 if (shfi.hIcon != IntPtr.Zero) DestroyIcon(shfi.hIcon);
                 return (iIcon, cached);
             }
 
             var png = HIconToBase64(shfi.hIcon);
+            if (key == FolderKey && !string.IsNullOrEmpty(png) && iIcon >= 0)
+            {
+                // Overwrite whatever poison was under the generic index.
+                _bySysIndex[iIcon] = png;
+            }
             return (iIcon, png);
         }
         catch
@@ -240,10 +254,10 @@ public sealed class ShellGlyphMapService
         }
     }
 
-    private static string PreferCasOrBase64(string cacheKey, Func<string> extract)
+    private static string PreferDiskBase64(string cacheKey, Func<string> extract)
     {
-        var url = BndzMediaDiskCache.Instance.TryGetCasUrl(BndzMediaDiskCache.Kind.Icon, cacheKey);
-        if (!string.IsNullOrEmpty(url)) return url!;
+        var fromDisk = BndzMediaDiskCache.Instance.TryGetBase64(BndzMediaDiskCache.Kind.Icon, cacheKey);
+        if (!string.IsNullOrEmpty(fromDisk)) return fromDisk!;
         return extract() ?? "";
     }
 

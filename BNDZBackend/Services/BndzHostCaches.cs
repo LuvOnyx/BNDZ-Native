@@ -91,30 +91,27 @@ public static class BndzHostCaches
     }
 
     /// <summary>
-    /// L1 → L2 (prefer cheap CAS URL) → SYSICONINDEX map → extract.
-    /// Honors disk-cache policy and "cached only" modes.
-    /// Return value is either base64 PNG or bndz-media://cas/{hash}.png.
+    /// L1 → L2 (base64 from CAS) → SYSICONINDEX map → extract.
+    /// Shell glyphs always return base64 PNG (never bndz-media://) so list paint cannot 404
+    /// when the custom-scheme handler or WebView CORS path misbehaves. CAS is still the L2 store.
     /// </summary>
     public static string? ResolveIconBase64(string path, bool isDirectory, Func<string> extract)
     {
         var key = IconCacheKey(path, isDirectory);
         if (Icons.TryGet(key, out var hit) && !string.IsNullOrEmpty(hit))
         {
-            // Migrate stale folder-mapped URLs that 404 under SetVirtualHostNameToFolderMapping.
-            if (hit.Contains("/assets/native-icon/", StringComparison.OrdinalIgnoreCase))
+            // Poisoned L1: CAS/legacy URLs — materialize bytes or ignore and reload from disk.
+            if (BndzMediaScheme.IsCasDeliveryUrl(hit))
             {
-                var legacyHash = BndzMediaScheme.ParseHash(hit);
-                if (!string.IsNullOrEmpty(legacyHash))
+                var materialised = BndzMediaDiskCache.Instance.TryReadBase64ByHash(BndzMediaScheme.ParseHash(hit));
+                if (!string.IsNullOrEmpty(materialised))
                 {
-                    hit = BndzMediaScheme.UrlForHash(legacyHash);
-                    Icons.AddOrUpdate(key, hit);
-                }
-                else
-                {
-                    hit = "";
+                    Icons.AddOrUpdate(key, materialised);
+                    Interlocked.Increment(ref _iconL1Hits);
+                    return materialised;
                 }
             }
-            if (!string.IsNullOrEmpty(hit))
+            else
             {
                 Interlocked.Increment(ref _iconL1Hits);
                 return hit;
@@ -124,14 +121,6 @@ public static class BndzHostCaches
         var disk = BndzMediaDiskCache.Instance;
         if (disk.CurrentPolicy.CacheIconsOnDisk)
         {
-            var casUrl = disk.TryGetCasUrl(BndzMediaDiskCache.Kind.Icon, key);
-            if (!string.IsNullOrEmpty(casUrl))
-            {
-                Interlocked.Increment(ref _iconL2Hits);
-                Icons.AddOrUpdate(key, casUrl);
-                return casUrl;
-            }
-
             var fromDisk = disk.TryGetBase64(BndzMediaDiskCache.Kind.Icon, key);
             if (!string.IsNullOrEmpty(fromDisk))
             {
@@ -174,20 +163,26 @@ public static class BndzHostCaches
         var key = ThumbnailCacheKey(path, size);
         if (Thumbnails.TryGet(key, out var hit) && !string.IsNullOrEmpty(hit))
         {
-            if (hit.Contains("/assets/native-icon/", StringComparison.OrdinalIgnoreCase))
+            if (BndzMediaScheme.IsCasDeliveryUrl(hit))
             {
-                var legacyHash = BndzMediaScheme.ParseHash(hit);
-                if (!string.IsNullOrEmpty(legacyHash))
+                var hash = BndzMediaScheme.ParseHash(hit);
+                // Verify CAS blob still exists — else fall through to base64/extract.
+                using var probe = BndzMediaDiskCache.Instance.OpenCasStreamByHash(hash ?? "");
+                if (probe != null)
                 {
-                    hit = BndzMediaScheme.UrlForHash(legacyHash);
-                    Thumbnails.AddOrUpdate(key, hit);
+                    // Rewrite legacy folder-map URLs to custom scheme.
+                    var canonical = BndzMediaScheme.UrlForHash(hash!);
+                    if (!string.Equals(hit, canonical, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hit = canonical;
+                        Thumbnails.AddOrUpdate(key, hit);
+                    }
+                    Interlocked.Increment(ref _thumbL1Hits);
+                    return hit;
                 }
-                else
-                {
-                    hit = "";
-                }
+                // Stale CAS URL in L1 — ignore and continue.
             }
-            if (!string.IsNullOrEmpty(hit))
+            else
             {
                 Interlocked.Increment(ref _thumbL1Hits);
                 return hit;
@@ -216,8 +211,21 @@ public static class BndzHostCaches
         var key = ThumbnailCacheKey(path, size);
         if (Thumbnails.TryGet(key, out var hit) && !string.IsNullOrEmpty(hit))
         {
-            Interlocked.Increment(ref _thumbL1Hits);
-            return hit;
+            if (BndzMediaScheme.IsCasDeliveryUrl(hit))
+            {
+                var materialised = BndzMediaDiskCache.Instance.TryReadBase64ByHash(BndzMediaScheme.ParseHash(hit));
+                if (!string.IsNullOrEmpty(materialised))
+                {
+                    Thumbnails.AddOrUpdate(key, materialised);
+                    Interlocked.Increment(ref _thumbL1Hits);
+                    return materialised;
+                }
+            }
+            else
+            {
+                Interlocked.Increment(ref _thumbL1Hits);
+                return hit;
+            }
         }
 
         if (ThumbNegatives.TryGetValue(key, out var negAt))

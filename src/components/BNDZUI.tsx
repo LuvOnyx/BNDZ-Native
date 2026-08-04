@@ -23,6 +23,7 @@ import {
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
   preferFileDragOverMarquee, canStartDragFromList, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT, LIST_CLICK_DEFER_MS,
   isWithinDoubleClickGuard,
+  setMarqueeDragOccurred, consumeMarqueeDragOccurred, MARQUEE_ARM_PX,
 } from '../lib/dragController';
 import { resolveDropOperation } from '../lib/dropOperation';
 import {
@@ -265,7 +266,7 @@ import {
 import { buildFileOpsRuntime } from '../lib/settingsWiring';
 import { resolvePaneTab } from '../lib/paneTabGuards';
 import { matchesShortcut, matchesTypeAhead, typeAheadEntityName } from '../lib/keyboardShortcuts';
-import { advanceTypeAheadPrefix, pickTypeAheadMatch, isTypeAheadKey, scrollListToEntity } from '../lib/typeAheadFind';
+import { advanceTypeAheadPrefix, pickTypeAheadMatch, typeAheadCharFromEvent, scrollListToEntity } from '../lib/typeAheadFind';
 import { useBndzPanelMotion } from '../hooks/useBndzPanelMotion';
 import { useBndzTabMotion } from '../hooks/useBndzTabMotion';
 import { useLatest } from '../hooks/useLatest';
@@ -520,14 +521,6 @@ export default function BNDZUI() {
     baseSelection: string[];
   } | null>(null);
 
-  const marqueePointInList = (listEl: HTMLElement, clientX: number, clientY: number) => {
-    const rect = listEl.getBoundingClientRect();
-    return {
-      x: clientX - rect.left + listEl.scrollLeft,
-      y: clientY - rect.top + listEl.scrollTop,
-    };
-  };
-
   type MarqueeSelectMeta = {
     rowHeight: number;
     items: Array<{ id: string; rowIndex: number; colIndex?: number }>;
@@ -544,6 +537,11 @@ export default function BNDZUI() {
 
   /** Per-pane DOM elements for the marquee rect — updated imperatively, zero React renders. */
   const marqueeRectByPaneRef = useRef<Map<string, HTMLElement>>(new Map());
+  /**
+   * Live marquee selection preview — DOM + renderItem read this without React setState
+   * every pointermove (virtualized remounts still pick it up).
+   */
+  const marqueeLiveSelectionRef = useRef<{ paneId: string; ids: Set<string> } | null>(null);
 
   const beginMarqueeGesture = React.useCallback((
     paneId: string,
@@ -555,7 +553,16 @@ export default function BNDZUI() {
     selectMeta?: MarqueeSelectMeta,
     capturePointerId?: number,
   ) => {
-    const pt = marqueePointInList(listEl, clientX, clientY);
+    // Cache list geometry — avoid getBoundingClientRect every move.
+    let listRect = listEl.getBoundingClientRect();
+    let originScrollLeft = listEl.scrollLeft;
+    let originScrollTop = listEl.scrollTop;
+    const pointInList = (cx: number, cy: number) => ({
+      x: cx - listRect.left + listEl.scrollLeft,
+      y: cy - listRect.top + listEl.scrollTop,
+    });
+
+    const pt = pointInList(clientX, clientY);
     const marqueeState = {
       activePane: paneId,
       startX: pt.x,
@@ -568,12 +575,26 @@ export default function BNDZUI() {
     setMarquee(marqueeState);
     setMarqueeActive(true);
     document.documentElement.dataset.marqueeActive = '1';
-    (window as any)._marqueeDragOccurred = false;
+    setMarqueeDragOccurred(false);
     if (capturePointerId != null) {
       try { listEl.setPointerCapture(capturePointerId); } catch { /* ignore */ }
     }
 
-    const applyMarqueeSelection = (state: typeof marqueeState) => {
+    let lastSelectionKey = '';
+    let latestSelected: string[] = additive ? [...baseSelection] : [];
+    let latestClientY = clientY;
+
+    const syncMountedSelectionChrome = (ids: Set<string>) => {
+      listEl.querySelectorAll('.fs-item-wrapper[data-id]').forEach(node => {
+        const el = node as HTMLElement;
+        const id = el.getAttribute('data-id');
+        if (!id) return;
+        const on = ids.has(id);
+        el.classList.toggle('fs-item-selected', on);
+      });
+    };
+
+    const computeSelection = (state: typeof marqueeState): string[] => {
       const mLeft = Math.min(state.startX, state.currX);
       const mTop = Math.min(state.startY, state.currY);
       const mRight = Math.max(state.startX, state.currX);
@@ -595,7 +616,6 @@ export default function BNDZUI() {
           selected.push(item.id);
         }
       } else {
-        const listRect = listEl.getBoundingClientRect();
         const screenLeft = listRect.left + mLeft - listEl.scrollLeft;
         const screenTop = listRect.top + mTop - listEl.scrollTop;
         const screenRight = listRect.left + mRight - listEl.scrollLeft;
@@ -608,23 +628,26 @@ export default function BNDZUI() {
           }
         });
       }
-      const finalSelected = state.additive
+      return state.additive
         ? [...new Set([...state.baseSelection, ...selected])]
         : selected;
+    };
+
+    const applyMarqueeSelectionPreview = (state: typeof marqueeState) => {
+      const finalSelected = computeSelection(state);
       const key = finalSelected.join('\0');
       if (key === lastSelectionKey) return;
       lastSelectionKey = key;
-      const ops = marqueeOpsRef.current;
-      ops.setSelectedItems(finalSelected, state.activePane);
-      // selectionChromeReady is dead state — row chrome derives from selectedItems directly.
-      // Calling scheduleSelectionChrome here caused an extra React commit per marquee frame.
-      ops.scheduleQuickActionsBar(finalSelected.length > 0, true);
+      latestSelected = finalSelected;
+      const idSet = new Set(finalSelected);
+      marqueeLiveSelectionRef.current = { paneId: state.activePane, ids: idSet };
+      syncMountedSelectionChrome(idSet);
+      // No React setState / quick-actions during scrub — commit on pointerup.
     };
 
-    // Single merged RAF: imperative rect style write + selection diff in one frame.
+    // Single merged RAF: imperative rect style write + selection preview in one frame.
     let mergedRaf = 0;
     let pendingMarqueeState: typeof marqueeState | null = null;
-    let lastSelectionKey = '';
 
     const scheduleMergedFrame = (state: typeof marqueeState) => {
       pendingMarqueeState = state;
@@ -634,8 +657,12 @@ export default function BNDZUI() {
         const s = pendingMarqueeState;
         if (!s) return;
         pendingMarqueeState = null;
-        const t0 = (window as any).__BNDZ_PERF_DEBUG__ ? performance.now() : 0;
-        // Imperative rect update — zero React renders per frame.
+        // Refresh rect if scroll changed (edge auto-scroll).
+        if (listEl.scrollLeft !== originScrollLeft || listEl.scrollTop !== originScrollTop) {
+          listRect = listEl.getBoundingClientRect();
+          originScrollLeft = listEl.scrollLeft;
+          originScrollTop = listEl.scrollTop;
+        }
         const rectEl = marqueeRectByPaneRef.current.get(paneId);
         if (rectEl) {
           const left = Math.min(s.startX, s.currX);
@@ -647,22 +674,20 @@ export default function BNDZUI() {
           rectEl.style.width = `${w}px`;
           rectEl.style.height = `${h}px`;
         }
-        applyMarqueeSelection(s);
-        if ((window as any).__BNDZ_PERF_DEBUG__) {
-          console.log(`[BNDZ perf] marquee RAF work: ${(performance.now() - t0).toFixed(2)}ms`);
-        }
+        applyMarqueeSelectionPreview(s);
+        autoScrollNearEdges(listEl, latestClientY, { edgePx: 56, maxStepPx: 28 });
       });
     };
 
     const onPointerMove = (ev: PointerEvent) => {
       if (Math.abs(ev.clientX - clientX) > 3 || Math.abs(ev.clientY - clientY) > 3) {
-        (window as any)._marqueeDragOccurred = true;
+        setMarqueeDragOccurred(true);
       }
-      const p = marqueePointInList(listEl, ev.clientX, ev.clientY);
+      latestClientY = ev.clientY;
+      const p = pointInList(ev.clientX, ev.clientY);
       marqueeState.currX = p.x;
       marqueeState.currY = p.y;
       scheduleMergedFrame({ ...marqueeState });
-      autoScrollNearEdges(listEl, ev.clientY, { edgePx: 56, maxStepPx: 28 });
     };
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
@@ -676,18 +701,23 @@ export default function BNDZUI() {
       }
       const moved = Math.abs(marqueeState.currX - marqueeState.startX) > 3
         || Math.abs(marqueeState.currY - marqueeState.startY) > 3;
+      const ops = marqueeOpsRef.current;
       if (moved) {
-        if (pendingMarqueeState) applyMarqueeSelection(pendingMarqueeState);
-        else applyMarqueeSelection(marqueeState);
+        if (pendingMarqueeState) applyMarqueeSelectionPreview(pendingMarqueeState);
+        else applyMarqueeSelectionPreview(marqueeState);
+        ops.setSelectedItems(latestSelected, paneId);
+        ops.scheduleQuickActionsBar(latestSelected.length > 0, true);
       } else if (!additive) {
         // Plain click on empty canvas / marquee gutter — clear selection (Explorer-class).
-        const ops = marqueeOpsRef.current;
+        marqueeLiveSelectionRef.current = null;
+        syncMountedSelectionChrome(new Set());
         ops.setSelectedItems([], paneId);
         ops.scheduleQuickActionsBar(false, true);
       }
       // Suppress the trailing click so row handlers do not re-select after a gutter hit.
-      (window as any)._marqueeDragOccurred = true;
+      setMarqueeDragOccurred(true);
       pendingMarqueeState = null;
+      marqueeLiveSelectionRef.current = null;
       delete document.documentElement.dataset.marqueeActive;
       setMarquee(null);
       setMarqueeActive(false);
@@ -1247,6 +1277,8 @@ export default function BNDZUI() {
   const suppressNavClickUntilRef = React.useRef(0);
   const typeAheadPrefixRef = useRef('');
   const typeAheadAtRef = useRef(0);
+  /** True after the user clicks/focuses a file list — type-ahead stays armed even if WebView2 leaves chrome focused. */
+  const listTypeAheadArmedRef = useRef(false);
   /** Latest type-ahead context — handler is stable so letter keys never hit a stale closure. */
   const typeAheadCtxRef = useRef<Record<string, any>>({});
 
@@ -5285,6 +5317,7 @@ export default function BNDZUI() {
 
   const focusAddressBar = () => {
     setEditingAddressBarPaneId(activePaneId);
+    listTypeAheadArmedRef.current = false;
     setAddressBarInput(formatAddressBarPath(currentTab.path));
   };
 
@@ -5932,6 +5965,14 @@ export default function BNDZUI() {
   const setActiveTab = (paneId: string, tabIndex: number) => {
     setActivePaneId(paneId);
     setPanes(prev => prev.map(p => p.id === paneId ? { ...p, activeTabIndex: tabIndex } : p));
+    // Explorer: activating a tab returns keyboard ownership to the file list.
+    requestAnimationFrame(() => {
+      const listEl = document.querySelector(
+        `[data-list-body][data-list-pane-id="${paneId}"]`,
+      ) as HTMLElement | null;
+      try { listEl?.focus({ preventScroll: true }); } catch { /* ignore */ }
+      listTypeAheadArmedRef.current = true;
+    });
   };
 
   const clearTabFileDragTimer = () => {
@@ -7019,9 +7060,8 @@ export default function BNDZUI() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (!isTypeAheadKey(e.key)) return;
-      if (e.isComposing) return;
+      const char = typeAheadCharFromEvent(e);
+      if (!char) return;
 
       const ctx = typeAheadCtxRef.current;
       if (!ctx) return;
@@ -7041,19 +7081,39 @@ export default function BNDZUI() {
       }
 
       const searchRt = ctx.settingsRt?.search;
-      if (!searchRt || searchRt.typeAhead === false) return;
+      const ae = document.activeElement as HTMLElement | null;
+      const inList = !!(ae?.closest?.('[data-list-body]') || ae?.hasAttribute?.('data-list-body'));
+      const onTabChrome = !!(ae?.closest?.('[data-tabstrip], .bndz-tab-item') || (e.target as HTMLElement | null)?.closest?.('[data-tabstrip], .bndz-tab-item'));
+      const editable = isEditableTarget(e.target) || isEditableTarget(ae);
+      // Workspace surfaces own letters.
+      if (ae?.closest?.('[data-bndz-workspace-surface], .bndz-automation, .bndz-spatial-canvas, .react-flow')) {
+        return;
+      }
+      if (editable) {
+        // Allow type-ahead when the list was just engaged even if address/filter kept DOM focus.
+        if (!listTypeAheadArmedRef.current && !inList) return;
+        if (ae === ctx.omniFilterRef?.current && !listTypeAheadArmedRef.current) return;
+        try { ae?.blur?.(); } catch { /* ignore */ }
+      }
 
-      // Never steal keystrokes from real text fields (address bar, filter, plugins, rename).
-      if (isEditableTarget(e.target)) return;
-      if (document.activeElement === ctx.omniFilterRef?.current) return;
+      // Type-ahead disabled: still swallow letters when the list owns keyboard focus so
+      // WebView first-letter navigation can't highlight folder tabs (role=button/tabIndex).
+      if (!searchRt || searchRt.typeAhead === false) {
+        if (listTypeAheadArmedRef.current || inList || onTabChrome) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
 
       if (searchRt.redirectTypingToFilter) {
         e.preventDefault();
         e.stopPropagation();
+        listTypeAheadArmedRef.current = false;
         const input = ctx.omniFilterRef?.current as HTMLInputElement | null;
         input?.focus();
         if (input) {
-          const next = `${input.value}${e.key}`;
+          const next = `${input.value}${char}`;
           ctx.setFilterText(next);
           input.setSelectionRange(next.length, next.length);
         }
@@ -7061,11 +7121,10 @@ export default function BNDZUI() {
       }
 
       const now = Date.now();
-      const key = e.key.toLowerCase();
       const { prefix, repeatCycle } = advanceTypeAheadPrefix(
         typeAheadPrefixRef.current,
         typeAheadAtRef.current,
-        key,
+        char,
         now,
         { allowRepeatCycle: searchRt.allowRepeatedCharacters !== false },
       );
@@ -7078,25 +7137,16 @@ export default function BNDZUI() {
       if (!listItems.length) return;
 
       const matchMode = searchRt.typeAheadMatch || 'Match at beginning';
-      const matches = listItems.filter((item: any) => {
+      const ignoreDia = !!searchRt.ignoreDiacritics;
+      const predicate = (item: any) => {
         const display = getDisplayName(item, ctx.config);
         const raw = typeAheadEntityName(item, display);
-        return matchesTypeAhead(raw, prefix, matchMode, searchRt.ignoreDiacritics)
-          || (raw !== display && matchesTypeAhead(display, prefix, matchMode, searchRt.ignoreDiacritics));
-      });
-      if (!matches.length) {
-        // Keep prefix briefly so multi-char typing can recover; hard-reset only after window.
-        return;
-      }
+        return matchesTypeAhead(raw, prefix, matchMode, ignoreDia)
+          || (raw !== display && matchesTypeAhead(display, prefix, matchMode, ignoreDia));
+      };
 
-      const orderedMatches = searchRt.useSortedColumn
-        ? matches
-        : [...matches].sort((a: any, b: any) =>
-            typeAheadEntityName(a, getDisplayName(a, ctx.config))
-              .localeCompare(typeAheadEntityName(b, getDisplayName(b, ctx.config)), undefined, { sensitivity: 'base' }),
-          );
-
-      const match = pickTypeAheadMatch(orderedMatches, ctx.focusedItemId, prefix, repeatCycle);
+      // Explorer: walk current view order from focus (ignore alpha re-sort).
+      const match = pickTypeAheadMatch(listItems, predicate, ctx.focusedItemId, repeatCycle);
       if (!match) return;
 
       const paneId = ctx.activePaneId as string;
@@ -8349,10 +8399,7 @@ export default function BNDZUI() {
            onClick={(e) => {
               if (isBndzWorkspacePath(normPanePath)) return;
               if (e.defaultPrevented) return;
-              if ((window as any)._marqueeDragOccurred) {
-                  (window as any)._marqueeDragOccurred = false;
-                  return;
-              }
+              if (consumeMarqueeDragOccurred()) return;
               // Row hits own handlers; only true list canvas clears selection.
               if ((e.target as HTMLElement).closest('.fs-item-wrapper')) return;
               setSelectedItems([], pane.id);
@@ -8372,9 +8419,10 @@ export default function BNDZUI() {
 
               const listEl = e.currentTarget as HTMLElement;
               listEl.focus({ preventScroll: true });
+              listTypeAheadArmedRef.current = true;
               const ctrlKey = e.ctrlKey || e.metaKey;
               const shiftKey = e.shiftKey;
-              (window as any)._marqueeDragOccurred = false;
+              setMarqueeDragOccurred(false);
 
               const buildSelectMeta = (): MarqueeSelectMeta | undefined => {
                 const rows = listRows?.length ?? 0;
@@ -8614,11 +8662,11 @@ export default function BNDZUI() {
                   const marqueeIntent = !preferDrag && (
                     g.shiftKey
                     || (dy > 8 && dy > dx * 1.15)
-                    || (dx > 10 && dx > dy * 1.5)
+                    || (dx > 9 && dx > dy * 1.45)
                   );
-                  if (marqueeIntent && (dx > 6 || dy > 6)) {
+                  if (marqueeIntent && (dx > MARQUEE_ARM_PX || dy > MARQUEE_ARM_PX)) {
                     suppressRowClickRef.current = true;
-                    (window as any)._marqueeDragOccurred = true;
+                    setMarqueeDragOccurred(true);
                     listGestureRef.current = null;
                     window.removeEventListener('pointermove', onMove);
                     window.removeEventListener('pointerup', onUp);
@@ -8636,7 +8684,7 @@ export default function BNDZUI() {
                   if (!hasMetDragThreshold() || !isDragSessionReady()) return;
 
                   suppressRowClickRef.current = true;
-                  (window as any)._marqueeDragOccurred = true;
+                  setMarqueeDragOccurred(true);
 
                   if (mouseRt.disallowDragFromList) {
                     clearDragSession();
@@ -9382,7 +9430,10 @@ export default function BNDZUI() {
                 }
                 const entityTags: string[] = Array.isArray((entity as any).tags) ? (entity as any).tags : [];
                 const listRt = settingsRt.list;
-                const isSelected = currentTab.selectedItems.includes(entity.id);
+                const liveMarquee = marqueeLiveSelectionRef.current;
+                const isSelected = liveMarquee && liveMarquee.paneId === pane.id
+                  ? liveMarquee.ids.has(entity.id)
+                  : currentTab.selectedItems.includes(entity.id);
                 const showSelectionChrome = isSelected && listRt.showSelectionHighlight;
 
                 const isDir = entity.type === "directory";
@@ -9561,8 +9612,7 @@ export default function BNDZUI() {
                         e.stopPropagation();
                         return;
                       }
-                      if ((window as any)._marqueeDragOccurred) {
-                        (window as any)._marqueeDragOccurred = false;
+                      if (consumeMarqueeDragOccurred()) {
                         e.preventDefault();
                         e.stopPropagation();
                         return;
@@ -11620,6 +11670,7 @@ export default function BNDZUI() {
                }
                setFilterText(e.target.value);
             }}
+            onFocus={() => { listTypeAheadArmedRef.current = false; }}
             onKeyDown={(e) => {
                if (e.key === 'Escape') {
                    setFilterText('');

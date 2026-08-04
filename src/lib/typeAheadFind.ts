@@ -38,13 +38,22 @@ export function advanceTypeAheadPrefix(
   return { prefix, repeatCycle: false };
 }
 
-/** Pick the list row to highlight for the current prefix / repeat cycle. */
+/**
+ * Pick the list row for the current prefix / repeat cycle.
+ * Walks `listItems` in view order from the focused row (wraps) — Explorer behavior.
+ */
 export function pickTypeAheadMatch<T extends TypeAheadItem>(
-  matches: T[],
+  listItems: T[],
+  predicate: (item: T) => boolean,
   focusedId: string | null,
-  prefix: string,
   repeatCycle: boolean,
 ): T | null {
+  if (!listItems.length) return null;
+
+  const matches: T[] = [];
+  for (const item of listItems) {
+    if (predicate(item)) matches.push(item);
+  }
   if (!matches.length) return null;
 
   if (repeatCycle && matches.length > 1) {
@@ -53,11 +62,12 @@ export function pickTypeAheadMatch<T extends TypeAheadItem>(
     return matches[next] ?? matches[0];
   }
 
-  if (!repeatCycle && matches.length > 1 && focusedId && prefix.length > 1) {
-    const idx = matches.findIndex(m => m.id === focusedId);
-    if (idx >= 0) return matches[idx] ?? matches[0];
+  const focusIdx = focusedId ? listItems.findIndex(i => i.id === focusedId) : -1;
+  const start = focusIdx >= 0 ? focusIdx : 0;
+  for (let n = 0; n < listItems.length; n++) {
+    const item = listItems[(start + n) % listItems.length];
+    if (predicate(item)) return item;
   }
-
   return matches[0];
 }
 
@@ -70,6 +80,28 @@ export function isTypeAheadKey(key: string): boolean {
   // Forbidden in Win32 names: < > : " / \ | ? *
   if (/[<>:"/\\|?*]/.test(key)) return false;
   return true;
+}
+
+/**
+ * Resolve a type-ahead character from a KeyboardEvent.
+ * WebView2 occasionally reports odd `key` values; fall back to `code` (KeyA / Digit1).
+ */
+export function typeAheadCharFromEvent(e: KeyboardEvent): string | null {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return null;
+  if (isTypeAheadKey(e.key)) return e.key.toLowerCase();
+  const code = e.code || '';
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  if (/^Numpad[0-9]$/.test(code)) return code.slice(6);
+  if (code === 'Period' || code === 'NumpadDecimal') return '.';
+  if (code === 'Minus' || code === 'NumpadSubtract') return '-';
+  if (code === 'Equal') return '=';
+  if (code === 'BracketLeft') return '[';
+  if (code === 'BracketRight') return ']';
+  if (code === 'Semicolon') return ';';
+  if (code === 'Quote') return "'";
+  if (code === 'Comma') return ',';
+  return null;
 }
 
 /**
