@@ -1,8 +1,14 @@
-import { advanceTypeAheadPrefix, pickTypeAheadMatch } from '../src/lib/typeAheadFind';
+import { advanceTypeAheadPrefix, pickTypeAheadMatch, isTypeAheadKey } from '../src/lib/typeAheadFind';
+import { matchesTypeAhead, typeAheadEntityName } from '../src/lib/keyboardShortcuts';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
 }
+
+assert(isTypeAheadKey('A'), 'A is type-ahead');
+assert(isTypeAheadKey('.'), 'dot is type-ahead');
+assert(!isTypeAheadKey(' '), 'space reserved');
+assert(!isTypeAheadKey(':'), 'colon forbidden');
 
 const items = [
   { id: '1', name: 'Alpha' },
@@ -10,7 +16,7 @@ const items = [
   { id: '3', name: 'Box' },
 ];
 
-const matchesB = items.filter(i => i.name.toLowerCase().startsWith('b'));
+const matchesB = items.filter(i => matchesTypeAhead(i.name, 'b', 'Match at beginning'));
 
 let t = 1000;
 let prefix = '';
@@ -37,5 +43,8 @@ assert(
 
 const append = advanceTypeAheadPrefix('b', t + 400, 'b', t + 500, { allowRepeatCycle: false });
 assert(append.prefix === 'bb', 'repeat disabled appends chars');
+
+assert(typeAheadEntityName({ name: 'App.exe' }, 'App…e') === 'App.exe', 'raw name preferred');
+assert(matchesTypeAhead('Applications', 'ap', 'Match at beginning'), 'prefix match');
 
 console.log('typeAheadFind unit tests passed');

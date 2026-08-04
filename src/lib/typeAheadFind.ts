@@ -1,4 +1,6 @@
-export type TypeAheadItem = { id: string };
+/** Explorer-style type-ahead find helpers for the file list. */
+
+export type TypeAheadItem = { id: string; name?: string; label?: string; displayName?: string };
 
 export type TypeAheadAdvanceOptions = {
   /** When true, pressing the same key again cycles matches instead of appending (Explorer-style). */
@@ -57,4 +59,65 @@ export function pickTypeAheadMatch<T extends TypeAheadItem>(
   }
 
   return matches[0];
+}
+
+/** True for a printable key that can appear in a Windows file name (not Space — reserved). */
+export function isTypeAheadKey(key: string): boolean {
+  if (!key || key.length !== 1) return false;
+  if (key === ' ') return false;
+  // Control chars
+  if (key.charCodeAt(0) < 32) return false;
+  // Forbidden in Win32 names: < > : " / \ | ? *
+  if (/[<>:"/\\|?*]/.test(key)) return false;
+  return true;
+}
+
+/**
+ * Scroll a virtualized/non-virtualized list body so `entityId` is visible.
+ * Uses DOM when the row is mounted; otherwise estimates via index × rowHeight then retries.
+ */
+export function scrollListToEntity(opts: {
+  paneId: string;
+  entityId: string;
+  index: number;
+  rowHeight: number;
+}): void {
+  const { paneId, entityId, index, rowHeight } = opts;
+  const listEl = document.querySelector(
+    `[data-list-body][data-list-pane-id="${paneId}"]`,
+  ) as HTMLElement | null;
+  if (!listEl) return;
+
+  listEl.focus({ preventScroll: true });
+
+  const attrH = Number(listEl.getAttribute('data-list-row-height'));
+  const rh = (Number.isFinite(attrH) && attrH > 0 ? attrH : rowHeight) || 26;
+
+  const findRow = () => {
+    try {
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(entityId)
+        : entityId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      return listEl.querySelector(`[data-id="${esc}"]`) as HTMLElement | null;
+    } catch {
+      return document.getElementById(`fs-item-${entityId}`);
+    }
+  };
+
+  const row = findRow();
+  if (row) {
+    row.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+
+  if (index < 0 || rh <= 0) return;
+  const target = Math.max(0, index * rh - Math.max(0, listEl.clientHeight / 3));
+  listEl.scrollTop = target;
+
+  // Virtualizer mounts the row on the next frame after scrollTop changes.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      findRow()?.scrollIntoView({ block: 'nearest' });
+    });
+  });
 }

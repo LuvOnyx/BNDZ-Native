@@ -91,3 +91,10 @@ export function matchesTypeAhead(
   if (mode === 'Match anywhere') return n.includes(p);
   return n.startsWith(p);
 }
+
+/** Prefer raw filesystem name for type-ahead so truncation/localization can't hide matches. */
+export function typeAheadEntityName(entity: any, displayName: string): string {
+  const raw = entity?.name ?? entity?.label ?? entity?.displayName;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  return displayName || '';
+}
