@@ -21,9 +21,9 @@ import { BreadcrumbTrail } from './BreadcrumbTrail';
 import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
-  preferFileDragOverMarquee, canStartDragFromList, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT, LIST_CLICK_DEFER_MS,
+  canStartDragFromList, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT, LIST_CLICK_DEFER_MS,
   isWithinDoubleClickGuard,
-  setMarqueeDragOccurred, consumeMarqueeDragOccurred, MARQUEE_ARM_PX,
+  setMarqueeDragOccurred, consumeMarqueeDragOccurred,
 } from '../lib/dragController';
 import { resolveDropOperation } from '../lib/dropOperation';
 import {
@@ -31,7 +31,6 @@ import {
   getParentWinPath,
 } from '../lib/dropDestination';
 import { isCopyDragModifier } from '../lib/listDragModifiers';
-import { isListSelectCellTarget, isListMarqueeSurface } from '../lib/listRowHitTargets';
 import ListDragGhost, { type ListDragGhostMeta } from './ListDragGhost';
 import { prefetchFluidDragThumbs } from '../workstation/drag/fluidDragThumbs';
 import FluidDragOrchestrator from '../workstation/drag/FluidDragOrchestrator';
@@ -8472,11 +8471,9 @@ export default function BNDZUI() {
               };
 
               const rowEl = (e.target as HTMLElement).closest('.fs-item-wrapper') as HTMLElement | null;
-              // Grid tiles: whole tile is selectable (padding / DriveCard chrome often miss .bndz-list-select-cell).
-              const onSelectCell =
-                isListSelectCellTarget(e.target)
-                || ((computedViewMode === 'grid' || computedViewMode === 'list') && !!rowEl && !isListMarqueeSurface(e.target));
-
+              // Explorer blend: any press inside a row is select/drag. Marquee only
+              // from empty list canvas (no row). In-row lead/trail/gutters used to
+              // steal item presses into marquee and made drag feel broken.
               if (!rowEl) {
                 beginMarqueeGesture(
                   pane.id, listEl, e.clientX, e.clientY,
@@ -8487,20 +8484,7 @@ export default function BNDZUI() {
                 return;
               }
 
-              if (!onSelectCell) {
-                e.preventDefault();
-                e.stopPropagation();
-                suppressRowClickRef.current = true;
-                beginMarqueeGesture(
-                  pane.id, listEl, e.clientX, e.clientY,
-                  ctrlKey || shiftKey, (ctrlKey || shiftKey) ? [...currentTab.selectedItems] : [],
-                  buildSelectMeta(),
-                  e.pointerId,
-                );
-                return;
-              }
-
-              // Select cell → row select / drag / double-click
+              // Row hit → select / drag / double-click (whole residual row surface).
               const entityId = rowEl.getAttribute('data-id');
               if (!entityId) return;
               const wasSelected = currentTab.selectedItems.includes(entityId);
@@ -8512,13 +8496,12 @@ export default function BNDZUI() {
 
               // Arm drag against the *previous* press timestamp, then stamp this press.
               // Marking first made canStartDragFromList always fail (double-click guard).
-              const armedForDrag = !shiftKey;
-              const mayArmDrag = armedForDrag && canStartDragFromList(mouseRt.disallowDragFromList);
+              const mayArmDrag = canStartDragFromList(mouseRt.disallowDragFromList);
               const cancelDeferredClick = isWithinDoubleClickGuard() && !!listClickDeferTimerRef.current;
               markPointerDown();
 
-              // Select on press; plain click+drag arms immediately (threshold + delay separate click from drag).
-              // Ctrl arms copy-drag (Explorer-like). Shift stays for additive marquee.
+              // Select on press; plain click+drag arms immediately (threshold separates click from drag).
+              // Ctrl arms copy-drag (Explorer-like). Shift click still range-selects via click handlers.
               if (!wasSelected && !ctrlKey && !shiftKey) {
                 setSelectedItems([entityId], pane.id);
                 scheduleSelectionChrome([entityId], true);
@@ -8540,8 +8523,8 @@ export default function BNDZUI() {
                 moved: false,
                 mode: 'pending',
                 copyDrag: !!ctrlKey,
-                dragSelection: armedForDrag
-                  ? (wasSelected ? [...currentTab.selectedItems] : [entityId])
+                dragSelection: wasSelected || ctrlKey || shiftKey
+                  ? [...new Set([...currentTab.selectedItems, entityId])]
                   : [entityId],
                 listEl,
               };
@@ -8665,37 +8648,7 @@ export default function BNDZUI() {
                 const copyHeld = isCopyDragModifier(ev);
 
                 if (listGestureRef.current.mode === 'pending') {
-                  const g = listGestureRef.current;
-                  // Use pre-press selection only — selectedOnPress must not lock out marquee.
-                  const preferDrag = preferFileDragOverMarquee({
-                    wasSelected: g.wasSelected,
-                    shiftKey: g.shiftKey,
-                    ctrlKey: g.ctrlKey,
-                    dx,
-                    dy,
-                  });
-                  const marqueeIntent = !preferDrag && (
-                    g.shiftKey
-                    || (dy > 8 && dy > dx * 1.15)
-                    || (dx > 9 && dx > dy * 1.45)
-                  );
-                  if (marqueeIntent && (dx > MARQUEE_ARM_PX || dy > MARQUEE_ARM_PX)) {
-                    suppressRowClickRef.current = true;
-                    setMarqueeDragOccurred(true);
-                    listGestureRef.current = null;
-                    window.removeEventListener('pointermove', onMove);
-                    window.removeEventListener('pointerup', onUp);
-                    clearDragSession();
-                    beginMarqueeGesture(
-                      pane.id, listEl, startX, startY,
-                      g.ctrlKey || g.shiftKey,
-                      (g.ctrlKey || g.shiftKey) ? [...currentTab.selectedItems] : (wasSelected ? [...currentTab.selectedItems] : []),
-                      buildSelectMeta(),
-                      capturePointerId,
-                    );
-                    return;
-                  }
-
+                  // Item presses never convert to marquee (Explorer: marquee is empty/gutter only).
                   if (!hasMetDragThreshold() || !isDragSessionReady()) return;
 
                   suppressRowClickRef.current = true;

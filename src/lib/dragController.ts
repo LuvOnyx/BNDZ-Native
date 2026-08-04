@@ -3,8 +3,8 @@
  * double-clicks, marquee selection, and enforces movement threshold.
  */
 
-/** Movement before a list drag can arm — high enough that marquee can win first. */
-const DRAG_THRESHOLD_PX = 10;
+/** Movement before a list drag can arm — Explorer-like (~SM_CXDRAG). */
+const DRAG_THRESHOLD_PX = 6;
 const DOUBLE_CLICK_GUARD_MS = 280;
 /**
  * Hold after threshold before drag arms. Keep near-zero so drag feels Explorer-instant;
@@ -90,26 +90,17 @@ export function canStartDragFromList(disallowDrag?: boolean): boolean {
 }
 
 /**
- * Prefer file drag vs converting a select-cell pending gesture into marquee.
- * Vertical-dominant sweeps always marquee (range select). Shift always marquee.
- * Ctrl prefers copy-drag. Already-selected rows prefer drag unless vertical.
+ * Legacy helper retained for call sites / tests. Item presses never convert to
+ * marquee anymore — marquee is empty-canvas only (see list pointer-down path).
  */
-export function preferFileDragOverMarquee(opts: {
+export function preferFileDragOverMarquee(_opts: {
   wasSelected: boolean;
   shiftKey: boolean;
   ctrlKey?: boolean;
   dx: number;
   dy: number;
 }): boolean {
-  if (opts.shiftKey) return false;
-  const verticalMarquee = opts.dy > 8 && opts.dy > opts.dx * 1.15;
-  if (verticalMarquee) return false;
-  if (opts.ctrlKey) return true;
-  // Horizontal sweep on unselected → marquee (arm before drag threshold fights it).
-  const horizontalMarquee = opts.dx > 9 && opts.dx > opts.dy * 1.45;
-  if (horizontalMarquee && !opts.wasSelected) return false;
-  if (opts.wasSelected) return true;
-  return !horizontalMarquee;
+  return true;
 }
 
 export function beginDragSession(

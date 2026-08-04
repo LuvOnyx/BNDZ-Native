@@ -1,4 +1,4 @@
-/** Pointer target is a list marquee surface (gutters / dedicated marquee pads only). */
+/** Pointer target is a dedicated marquee pad (CSS/layout helpers; empty canvas drives marquee). */
 export function isListMarqueeSurface(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el) return false;
@@ -8,9 +8,9 @@ export function isListMarqueeSurface(target: EventTarget | null): boolean {
 }
 
 /**
- * Interactive hit target for click / select / file-drag.
- * Only explicit select cells — marquee lead/trail/pad/gutters stay marquee-only.
- * Grid/list tiles expand hit area in the list pointer handler.
+ * Interactive hit target for click / select semantics.
+ * Select cells are name/icon/column content; marquee chrome is excluded for click tests.
+ * Row press-drag uses the whole .fs-item-wrapper (Explorer blend), not this helper.
  */
 export function isListSelectCellTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
