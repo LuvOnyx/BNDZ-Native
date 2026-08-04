@@ -326,6 +326,33 @@ namespace BNDZ
             _ = Task.Run(() => { try { LicenseService.GetStatusCached(); } catch { } });
         }
 
+#if DEBUG
+        /// <summary>
+        /// Auto-open DevTools only for local `dotnet run` / bin builds — never for
+        /// Program Files / Local\Programs installs (Debug test installers define DEBUG).
+        /// </summary>
+        private static bool ShouldOpenDebugDevTools()
+        {
+            try
+            {
+                if (string.Equals(Environment.GetEnvironmentVariable("BNDZ_DEVTOOLS"), "1", StringComparison.Ordinal))
+                    return true;
+                var dir = AppDomain.CurrentDomain.BaseDirectory ?? "";
+                if (dir.IndexOf(@"\AppData\Local\Programs\BNDZ", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return false;
+                if (dir.IndexOf(@"\Program Files", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return false;
+                // Typical local outputs: ...\bin\Debug\... or ...\dist\publish\...
+                if (dir.IndexOf(@"\bin\", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+                if (dir.IndexOf(@"\dist\publish\", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return false;
+            }
+            catch { /* ignore */ }
+            return false;
+        }
+#endif
+
         private void ApplyStartupWindowPlacement()
         {
             try
@@ -1868,7 +1895,10 @@ namespace BNDZ
             };
 
 #if DEBUG
-            MainWebView.CoreWebView2.OpenDevToolsWindow();
+            // Debug packaging (test installers) still defines DEBUG — don't pop DevTools for
+            // installed launches. Opt-in: set BNDZ_DEVTOOLS=1, or run from a local build output.
+            if (ShouldOpenDebugDevTools())
+                MainWebView.CoreWebView2.OpenDevToolsWindow();
 #endif
 
             // Navigate to the React frontend served from the virtual host, bypassing cache
