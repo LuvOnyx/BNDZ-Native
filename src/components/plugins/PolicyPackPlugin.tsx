@@ -19,7 +19,7 @@ export const PolicyPackPluginDef = {
   icon: 'shield_ui',
   description: 'Shareable folder policies — enforce extensions, size, tags, and deny patterns on drop/move.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type PolicyPackRow = {

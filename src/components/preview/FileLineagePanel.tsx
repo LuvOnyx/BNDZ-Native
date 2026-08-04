@@ -97,6 +97,7 @@ const EDGE_ICONS: Record<string, string> = {
   create: 'plus_ui',
   delete: 'delete',
   inbound: 'download_ui',
+  download_origin: 'download_ui',
   branch_restore: 'available_updates',
 };
 
@@ -107,6 +108,7 @@ const OP_COLORS: Record<string, string> = {
   create: '#34d399',
   delete: '#f87171',
   inbound: '#2dd4bf',
+  download_origin: '#2dd4bf',
   branch_restore: '#60a5fa',
 };
 
@@ -151,9 +153,10 @@ export default function FileLineagePanel({ path, onNavigate }: Props) {
   const hasAnything = hasDag || hasTimeline;
 
   if (!path) return null;
-  if (!hasAnything && !loading) return null;
 
   const revealPath = (winPath: string) => {
+    // MOTW HostUrl is not a filesystem path
+    if (/^https?:\/\//i.test(winPath) || winPath.startsWith('Internet download')) return;
     const panePath = winPath.replace(/^([A-Za-z]):\\/, '/$1/').replace(/\\/g, '/');
     onNavigate?.(panePath);
   };
@@ -173,6 +176,12 @@ export default function FileLineagePanel({ path, onNavigate }: Props) {
           </div>
         )}
       </div>
+
+      {!loading && !hasAnything && (
+        <p className="text-[11px] text-white/40 leading-relaxed">
+          No history yet. Downloads show a Windows origin when Mark of the Web is present; BNDZ copy/move/rename builds the rest.
+        </p>
+      )}
 
       {/* Timeline view */}
       {view === 'timeline' && hasTimeline && (

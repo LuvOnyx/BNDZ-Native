@@ -18,7 +18,7 @@ export const ZkVaultPluginDef = {
   icon: 'lock_ui',
   description: 'Encrypt folders at rest; unlock decrypted session mounts inside BNDZ only.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type VaultSession = {

@@ -31,6 +31,43 @@ public sealed class LibraryHealthService : IDisposable
         EnsureSchema();
     }
 
+    public void UpsertLiveProblem(string kind, string severity, string path, string detail, string fixHint)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        EnsureSchema();
+        var problem = MakeProblem(kind, severity, path, detail, fixHint);
+        // Stable id per path+kind so live updates replace instead of spam
+        problem.Id = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes($"{kind}|{path.ToLowerInvariant()}")))[..16];
+
+        using var conn = OpenConnection();
+        using var ins = conn.CreateCommand();
+        ins.CommandText = """
+            INSERT OR REPLACE INTO problems (id, kind, severity, path, detail, fixHint, scannedUtc)
+            VALUES (@id, @kind, @severity, @path, @detail, @fixHint, @scannedUtc)
+            """;
+        ins.Parameters.AddWithValue("@id", problem.Id);
+        ins.Parameters.AddWithValue("@kind", problem.Kind);
+        ins.Parameters.AddWithValue("@severity", problem.Severity);
+        ins.Parameters.AddWithValue("@path", problem.Path);
+        ins.Parameters.AddWithValue("@detail", (object?)problem.Detail ?? DBNull.Value);
+        ins.Parameters.AddWithValue("@fixHint", (object?)problem.FixHint ?? DBNull.Value);
+        ins.Parameters.AddWithValue("@scannedUtc", problem.ScannedUtc);
+        ins.ExecuteNonQuery();
+    }
+
+    public void ClearProblemsForExactPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        EnsureSchema();
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM problems WHERE path = @p COLLATE NOCASE";
+        cmd.Parameters.AddWithValue("@p", path);
+        cmd.ExecuteNonQuery();
+    }
+
     public void Dispose() { }
 
     private void EnsureSchema()
@@ -489,6 +526,112 @@ public sealed class LibraryHealthService : IDisposable
         }
     }
 
+    private static readonly HashSet<string> AutoFixableKinds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "EmptyDir", "OrphanSidecar", "BrokenLink", "MissingTarget",
+    };
+
+    private readonly Dictionary<string, HealthRepairPlan> _plans = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _planGate = new();
+
+    /// <summary>Build an ordered repair plan from current problems + goal flags.</summary>
+    public HealthRepairPlan BuildRepairPlan(HealthRepairGoals? goals = null)
+    {
+        goals ??= new HealthRepairGoals();
+        var problems = ListProblems(limit: 2000);
+        var actions = new List<HealthRepairAction>();
+
+        foreach (var p in problems)
+        {
+            if (!AutoFixableKinds.Contains(p.Kind)) continue;
+            if (goals.ZeroBrokenLinks && (p.Kind is "BrokenLink" or "MissingTarget"))
+            {
+                actions.Add(MakeAction(p, priority: 100, impact: "Removes dangling link"));
+                continue;
+            }
+            if (goals.ClearEmptyDirs && p.Kind == "EmptyDir")
+            {
+                actions.Add(MakeAction(p, priority: 40, impact: "Removes empty folder"));
+                continue;
+            }
+            if (goals.ClearOrphanSidecars && p.Kind == "OrphanSidecar")
+            {
+                actions.Add(MakeAction(p, priority: 60, impact: "Removes orphan sidecar"));
+                continue;
+            }
+            if (goals.FixAllAuto)
+                actions.Add(MakeAction(p, priority: SeverityPriority(p.Severity), impact: p.FixHint ?? p.Kind));
+        }
+
+        actions = actions
+            .GroupBy(a => a.ProblemId)
+            .Select(g => g.OrderByDescending(x => x.Priority).First())
+            .OrderByDescending(a => a.Priority)
+            .ThenBy(a => a.Path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var plan = new HealthRepairPlan
+        {
+            Id = Guid.NewGuid().ToString("N")[..12],
+            CreatedUtc = DateTime.UtcNow.ToString("O"),
+            Goals = goals,
+            Actions = actions,
+            TotalActions = actions.Count,
+        };
+        lock (_planGate) _plans[plan.Id] = plan;
+        return plan;
+    }
+
+    public HealthApproveResult ApprovePlan(string planId, IReadOnlyList<string>? actionIds = null)
+    {
+        HealthRepairPlan? plan;
+        lock (_planGate) _plans.TryGetValue(planId, out plan);
+        if (plan == null)
+            return new HealthApproveResult { Ok = false, Error = "Plan not found — rebuild the repair plan." };
+
+        var selected = actionIds == null || actionIds.Count == 0
+            ? plan.Actions
+            : plan.Actions.Where(a => actionIds.Contains(a.Id)).ToList();
+
+        var result = new HealthApproveResult { Ok = true, PlanId = planId };
+        foreach (var action in selected)
+        {
+            var fix = FixProblem(action.ProblemId);
+            result.Results.Add(new HealthFixResult
+            {
+                Ok = fix.Ok,
+                Action = fix.Action ?? action.Title,
+                Error = fix.Error,
+            });
+            if (fix.Ok) result.FixedCount++;
+            else result.FailedCount++;
+        }
+        result.Ok = result.FailedCount == 0;
+        if (result.FailedCount > 0 && result.FixedCount > 0)
+            result.Error = $"Fixed {result.FixedCount}, failed {result.FailedCount}.";
+        else if (result.FailedCount > 0 && result.FixedCount == 0)
+            result.Error = "No actions succeeded.";
+        return result;
+    }
+
+    private static HealthRepairAction MakeAction(HealthProblemDto p, int priority, string impact) => new()
+    {
+        Id = $"act-{p.Id}",
+        ProblemId = p.Id,
+        Kind = p.Kind,
+        Path = p.Path,
+        Title = $"{p.Kind}: {Path.GetFileName(p.Path.TrimEnd('\\', '/'))}",
+        Detail = p.Detail,
+        Impact = impact,
+        Priority = priority,
+        Severity = p.Severity,
+    };
+
+    private static int SeverityPriority(string severity) =>
+        severity.Equals("critical", StringComparison.OrdinalIgnoreCase) || severity.Equals("error", StringComparison.OrdinalIgnoreCase) ? 90
+        : severity.Equals("warning", StringComparison.OrdinalIgnoreCase) ? 50
+        : 20;
+
     private void RemoveProblem(string problemId)
     {
         using var conn = OpenConnection();
@@ -605,4 +748,44 @@ public sealed class HealthFixResult
     public bool Ok { get; set; }
     public string? Action { get; set; }
     public string? Error { get; set; }
+}
+
+public sealed class HealthRepairGoals
+{
+    public bool ZeroBrokenLinks { get; set; } = true;
+    public bool ClearEmptyDirs { get; set; } = true;
+    public bool ClearOrphanSidecars { get; set; } = true;
+    public bool FixAllAuto { get; set; }
+}
+
+public sealed class HealthRepairAction
+{
+    public string Id { get; set; } = "";
+    public string ProblemId { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public string Path { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string? Detail { get; set; }
+    public string? Impact { get; set; }
+    public string Severity { get; set; } = "";
+    public int Priority { get; set; }
+}
+
+public sealed class HealthRepairPlan
+{
+    public string Id { get; set; } = "";
+    public string CreatedUtc { get; set; } = "";
+    public HealthRepairGoals Goals { get; set; } = new();
+    public List<HealthRepairAction> Actions { get; set; } = new();
+    public int TotalActions { get; set; }
+}
+
+public sealed class HealthApproveResult
+{
+    public bool Ok { get; set; }
+    public string? PlanId { get; set; }
+    public int FixedCount { get; set; }
+    public int FailedCount { get; set; }
+    public string? Error { get; set; }
+    public List<HealthFixResult> Results { get; set; } = new();
 }

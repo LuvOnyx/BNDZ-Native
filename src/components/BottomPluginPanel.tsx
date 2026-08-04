@@ -240,7 +240,7 @@ export default function BottomPluginPanel(props: any & {
       'branching-time': 'branching-time',
       'transcode-rack': 'transcode-rack',
       'semantic-desk': 'semantic-desk',
-      'shell-verb-forge': 'shell-verb-forge',
+      'shell-verb-forge': 'context-menu-manager',
     };
     const tab = tabMap[id];
     // Hard invariant: never switch to a tab for an uninstalled plugin.

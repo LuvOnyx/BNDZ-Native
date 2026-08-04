@@ -26,7 +26,7 @@ export const LibraryHealthPluginDef = {
   installOnFirstUse: true,
 };
 
-type TabId = 'summary' | 'problems';
+type TabId = 'summary' | 'problems' | 'plan';
 
 type Problem = {
   id: string;
@@ -43,6 +43,17 @@ type Summary = {
   critical: number;
   warning: number;
   info: number;
+};
+
+type PlanAction = {
+  id: string;
+  problemId: string;
+  kind: string;
+  path: string;
+  title: string;
+  impact?: string;
+  severity: string;
+  priority: number;
 };
 
 const FIXABLE_KINDS = new Set(['EmptyDir', 'OrphanSidecar', 'BrokenLink', 'MissingTarget']);
@@ -101,6 +112,15 @@ export default function LibraryHealthPlugin({
   const [fixingId, setFixingId] = useState<string | null>(null);
   const [scanRoot, setScanRoot] = useState<string | null>(null);
   const [filterKind, setFilterKind] = useState<string | null>(null);
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [planActions, setPlanActions] = useState<PlanAction[]>([]);
+  const [goals, setGoals] = useState({
+    zeroBrokenLinks: true,
+    clearEmptyDirs: true,
+    clearOrphanSidecars: true,
+    fixAllAuto: false,
+  });
+  const [approving, setApproving] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -173,6 +193,65 @@ export default function LibraryHealthPlugin({
     }
   };
 
+  const buildPlan = async () => {
+    setBusy(true);
+    try {
+      const plan = await IPC.healthBuildRepairPlan(goals);
+      const actions = (plan.actions || plan.Actions || []) as Record<string, unknown>[];
+      setPlanId(String(plan.id ?? plan.Id ?? ''));
+      setPlanActions(actions.map(a => ({
+        id: String(a.id ?? a.Id ?? ''),
+        problemId: String(a.problemId ?? a.ProblemId ?? ''),
+        kind: String(a.kind ?? a.Kind ?? ''),
+        path: String(a.path ?? a.Path ?? ''),
+        title: String(a.title ?? a.Title ?? ''),
+        impact: String(a.impact ?? a.Impact ?? ''),
+        severity: String(a.severity ?? a.Severity ?? 'info'),
+        priority: Number(a.priority ?? a.Priority ?? 0),
+      })));
+      setActiveTab('plan');
+      pushToast({
+        kind: 'success',
+        title: 'Repair plan ready',
+        message: `${actions.length} ordered fix action(s).`,
+      });
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Plan failed', message: String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approvePlan = async () => {
+    if (!planId) return;
+    setApproving(true);
+    try {
+      const r = await IPC.healthApprovePlan(planId, planActions.map(a => a.id));
+      if (r.ok) {
+        pushToast({
+          kind: 'success',
+          title: 'Plan approved',
+          message: `Fixed ${r.fixedCount ?? planActions.length} problem(s).`,
+        });
+        setPlanActions([]);
+        setPlanId(null);
+        await refresh();
+        setActiveTab('problems');
+      } else {
+        pushToast({
+          kind: 'warning',
+          title: 'Partial approve',
+          message: r.error || `Fixed ${r.fixedCount ?? 0}, failed ${r.failedCount ?? 0}.`,
+        });
+        await refresh();
+      }
+    } catch (e) {
+      pushToast({ kind: 'error', title: 'Approve failed', message: String(e) });
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const revealPath = (winPath: string) => {
     if (!winPath) return;
     window.dispatchEvent(new CustomEvent('bndz-navigate', {
@@ -192,6 +271,7 @@ export default function LibraryHealthPlugin({
   const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = [
     { id: 'summary', label: 'Summary', icon: 'piechart_ui' },
     { id: 'problems', label: 'Problems', icon: 'warning', badge: summary.total },
+    { id: 'plan', label: 'Plan', icon: 'task_due', badge: planActions.length || undefined },
   ];
 
   return (
@@ -243,6 +323,13 @@ export default function LibraryHealthPlugin({
                 disabled={busy}
               >
                 Scan folder
+              </PluginHeroActionButton>
+              <PluginHeroActionButton
+                icon="task_due"
+                onClick={() => void buildPlan()}
+                disabled={busy || summary.total === 0}
+              >
+                Build plan
               </PluginHeroActionButton>
               <PluginHeroActionButton
                 icon="delete"
@@ -398,6 +485,68 @@ export default function LibraryHealthPlugin({
                     </div>
                   );
                 })
+              )}
+            </div>
+          )}
+
+          {activeTab === 'plan' && (
+            <div className="p-5 space-y-4">
+              <PluginCard>
+                <PluginSectionTitle icon="task_due">Repair goals</PluginSectionTitle>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-300">
+                  {([
+                    ['zeroBrokenLinks', 'Zero broken links'],
+                    ['clearEmptyDirs', 'Clear empty folders'],
+                    ['clearOrphanSidecars', 'Clear orphan sidecars'],
+                    ['fixAllAuto', 'Include all auto-fixable'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={goals[key]}
+                        onChange={e => setGoals(g => ({ ...g, [key]: e.target.checked }))}
+                        className="rounded border-white/20"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <PluginHeroActionButton icon="task_due" variant="primary" onClick={() => void buildPlan()} disabled={busy}>
+                    Rebuild plan
+                  </PluginHeroActionButton>
+                  <PluginHeroActionButton
+                    icon="check"
+                    onClick={() => void approvePlan()}
+                    disabled={!planId || planActions.length === 0 || approving}
+                  >
+                    {approving ? 'Approving…' : `Approve (${planActions.length})`}
+                  </PluginHeroActionButton>
+                </div>
+              </PluginCard>
+
+              {planActions.length === 0 ? (
+                <PluginEmptyState
+                  icon="task_due"
+                  title="No repair plan yet"
+                  description="Scan first, then Build plan to rank auto-fix actions before Approve."
+                />
+              ) : (
+                <div className="space-y-2">
+                  {planActions.map((a, i) => (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-black/25 px-3 py-2.5"
+                    >
+                      <span className="bndz-mono text-[10px] text-amber-300/80 w-5 shrink-0">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs text-white font-medium truncate">{a.title}</div>
+                        {a.impact && <div className="text-[10px] text-gray-500 mt-0.5">{a.impact}</div>}
+                        <div className="bndz-mono text-[10px] text-gray-500 truncate mt-0.5">{a.path}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}

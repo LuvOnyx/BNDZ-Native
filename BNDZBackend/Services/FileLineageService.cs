@@ -271,6 +271,11 @@ public sealed class FileLineageService : IDisposable
         using var conn = OpenConnection();
         CollectLineage(conn, NormKey(path), depth, visited, result);
 
+        // Forensic harvest: Mark-of-the-Web / Zone.Identifier (not BNDZ op history)
+        var motw = MotwLineageReader.TryReadDownloadOrigin(path);
+        if (motw != null && !result.Inbound.Any(e => e.Id == motw.Id || e.Op == "download_origin"))
+            result.Inbound.Insert(0, motw);
+
         result.Timeline = result.Inbound
             .Concat(result.Outbound)
             .GroupBy(e => e.Id)
@@ -454,6 +459,11 @@ public sealed class FileLineageService : IDisposable
             {
                 RecordContentDagEdge(srcHash, dstHash, op, sourcePath, destPath);
             }
+            else
+            {
+                // Same-content identity still forms a DAG edge (appeared-at / copy lineage).
+                RecordContentDagEdge(srcHash, dstHash, op + ":identity", sourcePath, destPath);
+            }
         }
         catch (Exception ex)
         {
@@ -468,6 +478,40 @@ public sealed class FileLineageService : IDisposable
         var normPath = NormKey(filePath);
 
         using var conn = OpenConnection();
+
+        if (Directory.Exists(filePath))
+        {
+            // Folder DNA rollup — sample children hashes into a synthetic DAG preview.
+            result.FocusHash = "folder:" + Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(normPath)))[..12];
+            try
+            {
+                foreach (var child in Directory.EnumerateFiles(filePath).Take(48))
+                {
+                    var h = GetHashForPath(conn, NormKey(child));
+                    if (string.IsNullOrEmpty(h)) continue;
+                    result.Nodes.Add(new ContentNode
+                    {
+                        Hash = h,
+                        Paths = new List<string> { child.Replace('\\', '/') },
+                        FirstSeenUtc = DateTime.UtcNow.ToString("O"),
+                    });
+                    result.Edges.Add(new ContentDagEdge
+                    {
+                        Id = Guid.NewGuid().ToString("N")[..12],
+                        ParentHash = result.FocusHash,
+                        ChildHash = h,
+                        Op = "contains",
+                        Utc = DateTime.UtcNow.ToString("O"),
+                        FromPath = filePath.Replace('\\', '/'),
+                        ToPath = child.Replace('\\', '/'),
+                    });
+                }
+            }
+            catch { /* best-effort */ }
+            return result;
+        }
 
         var focusHash = GetHashForPath(conn, normPath);
         if (string.IsNullOrEmpty(focusHash)) return result;

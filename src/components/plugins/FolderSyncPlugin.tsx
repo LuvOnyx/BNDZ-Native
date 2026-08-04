@@ -262,7 +262,17 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
           </span>
         }
         actions={
-          <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNewJob}>New sync</PluginHeroActionButton>
+          <>
+            <PluginHeroActionButton
+              icon="sync_folders"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: '/bndz/twin-volume' } }));
+              }}
+            >
+              Cross-volume board
+            </PluginHeroActionButton>
+            <PluginHeroActionButton icon="plus_ui" variant="primary" onClick={startNewJob}>New sync</PluginHeroActionButton>
+          </>
         }
       />
       <div className="flex-1 overflow-y-auto bndz-scrollbar p-4 space-y-3 min-h-0">

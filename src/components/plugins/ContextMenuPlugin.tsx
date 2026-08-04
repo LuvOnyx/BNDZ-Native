@@ -29,11 +29,13 @@ import PluginPanelShell from './PluginPanelShell';
 import {
   PRESET_CATEGORIES,
   STOCK_BNDZ_MENU,
+  DEFAULT_STOCK_GLOBAL_ACTIONS,
   presetsForSurface,
   iconVerbForAction,
   type MenuActionSeed,
   type TargetMode,
 } from '../../lib/shellMenuPresets';
+import { ShellVerbForgePanel } from './ShellVerbForgePlugin';
 
 export const ContextMenuPluginDef = {
   id: 'context-menu-manager',
@@ -41,7 +43,7 @@ export const ContextMenuPluginDef = {
   icon: 'shell_menus',
 };
 
-type ShellTab = 'app' | 'global';
+type ShellTab = 'app' | 'global' | 'verbs';
 type PreviewSurface = 'file' | 'folder' | 'background';
 
 interface MenuAction {
@@ -514,12 +516,24 @@ export default function ContextMenuPlugin({
 
   const saveGlobalActions = async () => {
     try {
-      updateConfig({ globalContextMenuActions: globalActions, injectGlobalContextMenu: true } as Partial<typeof config>);
+      let toDeploy = globalActions;
+      if (!toDeploy.filter(a => !isSeparatorAction(a)).length) {
+        toDeploy = DEFAULT_STOCK_GLOBAL_ACTIONS.map(a => ({
+          id: a.id,
+          name: a.name,
+          command: a.command,
+          iconVerb: a.iconVerb,
+          targetMode: a.targetMode || 'all',
+        }));
+        setGlobalActions(toDeploy);
+        pushToast({ kind: 'info', title: 'Seeded stock verbs', message: 'Empty list — added Open in BNDZ, Problems, Inbound, and RAM Staging.' });
+      }
+      updateConfig({ globalContextMenuActions: toDeploy, injectGlobalContextMenu: true } as Partial<typeof config>);
       if (!IPC.updateGlobalContextMenu) {
         pushToast({ kind: 'warning', title: 'Native host required', message: 'Shell menu deployment is only available in the BNDZ native app.' });
         return;
       }
-      const payload = globalActions.filter(a => !isSeparatorAction(a)).map(a => ({
+      const payload = toDeploy.filter(a => !isSeparatorAction(a)).map(a => ({
         id: a.id,
         label: a.name,
         name: a.name,
@@ -529,8 +543,8 @@ export default function ContextMenuPlugin({
       }));
       const ok = await IPC.updateGlobalContextMenu(payload);
       pushToast(ok
-        ? { kind: 'success', title: 'Deployed', message: 'New items appear in File Explorer right-click menus.' }
-        : { kind: 'error', title: 'Deploy failed', message: 'Registry write failed. Try running BNDZ as Administrator.' });
+        ? { kind: 'success', title: 'Deployed', message: 'Explorer menus updated (HKCU). New items appear after Explorer refreshes — no admin required.' }
+        : { kind: 'error', title: 'Deploy failed', message: 'Could not write per-user shell keys. Check antivirus / Controlled Folder Access, then retry.' });
     } catch (err: any) {
       pushToast({ kind: 'error', title: 'Deploy error', message: String(err?.message || err) });
     }
@@ -582,10 +596,36 @@ export default function ContextMenuPlugin({
               Custom…
             </button>
             {tab === 'global' ? (
-              <button type="button" className="bndz-hub-btn-primary text-[11px] font-semibold px-3 py-1.5 flex items-center gap-1.5" onClick={() => void saveGlobalActions()}>
-                <Icons8Icon id="check" size={12} />
-                Deploy
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="bndz-hub-btn-ghost text-[11px] font-semibold px-2.5 py-1.5"
+                  onClick={() => {
+                    const seeded = DEFAULT_STOCK_GLOBAL_ACTIONS.map(a => ({
+                      id: a.id,
+                      name: a.name,
+                      command: a.command,
+                      iconVerb: a.iconVerb,
+                      targetMode: a.targetMode || 'all' as TargetMode,
+                    }));
+                    setGlobalActions(prev => {
+                      const ids = new Set(prev.map(p => p.id));
+                      const merged = [...prev];
+                      for (const s of seeded) {
+                        if (!ids.has(s.id)) merged.push(s);
+                      }
+                      return merged;
+                    });
+                    pushToast({ kind: 'success', title: 'Stock BNDZ verbs', message: 'Added Open in BNDZ, Problems, Inbound, RAM Staging. Click Deploy.' });
+                  }}
+                >
+                  Stock BNDZ…
+                </button>
+                <button type="button" className="bndz-hub-btn-primary text-[11px] font-semibold px-3 py-1.5 flex items-center gap-1.5" onClick={() => void saveGlobalActions()}>
+                  <Icons8Icon id="check" size={12} />
+                  Deploy
+                </button>
+              </>
             ) : (
               <button type="button" className="bndz-hub-btn-primary text-[11px] font-semibold px-3 py-1.5 flex items-center gap-1.5" onClick={saveAppActions}>
                 <Icons8Icon id="check" size={12} />
@@ -895,6 +935,7 @@ export default function ContextMenuPlugin({
           {([
             { id: 'app' as const, label: 'Inside BNDZ', icon: 'shell_menus' },
             { id: 'global' as const, label: 'Windows Explorer', icon: 'windows_ui' },
+            { id: 'verbs' as const, label: 'Explorer verbs', icon: 'zap_ui' },
           ]).map(t => (
             <button
               key={t.id}
@@ -921,10 +962,12 @@ export default function ContextMenuPlugin({
             <strong className="text-cyan-300/90">Inside BNDZ</strong> — compose the in-app right-click menu with a live preview of stock + custom items.
             {' '}
             <strong className="text-cyan-300/90">Windows Explorer</strong> — OS-wide context menus: inject BNDZ commands into Explorer (Deploy), and pin/hide live shell extensions that Windows already registers.
+            {' '}
+            <strong className="text-cyan-300/90">Explorer verbs</strong> — forge HKCU shell verbs that launch BNDZ with path args (formerly a fake sibling plugin).
           </div>
         )}
 
-        {renderDesigner()}
+        {tab === 'verbs' ? <ShellVerbForgePanel /> : renderDesigner()}
       </div>
     </PluginPanelShell>
   );

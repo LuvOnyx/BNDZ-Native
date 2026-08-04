@@ -24,7 +24,7 @@ export const BranchingTimePluginDef = {
   installOnFirstUse: true,
 };
 
-type TabId = 'branches' | 'peek';
+type TabId = 'branches' | 'peek' | 'vss';
 
 type BranchRow = {
   id: string;
@@ -33,6 +33,14 @@ type BranchRow = {
   tipManifestId: string;
   createdUtc: string;
   fileCount: number;
+};
+
+type VssBranchRow = {
+  id: string;
+  name: string;
+  rootPath: string;
+  browseRoot: string;
+  createdUtc: string;
 };
 
 type PeekEntry = {
@@ -73,12 +81,25 @@ export default function BranchingTimePlugin({
   const [peekId, setPeekId] = useState<string | null>(null);
   const [peekEntries, setPeekEntries] = useState<PeekEntry[]>([]);
   const [peekMeta, setPeekMeta] = useState<{ name: string; fileCount: number; totalBytes: number } | null>(null);
+  const [vssBranches, setVssBranches] = useState<VssBranchRow[]>([]);
 
   const root = (currentPath || '').replace(/\//g, '\\');
 
   const refresh = useCallback(async () => {
     const res = await IPC.branchList(root || undefined);
     setBranches((res.branches || []).map((b: Record<string, unknown>) => normalizeBranch(b)));
+    try {
+      const vss = await IPC.branchListVss();
+      setVssBranches((vss.branches || []).map((b: Record<string, unknown>) => ({
+        id: String(b.id ?? b.Id ?? ''),
+        name: String(b.name ?? b.Name ?? ''),
+        rootPath: String(b.rootPath ?? b.RootPath ?? ''),
+        browseRoot: String(b.browseRoot ?? b.BrowseRoot ?? ''),
+        createdUtc: String(b.createdUtc ?? b.CreatedUtc ?? ''),
+      })));
+    } catch {
+      setVssBranches([]);
+    }
   }, [root]);
 
   useEffect(() => {
@@ -159,17 +180,73 @@ export default function BranchingTimePlugin({
     }
   };
 
+  const createVssBranch = async () => {
+    if (!root) {
+      pushToast('Open a real folder tab to create a VSS branch.');
+      return;
+    }
+    const name = branchName.trim() || `vss-${new Date().toISOString().slice(0, 16).replace('T', '-')}`;
+    setBusy(true);
+    try {
+      const res = await IPC.branchCreateVss(root, name);
+      if (!res.ok) {
+        pushToast(res.error || 'VSS branch failed — try elevated BNDZ.');
+        return;
+      }
+      pushToast(`VSS branch "${name}" created.`);
+      setBranchName('');
+      setActiveTab('vss');
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openVssBrowse = async (id: string, browseRoot: string) => {
+    const res = await IPC.branchBrowseVss(id);
+    if (!res.ok) {
+      pushToast(res.error || 'Could not browse shadow copy.');
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('bndz-navigate', {
+      detail: { path: browseRoot.replace(/^([A-Za-z]):\\/, '/$1/').replace(/\\/g, '/') },
+    }));
+    pushToast(`Opened VSS browse root (${(res.items || []).length} items).`);
+  };
+
+  const restoreVss = async (id: string) => {
+    setBusy(true);
+    try {
+      const res = await IPC.branchRestoreVss(id);
+      if (!res.ok) pushToast(res.error || 'VSS restore failed.');
+      else pushToast('VSS restore queued into live folder.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteVss = async (id: string) => {
+    const res = await IPC.branchDeleteVss(id);
+    if (res.ok) {
+      pushToast('VSS branch deleted.');
+      await refresh();
+    }
+  };
+
   return (
     <PluginPanelShell
       title="Branching Time"
       icon="history_ui"
       iconColor="#c4a35a"
       variant="embedded"
-      subtitle="Content-addressed save-states — restore any tip into the live tree"
+      subtitle="Content-addressed save-states + VSS named branches"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           <PluginTab active={activeTab === 'branches'} onClick={() => setActiveTab('branches')}>
             Branches
+          </PluginTab>
+          <PluginTab active={activeTab === 'vss'} onClick={() => setActiveTab('vss')}>
+            VSS
           </PluginTab>
           <PluginTab active={activeTab === 'peek'} onClick={() => peekId && setActiveTab('peek')}>
             Peek
@@ -203,6 +280,9 @@ export default function BranchingTimePlugin({
               />
               <PluginHeroActionButton disabled={busy || !root} onClick={() => void createBranch()}>
                 Create branch
+              </PluginHeroActionButton>
+              <PluginHeroActionButton disabled={busy || !root} onClick={() => void createVssBranch()}>
+                Create VSS
               </PluginHeroActionButton>
               <PluginToolbarButton title="Refresh" onClick={() => void refresh()} disabled={busy} icon="refresh_ui" />
             </>
@@ -242,6 +322,43 @@ export default function BranchingTimePlugin({
                         <EmblemIcon id="emblem-update" size={12} />
                       </PluginToolbarButton>
                       <PluginToolbarButton title="Delete branch" onClick={() => void removeBranch(b.id)}>
+                        <EmblemIcon id="emblem-remove" size={12} />
+                      </PluginToolbarButton>
+                    </div>
+                  </div>
+                </PluginCard>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'vss' && (
+          <div className="px-3 pb-3 space-y-2 overflow-y-auto bndz-scrollbar flex-1 min-h-0">
+            {vssBranches.length === 0 ? (
+              <PluginEmptyState
+                icon="history_ui"
+                title="No VSS branches"
+                description="Create a named Volume Shadow Copy branch of the active folder (may require elevation)."
+              />
+            ) : (
+              vssBranches.map(b => (
+                <PluginCard key={b.id}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <PluginSectionTitle>{b.name}</PluginSectionTitle>
+                      <div className="text-[10px] text-gray-500 truncate" title={b.rootPath}>{b.rootPath}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        VSS · {b.createdUtc ? new Date(b.createdUtc).toLocaleString() : ''}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <PluginToolbarButton title="Browse shadow" onClick={() => void openVssBrowse(b.id, b.browseRoot)}>
+                        <EmblemIcon id="emblem-mounted" size={12} />
+                      </PluginToolbarButton>
+                      <PluginToolbarButton title="Restore to live" onClick={() => void restoreVss(b.id)} disabled={busy}>
+                        <EmblemIcon id="emblem-update" size={12} />
+                      </PluginToolbarButton>
+                      <PluginToolbarButton title="Delete VSS branch" onClick={() => void deleteVss(b.id)}>
                         <EmblemIcon id="emblem-remove" size={12} />
                       </PluginToolbarButton>
                     </div>

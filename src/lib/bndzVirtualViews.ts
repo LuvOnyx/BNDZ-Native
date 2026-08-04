@@ -138,7 +138,7 @@ export function bndzWorkspaceLabel(view: BndzWorkspaceView): string {
   switch (view) {
     case 'canvas': return 'Spatial Canvas';
     case 'automation': return 'Automation';
-    case 'twin-volume': return 'Twin Volume Chess';
+    case 'twin-volume': return 'Cross-volume board';
     case 'temporal-diff': return 'Time Diff';
     default: {
       const _exhaustive: never = view;
@@ -178,4 +178,17 @@ export function parseBndzPortalView(path: string): BndzPortalView | null {
 
 export function bndzPortalVirtualView(view: BndzPortalView): string {
   return `${BNDZ_PORTAL_ROOT}/${view}`;
+}
+
+/**
+ * BNDZ Portal was a fake namespace root in the nav tree. Map leftover portal paths
+ * onto the real FM surfaces that already own those jobs.
+ */
+export function remapRetiredVirtualPath(path: string): string {
+  const n = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  if (!isBndzPortalPath(n)) return path;
+  const view = parseBndzPortalView(n);
+  if (view === 'capture') return BNDZ_INBOUND;
+  if (view === 'health') return BNDZ_PROBLEMS;
+  return BNDZ_HOME;
 }

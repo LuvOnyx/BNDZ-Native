@@ -1,5 +1,6 @@
 import { generateId } from './generateId';
 import { decodeBnd1DirListing } from './dirListingBinary';
+import { hydrateShellGlyphMap } from './nativeIconService';
 
 /** Unique IPC request IDs — prevents response cross-wiring under burst load. */
 export function generateIpcId(suffix?: string): string {
@@ -46,6 +47,15 @@ function resolvePending(id: string | undefined, type: string | undefined, payloa
 
 function ingestHostMessage(data: { type?: string; id?: string; payload?: unknown; [key: string]: unknown }) {
   if (!data?.type) return;
+
+  // Listing-time glyphs — hydrate BEFORE dir contents resolve so first paint has type icons.
+  if (data.type === 'SHELL_GLYPH_MAP' && data.payload && typeof data.payload === 'object') {
+    hydrateShellGlyphMap(data.payload as Record<string, string>);
+    window.dispatchEvent(new CustomEvent('bndz-shell-glyph-map', {
+      detail: { id: data.id, path: (data as { path?: string }).path || '', glyphs: data.payload },
+    }));
+    return;
+  }
 
   if (data.type === 'DIR_CONTENTS_APPEND' && Array.isArray(data.payload)) {
     window.dispatchEvent(new CustomEvent('bndz-dir-append', {

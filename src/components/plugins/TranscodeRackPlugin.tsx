@@ -21,7 +21,7 @@ export const TranscodeRackPluginDef = {
   name: 'Transcode Rack',
   icon: 'edit_image',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TranscodeJob = {

@@ -91,20 +91,47 @@ public static class BndzHostCaches
     }
 
     /// <summary>
-    /// L1 → L2 → extract. Honors disk-cache policy and "cached only" modes.
+    /// L1 → L2 (prefer cheap CAS URL) → SYSICONINDEX map → extract.
+    /// Honors disk-cache policy and "cached only" modes.
+    /// Return value is either base64 PNG or bndz-media://cas/{hash}.png.
     /// </summary>
     public static string? ResolveIconBase64(string path, bool isDirectory, Func<string> extract)
     {
         var key = IconCacheKey(path, isDirectory);
         if (Icons.TryGet(key, out var hit) && !string.IsNullOrEmpty(hit))
         {
-            Interlocked.Increment(ref _iconL1Hits);
-            return hit;
+            // Migrate stale folder-mapped URLs that 404 under SetVirtualHostNameToFolderMapping.
+            if (hit.Contains("/assets/native-icon/", StringComparison.OrdinalIgnoreCase))
+            {
+                var legacyHash = BndzMediaScheme.ParseHash(hit);
+                if (!string.IsNullOrEmpty(legacyHash))
+                {
+                    hit = BndzMediaScheme.UrlForHash(legacyHash);
+                    Icons.AddOrUpdate(key, hit);
+                }
+                else
+                {
+                    hit = "";
+                }
+            }
+            if (!string.IsNullOrEmpty(hit))
+            {
+                Interlocked.Increment(ref _iconL1Hits);
+                return hit;
+            }
         }
 
         var disk = BndzMediaDiskCache.Instance;
         if (disk.CurrentPolicy.CacheIconsOnDisk)
         {
+            var casUrl = disk.TryGetCasUrl(BndzMediaDiskCache.Kind.Icon, key);
+            if (!string.IsNullOrEmpty(casUrl))
+            {
+                Interlocked.Increment(ref _iconL2Hits);
+                Icons.AddOrUpdate(key, casUrl);
+                return casUrl;
+            }
+
             var fromDisk = disk.TryGetBase64(BndzMediaDiskCache.Kind.Icon, key);
             if (!string.IsNullOrEmpty(fromDisk))
             {
@@ -112,6 +139,15 @@ public static class BndzHostCaches
                 Icons.AddOrUpdate(key, fromDisk);
                 return fromDisk;
             }
+        }
+
+        // Shared imagelist glyph (encode-once per SYSICONINDEX / type key).
+        var sysHit = ShellGlyphMapService.Instance.TryResolveViaSysIconIndex(path, isDirectory);
+        if (!string.IsNullOrEmpty(sysHit))
+        {
+            Interlocked.Increment(ref _iconL1Hits);
+            Icons.AddOrUpdate(key, sysHit);
+            return sysHit;
         }
 
         if (disk.CurrentPolicy.ShowCachedIconsOnly)
@@ -125,10 +161,53 @@ public static class BndzHostCaches
             return null;
 
         Interlocked.Increment(ref _iconMissExtract);
+        ShellGlyphMapService.Instance.RememberExtractedIcon(path, isDirectory, extracted);
         Icons.AddOrUpdate(key, extracted);
         if (disk.CurrentPolicy.CacheIconsOnDisk)
             disk.PutBase64(BndzMediaDiskCache.Kind.Icon, key, extracted);
         return extracted;
+    }
+
+    /// <summary>Same as ResolveIconBase64 but prefer CAS URL for thumbnails when warm.</summary>
+    public static string? ResolveThumbnailDelivery(string path, int size, Func<string> extract)
+    {
+        var key = ThumbnailCacheKey(path, size);
+        if (Thumbnails.TryGet(key, out var hit) && !string.IsNullOrEmpty(hit))
+        {
+            if (hit.Contains("/assets/native-icon/", StringComparison.OrdinalIgnoreCase))
+            {
+                var legacyHash = BndzMediaScheme.ParseHash(hit);
+                if (!string.IsNullOrEmpty(legacyHash))
+                {
+                    hit = BndzMediaScheme.UrlForHash(legacyHash);
+                    Thumbnails.AddOrUpdate(key, hit);
+                }
+                else
+                {
+                    hit = "";
+                }
+            }
+            if (!string.IsNullOrEmpty(hit))
+            {
+                Interlocked.Increment(ref _thumbL1Hits);
+                return hit;
+            }
+        }
+
+        var disk = BndzMediaDiskCache.Instance;
+        var allowDisk = disk.AllowsThumbPath(path);
+        if (allowDisk)
+        {
+            var casUrl = disk.TryGetCasUrl(BndzMediaDiskCache.Kind.Thumbnail, key);
+            if (!string.IsNullOrEmpty(casUrl))
+            {
+                Interlocked.Increment(ref _thumbL2Hits);
+                Thumbnails.AddOrUpdate(key, casUrl);
+                return casUrl;
+            }
+        }
+
+        return ResolveThumbnailBase64(path, size, extract);
     }
 
     /// <summary>L1 → L2 → extract for thumbnails (path/mtime keyed).</summary>

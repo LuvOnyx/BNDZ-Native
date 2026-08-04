@@ -2919,6 +2919,72 @@ export const IPC = {
     return _nativeCall<any>('HEALTH_FIX_PROBLEM', 'HEALTH_FIX_PROBLEM_RESULT', id, { problemId }, 30000);
   },
 
+  healthBuildRepairPlan(goals?: {
+    zeroBrokenLinks?: boolean;
+    clearEmptyDirs?: boolean;
+    clearOrphanSidecars?: boolean;
+    fixAllAuto?: boolean;
+  }): Promise<any> {
+    if (!this.isNative) return Promise.resolve({ actions: [], totalActions: 0 });
+    const id = `${Date.now()}_healthPlan`;
+    return _nativeCall<any>('HEALTH_BUILD_REPAIR_PLAN', 'HEALTH_BUILD_REPAIR_PLAN_RESULT', id, goals ?? {}, 30000);
+  },
+
+  healthApprovePlan(planId: string, actionIds?: string[]): Promise<{ ok: boolean; fixedCount?: number; failedCount?: number; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_healthApprove`;
+    return _nativeCall<any>('HEALTH_APPROVE_PLAN', 'HEALTH_APPROVE_PLAN_RESULT', id, { planId, actionIds }, 120000);
+  },
+
+  tombstoneSnapshot(opId: string, kind: string, entries: Array<Record<string, unknown>>): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_tombSnap`;
+    return _nativeCall<any>('TOMBSTONE_SNAPSHOT', 'TOMBSTONE_SNAPSHOT_RESULT', id, { opId, kind, entries }, 10000);
+  },
+
+  tombstoneClear(opId: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_tombClear`;
+    return _nativeCall<any>('TOMBSTONE_CLEAR', 'TOMBSTONE_CLEAR_RESULT', id, { opId }, 5000);
+  },
+
+  tombstoneRestoreFailed(opId: string): Promise<{ ok: boolean; snapshot?: any }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_tombRestore`;
+    return _nativeCall<any>('TOMBSTONE_RESTORE_FAILED', 'TOMBSTONE_RESTORE_FAILED_RESULT', id, { opId }, 10000);
+  },
+
+  branchCreateVss(rootPath: string, name: string): Promise<{ ok: boolean; branch?: any; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_branchVss`;
+    return _nativeCall<any>('BRANCH_CREATE_VSS', 'BRANCH_CREATE_VSS_RESULT', id, { rootPath, name }, 120000);
+  },
+
+  branchListVss(): Promise<{ branches: any[] }> {
+    if (!this.isNative) return Promise.resolve({ branches: [] });
+    const id = `${Date.now()}_branchListVss`;
+    return _nativeCall<any>('BRANCH_LIST_VSS', 'BRANCH_LIST_VSS_RESULT', id, {}, 15000)
+      .then(r => ({ branches: Array.isArray(r?.branches) ? r.branches : [] }));
+  },
+
+  branchBrowseVss(branchId: string, relative?: string): Promise<{ ok: boolean; items?: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, items: [] });
+    const id = `${Date.now()}_branchBrowseVss`;
+    return _nativeCall<any>('BRANCH_BROWSE_VSS', 'BRANCH_BROWSE_VSS_RESULT', id, { id: branchId, relative }, 30000);
+  },
+
+  branchDeleteVss(branchId: string): Promise<{ ok: boolean }> {
+    if (!this.isNative) return Promise.resolve({ ok: false });
+    const id = `${Date.now()}_branchDelVss`;
+    return _nativeCall<any>('BRANCH_DELETE_VSS', 'BRANCH_DELETE_VSS_RESULT', id, { id: branchId }, 30000);
+  },
+
+  branchRestoreVss(branchId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_branchRestoreVss`;
+    return _nativeCall<any>('BRANCH_RESTORE_VSS', 'BRANCH_RESTORE_VSS_RESULT', id, { id: branchId }, 300000);
+  },
+
   lineageGet(path: string, depth?: number): Promise<{ edges: any[]; inbound?: any[]; outbound?: any[]; timeline?: any[] }> {
     if (!this.isNative) return Promise.resolve({ edges: [] });
     const id = `${Date.now()}_lineageGet`;

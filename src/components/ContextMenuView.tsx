@@ -1194,7 +1194,7 @@ function ContextMenuView({
           }}
         />
         <ContextMenuItem
-          label="Twin Volume Chess"
+          label="Cross-volume board"
           iconVerb="sync_folders"
           onClick={() => {
             window.dispatchEvent(new CustomEvent('bndz-twin-volume-seed', {

@@ -24,7 +24,7 @@ export const SemanticDeskPluginDef = {
   name: 'Semantic Desk',
   icon: 'smart_view',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type ClusterPile = {

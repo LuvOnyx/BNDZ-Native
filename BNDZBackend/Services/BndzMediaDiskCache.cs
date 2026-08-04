@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -165,6 +166,69 @@ public sealed class BndzMediaDiskCache : IDisposable
         catch
         {
             return p.IncludeLocalDisks;
+        }
+    }
+
+    /// <summary>Cheap delivery URL for a warm CAS entry (custom scheme — not bndz.local folder map).</summary>
+    public const string NativeIconUrlPrefix = BndzMediaScheme.CustomScheme + "://" + BndzMediaScheme.Authority + "/";
+
+    /// <summary>Try L2 → URL when CAS file exists (no base64 encode). Null on miss.</summary>
+    public string? TryGetCasUrl(Kind kind, string cacheKey)
+    {
+        var hash = TryGetCasHash(kind, cacheKey);
+        return string.IsNullOrEmpty(hash) ? null : BndzMediaScheme.UrlForHash(hash);
+    }
+
+    /// <summary>Look up cas_hash for a cache key without reading PNG bytes.</summary>
+    public string? TryGetCasHash(Kind kind, string cacheKey)
+    {
+        if (string.IsNullOrEmpty(cacheKey)) return null;
+        if (kind == Kind.Icon && !_policy.CacheIconsOnDisk) return null;
+        if (kind == Kind.Thumbnail && !_policy.CacheThumbsOnDisk) return null;
+
+        try
+        {
+            EnsureSchema();
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT cas_hash FROM entries WHERE cache_key = $k AND kind = $kind LIMIT 1;";
+            cmd.Parameters.AddWithValue("$k", cacheKey);
+            cmd.Parameters.AddWithValue("$kind", (long)kind);
+            var hashObj = cmd.ExecuteScalar();
+            if (hashObj is not string hash || hash.Length < 4) return null;
+            var file = CasPath(hash);
+            if (!File.Exists(file))
+            {
+                DeleteEntry(conn, cacheKey);
+                return null;
+            }
+            return hash;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Open CAS file stream by hex hash (for native-icon URL serving).</summary>
+    public Stream? OpenCasStreamByHash(string hash)
+    {
+        if (string.IsNullOrWhiteSpace(hash) || hash.Length < 4) return null;
+        // Strip accidental .png suffix from URL path.
+        if (hash.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            hash = hash[..^4];
+            if (hash.Length < 4 || !hash.All(static c =>
+                    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                return null;
+        try
+        {
+            var file = CasPath(hash.ToLowerInvariant());
+            if (!File.Exists(file)) return null;
+            return new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
+        }
+        catch
+        {
+            return null;
         }
     }
 

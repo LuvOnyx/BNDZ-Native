@@ -30,6 +30,7 @@ public sealed class ProjectSandboxService
     private readonly string _root;
     private readonly object _lock = new();
     private readonly Dictionary<string, SandboxSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
+    private FileTransferQueueService? _queue;
 
     private ProjectSandboxService()
     {
@@ -39,6 +40,8 @@ public sealed class ProjectSandboxService
         Directory.CreateDirectory(_root);
         LoadExistingSessions();
     }
+
+    public void SetTransferQueue(FileTransferQueueService queue) => _queue = queue;
 
     private void LoadExistingSessions()
     {
@@ -91,9 +94,11 @@ public sealed class ProjectSandboxService
 
             var sessionDir = SessionDir(id);
             Directory.CreateDirectory(sessionDir);
-            Directory.CreateDirectory(Path.Combine(sessionDir, "shadow"));
+            var shadowDir = Path.Combine(sessionDir, "shadow");
+            Directory.CreateDirectory(shadowDir);
             PersistSession(session);
             _sessions[id] = session;
+            try { ProjFsSandboxHost.TryStartSession(id, normalized, shadowDir); } catch { /* optional */ }
             return ToDto(session);
         }
     }
@@ -209,6 +214,43 @@ public sealed class ProjectSandboxService
                 };
 
             var shadowDir = Path.Combine(SessionDir(sessionId), "shadow");
+            var pendingMerge = new List<(string Src, string Dest)>();
+            if (Directory.Exists(shadowDir))
+            {
+                foreach (var file in Directory.EnumerateFiles(shadowDir, "*", SearchOption.AllDirectories))
+                {
+                    var rel = Path.GetRelativePath(shadowDir, file);
+                    var dest = Path.Combine(session.RootWinPath, rel);
+                    pendingMerge.Add((file, dest));
+                }
+            }
+
+            // ProjFS / overlay Commit: merge shadow → live via transfer queue when present.
+            if (pendingMerge.Count > 0 && _queue != null)
+            {
+                var opId = $"sandbox-commit-{sessionId}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                _queue.RegisterJob(opId, "copy", $"Sandbox commit {session.Name ?? sessionId}", "sandbox",
+                    pendingMerge.Count, "sandbox", FileTransferPriority.Normal, session.RootWinPath);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var ops = new FileOperationService();
+                        foreach (var (src, dest) in pendingMerge)
+                        {
+                            var destDir = Path.GetDirectoryName(dest);
+                            if (!string.IsNullOrEmpty(destDir)) Directory.CreateDirectory(destDir);
+                            await ops.ExecuteOperationAsync(opId + "-" + Guid.NewGuid().ToString("N")[..8],
+                                "copy", new List<string> { src }, destDir ?? session.RootWinPath, false).ConfigureAwait(false);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[Sandbox] Commit merge failed: {ex.Message}");
+                    }
+                });
+            }
+
             try
             {
                 if (Directory.Exists(shadowDir))
@@ -219,13 +261,15 @@ public sealed class ProjectSandboxService
                 Debug.WriteLine($"[Sandbox] Shadow cleanup failed: {ex.Message}");
             }
 
+            try { ProjFsSandboxHost.StopSession(sessionId); } catch { /* optional */ }
+
             session.Status = "committed";
             PersistSession(session);
 
             return new SandboxOperationResult
             {
                 Ok = true,
-                OpsProcessed = journal.Count,
+                OpsProcessed = journal.Count + pendingMerge.Count,
             };
         }
     }
@@ -243,6 +287,8 @@ public sealed class ProjectSandboxService
             var shadowDir = Path.Combine(SessionDir(sessionId), "shadow");
             var failedOps = new List<string>();
             int reversed = 0;
+
+            try { ProjFsSandboxHost.StopSession(sessionId); } catch { /* optional */ }
 
             for (int i = journal.Count - 1; i >= 0; i--)
             {

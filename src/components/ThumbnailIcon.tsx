@@ -8,7 +8,7 @@ import {
   fetchIconifySvg,
   iconifySvgToDataUrl,
 } from '../lib/fileTypeIcons';
-import { applyIconCacheBuster, LIST_THUMB_PX, requestNativeIcon } from '../lib/nativeIconService';
+import { applyIconCacheBuster, invalidateIconUrl, LIST_THUMB_PX, requestNativeIcon } from '../lib/nativeIconService';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { useNativeIcon } from '../lib/useNativeIcon';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
@@ -117,16 +117,15 @@ export function ThumbnailIcon({
   }, [path, eager]);
 
   const thumbFetchEnabled = isVisible && useThumbnail && shouldFetchNativeThumbnail(entity, config);
-  // Always keep shell available as fallback — especially folders when folder-thumb returns null/error.
-  const shellFetchEnabled = isVisible && shouldFetchNativeShellIcon(entity, config)
-    && (!thumbFetchEnabled || showTypeBadge || thumbBroken || dirFlag);
+  // Always fetch shell glyphs for first paint; thumbs upgrade afterward (Explorer model).
+  const shellFetchEnabled = isVisible && shouldFetchNativeShellIcon(entity, config);
 
-  // Direct fetch — viewport-visible rows get priorityBoost so they fill before offscreen prefetch.
+  // Direct fetch — shell first (high priority), then thumbs. Viewport shells fill before offscreen thumbs.
   useEffect(() => {
     if (!isVisible || !path) return;
     const boost = eager ? 800 : 400;
-    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', LIST_THUMB_PX, boost);
     if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, boost);
+    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', LIST_THUMB_PX, Math.max(0, boost - 200));
   }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled, eager]);
 
   const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
@@ -147,7 +146,7 @@ export function ThumbnailIcon({
 
   const usableThumb = useThumbnail && thumbSrc && !thumbBroken ? thumbSrc : null;
   const usableShell = shellSrc && !shellBroken ? shellSrc : null;
-  // Gold priority: CAS thumb → SVG blob → shell glyph → iconify. Never full-file stream in list.
+  // Shell-first paint; upgrade to CAS thumb when ready (Explorer imagelist → preview).
   const nativeSrc = usableThumb || svgInline || usableShell || entity.iconBase64 || null;
 
   useEffect(() => {
@@ -206,6 +205,7 @@ export function ThumbnailIcon({
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           draggable={false}
           onError={() => {
+            invalidateIconUrl(displaySrc);
             if (usableThumb && displaySrc === usableThumb) {
               setThumbBroken(true);
               return;

@@ -5,6 +5,10 @@ namespace BNDZ.Services;
 /// <summary>Interval-based schedule triggers for armed automation pipelines.</summary>
 public sealed class BndzAutomationSchedulerService : IDisposable
 {
+    private static readonly string PersistDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "BNDZ", "AutomationSchedules");
+
     private readonly AutomationRunnerDeps _runnerDeps;
     private readonly object _gate = new();
     private readonly Dictionary<string, ScheduleEntry> _schedules = new(StringComparer.Ordinal);
@@ -48,7 +52,42 @@ public sealed class BndzAutomationSchedulerService : IDisposable
                 AddSchedule(id, meta);
             }
 
+            PersistArmedState(pipelineId, graph);
             return BuildStatus();
+        }
+    }
+
+    /// <summary>Restore schedules from %LocalAppData%/BNDZ/AutomationSchedules on host boot.</summary>
+    public int RestorePersistedSchedules()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            if (!Directory.Exists(PersistDir)) return 0;
+            var count = 0;
+            foreach (var file in Directory.EnumerateFiles(PersistDir, "*.json"))
+            {
+                try
+                {
+                    var json = File.ReadAllText(file);
+                    using var doc = JsonDocument.Parse(json);
+                    var graph = doc.RootElement;
+                    var armed = graph.TryGetProperty("armed", out var armedEl) && armedEl.ValueKind == JsonValueKind.True;
+                    if (!armed) { TryDeleteFile(file); continue; }
+                    var pipelineId = graph.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "default" : "default";
+                    var desired = ParseSchedules(graph, pipelineId);
+                    foreach (var (key, meta) in desired)
+                    {
+                        if (!_schedules.ContainsKey(key))
+                        {
+                            AddSchedule(key, meta);
+                            count++;
+                        }
+                    }
+                }
+                catch { /* skip corrupt */ }
+            }
+            return count;
         }
     }
 
@@ -176,6 +215,31 @@ public sealed class BndzAutomationSchedulerService : IDisposable
         if (!_schedules.TryGetValue(id, out var entry)) return;
         entry.Timer?.Dispose();
         _schedules.Remove(id);
+    }
+
+    private void PersistArmedState(string pipelineId, JsonElement graph)
+    {
+        try
+        {
+            Directory.CreateDirectory(PersistDir);
+            var file = Path.Combine(PersistDir, $"{SanitizeFileName(pipelineId)}.json");
+            var armed = graph.TryGetProperty("armed", out var armedEl) && armedEl.ValueKind == JsonValueKind.True;
+            if (!armed) { TryDeleteFile(file); return; }
+            File.WriteAllText(file, graph.GetRawText());
+        }
+        catch { /* best effort */ }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c, '_');
+        return name.Length > 80 ? name[..80] : name;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { /* */ }
     }
 
     public void Dispose()

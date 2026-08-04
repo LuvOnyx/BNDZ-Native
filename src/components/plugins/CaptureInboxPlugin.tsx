@@ -23,7 +23,7 @@ export const CaptureInboxPluginDef = {
   icon: 'clipboard_ui',
   description: 'Screenshot and clipboard images saved as named PNG files via Windows OCR.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type CaptureEntry = {

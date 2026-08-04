@@ -62,6 +62,7 @@
     <PackageReference Include="LLamaSharp" Version="0.27.0" />
     <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" ExcludeAssets="runtime" GeneratePathProperty="true" />
     <PackageReference Include="MetadataExtractor" Version="2.9.3" />
+    <PackageReference Include="Meziantou.Framework.Win32.ChangeJournal" Version="2.0.3" />
     <PackageReference Include="Meziantou.Framework.Win32.Jobs" Version="3.4.5" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
@@ -81,6 +82,7 @@
     <PackageReference Include="System.Data.OleDb" Version="10.0.2" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.2" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.2" />
     <PackageReference Include="SSH.NET" Version="2024.2.0" />
     <PackageReference Include="SIPSorcery" Version="8.0.23" />

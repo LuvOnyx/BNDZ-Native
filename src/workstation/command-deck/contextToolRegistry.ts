@@ -28,7 +28,7 @@ export type ContextToolId =
   | 'flush-ram-zone'
   | 'transcode-rack'
   | 'semantic-desk'
-  | 'shell-verb-forge';
+  | 'shell-menus';
 
 export type ContextTool = {
   id: ContextToolId;

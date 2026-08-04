@@ -526,6 +526,33 @@ public class ShellIntegrationService
         catch { }
     }
 
+    /// <summary>
+    /// Always register HKCU "Open with BNDZ" on Directory/Folder/Drive/Background —
+    /// so Explorer can hand paths to BNDZ without making BNDZ the full default FM.
+    /// </summary>
+    public void EnsureOpenInBndzVerb()
+    {
+        try
+        {
+            var exe = Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrEmpty(exe)) return;
+
+            const string fileRoot = @"Software\Classes\*\shell\BNDZOpen";
+            const string dirRoot = @"Software\Classes\Directory\shell\BNDZOpen";
+            const string folderRoot = @"Software\Classes\Folder\shell\BNDZOpen";
+            const string bgRoot = @"Software\Classes\Directory\Background\shell\BNDZOpen";
+            const string driveRoot = @"Software\Classes\Drive\shell\BNDZOpen";
+
+            WriteBndzOpenMenu(Registry.CurrentUser, fileRoot, exe, "Open with BNDZ", "%1");
+            WriteBndzOpenMenu(Registry.CurrentUser, dirRoot, exe, "Open with BNDZ", "%1");
+            WriteBndzOpenMenu(Registry.CurrentUser, folderRoot, exe, "Open with BNDZ", "%1");
+            WriteBndzOpenMenu(Registry.CurrentUser, bgRoot, exe, "Open with BNDZ", "%V");
+            WriteBndzOpenMenu(Registry.CurrentUser, driveRoot, exe, "Open with BNDZ", "%1");
+            NotifyShellAssociationChanged();
+        }
+        catch { }
+    }
+
     public ShellIntegrationResult SetInContextMenu(bool enable)
     {
         try
