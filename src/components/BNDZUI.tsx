@@ -172,13 +172,14 @@ import HelloGateOverlay from './HelloGateOverlay';
 import { useLiveShareCursor, isPathInPeerSelection } from '../lib/liveShareCursor';
 import { initAdaptiveListDensity, onAdaptiveListScroll, onAdaptiveListFocus } from '../lib/adaptiveListDensity';
 import { useJobTicketOverdueMap } from '../lib/useJobTicketOverdueMap';
+import { useHealthProblemMap, HEALTH_BADGE_COLORS } from '../lib/useHealthProblemMap';
 import BndzQuickPreview from './preview/BndzQuickPreview';
 import ListFilterChips, { matchesListKindFilter, matchesTagFilter, type ListKindFilter } from './views/ListFilterChips';
 import TagBadge from './TagBadge';
 import { resolveTagKey, tagStorageKey, entityHasTag, tagChipId } from '../lib/tagUtils';
 import { gridTileMetrics, listTileMetrics, driveGridMetrics, driveListMetrics, detailsTileMetrics } from '../lib/viewModeMetrics';
 import { useContextMenuDismissOnLeave } from '../hooks/useContextMenuDismissOnLeave';
-import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzTwinVolumePath, isBndzTemporalDiffPath, isBndzWorkspacePath, isBndzRamPath, isBndzPortalPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, parseBndzPortalView, bndzVirtualPath, bndzVirtualLabel, bndzPortalVirtualView, bndzRamVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND, BNDZ_PORTAL_ROOT, BNDZ_PORTAL_HEALTH, BNDZ_PORTAL_MAGNETS, BNDZ_PORTAL_SANDBOXES, BNDZ_PORTAL_CAPTURE } from '../lib/bndzVirtualViews';
+import { isBndzVirtualPath, isBndzHomePath, isBndzCanvasPath, isBndzAutomationPath, isBndzTwinVolumePath, isBndzTemporalDiffPath, isBndzWorkspacePath, isBndzRamPath, isBndzPortalPath, isFsDropTargetPath, parseBndzRamZoneId, parseBndzVirtualView, parseBndzPortalView, bndzVirtualPath, bndzVirtualLabel, bndzRamVirtualPath, remapRetiredVirtualPath, BNDZ_VIEWS_ROOT, BNDZ_HOME, BNDZ_CANVAS, BNDZ_AUTOMATION, BNDZ_TWIN_VOLUME, BNDZ_TEMPORAL_DIFF, BNDZ_RAM_ROOT, BNDZ_PROBLEMS, BNDZ_INBOUND } from '../lib/bndzVirtualViews';
 import { invalidateRamZoneMountCache, remapRamListingEntries, refreshRamZoneMounts, resolvePanePathForFs, resolveRamStagingFsPath, resolveRamZoneMountPath, entityFsPath } from '../lib/ramStagingPaths';
 import {
   WORK_INTENT_ORDER,
@@ -707,7 +708,6 @@ export default function BNDZUI() {
   const [listKindFilter, setListKindFilter] = useState<ListKindFilter>('all');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [smartViewsExpanded, setSmartViewsExpanded] = useState(true);
-  const [portalExpanded, setPortalExpanded] = useState(true);
   const [externalDragActive, setExternalDragActive] = useState(false);
   const [externalDragPaths, setExternalDragPaths] = useState<string[]>([]);
   const [ramStagingExpanded, setRamStagingExpanded] = useState(true);
@@ -1266,14 +1266,16 @@ export default function BNDZUI() {
       setShowMeshDropDialog(true);
       return;
     }
+    // Folded Part B sibling → Shell Menus (Explorer verbs tab lives there).
+    const resolvedId = pluginId === 'shell-verb-forge' ? 'context-menu-manager' : pluginId;
     // Never auto-install — only open plugins the user already has installed.
-    if (!installedPluginIdSet.has(pluginId)) {
-      const label = (pluginRegistry || []).find((p: { id: string }) => p.id === pluginId)?.name || pluginId;
+    if (!installedPluginIdSet.has(resolvedId)) {
+      const label = (pluginRegistry || []).find((p: { id: string }) => p.id === resolvedId)?.name || resolvedId;
       setToastMessage(`“${label}” isn’t installed. Add it from the Plugin Store.`, 'warning');
       return;
     }
     setIsBottomPanelOpen(true);
-    setBottomPluginTab(pluginId);
+    setBottomPluginTab(resolvedId);
     if (launch) setBottomPluginLaunch(launch);
   }, [installedPluginIdSet, pluginRegistry]);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
@@ -1349,6 +1351,8 @@ export default function BNDZUI() {
     kind: 'delete' | 'move' | 'rename';
     namesByPane: Record<string, Set<string>>;
     winPaths: Set<string>;
+    /** Full list entities for instant reinject on failure (Explorer-grade optimistic UI). */
+    snapshotByPane: Record<string, any[]>;
     startedAt: number;
   }>());
 
@@ -1373,24 +1377,49 @@ export default function BNDZUI() {
     panePath: string | null | undefined,
     names: string[],
     winPaths: string[],
+    entities?: any[],
   ) => {
     const namesByPane: Record<string, Set<string>> = {};
+    const snapshotByPane: Record<string, any[]> = {};
     const norm = panePath ? normalizePanePath(panePath) : '';
     if (norm && names.length) {
       namesByPane[norm] = new Set(names.filter(Boolean));
     }
+    if (norm && entities?.length) {
+      snapshotByPane[norm] = entities.map(e => ({ ...e }));
+    }
     const winSet = new Set<string>();
+    const entries: Array<Record<string, unknown>> = [];
     for (const wp of winPaths) {
       const canon = String(wp || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
       if (!canon) continue;
       winSet.add(canon);
       const slash = Math.max(canon.lastIndexOf('\\'), canon.lastIndexOf('/'));
+      const base = slash > 0 ? canon.slice(slash + 1) : canon;
+      const matchEnt = entities?.find(e => {
+        const n = String(e?.name || '').toLowerCase();
+        return n === base || String(e?.path || '').replace(/\//g, '\\').toLowerCase().endsWith('\\' + base);
+      });
+      entries.push({
+        path: wp,
+        name: matchEnt?.name || base,
+        type: matchEnt?.type || (matchEnt?.isDirectory ? 'directory' : 'file'),
+        size: matchEnt?.size ?? 0,
+        extension: matchEnt?.extension,
+        parentPath: slash > 0 ? wp.slice(0, Math.max(wp.lastIndexOf('\\'), wp.lastIndexOf('/'))) : '',
+        modified: matchEnt?.modified,
+      });
       if (slash > 0) {
         const parentWin = canon.slice(0, slash);
-        const base = canon.slice(slash + 1);
         const parentPane = normalizePanePath('/' + parentWin.replace(/\\/g, '/'));
         if (!namesByPane[parentPane]) namesByPane[parentPane] = new Set();
-        if (base) namesByPane[parentPane].add(base);
+        if (base) namesByPane[parentPane].add(matchEnt?.name || base);
+        if (matchEnt) {
+          if (!snapshotByPane[parentPane]) snapshotByPane[parentPane] = [];
+          if (!snapshotByPane[parentPane].some(s => s.name === matchEnt.name)) {
+            snapshotByPane[parentPane].push({ ...matchEnt });
+          }
+        }
       }
     }
     pendingFsOpsRef.current.set(opId, {
@@ -1398,12 +1427,41 @@ export default function BNDZUI() {
       kind,
       namesByPane,
       winPaths: winSet,
+      snapshotByPane,
       startedAt: Date.now(),
+    });
+    void import('../lib/ipcBridge').then(({ IPC }) => {
+      if (IPC.isNative) void IPC.tombstoneSnapshot?.(opId, kind, entries);
+    });
+  }, []);
+
+  const reinjectFsTombstone = React.useCallback((opId: string) => {
+    const op = pendingFsOpsRef.current.get(opId);
+    if (!op?.snapshotByPane) return;
+    setPathContentsCache(prev => {
+      let next = prev;
+      for (const [pane, snaps] of Object.entries(op.snapshotByPane)) {
+        if (!snaps?.length) continue;
+        const existing = next[pane] ?? [];
+        const seen = new Set(existing.map((e: any) => String(e?.name || '').toLowerCase()));
+        const merged = [...existing];
+        for (const s of snaps) {
+          const key = String(s?.name || '').toLowerCase();
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          merged.push(s);
+        }
+        next = setPathCacheEntry(next, pane, merged);
+      }
+      return next;
     });
   }, []);
 
   const clearFsTombstone = React.useCallback((opId: string) => {
     pendingFsOpsRef.current.delete(opId);
+    void import('../lib/ipcBridge').then(({ IPC }) => {
+      if (IPC.isNative) void IPC.tombstoneClear?.(opId);
+    });
   }, []);
   const [listDragGhost, setListDragGhost] = useState<ListDragGhostMeta | null>(null);
   const clearListDragGhost = React.useCallback(() => {
@@ -1703,7 +1761,16 @@ export default function BNDZUI() {
   const beginDirFetch = React.useCallback((rawPath: string, opts?: { force?: boolean }): Promise<void> | undefined => {
     const path = normalizePanePath(rawPath);
     if (!path) return undefined;
-    if (!opts?.force && pathContentsCacheRef.current[path] !== undefined) return undefined;
+    // Cache hit: still re-warm shell glyphs / thumbs (Explorer feel — icons stay ready).
+    if (!opts?.force && pathContentsCacheRef.current[path] !== undefined) {
+      const cached = pathContentsCacheRef.current[path];
+      if (Array.isArray(cached) && cached.length > 0) {
+        prefetchListingVisuals(cached, path, {
+          includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+        });
+      }
+      return undefined;
+    }
     if (!opts?.force && dirFetchInFlightRef.current.has(path)) return undefined;
 
     if (isVirtualCatalogPath(path)) {
@@ -1724,36 +1791,9 @@ export default function BNDZUI() {
     }
 
     if (isBndzVirtualPath(path)) {
-      const portalView = parseBndzPortalView(path);
-      if (portalView) {
-        const virtualKey = `portal-${portalView}` as const;
-        dirFetchInFlightRef.current.add(path);
-        setLoadingPaths(prev => new Set(prev).add(path));
-        return IPC.getVirtualViewContents(virtualKey, configRef.current.globalSearchLimit || 500).then(items => {
-          const normalized = normalizeDirEntries(items || []);
-          cachePathContents(path, normalized);
-          prefetchListingVisuals(normalized, path, {
-            includeFolderThumbs: configRef.current.showFolderThumbnails === true,
-          });
-        }).catch(() => cachePathContents(path, [])).finally(() => {
-          dirFetchInFlightRef.current.delete(path);
-          setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
-        });
-      }
-
-      const normPortal = path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
-      if (normPortal === BNDZ_PORTAL_ROOT) {
-        dirFetchInFlightRef.current.add(path);
-        setLoadingPaths(prev => new Set(prev).add(path));
-        const portalEntries = [
-          { id: 'portal:health', name: 'Health', type: 'directory', path: BNDZ_PORTAL_HEALTH, typeDescription: 'Library health', iconColor: '#f59e0b' },
-          { id: 'portal:magnets', name: 'Magnets', type: 'directory', path: BNDZ_PORTAL_MAGNETS, typeDescription: 'Pinned magnets', iconColor: '#c084fc' },
-          { id: 'portal:sandboxes', name: 'Sandboxes', type: 'directory', path: BNDZ_PORTAL_SANDBOXES, typeDescription: 'Sandbox sessions', iconColor: '#34d399' },
-          { id: 'portal:capture', name: 'Capture', type: 'directory', path: BNDZ_PORTAL_CAPTURE, typeDescription: 'Inbound capture', iconColor: '#60a5fa' },
-        ];
-        cachePathContents(path, portalEntries);
-        dirFetchInFlightRef.current.delete(path);
-        setLoadingPaths(prev => { const next = new Set(prev); next.delete(path); return next; });
+      if (isBndzPortalPath(path) || parseBndzPortalView(path)) {
+        // Portal namespace retired — leftover /bndz/port/* paths remap in setCurrentPath.
+        cachePathContents(path, []);
         return Promise.resolve();
       }
 
@@ -2008,7 +2048,7 @@ export default function BNDZUI() {
     const renameLabel = `Rename: ${entity.name} → ${displayTarget}`;
     const { IPC } = await import('../lib/ipcBridge');
     const renameOpId = `rename-${Date.now()}`;
-    registerFsTombstone(renameOpId, 'rename', panePath, [entity.name], [winSource]);
+    registerFsTombstone(renameOpId, 'rename', panePath, [entity.name], [winSource], [entity]);
     setPathContentsCache(prev => {
       const existing = prev[normalizePanePath(panePath)];
       if (!existing) return prev;
@@ -2037,7 +2077,19 @@ export default function BNDZUI() {
 
   const prefetchPathQuiet = React.useCallback(async (rawPath: string) => {
     const path = normalizePanePath(rawPath);
-    if (!path || pathContentsCacheRef.current[path] !== undefined) return;
+    if (!path) return;
+    // Hover when listing already cached — still hydrate shells (plan #10).
+    if (pathContentsCacheRef.current[path] !== undefined) {
+      const cached = pathContentsCacheRef.current[path];
+      if (Array.isArray(cached) && cached.length > 0) {
+        prefetchListingVisuals(cached, path, {
+          iconLimit: 96,
+          thumbLimit: 64,
+          includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+        });
+      }
+      return;
+    }
     if (dirFetchInFlightRef.current.has(path)) return;
     if (isVirtualCatalogPath(path) || isBndzVirtualPath(path)) return;
     dirFetchInFlightRef.current.add(path);
@@ -2067,7 +2119,11 @@ export default function BNDZUI() {
   /** Dwell before hover-prefetch so fast scrolling does not flood the listing cache. */
   const schedulePrefetchPath = React.useCallback((rawPath: string) => {
     const path = normalizePanePath(rawPath);
-    if (!path || pathContentsCacheRef.current[path] !== undefined) return;
+    if (!path) return;
+    if (pathContentsCacheRef.current[path] !== undefined) {
+      void prefetchPathQuiet(path);
+      return;
+    }
     if (dirFetchInFlightRef.current.has(path)) return;
     const prev = prefetchTimersRef.current.get(path);
     if (prev) window.clearTimeout(prev);
@@ -3036,7 +3092,7 @@ export default function BNDZUI() {
       const deletedIds = new Set(items.map(i => i.id).filter(Boolean));
       const deletedNames = new Set(items.map(i => i.name));
 
-      registerFsTombstone(opId, 'delete', normPath, [...deletedNames], winPaths);
+      registerFsTombstone(opId, 'delete', normPath, [...deletedNames], winPaths, items);
 
       setPanes(prev => prev.map(p => ({
         ...p,
@@ -3256,25 +3312,32 @@ export default function BNDZUI() {
             shouldRefresh = true;
             const meta = xferMetaRef.current.get(job.operationId);
             xferMetaRef.current.delete(job.operationId);
-            clearFsTombstone(job.operationId);
             dismissToast(`xfer-${job.operationId}`);
             const label = meta?.label || job.label || 'items';
             const action = (job.action || meta?.op || '').toLowerCase();
 
             const isDelete = action === 'delete' || meta?.op === 'delete';
+            const isMove = action === 'move' || meta?.op === 'move' || action === 'mesh-move';
             if (!isDelete) batchIsDeleteOnly = false;
-            if (isDelete && job.status === 'failed') hasDeleteFailure = true;
+            if ((isDelete || isMove) && (job.status === 'failed' || job.status === 'cancelled')) {
+              hasDeleteFailure = true;
+              // Instant reinject — don't wait for disk refresh (blank gap after optimistic hide).
+              reinjectFsTombstone(job.operationId);
+            }
+            clearFsTombstone(job.operationId);
 
             if (job.status === 'failed') {
               const failTitle = action === 'delete' ? 'Delete failed'
                 : action.includes('archive') || job.operationId.startsWith('archive-') ? 'Compression failed'
                 : action.includes('extract') || job.operationId.startsWith('extract-') ? 'Extraction failed'
+                : isMove ? 'Move failed'
                 : 'Operation failed';
               pushToast({
                 kind: 'error',
                 title: failTitle,
                 message: job.error || label,
               });
+              void IPC.tombstoneRestoreFailed?.(job.operationId);
             } else if (job.status === 'completed') {
               const doneVerb = isDelete ? 'Deleted'
                 : action === 'move' || meta?.op === 'move' || action === 'mesh-move' ? 'Move complete'
@@ -3306,7 +3369,7 @@ export default function BNDZUI() {
       unsub();
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [refreshPathsForPanes, config.selectParentOfMovedFolder, clearFsTombstone]);
+  }, [refreshPathsForPanes, config.selectParentOfMovedFolder, clearFsTombstone, reinjectFsTombstone]);
 
   // Live speed/ETA in progress toasts (optional — Configuration → Background processing).
   useEffect(() => {
@@ -3687,6 +3750,7 @@ export default function BNDZUI() {
   const currentDirItems = pathContentsCache[currentPath];
   const currentDirCount = currentDirItems?.length ?? 0;
   const jobTicketOverdueMap = useJobTicketOverdueMap(currentPath, currentDirItems);
+  const healthProblemMap = useHealthProblemMap(currentPath, currentDirItems);
 
   // Cancel in-flight scan when leaving a path — keep completed signatures so revisits skip IPC.
   useEffect(() => {
@@ -4429,34 +4493,6 @@ export default function BNDZUI() {
         useShellIcon: false,
         onClick: () => setCurrentPath(BNDZ_AUTOMATION),
       },
-      {
-        treeKey: 'twin-volume',
-        draggable: true,
-        label: 'Twin Volume Chess',
-        path: BNDZ_TWIN_VOLUME,
-        icon: 'sync_folders',
-        iconColor: '#7eb8e8',
-        useShellIcon: false,
-        onClick: () => setCurrentPath(BNDZ_TWIN_VOLUME),
-      },
-      {
-        treeKey: 'bndz-portal',
-        draggable: true,
-        label: 'BNDZ Portal',
-        path: BNDZ_PORTAL_ROOT,
-        icon: 'globe_ui',
-        iconColor: '#38bdf8',
-        useShellIcon: false,
-        expanded: portalExpanded,
-        onClick: () => setCurrentPath(BNDZ_PORTAL_ROOT),
-        onToggle: () => setPortalExpanded(!portalExpanded),
-        childrenItems: [
-          { label: 'Health', path: BNDZ_PORTAL_HEALTH, icon: 'shield_ui', iconColor: '#f59e0b' },
-          { label: 'Magnets', path: BNDZ_PORTAL_MAGNETS, icon: 'magnet_ui', iconColor: '#c084fc' },
-          { label: 'Sandboxes', path: BNDZ_PORTAL_SANDBOXES, icon: 'folder_ui', iconColor: '#34d399' },
-          { label: 'Capture', path: BNDZ_PORTAL_CAPTURE, icon: 'download_ui', iconColor: '#60a5fa' },
-        ],
-      },
       ...(installedPluginIdSet.has('ram-staging') && sidebarRamZones.length > 0
         ? [{
             treeKey: 'ram-staging',
@@ -4863,7 +4899,14 @@ export default function BNDZUI() {
     if (mode === 'move') {
       const names = sources.map(s => s.split(/[/\\]/).pop() || '').filter(Boolean);
       const sourceParents = [...new Set(sources.map(s => normalizePanePath(s.replace(/[/\\][^/\\]+$/, '') || '/')))];
-      registerFsTombstone(opId, 'move', sourceParents[0] || null, names, winSources);
+      const snapEntities: any[] = [];
+      for (const parent of sourceParents) {
+        const listing = pathContentsCacheRef.current[parent] ?? [];
+        for (const e of listing) {
+          if (names.includes(e.name)) snapEntities.push(e);
+        }
+      }
+      registerFsTombstone(opId, 'move', sourceParents[0] || null, names, winSources, snapEntities);
       setPathContentsCache(prev => {
         let next = prev;
         for (const parent of sourceParents) {
@@ -5068,7 +5111,14 @@ export default function BNDZUI() {
           (sourcePath ? [normalizePanePath(sourcePath)] : [])
             .concat(canonSources.map(s => normalizePanePath(s.replace(/[/\\][^/\\]+$/, '') || '/'))),
         )];
-        registerFsTombstone(opId, 'move', sourceParents[0] || null, names, resolvedSources);
+        const snapEntities: any[] = [];
+        for (const parent of sourceParents) {
+          const listing = pathContentsCacheRef.current[parent] ?? [];
+          for (const e of listing) {
+            if (names.includes(e.name)) snapEntities.push(e);
+          }
+        }
+        registerFsTombstone(opId, 'move', sourceParents[0] || null, names, resolvedSources, snapEntities);
         setPathContentsCache(prev => {
           let next = prev;
           for (const parent of sourceParents) {
@@ -6062,7 +6112,8 @@ export default function BNDZUI() {
   useEffect(() => () => clearTabFileDragTimer(), []);
 
   const setCurrentPath = (path: string, paneId: string = activePaneId, updateHistory: boolean = true) => {
-    const norm = resolveShellKnownFolderToFs(normalizePanePath(path), shortcuts);
+    const remapped = remapRetiredVirtualPath(path);
+    const norm = resolveShellKnownFolderToFs(normalizePanePath(remapped), shortcuts);
     const bndzView = parseBndzVirtualView(norm);
     setPanes(prev => prev.map(p => {
       if (p.id === paneId) {
@@ -6360,6 +6411,33 @@ export default function BNDZUI() {
     void import('../lib/ipcBridge').then(({ IPC }) => IPC.notifyUiReady());
     window.addEventListener('resize', syncViewport);
     return () => window.removeEventListener('resize', syncViewport);
+  }, []);
+
+  // Startup: warm open-tab listing visuals into L1/FE Map (Desktop/Downloads/Documents warmed on host).
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const paths = new Set<string>();
+      for (const pane of panesRef.current ?? panes) {
+        for (const tab of pane.tabs) {
+          const p = normalizePanePath(tab.path);
+          if (p && !isVirtualCatalogPath(p) && !isBndzVirtualPath(p)) paths.add(p);
+        }
+      }
+      for (const path of paths) {
+        const cached = pathContentsCacheRef.current[path];
+        if (Array.isArray(cached) && cached.length > 0) {
+          prefetchListingVisuals(cached, path, {
+            iconLimit: 120,
+            thumbLimit: 48,
+            includeFolderThumbs: configRef.current.showFolderThumbnails === true,
+          });
+        } else {
+          void beginDirFetchRef.current?.(path);
+        }
+      }
+    }, 400);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once after mount; panesRef covers later tabs
   }, []);
 
   useEffect(() => {
@@ -7619,9 +7697,10 @@ export default function BNDZUI() {
         filterColor?: string;
         entityTags: string[];
         panePath: string;
+        healthBadge?: { severity: 'critical' | 'warning' | 'info'; title: string } | undefined;
       },
     ) => {
-      const { isDir, displayName, renameInput, filterResult, filterColor, entityTags, panePath } = opts;
+      const { isDir, displayName, renameInput, filterResult, filterColor, entityTags, panePath, healthBadge } = opts;
       const textStyle = filterResult?.textColor ? { color: filterResult.textColor } : filterColor ? { color: filterColor } : {};
       const mutedColClass = settingsRt.list.lighterDetailColumns ? 'bndz-detail-col-muted' : '';
       const customColId = parseCustomColumnListId(colId);
@@ -7645,6 +7724,13 @@ export default function BNDZUI() {
             <div key={colId} className="flex items-center min-w-0 h-full w-full">
                               <div className="bndz-list-select-cell px-2 whitespace-nowrap overflow-hidden text-ellipsis shadow-none focus:outline-none flex items-center gap-1.5 min-w-0 shrink max-w-full" style={textStyle}>
                 {renameInput || displayName}
+                {healthBadge && (
+                  <div
+                    className="w-2 h-2 rounded-full shrink-0 ring-1 ring-black/50"
+                    style={{ backgroundColor: HEALTH_BADGE_COLORS[healthBadge.severity] }}
+                    title={healthBadge.title}
+                  />
+                )}
               </div>
               <div className="bndz-list-marquee-pad" aria-hidden />
             </div>
@@ -9336,6 +9422,8 @@ export default function BNDZUI() {
                 const displayName = getDisplayName(entity, config, panePath);
                 const cloudBadge = cloudBadgeForPath(toWindowsPath(joinPanePath(panePath, entity)), cloudProviders);
                 const jobTicketOverdue = isDir ? jobTicketOverdueMap[entityWinPath.toLowerCase()] : undefined;
+                const healthBadge = healthProblemMap[entityWinPath.toLowerCase()]
+                  || healthProblemMap[toWindowsPath(entityWinPath).toLowerCase()];
                     
                 const commitInlineRename = () => {
                   if (!inlineRename || inlineRename.entityId !== entity.id || inlineRename.path !== panePath) return;
@@ -9567,6 +9655,13 @@ export default function BNDZUI() {
                                   {filterResult?.badgeColor && (
                                       <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full ring-1 ring-black" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
                                   )}
+                                  {healthBadge && (
+                                      <div
+                                        className="absolute top-1 left-1 w-2.5 h-2.5 rounded-full ring-1 ring-black/80"
+                                        style={{ backgroundColor: HEALTH_BADGE_COLORS[healthBadge.severity] }}
+                                        title={healthBadge.title}
+                                      />
+                                  )}
                                   </div>
                                   <div
                                     className="text-center line-clamp-2 w-full break-words text-[11px] leading-tight shrink-0 px-0.5"
@@ -9616,6 +9711,13 @@ export default function BNDZUI() {
                                {jobTicketOverdue && (
                                  <JobTicketOverdueBadge count={jobTicketOverdue.count} title={jobTicketOverdue.title} />
                                )}
+                               {healthBadge && (
+                                 <div
+                                   className="w-2 h-2 rounded-full mr-2 shrink-0 ring-1 ring-black/50"
+                                   style={{ backgroundColor: HEALTH_BADGE_COLORS[healthBadge.severity] }}
+                                   title={healthBadge.title}
+                                 />
+                               )}
                                {filterResult?.badgeColor && (
                                    <div className="w-2 h-2 rounded-full mr-2 shrink-0" style={{ backgroundColor: filterResult.badgeColor }} title={filterResult.name} />
                                )}
@@ -9658,6 +9760,7 @@ export default function BNDZUI() {
                                      <div className={col.widthClass || 'shrink-0'} data-col-id={col.id} style={getColumnStyle(col)}>
                                        {renderDetailColumn(col.id, entity, {
                                          isDir, displayName: displayLabel, renameInput, filterResult, filterColor, entityTags, panePath,
+                                         healthBadge,
                                        })}
                                      </div>
                                    </React.Fragment>

@@ -2,25 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
-import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
   PluginCard,
   PluginEmptyState,
-  PluginHeroStrip,
-  PluginHeroActionButton,
   PluginFieldLabel,
   PLUGIN_INPUT_CLASS,
   PLUGIN_SELECT_CLASS,
 } from './PluginPanelPrimitives';
-
-export const ShellVerbForgePluginDef = {
-  id: 'shell-verb-forge',
-  name: 'Shell Verb Forge',
-  icon: 'shell_menus',
-  targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
-};
 
 type VerbEntry = {
   id: string;
@@ -56,7 +45,8 @@ function normalizeVerb(raw: Record<string, unknown>): VerbEntry {
   };
 }
 
-export default function ShellVerbForgePlugin() {
+/** Explorer verb forge UI — lives inside Shell Menus (not a sibling plugin). */
+export function ShellVerbForgePanel() {
   const [verbs, setVerbs] = useState<VerbEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -80,7 +70,7 @@ export default function ShellVerbForgePlugin() {
     }
   }, [selectedId]);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { void refresh(); }, []);
 
   const selected = verbs.find(v => v.id === selectedId);
 
@@ -156,30 +146,21 @@ export default function ShellVerbForgePlugin() {
   };
 
   return (
-    <PluginPanelShell
-      title="Shell Verb Forge"
-      icon="shell_menus"
-      toolbar={
-        <>
-          <PluginToolbarButton icon="add" onClick={newVerb} disabled={busy}>New</PluginToolbarButton>
-          <PluginToolbarButton icon="save_ui" onClick={saveVerb} disabled={busy || !editLabel.trim()}>Save</PluginToolbarButton>
-          <PluginToolbarButton icon="cloud_upload_ui" onClick={deployVerb} disabled={busy || !selectedId || selectedId === 'new'} active={selected?.deployed}>
-            Deploy
-          </PluginToolbarButton>
-          <PluginToolbarButton icon="delete" onClick={removeVerb} disabled={busy || !selectedId || selectedId === 'new'}>Remove</PluginToolbarButton>
-        </>
-      }
-    >
-      <PluginHeroStrip
-        title="Explorer verb forge"
-        subtitle="Register HKCU shell verbs that launch BNDZ with path arguments — no admin required."
-        actions={
-          <PluginHeroActionButton icon="refresh_ui" onClick={refresh} disabled={loading}>
-            Refresh
-          </PluginHeroActionButton>
-        }
-      />
-
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="shrink-0 flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-white/[0.06]">
+        <PluginToolbarButton icon="add" onClick={newVerb} disabled={busy}>New</PluginToolbarButton>
+        <PluginToolbarButton icon="save_ui" onClick={() => void saveVerb()} disabled={busy || !editLabel.trim()}>Save</PluginToolbarButton>
+        <PluginToolbarButton icon="cloud_upload_ui" onClick={() => void deployVerb()} disabled={busy || !selectedId || selectedId === 'new'} active={selected?.deployed}>
+          Deploy
+        </PluginToolbarButton>
+        <PluginToolbarButton icon="delete" onClick={() => void removeVerb()} disabled={busy || !selectedId || selectedId === 'new'}>Remove</PluginToolbarButton>
+        <PluginToolbarButton icon="refresh_ui" onClick={() => void refresh()} disabled={loading} className="ml-auto">
+          Refresh
+        </PluginToolbarButton>
+      </div>
+      <p className="shrink-0 px-3 py-2 text-[11px] text-white/45 leading-relaxed border-b border-white/[0.05]">
+        Register HKCU Explorer verbs that launch BNDZ with path arguments — same Deploy surface as Windows Explorer menus, no sibling plugin.
+      </p>
       <div className="flex flex-1 min-h-0 gap-3 p-3">
         <div className="w-[38%] min-w-[140px] flex flex-col gap-1 overflow-y-auto bndz-scrollbar">
           {loading && <div className="text-xs text-gray-500 px-2 py-4">Loading verbs…</div>}
@@ -205,7 +186,7 @@ export default function ShellVerbForgePlugin() {
           ))}
         </div>
 
-        <PluginCard className="flex-1 flex flex-col gap-3 p-4 min-h-0">
+        <PluginCard className="flex-1 flex flex-col gap-3 p-4 min-h-0 overflow-y-auto bndz-scrollbar">
           {(selected || selectedId === 'new') ? (
             <>
               <PluginFieldLabel>Menu label</PluginFieldLabel>
@@ -242,6 +223,19 @@ export default function ShellVerbForgePlugin() {
           )}
         </PluginCard>
       </div>
-    </PluginPanelShell>
+    </div>
   );
+}
+
+/** @deprecated Use Shell Menus → Explorer verbs tab. Kept only for stale install redirects. */
+export const ShellVerbForgePluginDef = {
+  id: 'shell-verb-forge',
+  name: 'Shell Verb Forge',
+  icon: 'shell_menus',
+  targetPanel: 'bottom' as const,
+  installOnFirstUse: false,
+};
+
+export default function ShellVerbForgePlugin() {
+  return <ShellVerbForgePanel />;
 }

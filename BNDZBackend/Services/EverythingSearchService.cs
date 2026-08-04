@@ -10,8 +10,8 @@ namespace BNDZ.Services;
 
 public class EverythingSearchService
 {
-    private const int DefaultMaxDepth = 8;
-    private const int DriveRootMaxDepth = 3;
+    private const int DefaultMaxDepth = 12;
+    private const int DriveRootMaxDepth = 8;
     private const int TimeBudgetMs = 12000;
 
     private static readonly string[] SearchRoots =
@@ -286,62 +286,10 @@ public class EverythingSearchService
 
     private static bool TrySearchEverything(string query, int limit, string rootPath, List<object> results)
     {
-        var esPath = FindEverythingCli();
-        if (esPath == null) return false;
-
-        try
-        {
-            var searchTerm = BuildEverythingQuery(query, rootPath);
-            var args = $"-n {Math.Max(1, Math.Min(limit, 10000))} {searchTerm}";
-
-            var psi = new ProcessStartInfo(esPath, args)
-            {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-            };
-
-            using var proc = Process.Start(psi);
-            if (proc == null) return false;
-
-            if (!proc.WaitForExit(8000))
-            {
-                try { proc.Kill(true); } catch { }
-                return false;
-            }
-
-            if (proc.ExitCode != 0) return false;
-
-            while (results.Count < limit && proc.StandardOutput.ReadLine() is { } line)
-            {
-                var trimmed = line.Trim();
-                if (string.IsNullOrEmpty(trimmed)) continue;
-                if (!File.Exists(trimmed) && !Directory.Exists(trimmed)) continue;
-
-                var isDir = Directory.Exists(trimmed);
-                var name = Path.GetFileName(trimmed.TrimEnd('\\', '/'));
-                if (string.IsNullOrEmpty(name)) name = trimmed;
-
-                if (isDir)
-                {
-                    results.Add(new { name, path = "/" + trimmed.Replace("\\", "/"), isDirectory = true });
-                }
-                else
-                {
-                    long size = 0;
-                    try { size = new FileInfo(trimmed).Length; } catch { }
-                    results.Add(new { name, path = "/" + trimmed.Replace("\\", "/"), size });
-                }
-            }
-
-            return results.Count > 0;
-        }
-        catch
-        {
-            return false;
-        }
+        // Prefer Everything SDK IPC (no es.exe process spawn).
+        if (EverythingIpcClient.TrySearch(query, limit, rootPath, results))
+            return true;
+        return false;
     }
 
     private static string BuildEverythingQuery(string query, string rootPath)
@@ -355,26 +303,6 @@ public class EverythingSearchService
             normalized = normalized.TrimEnd('\\') + "\\";
 
         return $"\"path:{normalized} {escaped}\"";
-    }
-
-    private static string? FindEverythingCli()
-    {
-        var candidates = new List<string>
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Everything", "es.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Everything", "es.exe"),
-            @"C:\Program Files\Everything\es.exe",
-            @"C:\Program Files (x86)\Everything\es.exe",
-        };
-
-        var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        candidates.Add(Path.Combine(localApp, "Everything", "es.exe"));
-
-        foreach (var path in candidates.Distinct())
-        {
-            if (File.Exists(path)) return path;
-        }
-        return null;
     }
 
     private List<object> SearchFilesystem(string query, int limit, bool useRegex, string rootPath)

@@ -70,7 +70,71 @@ function notify(key: string) {
 
 function toDataUrl(res: string | null): string | null {
   if (!res) return null;
-  return res.startsWith('data:') ? res : `data:image/png;base64,${res}`;
+  // Stale URLs from before bndz-media scheme — rewrite so we don't hit folder-map 404s.
+  if (res.includes('/assets/native-icon/')) {
+    const hash = res.split('/').pop()?.replace(/\.png$/i, '') ?? '';
+    if (/^[a-f0-9]{16,}$/i.test(hash)) return `bndz-media://cas/${hash.toLowerCase()}.png`;
+    return null;
+  }
+  if (
+    res.startsWith('data:')
+    || res.startsWith('http://')
+    || res.startsWith('https://')
+    || res.startsWith('blob:')
+    || res.startsWith('bndz-media:')
+  ) {
+    return res;
+  }
+  return `data:image/png;base64,${res}`;
+}
+
+const FOLDER_GLYPH_KEY = '__folder__';
+
+/** Hydrate type glyphs from listing-time SHELL_GLYPH_MAP (before first row paint). */
+export function hydrateShellGlyphMap(glyphs: Record<string, string> | null | undefined): void {
+  if (!glyphs || typeof glyphs !== 'object') return;
+  for (const [rawKey, rawVal] of Object.entries(glyphs)) {
+    if (!rawVal) continue;
+    const data = toDataUrl(rawVal);
+    if (!data) continue;
+    const key = rawKey === FOLDER_GLYPH_KEY || rawKey.toLowerCase() === FOLDER_GLYPH_KEY
+      ? FOLDER_GLYPH_KEY
+      : (rawKey.startsWith('.') ? rawKey.toLowerCase() : `.${rawKey.toLowerCase()}`);
+    typeGlyphCache.set(key, data);
+  }
+  // Notify all shell listeners so rows that already mounted pick up glyphs.
+  for (const [ck, entry] of cache) {
+    if (!ck.startsWith('shell:')) continue;
+    if (entry.status === 'ready' && entry.data) continue;
+    notify(ck);
+  }
+  for (const [key, set] of listeners) {
+    if (!key.startsWith('shell:')) continue;
+    set.forEach(fn => fn());
+  }
+  void warmImageBitmaps([...typeGlyphCache.values()].slice(0, 48));
+}
+
+/** Decode-once via createImageBitmap so subsequent paints skip PNG decode cost. */
+const bitmapWarmed = new Set<string>();
+async function warmImageBitmaps(urls: string[]): Promise<void> {
+  if (typeof createImageBitmap !== 'function') return;
+  for (const url of urls) {
+    if (!url || bitmapWarmed.has(url)) continue;
+    // Never warm broken legacy folder-map URLs (console ERR_FILE_NOT_FOUND flood).
+    if (url.includes('/assets/native-icon/')) continue;
+    bitmapWarmed.add(url);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (!blob || blob.size === 0) continue;
+      const bmp = await createImageBitmap(blob);
+      bmp.close();
+    } catch {
+      /* best-effort — never surface to console as uncaught */
+    }
+  }
 }
 
 function lookupBatchIcon(batch: Record<string, string | null> | undefined, ...keys: string[]): string | null {
@@ -92,6 +156,8 @@ function commitCache(key: string, data: string | null, typeKey?: string | null, 
   if (data) {
     cache.set(key, { data, status: 'ready' });
     if (typeKey && typeKey.startsWith('.')) typeGlyphCache.set(typeKey, data);
+    if (typeKey === FOLDER_GLYPH_KEY) typeGlyphCache.set(FOLDER_GLYPH_KEY, data);
+    void warmImageBitmaps([data]);
   } else if (kind === 'shell') {
     // Transient shell misses (queue saturation / IPC timeout) must not poison for 10 minutes.
     cache.delete(key);
@@ -106,6 +172,13 @@ export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequ
   const entry = cache.get(key);
   if (entry?.status === 'ready' && entry.data) return entry.data;
   if (kind === 'shell') {
+    if (isDirectory) {
+      const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
+      if (folderGlyph) {
+        cache.set(key, { data: folderGlyph, status: 'ready' });
+        return folderGlyph;
+      }
+    }
     const typeKey = hostIconCacheKey(path, isDirectory);
     if (typeKey?.startsWith('.')) {
       const glyph = typeGlyphCache.get(typeKey);
@@ -172,6 +245,13 @@ export function requestNativeIcon(
       return Promise.resolve(glyph);
     }
   }
+  if (kind === 'shell' && isDirectory) {
+    const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
+    if (folderGlyph) {
+      commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
+      return Promise.resolve(folderGlyph);
+    }
+  }
 
   const existing = inflight.get(key);
   if (existing) return existing;
@@ -190,16 +270,18 @@ export function requestNativeIcon(
 
   if (!cached?.data) cache.set(key, { data: cached?.data ?? null, status: 'loading' });
 
-  // Priority: thumbnails > shell; viewport boost can lift shell to VIEWPORT_PRIORITY_FLOOR (1700).
+  // Priority: viewport shells ≥1700; thumbs 1000+; offscreen shells lower.
+  // Split queues: shell concurrency ≥6, thumb ≤3 — shells never wait behind media extract.
   const boost = Math.max(0, priorityBoost | 0);
   const priority = kind === 'thumbnail'
     ? 1000 + Math.min(900, boost)
     : boost >= 800
       ? 1700 + Math.min(200, boost - 800)
       : 250 + Math.min(749, boost);
-  const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority)
+  const queueKind = kind === 'thumbnail' ? 'thumb' as const : 'shell' as const;
+  const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority, queueKind)
     .then(data => {
-      commitCache(key, data, typeKey, kind);
+      commitCache(key, data, isDirectory && kind === 'shell' ? FOLDER_GLYPH_KEY : typeKey, kind);
       return data;
     })
     .catch(() => {
@@ -228,17 +310,27 @@ function applyBatchChunk(
     const win = canonicalizeIconPath(req.path);
     const raw = lookupBatchIcon(batch, win, req.path, toWindowsPath(req.path));
     const data = toDataUrl(raw);
-    const typeKey = kind === 'shell' ? hostIconCacheKey(req.path, req.isDirectory) : null;
-    if (data) commitCache(key, data, typeKey);
+    const typeKey = kind === 'shell'
+      ? (req.isDirectory ? FOLDER_GLYPH_KEY : hostIconCacheKey(req.path, req.isDirectory))
+      : null;
+    if (data) commitCache(key, data, typeKey, kind);
   }
   for (const req of chunk) {
     const key = iconKey(req.path, req.isDirectory, kind, thumbPx);
     if (!cache.get(key)?.data && !inflight.has(key)) {
       if (kind === 'shell') {
-        const typeKey = hostIconCacheKey(req.path, req.isDirectory);
-        if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
-          commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
-          continue;
+        if (req.isDirectory) {
+          const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
+          if (folderGlyph) {
+            commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
+            continue;
+          }
+        } else {
+          const typeKey = hostIconCacheKey(req.path, req.isDirectory);
+          if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
+            commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
+            continue;
+          }
         }
       }
       void requestNativeIcon(req.path, req.isDirectory, kind, thumbPx);
@@ -264,19 +356,25 @@ export async function prefetchIconsForEntities(
     const key = iconKey(fullPath, isDir, kind);
     if (cache.get(key)?.data || inflight.has(key)) continue;
     if (kind === 'shell') {
-      const typeKey = hostIconCacheKey(fullPath, isDir);
-      if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
-        commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
-        continue;
-      }
-      if (typeKey?.startsWith('.') && !isDir) {
-        if (seenTypes.has(typeKey)) continue;
-        seenTypes.add(typeKey);
-      }
       if (isDir) {
-        const dirKey = typeKey || fullPath.toLowerCase();
+        const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
+        if (folderGlyph) {
+          commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
+          continue;
+        }
+        const dirKey = fullPath.toLowerCase();
         if (seenDirs.has(dirKey)) continue;
         seenDirs.add(dirKey);
+      } else {
+        const typeKey = hostIconCacheKey(fullPath, isDir);
+        if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
+          commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
+          continue;
+        }
+        if (typeKey?.startsWith('.')) {
+          if (seenTypes.has(typeKey)) continue;
+          seenTypes.add(typeKey);
+        }
       }
     }
     requests.push({ path: fullPath, isDirectory: isDir });
@@ -294,6 +392,11 @@ export async function prefetchIconsForEntities(
           const isDir = entityShellIsDirectory(ent, fullPath);
           const key = iconKey(fullPath, isDir, kind);
           if (cache.get(key)?.data) continue;
+          if (isDir) {
+            const folderGlyph = typeGlyphCache.get(FOLDER_GLYPH_KEY);
+            if (folderGlyph) commitCache(key, folderGlyph, FOLDER_GLYPH_KEY);
+            continue;
+          }
           const typeKey = hostIconCacheKey(fullPath, isDir);
           if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
             commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
@@ -355,6 +458,7 @@ export async function prefetchMediaThumbnailsForEntities(
         const batch = await enqueueIconRequest(
           () => IPC.getNativeThumbnailsBatch(chunk.map(c => c.path), LIST_THUMB_PX),
           750,
+          'thumb',
         );
         applyBatchChunk(chunk, batch, 'thumbnail', LIST_THUMB_PX);
         continue;
@@ -405,6 +509,21 @@ export function prefetchListingVisuals(
       includeFolders: options?.includeFolderThumbs === true,
     }),
   ]);
+}
+
+/** Drop a poisoned cache entry so the next paint can refetch (broken CAS / 404 img). */
+export function invalidateIconUrl(url: string | null | undefined): void {
+  if (!url) return;
+  for (const [key, entry] of cache) {
+    if (entry.data === url) {
+      cache.delete(key);
+      notify(key);
+    }
+  }
+  for (const [tk, data] of typeGlyphCache) {
+    if (data === url) typeGlyphCache.delete(tk);
+  }
+  bitmapWarmed.delete(url);
 }
 
 export function clearIconCache() {

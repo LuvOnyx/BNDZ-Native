@@ -20,7 +20,7 @@ export const DropMagnetPluginDef = {
   icon: 'magnet_ui',
   description: 'Named landing pads — drop files to rename, tag, and route in one release.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type MagnetRow = {

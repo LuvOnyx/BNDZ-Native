@@ -25,10 +25,14 @@ import ZkVaultPlugin, { ZkVaultPluginDef } from '../components/plugins/ZkVaultPl
 import DropMagnetPlugin, { DropMagnetPluginDef } from '../components/plugins/DropMagnetPlugin';
 import CaptureInboxPlugin, { CaptureInboxPluginDef } from '../components/plugins/CaptureInboxPlugin';
 import RealityCheckPlugin, { RealityCheckPluginDef } from '../components/plugins/RealityCheckPlugin';
-import ShellVerbForgePlugin, { ShellVerbForgePluginDef } from '../components/plugins/ShellVerbForgePlugin';
 import TranscodeRackPlugin, { TranscodeRackPluginDef } from '../components/plugins/TranscodeRackPlugin';
 import SemanticDeskPlugin, { SemanticDeskPluginDef } from '../components/plugins/SemanticDeskPlugin';
 import { useAppConfig } from './configContext';
+
+/** Stale Part B sibling IDs remapped into real FM homes. */
+const RETIRED_PLUGIN_REMAP: Record<string, string> = {
+    'shell-verb-forge': 'context-menu-manager',
+};
 
 export type PluginManifest = {
     id: string;
@@ -61,21 +65,17 @@ export const DEFAULT_INSTALLED_PLUGINS = [
     'ram-staging',
 ];
 
-/** Advanced plugins installed on first use from the marketplace */
+/**
+ * Selling-pillar plugins that may soft-install when opened from FM homes.
+ * Part B wraps (Drop Magnet, Capture, Reality Check, Verb Forge, Transcode,
+ * Semantic Desk, Policy Packs) stay marketplace-optional — not first-use chrome.
+ */
 export const FIRST_USE_PLUGINS: string[] = [
     'project-sandbox',
     'library-health',
     'capacity-solver',
     'inbound-volume',
     'branching-time',
-    'drop-magnet',
-    'capture-inbox',
-    'reality-check',
-    'shell-verb-forge',
-    'transcode-rack',
-    'semantic-desk',
-    'policy-packs',
-    'zk-vault',
 ];
 
 const ALL_PLUGINS: PluginManifest[] = [
@@ -92,7 +92,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...ContextMenuPluginDef,
         name: 'Shell Menus',
-        description: 'Unified internal BNDZ and Windows shell context menu designer and registry deployer.',
+        description: 'Inside-BNDZ menus, Windows Explorer inject (Deploy), live shell-extension pin/hide, and Explorer verb forge.',
         isInstalled: true,
         isNative: true,
         targetPanel: 'bottom',
@@ -269,14 +269,6 @@ const ALL_PLUGINS: PluginManifest[] = [
         component: RealityCheckPlugin,
     },
     {
-        ...ShellVerbForgePluginDef,
-        description: 'Forge custom Explorer shell verbs in HKCU that launch BNDZ with path arguments.',
-        isInstalled: false,
-        isNative: true,
-        targetPanel: 'bottom',
-        component: ShellVerbForgePlugin,
-    },
-    {
         ...TranscodeRackPluginDef,
         description: 'Batch image transcode rack — JPEG, PNG, WebP encode queue with live progress.',
         isInstalled: false,
@@ -327,31 +319,49 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
     useEffect(() => {
         const catalogIds = new Set(ALL_PLUGINS.map(p => p.id));
         const savedRaw = config.installedPlugins as string[] | undefined;
-        const saved = Array.isArray(savedRaw)
-            ? savedRaw.filter(id => catalogIds.has(id))
+        const remapped = Array.isArray(savedRaw)
+            ? savedRaw.map(id => RETIRED_PLUGIN_REMAP[id] ?? id)
+            : undefined;
+        const saved = Array.isArray(remapped)
+            ? [...new Set(remapped.filter(id => catalogIds.has(id)))]
             : undefined;
 
         const installedSet = new Set(
             Array.isArray(saved) ? saved : DEFAULT_INSTALLED_PLUGINS,
         );
 
-        // One-time scrub of stale IDs from persisted config.
+        // One-time scrub of stale / remapped IDs from persisted config.
         const configPatch: Record<string, unknown> = {};
-        if (Array.isArray(savedRaw) && saved && saved.length !== savedRaw.length) {
+        if (
+            Array.isArray(savedRaw)
+            && saved
+            && (saved.length !== savedRaw.length || saved.some((id, i) => id !== savedRaw[i]))
+        ) {
             configPatch.installedPlugins = saved;
         }
-        // Scrub tab-config keys pointing at plugins that are no longer installed.
-        const lastTab = config.bottomPanelLastTab as string | undefined;
-        if (lastTab && !installedSet.has(lastTab)) {
+        // Remap last-tab / default / order when they pointed at retired siblings,
+        // then scrub anything still unknown / uninstalled.
+        const remapTab = (id: string) => RETIRED_PLUGIN_REMAP[id] ?? id;
+        const lastTabRaw = config.bottomPanelLastTab as string | undefined;
+        const lastTab = lastTabRaw ? remapTab(lastTabRaw) : undefined;
+        if (lastTabRaw && lastTab !== lastTabRaw) {
+            configPatch.bottomPanelLastTab = installedSet.has(lastTab!) ? lastTab : '';
+        } else if (lastTab && !installedSet.has(lastTab)) {
             configPatch.bottomPanelLastTab = '';
         }
-        const defaultPlugin = config.bottomPanelDefaultPlugin as string | undefined;
-        if (defaultPlugin && !installedSet.has(defaultPlugin)) {
+        const defaultRaw = config.bottomPanelDefaultPlugin as string | undefined;
+        const defaultPlugin = defaultRaw ? remapTab(defaultRaw) : undefined;
+        if (defaultRaw && defaultPlugin !== defaultRaw) {
+            configPatch.bottomPanelDefaultPlugin = installedSet.has(defaultPlugin!) ? defaultPlugin : '';
+        } else if (defaultPlugin && !installedSet.has(defaultPlugin)) {
             configPatch.bottomPanelDefaultPlugin = '';
         }
         const tabOrder = config.bottomPluginTabOrder as string[] | undefined;
-        if (Array.isArray(tabOrder) && tabOrder.some(id => !installedSet.has(id))) {
-            configPatch.bottomPluginTabOrder = tabOrder.filter(id => installedSet.has(id));
+        if (Array.isArray(tabOrder)) {
+            const nextOrder = [...new Set(tabOrder.map(remapTab).filter(id => installedSet.has(id)))];
+            if (nextOrder.length !== tabOrder.length || nextOrder.some((id, i) => id !== tabOrder[i])) {
+                configPatch.bottomPluginTabOrder = nextOrder;
+            }
         }
         if (Object.keys(configPatch).length > 0) {
             updateConfig(configPatch as any);

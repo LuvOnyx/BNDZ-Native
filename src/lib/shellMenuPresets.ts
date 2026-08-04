@@ -69,6 +69,8 @@ export const STOCK_BNDZ_MENU: StockMenuRow[] = [
   { id: 'mesh', label: 'Mesh Drop…', iconVerb: 'share', kind: 'item', surfaces: ['file', 'folder'] },
   { id: 'ghost', label: 'Ghost-Link offload…', iconVerb: 'link', kind: 'item', surfaces: ['file', 'folder'] },
   { id: 'ram', label: 'Stage to RAM…', iconVerb: 'harddrive', kind: 'item', surfaces: ['file', 'folder'] },
+  { id: 'health', label: 'Scan library health…', iconVerb: 'shield', kind: 'item', surfaces: ['folder'] },
+  { id: 'sandbox', label: 'Open sandbox session…', iconVerb: 'folder', kind: 'item', surfaces: ['folder'] },
   { id: 'smart-rename', label: 'Smart Rename', iconVerb: 'sparkles', kind: 'item', surfaces: ['file'] },
   { id: 'sep-before-custom', label: '', kind: 'sep', surfaces: ['file', 'folder', 'background'] },
   { id: 'custom-zone', label: 'Your custom items', kind: 'zone', surfaces: ['file', 'folder', 'background'] },
@@ -90,6 +92,9 @@ export const SHELL_MENU_PRESETS: MenuPreset[] = [
   { id: 'open-photos', category: 'Open', label: 'Open with Photos', desc: 'ms-photos', surfaces: ['app', 'global'], action: { name: 'Open with Photos', command: 'explorer.exe shell:AppsFolder\\Microsoft.Windows.Photos_8wekyb3d8bbwe!App', targetMode: 'all', iconVerb: 'eye' } },
   { id: 'open-default', category: 'Open', label: 'Open with default app', desc: 'Shell default handler', surfaces: ['app', 'global'], action: { name: 'Open', command: 'explorer.exe "%1"', targetMode: 'all', iconVerb: 'open' } },
   { id: 'open-bndz', category: 'Open', label: 'Browse in BNDZ', desc: 'Folder → BNDZ', surfaces: ['global'], action: { name: 'Open in BNDZ', command: 'bndz-open-path', targetMode: 'directory', iconVerb: 'open' } },
+  { id: 'open-bndz-problems', category: 'Open', label: 'BNDZ Problems', desc: 'Open /bndz/problems', surfaces: ['global'], action: { name: 'BNDZ Problems', command: 'bndz-open-url:bndz://problems', targetMode: 'all', iconVerb: 'shield' } },
+  { id: 'open-bndz-inbound', category: 'Open', label: 'BNDZ Inbound', desc: 'Open /bndz/inbound', surfaces: ['global'], action: { name: 'BNDZ Inbound', command: 'bndz-open-url:bndz://inbound', targetMode: 'all', iconVerb: 'download' } },
+  { id: 'open-bndz-ram', category: 'Open', label: 'BNDZ RAM Staging', desc: 'Open /bndz/ram', surfaces: ['global'], action: { name: 'BNDZ RAM Staging', command: 'bndz-open-url:bndz://ram', targetMode: 'all', iconVerb: 'harddrive' } },
 
   // ── Terminal ──────────────────────────────────────────────────────────
   { id: 'term-ps', category: 'Terminal', label: 'PowerShell Here', desc: 'PS in parent folder', surfaces: ['app', 'global'], action: { name: 'Open PowerShell Here', command: 'powershell.exe -NoExit -Command Set-Location -LiteralPath \'%L\'', targetMode: 'directory', iconVerb: 'terminal' } },
@@ -179,6 +184,16 @@ export const SHELL_MENU_PRESETS: MenuPreset[] = [
 export function presetsForSurface(surface: 'app' | 'global'): MenuPreset[] {
   return SHELL_MENU_PRESETS.filter(p => p.surfaces.includes(surface));
 }
+
+/** Default Explorer inject list — seed when Windows Explorer tab is empty. */
+export const DEFAULT_STOCK_GLOBAL_ACTIONS: Array<MenuActionSeed & { id: string }> = [
+  { id: 'stock-open-bndz', name: 'Open in BNDZ', command: 'bndz-open-path', targetMode: 'directory', iconVerb: 'open' },
+  { id: 'stock-index', name: 'Index folder in BNDZ', command: 'bndz-open-path', targetMode: 'directory', iconVerb: 'search' },
+  { id: 'stock-problems', name: 'BNDZ Problems', command: 'bndz-open-url:bndz://problems', targetMode: 'all', iconVerb: 'shield' },
+  { id: 'stock-inbound', name: 'BNDZ Inbound', command: 'bndz-open-url:bndz://inbound', targetMode: 'all', iconVerb: 'download' },
+  { id: 'stock-ram', name: 'BNDZ RAM Staging', command: 'bndz-open-url:bndz://ram', targetMode: 'all', iconVerb: 'harddrive' },
+  { id: 'stock-mesh', name: 'Open in BNDZ (Mesh)', command: 'bndz-open-path', targetMode: 'all', iconVerb: 'share' },
+];
 
 export function iconVerbForAction(action: { id?: string; command?: string; iconVerb?: string; name?: string }): string {
   if (action.iconVerb) return action.iconVerb;

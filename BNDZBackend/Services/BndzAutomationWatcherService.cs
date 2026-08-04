@@ -164,6 +164,7 @@ public sealed class BndzAutomationWatcherService : IDisposable
             if (!live) continue;
 
             var path = data.TryGetProperty("path", out var pEl) ? pEl.GetString()?.Trim() : null;
+            path = AutomationPathResolver.Expand(path);
             if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)) continue;
 
             var debounceMs = DefaultDebounceMs;

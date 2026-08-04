@@ -124,8 +124,8 @@ export default function BndzTwinVolumeChessView() {
             <Icons8Icon id="sync_folders" size={22} className="text-[#7eb8e8]" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight text-white">Twin Volume Chess</h1>
-            <p className="text-[11px] text-gray-500 mt-0.5">Cross-volume mirror conflict board — resolve, don&apos;t robocopy-log.</p>
+            <h1 className="text-lg font-semibold tracking-tight text-white">Cross-volume board</h1>
+            <p className="text-[11px] text-gray-500 mt-0.5">Folder Sync · compare two roots and resolve conflicts</p>
           </div>
         </div>
 

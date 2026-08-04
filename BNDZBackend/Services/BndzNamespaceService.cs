@@ -55,16 +55,48 @@ public sealed class BndzNamespaceService
             new()
             {
                 Id = "health",
-                Label = "Health",
-                PanePath = "/bndz/port/health",
+                Label = "Problems",
+                PanePath = "/bndz/problems",
                 ProtocolUrl = "bndz://health",
                 Description = "Library health problems and scans",
             },
             new()
             {
+                Id = "problems",
+                Label = "Problems",
+                PanePath = "/bndz/problems",
+                ProtocolUrl = "bndz://problems",
+                Description = "Library health problems and scans",
+            },
+            new()
+            {
+                Id = "inbound",
+                Label = "Inbound",
+                PanePath = "/bndz/inbound",
+                ProtocolUrl = "bndz://inbound",
+                Description = "Inbound capture queue",
+            },
+            new()
+            {
+                Id = "capture",
+                Label = "Inbound",
+                PanePath = "/bndz/inbound",
+                ProtocolUrl = "bndz://capture",
+                Description = "Inbound capture queue",
+            },
+            new()
+            {
+                Id = "ram",
+                Label = "RAM Staging",
+                PanePath = "/bndz/ram",
+                ProtocolUrl = "bndz://ram",
+                Description = "RAM staging zones",
+            },
+            new()
+            {
                 Id = "magnets",
                 Label = "Magnets",
-                PanePath = "/bndz/port/magnets",
+                PanePath = "/bndz/inbound",
                 ProtocolUrl = "bndz://magnets",
                 Description = "Pinned folder magnets and shortcuts",
             },
@@ -72,17 +104,9 @@ public sealed class BndzNamespaceService
             {
                 Id = "sandboxes",
                 Label = "Sandboxes",
-                PanePath = "/bndz/port/sandboxes",
+                PanePath = "/bndz/sandbox",
                 ProtocolUrl = "bndz://sandboxes",
                 Description = "Project sandbox sessions",
-            },
-            new()
-            {
-                Id = "capture",
-                Label = "Capture",
-                PanePath = "/bndz/port/capture",
-                ProtocolUrl = "bndz://capture",
-                Description = "Inbound capture queue",
             },
         };
     }
@@ -206,7 +230,7 @@ public sealed class BndzNamespaceService
             using var folderIcon = folder?.CreateSubKey("DefaultIcon");
             folderIcon?.SetValue("", exePath + ",0");
             using var folderCmd = folder?.CreateSubKey(@"shell\open\command");
-            folderCmd?.SetValue("", $"\"{exePath}\" --open-url \"bndz://health\"");
+            folderCmd?.SetValue("", $"\"{exePath}\" --open-url \"bndz://problems\"");
         }
         catch (Exception ex)
         {

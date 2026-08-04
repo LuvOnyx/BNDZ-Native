@@ -135,7 +135,73 @@ namespace BNDZ
             _automationWatcher = new BndzAutomationWatcherService(_automationRunnerDeps);
             _automationScheduler = new BndzAutomationSchedulerService(_automationRunnerDeps);
             _automationEventTriggers = new BndzAutomationEventTriggerService(_automationRunnerDeps);
+            CapacitySolverService.Instance.SetTransferQueue(_fileTransferQueue);
+            CapacitySolverService.Instance.SetActuatorDispatch((actionId, actuator, payload) =>
+            {
+                try
+                {
+                    var paths = new List<string>();
+                    if (payload != null)
+                    {
+                        var json = JsonSerializer.Serialize(payload);
+                        using var doc = JsonDocument.Parse(json);
+                        if (doc.RootElement.TryGetProperty("paths", out var pathsEl) && pathsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var el in pathsEl.EnumerateArray())
+                            {
+                                var p = el.GetString();
+                                if (!string.IsNullOrWhiteSpace(p)) paths.Add(p);
+                            }
+                        }
+                    }
+                    switch ((actuator ?? "").ToLowerInvariant())
+                    {
+                        case "ghost":
+                        case "ghost-offload":
+                            if (paths.Count > 0)
+                            {
+                                var cold = Path.Combine(
+                                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                    "BNDZ", "GhostCold");
+                                Directory.CreateDirectory(cold);
+                                _ = _ghostLinkService.OffloadPathsAsync(paths, cold);
+                            }
+                            break;
+                        case "archive":
+                            if (paths.Count > 0)
+                            {
+                                var zip = paths[0].TrimEnd('\\', '/') + ".bndz-archive.zip";
+                                _ = _archiveService.CreateArchiveAsync(paths, zip, "zip", null, default);
+                            }
+                            break;
+                        case "duplicate":
+                        case "dup":
+                            break;
+                        case "ram":
+                        case "ram-eject":
+                            break;
+                        case "empty-dir":
+                            foreach (var p in paths)
+                            {
+                                try { if (Directory.Exists(p) && !Directory.EnumerateFileSystemEntries(p).Any()) Directory.Delete(p); } catch { }
+                            }
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Capacity] actuator {actuator}: {ex.Message}");
+                }
+            });
+            ProjectSandboxService.Instance.SetTransferQueue(_fileTransferQueue);
+            VssBranchService.Instance.SetTransferQueue(_fileTransferQueue);
             _ = Task.Run(() => _automationWatcher.RestorePersistedWatchers());
+            _ = Task.Run(() => _automationScheduler.RestorePersistedSchedules());
+            _ = Task.Run(() =>
+            {
+                try { UsnHealthWatcherService.Instance.Start(); } catch { }
+                try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
+            });
             _meshDropService.SetSessionChangedHandler(evt =>
             {
                 PostToUi(() =>
@@ -1148,8 +1214,70 @@ namespace BNDZ
             MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
         }
 
+        private void WarmKnownFolderGlyphs(IEnumerable<string>? extraPaths = null)
+        {
+            var paths = new List<string>();
+            void Add(string? p)
+            {
+                if (string.IsNullOrWhiteSpace(p)) return;
+                p = p.Trim();
+                if (!Directory.Exists(p)) return;
+                if (!paths.Any(x => string.Equals(x, p, StringComparison.OrdinalIgnoreCase)))
+                    paths.Add(p);
+            }
+
+            Add(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
+            Add(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+            Add(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
+            Add(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is string profile
+                ? Path.Combine(profile, "Downloads")
+                : null);
+            if (extraPaths != null)
+            {
+                foreach (var p in extraPaths) Add(p);
+            }
+
+            // Seed folder + common type glyphs into L1/L2 before first navigation.
+            _ = ShellGlyphMapService.Instance.GetTypeGlyphBase64(ShellGlyphMapService.FolderKey, true);
+            foreach (var ext in new[] { ".txt", ".pdf", ".png", ".jpg", ".mp3", ".mp4", ".docx", ".xlsx", ".zip", ".json", ".cs", ".tsx" })
+                _ = ShellGlyphMapService.Instance.GetTypeGlyphBase64(ext, false);
+
+            foreach (var folder in paths.Take(8))
+            {
+                try
+                {
+                    var entries = new List<DirListingSharedBuffer.DirEntryDto>();
+                    var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = false };
+                    foreach (var info in new DirectoryInfo(folder).EnumerateFileSystemInfos("*", opts).Take(80))
+                    {
+                        var isDir = (info.Attributes & FileAttributes.Directory) == FileAttributes.Directory;
+                        entries.Add(DirListingSharedBuffer.FromFileSystemInfo(info, isDir));
+                    }
+                    var glyphs = ShellGlyphMapService.Instance.BuildListingGlyphMap(entries);
+                    if (glyphs.Count == 0) continue;
+                    PostToUi(() =>
+                    {
+                        var response = new
+                        {
+                            type = "SHELL_GLYPH_MAP",
+                            id = (string?)null,
+                            path = folder.Replace('\\', '/'),
+                            payload = glyphs,
+                        };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); }
+                        catch { }
+                    });
+                }
+                catch { /* best-effort warm */ }
+            }
+        }
+
         private async Task PostDirListingPageAsync(string? idProp, string path, List<DirListingSharedBuffer.DirEntryDto> page, bool partial)
         {
+            // Listing-time shell glyphs — must arrive before / with first paint so FE hydrates typeGlyphCache.
+            await PostShellGlyphMapAsync(idProp, path, page).ConfigureAwait(false);
+
             await PostToUiAsync(() =>
             {
                 var env = _webViewEnvironment;
@@ -1161,6 +1289,35 @@ namespace BNDZ
                 }
                 if (!DirListingSharedBuffer.TryPost(env, wv, "DIR_CONTENTS_RESULT", idProp, page, path, partial))
                     PostDirContentsJson(idProp, page);
+            }).ConfigureAwait(false);
+        }
+
+        private async Task PostShellGlyphMapAsync(string? idProp, string path, List<DirListingSharedBuffer.DirEntryDto> entries)
+        {
+            Dictionary<string, string> glyphs;
+            try
+            {
+                glyphs = await Task.Run(() =>
+                    ShellGlyphMapService.Instance.BuildListingGlyphMap(entries)).ConfigureAwait(false);
+            }
+            catch
+            {
+                glyphs = new Dictionary<string, string>();
+            }
+            if (glyphs.Count == 0) return;
+
+            await PostToUiAsync(() =>
+            {
+                var response = new
+                {
+                    type = "SHELL_GLYPH_MAP",
+                    id = idProp,
+                    path = (path ?? "").Replace('\\', '/'),
+                    payload = glyphs,
+                };
+                var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                try { MainWebView.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions)); }
+                catch { }
             }).ConfigureAwait(false);
         }
 
@@ -1596,6 +1753,8 @@ namespace BNDZ
             streamScheme.AllowedOrigins.Add("http://bndz.local");
             streamScheme.AllowedOrigins.Add("https://bndz.local");
 
+            var mediaScheme = BndzMediaScheme.CreateRegistration();
+
             // CustomSchemeRegistrations is ctor-only (read-only property). Passing null leaves
             // the getter returning null, so .Add would NullReferenceException at startup.
             var webEnvOptions = new CoreWebView2EnvironmentOptions(
@@ -1604,7 +1763,7 @@ namespace BNDZ
                     "--enable-features=CanvasOopRasterization " +
                     "--disable-features=CalculateNativeWinOcclusion " +
                     "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist",
-                customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme });
+                customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme, mediaScheme });
 
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             var profileDir = App.IsPluginWindow
@@ -1652,9 +1811,14 @@ namespace BNDZ
 
             // Register WebResourceRequested BEFORE navigation so it can intercept asset requests
             MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
-                "http://bndz.local/assets/native-icon/*",
+                "http://bndz.local/assets/3d/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
             var allSources = Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestSourceKinds.All;
+            // CAS icons/thumbs via custom scheme (folder mapping on bndz.local cannot serve these).
+            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+                $"{BndzMediaScheme.CustomScheme}:*",
+                Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
+                allSources);
             // Local file streaming via custom scheme (not under bndz.local folder mapping)
             MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
                 $"{LocalStreamService.CustomScheme}:*",
@@ -1667,6 +1831,11 @@ namespace BNDZ
                 allSources);
             MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
                 "https://bndz.local/local-stream/*",
+                Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
+                allSources);
+            // Legacy native-icon under folder map — intercept if Chromium still requests them from stale L1.
+            MainWebView.CoreWebView2.AddWebResourceRequestedFilter(
+                "http://bndz.local/assets/native-icon/*",
                 Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All,
                 allSources);
             MainWebView.CoreWebView2.WebResourceRequested += CoreWebView2_WebResourceRequested;
@@ -1850,6 +2019,7 @@ namespace BNDZ
                     {
                         try { InboundVolumeService.Instance.StartWatching(); } catch { }
                         try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
+                        try { WarmKnownFolderGlyphs(); } catch { }
                     });
                 }
                 else if (type == "EXECUTE_BATCH_RENAME")
@@ -3777,6 +3947,172 @@ namespace BNDZ
                         }
                     });
                 }
+                else if (type == "HEALTH_BUILD_REPAIR_PLAN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.TryGetProperty("payload", out var pl) ? pl : default;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var goals = new HealthRepairGoals();
+                            if (payload.ValueKind == JsonValueKind.Object)
+                            {
+                                if (payload.TryGetProperty("zeroBrokenLinks", out var z)) goals.ZeroBrokenLinks = z.ValueKind != JsonValueKind.False;
+                                if (payload.TryGetProperty("clearEmptyDirs", out var e)) goals.ClearEmptyDirs = e.ValueKind != JsonValueKind.False;
+                                if (payload.TryGetProperty("clearOrphanSidecars", out var o)) goals.ClearOrphanSidecars = o.ValueKind != JsonValueKind.False;
+                                if (payload.TryGetProperty("fixAllAuto", out var a)) goals.FixAllAuto = a.ValueKind == JsonValueKind.True;
+                            }
+                            var plan = LibraryHealthService.Instance.BuildRepairPlan(goals);
+                            PostMeshIpcResult(idProp, "HEALTH_BUILD_REPAIR_PLAN_RESULT", plan);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "HEALTH_BUILD_REPAIR_PLAN_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "HEALTH_APPROVE_PLAN")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var planId = payload.TryGetProperty("planId", out var pid) ? pid.GetString() ?? "" : "";
+                    var actionIds = new List<string>();
+                    if (payload.TryGetProperty("actionIds", out var aids) && aids.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in aids.EnumerateArray())
+                        {
+                            var s = el.GetString();
+                            if (!string.IsNullOrEmpty(s)) actionIds.Add(s);
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var result = LibraryHealthService.Instance.ApprovePlan(planId, actionIds);
+                            PostMeshIpcResult(idProp, "HEALTH_APPROVE_PLAN_RESULT", result);
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "HEALTH_APPROVE_PLAN_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "TOMBSTONE_SNAPSHOT")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var opId = payload.TryGetProperty("opId", out var oid) ? oid.GetString() ?? "" : "";
+                    var kind = payload.TryGetProperty("kind", out var kEl) ? kEl.GetString() ?? "" : "";
+                    var entries = new List<TombstoneSnapshotStore.TombstoneEntry>();
+                    if (payload.TryGetProperty("entries", out var ents) && ents.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in ents.EnumerateArray())
+                        {
+                            entries.Add(new TombstoneSnapshotStore.TombstoneEntry
+                            {
+                                Path = el.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "",
+                                Name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                                Type = el.TryGetProperty("type", out var t) ? t.GetString() ?? "file" : "file",
+                                Size = el.TryGetProperty("size", out var sz) && sz.ValueKind == JsonValueKind.Number ? sz.GetInt64() : 0,
+                                Extension = el.TryGetProperty("extension", out var ex) ? ex.GetString() : null,
+                                ParentPath = el.TryGetProperty("parentPath", out var pp) ? pp.GetString() : null,
+                                Modified = el.TryGetProperty("modified", out var m) ? m.GetString() : null,
+                            });
+                        }
+                    }
+                    TombstoneSnapshotStore.Instance.Snapshot(opId, kind, entries);
+                    PostMeshIpcResult(idProp, "TOMBSTONE_SNAPSHOT_RESULT", new { ok = true, opId });
+                }
+                else if (type == "TOMBSTONE_CLEAR")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var opId = root.GetProperty("payload").TryGetProperty("opId", out var oid) ? oid.GetString() ?? "" : "";
+                    TombstoneSnapshotStore.Instance.Clear(opId);
+                    PostMeshIpcResult(idProp, "TOMBSTONE_CLEAR_RESULT", new { ok = true });
+                }
+                else if (type == "TOMBSTONE_RESTORE_FAILED")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var opId = root.GetProperty("payload").TryGetProperty("opId", out var oid) ? oid.GetString() ?? "" : "";
+                    var snap = TombstoneSnapshotStore.Instance.RestoreOnFailure(opId);
+                    PostMeshIpcResult(idProp, "TOMBSTONE_RESTORE_FAILED_RESULT", new { ok = snap != null, snapshot = snap });
+                }
+                else if (type == "BRANCH_CREATE_VSS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var rootPath = payload.TryGetProperty("rootPath", out var rp) ? rp.GetString() ?? "" : "";
+                    var name = payload.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var branch = VssBranchService.Instance.Create(rootPath, name);
+                            PostMeshIpcResult(idProp, "BRANCH_CREATE_VSS_RESULT", new { ok = true, branch });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_CREATE_VSS_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_LIST_VSS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        PostMeshIpcResult(idProp, "BRANCH_LIST_VSS_RESULT", new { branches = VssBranchService.Instance.List() });
+                    });
+                }
+                else if (type == "BRANCH_BROWSE_VSS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var branchId = payload.TryGetProperty("id", out var bid) ? bid.GetString() ?? "" : "";
+                    var relative = payload.TryGetProperty("relative", out var rel) ? rel.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var items = VssBranchService.Instance.Browse(branchId, relative);
+                            PostMeshIpcResult(idProp, "BRANCH_BROWSE_VSS_RESULT", new { ok = true, items });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_BROWSE_VSS_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_DELETE_VSS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var branchId = root.GetProperty("payload").TryGetProperty("id", out var bid) ? bid.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        var ok = VssBranchService.Instance.Delete(branchId);
+                        PostMeshIpcResult(idProp, "BRANCH_DELETE_VSS_RESULT", new { ok });
+                    });
+                }
+                else if (type == "BRANCH_RESTORE_VSS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var branchId = payload.TryGetProperty("id", out var bid) ? bid.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await VssBranchService.Instance.RestoreAsync(branchId).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_VSS_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_VSS_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
                 // ── Phase 9+ selling-pillar IPC: Lineage ──
                 else if (type == "LINEAGE_GET")
                 {
@@ -5007,7 +5343,7 @@ namespace BNDZ
                             try
                             {
                                 var nativeSvc = _nativeShellService;
-                                base64 = BndzHostCaches.ResolveThumbnailBase64(
+                                base64 = BndzHostCaches.ResolveThumbnailDelivery(
                                     pathCopy,
                                     sizeCopy,
                                     () => nativeSvc.GetNativeThumbnailBase64(pathCopy, sizeCopy) ?? "");
@@ -5063,7 +5399,7 @@ namespace BNDZ
                             {
                                 try
                                 {
-                                    var b64 = BndzHostCaches.ResolveThumbnailBase64(
+                                    var b64 = BndzHostCaches.ResolveThumbnailDelivery(
                                         path,
                                         sizeCopy,
                                         () => nativeSvc.GetNativeThumbnailBase64(path, sizeCopy) ?? "");
@@ -6498,9 +6834,16 @@ namespace BNDZ
 
                                 string commandStr;
                                 if (actionId.Equals("bndz-open-path", StringComparison.OrdinalIgnoreCase)
-                                    || actionLabel.Equals("Open in BNDZ", StringComparison.OrdinalIgnoreCase))
+                                    || actionLabel.Equals("Open in BNDZ", StringComparison.OrdinalIgnoreCase)
+                                    || customCommand.Equals("bndz-open-path", StringComparison.OrdinalIgnoreCase))
                                 {
                                     commandStr = $"\"{exePath}\" --open-path \"%1\"";
+                                }
+                                else if (customCommand.StartsWith("bndz-open-url:", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var url = customCommand.Substring("bndz-open-url:".Length).Trim();
+                                    if (string.IsNullOrWhiteSpace(url)) url = "bndz://home";
+                                    commandStr = $"\"{exePath}\" --open-url \"{url}\"";
                                 }
                                 else if (!string.IsNullOrWhiteSpace(customCommand))
                                 {
@@ -6550,13 +6893,19 @@ namespace BNDZ
                                 }
                             }
                             success = true;
+                            try
+                            {
+                                // Force Explorer to reload shell verbs without a restart.
+                                FolcolorPort.SHChangeNotify(0x08000000 /* SHCNE_ASSOCCHANGED */, 0x0000 /* SHCNF_IDLIST */, IntPtr.Zero, IntPtr.Zero);
+                            }
+                            catch { /* best effort */ }
                         } catch (UnauthorizedAccessException) {
                             PostToUi(() => {
                                 var evt = new {
                                     type = "ELEVATION_REQUIRED",
                                     payload = new {
-                                        title = "Administrator approval required",
-                                        message = "Could not write the context menu registry entries. Restart BNDZ as administrator to continue.",
+                                        title = "Shell menu deploy blocked",
+                                        message = "Could not write per-user (HKCU) shell keys. Check antivirus or Controlled Folder Access, then retry Deploy.",
                                         context = "globalContextMenu",
                                     }
                                 };
@@ -8126,6 +8475,11 @@ namespace BNDZ
                         var response = env.CreateWebResourceResponse(stream, 200, "OK", "Content-Type: image/png");
                         e.Response = response;
                     }
+                }
+                else if (BndzMediaScheme.IsMediaRequest(e.Request.Uri))
+                {
+                    var env = MainWebView.CoreWebView2.Environment;
+                    BndzMediaScheme.Serve(env, e);
                 }
                 else if (LocalStreamService.IsStreamRequest(e.Request.Uri))
                 {

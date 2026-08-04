@@ -293,7 +293,7 @@ public sealed class BndzAutomationRunnerService
             return injected.Where(File.Exists).ToList();
         }
 
-        var path = BndzAutomationExtensions.GetField(node.Data, "path");
+        var path = AutomationPathResolver.Expand(BndzAutomationExtensions.GetField(node.Data, "path"));
         if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
         {
             log.Add("  ! Watch folder path missing or not found.");
@@ -447,7 +447,7 @@ public sealed class BndzAutomationRunnerService
 
     private static void CopyFiles(List<string> files, AutomationNode node, List<string> log, bool move)
     {
-        var dest = BndzAutomationExtensions.GetField(node.Data, "dest");
+        var dest = AutomationPathResolver.Expand(BndzAutomationExtensions.GetField(node.Data, "dest"));
         if (string.IsNullOrWhiteSpace(dest))
         {
             log.Add($"  ! {(move ? "Move" : "Copy")} destination missing.");
@@ -572,7 +572,7 @@ public sealed class BndzAutomationRunnerService
             log.Add("  ! Archive service unavailable.");
             return;
         }
-        var dest = BndzAutomationExtensions.GetField(node.Data, "dest");
+        var dest = AutomationPathResolver.Expand(BndzAutomationExtensions.GetField(node.Data, "dest"));
         var format = BndzAutomationExtensions.GetField(node.Data, "format", "zip");
         if (string.IsNullOrWhiteSpace(dest))
         {
@@ -603,7 +603,7 @@ public sealed class BndzAutomationRunnerService
             log.Add("  ! Archive service unavailable.");
             return;
         }
-        var dest = BndzAutomationExtensions.GetField(node.Data, "dest");
+        var dest = AutomationPathResolver.Expand(BndzAutomationExtensions.GetField(node.Data, "dest"));
         if (string.IsNullOrWhiteSpace(dest))
         {
             log.Add("  ! Extract: destination folder missing.");
@@ -638,7 +638,7 @@ public sealed class BndzAutomationRunnerService
     private static void SyncFolders(List<string> files, AutomationNode node, List<string> log)
     {
         var source = BndzAutomationExtensions.GetField(node.Data, "source");
-        var dest = BndzAutomationExtensions.GetField(node.Data, "dest");
+        var dest = AutomationPathResolver.Expand(BndzAutomationExtensions.GetField(node.Data, "dest"));
         if (string.IsNullOrWhiteSpace(dest))
         {
             log.Add("  ! Sync: destination missing.");
@@ -675,7 +675,7 @@ public sealed class BndzAutomationRunnerService
 
     private static void GenerateThumbnails(List<string> files, AutomationNode node, List<string> log)
     {
-        var dest = BndzAutomationExtensions.GetField(node.Data, "dest");
+        var dest = AutomationPathResolver.Expand(BndzAutomationExtensions.GetField(node.Data, "dest"));
         if (string.IsNullOrWhiteSpace(dest))
         {
             log.Add("  ! Thumbnail: output folder missing.");

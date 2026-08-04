@@ -100,11 +100,13 @@ public class FileOperationService
                 case "copy":
                 {
                     var prefs = FileOperationPreferences.Current;
+                    var plan = FileOperationPathPlanner.Plan("copy", sources, target);
+                    var estimate = FileOperationPathPlanner.EstimateBytesForPlan(plan);
+                    var budget = BudgetGovernorService.Instance.CheckTransfer(target, estimate);
+                    if (budget.HardBlock || !budget.Allowed)
+                        throw new InvalidOperationException(budget.Message ?? "Volume budget gate blocked this copy.");
                     if (prefs.CheckSpaceBeforeCopy || prefs.UseCustomCopy)
-                    {
-                        var plan = FileOperationPathPlanner.Plan("copy", sources, target);
-                        FileOperationPathPlanner.EnsureDestinationSpace(target, FileOperationPathPlanner.EstimateBytesForPlan(plan));
-                    }
+                        FileOperationPathPlanner.EnsureDestinationSpace(target, estimate);
                     var created = await CopyOrMoveAsync(operationId, sources, target, move: false, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove, recreateSourceStructure).ConfigureAwait(false);
                     if (created.Count > 0 && recordActionLog)
                         _actionLog?.Record(BndzActionLogService.ForCopy(sources, created));
@@ -117,11 +119,13 @@ public class FileOperationService
                     var archiveFolderRename = prefs.SetArchiveAttributeOnFolderRename
                         && sources.Count == 1
                         && Directory.Exists(sources[0]);
+                    var plan = FileOperationPathPlanner.Plan("move", sources, target);
+                    var estimate = FileOperationPathPlanner.EstimateBytesForPlan(plan);
+                    var budget = BudgetGovernorService.Instance.CheckTransfer(target, estimate);
+                    if (budget.HardBlock || !budget.Allowed)
+                        throw new InvalidOperationException(budget.Message ?? "Volume budget gate blocked this move.");
                     if (prefs.CheckSpaceBeforeCopy || prefs.UseCustomCopy)
-                    {
-                        var plan = FileOperationPathPlanner.Plan("move", sources, target);
-                        FileOperationPathPlanner.EnsureDestinationSpace(target, FileOperationPathPlanner.EstimateBytesForPlan(plan));
-                    }
+                        FileOperationPathPlanner.EnsureDestinationSpace(target, estimate);
                     var movedTo = await CopyOrMoveAsync(operationId, sources, target, move: true, onProgress, onConflict, cancellationToken, prefs.PreservePermissionsOnMove, recreateSourceStructure).ConfigureAwait(false);
                     if (archiveFolderRename && Directory.Exists(target))
                         TrySetArchiveAttribute(target);

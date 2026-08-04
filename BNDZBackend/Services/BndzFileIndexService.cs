@@ -340,7 +340,7 @@ public sealed class BndzFileIndexService : IDisposable
         foreach (var root in roots)
         {
             ct.ThrowIfCancellationRequested();
-            IndexLocation(root, ct, maxDepth: 6);
+            IndexLocation(root, ct, maxDepth: 12);
             Thread.Sleep(50);
         }
     }

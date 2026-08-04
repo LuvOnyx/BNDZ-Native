@@ -183,7 +183,7 @@ export default function ProjectSandboxPlugin({
         return;
       }
       const opsMsg = typeof r.opsProcessed === 'number' ? ` (${r.opsProcessed} ops applied)` : '';
-      pushToast({ kind: 'success', title: 'Committed', message: `Sandbox changes applied to disk${opsMsg}.` });
+      pushToast({ kind: 'success', title: 'Committed', message: `Sandbox changes applied to disk${opsMsg}. Shadow overlay merged via transfer queue when present.` });
       await refresh();
     } catch (e) {
       pushToast({ kind: 'error', title: 'Commit failed', message: String(e) });
