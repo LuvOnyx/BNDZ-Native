@@ -67,6 +67,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.0" />
     <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="3.0.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
@@ -149,5 +150,28 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
+
+  <!--
+    Self-contained WindowsDesktop publish can overwrite NuGet Microsoft.Extensions.*
+    assemblies with older shared-framework copies (9.x / 8.x). App + deps.json then
+    request 10.0.0.0 and the installed exe crashes at startup. Force-correct those DLLs.
+  -->
+  <Target Name="RestorePublishedExtensionsAssemblies" AfterTargets="Publish">
+    <PropertyGroup>
+      <_DiPkg>$(NuGetPackageRoot)microsoft.extensions.dependencyinjection\10.0.0\lib\net8.0</_DiPkg>
+      <_DiAbsPkg>$(NuGetPackageRoot)microsoft.extensions.dependencyinjection.abstractions\10.0.5\lib\net8.0</_DiAbsPkg>
+      <_GlobPkg>$(NuGetPackageRoot)microsoft.extensions.filesystemglobbing\10.0.0\lib\net8.0</_GlobPkg>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ExtFix Include="$(_DiPkg)\Microsoft.Extensions.DependencyInjection.dll"
+               Condition="Exists('$(_DiPkg)\Microsoft.Extensions.DependencyInjection.dll')" />
+      <_ExtFix Include="$(_DiAbsPkg)\Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+               Condition="Exists('$(_DiAbsPkg)\Microsoft.Extensions.DependencyInjection.Abstractions.dll')" />
+      <_ExtFix Include="$(_GlobPkg)\Microsoft.Extensions.FileSystemGlobbing.dll"
+               Condition="Exists('$(_GlobPkg)\Microsoft.Extensions.FileSystemGlobbing.dll')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ExtFix)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="false" Condition="'@(_ExtFix)' != ''" />
+    <Warning Text="Publish Extensions restore skipped — NuGet package layout missing under $(NuGetPackageRoot)." Condition="'@(_ExtFix)' == ''" />
+  </Target>
 
 </Project>

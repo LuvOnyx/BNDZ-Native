@@ -46,6 +46,18 @@ if (Test-Path $coreClr) {
     $failures += "Missing coreclr.dll - publish was not self-contained. Use npm run package:installer (includes -SelfContained)."
 }
 
+$diAbs = Join-Path $PublishDir "Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+if (Test-Path $diAbs) {
+    $ver = [System.Reflection.AssemblyName]::GetAssemblyName($diAbs).Version
+    if ($ver.Major -ge 10) {
+        Write-Host "  OK  DI.Abstractions assemblyVersion=$ver" -ForegroundColor Green
+    } else {
+        $failures += "Published DI.Abstractions is $ver (need >= 10.0.0.0). Self-contained publish overwrote NuGet packages — check RestorePublishedExtensionsAssemblies target."
+    }
+} else {
+    $failures += "Missing Microsoft.Extensions.DependencyInjection.Abstractions.dll in publish output"
+}
+
 $exe = Join-Path $PublishDir "BNDZ.exe"
 if (Test-Path $exe) {
     $vi = (Get-Item $exe).VersionInfo
