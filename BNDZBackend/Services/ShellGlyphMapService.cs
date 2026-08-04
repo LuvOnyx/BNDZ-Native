@@ -148,10 +148,16 @@ public sealed class ShellGlyphMapService
     /// Returns base64 or empty when miss (caller extracts).
     /// Never returns FolderKey for every directory — special folders (Downloads, Desktop, …)
     /// have unique indices and must not share a poisoned generic glyph.
+    /// Never short-circuit virtual CLSIDs / shell: names — string SHGetFileInfo maps those
+    /// to the generic white document index and poisons Libraries/Network/Recycle Bin.
     /// </summary>
     public string TryResolveViaSysIconIndex(string path, bool isDirectory)
     {
         if (string.IsNullOrEmpty(path)) return "";
+        if (ShellPathResolver.IsShellVirtualPath(path)
+            || path.StartsWith("::{", StringComparison.Ordinal)
+            || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
+            return "";
 
         var key = BndzHostCaches.IconCacheKey(path, isDirectory);
         // Type glyphs for files by extension only.
@@ -182,6 +188,11 @@ public sealed class ShellGlyphMapService
     public void RememberExtractedIcon(string path, bool isDirectory, string base64Png)
     {
         if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(base64Png)) return;
+        // Virtual namespace glyphs are PIDL-unique — string SHGFI on ::{clsid} is wrong.
+        if (ShellPathResolver.IsShellVirtualPath(path)
+            || path.StartsWith("::{", StringComparison.Ordinal)
+            || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
+            return;
         try
         {
             var shfi = new SHFILEINFO();

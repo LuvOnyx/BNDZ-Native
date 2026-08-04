@@ -33,6 +33,9 @@ import PreviewMetadataStrip from './preview/PreviewMetadataStrip';
 import { SelectionFilmstrip } from './SelectionFilmstrip';
 import BndzLensStage from './preview/BndzLensStage';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
+import { audioPlaybackSession } from '../lib/audioPlaybackSession';
+import { launcherIconUrl } from '../lib/toolbarLauncherIcons';
+import { getLensStageCollapsed, setLensStageCollapsed } from '../lib/lensStageSession';
 import { IPC } from '../lib/ipcBridge';
 import FileLineagePanel from './preview/FileLineagePanel';
 import AclDramaPanel from './preview/AclDramaPanel';
@@ -87,12 +90,20 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const [mdView, setMdView] = useState<'render' | 'source'>('render');
   const svgBlobUrlRef = useRef<string | null>(null);
   const showLensStage = config.showLensStage !== false;
-  const [lensCollapsed, setLensCollapsed] = useState(() => config.lensCollapsedByDefault === true);
+  // Session survives RightPreviewPanel remounts on selection change — config alone can lag
+  // and would briefly reopen a user-collapsed Lens.
+  const [lensCollapsed, setLensCollapsed] = useState(() =>
+    getLensStageCollapsed(config.lensCollapsedByDefault === true),
+  );
 
-  useEffect(() => {
-    setLensCollapsed(config.lensCollapsedByDefault === true);
-  }, [config.lensCollapsedByDefault]);
-
+  const toggleLensCollapsed = () => {
+    setLensCollapsed(c => {
+      const next = !c;
+      setLensStageCollapsed(next);
+      updateConfig({ lensCollapsedByDefault: next });
+      return next;
+    });
+  };
   useEffect(() => {
     setBrowsePath(path ?? null);
     setSelectedChild(null);
@@ -262,8 +273,18 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     if (isMarkdown) setMdView('render');
     if (isAudio || isVideo) setActiveTab('media');
     else setActiveTab('preview');
+    // Never auto-expand / reset lens on selection change — only force-collapse for archives
+    // (no Lens UI) without writing the user's persisted preference.
     if (isArchive || isTorrent) setLensCollapsed(true);
-  }, [entity?.id, isAudio, isVideo, isHtml, isArchive, isTorrent]);
+  }, [path, entity?.id, isAudio, isVideo, isHtml, isArchive, isTorrent]);
+
+  // Docked preview is selection-bound — pause shared audio when leaving the playing file
+  // (otherwise folder selection keeps the previous WAV UI/session feeling "stuck").
+  useEffect(() => {
+    if (isAudio || isVideo) return;
+    const snap = audioPlaybackSession.getSnapshot();
+    if (snap.playing) audioPlaybackSession.pause();
+  }, [path, entity?.id, isAudio, isVideo]);
 
   const previewRt = buildSettingsRuntime(config).preview;
 
@@ -741,7 +762,37 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
          <div className={`w-full h-full flex flex-col items-center justify-center p-6 relative bndz-preview-stage ${showThumb ? 'pattern-checkerboard' : ''}`}>
              <div className="absolute inset-0 " />
              <div className="bndz-glass-panel px-8 py-6 flex flex-col items-center gap-4 max-w-[min(92%,560px)] border border-white/[0.06]">
-                 {path ? (
+                 {path && isDir && !isDrive && !(entity as any)?.isVirtual ? (
+                    <img
+                      src={launcherIconUrl('ui_preview_folder') || '/Ui/preview-Big%20Folder.svg'}
+                      alt=""
+                      className="object-contain select-none pointer-events-none"
+                      style={{
+                        width: PREVIEW_HERO_ICON_SIZE.dir,
+                        height: PREVIEW_HERO_ICON_SIZE.dir,
+                        maxWidth: 'min(92%, 280px)',
+                        maxHeight: 'min(40vh, 280px)',
+                      }}
+                      draggable={false}
+                    />
+                 ) : path && isDir && !isDrive && (entity as any)?.isVirtual ? (
+                    <Icons8Icon
+                      id={
+                        normalizePanePath(path) === '/' || normalizePanePath(path) === '/this-pc'
+                          ? 'this_pc'
+                          : normalizePanePath(path) === '//'
+                            ? 'go_network'
+                            : isRecycleBinPath(path)
+                              ? 'go_recycle_bin'
+                              : normalizePanePath(path).toLowerCase().includes('libraries')
+                                ? 'folder_open_ui'
+                                : normalizePanePath(path).toLowerCase().includes('controlpanel')
+                                  ? 'control_panel'
+                                  : 'folder_open_ui'
+                      }
+                      size={PREVIEW_HERO_ICON_SIZE.dir}
+                    />
+                 ) : path ? (
                     <PreviewHeroIcon
                        path={heroPath || path}
                        isDir={isDir}
@@ -882,7 +933,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           )}
           <AnimatePresence mode="wait">
              <motion.div 
-                key={isAudio || isVideo ? `media-${path || entity.id}-${activeTab}` : `${entity.id}-${activeTab}`}
+                key={`${path || entity.id}-${activeTab}-${isDir ? 'dir' : ext || 'file'}`}
                 initial={{ opacity: 0, y: animDuration > 0 ? 10 : 0 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}
@@ -1085,7 +1136,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
              path={path}
              isDir={false}
              collapsed={lensCollapsed}
-             onToggleCollapsed={() => setLensCollapsed(c => !c)}
+             onToggleCollapsed={toggleLensCollapsed}
              onNavigate={onNavigate}
              onOpen={p => { void IPC.executeContextMenuVerb(toWindowsPath(p), 'open'); }}
              onOpenInNewWindow={p => {

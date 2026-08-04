@@ -15,7 +15,7 @@ import KeyboardShortcutsTab from './settings/KeyboardShortcutsTab';
 import ColorsTabContent from './settings/ColorsTabContent';
 import UdcEditorTab from './settings/UdcEditorTab';
 import CeaEditorTab from './settings/CeaEditorTab';
-import { SettingsTabHeader, SettingsSection } from './settings/SettingsPrimitives';
+import { SettingsTabHeader, SettingsSection, SettingsActionBtn, SettingsHint } from './settings/SettingsPrimitives';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { searchJumpSettings, flashJumpSettingTarget, type JumpSettingEntry } from '../lib/jumpToSettingIndex';
 import { mergeUserCommands } from '../lib/userCommands';
@@ -59,24 +59,29 @@ const DevOnly = ({ children }: { children: React.ReactNode }) => (
   import.meta.env.DEV ? <>{children}</> : null
 );
 
+/** Legacy section label — prefer SettingsSection wrappers for new groupings. */
 const SectionHeader = ({ title }: { title: string }) => (
-  <h3 className="text-[13px] font-bold text-white mt-6 mb-2 px-1 flex items-center gap-2 first:mt-0">
-    <span className="bndz-settings-category-accent w-1 h-4 rounded-full shrink-0" />
+  <h3 className="bndz-settings-legacy-heading text-[13px] font-semibold text-white mt-5 mb-2 px-1 flex items-center gap-2 first:mt-0">
+    <span className="bndz-settings-category-accent w-1 h-3.5 rounded-full shrink-0" />
     {title}
   </h3>
 );
 
-const ActionBtn = ({ label, className = '', onClick, disabled, title }: any) => (
-  <button
-    type="button"
-    disabled={disabled}
-    title={title}
-    className={`bg-[#2a2a2a] hover:bg-[#444] border border-[#555] rounded-sm text-[12px] px-4 py-1 text-white disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-[#2a2a2a] ${className}`}
-    onClick={onClick}
-  >
-    {label}
-  </button>
-)
+const ActionBtn = SettingsActionBtn;
+
+/** Friendlier nav labels — TabsTrigger value stays the canonical tab id for Jump-to-Setting. */
+const TAB_NAV_LABELS: Record<string, string> = {
+  'Keyboard Shortcuts': 'Keyboard & Mouse',
+  'Refresh, Icons, History': 'Refresh & Icons',
+  'Safety Belts, Network': 'Safety & Network',
+  'Find Files & Branch View': 'Find & Branch View',
+  'Filters & Type Ahead Find': 'Filters & Type-Ahead',
+  'Menus & Context': 'Menus & Context',
+  'File Info Tips & Hover Box': 'Info Tips & Hover',
+  'Mouse Down Blow Up': 'Mouse Blow-Up',
+  'Plugin Rack': 'Plugin Rack',
+  'Controls & More': 'Controls',
+};
 
 export default function ConfigurationDialog({ onClose, initialTab }: { onClose: () => void; initialTab?: string }) {
   const { config: globalConfig, updateConfig: updateGlobalConfig } = useAppConfig();
@@ -408,7 +413,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   };
 
   const categories = [
-    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Startup & Exit", "Keyboard Shortcuts", "Controls & More", "Safety Belts, Network"] },
+    { name: "General", items: ["Tree and List", "Sort and Rename", "Refresh, Icons, History", "Menus & Context", "Keyboard Shortcuts", "Controls & More", "Safety Belts, Network", "Startup & Exit"] },
     { name: "Automation", items: ["Workspace Tools", "Custom Event Actions", "User Commands"] },
     { name: "Colors and Styles", items: ["Colors", "Themes", "Appearance", "Highlights & Dark Mode", "Styles", "Color Filters", "Fonts", "Templates", "Icon Configurator", "Context Menu"] },
     { name: "Information", items: ["Tags", "Custom Columns", "File Info Tips & Hover Box", "Report & Data"] },
@@ -582,7 +587,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                          value={item} 
                          className={`bndz-settings-nav-item !flex-none !grow-0 !shrink-0 !h-auto !min-h-[26px] !w-full !justify-start !text-left !px-2.5 !py-1.5 !pl-3 !text-[12px] !font-normal !rounded-md !border !border-transparent !whitespace-normal !leading-snug text-[#c8c8c8] hover:bg-white/5 !shadow-none after:!hidden ${categoryTabActive[cat.name] || categoryTabActive.Other}`}
                        >
-                         {item}
+                         {TAB_NAV_LABELS[item] || item}
                        </TabsTrigger>
                     ))}
                     </div>
@@ -879,60 +884,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  <Checkbox label={<span>Use localized search and filter patterns</span>} checked={localConfig.useLocalizedSearchAndFilterPatterns ?? false} onChange={e => updateLocalConfig({ useLocalizedSearchAndFilterPatterns: e.target.checked })} />
               </div>
 
-              <SectionHeader title="Mouse" />
-              <div className="ml-2 mb-4 space-y-[6px]">
-                 <Checkbox label={<span>Single-clic<span className="underline decoration-1 underline-offset-[3px]">k</span> to open an item</span>} checked={localConfig.singleClickToOpenAnItem ?? false} onChange={e => updateLocalConfig({ singleClickToOpenAnItem: e.target.checked })} />
-                 <div className="ml-[20px] space-y-[6px]">
-                    <Checkbox label={<span>On the <span className="underline decoration-1 underline-offset-[3px]">i</span>con only</span>} checked={localConfig.onTheIconOnly ?? false} onChange={e => updateLocalConfig({ onTheIconOnly: e.target.checked })} disabled={!localConfig.singleClickToOpenAnItem} />
-                    <Checkbox label={<span>Folder<span className="underline decoration-1 underline-offset-[3px]">s</span> only</span>} checked={localConfig.foldersOnly ?? false} onChange={e => updateLocalConfig({ foldersOnly: e.target.checked })} disabled={!localConfig.singleClickToOpenAnItem} />
-                 </div>
-                 
-                 <Checkbox label={<span>Po<span className="underline decoration-1 underline-offset-[3px]">i</span>nt to select</span>} checked={localConfig.pointToSelect ?? false} onChange={e => updateLocalConfig({ pointToSelect: e.target.checked })} />
-                 <div className="ml-[20px]">
-                    <Checkbox label={<span>To the i<span className="underline decoration-1 underline-offset-[3px]">c</span>on only</span>} checked={localConfig.toTheIconOnly ?? false} onChange={e => updateLocalConfig({ toTheIconOnly: e.target.checked })} disabled={!localConfig.pointToSelect} />
-                 </div>
-                 
-                 <Checkbox label={<span>Full <span className="underline decoration-1 underline-offset-[3px]">n</span>ame column select</span>} checked={localConfig.fullNameColumnSelect ?? false} onChange={e => updateLocalConfig({ fullNameColumnSelect: e.target.checked })} />
-                 <Checkbox label={<span>Allow dragging from a <span className="underline decoration-1 underline-offset-[3px]">b</span>ackground window</span>} checked={localConfig.allowDraggingFromABackgroundWindow ?? false} onChange={e => updateLocalConfig({ allowDraggingFromABackgroundWindow: e.target.checked })} />
-                 <Checkbox label={<span>Shift+<span className="underline decoration-1 underline-offset-[3px]">W</span>heel scrolls horizontally</span>} checked={localConfig.shiftWheelScrollsHorizontally ?? false} onChange={e => updateLocalConfig({ shiftWheelScrollsHorizontally: e.target.checked })} />
-                 <Checkbox label={<span>Ctrl+<span className="underline decoration-1 underline-offset-[3px]">W</span>heel scrolls through the list views</span>} checked={localConfig.ctrlWheelScrollsThroughTheListViews ?? false} onChange={e => updateLocalConfig({ ctrlWheelScrollsThroughTheListViews: e.target.checked })} />
-              </div>
-
-              <SectionHeader title="Usability" />
-              <div className="ml-2 mb-4 space-y-[6px]">
-                 <Checkbox label={<span>Highlight ho<span className="underline decoration-1 underline-offset-[3px]">v</span>ered items</span>} checked={localConfig.highlightHoveredItems ?? false} onChange={e => updateLocalConfig({ highlightHoveredItems: e.target.checked })} />
-                 <Checkbox label={<span>Show tooltip<span className="underline decoration-1 underline-offset-[3px]">s</span></span>} checked={localConfig.showTooltips ?? false} onChange={e => updateLocalConfig({ showTooltips: e.target.checked })} />
-                 <div className="ml-[20px] mb-[10px]">
-                    <Checkbox label={<span>Show verbati<span className="underline decoration-1 underline-offset-[3px]">m</span> tooltips</span>} checked={localConfig.showVerbatimTooltips ?? false} onChange={e => updateLocalConfig({ showVerbatimTooltips: e.target.checked })} disabled={!localConfig.showTooltips} />
-                 </div>
-                 
-                 <div className="flex flex-col gap-2 pt-2">
-                    <div className="flex items-center gap-2">
-                       <input type="number" 
-                          value={localConfig.tooltipZoom} 
-                          onChange={(e) => updateLocalConfig({tooltipZoom: parseInt(e.target.value) || 100})} 
-                          className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none"
-                       />
-                       <span className="text-[12px] text-[#e0e0e0]">Tooltip <span className="underline decoration-1 underline-offset-[3px]">z</span>oom (%)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <input type="number" 
-                          value={localConfig.scrollMargin} 
-                          onChange={(e) => updateLocalConfig({scrollMargin: parseInt(e.target.value) || 0})} 
-                          className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none"
-                       />
-                       <span className="text-[12px] text-[#e0e0e0]"><span className="underline decoration-1 underline-offset-[3px]">S</span>croll margin</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <input type="text" 
-                          value={localConfig.wheelScrollLines === 0 ? '' : localConfig.wheelScrollLines} 
-                          onChange={(e) => updateLocalConfig({wheelScrollLines: parseInt(e.target.value) || 0})} 
-                          className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none placeholder-[#666]"
-                       />
-                       <span className="text-[12px] text-[#e0e0e0]">Wheel scroll lines</span>
-                    </div>
-                 </div>
-              </div>
+              <SettingsHint>
+                Pointer open / select / wheel options live under{' '}
+                <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Keyboard Shortcuts')}>Keyboard &amp; Mouse</button>.
+                Hover tips are under{' '}
+                <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('File Info Tips & Hover Box')}>Info Tips &amp; Hover</button>.
+              </SettingsHint>
             </TabsContent>
 
             <TabsContent value="Workspace Tools" className="m-0 border-0 p-0 outline-none flex flex-col h-full min-h-0">
@@ -1116,6 +1073,57 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="Keyboard Shortcuts" className="m-0 border-0 p-0 outline-none">
+              <SettingsTabHeader
+                title="Keyboard & Mouse"
+                description="Shortcuts, click behavior, wheel scrolling, and pointer bindings."
+                icon="keyboard_ui"
+              />
+              <SettingsSection title="Pointer behavior" description="How clicks and the mouse wheel interact with the file list.">
+                 <Checkbox label={<span>Single-clic<span className="underline decoration-1 underline-offset-[3px]">k</span> to open an item</span>} checked={localConfig.singleClickToOpenAnItem ?? false} onChange={e => updateLocalConfig({ singleClickToOpenAnItem: e.target.checked })} />
+                 <div className="ml-[20px] space-y-[6px]">
+                    <Checkbox label={<span>On the <span className="underline decoration-1 underline-offset-[3px]">i</span>con only</span>} checked={localConfig.onTheIconOnly ?? false} onChange={e => updateLocalConfig({ onTheIconOnly: e.target.checked })} disabled={!localConfig.singleClickToOpenAnItem} />
+                    <Checkbox label={<span>Folder<span className="underline decoration-1 underline-offset-[3px]">s</span> only</span>} checked={localConfig.foldersOnly ?? false} onChange={e => updateLocalConfig({ foldersOnly: e.target.checked })} disabled={!localConfig.singleClickToOpenAnItem} />
+                 </div>
+                 <Checkbox label={<span>Po<span className="underline decoration-1 underline-offset-[3px]">i</span>nt to select</span>} checked={localConfig.pointToSelect ?? false} onChange={e => updateLocalConfig({ pointToSelect: e.target.checked })} />
+                 <div className="ml-[20px]">
+                    <Checkbox label={<span>To the i<span className="underline decoration-1 underline-offset-[3px]">c</span>on only</span>} checked={localConfig.toTheIconOnly ?? false} onChange={e => updateLocalConfig({ toTheIconOnly: e.target.checked })} disabled={!localConfig.pointToSelect} />
+                 </div>
+                 <Checkbox label={<span>Full <span className="underline decoration-1 underline-offset-[3px]">n</span>ame column select</span>} checked={localConfig.fullNameColumnSelect ?? false} onChange={e => updateLocalConfig({ fullNameColumnSelect: e.target.checked })} />
+                 <Checkbox label={<span>Allow dragging from a <span className="underline decoration-1 underline-offset-[3px]">b</span>ackground window</span>} checked={localConfig.allowDraggingFromABackgroundWindow ?? false} onChange={e => updateLocalConfig({ allowDraggingFromABackgroundWindow: e.target.checked })} />
+                 <Checkbox label={<span>Shift+<span className="underline decoration-1 underline-offset-[3px]">W</span>heel scrolls horizontally</span>} checked={localConfig.shiftWheelScrollsHorizontally ?? false} onChange={e => updateLocalConfig({ shiftWheelScrollsHorizontally: e.target.checked })} />
+                 <Checkbox label={<span>Ctrl+<span className="underline decoration-1 underline-offset-[3px]">W</span>heel scrolls through the list views</span>} checked={localConfig.ctrlWheelScrollsThroughTheListViews ?? false} onChange={e => updateLocalConfig({ ctrlWheelScrollsThroughTheListViews: e.target.checked })} />
+                 <Checkbox label={<span>Highlight ho<span className="underline decoration-1 underline-offset-[3px]">v</span>ered items</span>} checked={localConfig.highlightHoveredItems ?? false} onChange={e => updateLocalConfig({ highlightHoveredItems: e.target.checked })} />
+                 <div className="flex items-center gap-2 pt-1">
+                    <input type="number"
+                       value={localConfig.scrollMargin}
+                       onChange={(e) => updateLocalConfig({scrollMargin: parseInt(e.target.value) || 0})}
+                       className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none"
+                    />
+                    <span className="text-[12px] text-[#e0e0e0]"><span className="underline decoration-1 underline-offset-[3px]">S</span>croll margin</span>
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <input type="text"
+                       value={localConfig.wheelScrollLines === 0 ? '' : localConfig.wheelScrollLines}
+                       onChange={(e) => updateLocalConfig({wheelScrollLines: parseInt(e.target.value) || 0})}
+                       className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none placeholder-[#666]"
+                    />
+                    <span className="text-[12px] text-[#e0e0e0]">Wheel scroll lines</span>
+                 </div>
+              </SettingsSection>
+              <SettingsSection title="Tooltips" description="Simple chrome tooltips. Richer hover cards are under Info Tips & Hover.">
+                 <Checkbox label={<span>Show tooltip<span className="underline decoration-1 underline-offset-[3px]">s</span></span>} checked={localConfig.showTooltips ?? false} onChange={e => updateLocalConfig({ showTooltips: e.target.checked })} />
+                 <div className="ml-[20px] mb-[6px]">
+                    <Checkbox label={<span>Show verbati<span className="underline decoration-1 underline-offset-[3px]">m</span> tooltips</span>} checked={localConfig.showVerbatimTooltips ?? false} onChange={e => updateLocalConfig({ showVerbatimTooltips: e.target.checked })} disabled={!localConfig.showTooltips} />
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <input type="number"
+                       value={localConfig.tooltipZoom}
+                       onChange={(e) => updateLocalConfig({tooltipZoom: parseInt(e.target.value) || 100})}
+                       className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none"
+                    />
+                    <span className="text-[12px] text-[#e0e0e0]">Tooltip <span className="underline decoration-1 underline-offset-[3px]">z</span>oom (%)</span>
+                 </div>
+              </SettingsSection>
               <KeyboardShortcutsTab localConfig={localConfig} updateLocalConfig={updateLocalConfig} />
             </TabsContent>
 
@@ -1421,8 +1429,12 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="File Operations" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">File Operations</h1>
-              
+              <SettingsTabHeader
+                title="File Operations"
+                description="How copy, move, delete, and queues run."
+                icon="folder_open_ui"
+              />
+
               <SectionHeader title="Transfer engine" />
               <div className="ml-2 mb-4 space-y-[6px]">
                 <p className="text-[12px] text-[#b0b0b0] max-w-[620px] leading-relaxed">
@@ -1521,9 +1533,6 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               
               <SectionHeader title="Custom Copy Operations" />
               <div className="ml-2 mb-4 space-y-[6px]">
-                 <div className="mb-[10px]">
-                    <ActionBtn label="Configure..." className="w-[120px]" onClick={() => setActiveTab('File Operations')} />
-                 </div>
                  <Checkbox label={<span>Use Custom Copy</span>} checked={localConfig.useCustomCopy ?? false} onChange={e => updateLocalConfig({ useCustomCopy: e.target.checked })} />
                  <div className="ml-[20px] space-y-[6px]">
                     <Checkbox label={<span>For all <span className="underline decoration-1 underline-offset-[3px]">c</span>opy operations</span>} checked={localConfig.forAllCopyOperations ?? false} onChange={e => updateLocalConfig({ forAllCopyOperations: e.target.checked })} disabled={!localConfig.useCustomCopy} />
@@ -1540,12 +1549,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  </div>
               </div>
 
-              <SectionHeader title="External Copy Handlers" />
+              <SectionHeader title="Transfer handler (shortcut)" />
               <div className="ml-2 mb-4 space-y-[6px]">
-                 <div className="mb-[10px]">
-                    <ActionBtn label="Configure..." className="w-[120px]" onClick={() => setActiveTab('File Operations')} />
-                 </div>
-                 <div className="flex flex-col gap-1 mt-[10px]">
+                 <p className="text-[11px] text-[#888] max-w-[560px]">Same choice as Transfer engine above — kept here for muscle memory. Prefer the engine dropdown when deciding how copies run.</p>
+                 <div className="flex flex-col gap-1 mt-[6px]">
                      <span className="text-[12px] text-[#e0e0e0]">Select copy <span className="underline decoration-1 underline-offset-[3px]">h</span>andler:</span>
                      <select
                        className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[250px] outline-none"
@@ -1564,13 +1571,22 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  </div>
               </div>
               
-              <SectionHeader title="Miscellaneous" />
+              <SectionHeader title="Delete & safety" />
               <div className="ml-2 mb-4 space-y-[6px]">
                   <Checkbox label={<span>Suppress d<span className="underline decoration-1 underline-offset-[3px]">e</span>lete confirmation dialog</span>} checked={localConfig.suppressDeleteConfirmationDialog ?? false} onChange={e => updateLocalConfig({ suppressDeleteConfirmationDialog: e.target.checked })} />
+                  <SettingsHint>
+                    Recycle-bin and delete-key belts also appear under{' '}
+                    <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Safety Belts, Network')}>Safety &amp; Network</button>
+                    {' '}and{' '}
+                    <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Undo & Action Log')}>Undo &amp; Action Log</button>.
+                  </SettingsHint>
+              </div>
+
+              <SectionHeader title="Move & progress" />
+              <div className="ml-2 mb-4 space-y-[6px]">
                   <Checkbox label={<span>Preser<span className="underline decoration-1 underline-offset-[3px]">v</span>e permissions on move operation</span>} checked={localConfig.preservePermissionsOnMoveOperation ?? false} onChange={e => updateLocalConfig({ preservePermissionsOnMoveOperation: e.target.checked })} />
                   <Checkbox label={<span>File operation progress dialog m<span className="underline decoration-1 underline-offset-[3px]">o</span>deless</span>} checked={localConfig.fileOperationProgressDialogModeless ?? false} onChange={e => updateLocalConfig({ fileOperationProgressDialogModeless: e.target.checked })} />
-                  
-                  <div className="flex gap-4 items-center mt-[12px]">
+                  <div className="flex gap-4 items-center mt-[8px]">
                      <span className="text-[12px] text-[#e0e0e0]">Recreate source folder structure:</span>
                      <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[150px] outline-none" value={localConfig.recreateSourceFolderStructure || "Ask"} onChange={e => updateLocalConfig({recreateSourceFolderStructure: e.target.value})}><option>Ask</option><option>Never</option><option>Always</option></select>
                   </div>
@@ -1648,9 +1664,13 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
             
             <TabsContent value="Find Files & Branch View" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Find Files & Branch View</h1>
-              
-              <SectionHeader title="Find Files" />
+              <SettingsTabHeader
+                title="Find & Branch View"
+                description="Global search engines, the local index, result placement, then Branch View."
+                icon="search"
+              />
+
+              <SectionHeader title="Search engines" />
               <div className="ml-2 mb-6 space-y-[6px]">
                   <Checkbox label={<span>Enable Omni-Filter EverythingNet <span className="underline decoration-1 underline-offset-[3px]">G</span>lobal Search Prefix (&gt; )</span>} checked={localConfig.enableGlobalSearchPrefix ?? true} onChange={e => updateLocalConfig({ enableGlobalSearchPrefix: e.target.checked })} />
                   <Checkbox label={<span>Use BNDZ indexed search for &gt; global search</span>} checked={localConfig.enableBndzIndexedSearch !== false} onChange={e => updateLocalConfig({ enableBndzIndexedSearch: e.target.checked })} />
@@ -1690,8 +1710,11 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   
                   <Checkbox label={<span>Follow junctions</span>} checked={localConfig.followJunctions ?? false} onChange={e => updateLocalConfig({ followJunctions: e.target.checked })} />
                   <Checkbox label={<span>Skip invisible subfolders</span>} checked={localConfig.skipInvisibleSubfolders ?? false} onChange={e => updateLocalConfig({ skipInvisibleSubfolders: e.target.checked })} />
-                  
-                  <div className="flex gap-[42px] items-center mt-4 mb-4">
+              </div>
+
+              <SectionHeader title="Results & presentation" />
+              <div className="ml-2 mb-6 space-y-[6px]">
+                  <div className="flex gap-[42px] items-center mt-1 mb-4">
                      <span className="text-[12px] text-[#e0e0e0]">Sho<span className="underline decoration-1 underline-offset-[3px]">w</span> search results in:</span>
                      <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[250px] outline-none ml-[20px]" value={localConfig.showSearchResultsIn || "\"Search results\" tab (locked)"} onChange={e => updateLocalConfig({showSearchResultsIn: e.target.value})}><option>"Search results" tab (locked)</option><option>Current tab</option><option>New tab</option></select>
                   </div>
@@ -1734,57 +1757,54 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="Filters & Type Ahead Find" className="m-0 border-0 p-0 outline-none flex flex-col h-full">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Filters & Type Ahead Find</h1>
-              
-              <SectionHeader title="Visual Filters" />
-              <div className="ml-2 mb-4 space-y-[6px]">
+              <SettingsTabHeader
+                title="Filters & Type-Ahead"
+                description="Live filter bar, visual filters, shared matching rules, and Explorer-style type-ahead find."
+                icon="search"
+              />
+
+              <SettingsSection title="Matching rules" description="Shared by visual filters, the live filter box, and type-ahead.">
+                  <Checkbox label={<span>Enable e<span className="underline decoration-1 underline-offset-[3px]">x</span>tended pattern matching</span>} checked={localConfig.enableExtendedPatternMatching ?? false} onChange={e => updateLocalConfig({ enableExtendedPatternMatching: e.target.checked })} />
+                  <Checkbox label={<span>Highlight matc<span className="underline decoration-1 underline-offset-[3px]">h</span>es</span>} checked={localConfig.highlightMatches ?? false} onChange={e => updateLocalConfig({ highlightMatches: e.target.checked })} />
+                  <Checkbox label={<span>Ignore d<span className="underline decoration-1 underline-offset-[3px]">i</span>acritics</span>} checked={localConfig.ignoreDiacritics ?? false} onChange={e => updateLocalConfig({ ignoreDiacritics: e.target.checked })} />
+                  <Checkbox label={<span>Appl<span className="underline decoration-1 underline-offset-[3px]">y</span> to files only</span>} checked={localConfig.applyToFilesOnly ?? false} onChange={e => updateLocalConfig({ applyToFilesOnly: e.target.checked })} />
+                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">M</span>atch case</span>} checked={localConfig.matchCase ?? false} onChange={e => updateLocalConfig({ matchCase: e.target.checked })} />
+                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">U</span>se space character for Boolean AND</span>} checked={localConfig.useSpaceCharacterForBooleanAnd ?? false} onChange={e => updateLocalConfig({ useSpaceCharacterForBooleanAnd: e.target.checked })} />
+                  <Checkbox label={<span>Multi-column matching</span>} checked={localConfig.multiColumnMatching ?? false} onChange={e => updateLocalConfig({ multiColumnMatching: e.target.checked })} />
+              </SettingsSection>
+
+              <SettingsSection title="Visual filters" description="Name / type filters that stick on the folder view.">
                   <Checkbox label={<span>Persist visual filters <span className="underline decoration-1 underline-offset-[3px]">a</span>cross folders</span>} checked={localConfig.persistVisualFiltersAcrossFolders ?? false} onChange={e => updateLocalConfig({ persistVisualFiltersAcrossFolders: e.target.checked })} />
                   <Checkbox label={<span>Toggle on same filter</span>} checked={localConfig.toggleOnSameFilter ?? false} onChange={e => updateLocalConfig({ toggleOnSameFilter: e.target.checked })} />
-                  <Checkbox label={<span>Enable extended pattern matching</span>} checked={localConfig.enableExtendedPatternMatching ?? false} onChange={e => updateLocalConfig({ enableExtendedPatternMatching: e.target.checked })} />
                   <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>how filter information in list</span>} checked={localConfig.showFilterInformationInList ?? false} onChange={e => updateLocalConfig({ showFilterInformationInList: e.target.checked })} />
                   <Checkbox label={<span>Show filter infor<span className="underline decoration-1 underline-offset-[3px]">m</span>ation in tab headers</span>} checked={localConfig.showFilterInformationInTabHeaders ?? false} onChange={e => updateLocalConfig({ showFilterInformationInTabHeaders: e.target.checked })} />
-              </div>
-              
-              <SectionHeader title="Live Filter Box" />
-              <div className="ml-2 mb-4 space-y-[6px]">
-                  <Checkbox label={<span>Highlight ma<span className="underline decoration-1 underline-offset-[3px]">t</span>ches</span>} checked={localConfig.highlightMatches ?? false} onChange={e => updateLocalConfig({ highlightMatches: e.target.checked })} />
+              </SettingsSection>
+
+              <SettingsSection title="Live filter box" description="The omnibar filter above the file list.">
                   <Checkbox label={<span>Auto-select first match</span>} checked={localConfig.autoSelectFirstMatch ?? false} onChange={e => updateLocalConfig({ autoSelectFirstMatch: e.target.checked })} />
                   <Checkbox label={<span>Persistent <span className="underline decoration-1 underline-offset-[3px]">l</span>ive filters</span>} checked={localConfig.persistentLiveFilters ?? false} onChange={e => updateLocalConfig({ persistentLiveFilters: e.target.checked })} />
                   <Checkbox label={<span>Enable <span className="underline decoration-1 underline-offset-[3px]">n</span>avigation keys</span>} checked={localConfig.enableNavigationKeys ?? false} onChange={e => updateLocalConfig({ enableNavigationKeys: e.target.checked })} />
-                  <Checkbox label={<span>Enable extended pattern matching</span>} checked={localConfig.enableExtendedPatternMatching ?? false} onChange={e => updateLocalConfig({ enableExtendedPatternMatching: e.target.checked })} />
-                  <div className="flex items-center gap-2 mt-2">
-                     <input type="number" 
-                        value={localConfig.delayBeforeFilterIsApplied ?? 250} 
-                        onChange={(e) => updateLocalConfig({delayBeforeFilterIsApplied: parseInt(e.target.value) || 250})} 
+                  <div className="flex items-center gap-2 mt-1">
+                     <input type="number"
+                        value={localConfig.delayBeforeFilterIsApplied ?? 250}
+                        onChange={(e) => updateLocalConfig({delayBeforeFilterIsApplied: parseInt(e.target.value) || 250})}
                         className="w-[60px] h-6 bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none"
                      />
-                     <span className="text-[12px] text-[#e0e0e0]">Delay before filter is applic<span className="underline decoration-1 underline-offset-[3px]">e</span>d (in milliseconds)</span>
+                     <span className="text-[12px] text-[#e0e0e0]">Delay before filter is applic<span className="underline decoration-1 underline-offset-[3px]">e</span>d (ms)</span>
                   </div>
-              </div>
+              </SettingsSection>
 
-              <SectionHeader title="Visual Filters and Live Filter Box" />
-              <div className="ml-2 mb-4 space-y-[6px]">
-                  <Checkbox label={<span>Appl<span className="underline decoration-1 underline-offset-[3px]">y</span> to files only</span>} checked={localConfig.applyToFilesOnly ?? false} onChange={e => updateLocalConfig({ applyToFilesOnly: e.target.checked })} />
-                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">M</span>atch case</span>} checked={localConfig.matchCase ?? false} onChange={e => updateLocalConfig({ matchCase: e.target.checked })} />
-                  <Checkbox label={<span>Ignore d<span className="underline decoration-1 underline-offset-[3px]">i</span>acritics</span>} checked={localConfig.ignoreDiacritics ?? false} onChange={e => updateLocalConfig({ ignoreDiacritics: e.target.checked })} />
-                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">U</span>se space character for Boolean AND</span>} checked={localConfig.useSpaceCharacterForBooleanAnd ?? false} onChange={e => updateLocalConfig({ useSpaceCharacterForBooleanAnd: e.target.checked })} />
-                  <Checkbox label={<span>Multi-column matching</span>} checked={localConfig.multiColumnMatching ?? false} onChange={e => updateLocalConfig({ multiColumnMatching: e.target.checked })} />
-              </div>
-
-              <SectionHeader title="Type Ahead Find" />
-              <div className="ml-2 mb-4 space-y-[6px]">
+              <SettingsSection title="Type-ahead find" description="Press letters in the file list to jump to matching names (Explorer-style).">
                   <Checkbox label={<span>Enable t<span className="underline decoration-1 underline-offset-[3px]">y</span>pe ahead find</span>} checked={localConfig.enableTypeAheadFind ?? true} onChange={e => updateLocalConfig({ enableTypeAheadFind: e.target.checked })} />
                   <div className="ml-[20px] space-y-[6px]">
                      <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[400px] outline-none mt-1 mb-2" value={localConfig.typeAheadFindMatch || "Match at beginning"} onChange={e => updateLocalConfig({typeAheadFindMatch: e.target.value})} disabled={!localConfig.enableTypeAheadFind}><option>Match at beginning</option><option>Match anywhere</option><option>Match exact</option></select>
-                     <Checkbox label={<span>Highlight matc<span className="underline decoration-1 underline-offset-[3px]">h</span>es</span>} checked={localConfig.highlightMatches ?? false} onChange={e => updateLocalConfig({ highlightMatches: e.target.checked })} disabled={!localConfig.enableTypeAheadFind} />
-                     <Checkbox label={<span>Ignor<span className="underline decoration-1 underline-offset-[3px]">e</span> diacritics</span>} checked={localConfig.ignoreDiacritics ?? false} onChange={e => updateLocalConfig({ ignoreDiacritics: e.target.checked })} disabled={!localConfig.enableTypeAheadFind} />
                      <Checkbox label={<span>Allow repeated characters</span>} checked={localConfig.allowRepeatedCharacters ?? true} onChange={e => updateLocalConfig({ allowRepeatedCharacters: e.target.checked })} disabled={!localConfig.enableTypeAheadFind} />
                      <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>kip single spaces</span>} checked={localConfig.skipSingleSpaces ?? false} onChange={e => updateLocalConfig({ skipSingleSpaces: e.target.checked })} disabled={!localConfig.enableTypeAheadFind} />
                      <Checkbox label={<span>Use sorted <span className="underline decoration-1 underline-offset-[3px]">c</span>olumn</span>} checked={localConfig.useSortedColumn ?? false} onChange={e => updateLocalConfig({ useSortedColumn: e.target.checked })} disabled={!localConfig.enableTypeAheadFind} />
                      <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">P</span>aste and find</span>} checked={localConfig.pasteAndFind ?? false} onChange={e => updateLocalConfig({ pasteAndFind: e.target.checked })} disabled={!localConfig.enableTypeAheadFind} />
                      <Checkbox label={<span>Redirect typing to Live Filter Bo<span className="underline decoration-1 underline-offset-[3px]">x</span></span>} checked={localConfig.redirectTypingToLiveFilterBox ?? false} onChange={e => updateLocalConfig({ redirectTypingToLiveFilterBox: e.target.checked })} disabled={!localConfig.enableTypeAheadFind} />
                   </div>
-              </div>
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value="Shell Integration" className="m-0 border-0 p-0 outline-none mt-1">
@@ -2312,8 +2332,13 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="Tabs" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Tabs</h1>
-              
+              <SettingsTabHeader
+                title="Tabs"
+                description="Open/close behavior, strip appearance, buttons, and tabsets."
+                icon="table_ui"
+              />
+
+              <SectionHeader title="Behavior" />
               <div className="ml-[4px] mb-4 space-y-[6px]">
                  <div className="flex items-center gap-[42px] mb-[12px]">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">New tab <span className="underline decoration-1 underline-offset-[3px]">p</span>ath:</span>
@@ -2337,7 +2362,8 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  </div>
               </div>
               
-              <div className="h-4"></div>
+              <div className="h-2"></div>
+              <SectionHeader title="Cycling & limits" />
               <div className="ml-[4px] mb-4 space-y-[6px]">
                  <Checkbox label={<span>Cycle tabs in recently <span className="underline decoration-1 underline-offset-[3px]">u</span>sed order</span>} checked={localConfig.cycleTabsInRecentlyUsedOrder ?? false} onChange={e => updateLocalConfig({ cycleTabsInRecentlyUsedOrder: e.target.checked })} />
                  <Checkbox label={<span>R<span className="underline decoration-1 underline-offset-[3px]">e</span>use existing tabs when changing the location</span>} checked={localConfig.reuseExistingTabsWhenChangingTheLocation ?? false} onChange={e => updateLocalConfig({ reuseExistingTabsWhenChangingTheLocation: e.target.checked })} />
@@ -2349,7 +2375,10 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                     />
                     <span className="text-[12px] text-[#e0e0e0]">Maximum <span className="underline decoration-1 underline-offset-[3px]">n</span>umber of tabs (0 = unlimited)</span>
                  </div>
-                 
+              </div>
+
+              <SectionHeader title="Appearance" />
+              <div className="ml-[4px] mb-4 space-y-[6px]">
                  <Checkbox label={<span>Flexible tab <span className="underline decoration-1 underline-offset-[3px]">w</span>idth</span>} checked={localConfig.flexibleTabWidth ?? false} onChange={e => updateLocalConfig({ flexibleTabWidth: e.target.checked })} />
                  <div className="flex items-center gap-2 ml-[20px] mb-2 mt-1">
                     <input type="number" 
@@ -2379,7 +2408,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                        {[9, 10, 11, 12, 13, 14].map(n => <option key={n} value={n}>{n}px</option>)}
                     </select>
                  </div>
-                 <Checkbox label={<span>Sho<span className="underline decoration-1 underline-offset-[3px]">w</span> icons</span>} checked={localConfig.showIcons ?? false} onChange={e => updateLocalConfig({ showIcons: e.target.checked })} />
+                 <Checkbox label={<span>Sho<span className="underline decoration-1 underline-offset-[3px]">w</span> folder icons on tabs</span>} checked={localConfig.showIcons ?? false} onChange={e => updateLocalConfig({ showIcons: e.target.checked })} />
                  <Checkbox label={<span>Ma<span className="underline decoration-1 underline-offset-[3px]">k</span>e selected tab bold</span>} checked={localConfig.makeSelectedTabBold ?? false} onChange={e => updateLocalConfig({ makeSelectedTabBold: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">P</span>rompt on closing a locked tab</span>} checked={localConfig.promptOnClosingALockedTab ?? false} onChange={e => updateLocalConfig({ promptOnClosingALockedTab: e.target.checked })} />
                  <Checkbox label={<span>Auto-select tabs on dr<span className="underline decoration-1 underline-offset-[3px]">a</span>g-over</span>} checked={localConfig.autoSelectTabsOnDragOver ?? true} onChange={e => updateLocalConfig({ autoSelectTabsOnDragOver: e.target.checked })} />
@@ -2430,10 +2459,11 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                  </div>
                  <div className="flex items-center gap-[42px]">
                     <span className="text-[12px] text-[#e0e0e0] w-[140px]">Visual s<span className="underline decoration-1 underline-offset-[3px]">t</span>yle:</span>
-                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm flex-1 outline-none" value={localConfig.visualStyleTabs || "XYplorer Style (Rounded)"} onChange={e => updateLocalConfig({visualStyleTabs: e.target.value})}><option>XYplorer Style (Rounded)</option><option>Square</option><option>Modern</option><option>Classic</option></select>
+                    <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm flex-1 outline-none" value={(localConfig.visualStyleTabs === "XYplorer Style (Rounded)" ? "BNDZ Soft (Rounded)" : localConfig.visualStyleTabs) || "BNDZ Soft (Rounded)"} onChange={e => updateLocalConfig({visualStyleTabs: e.target.value})}><option>BNDZ Soft (Rounded)</option><option>Square</option><option>Modern</option><option>Classic</option></select>
                  </div>
               </div>
 
+              <SectionHeader title="Buttons & tabsets" />
               <div className="ml-[4px] mb-4 space-y-[6px]">
                   <div className="flex gap-[120px] items-center">
                      <Checkbox label={<span>Show 'New Tab' button</span>} checked={localConfig.showNewTabButton ?? false} onChange={e => updateLocalConfig({ showNewTabButton: e.target.checked })} />
@@ -2448,15 +2478,27 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   <Checkbox label={<span>Auto-sa<span className="underline decoration-1 underline-offset-[3px]">v</span>e tabsets on switch</span>} checked={localConfig.autoSaveTabsetsOnSwitch ?? false} onChange={e => updateLocalConfig({ autoSaveTabsetsOnSwitch: e.target.checked })} />
                   <Checkbox label={<span>Tabsets can revert after saving settings</span>} checked={localConfig.tabsetsCanRevertAfterSavingSettings ?? false} onChange={e => updateLocalConfig({ tabsetsCanRevertAfterSavingSettings: e.target.checked })} />
                   
-                  <div className="h-2"></div>
+              </div>
+
+              <SectionHeader title="Session" />
+              <div className="ml-[4px] mb-4 space-y-[6px]">
                   <Checkbox label={<span>Going <span className="underline decoration-1 underline-offset-[3px]">h</span>ome also restores the list layout</span>} checked={localConfig.goingHomeAlsoRestoresTheListLayout ?? false} onChange={e => updateLocalConfig({ goingHomeAlsoRestoresTheListLayout: e.target.checked })} />
                   <Checkbox label={<span>Remember tree scro<span className="underline decoration-1 underline-offset-[3px]">l</span>l position per tab</span>} checked={localConfig.rememberTreeScrollPositionPerTab ?? false} onChange={e => updateLocalConfig({ rememberTreeScrollPositionPerTab: e.target.checked })} />
+                  <SettingsHint>
+                    Tree scroll memory is most useful alongside options in{' '}
+                    <button type="button" className="text-[#7eb8e8] underline underline-offset-2" onClick={() => setActiveTab('Tree and List')}>Tree and List</button>.
+                  </SettingsHint>
               </div>
             </TabsContent>
 
             <TabsContent value="Dual Pane" className="m-0 border-0 p-0 outline-none">
-              <h1 className="text-[20px] font-bold text-white mb-6 leading-tight">Dual Pane</h1>
-              
+              <SettingsTabHeader
+                title="Dual Pane"
+                description="Side-by-side panes, Tab-key focus, and sync browse/select."
+                icon="table_ui"
+              />
+
+              <SectionHeader title="Layout & focus" />
               <div className="ml-[4px] mb-4 space-y-[6px]">
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>hade inactive pane</span>} checked={localConfig.shadeInactivePane ?? false} onChange={e => updateLocalConfig({ shadeInactivePane: e.target.checked })} />
                  
@@ -2613,22 +2655,22 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
             </TabsContent>
 
             <TabsContent value="Features" className="m-0 border-0 p-0 outline-none flex flex-col h-full">
-              <h1 className="text-[22px] font-bold text-white mb-6 tracking-tight">Features</h1>
-              <p className="text-[12px] text-[#e0e0e0] leading-relaxed mb-10 w-[580px]">
-                 Here you can control some of the advanced functionality of XYplorer and disable features which you do not use or wish to see. Disabling a feature will remove the related elements from the GUI and may improve overall resource usage.
-              </p>
-              
-              <div className="ml-[8px] space-y-[6px]">
+              <SettingsTabHeader
+                title="Features"
+                description="Turn off BNDZ surfaces you rarely use. Disabling a feature hides related UI and can reduce resource use."
+                icon="puzzle_ui"
+              />
+              <SettingsSection title="Workspace features">
                  <Checkbox label={<span>File Tagging</span>} checked={localConfig.fileTagging ?? false} onChange={e => updateLocalConfig({ fileTagging: e.target.checked })} />
-                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">U</span>ser-Defined Commands</span>} checked={localConfig.userDefinedCommands ?? false} onChange={e => updateLocalConfig({ userDefinedCommands: e.target.checked })} />
-                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>cripting</span>} checked={localConfig.scripting ?? false} onChange={e => updateLocalConfig({ scripting: e.target.checked })} />
                  <Checkbox label={<span>Dual <span className="underline decoration-1 underline-offset-[3px]">P</span>ane</span>} checked={localConfig.dualPane ?? false} onChange={e => updateLocalConfig({ dualPane: e.target.checked })} />
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">T</span>absets</span>} checked={localConfig.tabsets ?? false} onChange={e => updateLocalConfig({ tabsets: e.target.checked })} />
-                 
-                 <div className="h-4"></div>
                  <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">C</span>atalog</span>} checked={localConfig.catalog ?? false} onChange={e => updateLocalConfig({ catalog: e.target.checked })} />
+              </SettingsSection>
+              <SettingsSection title="Automation & input" description="Rebinding lives under Keyboard & Mouse — this only enables the feature.">
+                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">U</span>ser-Defined Commands</span>} checked={localConfig.userDefinedCommands ?? false} onChange={e => updateLocalConfig({ userDefinedCommands: e.target.checked })} />
+                 <Checkbox label={<span><span className="underline decoration-1 underline-offset-[3px]">S</span>cripting</span>} checked={localConfig.scripting ?? false} onChange={e => updateLocalConfig({ scripting: e.target.checked })} />
                  <Checkbox label={<span>Custom <span className="underline decoration-1 underline-offset-[3px]">K</span>eyboard Shortcuts</span>} checked={localConfig.customKeyboardShortcuts ?? true} onChange={e => updateLocalConfig({ customKeyboardShortcuts: e.target.checked })} />
-              </div>
+              </SettingsSection>
             </TabsContent>
 
             <TabsContent value="Themes" className="m-0 border-0 p-0 outline-none">

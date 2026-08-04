@@ -313,11 +313,16 @@ function TreeRow({
 
       {(row.iconPath || row.path) && row.useShellIcon !== false ? (
         <span className="mr-1.5 shrink-0">
-          <TreeShellIcon path={row.path} iconPath={row.iconPath} size={15} />
+          <TreeShellIcon path={row.path} iconPath={row.iconPath} size={15} fallbackIcon={row.icon} />
         </span>
       ) : row.icon ? (
         <span className="mr-1.5 shrink-0">
           <Icons8Icon id={row.icon} size={15} />
+        </span>
+      ) : row.path && (/^\/bndz(\/|$)/i.test(row.path) || row.path.toLowerCase().startsWith('/vf/')) ? (
+        // Virtual BNDZ nodes without an explicit icon still must not hit shell fetch (white files).
+        <span className="mr-1.5 shrink-0">
+          <Icons8Icon id="sparkles_ui" size={15} />
         </span>
       ) : null}
 

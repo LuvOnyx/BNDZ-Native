@@ -1277,6 +1277,8 @@ export default function BNDZUI() {
   const suppressNavClickUntilRef = React.useRef(0);
   const typeAheadPrefixRef = useRef('');
   const typeAheadAtRef = useRef(0);
+  /** Last type-ahead hit — sync so same-key cycling works before React re-renders focusedItemId. */
+  const typeAheadMatchIdRef = useRef<string | null>(null);
   /** True after the user clicks/focuses a file list — type-ahead stays armed even if WebView2 leaves chrome focused. */
   const listTypeAheadArmedRef = useRef(false);
   /** Latest type-ahead context — handler is stable so letter keys never hit a stale closure. */
@@ -4193,7 +4195,9 @@ export default function BNDZUI() {
       items.push({
         label: name,
         path: p,
-        iconPath: KNOWN_FOLDER_SHELL[name],
+        // Use the real FS path for shell icon fetch (unique Desktop/Documents glyphs).
+        // shell: tokens used to be queried as files → white page placeholders.
+        iconPath: p,
         // Navigate-only under Libraries — expanding here surfaced a nested
         // "Desktop" folder (Desktop\Desktop) that shadowed the known folder.
         isDynamic: false,
@@ -4432,9 +4436,11 @@ export default function BNDZUI() {
         draggable: true,
         label: 'Home',
         path: BNDZ_HOME,
+        // Continuum Home is virtual (/bndz/home) — fetch the Windows Profile/Home shell glyph.
+        iconPath: KNOWN_FOLDER_SHELL.Home,
         icon: 'home',
         iconColor: '#7eb8e8',
-        useShellIcon: false,
+        useShellIcon: true,
         onClick: () => setCurrentPath(BNDZ_HOME),
       },
       {
@@ -4442,11 +4448,11 @@ export default function BNDZUI() {
         draggable: true,
         label: (windowsUsername && windowsUsername !== 'Public') ? windowsUsername : 'Profile',
         path: homeTreePath,
-        iconPath: KNOWN_FOLDER_SHELL.Home,
+        iconPath: homeTreePath,
         icon: 'home',
         iconColor: '#6db4e6',
         isDynamic: true,
-        useShellIcon: false,
+        useShellIcon: true,
         onClick: () => guardedSetCurrentPath(homeTreePath),
       },
       {
@@ -4469,7 +4475,7 @@ export default function BNDZUI() {
         label: 'Control Panel',
         path: CONTROL_PANEL_PATH,
         iconPath: SHELL_CLSID.controlPanel,
-        icon: 'settings_ui',
+        icon: 'control_panel',
         iconColor: '#6db4e6',
         useShellIcon: true,
         leaf: true,
@@ -4482,6 +4488,8 @@ export default function BNDZUI() {
         path: BNDZ_VIEWS_ROOT,
         icon: 'sparkles_ui',
         iconColor: '#0078d4',
+        // Virtual /bndz paths are not shell namespace items — shell fetch → white file placeholders.
+        useShellIcon: false,
         expanded: smartViewsExpanded,
         onClick: () => setCurrentPath(BNDZ_VIEWS_ROOT),
         onToggle: () => setSmartViewsExpanded(!smartViewsExpanded),
@@ -4489,6 +4497,7 @@ export default function BNDZUI() {
           ...(['recent', 'media', 'audio', 'documents', 'large'] as const).map(view => ({
             label: bndzVirtualLabel(view),
             path: bndzVirtualPath(view),
+            useShellIcon: false as const,
             icon: view === 'recent' ? 'clock_ui'
               : view === 'media' ? 'film_ui'
               : view === 'audio' ? 'music_ui'
@@ -4500,9 +4509,9 @@ export default function BNDZUI() {
               : view === 'documents' ? '#60a5fa'
               : '#a78bfa',
           })),
-          { label: 'Problems', path: BNDZ_PROBLEMS, icon: 'warning', iconColor: '#f59e0b' },
-          { label: 'Inbound', path: BNDZ_INBOUND, icon: 'download_ui', iconColor: '#60a5fa' },
-          { label: 'Time Diff', path: BNDZ_TEMPORAL_DIFF, icon: 'clock_ui', iconColor: '#38bdf8' },
+          { label: 'Problems', path: BNDZ_PROBLEMS, icon: 'warning', iconColor: '#f59e0b', useShellIcon: false as const },
+          { label: 'Inbound', path: BNDZ_INBOUND, icon: 'download_ui', iconColor: '#60a5fa', useShellIcon: false as const },
+          { label: 'Time Diff', path: BNDZ_TEMPORAL_DIFF, icon: 'clock_ui', iconColor: '#38bdf8', useShellIcon: false as const },
         ],
       },
       {
@@ -4542,6 +4551,7 @@ export default function BNDZUI() {
               path: bndzRamVirtualPath(z.id),
               icon: 'hard_drive_ui',
               iconColor: z.isDirty ? '#fbbf24' : '#a78bfa',
+              useShellIcon: false as const,
             })),
           }]
         : []),
@@ -4654,7 +4664,7 @@ export default function BNDZUI() {
         label: 'Recycle Bin',
         path: RECYCLE_BIN_PATH,
         iconPath: SHELL_CLSID.recycleBin,
-        icon: 'trash_ui',
+        icon: 'go_recycle_bin',
         iconColor: '#c084fc',
         useShellIcon: true,
         leaf: true,
@@ -6186,6 +6196,8 @@ export default function BNDZUI() {
       }
       return p;
     }));
+    // Drop focus that may still point at an item from the previous folder (stale audio preview).
+    if (paneId === activePaneId) setFocusedItemId(null);
     if (updateHistory && norm) {
       if (navHistoryTimerRef.current) clearTimeout(navHistoryTimerRef.current);
       navHistoryTimerRef.current = setTimeout(() => {
@@ -7146,8 +7158,11 @@ export default function BNDZUI() {
       };
 
       // Explorer: walk current view order from focus (ignore alpha re-sort).
-      const match = pickTypeAheadMatch(listItems, predicate, ctx.focusedItemId, repeatCycle);
+      // Prefer sync last-hit over React state so rapid same-key presses cycle.
+      const focusForPick = typeAheadMatchIdRef.current || ctx.focusedItemId || null;
+      const match = pickTypeAheadMatch(listItems, predicate, focusForPick, repeatCycle);
       if (!match) return;
+      typeAheadMatchIdRef.current = match.id;
 
       const paneId = ctx.activePaneId as string;
       const index = listItems.findIndex((item: any) => item.id === match.id);
@@ -9856,8 +9871,41 @@ export default function BNDZUI() {
   const currentTab = resolvePaneTab(currentPane) ?? {
     id: 'fallback', path: '/', history: ['/'], historyIndex: 0, selectedItems: [],
   };
+  const currentFolderListing = useMemo(() => {
+    const pane = normalizePanePath(currentTab.path);
+    // This PC / Libraries synthesize list entities — they are not in pathContentsCache.
+    if (pane === '/' || pane === '/this-pc') {
+      return navigationDrives.map(d => {
+        const normalizedName = d.name.replace(/^\/+/, '/');
+        const letter = formatDriveLetter(normalizedName);
+        return {
+          id: `drive-${normalizedName}`,
+          name: formatDriveDisplayName(d.label, normalizedName),
+          type: 'directory' as const,
+          path: normalizedName,
+          size: d.totalSpace,
+          tags: [] as string[],
+          typeDescription: `${formatDriveVolumeLabel(d.label, letter) || letter} Drive (${d.format || d.fileSystem || 'Local'})`,
+          driveInfo: d,
+        };
+      });
+    }
+    if (pane.toLowerCase() === '/shell:libraries') return libraryListEntities;
+    return pathContentsCache[currentTab.path]
+      || pathContentsCache[pane]
+      || [];
+  }, [pathContentsCache, currentTab.path, navigationDrives, libraryListEntities]);
+
+  /** Prefer the active folder listing so global cache hits from other dirs cannot stick the preview. */
+  const resolveInCurrentFolder = (id: string | null) => {
+    if (!id) return null;
+    return currentFolderListing.find((x: any) => x.id === id) || null;
+  };
+
   const getResolvedEntity = (id: string | null) => {
       if (!id) return null;
+      const inFolder = resolveInCurrentFolder(id);
+      if (inFolder) return inFolder;
       const cached = findEntityInCache(pathContentsCache, id);
       if (cached) return cached;
       let ent = getEntityByPath(fileSystem, id);
@@ -9884,30 +9932,43 @@ export default function BNDZUI() {
       return null;
   };
   const focusedEntity = getResolvedEntity(focusedItemId);
-  const focusedFullPath = focusedEntity
-      ? joinPanePath(currentTab.path, focusedEntity)
+  const focusedInCurrentFolder = resolveInCurrentFolder(focusedItemId)
+    || (focusedItemId?.startsWith('drive-') ? getResolvedEntity(focusedItemId) : null);
+  const focusedFullPath = focusedInCurrentFolder
+      ? ((focusedInCurrentFolder as any).path
+          ? toPanePath((focusedInCurrentFolder as any).path)
+          : joinPanePath(currentTab.path, focusedInCurrentFolder))
       : null;
 
   const previewEntity = useMemo(() => {
-    if (currentTab.selectedItems.length > 0) {
-      const ent = getResolvedEntity(currentTab.selectedItems[0]);
-      if (ent) return ent;
+    const selId = currentTab.selectedItems[0] || null;
+    const fromSel = resolveInCurrentFolder(selId);
+    if (fromSel) return fromSel;
+    // Drive / synthetic selection ids must still win over the location entity
+    // (pathContentsCache is empty at This PC — without this, Local Disk (C:) stuck on This PC).
+    if (selId?.startsWith('drive-') || selId?.startsWith('loc:')) {
+      const syn = getResolvedEntity(selId);
+      if (syn) return syn;
     }
-    if (focusedEntity) return focusedEntity;
+    const fromFocus = resolveInCurrentFolder(focusedItemId);
+    if (fromFocus) return fromFocus;
+    if (focusedItemId?.startsWith('drive-')) {
+      const syn = getResolvedEntity(focusedItemId);
+      if (syn) return syn;
+    }
     return getLocationEntityFromPath(currentTab.path);
-  }, [currentTab.selectedItems, currentTab.path, focusedEntity, pathContentsCache]);
+  }, [currentTab.selectedItems, currentTab.path, focusedItemId, currentFolderListing, navigationDrives, drives]);
 
   const previewPath = useMemo(() => {
-    if (currentTab.selectedItems.length > 0) {
-      const ent = getResolvedEntity(currentTab.selectedItems[0]);
-      if (ent) {
-        if ((ent as any).path) return toPanePath((ent as any).path);
-        return joinPanePath(currentTab.path, ent);
-      }
+    if (!previewEntity) return currentTab.path;
+    if ((previewEntity as any).driveInfo || String(previewEntity.id || '').startsWith('drive-')) {
+      return toPanePath((previewEntity as any).path || currentTab.path);
     }
-    if (focusedFullPath) return focusedFullPath;
-    return currentTab.path;
-  }, [currentTab.selectedItems, currentTab.path, focusedFullPath, pathContentsCache]);
+    if ((previewEntity as any).path) return toPanePath((previewEntity as any).path);
+    const loc = getLocationEntityFromPath(currentTab.path);
+    if (previewEntity === loc || previewEntity?.id === loc?.id) return currentTab.path;
+    return joinPanePath(currentTab.path, previewEntity);
+  }, [previewEntity, currentTab.path]);
 
   const quickPreviewItems = useMemo(() => {
     if (!activeContents) return [];
@@ -12124,6 +12185,7 @@ export default function BNDZUI() {
                           }}
                         >
                           <RightPreviewPanel
+                            key={`preview-${previewPath || ''}-${previewEntity?.id || ''}`}
                             entity={previewEntity}
                             path={previewPath}
                             pathContentsCache={pathContentsCache}
@@ -12137,7 +12199,10 @@ export default function BNDZUI() {
                             onSelectPath={p => {
                               const ent = (pathContentsCache[currentTab.path] || pathContentsCache[normalizePanePath(currentTab.path)] || [])
                                 .find((x: any) => joinPanePath(currentTab.path, x) === p || x.path === p || x.id === p);
-                              if (ent?.id) setFocusedItemId(ent.id);
+                              if (ent?.id) {
+                                setFocusedItemId(ent.id);
+                                setSelectedItems([ent.id], activePaneId);
+                              }
                             }}
                             onOpenFloatingPreview={() => {
                               if (!focusedItemId && !(currentTab.selectedItems?.length)) {
@@ -12258,6 +12323,7 @@ export default function BNDZUI() {
                     }}
                   >
                     <RightPreviewPanel
+                      key={`preview-${previewPath || ''}-${previewEntity?.id || ''}`}
                       entity={previewEntity}
                       path={previewPath}
                       pathContentsCache={pathContentsCache}
@@ -12271,7 +12337,10 @@ export default function BNDZUI() {
                       onSelectPath={p => {
                         const ent = (pathContentsCache[currentTab.path] || pathContentsCache[normalizePanePath(currentTab.path)] || [])
                           .find((x: any) => joinPanePath(currentTab.path, x) === p || x.path === p || x.id === p);
-                        if (ent?.id) setFocusedItemId(ent.id);
+                        if (ent?.id) {
+                          setFocusedItemId(ent.id);
+                          setSelectedItems([ent.id], activePaneId);
+                        }
                       }}
                       onOpenFloatingPreview={() => {
                         if (!focusedItemId && !(currentTab.selectedItems?.length)) {

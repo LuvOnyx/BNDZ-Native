@@ -245,12 +245,24 @@ export function entityShellIsDirectory(entity: { driveInfo?: unknown; id?: strin
 export function shellIconIsDirectory(path: string | null | undefined): boolean {
   if (!path) return true;
   if (path.startsWith('::{')) return false;
-  if (path.toLowerCase().startsWith('shell:')) return false;
   if (isRecycleBinPath(path)) return false;
   if (isDriveRootPanePath(path)) return false;
+  const lower = path.toLowerCase().replace(/^\//, '');
+  // Known-folder shell tokens (Desktop, Downloads, …) are directories — query them as such
+  // so the tree gets the real special-folder glyph instead of a white file placeholder.
+  if (lower.startsWith('shell:')) {
+    const token = `shell:${lower.slice(6).split(/[/\\]/)[0]}`;
+    const known = Object.values(KNOWN_FOLDER_SHELL).some(v => v.toLowerCase() === token);
+    if (known) return true;
+    // Control Panel / other virtual shell names are not directories.
+    return false;
+  }
   const pane = normalizePanePath(path);
   if (pane === '/' || pane === '//' || pane === '\\\\') return false;
-  if (pane.toLowerCase().startsWith('/shell:')) return false;
+  if (pane.toLowerCase().startsWith('/shell:')) {
+    const shellKey = pane.slice(1).toLowerCase();
+    return Object.values(KNOWN_FOLDER_SHELL).some(v => v.toLowerCase() === shellKey);
+  }
   const win = toWindowsPath(pane);
   if (/^[A-Za-z]:\\?$/.test(win)) return false;
   const name = win.split(/[/\\]/).pop() || '';

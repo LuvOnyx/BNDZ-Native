@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   getCachedIcon,
+  hasReadyCachedIcon,
   requestNativeIcon,
   subscribeIcon,
   LIST_THUMB_PX,
@@ -45,8 +46,8 @@ export function useNativeIconFetch(
 ) {
   useEffect(() => {
     if (!visible || !path || !enabled) return;
-    // Skip IPC when cache already warm — virtualized remounts must not re-fetch.
-    if (getCachedIcon(path, isDirectory, kind, thumbPx)) return;
+    // Skip IPC when per-path cache is ready — provisional __folder__ must NOT block fetch.
+    if (hasReadyCachedIcon(path, isDirectory, kind, thumbPx)) return;
     void requestNativeIcon(path, isDirectory, kind, thumbPx);
   }, [path, isDirectory, kind, visible, enabled, thumbPx]);
 }

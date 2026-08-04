@@ -90,43 +90,60 @@ namespace BNDZ.Services
             return Convert.ToBase64String(ms.ToArray());
         }
 
+        /// <summary>PIDL-based icon fetch — handles CLSIDs, shell: known folders, drives, and
+        /// real paths with per-folder custom icons. The universal path for shell namespace items.</summary>
+        private string GetIconViaPidl(string parsingName)
+        {
+            foreach (var candidate in PidlishNames(parsingName))
+            {
+                IntPtr pidl = IntPtr.Zero;
+                try
+                {
+                    int hr = SHParseDisplayName(candidate, IntPtr.Zero, out pidl, 0, out _);
+                    if (hr != 0 || pidl == IntPtr.Zero)
+                        continue;
+
+                    var shfi = new SHFILEINFO();
+                    SHGetFileInfoPidl(pidl, 0, ref shfi, (uint)Marshal.SizeOf(shfi), SHGFI_ICON | SHGFI_LARGEICON | SHGFI_PIDL);
+                    var png = HIconToBase64(shfi.hIcon);
+                    if (!string.IsNullOrEmpty(png))
+                        return png;
+                }
+                catch
+                {
+                    /* try next candidate */
+                }
+                finally
+                {
+                    if (pidl != IntPtr.Zero) Marshal.FreeCoTaskMem(pidl);
+                }
+            }
+            return "";
+        }
+
+        private static IEnumerable<string> PidlishNames(string parsingName)
+        {
+            if (string.IsNullOrEmpty(parsingName)) yield break;
+            yield return parsingName;
+            // Some hosts parse better with the shell::: prefix.
+            if (parsingName.StartsWith("::{", StringComparison.Ordinal)
+                && !parsingName.StartsWith("shell:::", StringComparison.OrdinalIgnoreCase))
+                yield return "shell:" + parsingName;
+        }
+
         private string HIconToBase64(IntPtr hIcon)
         {
             if (hIcon == IntPtr.Zero) return "";
             try
             {
-                using var icon = Icon.FromHandle(hIcon);
-                using var bitmap = icon.ToBitmap();
+                // Clone before DestroyIcon — Icon.FromHandle does not own the HICON lifetime.
+                using var owned = (Icon)Icon.FromHandle(hIcon).Clone();
+                using var bitmap = owned.ToBitmap();
                 return BitmapToBase64Png(bitmap);
             }
             finally
             {
                 ShellWin32.SafeDestroyIcon(hIcon);
-            }
-        }
-
-        /// <summary>PIDL-based icon fetch — handles CLSIDs, shell: known folders, drives, and
-        /// real paths with per-folder custom icons. The universal path for shell namespace items.</summary>
-        private string GetIconViaPidl(string parsingName)
-        {
-            IntPtr pidl = IntPtr.Zero;
-            try
-            {
-                int hr = SHParseDisplayName(parsingName, IntPtr.Zero, out pidl, 0, out _);
-                if (hr != 0 || pidl == IntPtr.Zero)
-                    return "";
-
-                var shfi = new SHFILEINFO();
-                SHGetFileInfoPidl(pidl, 0, ref shfi, (uint)Marshal.SizeOf(shfi), SHGFI_ICON | SHGFI_LARGEICON | SHGFI_PIDL);
-                return HIconToBase64(shfi.hIcon);
-            }
-            catch
-            {
-                return "";
-            }
-            finally
-            {
-                if (pidl != IntPtr.Zero) Marshal.FreeCoTaskMem(pidl);
             }
         }
 
@@ -137,7 +154,9 @@ namespace BNDZ.Services
             uint attrs = 0;
             bool isVirtual = ShellPathResolver.IsShellVirtualPath(path)
                 || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
-            if (isDirectory && !isVirtual)
+            // USEFILEATTRIBUTES forces a generic folder glyph and skips custom/special
+            // folder icons — only use it when the path may not exist on disk yet.
+            if (isDirectory && !isVirtual && !Directory.Exists(path))
             {
                 flags |= SHGFI_USEFILEATTRIBUTES;
                 attrs = FILE_ATTRIBUTE_DIRECTORY;
@@ -171,10 +190,14 @@ namespace BNDZ.Services
             if (!string.IsNullOrEmpty(pidlIcon))
                 return pidlIcon;
 
-            // Fallback: string-path SHGetFileInfo (generic glyphs for nonexistent paths)
-            var shellIcon = GetIconViaShell32(filePath, isDirectory && !isVirtual);
-            if (!string.IsNullOrEmpty(shellIcon))
-                return shellIcon;
+            // String-path SHGetFileInfo on ::{clsid} often returns the generic white document —
+            // skip it for virtual namespaces and go straight to ShellItem / fail empty.
+            if (!isVirtual)
+            {
+                var shellIcon = GetIconViaShell32(filePath, isDirectory);
+                if (!string.IsNullOrEmpty(shellIcon))
+                    return shellIcon;
+            }
 
             try
             {

@@ -1795,7 +1795,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
             commands={[
               { id: 'zin', label: 'Zoom in', iconSrc: '/launcher-icons/magnifier.png', onClick: () => zoomBy(1.15) },
               { id: 'zout', label: 'Zoom out', iconSrc: '/launcher-icons/minus_ui.png', onClick: () => zoomBy(0.87) },
-              { id: 'fit', label: 'Fit all', iconSrc: '/Ui/details-view.svg', onClick: fitBoard },
+              { id: 'fit', label: 'Fit all', iconSrc: '/launcher-icons/details-view.svg', onClick: fitBoard },
               { id: 'grid', label: 'Arrange grid', iconSrc: '/Ui/icons.svg', disabled: boardIsEmpty, onClick: arrangeGrid },
               { id: 'sticky', label: 'Sticky note', iconSrc: '/launcher-icons/emblem-documents.svg', onClick: () => addStickyNote() },
               { id: 'links', label: 'Relations', iconSrc: '/launcher-icons/emblem-shared.svg', active: showRelations, onClick: () => setShowRelations(v => !v) },

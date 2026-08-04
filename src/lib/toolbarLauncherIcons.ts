@@ -1,5 +1,5 @@
 /** Bump when PNG/SVG assets change so WebView2 does not serve stale launcher-icons. */
-export const LAUNCHER_ICON_REV = '19';
+export const LAUNCHER_ICON_REV = '20';
 
 /** Maps toolbar item ids to Icons8 3D Fluency PNGs (public/launcher-icons/). */
 export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
@@ -7,7 +7,8 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   nav_forward: 'nav_forward.png',
   nav_up: 'nav_up.png',
   go_home: 'go_home.png',
-  home: 'Home.ico',
+  // Prefer PNG — multi-frame .ico often paints as a blank/white doc in WebView2 at 15–16px.
+  home: 'go_home.png',
   refresh: 'refresh.png',
   folder_size_sync: 'folder_size_sync.png',
   go_recycle_bin: 'go_recycle_bin.png',
@@ -62,6 +63,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   taskmgr: 'taskmgr.png',
   regedit: 'regedit.png',
   control_panel: 'control_panel.png',
+  settings_ui: 'control_panel.png',
   settings_app: 'settings_app.png',
   device_manager: 'device_manager.png',
   services: 'services.png',
@@ -158,7 +160,7 @@ export const TOOLBAR_LAUNCHER_ICONS: Record<string, string> = {
   filter_ui: 'filter_ui.png',
   arrow_right_ui: 'arrow_right_ui.png',
   monitor_ui: 'monitor_ui.png',
-  this_pc: 'ThisPC.ico',
+  this_pc: 'computer_mgmt.png',
   cloud_ui: 'cloud_ui.png',
   cloud_drive: 'Cloud-drive.ico',
   git_branch_ui: 'git_branch_ui.png',

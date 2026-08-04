@@ -57,9 +57,36 @@ export function SettingsSection({
 
 export function SettingsHint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] text-[#888] mb-5 p-3 border border-[#333] rounded-lg bg-[#151518] leading-relaxed">
+    <p className="bndz-settings-hint text-[11px] text-[#9ca3af] mb-4 p-3 leading-relaxed">
       {children}
     </p>
+  );
+}
+
+/** Soft squircle action used across Configuration tabs. */
+export function SettingsActionBtn({
+  label,
+  className = '',
+  onClick,
+  disabled,
+  title,
+}: {
+  label: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title={title}
+      className={`bndz-settings-action-btn ${className}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
   );
 }
 

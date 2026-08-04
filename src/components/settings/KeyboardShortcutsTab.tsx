@@ -28,7 +28,7 @@ const REFERENCE_ROWS = [
   { keys: 'Ctrl+Tab', desc: 'Switch active pane' },
   { keys: '/', desc: 'Focus filter bar' },
   { keys: '::help', desc: 'Address bar quick scripts' },
-  { keys: 'path ? filter', desc: 'Navigate + filter (XYplorer)' },
+  { keys: 'path ? filter', desc: 'Navigate + filter from the address bar' },
 ];
 
 function KeybindingRow({
@@ -136,27 +136,29 @@ export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }:
   };
 
   return (
-    <div className="p-4 space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icons8Icon id="keyboard_ui" size={15} />
-          <h1 className="text-[16px] font-bold text-white">Keyboard Shortcuts</h1>
+    <div className="space-y-4 max-w-2xl">
+      <div className="bndz-settings-section">
+        <div className="bndz-settings-section-header flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-[13px] font-semibold text-white tracking-tight">Key bindings</h3>
+            <p className="bndz-panel-muted mt-0.5 text-[11px]">
+              {customEnabled
+                ? 'Click a shortcut, then press the keys you want. Esc cancels. Conflicts highlight in red.'
+                : 'Built-in shortcuts are active. Enable Custom Keyboard Shortcuts under Features to rebind.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={resetAll}
+            disabled={!customEnabled}
+            className="bndz-settings-action-btn shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Reset defaults
+          </button>
         </div>
-        <button
-          onClick={resetAll}
-          disabled={!customEnabled}
-          className="text-[11px] text-gray-400 hover:text-white border border-[#444] rounded-sm px-3 py-1 hover:bg-[#2a2a2a] disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Reset all to defaults
-        </button>
-      </div>
-      <p className="text-[12px] text-gray-400 -mt-3">
-        {customEnabled
-          ? 'Click a shortcut, then press the key combination you want. Press Esc to cancel. Conflicts are highlighted in red.'
-          : 'Built-in shortcuts are active. Enable Custom Keyboard Shortcuts in Settings → Features to rebind keys.'}
-      </p>
+        <div className="p-4 space-y-4">
       {!customEnabled && (
-        <div className="rounded border border-[#444] bg-[#1a1a1a] px-3 py-2 text-[11px] text-gray-400">
+        <div className="rounded-lg border border-[#444] bg-[#1a1a1a] px-3 py-2 text-[11px] text-gray-400">
           Custom rebinding is disabled. Reference shortcuts below still work with the default bindings.
         </div>
       )}
@@ -227,6 +229,8 @@ export default function KeyboardShortcutsTab({ localConfig, updateLocalConfig }:
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
         </div>
       </div>
     </div>

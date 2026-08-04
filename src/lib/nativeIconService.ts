@@ -28,8 +28,8 @@ function canonicalizeIconPath(path: string): string {
   let win = (resolveShellIconPath(path) || toWindowsPath(path) || '').trim();
   if (!win) return '';
   win = win.replace(/\//g, '\\');
-  // Shell / GUID paths keep case — filesystem paths normalize for Map hits across casing.
-  if (/^shell:/i.test(win) || win.includes('::{')) return win;
+  // Shell / GUID paths keep case — version prefix busts poisoned white-doc CLSID cache entries.
+  if (/^shell:/i.test(win) || win.includes('::{')) return `shellns:v2:${win}`;
   // Collapse trailing separators except drive roots (C:\).
   if (/^[A-Za-z]:\\/.test(win)) {
     const drive = win.slice(0, 2).toUpperCase();
@@ -198,6 +198,17 @@ export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequ
     }
   }
   return null;
+}
+
+/** True only when a per-path / per-kind entry is fully resolved (not provisional glyphs). */
+export function hasReadyCachedIcon(
+  path: string,
+  isDirectory: boolean,
+  kind: IconRequestKind = 'shell',
+  thumbPx = LIST_THUMB_PX,
+): boolean {
+  const entry = cache.get(iconKey(path, isDirectory, kind, thumbPx));
+  return !!(entry?.status === 'ready' && entry.data);
 }
 
 function isNegativeFresh(entry: IconCacheEntry | undefined): boolean {

@@ -63,8 +63,12 @@ public static class BndzHostCaches
     {
         path ??= "";
         bool isVirtual = ShellPathResolver.IsShellVirtualPath(path)
-            || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
-        if (!isVirtual && !isDirectory && path.Length > 0
+            || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("::{", StringComparison.Ordinal);
+        // Bust prior disk/L1 poison where CLSIDs were stored under the generic white-doc glyph.
+        if (isVirtual)
+            return "shellns:v2:" + path;
+        if (!isDirectory && path.Length > 0
             && !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             && !path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
             && !path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))

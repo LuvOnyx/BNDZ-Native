@@ -1549,7 +1549,7 @@ export default function BndzAutomationView() {
           {
             id: 'fit-view',
             label: 'Fit all',
-            iconSrc: '/Ui/details-view.svg',
+            iconSrc: '/launcher-icons/details-view.svg',
             onClick: () => {
               const rf = rfInstanceRef.current;
               if (!rf) return;
