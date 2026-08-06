@@ -1,27 +1,18 @@
-# Native shell spike — route
-
-artifact_note: comparison branch implementation brief (not a ce-unified-plan)
+# Native shell spike — dual complete versions
 
 ## Problem
 
-WebView2 chrome reads “web-appy.” Files looks modern/native. Merging Files while keeping BNDZ’s React UI is a contradiction.
-
-## Route (implemented on this branch)
-
-1. Stop putting new chrome investment into WebView2 for this experiment.
-2. Do not graft web UI into a Files clone.
-3. Spike a thin native shell (Files **topology**, BNDZ **brand/proportions**) and port content behind contracts.
+Need two builds you can fully test: classic WebView2 BNDZ vs native-shell direction — without dropping BNDZ content/UI.
 
 ## Delivered
 
-- `BNDZ.NativeShell.Core` — portable domain
-- `BNDZ.NativeShell.Host` — WPF native host (no WebView2)
-- `BNDZ.NativeShell` — WinUI 3 destination host
-- Tests for catalog + navigation VM
-- Port roadmap in `docs/native-shell/README.md`
+1. **Classic** — `BNDZ.exe` (unchanged product surface)
+2. **Native Shell** — `BNDZ.exe --native-shell` (same full React UI + Files-like host chrome; separate mutex for side-by-side)
+3. Launchers: `scripts/run-classic.cmd`, `scripts/run-native-shell.cmd`
+4. Build: `scripts/build-compare-versions.ps1`
+5. Core/WinUI projects remain for progressive chrome port (not required to test features today)
 
-## Out of scope (intentionally)
+## Non-goals
 
-- Soft-fork of files-community/Files
-- Porting Automation / Spatial / full plugin marketplace in this spike
-- Deleting the existing WebView2 product on `main`
+- Soft-fork Files.App
+- Rewriting all React into XAML before compare

@@ -10,7 +10,55 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         Background="{StaticResource WindowBackgroundBrush}">
+    <!--
+      Classic: WebView2 full-bleed (unchanged product).
+      Native shell (flag native-shell): Files-like host chrome + same full BNDZ React UI in WebView2
+      so every plugin/workspace feature remains testable side-by-side with classic.
+    -->
     <Grid>
-        <wv2:WebView2 x:Name="MainWebView" AllowExternalDrop="True" />
+        <Grid.RowDefinitions>
+            <RowDefinition x:Name="NativeChromeRow" Height="0" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border x:Name="NativeShellChrome"
+                Grid.Row="0"
+                Visibility="Collapsed"
+                Background="#FF1A1F27"
+                BorderBrush="#33FFFFFF"
+                BorderThickness="0,0,0,1"
+                Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="32" Height="32" CornerRadius="12"
+                            Background="#335B8CFF" BorderBrush="#FF5B8CFF" BorderThickness="1"
+                            Margin="0,0,10,0">
+                        <TextBlock Text="B" FontWeight="SemiBold" FontSize="16"
+                                   Foreground="#FF5B8CFF"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="BNDZ · Native Shell"
+                                   FontSize="15" FontWeight="SemiBold" Foreground="#FFF2F4F7" />
+                        <TextBlock Text="Full product UI · Files-like host chrome · compare with classic BNDZ.exe"
+                                   FontSize="11" Foreground="#FF9AA3B2" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Grid.Column="2"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="#FF9AA3B2"
+                           Text="Launch classic without --native-shell" />
+            </Grid>
+        </Border>
+
+        <wv2:WebView2 x:Name="MainWebView"
+                      Grid.Row="1"
+                      AllowExternalDrop="True" />
     </Grid>
 </Window>

@@ -9,18 +9,10 @@
     <RootNamespace>BNDZ.NativeShell.Host</RootNamespace>
     <AssemblyName>BNDZ.NativeShell.Host</AssemblyName>
     <ApplicationIcon Condition="Exists('..\BNDZBackend\Assets\BNDZ.ico')">..\BNDZBackend\Assets\BNDZ.ico</ApplicationIcon>
-    <Product>BNDZ Native Shell (Spike)</Product>
-    <Description>Files-like native WPF shell for BNDZ — no WebView2. Comparison host while WinUI destination lands.</Description>
+    <Product>BNDZ Native Shell Launcher</Product>
+    <Description>Launches full BNDZ with --native-shell for side-by-side compare against classic.</Description>
     <Platforms>AnyCPU</Platforms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\BNDZ.NativeShell.Core\BNDZ.NativeShell.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-  </ItemGroup>
 
 </Project>

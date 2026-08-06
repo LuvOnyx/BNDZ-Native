@@ -20,6 +20,11 @@ namespace BNDZ
         public static bool IsStageWindow { get; private set; }
         /// <summary>Second process launched via --plugin-window (plugin pop-out / sticky widget).</summary>
         public static bool IsPluginWindow { get; private set; }
+        /// <summary>
+        /// Comparison host: Files-like native chrome + full BNDZ React UI.
+        /// Separate single-instance mutex so classic and native can run side by side.
+        /// </summary>
+        public static bool IsNativeShell { get; private set; }
         public static string? PluginWindowId { get; private set; }
         public static string? PluginStickyId { get; private set; }
 
@@ -143,6 +148,7 @@ namespace BNDZ
             }
 
             IsStageWindow = HasArg(e.Args, "--stage-window");
+            IsNativeShell = HasArg(e.Args, "--native-shell");
             PluginWindowId = ResolveArgValue(e.Args, "--plugin-window");
             PluginStickyId = ResolveArgValue(e.Args, "--sticky-id");
             IsPluginWindow = !string.IsNullOrWhiteSpace(PluginWindowId);
@@ -153,6 +159,8 @@ namespace BNDZ
             ServiceProvider = serviceCollection.BuildServiceProvider();
 
             var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
+            if (IsNativeShell)
+                mainWindow.ApplyNativeShellMode();
             var openPath = ResolveOpenPath(e.Args);
             if (!string.IsNullOrWhiteSpace(openPath))
                 mainWindow.SetPendingOpenPath(openPath);
@@ -187,15 +195,22 @@ namespace BNDZ
                 if (HasArg(args, "--stage-window") || HasArg(args, "--plugin-window") || ReadAllowMultipleInstances())
                     return true;
 
-                const string name = @"Local\BNDZ-FileManager-SingleInstance";
+                // Classic and native-shell are separate products for A/B compare — different mutexes.
+                var name = HasArg(args, "--native-shell")
+                    ? @"Local\BNDZ-FileManager-NativeShell-SingleInstance"
+                    : @"Local\BNDZ-FileManager-SingleInstance";
                 _instanceMutex = new Mutex(true, name, out var createdNew);
                 if (createdNew) return true;
 
                 // Activate the running instance (tray/minimized) even when no --open-path was passed.
-                BndzFileManagerIpcService.TrySendOpenPathToRunningInstance(ResolveOpenPath(args));
+                // Native-shell uses its own mutex; only classic activates the classic IPC instance.
+                if (!HasArg(args, "--native-shell"))
+                    BndzFileManagerIpcService.TrySendOpenPathToRunningInstance(ResolveOpenPath(args));
                 try
                 {
-                    Console.WriteLine("BNDZ is already running — brought the existing window to the front.");
+                    Console.WriteLine(HasArg(args, "--native-shell")
+                        ? "BNDZ Native Shell is already running."
+                        : "BNDZ is already running — brought the existing window to the front.");
                 }
                 catch { }
 

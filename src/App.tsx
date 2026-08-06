@@ -17,12 +17,16 @@ import LaunchSplash from './components/LaunchSplash';
 import PerfHud from './components/PerfHud';
 import LegalAcceptGate from './components/LegalAcceptGate';
 import { readPluginWindowBootFromUrl } from './lib/pluginWindowBoot';
+import { applyNativeShellDocumentMark, isNativeShellBoot } from './lib/nativeShellBoot';
 
 const PLUGIN_BOOT = readPluginWindowBootFromUrl();
+applyNativeShellDocumentMark();
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(() => {
     if (PLUGIN_BOOT) return true;
+    // Native shell compare sessions skip splash so both versions are ready faster.
+    if (isNativeShellBoot()) return true;
     try {
       return localStorage.getItem('bndz-launch-splash-seen') === '1';
     } catch {

@@ -511,6 +511,29 @@ namespace BNDZ
 
         public void SetPendingStartupAction(string action) => _pendingStartupAction = action;
 
+        /// <summary>
+        /// Comparison mode: Files-like host chrome + full React product in WebView2.
+        /// Classic launch leaves chrome collapsed so the product is unchanged.
+        /// </summary>
+        public void ApplyNativeShellMode()
+        {
+            Title = "BNDZ · Native Shell";
+            if (NativeShellChrome != null)
+            {
+                NativeShellChrome.Visibility = Visibility.Visible;
+                NativeShellChrome.MouseLeftButtonDown += (_, e) =>
+                {
+                    if (e.ClickCount == 1)
+                    {
+                        ReleaseCapture();
+                        SendMessage(new System.Windows.Interop.WindowInteropHelper(this).Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+                    }
+                };
+            }
+            if (NativeChromeRow != null)
+                NativeChromeRow.Height = new GridLength(1, GridUnitType.Auto);
+        }
+
         public void SetPendingPluginWindow(string pluginId, string? stickyId, string? title)
         {
             _pendingPluginId = pluginId;
@@ -1903,6 +1926,8 @@ namespace BNDZ
 
             // Navigate to the React frontend served from the virtual host, bypassing cache
             var navUrl = $"http://bndz.local/index.html?t={DateTime.Now.Ticks}";
+            if (App.IsNativeShell)
+                navUrl += "&nativeShell=1";
             if (App.IsPluginWindow && !string.IsNullOrWhiteSpace(_pendingPluginId ?? App.PluginWindowId))
             {
                 var pluginId = Uri.EscapeDataString(_pendingPluginId ?? App.PluginWindowId!);
