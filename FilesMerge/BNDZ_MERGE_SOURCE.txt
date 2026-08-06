@@ -1,0 +1,3 @@
+Source: https://github.com/files-community/Files (shallow clone at merge time)
+Purpose: BNDZ × Files merge branch — A/B against classic WebView2 BNDZ on main.
+License: MIT (see LICENSE-MIT). Comparison build for product direction, not upstream tracking commitment.

@@ -534,6 +534,37 @@ namespace BNDZ
                 NativeChromeRow.Height = new GridLength(1, GridUnitType.Auto);
         }
 
+        /// <summary>
+        /// FilesMerge embeds this window via SetParent. Publish HWND for the host and hide chrome.
+        /// </summary>
+        public void ApplyEmbeddedMode()
+        {
+            Title = "BNDZ Embedded";
+            if (NativeShellChrome != null)
+                NativeShellChrome.Visibility = Visibility.Collapsed;
+            if (NativeChromeRow != null)
+                NativeChromeRow.Height = new GridLength(0);
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            ShowInTaskbar = false;
+            Width = 1280;
+            Height = 800;
+
+            SourceInitialized += (_, _) =>
+            {
+                try
+                {
+                    var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                    var path = Path.Combine(Path.GetTempPath(), "bndz-embed-hwnd.txt");
+                    File.WriteAllText(path, hwnd.ToInt64().ToString());
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Embed] hwnd publish failed: {ex.Message}");
+                }
+            };
+        }
+
         public void SetPendingPluginWindow(string pluginId, string? stickyId, string? title)
         {
             _pendingPluginId = pluginId;

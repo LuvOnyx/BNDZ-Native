@@ -1,45 +1,30 @@
-# BNDZ Native Shell — two complete versions
+# BNDZ × Files merge — A/B branch
 
-**Branch:** `cursor/winui-native-shell-spike-1f6d`
+**Branch:** `cursor/winui-native-shell-spike-1f6d`  
+**Vs:** `main` = classic WebView2 BNDZ
 
-## What you can test
+## Intent
 
-| Version | How to launch | What you get |
-|---------|---------------|--------------|
-| **Classic** | `scripts\run-classic.cmd` or `BNDZ.exe` | Full BNDZ (all plugins, Automation, Spatial, IPC) — WebView2 full-bleed |
-| **Native Shell** | `scripts\run-native-shell.cmd` or `BNDZ.exe --native-shell` | **Same full BNDZ UI/content** + Files-like native host chrome banner |
+Full Files (native WinUI FM) **merged with** full BNDZ content/UI on a side branch so you can decide which direction you prefer.
 
-Both share one React build and one `BNDZ.exe`. Native shell uses a **separate single-instance mutex**, so you can run classic and native **side by side**.
+## How the merge works
 
-## Build (Windows)
+1. `FilesMerge/` — vendored [files-community/Files](https://github.com/files-community/Files) (MIT), branded **BNDZ (Files Merge)**
+2. Toolbar **BNDZ Workspace** — embeds real `BNDZ.exe --embedded` (complete product) into the Files content area via HWND reparent
+3. **Files View** — back to native Files list/sidebar/omnibar
 
-```powershell
-powershell -File scripts/build-compare-versions.ps1
-```
+Classic BNDZ remains on this branch too (`scripts\run-classic.cmd`) for direct compare without switching git branches.
 
-Or manually:
+## Build (Windows only for Files)
 
 ```powershell
-npm run build
-dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
+powershell -File scripts/build-files-bndz-merge.ps1
+scripts\run-files-merge.cmd    # Files chrome + BNDZ Workspace button
+scripts\run-classic.cmd        # classic BNDZ
 ```
 
-## Route (still true)
+Needs **.NET 10 SDK** + Windows App SDK (Files `global.json`).
 
-- Do **not** soft-fork `files-community/Files`
-- Native shell today = host chrome + full product WebView (complete testability)
-- Next ports: swap React chrome for native sidebar/list/preview via `BNDZ.NativeShell.Core` contracts (`BackendPortMap.cs`)
-- `BNDZ.NativeShell` (WinUI) remains the long-term destination shell project
+## Not on main
 
-## Projects
-
-| Project | Role |
-|---------|------|
-| `BNDZBackend` | One exe — classic **or** `--native-shell` |
-| `BNDZ.NativeShell.Host` | Launcher trampoline → `BNDZ.exe --native-shell` |
-| `BNDZ.NativeShell.Core` | Portable adapters for future chrome ports |
-| `BNDZ.NativeShell` | WinUI 3 destination (build on Windows + App SDK) |
-
-## Why WebView stays in native shell (for now)
-
-Porting ~128k LOC of React UI into XAML before you can A/B test would block comparison. This branch gives you **two fully featured builds today**; chrome ownership migrates module-by-module without dropping features.
+This merge stays on the feature branch until you choose to adopt it.

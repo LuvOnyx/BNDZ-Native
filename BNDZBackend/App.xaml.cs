@@ -25,6 +25,10 @@ namespace BNDZ
         /// Separate single-instance mutex so classic and native can run side by side.
         /// </summary>
         public static bool IsNativeShell { get; private set; }
+        /// <summary>
+        /// Embedded inside FilesMerge shell (HWND reparent). Full BNDZ UI, no outer chrome.
+        /// </summary>
+        public static bool IsEmbedded { get; private set; }
         public static string? PluginWindowId { get; private set; }
         public static string? PluginStickyId { get; private set; }
 
@@ -149,6 +153,7 @@ namespace BNDZ
 
             IsStageWindow = HasArg(e.Args, "--stage-window");
             IsNativeShell = HasArg(e.Args, "--native-shell");
+            IsEmbedded = HasArg(e.Args, "--embedded");
             PluginWindowId = ResolveArgValue(e.Args, "--plugin-window");
             PluginStickyId = ResolveArgValue(e.Args, "--sticky-id");
             IsPluginWindow = !string.IsNullOrWhiteSpace(PluginWindowId);
@@ -161,6 +166,8 @@ namespace BNDZ
             var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
             if (IsNativeShell)
                 mainWindow.ApplyNativeShellMode();
+            if (IsEmbedded)
+                mainWindow.ApplyEmbeddedMode();
             var openPath = ResolveOpenPath(e.Args);
             if (!string.IsNullOrWhiteSpace(openPath))
                 mainWindow.SetPendingOpenPath(openPath);
@@ -192,7 +199,7 @@ namespace BNDZ
         {
             try
             {
-                if (HasArg(args, "--stage-window") || HasArg(args, "--plugin-window") || ReadAllowMultipleInstances())
+                if (HasArg(args, "--stage-window") || HasArg(args, "--plugin-window") || HasArg(args, "--embedded") || ReadAllowMultipleInstances())
                     return true;
 
                 // Classic and native-shell are separate products for A/B compare — different mutexes.
