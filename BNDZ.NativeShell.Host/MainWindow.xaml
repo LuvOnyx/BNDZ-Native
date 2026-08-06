@@ -1,0 +1,290 @@
+<Window x:Class="BNDZ.NativeShell.Host.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:BNDZ.NativeShell.Core.Models;assembly=BNDZ.NativeShell.Core"
+        Title="BNDZ Native Shell — Spike"
+        Width="1280"
+        Height="800"
+        MinWidth="960"
+        MinHeight="600"
+        Background="{StaticResource BndzBgDeepBrush}"
+        Foreground="{StaticResource BndzTextBrush}"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
+
+  <!--
+    Files-inspired topology (reference only — not a Files fork):
+      TabBar → Omnibar/Toolbar → Sidebar | Content | Preview
+    Proportions: sidebar ~17% / workspace ~71% / preview ~12% (BNDZ classic).
+  -->
+  <Grid Margin="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- Brand + tabs -->
+    <Grid Grid.Row="0" Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Border Width="34" Height="34" CornerRadius="12"
+                Background="{StaticResource BndzAccentSoftBrush}"
+                BorderBrush="{StaticResource BndzAccentBrush}"
+                BorderThickness="1"
+                Margin="0,0,10,0">
+          <TextBlock Text="B"
+                     FontWeight="SemiBold"
+                     FontSize="18"
+                     Foreground="{StaticResource BndzAccentBrush}"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+        </Border>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="BNDZ" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="Native shell spike · no WebView2"
+                     FontSize="11"
+                     Foreground="{StaticResource BndzTextMutedBrush}" />
+        </StackPanel>
+      </StackPanel>
+
+      <ScrollViewer Grid.Column="1"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Disabled"
+                    Margin="16,0">
+        <ItemsControl ItemsSource="{Binding Tabs}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type models:ShellTab}">
+              <Border Margin="0,0,6,0"
+                      Padding="12,7"
+                      CornerRadius="{StaticResource BndzSquircleSm}"
+                      Background="{StaticResource BndzBgRaisedBrush}"
+                      BorderBrush="{StaticResource BndzStrokeBrush}"
+                      BorderThickness="1"
+                      Cursor="Hand"
+                      MouseLeftButtonUp="Tab_Click">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                  <Button Content="×"
+                          Style="{StaticResource BndzGhostButton}"
+                          Padding="6,0"
+                          FontSize="14"
+                          Click="TabClose_Click" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <Button Grid.Column="2"
+              Content="+ Tab"
+              Style="{StaticResource BndzPrimaryButton}"
+              Command="{Binding NewTabCommand}" />
+    </Grid>
+
+    <!-- Omnibar + nav -->
+    <Border Grid.Row="1" Style="{StaticResource BndzPanelBorder}" Margin="0,0,0,10" Padding="8">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal">
+          <Button Content="↑ Up"
+                  Style="{StaticResource BndzGhostButton}"
+                  Command="{Binding GoUpCommand}"
+                  Margin="0,0,8,0" />
+          <Button Content="↻"
+                  Style="{StaticResource BndzGhostButton}"
+                  Command="{Binding NavigateCommand}"
+                  CommandParameter="{Binding CurrentPath}"
+                  Margin="0,0,8,0"
+                  ToolTip="Reload" />
+        </StackPanel>
+        <TextBox Grid.Column="1"
+                 Text="{Binding OmnibarText, UpdateSourceTrigger=PropertyChanged}"
+                 Background="{StaticResource BndzBgDeepBrush}"
+                 Foreground="{StaticResource BndzTextBrush}"
+                 BorderBrush="{StaticResource BndzStrokeBrush}"
+                 BorderThickness="1"
+                 Padding="12,8"
+                 FontSize="14"
+                 VerticalContentAlignment="Center"
+                 KeyDown="Omnibar_KeyDown" />
+        <Button Grid.Column="2"
+                Content="Go"
+                Style="{StaticResource BndzPrimaryButton}"
+                Command="{Binding SubmitOmnibarCommand}"
+                Margin="8,0,0,0" />
+      </Grid>
+    </Border>
+
+    <!-- Sidebar | Content | Preview -->
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="17*" MinWidth="180" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="71*" MinWidth="320" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="12*" MinWidth="160" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Sidebar -->
+      <Border Grid.Column="0" Style="{StaticResource BndzPanelBorder}" Padding="8">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top"
+                     Text="Places"
+                     FontWeight="SemiBold"
+                     Margin="6,4,6,10"
+                     Foreground="{StaticResource BndzTextMutedBrush}" />
+          <ListView x:Name="DriveList"
+                    ItemsSource="{Binding Drives}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    MouseLeftButtonUp="DriveList_MouseLeftButtonUp"
+                    ItemContainerStyle="{StaticResource BndzListRow}">
+            <ListView.ItemTemplate>
+              <DataTemplate DataType="{x:Type models:DriveEntry}">
+                <StackPanel>
+                  <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding CapacityDisplay}"
+                             FontSize="11"
+                             Foreground="{StaticResource BndzTextMutedBrush}"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </DataTemplate>
+            </ListView.ItemTemplate>
+          </ListView>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Grid.Column="1"
+                    Width="8"
+                    HorizontalAlignment="Stretch"
+                    Background="Transparent"
+                    ShowsPreview="True" />
+
+      <!-- File list -->
+      <Border Grid.Column="2" Style="{StaticResource BndzPanelBorder}" Padding="0">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" Margin="12,10,12,6">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="90" />
+              <ColumnDefinition Width="140" />
+              <ColumnDefinition Width="80" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Name" Foreground="{StaticResource BndzTextMutedBrush}" FontSize="11" />
+            <TextBlock Grid.Column="1" Text="Size" Foreground="{StaticResource BndzTextMutedBrush}" FontSize="11" />
+            <TextBlock Grid.Column="2" Text="Modified" Foreground="{StaticResource BndzTextMutedBrush}" FontSize="11" />
+            <TextBlock Grid.Column="3" Text="Kind" Foreground="{StaticResource BndzTextMutedBrush}" FontSize="11" />
+          </Grid>
+          <Rectangle DockPanel.Dock="Top" Height="1" Fill="{StaticResource BndzStrokeBrush}" Margin="8,0" />
+          <ListView x:Name="FileList"
+                    ItemsSource="{Binding Entries}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ItemContainerStyle="{StaticResource BndzListRow}"
+                    MouseDoubleClick="FileList_MouseDoubleClick"
+                    SelectionChanged="FileList_SelectionChanged"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListView.ItemTemplate>
+              <DataTemplate DataType="{x:Type models:FileEntry}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="80" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="Medium" />
+                  <TextBlock Grid.Column="1" Text="{Binding SizeDisplay}" Foreground="{StaticResource BndzTextMutedBrush}" />
+                  <TextBlock Grid.Column="2" Text="{Binding ModifiedDisplay}" Foreground="{StaticResource BndzTextMutedBrush}" />
+                  <TextBlock Grid.Column="3" Text="{Binding KindDisplay}" Foreground="{StaticResource BndzTextMutedBrush}" />
+                </Grid>
+              </DataTemplate>
+            </ListView.ItemTemplate>
+          </ListView>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Grid.Column="3"
+                    Width="8"
+                    HorizontalAlignment="Stretch"
+                    Background="Transparent"
+                    ShowsPreview="True" />
+
+      <!-- Preview -->
+      <Border Grid.Column="4" Style="{StaticResource BndzPanelBorder}">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="4,2,4,12">
+            <TextBlock Text="Preview"
+                       FontSize="11"
+                       Foreground="{StaticResource BndzTextMutedBrush}"
+                       Margin="0,0,0,8" />
+            <TextBlock Text="{Binding PreviewSnapshot.Title}"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding PreviewSnapshot.Subtitle}"
+                       Foreground="{StaticResource BndzTextMutedBrush}"
+                       Margin="0,4,0,0" />
+          </StackPanel>
+          <ItemsControl ItemsSource="{Binding PreviewSnapshot.Facts}" Margin="4,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Margin="0,0,0,10">
+                  <TextBlock Text="{Binding Label}"
+                             FontSize="11"
+                             Foreground="{StaticResource BndzTextMutedBrush}" />
+                  <TextBlock Text="{Binding Value}"
+                             TextWrapping="Wrap"
+                             Margin="0,2,0,0" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <!-- Status -->
+    <Border Grid.Row="3"
+            Margin="0,10,0,0"
+            Padding="12,8"
+            CornerRadius="{StaticResource BndzSquircleSm}"
+            Background="{StaticResource BndzBgPanelBrush}"
+            BorderBrush="{StaticResource BndzStrokeBrush}"
+            BorderThickness="1">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <TextBlock>
+          <Run Text="{Binding StatusText, Mode=OneWay}" />
+          <Run Text="  ·  " Foreground="{StaticResource BndzTextMutedBrush}" />
+          <Run Text="{Binding CurrentPath, Mode=OneWay}" Foreground="{StaticResource BndzTextMutedBrush}" />
+        </TextBlock>
+        <TextBlock Grid.Column="1"
+                   Text="{Binding ErrorText}"
+                   Foreground="#FFFF8E8E"
+                   FontWeight="SemiBold" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

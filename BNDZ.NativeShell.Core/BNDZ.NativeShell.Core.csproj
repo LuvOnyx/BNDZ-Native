@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>BNDZ.NativeShell.Core</RootNamespace>
+    <AssemblyName>BNDZ.NativeShell.Core</AssemblyName>
+    <Description>Portable BNDZ domain for the native WinUI shell spike — no WebView2, no WinUI dependency.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+</Project>
