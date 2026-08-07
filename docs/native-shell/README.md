@@ -1,7 +1,7 @@
 # BNDZ-Native — native shell notes
 
 **Product shell:** `FilesMerge/` (vendored Files WinUI), branded **BNDZ-Native**.  
-**Architecture:** #3 — Files owns chrome/list; full `BNDZBackend`; React as hosted panes. See root `BNDZ_NATIVE.md` and `FilesMerge/README_BNDZ.md`.
+**Architecture:** #3 — Files owns chrome/list; full `BNDZBackend` via `--backend-host` + `BNDZ.Backend.Host` pipe; React as hosted panes (Phase 3). See root `BNDZ_NATIVE.md` and `FilesMerge/README_BNDZ.md`.
 
 ## Not the product path
 
@@ -18,4 +18,4 @@ powershell -File scripts/build-files-bndz-merge.ps1
 scripts\run-files-merge.cmd
 ```
 
-WinUI build is **Windows-only** (.NET 10 + WASDK).
+WinUI build is **Windows-only** (.NET 10 + WASDK). Expect the omnibar status chip to show **BNDZ backend connected** after the host process starts.
