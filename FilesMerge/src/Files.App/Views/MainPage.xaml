@@ -161,16 +161,30 @@
 			Loaded="HorizontalMultitaskingControl_Loaded"
 			TabIndex="0" />
 
-		<!--  Address Bar  -->
-		<uc:NavigationToolbar
-			x:Name="NavToolbar"
-			Grid.Row="1"
-			HorizontalAlignment="Stretch"
-			HorizontalContentAlignment="Stretch"
-			x:Load="False"
-			Loaded="NavToolbar_Loaded"
-			ShowOngoingTasks="True"
-			TabIndex="1" />
+		<!--  Address Bar + BNDZ backend status  -->
+		<Grid Grid.Row="1">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*" />
+				<ColumnDefinition Width="Auto" />
+			</Grid.ColumnDefinitions>
+			<uc:NavigationToolbar
+				x:Name="NavToolbar"
+				HorizontalAlignment="Stretch"
+				HorizontalContentAlignment="Stretch"
+				x:Load="False"
+				Loaded="NavToolbar_Loaded"
+				ShowOngoingTasks="True"
+				TabIndex="1" />
+			<TextBlock
+				x:Name="BndzBackendStatusText"
+				Grid.Column="1"
+				Margin="8,0,12,0"
+				VerticalAlignment="Center"
+				FontSize="11"
+				Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+				Text="BNDZ backend…"
+				ToolTipService.ToolTip="Full BNDZBackend host (architecture #3) — services via named pipe, not HWND embed" />
+		</Grid>
 
 		<!--  Content Area  -->
 		<controls:SidebarView

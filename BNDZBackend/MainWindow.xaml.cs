@@ -310,7 +310,7 @@ namespace BNDZ
                 }
             };
             AppIconService.ApplyToWindow(this);
-            if (!App.IsPluginWindow)
+            if (!App.IsPluginWindow && !App.IsBackendHost)
             {
                 _trayService = new SystemTrayService(this);
                 _trayService.QuitRequested += () => Dispatcher.Invoke(() => RequestCloseFromUI("tray"));
@@ -480,9 +480,9 @@ namespace BNDZ
 
         private void OnMainWindowClosing(object? sender, CancelEventArgs e)
         {
-            if (_allowClose || App.IsPluginWindow)
+            if (_allowClose || App.IsPluginWindow || App.IsBackendHost)
             {
-                if (App.IsPluginWindow) _allowClose = true;
+                if (App.IsPluginWindow || App.IsBackendHost) _allowClose = true;
                 return;
             }
             e.Cancel = true;
@@ -563,6 +563,108 @@ namespace BNDZ
                     Debug.WriteLine($"[Embed] hwnd publish failed: {ex.Message}");
                 }
             };
+        }
+
+        /// <summary>
+        /// Architecture #3 backend host: full services live, window hidden from the user.
+        /// FilesMerge owns chrome/list; React panes attach later via Phase 3.
+        /// </summary>
+        public void ApplyBackendHostMode()
+        {
+            Title = "BNDZ Backend Host";
+            if (NativeShellChrome != null)
+                NativeShellChrome.Visibility = Visibility.Collapsed;
+            if (NativeChromeRow != null)
+                NativeChromeRow.Height = new GridLength(0);
+            WindowStyle = WindowStyle.ToolWindow;
+            ResizeMode = ResizeMode.NoResize;
+            ShowInTaskbar = false;
+            Width = 64;
+            Height = 64;
+            Left = -32000;
+            Top = -32000;
+
+            Loaded += (_, _) =>
+            {
+                try
+                {
+                    Hide();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[BackendHost] hide failed: {ex.Message}");
+                }
+            };
+        }
+
+        /// <summary>
+        /// Named-pipe host IPC adapter — same type/id/payload envelope as WebView2 messages.
+        /// Phase 2 surface: ping + real index status (proves full brain, not stubs).
+        /// </summary>
+        public string HandleBackendHostIpc(string requestJson)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(requestJson);
+                var root = doc.RootElement;
+                var type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                var opts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+                if (string.Equals(type, "IPC_PING", StringComparison.Ordinal))
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        type = "IPC_PING_RESULT",
+                        id,
+                        payload = new
+                        {
+                            ok = true,
+                            mode = "backend-host",
+                            pid = Environment.ProcessId,
+                            utc = DateTime.UtcNow.ToString("o"),
+                        },
+                    }, opts);
+                }
+
+                if (string.Equals(type, "GET_INDEX_STATUS", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        var status = BndzFileIndexService.Instance.GetIndexStatus();
+                        return JsonSerializer.Serialize(new
+                        {
+                            type = "INDEX_STATUS_RESULT",
+                            id,
+                            payload = status,
+                        }, opts);
+                    }
+                    catch (Exception ex)
+                    {
+                        return JsonSerializer.Serialize(new
+                        {
+                            type = "INDEX_STATUS_RESULT",
+                            id,
+                            payload = new { error = ex.Message },
+                        }, opts);
+                    }
+                }
+
+                return JsonSerializer.Serialize(new
+                {
+                    type = "ERROR",
+                    id,
+                    payload = new { error = $"Unsupported host IPC type: {type ?? "(null)"}" },
+                }, opts);
+            }
+            catch (Exception ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    type = "ERROR",
+                    payload = new { error = ex.Message },
+                });
+            }
         }
 
         public void SetPendingPluginWindow(string pluginId, string? stickyId, string? title)

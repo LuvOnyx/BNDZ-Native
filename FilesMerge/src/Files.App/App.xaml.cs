@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 using Files.App.Helpers.Application;
+using Files.App.Utils.Bndz;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.UI.Xaml;
@@ -153,6 +154,19 @@ namespace Files.App
 				}
 
 				await AppLifecycleHelper.InitializeAppComponentsAsync();
+
+				// Architecture #3 Phase 2: keep full BNDZBackend live for the WinUI shell.
+				_ = Task.Run(async () =>
+				{
+					try
+					{
+						await BndzBackendHostService.Instance.EnsureStartedAsync();
+					}
+					catch (Exception ex)
+					{
+						Logger.LogWarning(ex, "BNDZ backend host failed to start");
+					}
+				});
 			}
 		}
 
@@ -290,6 +304,9 @@ namespace Files.App
 			// click can't dispatch into OnQuitClicked once Application.Current is null.
 			SystemTrayIcon?.Dispose();
 			SystemTrayIcon = null;
+
+			// Tear down owned BNDZBackend host process (architecture #3 Phase 2).
+			try { BndzBackendHostService.Instance.Shutdown(); } catch { }
 
 			// Method can take a long time, make sure the window is hidden
 			await Task.Yield();

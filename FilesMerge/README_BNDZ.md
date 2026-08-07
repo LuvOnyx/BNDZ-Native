@@ -19,32 +19,23 @@ BNDZ React surfaces    →  hosted panes ONLY (Automation, Spatial, plugins,
 
 ---
 
-## What you get today (Phase 1)
+## What you get today (Phases 1–2)
 
 | Surface | Source |
 |---------|--------|
 | Native FM chrome, sidebar, tabs, omnibar, file list | **Files** under `FilesMerge/` — branded **BNDZ-Native** |
-| Full BNDZ backend + React panes | **Phase 2 / Phase 3** — not nested full-window classic FM |
+| Full BNDZBackend (services, index, plugins brain) | Child `BNDZ.exe --backend-host` + named pipe `BNDZ.Backend.Host` |
+| Status chip | Omnibar trailing label: connected / offline / indexed count |
+| React panes (Automation, Spatial, …) | **Phase 3** — not nested full-window classic FM |
 
-Default session = Files-class shell only. There is **no** toolbar that nests the entire classic React FM (sidebar/list/preview/plugins) inside Files.
+Default session = Files-class shell + live backend host. There is **no** toolbar that nests the entire classic React FM inside Files.
 
----
+### Backend host protocol (Phase 2)
 
-## Historical A/B embed (superseded)
-
-Earlier spike docs described:
-
-1. Files toolbar starts `BNDZ.exe --embedded`
-2. `BndzEmbedHost` `SetParent`s that HWND into the content area
-3. Toggle “BNDZ Workspace” / “Files View”
-
-That path conflicted with layouts and was **rejected as the product architecture**. Prefer fixing shell composition and hosted panes over more embed glue.
-
----
-
-## Build & run (Windows)
-
-Requires **.NET 10 SDK** + **Windows App SDK** (see `FilesMerge/global.json`). Linux CI cannot compile WinUI XAML.
+1. FilesMerge resolves `BNDZ.exe` (sibling of `Files.exe`, or `BNDZBackend\bin\…`).
+2. Starts `BNDZ.exe --backend-host --skip-elevation` (hidden window, full services, no tray).
+3. Speaks WebView-compatible JSON over named pipe `BNDZ.Backend.Host` (`IPC_PING`, `GET_INDEX_STATUS`, …).
+4. On shell exit, owned backend process is torn down.
 
 ```powershell
 # From repo root
@@ -52,9 +43,15 @@ powershell -File scripts/build-files-bndz-merge.ps1
 scripts\run-files-merge.cmd    # BNDZ-Native (FilesMerge shell)
 ```
 
-The build script also compiles `BNDZBackend` + React assets so Phase 2 IPC/pane work stays warm — **not** because HWND embed is required.
+The build script compiles `BNDZBackend` + React assets and stages `BNDZ.exe` next to the Files output.
 
 Exe output remains `Files.exe` this phase (AssemblyName unchanged); package **DisplayName** / **ShortName** are **BNDZ-Native**.
+
+---
+
+## Historical A/B embed (superseded)
+
+Earlier spike: toolbar **BNDZ Workspace** HWND-reparented full `BNDZ.exe --embedded` into the content area. Rejected as product architecture — layouts conflicted. `BndzEmbedHost.cs` remains reference-only; do not rewire into MainPage.
 
 ---
 
@@ -63,6 +60,7 @@ Exe output remains `Files.exe` this phase (AssemblyName unchanged); package **Di
 | Path | Role |
 |------|------|
 | `FilesMerge/` | **Primary** WinUI shell for BNDZ-Native |
+| `BNDZ.exe --backend-host` | Full backend brain for Phase 2 (hidden; named pipe) |
 | `BndzEmbedHost.cs` | Reference-only historical HWND embed |
 | `BNDZ.exe --native-shell` | Earlier WPF banner experiment — **not** the Files merge |
 | `BNDZ.NativeShell.*` | Spike / progressive port — **not** the product shell |

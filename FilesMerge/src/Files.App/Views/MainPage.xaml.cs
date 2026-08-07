@@ -3,6 +3,7 @@
 
 using CommunityToolkit.WinUI;
 using Files.App.Controls;
+using Files.App.Utils.Bndz;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
@@ -63,6 +64,27 @@ namespace Files.App.Views
 			_updateDateDisplayTimer.Tick += UpdateDateDisplayTimer_Tick;
 
 			ApplySidebarWidthState();
+
+			BndzBackendHostService.Instance.StatusChanged += BndzBackendHostService_StatusChanged;
+			ApplyBndzBackendStatus(BndzBackendHostService.Instance.Status);
+		}
+
+		private void BndzBackendHostService_StatusChanged(object? sender, BndzBackendStatus status)
+		{
+			DispatcherQueue.TryEnqueue(() => ApplyBndzBackendStatus(status));
+		}
+
+		private void ApplyBndzBackendStatus(BndzBackendStatus status)
+		{
+			if (BndzBackendStatusText is null)
+				return;
+
+			BndzBackendStatusText.Text = status.Label;
+			var tip = status.Detail;
+			if (status.ProcessId is int pid)
+				tip = string.IsNullOrEmpty(tip) ? $"PID {pid}" : $"{tip} · PID {pid}";
+			if (!string.IsNullOrEmpty(tip))
+				ToolTipService.SetToolTip(BndzBackendStatusText, tip);
 		}
 
 		private async Task AppRunningAsAdminPromptAsync()

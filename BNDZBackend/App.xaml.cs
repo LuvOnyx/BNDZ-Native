@@ -27,8 +27,14 @@ namespace BNDZ
         public static bool IsNativeShell { get; private set; }
         /// <summary>
         /// Embedded inside FilesMerge shell (HWND reparent). Full BNDZ UI, no outer chrome.
+        /// Historical A/B only — not architecture #3 product UX.
         /// </summary>
         public static bool IsEmbedded { get; private set; }
+        /// <summary>
+        /// Architecture #3: full BNDZBackend brain for FilesMerge WinUI shell.
+        /// Hidden window, services + host named pipe — no nested classic FM UI.
+        /// </summary>
+        public static bool IsBackendHost { get; private set; }
         public static string? PluginWindowId { get; private set; }
         public static string? PluginStickyId { get; private set; }
 
@@ -154,6 +160,7 @@ namespace BNDZ
             IsStageWindow = HasArg(e.Args, "--stage-window");
             IsNativeShell = HasArg(e.Args, "--native-shell");
             IsEmbedded = HasArg(e.Args, "--embedded");
+            IsBackendHost = HasArg(e.Args, "--backend-host");
             PluginWindowId = ResolveArgValue(e.Args, "--plugin-window");
             PluginStickyId = ResolveArgValue(e.Args, "--sticky-id");
             IsPluginWindow = !string.IsNullOrWhiteSpace(PluginWindowId);
@@ -168,6 +175,8 @@ namespace BNDZ
                 mainWindow.ApplyNativeShellMode();
             if (IsEmbedded)
                 mainWindow.ApplyEmbeddedMode();
+            if (IsBackendHost)
+                mainWindow.ApplyBackendHostMode();
             var openPath = ResolveOpenPath(e.Args);
             if (!string.IsNullOrWhiteSpace(openPath))
                 mainWindow.SetPendingOpenPath(openPath);
@@ -180,6 +189,12 @@ namespace BNDZ
 
             BndzFileManagerIpcService.Instance.RegisterMain(mainWindow);
             BndzFileManagerIpcService.Instance.Start();
+
+            if (IsBackendHost)
+            {
+                BndzBackendHostIpcService.Instance.RegisterMain(mainWindow);
+                BndzBackendHostIpcService.Instance.Start();
+            }
 
             try
             {
@@ -199,7 +214,7 @@ namespace BNDZ
         {
             try
             {
-                if (HasArg(args, "--stage-window") || HasArg(args, "--plugin-window") || HasArg(args, "--embedded") || ReadAllowMultipleInstances())
+                if (HasArg(args, "--stage-window") || HasArg(args, "--plugin-window") || HasArg(args, "--embedded") || HasArg(args, "--backend-host") || ReadAllowMultipleInstances())
                     return true;
 
                 // Classic and native-shell are separate products for A/B compare — different mutexes.
