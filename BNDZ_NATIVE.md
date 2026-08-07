@@ -23,12 +23,14 @@ BNDZ React surfaces          →  hosted panes only (Automation, Spatial, plugin
 |-------|--------|--------|
 | **1** | FilesMerge = primary BNDZ-Native host; Files owns chrome/list; no full-window HWND embed as main UX | **Done** |
 | **2** | Full BNDZBackend live via IPC from the WinUI shell (`BNDZ.exe --backend-host` + `BNDZ.Backend.Host` pipe) | **Done** |
-| **3** | Host Automation, Spatial, plugins, Command Deck, preview as panes | Next |
+| **3** | Host Automation, Spatial, plugins, Command Deck, preview as panes | **Done** |
 | **4** | Product polish / parity gates | Later |
 
 Primary runnable shell: `FilesMerge/` (branded **BNDZ-Native**). See `FilesMerge/README_BNDZ.md`.
 
 On launch the shell starts (or reconnects to) `BNDZ.exe --backend-host`, pings the host pipe, and probes `GET_INDEX_STATUS` so the status chip proves the real index service — not stubs.
+
+Phase 3 hosts React via `?pane=` WebViews (`BndzPaneHost`) with crafted pane chrome — Files list stays Files-owned.
 
 ## Seed history
 

@@ -87,6 +87,71 @@ namespace Files.App.Views
 				ToolTipService.SetToolTip(BndzBackendStatusText, tip);
 		}
 
+		private bool _bndzPluginsDockOpen;
+		private string? _bndzWorkspacePane;
+
+		private void BndzPluginsPaneButton_Click(object sender, RoutedEventArgs e)
+		{
+			_bndzPluginsDockOpen = !_bndzPluginsDockOpen;
+			if (BndzPluginsDockHost is not null)
+				BndzPluginsDockHost.Visibility = _bndzPluginsDockOpen ? Visibility.Visible : Visibility.Collapsed;
+			if (BndzPluginsDockRow is not null)
+				BndzPluginsDockRow.Height = _bndzPluginsDockOpen ? new GridLength(260) : new GridLength(0);
+			PushSelectionToBndzPanes();
+		}
+
+		private void BndzAutomationPaneButton_Click(object sender, RoutedEventArgs e)
+		{
+			ToggleWorkspacePane("automation");
+		}
+
+		private void BndzSpatialPaneButton_Click(object sender, RoutedEventArgs e)
+		{
+			ToggleWorkspacePane("canvas");
+		}
+
+		private void ToggleWorkspacePane(string pane)
+		{
+			if (_bndzWorkspacePane == pane && BndzWorkspaceOverlay?.Visibility == Visibility.Visible)
+			{
+				_bndzWorkspacePane = null;
+				if (BndzWorkspaceOverlay is not null)
+					BndzWorkspaceOverlay.Visibility = Visibility.Collapsed;
+				return;
+			}
+
+			_bndzWorkspacePane = pane;
+			if (BndzWorkspaceOverlay is not null)
+				BndzWorkspaceOverlay.Visibility = Visibility.Visible;
+			BndzWorkspacePaneHost?.SwitchPane(pane);
+			PushSelectionToBndzPanes();
+		}
+
+		private void PushSelectionToBndzPanes()
+		{
+			try
+			{
+				var shell = SidebarAdaptiveViewModel?.PaneHolder?.ActivePaneOrColumn;
+				var path = shell?.ShellViewModel?.WorkingDirectory;
+				var items = shell?.SlimContentPage?.SelectedItems;
+				List<string>? paths = null;
+				List<string>? names = null;
+				List<string>? types = null;
+				if (items is { Count: > 0 })
+				{
+					paths = items.Select(i => i.ItemPath).Where(p => !string.IsNullOrWhiteSpace(p)).ToList()!;
+					names = items.Select(i => i.Name).ToList();
+					types = items.Select(i => i.IsFolder ? "directory" : "file").ToList();
+				}
+				BndzPluginsDockHost?.PostPaneContext(path, paths, names, types);
+				BndzWorkspacePaneHost?.PostPaneContext(path, paths, names, types);
+			}
+			catch
+			{
+				/* selection push is best-effort */
+			}
+		}
+
 		private async Task AppRunningAsAdminPromptAsync()
 		{
 			var runningAsAdminPrompt = new ContentDialog

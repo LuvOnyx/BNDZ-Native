@@ -650,6 +650,89 @@ namespace BNDZ
                     }
                 }
 
+                if (string.Equals(type, "LOAD_SETTINGS", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        string? settingsJson = _settingsManager.LoadSettings();
+                        if (string.IsNullOrEmpty(settingsJson)) settingsJson = "null";
+                        FileOperationPreferences.ApplyFromJson(settingsJson == "null" ? null : settingsJson);
+                        if (settingsJson != "null")
+                            BndzMediaDiskCache.Instance.ApplySettingsJson(settingsJson);
+                        // Keep response shape identical to WebView LOAD_SETTINGS_RESULT
+                        return "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":" + JsonSerializer.Serialize(id) + ",\"payload\":" + settingsJson + "}";
+                    }
+                    catch (Exception ex)
+                    {
+                        return JsonSerializer.Serialize(new
+                        {
+                            type = "LOAD_SETTINGS_RESULT",
+                            id,
+                            payload = (object?)null,
+                            error = ex.Message,
+                        }, opts);
+                    }
+                }
+
+                if (string.Equals(type, "GET_LICENSE_STATUS", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        var status = LicenseService.GetStatusCached();
+                        return JsonSerializer.Serialize(new
+                        {
+                            type = "LICENSE_STATUS_RESULT",
+                            id,
+                            payload = status,
+                        }, opts);
+                    }
+                    catch (Exception ex)
+                    {
+                        return JsonSerializer.Serialize(new
+                        {
+                            type = "LICENSE_STATUS_RESULT",
+                            id,
+                            payload = new { error = ex.Message },
+                        }, opts);
+                    }
+                }
+
+                if (string.Equals(type, "GET_DRIVES", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        var drives = _cloudStorageService.GetAnnotatedDrives();
+                        return JsonSerializer.Serialize(new
+                        {
+                            type = "DRIVES_RESULT",
+                            id,
+                            payload = drives,
+                        }, opts);
+                    }
+                    catch (Exception ex)
+                    {
+                        return JsonSerializer.Serialize(new
+                        {
+                            type = "DRIVES_RESULT",
+                            id,
+                            payload = Array.Empty<object>(),
+                            error = ex.Message,
+                        }, opts);
+                    }
+                }
+
+                if (string.Equals(type, "UI_READY", StringComparison.Ordinal)
+                    || string.Equals(type, "NOTIFY_UI_READY", StringComparison.Ordinal)
+                    || string.Equals(type, "BNDZ_UI_READY", StringComparison.Ordinal))
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        type = "UI_READY_ACK",
+                        id,
+                        payload = new { ok = true, mode = "backend-host" },
+                    }, opts);
+                }
+
                 return JsonSerializer.Serialize(new
                 {
                     type = "ERROR",

@@ -13,6 +13,7 @@
 	xmlns:tabbar="using:Files.App.UserControls.TabBar"
 	xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
 	xmlns:uc="using:Files.App.UserControls"
+	xmlns:bndz="using:Files.App.UserControls.Bndz"
 	xmlns:viewmodels="using:Files.App.ViewModels"
 	xmlns:wctconverters="using:CommunityToolkit.WinUI.Converters"
 	AllowDrop="True"
@@ -161,10 +162,11 @@
 			Loaded="HorizontalMultitaskingControl_Loaded"
 			TabIndex="0" />
 
-		<!--  Address Bar + BNDZ backend status  -->
+		<!--  Address Bar + BNDZ backend status + pane toggles  -->
 		<Grid Grid.Row="1">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="*" />
+				<ColumnDefinition Width="Auto" />
 				<ColumnDefinition Width="Auto" />
 			</Grid.ColumnDefinitions>
 			<uc:NavigationToolbar
@@ -175,10 +177,35 @@
 				Loaded="NavToolbar_Loaded"
 				ShowOngoingTasks="True"
 				TabIndex="1" />
+			<StackPanel
+				Grid.Column="1"
+				Margin="4,0,4,0"
+				VerticalAlignment="Center"
+				Orientation="Horizontal"
+				Spacing="4">
+				<Button
+					x:Name="BndzPluginsPaneButton"
+					Padding="10,4"
+					Click="BndzPluginsPaneButton_Click"
+					Content="Plugins"
+					ToolTipService.ToolTip="BNDZ plugins + Command Deck (hosted pane)" />
+				<Button
+					x:Name="BndzAutomationPaneButton"
+					Padding="10,4"
+					Click="BndzAutomationPaneButton_Click"
+					Content="Automation"
+					ToolTipService.ToolTip="BNDZ Automation workspace (hosted pane)" />
+				<Button
+					x:Name="BndzSpatialPaneButton"
+					Padding="10,4"
+					Click="BndzSpatialPaneButton_Click"
+					Content="Spatial"
+					ToolTipService.ToolTip="BNDZ Spatial Canvas (hosted pane)" />
+			</StackPanel>
 			<TextBlock
 				x:Name="BndzBackendStatusText"
-				Grid.Column="1"
-				Margin="8,0,12,0"
+				Grid.Column="2"
+				Margin="4,0,12,0"
 				VerticalAlignment="Center"
 				FontSize="11"
 				Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -219,7 +246,10 @@
 							x:Name="ContentRow"
 							Height="*"
 							MinHeight="100" />
-						<RowDefinition Height="Auto" />
+						<RowDefinition
+							x:Name="BndzPluginsDockRow"
+							Height="0"
+							MinHeight="0" />
 						<RowDefinition x:Name="InfoPaneRowDefinition" Height="Auto" />
 					</Grid.RowDefinitions>
 					<Grid.ColumnDefinitions>
@@ -273,12 +303,36 @@
 					</InfoBar>
 
 					<!--  Page Content  -->
-					<ContentPresenter
-						x:Name="PageContent"
+					<Grid
 						Grid.Row="2"
+						Grid.Column="0">
+						<ContentPresenter
+							x:Name="PageContent"
+							HorizontalContentAlignment="Stretch"
+							Content="{x:Bind ViewModel.SelectedTabItem.ContentFrame, Mode=OneWay}" />
+
+						<!--  Workspace overlay: Automation / Spatial (Files list stays underneath)  -->
+						<Border
+							x:Name="BndzWorkspaceOverlay"
+							Background="{ThemeResource LayerFillColorDefaultBrush}"
+							CornerRadius="12"
+							Visibility="Collapsed">
+							<bndz:BndzPaneHost
+								x:Name="BndzWorkspacePaneHost"
+								Pane="automation" />
+						</Border>
+					</Grid>
+
+					<!--  Bottom plugins + Command Deck dock  -->
+					<bndz:BndzPaneHost
+						x:Name="BndzPluginsDockHost"
+						Grid.Row="3"
 						Grid.Column="0"
-						HorizontalContentAlignment="Stretch"
-						Content="{x:Bind ViewModel.SelectedTabItem.ContentFrame, Mode=OneWay}" />
+						Grid.ColumnSpan="3"
+						Margin="0,6,0,0"
+						MinHeight="0"
+						Pane="plugins"
+						Visibility="Collapsed" />
 
 					<!--  Info Pane Splitter  -->
 					<controls:GridSplitter

@@ -19,16 +19,18 @@ BNDZ React surfaces    →  hosted panes ONLY (Automation, Spatial, plugins,
 
 ---
 
-## What you get today (Phases 1–2)
+## What you get today (Phases 1–3)
 
 | Surface | Source |
 |---------|--------|
 | Native FM chrome, sidebar, tabs, omnibar, file list | **Files** under `FilesMerge/` — branded **BNDZ-Native** |
 | Full BNDZBackend (services, index, plugins brain) | Child `BNDZ.exe --backend-host` + named pipe `BNDZ.Backend.Host` |
 | Status chip | Omnibar trailing label: connected / offline / indexed count |
-| React panes (Automation, Spatial, …) | **Phase 3** — not nested full-window classic FM |
+| Plugins + Command Deck | Bottom dock WebView (`?pane=plugins`) — toggle **Plugins** |
+| Automation / Spatial | Workspace overlay WebViews (`?pane=automation` / `canvas`) |
+| Preview tools | `?pane=preview` shell (selection-driven) |
 
-Default session = Files-class shell + live backend host. There is **no** toolbar that nests the entire classic React FM inside Files.
+Default session = Files-class shell + live backend host + optional hosted panes. There is **no** nested classic React FM layout.
 
 ### Backend host protocol (Phase 2)
 

@@ -21,6 +21,7 @@ finally { Pop-Location }
 
 # Stage BNDZ.exe next to Files.exe so ResolveBndzExe finds the sibling first.
 $bndzExe = Join-Path $root "BNDZBackend\bin\Debug\net8.0-windows10.0.19041.0\BNDZ.exe"
+$bndzUi = Join-Path $root "BNDZBackend\Assets\ui"
 $filesOutCandidates = @(
   (Join-Path $root "FilesMerge\src\Files.App\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64"),
   (Join-Path $root "FilesMerge\src\Files.App\bin\x64\Debug\net10.0-windows10.0.26100.0"),
@@ -29,12 +30,16 @@ $filesOutCandidates = @(
 if (Test-Path $bndzExe) {
   foreach ($dir in $filesOutCandidates) {
     if (Test-Path $dir) {
-      Write-Host "==> Staging BNDZ.exe next to Files shell: $dir" -ForegroundColor Cyan
+      Write-Host "==> Staging BNDZ.exe + Assets/ui next to Files shell: $dir" -ForegroundColor Cyan
       Copy-Item -Force $bndzExe (Join-Path $dir "BNDZ.exe")
       $bndzDir = Split-Path $bndzExe -Parent
-      # Companion deps for self-contained-ish Debug layout (best-effort)
       Get-ChildItem $bndzDir -Filter "*.dll" | ForEach-Object {
         Copy-Item -Force $_.FullName (Join-Path $dir $_.Name) -ErrorAction SilentlyContinue
+      }
+      if (Test-Path $bndzUi) {
+        $uiDest = Join-Path $dir "Assets\ui"
+        New-Item -ItemType Directory -Force -Path $uiDest | Out-Null
+        Copy-Item -Recurse -Force (Join-Path $bndzUi "*") $uiDest
       }
       break
     }

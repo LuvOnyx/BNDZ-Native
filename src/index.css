@@ -12056,3 +12056,185 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-reality-missing:hover {
   box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.75), 0 0 14px rgba(248, 113, 113, 0.32) !important;
 }
+
+/* ─── BNDZ-Native hosted panes (architecture #3 / FilesMerge WebView) ─── */
+html[data-bndz-shell="files-pane"],
+body.bndz-native-pane-body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(196, 163, 90, 0.14), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(56, 189, 248, 0.10), transparent 50%),
+    linear-gradient(165deg, #12151c 0%, #0b0d12 48%, #0e1218 100%);
+  color: #e8eef6;
+}
+.bndz-native-pane-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100%;
+  isolation: isolate;
+}
+.bndz-native-pane-chrome {
+  position: relative;
+  flex-shrink: 0;
+  padding: 10px 14px 8px;
+  overflow: hidden;
+}
+.bndz-native-pane-chrome-glow {
+  position: absolute;
+  inset: -40% 10% auto -10%;
+  height: 120%;
+  background: radial-gradient(ellipse at 30% 40%, rgba(153, 201, 240, 0.18), transparent 60%);
+  pointer-events: none;
+  filter: blur(8px);
+  animation: bndz-pane-aurora 7.5s ease-in-out infinite alternate;
+}
+@keyframes bndz-pane-aurora {
+  from { transform: translate3d(0, 0, 0) scale(1); opacity: 0.7; }
+  to { transform: translate3d(4%, 2%, 0) scale(1.05); opacity: 1; }
+}
+.bndz-native-pane-chrome-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(153, 201, 240, 0.22);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0.22) 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 12px 28px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(0,0,0,0.35);
+  backdrop-filter: blur(14px) saturate(1.2);
+}
+.bndz-native-pane-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 5px;
+  background: linear-gradient(145deg, #99c9f0, #3b82c4 55%, #c4a35a);
+  box-shadow: 0 0 14px rgba(153, 201, 240, 0.45);
+  flex-shrink: 0;
+}
+.bndz-native-pane-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.bndz-native-pane-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(153, 201, 240, 0.72);
+}
+.bndz-native-pane-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #f3f7fc;
+  line-height: 1.2;
+}
+.bndz-native-pane-chip {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 246, 0.85);
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.18));
+}
+.bndz-native-pane-main {
+  flex: 1;
+  min-height: 0;
+  padding: 0 10px 10px;
+  display: flex;
+  flex-direction: column;
+}
+.bndz-native-pane-surface {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  border: 1px solid rgba(153, 201, 240, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01)),
+    rgba(14, 17, 24, 0.92);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 18px 40px rgba(0,0,0,0.38);
+  overflow: hidden;
+  animation: bndz-pane-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes bndz-pane-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.bndz-native-pane-surface--plugins {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.bndz-native-pane-deck-rail {
+  padding: 10px 12px 0;
+  pointer-events: auto;
+}
+.bndz-native-pane-deck-rail .bndz-command-deck-shell {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  width: 100%;
+  pointer-events: auto;
+}
+.bndz-native-pane-plugins-body {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.bndz-native-pane-plugins-body .bndz-bottom-plugin-surface,
+.bndz-native-pane-plugins-body > * {
+  flex: 1;
+  min-height: 0;
+}
+.bndz-native-pane-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.bndz-native-pane-empty-card {
+  width: min(360px, 100%);
+  padding: 28px 24px;
+  border-radius: 22px;
+  text-align: center;
+  border: 1px solid rgba(153, 201, 240, 0.2);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(153, 201, 240, 0.12), transparent 55%),
+    linear-gradient(165deg, rgba(32, 38, 50, 0.95), rgba(16, 18, 24, 0.98));
+  box-shadow: 0 16px 36px rgba(0,0,0,0.4);
+  animation: bndz-pane-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+.bndz-native-pane-empty-card h2 {
+  margin: 12px 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f3f7fc;
+}
+.bndz-native-pane-empty-card p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(198, 210, 224, 0.78);
+}

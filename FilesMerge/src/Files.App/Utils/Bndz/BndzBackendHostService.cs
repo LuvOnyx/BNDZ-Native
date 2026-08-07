@@ -36,20 +36,45 @@ internal static class BndzBackendClient
 	{
 		var id = Guid.NewGuid().ToString("N");
 		var request = JsonSerializer.Serialize(new { type, id, payload = payload ?? new { } });
+		return await InvokeAsyncFromRawJsonAsync(request, connectTimeoutMs, ct).ConfigureAwait(false);
+	}
+
+	/// <summary>Forward a WebView-shaped JSON envelope to the backend host pipe and return the response document.</summary>
+	public static async Task<JsonDocument?> InvokeAsyncFromRawJsonAsync(string requestJson, int connectTimeoutMs = 8000, CancellationToken ct = default)
+	{
+		// Ensure correlating id exists for request/response matching on the host.
+		string line = requestJson;
+		try
+		{
+			using var doc = JsonDocument.Parse(requestJson);
+			var root = doc.RootElement;
+			if (!root.TryGetProperty("id", out _) && root.TryGetProperty("type", out var typeEl))
+			{
+				var type = typeEl.GetString() ?? "UNKNOWN";
+				object? payload = null;
+				if (root.TryGetProperty("payload", out var p))
+					payload = JsonSerializer.Deserialize<object>(p.GetRawText());
+				line = JsonSerializer.Serialize(new { type, id = Guid.NewGuid().ToString("N"), payload });
+			}
+		}
+		catch
+		{
+			line = requestJson;
+		}
 
 		using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
 		await client.ConnectAsync(connectTimeoutMs, ct).ConfigureAwait(false);
 
-		var bytes = Encoding.UTF8.GetBytes(request + "\n");
+		var bytes = Encoding.UTF8.GetBytes(line.TrimEnd() + "\n");
 		await client.WriteAsync(bytes, ct).ConfigureAwait(false);
 		await client.FlushAsync(ct).ConfigureAwait(false);
 
 		using var reader = new StreamReader(client, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-		var line = await reader.ReadLineAsync(ct).ConfigureAwait(false);
-		if (string.IsNullOrWhiteSpace(line))
+		var responseLine = await reader.ReadLineAsync(ct).ConfigureAwait(false);
+		if (string.IsNullOrWhiteSpace(responseLine))
 			return null;
 
-		return JsonDocument.Parse(line);
+		return JsonDocument.Parse(responseLine);
 	}
 
 	public static async Task<bool> TryPingAsync(CancellationToken ct = default)
