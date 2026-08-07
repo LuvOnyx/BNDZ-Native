@@ -88,6 +88,7 @@ namespace Files.App.Views
 		}
 
 		private bool _bndzPluginsDockOpen;
+		private bool _bndzPreviewOpen;
 		private string? _bndzWorkspacePane;
 
 		private void BndzPluginsPaneButton_Click(object sender, RoutedEventArgs e)
@@ -96,7 +97,7 @@ namespace Files.App.Views
 			if (BndzPluginsDockHost is not null)
 				BndzPluginsDockHost.Visibility = _bndzPluginsDockOpen ? Visibility.Visible : Visibility.Collapsed;
 			if (BndzPluginsDockRow is not null)
-				BndzPluginsDockRow.Height = _bndzPluginsDockOpen ? new GridLength(260) : new GridLength(0);
+				BndzPluginsDockRow.Height = _bndzPluginsDockOpen ? new GridLength(280) : new GridLength(0);
 			PushSelectionToBndzPanes();
 		}
 
@@ -108,6 +109,32 @@ namespace Files.App.Views
 		private void BndzSpatialPaneButton_Click(object sender, RoutedEventArgs e)
 		{
 			ToggleWorkspacePane("canvas");
+		}
+
+		private void BndzPreviewPaneButton_Click(object sender, RoutedEventArgs e)
+		{
+			_bndzPreviewOpen = !_bndzPreviewOpen;
+			if (BndzPreviewPaneHost is not null)
+				BndzPreviewPaneHost.Visibility = _bndzPreviewOpen ? Visibility.Visible : Visibility.Collapsed;
+
+			// Open the preview column when showing BNDZ preview tools.
+			if (_bndzPreviewOpen)
+			{
+				try
+				{
+					if (InfoPaneColumnDefinition is not null && InfoPaneColumnDefinition.Width.Value < 220)
+						InfoPaneColumnDefinition.Width = new GridLength(280);
+					if (InfoPane is not null)
+						InfoPane.Visibility = Visibility.Collapsed;
+				}
+				catch { /* best-effort */ }
+			}
+			else if (InfoPane is not null)
+			{
+				InfoPane.Visibility = Visibility.Visible;
+			}
+
+			PushSelectionToBndzPanes();
 		}
 
 		private void ToggleWorkspacePane(string pane)
@@ -131,9 +158,9 @@ namespace Files.App.Views
 		{
 			try
 			{
-				var shell = SidebarAdaptiveViewModel?.PaneHolder?.ActivePaneOrColumn;
-				var path = shell?.ShellViewModel?.WorkingDirectory;
-				var items = shell?.SlimContentPage?.SelectedItems;
+				var path = ContentPageContext.Folder?.ItemPath
+					?? SidebarAdaptiveViewModel?.PaneHolder?.ActivePaneOrColumn?.ShellViewModel?.WorkingDirectory;
+				var items = ContentPageContext.SelectedItems;
 				List<string>? paths = null;
 				List<string>? names = null;
 				List<string>? types = null;
@@ -145,6 +172,7 @@ namespace Files.App.Views
 				}
 				BndzPluginsDockHost?.PostPaneContext(path, paths, names, types);
 				BndzWorkspacePaneHost?.PostPaneContext(path, paths, names, types);
+				BndzPreviewPaneHost?.PostPaneContext(path, paths, names, types);
 			}
 			catch
 			{
@@ -277,6 +305,15 @@ namespace Files.App.Views
 		{
 			if (e.PropertyName is nameof(IContentPageContext.PageType))
 				LoadPaneChanged();
+
+			if (e.PropertyName is nameof(IContentPageContext.SelectedItems)
+				or nameof(IContentPageContext.Folder)
+				or nameof(IContentPageContext.ShellPage)
+				or nameof(IContentPageContext.HasSelection)
+				or null)
+			{
+				PushSelectionToBndzPanes();
+			}
 		}
 
 		private void UpdateNavToolbarProperties()

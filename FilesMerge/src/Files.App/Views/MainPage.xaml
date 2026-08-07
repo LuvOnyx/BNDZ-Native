@@ -201,6 +201,12 @@
 					Click="BndzSpatialPaneButton_Click"
 					Content="Spatial"
 					ToolTipService.ToolTip="BNDZ Spatial Canvas (hosted pane)" />
+				<Button
+					x:Name="BndzPreviewPaneButton"
+					Padding="10,4"
+					Click="BndzPreviewPaneButton_Click"
+					Content="Preview"
+					ToolTipService.ToolTip="BNDZ preview tools (hosted pane)" />
 			</StackPanel>
 			<TextBlock
 				x:Name="BndzBackendStatusText"
@@ -355,6 +361,15 @@
 						x:Load="{x:Bind ViewModel.ShouldPreviewPaneBeActive, Mode=OneWay}"
 						Loaded="PreviewPane_Loaded"
 						Unloaded="PreviewPane_Unloaded" />
+
+					<!--  BNDZ preview tools pane (hosted React — toggled from omnibar)  -->
+					<bndz:BndzPaneHost
+						x:Name="BndzPreviewPaneHost"
+						Grid.Row="2"
+						Grid.Column="2"
+						MinWidth="220"
+						Pane="preview"
+						Visibility="Collapsed" />
 
 					<!--  Shelf Pane  -->
 					<uc:ShelfPane

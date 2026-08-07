@@ -28,9 +28,9 @@ BNDZ React surfaces    →  hosted panes ONLY (Automation, Spatial, plugins,
 | Status chip | Omnibar trailing label: connected / offline / indexed count |
 | Plugins + Command Deck | Bottom dock WebView (`?pane=plugins`) — toggle **Plugins** |
 | Automation / Spatial | Workspace overlay WebViews (`?pane=automation` / `canvas`) |
-| Preview tools | `?pane=preview` shell (selection-driven) |
+| Preview tools | Right column WebView (`?pane=preview`) — toggle **Preview**; selection-synced |
 
-Default session = Files-class shell + live backend host + optional hosted panes. There is **no** nested classic React FM layout.
+Default session = Files-class shell + live backend host + hosted panes. Pipe IPC is the **full** WebView message surface (not a stub allowlist). There is **no** nested classic React FM layout.
 
 ### Backend host protocol (Phase 2)
 

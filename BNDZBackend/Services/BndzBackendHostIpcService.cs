@@ -100,7 +100,7 @@ public sealed class BndzBackendHostIpcService : IDisposable
             return;
         }
 
-        string response;
+            string response;
         try
         {
             var main = _main;
@@ -110,8 +110,8 @@ public sealed class BndzBackendHostIpcService : IDisposable
             }
             else
             {
-                response = await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-                    () => main.HandleBackendHostIpc(line)).Task;
+                // Full IPC surface — must run waiter registration + dispatch without blocking the pipe accept loop forever.
+                response = await main.HandleBackendHostIpcAsync(line).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
