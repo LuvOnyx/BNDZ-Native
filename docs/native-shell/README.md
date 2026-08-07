@@ -1,30 +1,21 @@
-# BNDZ × Files merge — A/B branch
+# BNDZ-Native — native shell notes
 
-**Branch:** `cursor/winui-native-shell-spike-1f6d`  
-**Vs:** `main` = classic WebView2 BNDZ
+**Product shell:** `FilesMerge/` (vendored Files WinUI), branded **BNDZ-Native**.  
+**Architecture:** #3 — Files owns chrome/list; full `BNDZBackend`; React as hosted panes. See root `BNDZ_NATIVE.md` and `FilesMerge/README_BNDZ.md`.
 
-## Intent
+## Not the product path
 
-Full Files (native WinUI FM) **merged with** full BNDZ content/UI on a side branch so you can decide which direction you prefer.
+| Artifact | Role |
+|----------|------|
+| `BndzEmbedHost` / `--embedded` | Historical A/B HWND glue — reference only |
+| `BNDZ.exe --native-shell` | Earlier WPF banner experiment — not FilesMerge |
+| `BNDZ.NativeShell.*` | Spike / progressive port — not the primary host |
 
-## How the merge works
-
-1. `FilesMerge/` — vendored [files-community/Files](https://github.com/files-community/Files) (MIT), branded **BNDZ (Files Merge)**
-2. Toolbar **BNDZ Workspace** — embeds real `BNDZ.exe --embedded` (complete product) into the Files content area via HWND reparent
-3. **Files View** — back to native Files list/sidebar/omnibar
-
-Classic BNDZ remains on this branch too (`scripts\run-classic.cmd`) for direct compare without switching git branches.
-
-## Build (Windows only for Files)
+## Build
 
 ```powershell
 powershell -File scripts/build-files-bndz-merge.ps1
-scripts\run-files-merge.cmd    # Files chrome + BNDZ Workspace button
-scripts\run-classic.cmd        # classic BNDZ
+scripts\run-files-merge.cmd
 ```
 
-Needs **.NET 10 SDK** + Windows App SDK (Files `global.json`).
-
-## Not on main
-
-This merge stays on the feature branch until you choose to adopt it.
+WinUI build is **Windows-only** (.NET 10 + WASDK).

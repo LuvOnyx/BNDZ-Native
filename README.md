@@ -1,74 +1,59 @@
-# BNDZ 1.0 — Windows File Manager
+# BNDZ-Native
 
-BNDZ is a modern, dual-pane file manager for Windows 10/11 with native shell integration, rich previews, extension plugins, and deep customization.
+**Repo:** [LuvOnyx/BNDZ-Native](https://github.com/LuvOnyx/BNDZ-Native)  
+**Classic / official product:** [LuvOnyx/BNDZ-1.0](https://github.com/LuvOnyx/BNDZ-1.0) — leave that line alone.
 
-## Highlights
+This repo is the **native + full BNDZ** product: a Files-derived WinUI shell, full `BNDZBackend`, and BNDZ React surfaces hosted as panes — not a nested classic WebView2 FM inside Files.
 
-- **Dual-pane workspace** with tabs, column resize, and synced navigation
-- **Native shell** context menus, icons, thumbnails, and file operations
-- **Shift + hover tooltips** — instant file metadata without UI clutter
-- **Extension Hub** — Folder Sync, Storage Cleanup, Icon Studio, Batch Rename, and more
-- **Everything search** integration (`>` prefix in filter bar)
-- **Offline licensing** — activate with serial from Help → Register
+See [BNDZ_NATIVE.md](BNDZ_NATIVE.md) for the locked architecture.
+
+## Architecture (locked #3)
+
+| Layer | Owns |
+|-------|------|
+| **FilesMerge** (WinUI / Files) | Title bar, tabs, sidebar, omnibar, file list |
+| **BNDZBackend** | All services, IPC, plugins brain — no stubs |
+| **React (`src/`)** | Hosted panes only: Automation, Spatial, plugins, Command Deck, preview tools |
+
+**Rejected as product:** full-window HWND embed of classic `BNDZ.exe` (`BndzEmbedHost`). Keep for reference only.
+
+## Build & run (Windows)
+
+Requires **.NET 10 SDK** + **Windows App SDK** for the WinUI shell. Linux cannot compile Files XAML.
+
+```powershell
+# Primary: BNDZ-Native shell + warm backend assets
+powershell -File scripts/build-files-bndz-merge.ps1
+scripts\run-files-merge.cmd
+```
+
+Backend / React only:
+
+```powershell
+npm run build
+dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
+```
+
+Classic `BNDZ.exe` on this machine (reference): `scripts\run-classic.cmd`
+
+## Phase 1 (current)
+
+- FilesMerge is the primary host, branded **BNDZ-Native**
+- Default UX = native Files chrome + file list (no nested classic FM)
+- Phases 2–3 wire full backend IPC and hosted React panes
 
 ## Requirements
 
 | Component | Notes |
 |-----------|--------|
-| Windows 10/11 x64 | Primary target |
-| WebView2 | Installed automatically by setup |
-| .NET 8 Runtime | Bundled (self-contained publish) — no separate install |
+| Windows 10/11 x64 | WinUI shell + backend |
+| .NET 10 + WASDK | FilesMerge |
+| .NET 8 (Windows targeting) | BNDZBackend |
+| Node / npm | React asset build → `BNDZBackend/Assets/ui` |
+| WebView2 | Hosted panes (Phase 3) and classic reference exe |
 
-## Trial and licensing
+## License
 
-- **14-day trial** on first launch; activate via Help → Register Product with your serial.
-- Set `BNDZ_LICENSE_SECRET` when building retail installers and generating customer serials (`npm run license:generate`).
-
-## Development
-
-```powershell
-cd "BNDZ 3.6.2"
-npm install
-npm run dev          # Web preview + API server
-```
-
-Native host:
-
-```powershell
-cd BNDZBackend
-dotnet run
-```
-
-Build UI into backend assets:
-
-```powershell
-npm run build
-```
-
-## Release packaging
-
-```powershell
-npm run package              # Portable ZIP + publish folder
-npm run package:installer    # + Inno Setup installer
-npm run package:signed       # + Authenticode (set BNDZ_SIGN_* env vars)
-npm run package:verify       # Validate artifacts
-```
-
-See [docs/LAUNCH.md](docs/LAUNCH.md) for the full launch checklist.
-
-## License keys (vendor)
-
-Generate serials for customers (secret must match retail build via `BNDZ_LICENSE_SECRET`):
-
-```powershell
-$env:BNDZ_LICENSE_SECRET = "your-retail-secret-here"
-.\scripts\generate-license.ps1 -Count 10
-```
-
-Format: `BNDZ-XXXX-XXXX-CCCC`
-
-## Version
-
-**1.0.0** — Official release
+Files under `FilesMerge/` — MIT (files-community/Files). BNDZ product code outside that tree — BNDZ license/structure.
 
 © BNDZ. All rights reserved.

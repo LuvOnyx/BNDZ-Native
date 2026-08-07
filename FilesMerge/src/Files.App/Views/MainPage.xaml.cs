@@ -544,49 +544,5 @@ namespace Files.App.Views
 			await Task.Delay(140);
 			AnimatedIcon.SetState(SettingAnimatedIcon, "Normal");
 		}
-
-		// --- BNDZ × Files merge: toggle full BNDZ workspace inside Files chrome ---
-
-		private bool _bndzWorkspaceVisible;
-
-		private async void BndzWorkspaceButton_Click(object sender, RoutedEventArgs e)
-		{
-			_bndzWorkspaceVisible = !_bndzWorkspaceVisible;
-			if (_bndzWorkspaceVisible)
-			{
-				BndzWorkspaceHost.Visibility = Visibility.Visible;
-				PageContent.Visibility = Visibility.Collapsed;
-				BndzWorkspaceButton.Content = "Files View";
-				var ok = await Utils.Bndz.BndzEmbedHost.ShowAsync(BndzWorkspaceHost);
-				if (!ok)
-				{
-					_bndzWorkspaceVisible = false;
-					BndzWorkspaceHost.Visibility = Visibility.Collapsed;
-					PageContent.Visibility = Visibility.Visible;
-					BndzWorkspaceButton.Content = "BNDZ Workspace";
-					var dialog = new ContentDialog
-					{
-						Title = "BNDZ not found",
-						Content = "Build classic BNDZ first (npm run build + BNDZBackend), then retry.\nExpected: BNDZBackend\\bin\\Debug\\net8.0-windows10.0.19041.0\\BNDZ.exe",
-						CloseButtonText = "OK",
-						XamlRoot = XamlRoot,
-					};
-					_ = dialog.ShowAsync();
-				}
-			}
-			else
-			{
-				Utils.Bndz.BndzEmbedHost.Hide();
-				BndzWorkspaceHost.Visibility = Visibility.Collapsed;
-				PageContent.Visibility = Visibility.Visible;
-				BndzWorkspaceButton.Content = "BNDZ Workspace";
-			}
-		}
-
-		private void BndzWorkspaceHost_SizeChanged(object sender, SizeChangedEventArgs e)
-		{
-			if (_bndzWorkspaceVisible)
-				Utils.Bndz.BndzEmbedHost.Layout(BndzWorkspaceHost);
-		}
 	}
 }

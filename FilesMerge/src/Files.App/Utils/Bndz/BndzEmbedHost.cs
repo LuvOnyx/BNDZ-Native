@@ -1,5 +1,11 @@
 // Copyright (c) BNDZ — Files merge integration
 // Files Community portions remain MIT (see LICENSE-MIT).
+//
+// REFERENCE ONLY — not product UX.
+// Architecture #3 (BNDZ_NATIVE.md): WinUI/FilesMerge owns chrome + file list;
+// BNDZ React surfaces are hosted panes later. Full-window HWND embed of classic
+// BNDZ.exe (--embedded) was an A/B glue experiment and must not be wired back
+// into MainPage as the primary experience.
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -8,8 +14,8 @@ using Microsoft.UI.Xaml;
 namespace Files.App.Utils.Bndz;
 
 /// <summary>
-/// Hosts the full BNDZ product (WPF + WebView2 + all plugins) inside the Files shell
-/// via Win32 HWND reparenting — native Files chrome AND complete BNDZ UI for A/B.
+/// Historical A/B helper: HWND-reparent classic <c>BNDZ.exe --embedded</c> into Files.
+/// Kept for reference only — superseded by architecture #3. Do not call from MainPage.
 /// </summary>
 internal static class BndzEmbedHost
 {

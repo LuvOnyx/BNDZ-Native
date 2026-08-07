@@ -19,7 +19,7 @@
         Version="4.2.2.0" />
 
     <Properties>
-        <DisplayName>BNDZ (Files Merge)</DisplayName>
+        <DisplayName>BNDZ-Native</DisplayName>
         <PublisherDisplayName>BNDZ</PublisherDisplayName>
         <Logo>Assets\AppTiles\Dev\StoreLogo.png</Logo>
         <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
@@ -89,8 +89,8 @@
             desktop4:SupportsMultipleInstances="true">
 
             <uap:VisualElements
-                DisplayName="BNDZ (Files Merge)"
-                Description="Organize your files and folders easily. Robust multitasking experiences, helpful tags, and deep integrations add to an intuitive design, made by the community."
+                DisplayName="BNDZ-Native"
+                Description="BNDZ-Native — WinUI file manager shell (Files-derived) with full BNDZ backend and hosted product panes."
                 Square150x150Logo="Assets\AppTiles\Dev\Square150x150Logo.png"
                 Square44x44Logo="Assets\AppTiles\Dev\Square44x44Logo.png"
                 BackgroundColor="transparent">
@@ -99,7 +99,7 @@
                     Wide310x150Logo="Assets\AppTiles\Dev\Wide310x150Logo.png"
                     Square71x71Logo="Assets\AppTiles\Dev\Small71x71Logo.png"
                     Square310x310Logo="Assets\AppTiles\Dev\Large310x310Logo.png"
-                    ShortName="BNDZ Files Merge">
+                    ShortName="BNDZ-Native">
                     <uap:ShowNameOnTiles>
                         <uap:ShowOn Tile="square150x150Logo" />
                         <uap:ShowOn Tile="wide310x150Logo" />

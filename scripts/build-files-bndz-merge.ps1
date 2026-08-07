@@ -1,16 +1,17 @@
-# Build Files × BNDZ merge (Windows)
+# Build BNDZ-Native WinUI shell (FilesMerge) + keep BNDZBackend warm for Phase 2+
+# Windows only for Files/WinUI (.NET 10 + Windows App SDK).
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-Write-Host "==> Classic BNDZ (required for BNDZ Workspace embed)" -ForegroundColor Cyan
+Write-Host "==> BNDZBackend + React assets (Phase 2 readiness — not HWND embed)" -ForegroundColor Cyan
 npm run build
 if ($LASTEXITCODE -ne 0) { throw "npm run build failed" }
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 if ($LASTEXITCODE -ne 0) { throw "BNDZBackend build failed" }
 
-Write-Host "==> Files merge app (WinUI — needs .NET 10 + Windows App SDK)" -ForegroundColor Cyan
+Write-Host "==> BNDZ-Native shell (FilesMerge / WinUI)" -ForegroundColor Cyan
 Push-Location FilesMerge
 try {
   dotnet build src/Files.App/Files.App.csproj -c Debug -p:Platform=x64
@@ -19,8 +20,9 @@ try {
 finally { Pop-Location }
 
 Write-Host ""
-Write-Host "Ready for A/B:" -ForegroundColor Green
-Write-Host "  MERGE (Files + BNDZ):  scripts\run-files-merge.cmd"
-Write-Host "  CLASSIC (main-style): scripts\run-classic.cmd"
+Write-Host "Ready:" -ForegroundColor Green
+Write-Host "  BNDZ-Native (FilesMerge shell):  scripts\run-files-merge.cmd"
+Write-Host "  Classic BNDZ.exe (reference):    scripts\run-classic.cmd"
 Write-Host ""
-Write-Host "In the Files app, click 'BNDZ Workspace' for full BNDZ UI inside Files chrome."
+Write-Host "Architecture #3: Files owns chrome + file list. Full-window HWND embed is not product UX."
+Write-Host "Next: Phase 2 backend IPC, Phase 3 hosted React panes."

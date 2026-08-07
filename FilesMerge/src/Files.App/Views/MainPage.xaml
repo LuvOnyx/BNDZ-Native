@@ -162,28 +162,15 @@
 			TabIndex="0" />
 
 		<!--  Address Bar  -->
-		<Grid Grid.Row="1">
-			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="*" />
-				<ColumnDefinition Width="Auto" />
-			</Grid.ColumnDefinitions>
-			<uc:NavigationToolbar
-				x:Name="NavToolbar"
-				HorizontalAlignment="Stretch"
-				HorizontalContentAlignment="Stretch"
-				x:Load="False"
-				Loaded="NavToolbar_Loaded"
-				ShowOngoingTasks="True"
-				TabIndex="1" />
-			<Button
-				x:Name="BndzWorkspaceButton"
-				Grid.Column="1"
-				Margin="8,0,12,0"
-				VerticalAlignment="Center"
-				Click="BndzWorkspaceButton_Click"
-				Content="BNDZ Workspace"
-				ToolTipService.ToolTip="Show full BNDZ UI inside Files chrome (merge A/B)" />
-		</Grid>
+		<uc:NavigationToolbar
+			x:Name="NavToolbar"
+			Grid.Row="1"
+			HorizontalAlignment="Stretch"
+			HorizontalContentAlignment="Stretch"
+			x:Load="False"
+			Loaded="NavToolbar_Loaded"
+			ShowOngoingTasks="True"
+			TabIndex="1" />
 
 		<!--  Content Area  -->
 		<controls:SidebarView
@@ -278,17 +265,6 @@
 						Grid.Column="0"
 						HorizontalContentAlignment="Stretch"
 						Content="{x:Bind ViewModel.SelectedTabItem.ContentFrame, Mode=OneWay}" />
-
-					<!--  BNDZ workspace host (full BNDZ HWND embed — see Utils/Bndz/BndzEmbedHost.cs)  -->
-					<Border
-						x:Name="BndzWorkspaceHost"
-						Grid.Row="0"
-						Grid.RowSpan="5"
-						Grid.Column="0"
-						Grid.ColumnSpan="3"
-						Background="Transparent"
-						Visibility="Collapsed"
-						SizeChanged="BndzWorkspaceHost_SizeChanged" />
 
 					<!--  Info Pane Splitter  -->
 					<controls:GridSplitter
