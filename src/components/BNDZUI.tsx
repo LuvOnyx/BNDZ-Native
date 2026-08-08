@@ -29,6 +29,7 @@ import {
   isFilesHostBoot,
   notifyFilesHostNavigate,
   subscribeFilesHostContext,
+  subscribeFilesHostListing,
 } from '../lib/filesHostBoot';
 import { resolveDropOperation } from '../lib/dropOperation';
 import {
@@ -1881,6 +1882,8 @@ export default function BNDZUI() {
   const [streamingPaths, setStreamingPaths] = useState<Set<string>>(new Set());
   const refetchInFlightRef = useRef<Record<string, Promise<void>>>({});
   const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => Promise<void> | undefined>(() => undefined);
+  /** Paths seeded by Files ShellViewModel (`BNDZ_DIR_LISTING`) — prefer over GET_DIR_CONTENTS. */
+  const filesFedPathsRef = useRef(new Set<string>());
   const dirFetchTransientRetryRef = useRef<Record<string, number>>({});
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
   const [prefetchingPaths, setPrefetchingPaths] = useState<Set<string>>(() => new Set());
@@ -2044,6 +2047,10 @@ export default function BNDZUI() {
       if (Array.isArray(cached) && cached.length > 0) {
         prefetchListingVisuals(cached, path, listingPrefetchFromConfig(configRef.current));
       }
+      return undefined;
+    }
+    // Blend: Files already pushed this folder — do not race backend GET_DIR_CONTENTS.
+    if (!opts?.force && isFilesHostBoot() && filesFedPathsRef.current.has(path)) {
       return undefined;
     }
     if (!opts?.force && dirFetchInFlightRef.current.has(path)) return undefined;
@@ -2256,11 +2263,32 @@ export default function BNDZUI() {
   beginDirFetchRef.current = beginDirFetch;
 
   useEffect(() => {
+    const timers: number[] = [];
     panes.forEach(pane => {
       const tab = pane.tabs[pane.activeTabIndex];
       const path = normalizePanePath(tab?.path || '');
-      if (path) beginDirFetch(path);
+      if (!path) return;
+      // Blend: give Files ShellViewModel a beat to push BNDZ_DIR_LISTING before IPC fallback.
+      if (isFilesHostBoot()) {
+        setLoadingPaths((prev) => new Set(prev).add(path));
+        const t = window.setTimeout(() => {
+          if (filesFedPathsRef.current.has(path) && pathContentsCacheRef.current[path] !== undefined) {
+            setLoadingPaths((prev) => {
+              if (!prev.has(path)) return prev;
+              const next = new Set(prev);
+              next.delete(path);
+              return next;
+            });
+            return;
+          }
+          beginDirFetch(path);
+        }, 2200);
+        timers.push(t);
+        return;
+      }
+      beginDirFetch(path);
     });
+    return () => timers.forEach((t) => window.clearTimeout(t));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePanePathsKey, beginDirFetch]);
 
@@ -7036,6 +7064,39 @@ export default function BNDZUI() {
       const cur = typeof tab?.path === 'string' ? tab.path : '';
       if (cur && normKey(cur) === normKey(path)) return;
       setCurrentPath(path, activePaneIdRef.current, false);
+    });
+  }, []);
+
+  // Files engines → BNDZ list (blend): seed cache and skip GET_DIR_CONTENTS for that path.
+  useEffect(() => {
+    if (!isFilesHostBoot()) return;
+    return subscribeFilesHostListing((path, items) => {
+      const norm = normalizePanePath(path);
+      if (!norm) return;
+      filesFedPathsRef.current.add(norm);
+      const normalized = normalizeDirEntries(items as any[]);
+      cachePathContents(norm, normalized);
+      setPathLoadErrors((prev) => {
+        if (!(norm in prev)) return prev;
+        const next = { ...prev };
+        delete next[norm];
+        return next;
+      });
+      setLoadingPaths((prev) => {
+        if (!prev.has(norm)) return prev;
+        const next = new Set(prev);
+        next.delete(norm);
+        return next;
+      });
+      setStreamingPaths((prev) => {
+        if (!prev.has(norm)) return prev;
+        const next = new Set(prev);
+        next.delete(norm);
+        return next;
+      });
+      if (normalized.length > 0) {
+        prefetchListingVisuals(normalized, norm, listingPrefetchFromConfig(configRef.current));
+      }
     });
   }, []);
 

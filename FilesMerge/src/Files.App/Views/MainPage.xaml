@@ -488,7 +488,7 @@
 		</controls:SidebarView>
 		</Grid>
 
-		<!-- Optional classic filesHost takeover — kept collapsed; blend uses Files ContentRow + panes -->
+		<!-- Blend face: full BNDZUI (Files engines feed listings underneath) -->
 		<bndz:BndzPaneHost
 			x:Name="BndzBrowserHost"
 			Grid.Row="0"
@@ -497,10 +497,10 @@
 			HorizontalAlignment="Stretch"
 			VerticalAlignment="Stretch"
 			Canvas.ZIndex="10"
-			Visibility="Collapsed"
+			Visibility="Visible"
 			Pane="browser" />
 
-		<!-- Compact backend chip overlay (address row collapsed in filesHost) -->
+		<!-- Legacy floating chip — hidden; duplicate bars are not the blend -->
 		<Border
 			x:Name="BndzBackendStatusChipOverlay"
 			Grid.Row="0"
@@ -509,6 +509,7 @@
 			Padding="10,4"
 			HorizontalAlignment="Right"
 			VerticalAlignment="Top"
+			Visibility="Collapsed"
 			Background="{StaticResource BndzChipFillBrush}"
 			BorderBrush="{StaticResource BndzDeckBorderBrush}"
 			BorderThickness="1"

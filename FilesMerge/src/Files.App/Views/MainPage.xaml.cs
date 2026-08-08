@@ -211,13 +211,14 @@ namespace Files.App.Views
 
 		private void ApplyBndzSurfaceDefaults()
 		{
-			// Full blend: Files engines enumerate ContentRow; BNDZ React owns plugins/preview/workspace.
-			// Never take over the viewport with ?filesHost=1 (that killed list reliability + drag).
+			// Planned blend: Files engines enumerate; BNDZUI paints the product face.
 			BndzShellOwnership.BrowserOwnsFileViewport = false;
+			BndzShellOwnership.BndzUiFaceActive = true;
 			_bndzDockHeight = GetPluginsDockHeight();
-			_bndzPluginsDockOpen = true;
-			_bndzPreviewOpen = true;
-			ApplyPluginsDockHeight(true);
+			// Plugins / preview live inside BNDZUI — no second WinUI dock + duplicate chips.
+			_bndzPluginsDockOpen = false;
+			_bndzPreviewOpen = false;
+			ApplyPluginsDockHeight(false);
 
 			try
 			{
@@ -231,25 +232,33 @@ namespace Files.App.Views
 
 			try
 			{
-				// Files chrome stays visible (tabs/sidebar/toolbars) — BNDZ menu sits above address.
 				if (BndzMenuBar is not null)
-					BndzMenuBar.Visibility = Visibility.Visible;
+					BndzMenuBar.Visibility = Visibility.Collapsed;
 				if (BndzAddressChromeRow is not null)
-					BndzAddressChromeRow.Visibility = Visibility.Visible;
+					BndzAddressChromeRow.Visibility = Visibility.Collapsed;
 				if (SidebarControl is not null)
-					SidebarControl.Visibility = Visibility.Visible;
-				if (TabControl is not null)
-					TabControl.Visibility = Visibility.Visible;
+					SidebarControl.Visibility = Visibility.Collapsed;
 				if (InfoPane is not null)
 					InfoPane.Visibility = Visibility.Collapsed;
-				// Fullscreen classic BNDZUI takeover stays off.
-				if (BndzBrowserHost is not null)
-					BndzBrowserHost.Visibility = Visibility.Collapsed;
+				if (TabControl is not null)
+					TabControl.Visibility = Visibility.Collapsed;
+				if (InnerNavigationToolbar is not null)
+					InnerNavigationToolbar.Visibility = Visibility.Collapsed;
+				if (NavToolbar is not null)
+					NavToolbar.Visibility = Visibility.Collapsed;
+				if (BndzPluginsDockHost is not null)
+					BndzPluginsDockHost.Visibility = Visibility.Collapsed;
+				if (BndzPreviewPaneHost is not null)
+					BndzPreviewPaneHost.Visibility = Visibility.Collapsed;
+				// Kill the duplicate floating "BNDZ bars" — status lives in BNDZUI.
+				if (BndzBackendStatusChipOverlay is not null)
+					BndzBackendStatusChipOverlay.Visibility = Visibility.Collapsed;
+				if (BndzBackendStatusChip is not null)
+					BndzBackendStatusChip.Visibility = Visibility.Collapsed;
 			}
 			catch { /* best-effort */ }
 
 			UpdatePositioning();
-			SetBndzPreviewOpen(true);
 
 			DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
 			{
@@ -261,25 +270,25 @@ namespace Files.App.Views
 					}
 					catch (Exception ex)
 					{
-						App.Logger.LogWarning(ex, "BNDZ backend not ready before pane prewarm");
+						App.Logger.LogWarning(ex, "BNDZ backend not ready before browser prewarm");
 					}
 
-					var plugins = EnsurePluginsDockHost();
-					if (plugins is not null)
+					var browser = EnsureBrowserHost();
+					if (browser is not null)
 					{
-						plugins.Visibility = Visibility.Visible;
-						plugins.SwitchPane("plugins", "properties");
-						plugins.Prewarm();
+						browser.Visibility = Visibility.Visible;
+						browser.SwitchPane("browser");
+						browser.Prewarm();
 					}
-					ApplyPluginsDockHeight(true);
-					SetBndzPreviewOpen(true);
+					WireShellListingPush();
 					UpdatePositioning();
 					PushSelectionToBndzPanes();
+					PushDirListingToBndzUi();
 					MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
 				}
 				catch (Exception ex)
 				{
-					App.Logger.LogWarning(ex, "Deferred BNDZ blend panes failed");
+					App.Logger.LogWarning(ex, "Deferred BNDZ blend face failed");
 				}
 			});
 		}
@@ -590,14 +599,18 @@ namespace Files.App.Views
 					?? SidebarAdaptiveViewModel?.PaneHolder?.ActivePaneOrColumn?.ShellViewModel?.WorkingDirectory;
 				var pathKey = NormalizeFsPathKey(path);
 
-				// filesHost: only the browser WebView — never FindName plugins/preview/workspace.
-				if (BndzShellOwnership.BrowserOwnsFileViewport)
+				// Blend face: BNDZUI is the product — push cwd (+ listing via PushDirListing).
+				if (BndzShellOwnership.BndzUiFaceActive || BndzShellOwnership.BrowserOwnsFileViewport)
 				{
 					if (!string.IsNullOrEmpty(pathKey)
 						&& string.Equals(pathKey, NormalizeFsPathKey(_lastPushedBrowserPath), StringComparison.OrdinalIgnoreCase))
+					{
+						PushDirListingToBndzUi();
 						return;
+					}
 					_lastPushedBrowserPath = path;
 					EnsureBrowserHost()?.PostPaneContext(path, null, null, null, null, null);
+					PushDirListingToBndzUi();
 					return;
 				}
 
@@ -629,6 +642,104 @@ namespace Files.App.Views
 			catch
 			{
 				/* selection push is best-effort */
+			}
+		}
+
+		private ShellViewModel? _wiredListingShell;
+		private string? _lastPushedListingSignature;
+
+		private void WireShellListingPush()
+		{
+			try
+			{
+				var shell = SidebarAdaptiveViewModel?.PaneHolder?.ActivePaneOrColumn?.ShellViewModel
+					?? ContentPageContext.ShellPage?.ShellViewModel;
+				if (shell is null || ReferenceEquals(shell, _wiredListingShell))
+					return;
+
+				if (_wiredListingShell is not null)
+					_wiredListingShell.ItemLoadStatusChanged -= ShellViewModel_ItemLoadStatusChanged;
+
+				_wiredListingShell = shell;
+				_wiredListingShell.ItemLoadStatusChanged += ShellViewModel_ItemLoadStatusChanged;
+			}
+			catch
+			{
+				/* best-effort */
+			}
+		}
+
+		private void ShellViewModel_ItemLoadStatusChanged(object sender, ItemLoadStatusChangedEventArgs e)
+		{
+			if (e.Status != ItemLoadStatusChangedEventArgs.ItemLoadStatus.Complete)
+				return;
+			DispatcherQueue.TryEnqueue(() =>
+			{
+				WireShellListingPush();
+				PushDirListingToBndzUi();
+			});
+		}
+
+		private void PushDirListingToBndzUi()
+		{
+			if (!BndzShellOwnership.BndzUiFaceActive)
+				return;
+
+			try
+			{
+				var shell = SidebarAdaptiveViewModel?.PaneHolder?.ActivePaneOrColumn?.ShellViewModel
+					?? ContentPageContext.ShellPage?.ShellViewModel;
+				if (shell is null)
+					return;
+
+				var path = shell.WorkingDirectory;
+				if (string.IsNullOrWhiteSpace(path))
+					return;
+
+				var rows = new List<object>(shell.FilesAndFolders.Count);
+				foreach (var item in shell.FilesAndFolders)
+				{
+					if (item is null || string.IsNullOrWhiteSpace(item.ItemPath))
+						continue;
+					var isDir = item.IsFolder;
+					string modified;
+					try { modified = item.ItemDateModifiedReal.UtcDateTime.ToString("o"); }
+					catch { modified = string.Empty; }
+					var ext = !isDir && item.Name.Contains('.', StringComparison.Ordinal)
+						? item.Name[(item.Name.LastIndexOf('.') + 1)..]
+						: string.Empty;
+					rows.Add(new
+					{
+						id = item.ItemPath,
+						name = item.Name,
+						path = item.ItemPath,
+						type = isDir ? "directory" : "file",
+						size = item.FileSizeBytes,
+						modified,
+						extension = ext,
+						isDirectory = isDir,
+					});
+				}
+
+				var signature = $"{NormalizeFsPathKey(path)}|{rows.Count}|{shell.FilesAndFolders.FirstOrDefault()?.ItemPath}";
+				if (string.Equals(signature, _lastPushedListingSignature, StringComparison.Ordinal))
+					return;
+				_lastPushedListingSignature = signature;
+
+				EnsureBrowserHost()?.PostHostMessage(new
+				{
+					type = "BNDZ_DIR_LISTING",
+					payload = new
+					{
+						path,
+						complete = true,
+						items = rows,
+					},
+				});
+			}
+			catch (Exception ex)
+			{
+				App.Logger.LogDebug(ex, "PushDirListingToBndzUi failed");
 			}
 		}
 
@@ -765,8 +876,11 @@ namespace Files.App.Views
 
 		private int SetTitleBarDragRegion(InputNonClientPointerSource source, SizeInt32 size, double scaleFactor, Func<UIElement, RectInt32?, RectInt32> getScaledRect)
 		{
+			// Blend face: BNDZUI fills the window — reserve a real caption band so the window moves.
+			if (BndzShellOwnership.BndzUiFaceActive)
+				return 44;
+
 			// Caption height must be > 0 so DragZoneHelper installs a real move region.
-			// Never return 0 for the blend — that made the window undraggable.
 			try
 			{
 				var tabVisible = TabControl is not null && TabControl.Visibility == Visibility.Visible;
@@ -844,8 +958,8 @@ namespace Files.App.Views
 
 			await NavigationHelpers.UpdateInstancePropertiesAsync(navArgs);
 
-			// filesHost: BNDZUI owns focus — skip focusing hidden Files pane (was +100ms tax).
-			if (!BndzShellOwnership.BrowserOwnsFileViewport)
+			// Blend face: BNDZUI owns focus — skip focusing hidden Files pane.
+			if (!BndzShellOwnership.BndzUiFaceActive && !BndzShellOwnership.BrowserOwnsFileViewport)
 			{
 				await Task.Delay(100);
 				if (!App.AppModel.IsMainWindowClosed && ContentPageContext?.ShellPage?.PaneHolder != null)
@@ -853,6 +967,7 @@ namespace Files.App.Views
 			}
 			else
 			{
+				WireShellListingPush();
 				SchedulePushSelectionToBndzPanes();
 			}
 		}
@@ -875,6 +990,8 @@ namespace Files.App.Views
 				or nameof(IContentPageContext.HasSelection)
 				or null)
 			{
+				if (BndzShellOwnership.BndzUiFaceActive)
+					WireShellListingPush();
 				SchedulePushSelectionToBndzPanes();
 			}
 		}
@@ -1119,7 +1236,7 @@ namespace Files.App.Views
 		{
 			try
 			{
-				if (BndzShellOwnership.BrowserOwnsFileViewport)
+				if (BndzShellOwnership.BndzUiFaceActive || BndzShellOwnership.BrowserOwnsFileViewport)
 				{
 					ViewModel.ShouldPreviewPaneBeDisplayed = false;
 					ViewModel.ShouldPreviewPaneBeActive = false;
