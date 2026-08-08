@@ -11,16 +11,22 @@ if ($LASTEXITCODE -ne 0) { throw "npm run build failed" }
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 if ($LASTEXITCODE -ne 0) { throw "BNDZBackend build failed" }
 
+Write-Host "==> Patch WinUI XamlCompiler (WMC9999 / ErrorMessages embed)" -ForegroundColor Cyan
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "patch-xaml-compiler.ps1")
+if ($LASTEXITCODE -ne 0) { throw "XamlCompiler patch failed" }
+
 Write-Host "==> BNDZ-Native shell (FilesMerge / WinUI)" -ForegroundColor Cyan
 Push-Location FilesMerge
 try {
   dotnet build src/Files.App/Files.App.csproj -c Debug -p:Platform=x64
-  if ($LASTEXITCODE -ne 0) { throw "Files.App build failed — install .NET 10 SDK and Windows App SDK" }
+  if ($LASTEXITCODE -ne 0) { throw "Files.App build failed - install .NET 10 SDK and Windows App SDK" }
 }
 finally { Pop-Location }
 
-# Stage BNDZ.exe next to Files.exe so ResolveBndzExe finds the sibling first.
-$bndzExe = Join-Path $root "BNDZBackend\bin\Debug\net8.0-windows10.0.19041.0\BNDZ.exe"
+# Stage isolated tree next to Files.exe (ResolveBndzExe prefers bndz-host\BNDZ.exe).
+# Do NOT dump BNDZ net8 deps into the Files root — that breaks both hosts.
+$bndzDir = Join-Path $root "BNDZBackend\bin\Debug\net8.0-windows10.0.19041.0"
+$bndzExe = Join-Path $bndzDir "BNDZ.exe"
 $bndzUi = Join-Path $root "BNDZBackend\Assets\ui"
 $filesOutCandidates = @(
   (Join-Path $root "FilesMerge\src\Files.App\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64"),
@@ -29,20 +35,27 @@ $filesOutCandidates = @(
 )
 if (Test-Path $bndzExe) {
   foreach ($dir in $filesOutCandidates) {
-    if (Test-Path $dir) {
-      Write-Host "==> Staging BNDZ.exe + Assets/ui next to Files shell: $dir" -ForegroundColor Cyan
-      Copy-Item -Force $bndzExe (Join-Path $dir "BNDZ.exe")
-      $bndzDir = Split-Path $bndzExe -Parent
-      Get-ChildItem $bndzDir -Filter "*.dll" | ForEach-Object {
-        Copy-Item -Force $_.FullName (Join-Path $dir $_.Name) -ErrorAction SilentlyContinue
-      }
-      if (Test-Path $bndzUi) {
-        $uiDest = Join-Path $dir "Assets\ui"
-        New-Item -ItemType Directory -Force -Path $uiDest | Out-Null
-        Copy-Item -Recurse -Force (Join-Path $bndzUi "*") $uiDest
-      }
-      break
+    if (-not (Test-Path $dir)) { continue }
+    $stage = Join-Path $dir "bndz-host"
+    Write-Host "==> Staging BNDZ host tree: $stage" -ForegroundColor Cyan
+    New-Item -ItemType Directory -Force -Path $stage | Out-Null
+    & robocopy $bndzDir $stage /MIR /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "robocopy BNDZ output failed (exit $LASTEXITCODE)" }
+    if (Test-Path $bndzUi) {
+      $uiDestHost = Join-Path $stage "Assets\ui"
+      New-Item -ItemType Directory -Force -Path $uiDestHost | Out-Null
+      & robocopy $bndzUi $uiDestHost /MIR /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+      if ($LASTEXITCODE -ge 8) { throw "robocopy Assets/ui (bndz-host) failed (exit $LASTEXITCODE)" }
+
+      # Also stage next to Files.exe for BndzPaneHost ResolveUiAssetsRoot (Assets\ui).
+      $uiDestRoot = Join-Path $dir "Assets\ui"
+      New-Item -ItemType Directory -Force -Path $uiDestRoot | Out-Null
+      & robocopy $bndzUi $uiDestRoot /MIR /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+      if ($LASTEXITCODE -ge 8) { throw "robocopy Assets/ui (layout root) failed (exit $LASTEXITCODE)" }
     }
+    # Remove any leftover flat sibling from older staging (pollutes Files net10 output).
+    Remove-Item -Force (Join-Path $dir "BNDZ.exe") -ErrorAction SilentlyContinue
+    break
   }
 }
 

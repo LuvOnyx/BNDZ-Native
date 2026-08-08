@@ -18,6 +18,7 @@ import {
   type AutomationLibrary, type AutomationLiveStatus, type AutomationRunRecord,
 } from '../../lib/automationStore';
 import { IPC } from '../../lib/ipcBridge';
+import { formatUiPath } from '../../lib/displayPath';
 import { useAppConfig } from '../../data/configContext';
 import { useWorkspaceContextMenu } from '../workspace/useWorkspaceContextMenu';
 import { useWorkspaceAutosave } from '../../lib/useWorkspaceAutosave';
@@ -491,7 +492,7 @@ const AutomationInspector = React.memo(function AutomationInspector({
                   <span>{w.pipelineName}</span>
                   <span>{w.live ? 'live' : 'idle'}</span>
                 </div>
-                <div className="text-[10px] text-gray-400 truncate">{w.path}</div>
+                <div className="text-[10px] text-gray-400 truncate">{formatUiPath(w.path)}</div>
                 {w.lastError && <div className="bndz-automation-history-error">{w.lastError}</div>}
               </li>
             ))}
@@ -517,7 +518,7 @@ const AutomationInspector = React.memo(function AutomationInspector({
                   <span>{run.pipelineName}</span>
                   <span>{new Date(run.triggeredAt).toLocaleTimeString()}</span>
                 </div>
-                <div className="text-[10px] text-gray-400 truncate">{run.triggerPath} · {run.fileCount} file(s)</div>
+                <div className="text-[10px] text-gray-400 truncate">{formatUiPath(run.triggerPath)} · {run.fileCount} file(s)</div>
                 {run.error && <div className="bndz-automation-history-error">{run.error}</div>}
                 {run.log.length > 0 && (
                   <pre className="bndz-automation-log-body bndz-mono text-[10px]">{run.log.slice(-4).join('\n')}</pre>

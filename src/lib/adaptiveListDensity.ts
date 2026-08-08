@@ -1,28 +1,20 @@
 /**
- * Adaptive list density — RAF-throttled scroll velocity tracking.
- * Densifies rows during fast scroll; expands when idle or selection is focused.
+ * Adaptive list density — focus boost only.
+ * Mid-scroll row-height densify was removed: changing --bndz-list-density while
+ * scrolling reflows virtual rows against a fixed estimateSize and flashes.
  */
 
-const DENSITY_MIN = 0.82;
-const DENSITY_MAX = 1.1;
 const DENSITY_IDLE = 1.0;
-const DENSITY_FAST_SCROLL = 0.86;
-const DENSITY_FOCUSED = 1.06;
-const VELOCITY_FAST_THRESHOLD = 2.8;
-const IDLE_MS = 420;
+const DENSITY_FOCUSED = 1.04;
 
 let currentDensity = DENSITY_IDLE;
-let lastScrollTop = 0;
-let lastScrollTime = 0;
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
-let rafPending = false;
-let pendingVelocity = 0;
 let hasFocusBoost = false;
 let rootEl: HTMLElement | null = null;
+let rafPending = false;
 
 function applyDensity(value: number) {
-  const clamped = Math.min(DENSITY_MAX, Math.max(DENSITY_MIN, value));
-  if (Math.abs(clamped - currentDensity) < 0.008) return;
+  const clamped = Math.min(1.08, Math.max(0.95, value));
+  if (Math.abs(clamped - currentDensity) < 0.004) return;
   currentDensity = clamped;
   const el = rootEl ?? document.documentElement;
   el.style.setProperty('--bndz-list-density', clamped.toFixed(3));
@@ -33,22 +25,8 @@ function scheduleApply() {
   rafPending = true;
   requestAnimationFrame(() => {
     rafPending = false;
-    const target = pendingVelocity >= VELOCITY_FAST_THRESHOLD
-      ? DENSITY_FAST_SCROLL
-      : hasFocusBoost
-        ? DENSITY_FOCUSED
-        : DENSITY_IDLE;
-    applyDensity(target);
+    applyDensity(hasFocusBoost ? DENSITY_FOCUSED : DENSITY_IDLE);
   });
-}
-
-function resetIdleTimer() {
-  if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => {
-    idleTimer = null;
-    pendingVelocity = 0;
-    scheduleApply();
-  }, IDLE_MS);
 }
 
 export function initAdaptiveListDensity(enabled: boolean, persistValue?: number | null) {
@@ -64,15 +42,9 @@ export function initAdaptiveListDensity(enabled: boolean, persistValue?: number 
   }
 }
 
-export function onAdaptiveListScroll(scrollTop: number) {
-  const now = performance.now();
-  const dt = Math.max(1, now - (lastScrollTime || now));
-  const dy = Math.abs(scrollTop - lastScrollTop);
-  pendingVelocity = dy / dt;
-  lastScrollTop = scrollTop;
-  lastScrollTime = now;
-  scheduleApply();
-  resetIdleTimer();
+/** Kept for call-site compatibility — no layout mutation during scroll. */
+export function onAdaptiveListScroll(_scrollTop: number) {
+  // Intentionally empty: scroll velocity must not resize rows.
 }
 
 export function onAdaptiveListFocus(active: boolean) {

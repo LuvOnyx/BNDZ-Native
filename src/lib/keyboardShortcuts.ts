@@ -71,8 +71,8 @@ export function formatShortcut(shortcut: string): string {
   return shortcut?.trim() ? shortcut.trim() : 'Unbound';
 }
 
-function normalizeTypeAheadText(value: string, ignoreDiacritics: boolean): string {
-  let text = value.toLowerCase();
+function normalizeTypeAheadText(value: string, ignoreDiacritics: boolean, matchCase = false): string {
+  let text = matchCase ? value : value.toLowerCase();
   if (ignoreDiacritics) text = text.normalize('NFD').replace(/\p{M}/gu, '');
   return text;
 }
@@ -83,9 +83,10 @@ export function matchesTypeAhead(
   prefix: string,
   mode: string,
   ignoreDiacritics = false,
+  matchCase = false,
 ): boolean {
-  const n = normalizeTypeAheadText(name, ignoreDiacritics);
-  const p = normalizeTypeAheadText(prefix, ignoreDiacritics);
+  const n = normalizeTypeAheadText(name, ignoreDiacritics, matchCase);
+  const p = normalizeTypeAheadText(prefix, ignoreDiacritics, matchCase);
   if (!p) return false;
   if (mode === 'Match exact') return n === p;
   if (mode === 'Match anywhere') return n.includes(p);

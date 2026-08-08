@@ -15,6 +15,7 @@ interface TreeShellIconProps {
 export function TreeShellIcon({ path, iconPath, size = 15, fallbackIcon }: TreeShellIconProps) {
   const fetchPath = iconPath || path || '';
   const enabled = !!fetchPath;
+  // Prefer real directory typing from path shape; mesh/VF containers count as dirs.
   const isDir = shellIconIsDirectory(fetchPath || null);
   useNativeIconFetch(fetchPath || null, isDir, 'shell', enabled, enabled);
   const shellSrc = useNativeIcon(fetchPath || null, isDir, 'shell', enabled);

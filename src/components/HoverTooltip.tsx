@@ -26,6 +26,8 @@ export interface HoverTooltipContent {
   media?: TooltipMedia;
   /** `hoverbox` renders a wider premium panel (XYplorer Hover Box). */
   mode?: 'tip' | 'hoverbox';
+  /** Settings → tooltipZoom (scale factor). */
+  zoomScale?: number;
 }
 
 export type HoverTooltipTheme = 'glass' | 'minimal' | 'accent' | 'mono';

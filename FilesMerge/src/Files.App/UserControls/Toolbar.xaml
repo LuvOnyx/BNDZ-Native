@@ -1,4 +1,4 @@
-﻿<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
+<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
 <UserControl
 	x:Class="Files.App.UserControls.Toolbar"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -58,9 +58,9 @@
 		x:Name="RootGrid"
 		Background="{ThemeResource App.Theme.Toolbar.BackgroundBrush}"
 		BackgroundSizing="InnerBorderEdge"
-		BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+		BorderBrush="{ThemeResource BndzDividerBrush}"
 		BorderThickness="1"
-		CornerRadius="8">
+		CornerRadius="12">
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition Width="*" />
 			<ColumnDefinition Width="Auto" />

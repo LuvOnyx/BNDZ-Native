@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getFloatingTooltip, subscribeFloatingTooltip } from '../lib/floatingTooltip';
+import { getFloatingTooltip, hideFloatingTooltip, subscribeFloatingTooltip } from '../lib/floatingTooltip';
 import type { TooltipMedia } from './HoverTooltip';
+import { useAppConfig } from '../data/configContext';
 
 const TOOLTIP_VARIANTS = {
   glass: {
@@ -84,9 +85,38 @@ function TooltipMediaBlock({ media }: { media: TooltipMedia }) {
 }
 
 export default function FloatingTooltipHost() {
+  const { config } = useAppConfig();
   const [tip, setTip] = useState(getFloatingTooltip());
 
   useEffect(() => subscribeFloatingTooltip(() => setTip(getFloatingTooltip())), []);
+
+  // Settings → Tips / Tooltip colors (live CSS vars outside settingsRuntime-only hits)
+  useEffect(() => {
+    const root = document.documentElement;
+    if (config.tooltipBackgroundColor) root.style.setProperty('--tooltip-bg', String(config.tooltipBackgroundColor));
+    if (config.tooltipTextColor) root.style.setProperty('--tooltip-text', String(config.tooltipTextColor));
+    if (config.tooltipMutedColor) root.style.setProperty('--tooltip-muted', String(config.tooltipMutedColor));
+    const radius = Number(config.tooltipCornerRadius);
+    if (Number.isFinite(radius) && radius >= 0) {
+      root.style.setProperty('--tooltip-radius', `${radius}px`);
+    }
+    root.dataset.bndzLabelStyle = String(config.labelStyle || 'Name column');
+  }, [
+    config.tooltipBackgroundColor,
+    config.tooltipTextColor,
+    config.tooltipMutedColor,
+    config.tooltipCornerRadius,
+    config.labelStyle,
+  ]);
+
+  // Settings → Visible time in milliseconds (auto-dismiss while shown)
+  useEffect(() => {
+    if (!tip) return;
+    const visibleMs = Number(config.visibleTimeInMilliseconds);
+    if (!Number.isFinite(visibleMs) || visibleMs <= 0) return;
+    const t = window.setTimeout(() => hideFloatingTooltip(), visibleMs);
+    return () => window.clearTimeout(t);
+  }, [tip, config.visibleTimeInMilliseconds]);
 
   if (typeof document === 'undefined') return null;
 
@@ -113,7 +143,14 @@ export default function FloatingTooltipHost() {
             scale: { duration: 0.07 },
           }}
           className={`fixed z-[700] pointer-events-none ${isHoverBox || hasMedia ? 'max-w-[440px]' : 'max-w-[320px]'}`}
-          style={{ left: pos.left, top: pos.top }}
+          style={{
+            left: pos.left,
+            top: pos.top,
+            transform: tip.content.zoomScale && tip.content.zoomScale !== 1
+              ? `scale(${tip.content.zoomScale})`
+              : undefined,
+            transformOrigin: 'top left',
+          }}
         >
           <motion.div
             className={`${variant.panel} bndz-tooltip-premium overflow-hidden ${isHoverBox ? 'bndz-hoverbox-panel' : ''}`}

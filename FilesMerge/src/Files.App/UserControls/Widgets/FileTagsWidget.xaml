@@ -1,4 +1,4 @@
-﻿<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
+<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
 <UserControl
 	x:Class="Files.App.UserControls.Widgets.FileTagsWidget"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -43,10 +43,10 @@
 					HorizontalAlignment="Stretch"
 					VerticalAlignment="Stretch"
 					AllowDrop="True"
-					Background="{ThemeResource ControlFillColorDefaultBrush}"
-					BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+					Background="{StaticResource BndzSurfaceRaisedBrush}"
+					BorderBrush="{StaticResource BndzDividerBrush}"
 					BorderThickness="1"
-					CornerRadius="{StaticResource ControlCornerRadius}">
+					CornerRadius="12">
 					<Grid.RowDefinitions>
 						<RowDefinition Height="Auto" />
 						<RowDefinition Height="*" />
@@ -55,7 +55,7 @@
 					<!--  Title  -->
 					<Grid
 						Background="Transparent"
-						BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+						BorderBrush="{StaticResource BndzDividerBrush}"
 						BorderThickness="0,0,0,1">
 						<Grid.ColumnDefinitions>
 							<ColumnDefinition Width="Auto" />

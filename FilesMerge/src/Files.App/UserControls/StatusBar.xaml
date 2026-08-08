@@ -1,4 +1,4 @@
-﻿<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
+<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
 <UserControl
 	x:Class="Files.App.UserControls.StatusBar"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -30,7 +30,8 @@
 		x:Name="RootGrid"
 		MinHeight="32"
 		Padding="8,0,8,0"
-		BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+		Background="{ThemeResource App.Theme.StatusBar.BackgroundBrush}"
+		BorderBrush="{ThemeResource BndzDividerBrush}"
 		BorderThickness="0,1,0,0">
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition />

@@ -1,5 +1,5 @@
 import { isRecycleBinPath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
-import { getPaneTabLabel } from './paneLabels';
+import { getPaneTabLabel, isShellDisplayPath, toShellPanePath } from './paneLabels';
 import { parseUserCatalogPath } from './virtualPaths';
 import { BNDZ_HOME, BNDZ_VIEWS_ROOT, BNDZ_RAM_ROOT, parseBndzVirtualView, bndzVirtualLabel, parseBndzWorkspaceView, bndzWorkspaceLabel, isBndzRamPath, parseBndzRamZoneId } from './bndzVirtualViews';
 import { ENV_PATH_ALIASES, SPECIAL_FOLDER_PANE_PATHS } from './shellPaths';
@@ -52,9 +52,55 @@ export function formatDriveRootLabel(pathOrName: string): string {
   return formatPropertiesPath(pathOrName) || letter;
 }
 
+/**
+ * Human-facing path for any UI surface — never show raw `shell:Downloads` /
+ * `shell:ControlPanel`. Use for Location rows, Spatial cards, Automation watchers, etc.
+ */
+export function formatUiPath(path: string | null | undefined): string {
+  if (!path) return '';
+  const trimmed = path.trim();
+  if (!trimmed) return '';
+  if (isShellDisplayPath(trimmed) || /^shell:/i.test(trimmed)) {
+    return getPaneTabLabel(toShellPanePath(trimmed) || trimmed);
+  }
+  return formatAddressBarPath(trimmed);
+}
+
+/** Leaf / pin title from a path — friendly for shell known folders. */
+export function formatPathLeafName(path: string | null | undefined): string {
+  if (!path) return '';
+  if (isShellDisplayPath(path) || /^shell:/i.test(path.trim())) {
+    return getPaneTabLabel(toShellPanePath(path) || path);
+  }
+  const win = formatUiPath(path);
+  const leaf = win.split(/[/\\]/).filter(Boolean).pop();
+  return leaf || win || '';
+}
+
+/** Split a path for list/plugin rows — never leaves `shell:` on the leaf. */
+export function splitUiPath(path: string | null | undefined): { leaf: string; parent: string; full: string } {
+  const full = formatUiPath(path) || (path || '').trim();
+  const normalized = full.replace(/[/\\]+$/, '');
+  const parts = normalized.split(/[/\\]/).filter(Boolean);
+  const leaf = parts.pop() || full;
+  const parent = parts.join('\\');
+  return { leaf, parent, full };
+}
+
+/** True when a stored display name is still a raw shell token and should be rewritten. */
+export function isRawShellDisplayName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const n = name.trim();
+  return /^shell:/i.test(n) || /^\/shell:/i.test(n);
+}
+
 /** Windows-style path for properties / copy — never `\\C:` for drive roots */
 export function formatPropertiesPath(path: string | null | undefined): string {
   if (!path) return '';
+  // Virtual shell locations: show Explorer labels, not shell:Tokens.
+  if (isShellDisplayPath(path) || /^shell:/i.test(path.trim())) {
+    return formatUiPath(path);
+  }
   const p = normalizePanePath(path.replace(/\\/g, '/'));
   if (/^\/[A-Za-z]:$/.test(p)) return p.slice(1) + '\\';
   return toWindowsPath(p);
@@ -82,11 +128,14 @@ export function formatAddressBarPath(panePath: string): string {
   if (p === '//' || p === '\\\\') return 'Network';
   if (p === '/shell:PortableDevices' || p.toLowerCase() === '/shell:portabledevices') return 'Portable Devices';
   // Prefer friendly labels if a known-folder shell path is still open.
-  if (/^\/shell:/i.test(p)) {
-    const label = getPaneTabLabel(p);
-    if (label && label !== p && !/^shell:/i.test(label)) return label;
+  const shellPane = toShellPanePath(p) || (/^shell:/i.test(panePath) ? toShellPanePath(panePath) : null);
+  if (shellPane) {
+    const label = getPaneTabLabel(shellPane);
+    if (label && !/^shell:/i.test(label)) return label;
   }
   const win = toWindowsPath(p);
+  // Never leave shell: tokens in the address bar.
+  if (/^shell:/i.test(win)) return getPaneTabLabel(`/${win}`);
   return win.replace(/^\\+([A-Za-z]:)/, '$1');
 }
 
@@ -314,5 +363,5 @@ export async function resolveUserPathToPane(
 /** Friendly path for destination picker UI (`C:\Users\...` or `This PC`). */
 export function formatPickerPath(panePath: string): string {
   if (!panePath || panePath === '/') return 'This PC';
-  return formatAddressBarPath(panePath);
+  return formatUiPath(panePath);
 }

@@ -28,6 +28,7 @@ import { resolveShellPropertiesPath } from '../lib/shellPaths';
 import { isOptionalStockContextEnabled, type OptionalStockContextId } from '../lib/shellMenuPresets';
 import { resolveIconFilePath } from '../lib/iconPathUtils';
 import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRuntime';
+import { getContextBehavior } from '../lib/settingsBehavior';
 import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
 import type { SortColumnId } from '../lib/listColumns';
@@ -101,6 +102,12 @@ interface ContextMenuViewProps {
   onPurgeRecycleItems?: (panePaths: string[]) => void | Promise<void>;
   onSelectAll?: () => void;
   onInvertSelection?: () => void;
+  onOpenFind?: () => void;
+  onNavigateUp?: () => void;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
+  /** Open targets inside BNDZ (folders navigate; files open Quick Preview). */
+  onOpenInBndz?: (panePaths: string[], opts: { isDirectory: boolean; entityId?: string }) => void;
 }
 
 function ContextMenuView({
@@ -110,8 +117,11 @@ function ContextMenuView({
   onCopyTo, onMoveTo, availableTags, onToggleTag, selectionTagKeys, onRemoveAllTags, rapidAccessDefaultPaths,
   sortColumn, sortDirection, onSortBy, onSetSortDirection, listGroupBy, onGroupByChange, onRenameFavorite,
   onRestoreRecycleItems, onPurgeRecycleItems, onSelectAll, onInvertSelection,
+  onOpenFind, onNavigateUp, onGoBack, onGoForward,
+  onOpenInBndz,
 }: ContextMenuViewProps) {
   const rt = buildSettingsRuntime(config);
+  const ctxBeh = getContextBehavior(config);
   const stockOn = (id: OptionalStockContextId) => isOptionalStockContextEnabled(config, id);
   const targetPaths = resolveContextTargetPaths(menu);
   const isBackground = isContextMenuBackground(menu);
@@ -362,11 +372,27 @@ function ContextMenuView({
       onClose();
       return;
     }
-    if (v === 'open' && menu.isDirectory && wins[0]) {
-      IPC.executeContextMenuVerb(wins[0], 'open');
-    } else {
-      IPC.executeContextMenuVerb(wins, v, undefined, undefined, rt.shell.bypassRecycle);
+    if (v === 'open') {
+      const panePaths = resolveContextTargetPanePaths(menu);
+      const dirs = menu.isDirectory || itemKind === 'folder';
+      if (onOpenInBndz && panePaths.length) {
+        onOpenInBndz(panePaths, { isDirectory: dirs, entityId: menu.entityId });
+        onClose();
+        return;
+      }
+      // Fallback: folder → stay in BNDZ via open-in-new-tab path; never ShellExecute 'open'.
+      if (dirs && panePaths[0]) {
+        addTab(activePaneId, panePaths[0]);
+        onClose();
+        return;
+      }
+      if (wins[0]) {
+        IPC.executeContextMenuVerb(wins[0], 'open');
+      }
+      onClose();
+      return;
     }
+    IPC.executeContextMenuVerb(wins, v, undefined, undefined, rt.shell.bypassRecycle);
     onClose();
   };
 
@@ -466,7 +492,7 @@ function ContextMenuView({
       >
         <ContextMenuItem label={refreshLabel} iconVerb="refresh" onClick={() => { runRefresh(); onClose(); }} />
 
-        {config.enableContextSubmenus !== false && (
+        {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
           <ContextSubmenu label="Smart Tools" iconVerb="sparkles" groupClass="bg-smart">
             {stockOn('ask-agent') && targetPaths.length > 0 && (
               <ContextMenuItem
@@ -709,6 +735,16 @@ function ContextMenuView({
         )}
         {menu.surface === 'list-background' && onInvertSelection && (
           <ContextMenuItem label="Invert selection" iconVerb="type" onClick={() => { onInvertSelection(); onClose(); }} />
+        )}
+        {menu.surface === 'list-background' && ctxBeh.findFilesCommandsInListContextMenu && onOpenFind && (
+          <ContextMenuItem label="Find Files…" iconVerb="find" onClick={() => { onOpenFind(); onClose(); }} />
+        )}
+        {menu.surface === 'list-background' && ctxBeh.navigationCommandsInListContextMenu && (
+          <>
+            {onNavigateUp && <ContextMenuItem label="Go up" iconVerb="parent" onClick={() => { onNavigateUp(); onClose(); }} />}
+            {onGoBack && <ContextMenuItem label="Back" iconVerb="back" onClick={() => { onGoBack(); onClose(); }} />}
+            {onGoForward && <ContextMenuItem label="Forward" iconVerb="forward" onClick={() => { onGoForward(); onClose(); }} />}
+          </>
         )}
         <ContextMenuItem label="Properties" iconVerb="properties" onClick={() => handleVerb('properties')} />
         {supplementalNative.length > 0 && (
@@ -1304,7 +1340,7 @@ function ContextMenuView({
         />
       )}
 
-      {(config.customContextMenuActions?.length || 0) > 6 && (
+      {(!!config.customItemsInTheContextMenu && (config.customContextMenuActions?.length || 0) > 6) && (
         <>
           <div className="px-2 py-1.5">
             <input
@@ -1320,7 +1356,7 @@ function ContextMenuView({
         </>
       )}
 
-      {config.customContextMenuActions?.filter((action: any) => {
+      {!!config.customItemsInTheContextMenu && config.customContextMenuActions?.filter((action: any) => {
         const isSep = action.id === 'separator' || String(action.id || '').startsWith('separator_')
           || action.command === 'separator' || action.name === 'separator' || action.name === '—';
         if (isSep) return true;

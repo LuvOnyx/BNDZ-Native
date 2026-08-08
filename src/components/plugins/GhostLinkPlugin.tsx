@@ -4,6 +4,7 @@ import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { splitUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -105,10 +106,7 @@ function normalizeStats(raw: Record<string, unknown> | null | undefined): Stats 
 }
 
 function splitPath(full: string): { leaf: string; parent: string } {
-  const normalized = full.replace(/[/\\]+$/, '');
-  const parts = normalized.split(/[/\\]/);
-  const leaf = parts.pop() || full;
-  const parent = parts.join('\\');
+  const { leaf, parent } = splitUiPath(full);
   return { leaf, parent };
 }
 

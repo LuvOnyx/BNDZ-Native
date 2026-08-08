@@ -1,10 +1,12 @@
 import { animate } from 'animejs';
 
-/** Shared motion tokens for BNDZ File Manager chrome. */
+/** Shared motion tokens for BNDZ File Manager chrome. Keep chrome snappy (native FM). */
 export const MOTION = {
-  fast: 180,
-  normal: 260,
-  slow: 360,
+  /** Tab close / micro chrome — Explorer-feel, not web modal fade. */
+  snap: 90,
+  fast: 140,
+  normal: 220,
+  slow: 320,
   easeOut: 'outCubic',
   easeIn: 'inCubic',
   spring: 'outElastic(1, .72)',
@@ -40,6 +42,44 @@ export function motionExit(
     duration: opts?.duration ?? MOTION.fast,
     ease: MOTION.easeIn,
     onComplete,
+  });
+}
+
+/** Tab strip close — collapse width + fade so siblings slide in immediately. */
+export function motionTabClose(
+  el: HTMLElement | null | undefined,
+  onComplete?: () => void,
+) {
+  if (!el) {
+    onComplete?.();
+    return;
+  }
+  const w = el.getBoundingClientRect().width;
+  el.style.overflow = 'hidden';
+  el.style.pointerEvents = 'none';
+  el.style.minWidth = '0';
+  el.style.flexGrow = '0';
+  el.style.flexShrink = '0';
+  animate(el, {
+    opacity: [1, 0],
+    width: [w, 0],
+    marginLeft: [2, 0],
+    paddingLeft: [12, 0],
+    paddingRight: [12, 0],
+    duration: MOTION.snap,
+    ease: 'inQuad',
+    onComplete: () => {
+      el.style.width = '';
+      el.style.marginLeft = '';
+      el.style.paddingLeft = '';
+      el.style.paddingRight = '';
+      el.style.overflow = '';
+      el.style.pointerEvents = '';
+      el.style.minWidth = '';
+      el.style.flexGrow = '';
+      el.style.flexShrink = '';
+      onComplete?.();
+    },
   });
 }
 

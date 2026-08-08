@@ -1,6 +1,7 @@
 import React from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import type { PathSuggestion } from '../lib/addressAutocomplete';
+import { formatUiPath } from '../lib/displayPath';
 
 type Props = {
   suggestions: PathSuggestion[];
@@ -31,7 +32,7 @@ export default function AddressAutocompleteDropdown({ suggestions, selectedIndex
             className="shrink-0"
           />
           <span className="font-medium truncate">{s.label}</span>
-          <span className="text-gray-500 truncate ml-auto font-mono text-[10px]">{s.path}</span>
+          <span className="text-gray-500 truncate ml-auto font-mono text-[10px]">{formatUiPath(s.path)}</span>
         </button>
       ))}
     </div>

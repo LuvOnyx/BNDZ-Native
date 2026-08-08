@@ -3,7 +3,10 @@ import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import { IPC } from '../../lib/ipcBridge';
 import { normalizePanePath, toWindowsPath } from '../../lib/pathUtils';
+import { formatPathLeafName } from '../../lib/displayPath';
 import { pushToast } from '../ToastHost';
+import { useAppConfig } from '../../data/configContext';
+import { buildListReportCsv, formatReportCsvFilename, resolveCsvSeparator } from '../../lib/listReportExport';
 import {
   PluginTabStrip,
   PluginTab,
@@ -33,8 +36,7 @@ type Props = {
 type DirFilter = 'all' | 'same' | 'different' | 'onlyA' | 'onlyB';
 
 function pathLeaf(p: string) {
-  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
-  return parts[parts.length - 1] || p;
+  return formatPathLeafName(p) || p;
 }
 
 /** Normalize backend statuses (onlyLeft/onlyRight) and UI aliases to a stable set. */
@@ -85,6 +87,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavigate }: Props) {
+  const { config } = useAppConfig();
   const [pathA, setPathA] = useState('');
   const [pathB, setPathB] = useState('');
   const [loading, setLoading] = useState(false);
@@ -234,21 +237,36 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
   const exportDiffCsv = useCallback(async () => {
     const rows = filteredDirResults.length ? filteredDirResults : dirResults;
     if (!rows.length) return;
-    const header = 'status,name,relativePath,isDirectory';
+    const sep = resolveCsvSeparator(config);
+    const header = ['status', 'name', 'relativePath', 'isDirectory'].join(sep);
     const lines = rows.map(r => {
       const status = normalizeCompareStatus(r.status);
       const name = String(r.name || '').replace(/"/g, '""');
       const rel = String(r.relativePath || '').replace(/"/g, '""');
-      return `"${status}","${name}","${rel}",${r.isDirectory ? '1' : '0'}`;
+      return [`"${status}"`, `"${name}"`, `"${rel}"`, r.isDirectory ? '1' : '0'].join(sep);
     });
-    const csv = [header, ...lines].join('\n');
+    let csv = [header, ...lines].join('\n');
+    // Settings → Append to existing file: when exporting again, keep prior clipboard CSV and append
+    if (config.appendToExistingFile) {
+      try {
+        const prev = await navigator.clipboard.readText();
+        if (prev && prev.includes(header.split(sep)[0])) {
+          csv = `${prev.replace(/\s+$/, '')}\n${lines.join('\n')}`;
+        }
+      } catch { /* clipboard read may be denied */ }
+    }
+    const suggested = formatReportCsvFilename(config, pathLeaf(pathA) || 'compare');
     try {
       await navigator.clipboard.writeText(csv);
-      pushToast({ kind: 'success', title: 'Exported', message: `${rows.length} row(s) copied as CSV.` });
+      pushToast({
+        kind: 'success',
+        title: 'Exported',
+        message: `${rows.length} row(s) as ${suggested} (sep '${sep === '\t' ? 'TAB' : sep}'${config.csvFieldSeparator === 'other' ? ` via csvOtherSeparator` : ''}).`,
+      });
     } catch {
       pushToast({ kind: 'warning', title: 'Clipboard', message: 'Could not copy CSV.' });
     }
-  }, [filteredDirResults, dirResults]);
+  }, [filteredDirResults, dirResults, config, pathA]);
 
   const openDualPane = useCallback(() => {
     if (!pathA.trim() || !pathB.trim()) return;

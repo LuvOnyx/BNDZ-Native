@@ -28,6 +28,8 @@ type Props = {
   columns: ListColumnDef[];
   sortColumn: SortColumnId | string | null | undefined;
   sortDirection: 'asc' | 'desc' | undefined;
+  /** When true, show a muted secondary caret on the Name column when another column is primary. */
+  showImplicitSecondarySortOrderArrow?: boolean;
   onReorder: (nextVisibleOrder: ListColumnId[]) => void;
   onToggleSort: (colId: SortColumnId) => void;
   onStartResize: (colId: ListColumnId, clientX: number, headerEl: HTMLElement) => void;
@@ -45,6 +47,7 @@ function SortableColumnHeader({
   col,
   isActiveSort,
   sortDirection,
+  showSecondaryCaret,
   onToggleSort,
   onStartResize,
   lockedWidth,
@@ -52,6 +55,7 @@ function SortableColumnHeader({
   col: ListColumnDef;
   isActiveSort: boolean;
   sortDirection: 'asc' | 'desc' | undefined;
+  showSecondaryCaret?: boolean;
   onToggleSort: (colId: SortColumnId) => void;
   onStartResize: (colId: ListColumnId, clientX: number, headerEl: HTMLElement) => void;
   /** Pixel width locked for the whole reorder so %/flex columns don't squash. */
@@ -133,6 +137,13 @@ function SortableColumnHeader({
           aria-hidden
         />
       )}
+      {!isActiveSort && showSecondaryCaret && (
+        <span
+          className="bndz-list-sort-caret bndz-list-sort-caret--asc opacity-35"
+          title="Implicit secondary sort"
+          aria-hidden
+        />
+      )}
       <div
         draggable={false}
         className="bndz-col-resize-handle"
@@ -152,6 +163,7 @@ export default function ListColumnHeaderStrip({
   columns,
   sortColumn,
   sortDirection,
+  showImplicitSecondarySortOrderArrow,
   onReorder,
   onToggleSort,
   onStartResize,
@@ -209,6 +221,11 @@ export default function ListColumnHeaderStrip({
                 col={col}
                 isActiveSort={!!col.sortable && sortColumn === col.id}
                 sortDirection={sortDirection}
+                showSecondaryCaret={
+                  !!showImplicitSecondarySortOrderArrow
+                  && col.id === 'name'
+                  && sortColumn !== 'name'
+                }
                 onToggleSort={onToggleSort}
                 onStartResize={onStartResize}
                 lockedWidth={lockedWidths?.[col.id]}

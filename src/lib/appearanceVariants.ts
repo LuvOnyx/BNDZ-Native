@@ -4,7 +4,7 @@ export type SelectionStyle = 'classic' | 'inset' | 'xyplorer' | 'filepilot' | 'm
 export type SurfaceStyle = 'flat' | 'subtle' | 'glass';
 export type CornerRadius = 'sharp' | 'rounded' | 'soft';
 export type DensityStyle = 'compact' | 'comfortable' | 'spacious';
-export type TabStyle = 'underline' | 'segment' | 'flat';
+export type TabStyle = 'explorer' | 'soft' | 'underline' | 'segment' | 'flat';
 export type ChromePalette = 'neutral' | 'cool' | 'warm';
 export type GridSelectionStyle = 'subtle' | 'filled' | 'border';
 export type NavTreeColorMode = 'off' | 'subtle' | 'vivid';
@@ -18,6 +18,36 @@ export const SELECTION_STYLE_OPTIONS: { id: SelectionStyle; label: string; hint:
   { id: 'minimal', label: 'Minimal', hint: 'Outline only — best for dense grids' },
   { id: 'glow', label: 'Glow', hint: 'Accent halo (previous neon style)' },
 ];
+
+/** Map Tabs page legacy labels ↔ Appearance `appearanceTabStyle` ids. */
+export function tabStyleFromVisualLabel(label: unknown): TabStyle {
+  const s = String(label || '');
+  if (/explorer|classic explorer/i.test(s)) return 'explorer';
+  if (/soft|rounded|xyplorer/i.test(s)) return 'soft';
+  if (/square/i.test(s)) return 'flat';
+  if (/modern/i.test(s)) return 'segment';
+  if (/underline|classic$/i.test(s)) return 'underline';
+  return 'explorer';
+}
+
+export function visualLabelFromTabStyle(style: TabStyle): string {
+  switch (style) {
+    case 'explorer':
+      return 'Classic Explorer';
+    case 'soft':
+      return 'Soft Modern';
+    case 'flat':
+      return 'Square';
+    case 'segment':
+      return 'Modern';
+    case 'underline':
+      return 'Underline';
+    default: {
+      const _exhaustive: never = style;
+      return _exhaustive;
+    }
+  }
+}
 
 export const SURFACE_STYLE_OPTIONS: { id: SurfaceStyle; label: string; hint: string }[] = [
   { id: 'flat', label: 'Flat', hint: 'Clean panels, no blur' },
@@ -38,6 +68,8 @@ export const DENSITY_OPTIONS: { id: DensityStyle; label: string; hint: string }[
 ];
 
 export const TAB_STYLE_OPTIONS: { id: TabStyle; label: string; hint: string }[] = [
+  { id: 'explorer', label: 'Classic Explorer', hint: 'Compact rectangular tabs, subtle edge — snappy close' },
+  { id: 'soft', label: 'Soft Modern', hint: 'Rounded squircles with calm depth' },
   { id: 'underline', label: 'Underline', hint: 'Active tab accent line' },
   { id: 'segment', label: 'Segment', hint: 'Raised segment (macOS-like)' },
   { id: 'flat', label: 'Flat', hint: 'Minimal tab chrome' },
@@ -79,17 +111,28 @@ const DENSITY_ROW: Record<DensityStyle, number> = {
   spacious: 28,
 };
 
+const TAB_STYLE_IDS = new Set<TabStyle>(['explorer', 'soft', 'underline', 'segment', 'flat']);
+
+function resolveTabStyle(config: AppConfig): TabStyle {
+  const raw = config.appearanceTabStyle;
+  if (typeof raw === 'string' && TAB_STYLE_IDS.has(raw as TabStyle)) return raw as TabStyle;
+  // Legacy Tabs-page label when Appearance was never set.
+  if (config.visualStyleTabs) return tabStyleFromVisualLabel(config.visualStyleTabs);
+  return 'explorer';
+}
+
 export function resolveAppearance(config: AppConfig) {
   return {
-    selection: (config.appearanceSelectionStyle as SelectionStyle) || 'inset',
+    selection: (config.appearanceSelectionStyle as SelectionStyle) || 'classic',
     surface: (config.appearanceSurfaceStyle as SurfaceStyle) || 'flat',
     corners: (config.appearanceCornerRadius as CornerRadius) || 'rounded',
     density: (config.appearanceDensity as DensityStyle) || 'comfortable',
-    tabs: (config.appearanceTabStyle as TabStyle) || 'underline',
+    tabs: resolveTabStyle(config),
     chrome: (config.appearanceChromePalette as ChromePalette) || 'cool',
     gridSelection: (config.appearanceGridSelection as GridSelectionStyle) || 'subtle',
     navTreeColors: (config.appearanceNavTreeColors as NavTreeColorMode) || 'subtle',
     sizeBar: (config.folderSizeBarStyle as SizeBarStyle) || 'bar',
+    tileCards: config.showListGridCards === true,
   };
 }
 
@@ -105,6 +148,8 @@ export function applyAppearanceVariants(config: AppConfig, root: HTMLElement = d
   root.dataset.gridSelection = a.gridSelection;
   root.dataset.navTreeColors = a.navTreeColors;
   root.dataset.sizeBarStyle = a.sizeBar;
+  root.dataset.tileCards = a.tileCards ? 'on' : 'off';
+  root.style.setProperty('--bndz-tile-card-frame', 'url("/Backgrounds/panels/Card-2x.png")');
 
   const r = RADIUS_MAP[a.corners];
   root.style.setProperty('--bndz-radius-sm', r.sm);

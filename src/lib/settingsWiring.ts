@@ -74,15 +74,35 @@ export function buildMouseRuntime(config: AppConfig) {
   return {
     singleClickOpen: readSettingBool(config, 'openItemsOnSingleClick')
       || readSettingBool(config, 'singleClickToOpenAnItem'),
+    /** Single-click → open only folders (files still need double-click). */
+    foldersOnly: readSettingBool(config, 'foldersOnly'),
+    /** Single-click open only when the click lands on the icon cell. */
+    openOnIconOnly: readSettingBool(config, 'onTheIconOnly'),
     doubleClickOpen: readSettingBool(config, 'openItemsOnDoubleClick', true),
     activateOnMiddleClick: readSettingBool(config, 'activateTabOnMiddleClick'),
     hoverSelect: readSettingBool(config, 'selectListItemsOnMouseHover'),
-    highlightHovered: readSettingBool(config, 'highlightHoveredItems'),
+    highlightHovered: readSettingBool(config, 'highlightHoveredItems', true),
     fullRowSelect: readSettingBool(config, 'fullNameColumnSelect'),
     alsoFullRow: readSettingBool(config, 'alsoOnFullRowSelect'),
     dragByThumbnail: readSettingBool(config, 'allowDraggingItemsByTheThumbnail'),
     disallowDragFromList: readSettingBool(config, 'disallowLeftDraggingFromFileList'),
     disallowDragFromTree: readSettingBool(config, 'disallowLeftDraggingFromFolderTree'),
+    pointToSelect: readSettingBool(config, 'pointToSelect'),
+    /** Point-to-select only when hovering/clicking the icon (Settings → toTheIconOnly). */
+    onTheIconOnly: readSettingBool(config, 'toTheIconOnly'),
+    enableSurroundSelection: readSettingBool(config, 'enableSurroundSelection', true),
+    stickyCheckboxSelection: readSettingBool(config, 'stickyCheckboxSelection'),
+    selectAllOnFocusByKey: readSettingBool(config, 'selectAllOnFocusByKey'),
+    selectAllOnFocusByMouse: readSettingBool(config, 'selectAllOnFocusByMouse'),
+    selectAllOnItemChange: readSettingBool(config, 'selectAllOnItemChange'),
+    ctrlWheelScrollsViews: readSettingBool(config, 'ctrlWheelScrollsThroughTheListViews'),
+    shiftWheelScrollsHorizontally: readSettingBool(config, 'shiftWheelScrollsHorizontally'),
+    wheelScrollLines: readSettingNumber(config, 'wheelScrollLines', 3),
+    scrollMargin: readSettingNumber(config, 'scrollMargin', 0),
+    allowDraggingFromBackground: readSettingBool(config, 'allowDraggingFromABackgroundWindow'),
+    showDragStatusBox: readSettingBool(config, 'showDragStatusBox'),
+    pasteToSelectedListFolder: readSettingBool(config, 'pasteToSelectedListFolder'),
+    deleteOnKeyUp: readSettingBool(config, 'deleteOnKeyUp'),
     bindings: config.mouseBindings,
   };
 }
@@ -101,15 +121,44 @@ export function buildSearchRuntime(config: AppConfig) {
     ignoreDiacritics: readSettingBool(config, 'ignoreDiacritics'),
     searchSubfolders: readSettingBool(config, 'searchSubfolders'),
     searchContent: readSettingBool(config, 'searchFileContent'),
+    cacheSearchResults: readSettingBool(config, 'cacheSearchResults'),
+    levelIndent: readSettingNumber(config, 'levelIndent', 12),
+    levelIndentWidthInPixels: readSettingNumber(config, 'levelIndentWidthInPixels', 12),
+    letFoldersPassAllFilters: readSettingBool(config, 'letFoldersPassAllFilters'),
+    applyToFilesOnly: readSettingBool(config, 'applyToFilesOnly'),
+    autoSelectFirstMatch: readSettingBool(config, 'autoSelectFirstMatch', true),
+    enableNavigationKeys: readSettingBool(config, 'enableNavigationKeys', true),
+    multiColumnMatching: readSettingBool(config, 'multiColumnMatching'),
+    highlightMatches: readSettingBool(config, 'highlightMatches', true),
+    matchCase: readSettingBool(config, 'matchCase'),
+    delayBeforeFilterIsApplied: readSettingNumber(config, 'delayBeforeFilterIsApplied', 120),
+    persistAcrossFolders: readSettingBool(config, 'persistAcrossFolders'),
+    persistentLiveFilters: readSettingBool(config, 'persistentLiveFilters'),
+    persistVisualFiltersAcrossFolders: readSettingBool(config, 'persistVisualFiltersAcrossFolders'),
+    persistQuickSearchAcrossFolders: readSettingBool(config, 'persistQuickSearchAcrossFolders'),
+    maximumNumberOfItemsCached: readSettingNumber(config, 'maximumNumberOfItemsCached', 5000),
+    pasteAndFind: readSettingBool(config, 'pasteAndFind'),
+    toggleOnSameFilter: readSettingBool(config, 'toggleOnSameFilter'),
+    toggleOnSameQuery: readSettingBool(config, 'toggleOnSameQuery'),
+    showFilterInformationInList: readSettingBool(config, 'showFilterInformationInList'),
+    showSearchInformationInList: readSettingBool(config, 'showSearchInformationInList'),
+    showQuickSearchResultsInCurrentTab: readSettingBool(config, 'showQuickSearchResultsInCurrentTab'),
+    showSearchResultsIn: readSettingString(config, 'showSearchResultsIn'),
+    searchResultsInheritCurrentColumns: readSettingBool(config, 'searchResultsInheritCurrentColumns'),
+    synchronizeTreeWithSearchLocation: readSettingBool(config, 'synchronizeTreeWithSearchLocation'),
+    findFilesLocation: readSettingBool(config, 'findFilesLocation'),
+    useLocalizedSearchAndFilterPatterns: readSettingBool(config, 'useLocalizedSearchAndFilterPatterns'),
+    skipSingleSpaces: readSettingBool(config, 'skipSingleSpaces'),
   };
 }
 
 /** Shell integration */
 export function buildShellRuntime(config: AppConfig) {
   return {
-    useCustomContextMenu: true,
+    useCustomContextMenu: readSettingBool(config, 'useCustomContextMenu', true),
     mergeNativeShellVerbs: readSettingBool(config, 'useNativeOSContextMenu') || readSettingBool(config, 'nativeContextMenu'),
-    enableSubmenus: readSettingBool(config, 'enableContextSubmenus'),
+    enableSubmenus: readSettingBool(config, 'enableSubmenus')
+      || readSettingBool(config, 'enableContextSubmenus'),
     injectGlobalMenu: readSettingBool(config, 'injectGlobalContextMenu'),
     isDefaultManager: readSettingBool(config, 'isDefaultFileManager') || readSettingBool(config, 'bndzIsDefaultFileManager'),
     inContextMenu: readSettingBool(config, 'inContextMenu') || readSettingBool(config, 'bndzInShellContextMenu'),
@@ -120,6 +169,12 @@ export function buildShellRuntime(config: AppConfig) {
     suppressDeleteConfirm: readSettingBool(config, 'suppressDeleteConfirmationDialog'),
     bypassRecycle: readSettingBool(config, 'bypassRecycleBin'),
     deleteToRecycle: readSettingBool(config, 'deleteToRecycleBin', true),
+    copyPathsTrailingSlash: readSettingBool(config, 'copyPathsToTheClipboardWithATrailingSlash'),
+    convertOverlongPaths: readSettingBool(config, 'convertOverlongPathsTo83FormatWhenOpeningFiles'),
+    nativeDragDropContextMenu: readSettingBool(config, 'nativeDragAndDropContextMenu'),
+    extendedClipboardDnD: readSettingBool(config, 'extendedCompatibilityForClipboardAndDragAndDrop'),
+    refreshDuringOps: readSettingBool(config, 'refreshDuringFileOperations')
+      || readSettingBool(config, 'refreshFolderContentsDuringFileOperations'),
   };
 }
 
@@ -159,7 +214,8 @@ export function buildUiRuntime(config: AppConfig) {
     tabFontSize: readSettingNumber(config, 'tabFontSize', 11),
     tabBarHeight: readSettingNumber(config, 'tabBarHeight', 28),
     rowHeight: readSettingNumber(config, 'rowHeight', 22),
-    showMenubar: readSettingBool(config, 'showTopMenubar'),
+    showMenubar: readSettingBool(config, 'showTopMenubar', true)
+      && readSettingBool(config, 'showTopMenuBar', true),
     showToolbar: readSettingBool(config, 'showToolbar', true),
     showStatusBar: readSettingBool(config, 'showStatusBar', true),
     rightSidebar: readSettingBool(config, 'rightSidebarEnabled', true),
@@ -182,5 +238,5 @@ export const DATASET_ONLY_KEY_HINT =
 /** Count of keys that have defaults — NOT proof they are behavior-wired. */
 export const SETTINGS_DEFAULT_KEY_COUNT = Object.keys(SETTINGS_DEFAULTS).length;
 
-/** @deprecated Misnamed — use SETTINGS_DEFAULT_KEY_COUNT. Dataset sync ≠ wired. */
+/** @deprecated Use WIRED_SETTING_COUNT from settingsRegistry — default count ≠ wired. */
 export const WIRED_KEY_COUNT = SETTINGS_DEFAULT_KEY_COUNT;

@@ -18,7 +18,7 @@ const CURATED_EXTRAS: JumpSettingEntry[] = [
   {
     tab: 'Highlights & Dark Mode',
     label: 'Grid style / zebra stripes',
-    key: 'selectConfig5',
+    key: 'listZebraStyle',
     description: 'Alternate row zebra striping for the file list',
     keywords: ['zebra', 'zebra stripes', 'grid style', 'alternate rows', 'stripes', 'list background', 'banding'],
   },

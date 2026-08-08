@@ -254,7 +254,8 @@ namespace Files.App.ViewModels
 							await NavigationHelpers.AddNewTabByPathAsync(typeof(ShellPanesPage), path, true);
 					}
 					else if (UserSettingsService.GeneralSettingsService.ContinueLastSessionOnStartUp &&
-						UserSettingsService.GeneralSettingsService.LastSessionTabList is not null)
+						UserSettingsService.GeneralSettingsService.LastSessionTabList is not null &&
+						UserSettingsService.GeneralSettingsService.LastSessionTabList.Any(tab => !string.IsNullOrWhiteSpace(tab)))
 					{
 						if (AppInstances.Count == 0)
 							await RestoreSessionTabsAsync(UserSettingsService.GeneralSettingsService.LastSessionTabList);
@@ -310,8 +311,12 @@ namespace Files.App.ViewModels
 
 		private async Task RestoreSessionTabsAsync(List<string> sessionTabs)
 		{
-			if (sessionTabs is null || sessionTabs.Count == 0)
+			sessionTabs = sessionTabs?.Where(tab => !string.IsNullOrWhiteSpace(tab)).ToList() ?? [];
+			if (sessionTabs.Count == 0)
+			{
+				await NavigationHelpers.AddNewTabAsync();
 				return;
+			}
 
 			var savedIndex = UserSettingsService.GeneralSettingsService.LastSessionSelectedTabIndex;
 			if (savedIndex < 0 || savedIndex >= sessionTabs.Count)

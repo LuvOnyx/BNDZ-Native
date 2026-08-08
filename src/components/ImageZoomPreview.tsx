@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import { toWindowsPath } from '../lib/pathUtils';
+import { useAppConfig } from '../data/configContext';
+import { getBlowUpBehavior, getBlowUpMouseBehavior } from '../lib/settingsBehavior';
+import { applyWebPathMap } from '../lib/listReportExport';
+import { buildSettingsRuntime } from '../lib/settingsRuntime';
 
 interface ImageZoomPreviewProps {
   src: string;
@@ -25,11 +29,31 @@ function measureContainScale(
   return Math.min(sx, sy, 24);
 }
 
+function measureCoverScale(
+  imgW: number,
+  imgH: number,
+  boxW: number,
+  boxH: number,
+  padding = 0,
+): number {
+  if (!imgW || !imgH || !boxW || !boxH) return 1;
+  const sx = (boxW - padding) / imgW;
+  const sy = (boxH - padding) / imgH;
+  return Math.min(Math.max(sx, sy), 24);
+}
+
 export default function ImageZoomPreview({
   src, alt, fallbackSrc, filePath, onError, onOpenFloating,
 }: ImageZoomPreviewProps) {
+  const { config } = useAppConfig();
+  const blowUp = getBlowUpMouseBehavior(config);
+  const blowVisual = getBlowUpBehavior(config);
+  const previewRt = buildSettingsRuntime(config).preview;
+  const mappedSrc = config.enableServerMappings === false
+    ? src
+    : applyWebPathMap(config, src);
   const [displayScale, setDisplayScale] = useState(1);
-  const [imgSrc, setImgSrc] = useState(src);
+  const [imgSrc, setImgSrc] = useState(mappedSrc);
   const [isDragging, setIsDragging] = useState(false);
   const blobTriedRef = useRef(false);
   const blobUrlRef = useRef<string | null>(null);
@@ -51,12 +75,19 @@ export default function ImageZoomPreview({
       URL.revokeObjectURL(blobUrlRef.current);
       blobUrlRef.current = null;
     }
-    setImgSrc(src);
+    setImgSrc(applyWebPathMap(config, src));
     offsetRef.current = { x: 0, y: 0 };
     baseFitScaleRef.current = 1;
-    scaleRef.current = 1;
-    setDisplayScale(1);
-  }, [src, filePath]);
+    if (previewRt.zoomToFit || blowVisual.shrinkToFit || blowVisual.zoomToFill) {
+      scaleRef.current = 1;
+      setDisplayScale(1);
+      // fitToContainer runs on image load
+    } else {
+      const zoomPct = blowUp.applyZoom ? Math.max(10, blowUp.applyZoomBlowUpValue || 100) / 100 : 1;
+      scaleRef.current = zoomPct;
+      setDisplayScale(zoomPct);
+    }
+  }, [src, filePath, config, blowUp.applyZoom, blowUp.applyZoomBlowUpValue, previewRt.zoomToFit, blowVisual.shrinkToFit, blowVisual.zoomToFill]);
 
   useEffect(() => () => {
     if (blobUrlRef.current) {
@@ -112,13 +143,21 @@ export default function ImageZoomPreview({
     const img = imgRef.current;
     const stage = stageRef.current;
     if (!img?.naturalWidth || !stage) return 1;
-    return measureContainScale(
+    const measure = blowVisual.zoomToFill ? measureCoverScale : measureContainScale;
+    let fit = measure(
       img.naturalWidth,
       img.naturalHeight,
       stage.clientWidth,
       stage.clientHeight,
     );
-  }, []);
+    // Settings → Limit original preview size (px) caps the fitted native scale.
+    if (config.limitOriginalPreviewSize) {
+      const maxPx = Math.max(64, Number(config.limitOriginalPreviewSizeValue) || 1600);
+      const maxScale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
+      fit = Math.min(fit, maxScale);
+    }
+    return fit;
+  }, [blowVisual.zoomToFill, config.limitOriginalPreviewSize, config.limitOriginalPreviewSizeValue]);
 
   const fitToContainer = useCallback((preserveZoom = false) => {
     const stage = stageRef.current;
@@ -141,15 +180,26 @@ export default function ImageZoomPreview({
   const fit = () => fitToContainer(false);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+    const leftOk = e.button === 0 && (blowUp.onLeftMouseDown || blowUp.allowPanning);
+    const rightOk = e.button === 2 && blowUp.onRightMouseDown;
+    const middleOk = e.button === 1 && (blowUp.onMiddleMouseDown || !!config.onMiddleMouseDown);
+    if (!leftOk && !rightOk && !middleOk) return;
+    if (!blowUp.allowPanning && e.button === 0 && !blowUp.movementBlowUp) return;
+    if (middleOk && e.button === 1) {
+      // Middle-down: quick recenter / fit when enabled.
+      fitToContainer(false);
+      e.preventDefault();
+      return;
+    }
     draggingRef.current = true;
     setIsDragging(true);
     lastPosRef.current = { x: e.clientX, y: e.clientY };
     e.preventDefault();
-  }, []);
+  }, [blowUp.allowPanning, blowUp.movementBlowUp, blowUp.onLeftMouseDown, blowUp.onRightMouseDown, blowUp.onMiddleMouseDown, config.onMiddleMouseDown, fitToContainer]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!draggingRef.current) return;
+    if (!blowUp.allowPanning && !blowUp.movementBlowUp) return;
     const dx = e.clientX - lastPosRef.current.x;
     const dy = e.clientY - lastPosRef.current.y;
     lastPosRef.current = { x: e.clientX, y: e.clientY };
@@ -158,12 +208,13 @@ export default function ImageZoomPreview({
       y: offsetRef.current.y + dy,
     };
     scheduleTransform();
-  }, [scheduleTransform]);
+  }, [blowUp.allowPanning, blowUp.movementBlowUp, scheduleTransform]);
 
   const endDrag = useCallback(() => {
+    if (blowUp.stayUp && blowUp.onRightMouseDown) return;
     draggingRef.current = false;
     setIsDragging(false);
-  }, []);
+  }, [blowUp.stayUp, blowUp.onRightMouseDown]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -185,17 +236,29 @@ export default function ImageZoomPreview({
     if (!stage) return;
     const ro = new ResizeObserver(() => {
       if (!stage.clientWidth || !stage.clientHeight) return;
+      if (!(previewRt.zoomToFit || blowVisual.shrinkToFit || blowVisual.zoomToFill)) return;
       const nearFit = Math.abs(scaleRef.current - baseFitScaleRef.current) < 0.08;
       if (nearFit || baseFitScaleRef.current <= 1.01) fitToContainer(false);
     });
     ro.observe(stage);
     return () => ro.disconnect();
-  }, [fitToContainer, imgSrc]);
+  }, [fitToContainer, imgSrc, previewRt.zoomToFit, blowVisual.shrinkToFit, blowVisual.zoomToFill]);
+
+  const checker = previewRt.transparencyBg !== false
+    && config.transparencyBackground !== false
+    && String(config.transparencyBackground || 'Grid').toLowerCase() !== 'none';
+  const imageRendering = (previewRt.highQuality || !!config.highQualityImageResampling
+    || String(config.thumbnailQuality || '') === 'High Quality')
+    ? 'auto'
+    : 'pixelated';
+  const thumbPad = Math.max(0, parseInt(String(config.thumbnailPadding ?? 4), 10) || 4);
+  const thumbStyle = String(config.thumbnailStyle || 'Shadow');
 
   return (
     <div
       ref={containerRef}
-      className="bndz-image-preview"
+      className={`bndz-image-preview ${checker ? 'bndz-image-preview--checker' : ''} bndz-thumb-style-${thumbStyle.replace(/\s+/g, '-').toLowerCase()}`}
+      style={{ ['--bndz-thumb-pad' as string]: `${thumbPad}px` }}
       onMouseMove={onMouseMove}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
@@ -215,8 +278,11 @@ export default function ImageZoomPreview({
             src={imgSrc}
             alt={alt}
             draggable={false}
-            className="bndz-image-preview-img"
-            onLoad={() => fitToContainer(false)}
+            className={`bndz-image-preview-img${config.autoRotatePreview ? ' bndz-auto-rotate-preview' : ''}`}
+            style={{ imageRendering }}
+            onLoad={() => {
+              if (previewRt.zoomToFit || blowVisual.shrinkToFit || blowVisual.zoomToFill) fitToContainer(false);
+            }}
             onError={(e) => {
               void tryBlobFallback().then((ok) => {
                 if (ok) return;

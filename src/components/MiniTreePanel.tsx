@@ -1,6 +1,7 @@
 import React from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import type { MiniTreeNode } from '../lib/navigationHistory';
+import { formatUiPath } from '../lib/displayPath';
 
 type Props = {
   nodes: MiniTreeNode[];
@@ -29,7 +30,7 @@ export default function MiniTreePanel({ nodes, activePath, onNavigate }: Props) 
           <button
             key={node.path}
             type="button"
-            title={node.path}
+            title={formatUiPath(node.path) || node.label}
             onClick={() => onNavigate(node.path)}
             className={`flex items-center gap-1.5 py-1 pr-2 rounded text-left text-[11px] w-full transition-colors ${
               active ? 'bg-[#094771]/40 text-[#cce4f7]' : 'text-gray-400 hover:bg-[#222] hover:text-gray-200'

@@ -7,11 +7,12 @@ let idleTimer: ReturnType<typeof setTimeout> | null = null;
 const SCROLL_IDLE_MS = 90;
 
 const MAX_SHELL = 6;
-const MAX_SHELL_SCROLLING = 4;
+const MAX_SHELL_SCROLLING = 3;
 const MAX_THUMB = 3;
-const MAX_THUMB_SCROLLING = 2;
+const MAX_THUMB_SCROLLING = 1;
 const VIEWPORT_PRIORITY_FLOOR = 1700;
-const MAX_PENDING = 96;
+/** Raised so listing prefetch + viewport shells coexist without mass eviction. */
+const MAX_PENDING = 192;
 
 type QueueKind = 'shell' | 'thumb';
 
@@ -23,7 +24,7 @@ let activeThumb = 0;
 function shellLimit(): number {
   if (!scrolling) return MAX_SHELL;
   const hasViewport = pending.some(j => j.kind === 'shell' && j.priority >= VIEWPORT_PRIORITY_FLOOR);
-  return hasViewport ? MAX_SHELL : MAX_SHELL_SCROLLING;
+  return hasViewport ? MAX_SHELL_SCROLLING + 1 : MAX_SHELL_SCROLLING;
 }
 
 function thumbLimit(): number {
@@ -95,6 +96,11 @@ export function getIconQueueSplit(): { shell: number; thumb: number; pendingShel
   };
 }
 
+function isProtectedFromEviction(job: Queued): boolean {
+  // Viewport shells must never be dropped for thumb floods.
+  return job.kind === 'shell' && job.priority >= VIEWPORT_PRIORITY_FLOOR;
+}
+
 /**
  * @param priority Higher runs first.
  *   shell ≈ 0–99 (+ viewport boost), list thumb ≈ 1000+.
@@ -119,13 +125,23 @@ export function enqueueIconRequest<T>(
         });
     };
     if (pending.length >= MAX_PENDING) {
-      let lowestIdx = 0;
-      for (let i = 1; i < pending.length; i++) {
-        if (pending[i].priority < pending[lowestIdx].priority) lowestIdx = i;
+      let lowestIdx = -1;
+      for (let i = 0; i < pending.length; i++) {
+        if (isProtectedFromEviction(pending[i])) continue;
+        if (lowestIdx < 0 || pending[i].priority < pending[lowestIdx].priority) lowestIdx = i;
       }
-      const evicted = pending.splice(lowestIdx, 1)[0];
-      if (evicted?.reject) {
-        evicted.reject(new Error('Icon request evicted from queue'));
+      // Prefer dropping thumbs before non-viewport shells when all shells are protected.
+      if (lowestIdx < 0) {
+        for (let i = 0; i < pending.length; i++) {
+          if (pending[i].kind !== 'thumb') continue;
+          if (lowestIdx < 0 || pending[i].priority < pending[lowestIdx].priority) lowestIdx = i;
+        }
+      }
+      if (lowestIdx >= 0) {
+        const evicted = pending.splice(lowestIdx, 1)[0];
+        if (evicted?.reject) {
+          evicted.reject(new Error('Icon request evicted from queue'));
+        }
       }
     }
 

@@ -7,7 +7,7 @@ import { useEffect, useState, Suspense } from 'react';
 import BNDZUI from './components/BNDZUI';
 import PluginPopoutShell from './components/PluginPopoutShell';
 import BndzPaneShell from './components/BndzPaneShell';
-import { ConfigProvider } from './data/configContext';
+import { ConfigProvider, useAppConfig } from './data/configContext';
 import { ClipboardProvider } from './data/ClipboardContext';
 import ModalProvider from './components/ModalProvider';
 import { AiModelGateProvider } from './components/AiModelGateProvider';
@@ -18,18 +18,31 @@ import LaunchSplash from './components/LaunchSplash';
 import PerfHud from './components/PerfHud';
 import LegalAcceptGate from './components/LegalAcceptGate';
 import { readPluginWindowBootFromUrl } from './lib/pluginWindowBoot';
+import { getStartupBehavior } from './lib/settingsBehavior';
 import { applyNativeShellDocumentMark, isNativeShellBoot } from './lib/nativeShellBoot';
 import { applyPaneDocumentMark, readPaneBootFromUrl } from './lib/paneBoot';
+import { applyFilesHostDocumentMark, isFilesHostBoot } from './lib/filesHostBoot';
 
 const PLUGIN_BOOT = readPluginWindowBootFromUrl();
 const PANE_BOOT = readPaneBootFromUrl();
+const FILES_HOST = isFilesHostBoot();
 applyNativeShellDocumentMark();
 applyPaneDocumentMark(PANE_BOOT);
+applyFilesHostDocumentMark();
+
+function LaunchSplashGate({ onDone }: { onDone: () => void }) {
+  const { config } = useAppConfig();
+  const wantSplash = getStartupBehavior(config).showSplashScreenWhileLoading;
+  useEffect(() => {
+    if (!wantSplash) onDone();
+  }, [wantSplash, onDone]);
+  if (!wantSplash) return null;
+  return <LaunchSplash onDone={onDone} />;
+}
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(() => {
-    if (PLUGIN_BOOT || PANE_BOOT) return true;
-    // Native shell compare sessions skip splash so both versions are ready faster.
+    if (PLUGIN_BOOT || PANE_BOOT || FILES_HOST) return true;
     if (isNativeShellBoot()) return true;
     try {
       return localStorage.getItem('bndz-launch-splash-seen') === '1';
@@ -75,6 +88,26 @@ export default function App() {
     );
   }
 
+  // FilesMerge main browser: full classic BNDZUI (tree + list + preview + plugins).
+  if (FILES_HOST) {
+    return (
+      <ConfigProvider>
+        <ClipboardProvider>
+          <PluginRegistryProvider>
+            <ModalProvider>
+              <AiModelGateProvider>
+                <Suspense fallback={null}>
+                  <BNDZUI />
+                </Suspense>
+                <ToastHost />
+              </AiModelGateProvider>
+            </ModalProvider>
+          </PluginRegistryProvider>
+        </ClipboardProvider>
+      </ConfigProvider>
+    );
+  }
+
   return (
     <ConfigProvider>
       <ClipboardProvider>
@@ -82,7 +115,7 @@ export default function App() {
           <ModalProvider>
             <AiModelGateProvider>
             <LegalAcceptGate>
-            {!splashDone && <LaunchSplash onDone={handleSplashDone} />}
+            {!splashDone && <LaunchSplashGate onDone={handleSplashDone} />}
             <Suspense fallback={null}>
               <BNDZUI />
             </Suspense>

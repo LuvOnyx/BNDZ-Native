@@ -16,7 +16,8 @@ namespace BNDZ.Services;
 public sealed class BndzBackendHostIpcService : IDisposable
 {
     public const string PipeName = "BNDZ.Backend.Host";
-    private const int ListenerCount = 2;
+    /// <summary>Concurrent accept loops — FilesMerge fires settings + list + icons in parallel.</summary>
+    private const int ListenerCount = 12;
 
     private static readonly Lazy<BndzBackendHostIpcService> _instance = new(() => new BndzBackendHostIpcService());
     public static BndzBackendHostIpcService Instance => _instance.Value;
@@ -66,17 +67,37 @@ public sealed class BndzBackendHostIpcService : IDisposable
     {
         while (!token.IsCancellationRequested)
         {
+            NamedPipeServerStream? server = null;
             try
             {
-                await using var server = new NamedPipeServerStream(
+                server = new NamedPipeServerStream(
                     PipeName,
                     PipeDirection.InOut,
                     NamedPipeServerStream.MaxAllowedServerInstances,
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
 
-                await server.WaitForConnectionAsync(token);
-                await HandleClientAsync(server, token);
+                await server.WaitForConnectionAsync(token).ConfigureAwait(false);
+
+                // Hand off so this accept loop can take the next client immediately
+                // (long GET_DIR_CONTENTS / SCAN_FOLDER_SIZES must not stall other RPCs).
+                var connected = server;
+                server = null;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await HandleClientAsync(connected, token).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[BndzBackendHostIpc] Client error: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try { await connected.DisposeAsync().ConfigureAwait(false); } catch { }
+                    }
+                }, token);
             }
             catch (OperationCanceledException)
             {
@@ -85,7 +106,14 @@ public sealed class BndzBackendHostIpcService : IDisposable
             catch (Exception ex)
             {
                 Debug.WriteLine($"[BndzBackendHostIpc] Listen error: {ex.Message}");
-                try { await Task.Delay(100, token); } catch { break; }
+                try { await Task.Delay(100, token).ConfigureAwait(false); } catch { break; }
+            }
+            finally
+            {
+                if (server is not null)
+                {
+                    try { await server.DisposeAsync().ConfigureAwait(false); } catch { }
+                }
             }
         }
     }
@@ -93,34 +121,57 @@ public sealed class BndzBackendHostIpcService : IDisposable
     private async Task HandleClientAsync(NamedPipeServerStream server, CancellationToken token)
     {
         using var reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-        var line = await reader.ReadLineAsync(token);
-        if (string.IsNullOrWhiteSpace(line))
+        // Keep the pipe open for many RPCs — reconnect-per-call was dominating FilesMerge cold load.
+        while (!token.IsCancellationRequested)
         {
-            await WriteLineAsync(server, JsonSerializer.Serialize(new { type = "ERROR", payload = new { error = "empty request" } }), token);
-            return;
-        }
+            string? line;
+            try
+            {
+                line = await reader.ReadLineAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (IOException)
+            {
+                break;
+            }
+
+            if (line is null)
+                break; // client disconnected
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
 
             string response;
-        try
-        {
-            var main = _main;
-            if (main is null)
+            try
             {
-                response = JsonSerializer.Serialize(new { type = "ERROR", payload = new { error = "backend main window not ready" } });
+                var main = _main;
+                if (main is null)
+                {
+                    response = JsonSerializer.Serialize(new { type = "ERROR", payload = new { error = "backend main window not ready" } });
+                }
+                else
+                {
+                    // Full IPC surface — waiter registration + dispatch; accept loop already handed off.
+                    response = await main.HandleBackendHostIpcAsync(line).ConfigureAwait(false);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                // Full IPC surface — must run waiter registration + dispatch without blocking the pipe accept loop forever.
-                response = await main.HandleBackendHostIpcAsync(line).ConfigureAwait(false);
+                Debug.WriteLine($"[BndzBackendHostIpc] Handle error: {ex.Message}");
+                response = JsonSerializer.Serialize(new { type = "ERROR", payload = new { error = ex.Message } });
             }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[BndzBackendHostIpc] Handle error: {ex.Message}");
-            response = JsonSerializer.Serialize(new { type = "ERROR", payload = new { error = ex.Message } });
-        }
 
-        await WriteLineAsync(server, response, token);
+            try
+            {
+                await WriteLineAsync(server, response, token).ConfigureAwait(false);
+            }
+            catch
+            {
+                break;
+            }
+        }
     }
 
     private static async Task WriteLineAsync(Stream server, string json, CancellationToken token)

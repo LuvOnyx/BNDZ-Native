@@ -3,6 +3,7 @@
 
 using Sentry;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using Windows.ApplicationModel;
 using Windows.Foundation;
@@ -141,14 +142,32 @@ namespace Files.App.Utils.Taskbar
 		/// </remarks>
 		public SystemTrayIcon()
 		{
-			_Icon = new(AppLifecycleHelper.AppIconPath);
+			try
+			{
+				var iconPath = AppLifecycleHelper.AppIconPath;
+				_Icon = File.Exists(iconPath)
+					? new Icon(iconPath)
+					: SystemIcons.Application;
+			}
+			catch
+			{
+				_Icon = SystemIcons.Application;
+			}
+
 			_Tooltip = Package.Current.DisplayName;
 			_taskbarRestartMessageId = PInvoke.RegisterWindowMessage("TaskbarCreated");
 
 			Id = _trayIconGuid;
 			_IconWindow = new SystemTrayIconWindow(this);
 
-			CreateOrModifyNotifyIcon();
+			try
+			{
+				CreateOrModifyNotifyIcon();
+			}
+			catch
+			{
+				// Tray is optional; never block app startup.
+			}
 		}
 
 		// Public Methods

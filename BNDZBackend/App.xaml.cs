@@ -194,15 +194,36 @@ namespace BNDZ
             {
                 BndzBackendHostIpcService.Instance.RegisterMain(mainWindow);
                 BndzBackendHostIpcService.Instance.Start();
+                // Warm common type glyphs off the critical path so first DIR_CONTENTS glyphs hit cache.
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var glyphs = ShellGlyphMapService.Instance;
+                        _ = glyphs.GetTypeGlyphBase64(ShellGlyphMapService.FolderKey, true);
+                        foreach (var ext in new[]
+                                 {
+                                     ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+                                     ".mp3", ".wav", ".flac", ".mp4", ".mkv", ".docx", ".xlsx",
+                                     ".zip", ".7z", ".cs", ".ts", ".tsx", ".json", ".xml", ".lnk",
+                                 })
+                            _ = glyphs.GetTypeGlyphBase64(ext, false);
+                    }
+                    catch { /* best effort */ }
+                });
             }
 
-            try
+            // Shell namespace registration is for the interactive FM — skip in headless backend-host.
+            if (!IsBackendHost)
             {
-                var exe = ResolveAppExecutablePath();
-                if (!string.IsNullOrEmpty(exe))
-                    BndzNamespaceService.Instance.TryRegisterShellIntegration(exe);
+                try
+                {
+                    var exe = ResolveAppExecutablePath();
+                    if (!string.IsNullOrEmpty(exe))
+                        BndzNamespaceService.Instance.TryRegisterShellIntegration(exe);
+                }
+                catch { /* best effort */ }
             }
-            catch { /* best effort */ }
         }
 
         /// <summary>

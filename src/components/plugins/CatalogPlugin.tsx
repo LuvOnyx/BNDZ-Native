@@ -4,6 +4,7 @@ import PluginPanelShell from './PluginPanelShell';
 import { listCatalogs, upsertCatalog, deleteCatalog, type CatalogEntry } from '../../lib/catalog';
 import { VF_ROOT } from '../../lib/virtualPaths';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath, splitUiPath } from '../../lib/displayPath';
 import { requestNativePrompt } from '../../lib/nativeDialog';
 import { pushToast } from '../ToastHost';
 import { IPC } from '../../lib/ipcBridge';
@@ -37,14 +38,11 @@ type Props = {
 };
 
 function pathLeaf(p: string) {
-  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
-  return parts[parts.length - 1] || p;
+  return splitUiPath(p).leaf;
 }
 
 function pathParent(p: string) {
-  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
-  parts.pop();
-  return parts.join('\\');
+  return splitUiPath(p).parent;
 }
 
 export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props) {
@@ -416,7 +414,7 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
                             <div className="flex-1 min-w-0">
                               <div className="text-xs font-medium text-slate-100 truncate">{leaf}</div>
                               {parent && (
-                                <div className="text-[10px] bndz-panel-muted bndz-mono truncate mt-0.5" title={p}>{parent}</div>
+                                <div className="text-[10px] bndz-panel-muted bndz-mono truncate mt-0.5" title={formatUiPath(p)}>{parent}</div>
                               )}
                             </div>
                             <button

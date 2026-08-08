@@ -271,7 +271,8 @@
 							Height="40"
 							Margin="-8,0,-8,0"
 							Padding="24,0,0,0"
-							BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+							Background="{StaticResource BndzSurfaceBrush}"
+							BorderBrush="{StaticResource BndzDividerBrush}"
 							BorderThickness="0,0,0,1"
 							DoubleTapped="FileListHeader_DoubleTapped"
 							PointerPressed="Grid_PointerPressed">

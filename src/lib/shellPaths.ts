@@ -1,4 +1,19 @@
 import { isRecycleBinPath, joinPanePath, normalizePanePath, RECYCLE_BIN_PATH, toWindowsPath } from './pathUtils';
+import { isMeshPath } from './meshPaths';
+import { isVirtualCatalogPath } from './virtualPaths';
+import { isBndzVirtualPath, isBndzRamWritablePath } from './bndzVirtualViews';
+
+/** Paths that must never hit Windows shell extract (fake local paths → white file glyph). */
+export function isNonFsShellIconPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const n = path.replace(/\\/g, '/');
+  if (isMeshPath(n)) return true;
+  if (isVirtualCatalogPath(n)) return true;
+  if (/^\/cloud(\/|$)/i.test(n)) return true;
+  // Smart / BNDZ virtual views — but RAM zone mounts are real FS and should extract.
+  if (isBndzVirtualPath(n) && !isBndzRamWritablePath(n)) return true;
+  return false;
+}
 
 /** Windows shell namespace CLSIDs for virtual locations */
 export const SHELL_CLSID = {
@@ -8,6 +23,8 @@ export const SHELL_CLSID = {
   libraries: '::{031E4825-7B94-4DC3-B131-E946B44C8DD5}',
   controlPanel: '::{26EE0668-A00A-44D7-9371-BEB064C98683}',
   portableDevices: '::{35786D3C-B076-497C-A057-7DCC04A3D85}',
+  /** Personal OneDrive shell folder — FS path alone yields a generic yellow folder. */
+  oneDrive: '::{018D5C66-4533-4307-9B53-224DE2ED1FE6}',
 } as const;
 
 /** Canonical virtual pane path for Control Panel */
@@ -247,6 +264,16 @@ export function shellIconIsDirectory(path: string | null | undefined): boolean {
   if (isRecycleBinPath(path)) return false;
   if (isDriveRootPanePath(path)) return false;
   const lower = path.toLowerCase().replace(/^\//, '');
+  // Mesh remote + virtual catalogs are folders unless the leaf looks like a file with ext.
+  const pane = normalizePanePath(path);
+  if (pane === '/mesh' || pane.startsWith('/mesh/')) {
+    // /mesh and /mesh/{hostId} are containers; deeper leaves with an extension are files.
+    const parts = pane.split('/').filter(Boolean);
+    if (parts.length <= 2) return true;
+    const leaf = parts[parts.length - 1] || '';
+    return !leaf.includes('.');
+  }
+  if (pane === '/vf' || pane.startsWith('/vf/')) return true;
   // Known-folder shell tokens (Desktop, Downloads, …) are directories — query them as such
   // so the tree gets the real special-folder glyph instead of a white file placeholder.
   if (lower.startsWith('shell:')) {
@@ -256,7 +283,6 @@ export function shellIconIsDirectory(path: string | null | undefined): boolean {
     // Control Panel / other virtual shell names are not directories.
     return false;
   }
-  const pane = normalizePanePath(path);
   if (pane === '/' || pane === '//' || pane === '\\\\') return false;
   if (pane.toLowerCase().startsWith('/shell:')) {
     const shellKey = pane.slice(1).toLowerCase();

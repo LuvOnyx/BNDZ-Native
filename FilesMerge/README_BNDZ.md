@@ -9,28 +9,40 @@ Classic official BNDZ stays in [BNDZ-1.0](https://github.com/LuvOnyx/BNDZ-1.0). 
 ## Locked architecture (#3)
 
 ```text
-WinUI / FilesMerge     →  title bar, tabs, sidebar, omnibar, file list
+WinUI / FilesMerge     →  title bar, tabs, sidebar, omnibar, file list,
+                          dock geometry (grid-push plugins row)
 BNDZBackend (full)     →  ALL services + IPC + plugins brain — no stubs
-BNDZ React surfaces    →  hosted panes ONLY (Automation, Spatial, plugins,
-                          Command Deck, preview tools)
+BNDZ React surfaces    →  plugins dock + Automation / Spatial / Smart Tools /
+                          Hub / Config / preview (real BNDZ components)
 ```
 
 **Not the product end state:** HWND-painting classic `BNDZ.exe --embedded` inside Files (`Utils/Bndz/BndzEmbedHost.cs`). That was an A/B glue experiment. The code may remain as **reference only**; it is not wired into MainPage and must not be treated as “merge complete.”
 
 ---
 
-## What you get today (Phases 1–3)
+## What you get today (Phases 1–5)
 
 | Surface | Source |
 |---------|--------|
 | Native FM chrome, sidebar, tabs, omnibar, file list | **Files** under `FilesMerge/` — branded **BNDZ-Native** |
 | Full BNDZBackend (services, index, plugins brain) | Child `BNDZ.exe --backend-host` + named pipe `BNDZ.Backend.Host` |
-| Status chip | Omnibar trailing label: connected / offline / indexed count |
-| Plugins + Command Deck | Bottom dock WebView (`?pane=plugins`) — toggle **Plugins** |
-| Automation / Spatial | Workspace overlay WebViews (`?pane=automation` / `canvas`) |
-| Preview tools | Right column WebView (`?pane=preview`) — toggle **Preview**; selection-synced |
+| Status chip | Omnibar trailing chip: connected / offline / indexed count |
+| Plugins + Command Deck | **Hybrid dock**: Files grid row hosts real BNDZ React (`?pane=plugins`) — Command Deck + BottomPluginPanel flush into Files rhythm (open by default) |
+| Plugin tool bodies | Classic React plugin surfaces (same craft as Spatial) via hosted pane |
+| Smart Tools / Hub / Config | Workspace content-mode WebViews (`?pane=smart-tools` / `marketplace` / `settings`) |
+| Automation / Spatial | Workspace content-mode WebViews (`?pane=automation` / `canvas`) |
+| Preview tools | Right column WebView (`?pane=preview`) — **open by default**; owns column over Files InfoPane |
+| Pane → shell | `BNDZ_PANE_NAVIGATE` / `BNDZ_PANE_TOOL` / `BNDZ_PANE_SWITCH` handled in MainPage |
+| Instant pane open | Soft-switch (`BNDZ_PANE_SWITCH`) + WebView prewarm — no full React reload per open |
+| Resizable plugins dock | GridSplitter above dock row; height persisted in LocalSettings |
 
-Default session = Files-class shell + live backend host + hosted panes. Pipe IPC is the **full** WebView message surface (not a stub allowlist). There is **no** nested classic React FM layout.
+`?pane=plugins` is the **hybrid dock** (real BNDZ React Command Deck + plugins flush into Files row). WinUI `BndzNativeDock` is unused by the shell.
+
+### Remaining hybrid craft (Phase 5)
+
+- Preview media waveform needs live backend (`BNDZ · live`) + blob IPC
+- Omnibar address field itself is still Files Fluent — BNDZ tokens applied to toggle rail
+- Deeper classic prop parity for niche plugins (drives list, folderSizeMap) still incremental
 
 ### Backend host protocol (Phase 2)
 
@@ -42,10 +54,12 @@ Default session = Files-class shell + live backend host + hosted panes. Pipe IPC
 ```powershell
 # From repo root
 powershell -File scripts/build-files-bndz-merge.ps1
-scripts\run-files-merge.cmd    # BNDZ-Native (FilesMerge shell)
+scripts\run-files-merge.cmd    # registers FilesDev package + launches (required)
 ```
 
-The build script compiles `BNDZBackend` + React assets and stages `BNDZ.exe` next to the Files output.
+Do **not** double-click `Files.exe` in `bin\` — that unpackaged path crashes immediately (WASDK DeploymentManager). Always use `scripts\run-files-merge.cmd`, which registers the loose layout and starts `FilesDev_…!App`.
+
+The build script compiles `BNDZBackend` + React assets, patches the WinUI XamlCompiler resource (CLI WMC9999 workaround), builds the shell, and stages a full `bndz-host\` tree next to `Files.exe` (isolated net8 WPF output — not mixed into the Files root).
 
 Exe output remains `Files.exe` this phase (AssemblyName unchanged); package **DisplayName** / **ShortName** are **BNDZ-Native**.
 

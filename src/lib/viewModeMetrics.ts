@@ -1,41 +1,113 @@
-/** Derive grid/list tile geometry from icon size slider values.
- *  Tiles are fixed-size (never stretch with 1fr) so icons stay packed like Explorer.
+/** Derive grid/list/details geometry from icon size sliders.
+ *  Tuned to match Files WinUI GridLayoutPage / LayoutSizeKindHelper ladders.
+ *  `minWidth` is the floor; VirtualizedFileList stretches tracks equally to fill the row.
  */
 
-export function gridTileMetrics(gridIconSize: number) {
+/** Files `GetGridViewItemWidth` ladder (Small → ExtraLarge). */
+export const FILES_GRID_ITEM_WIDTHS = [
+  80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300,
+] as const;
+
+/** Max equal-width columns that fit, then stretch tracks to consume leftover width. */
+export function packGridTracks(
+  availableWidth: number,
+  minTileWidth: number,
+  gap: number,
+): { cols: number; tileWidth: number } {
+  const minW = Math.max(1, Math.floor(minTileWidth));
+  const g = Math.max(0, gap);
+  const w = Math.max(0, Math.floor(availableWidth));
+  if (w <= 0) return { cols: 1, tileWidth: minW };
+  // CSS auto-fill equivalent: floor((W + G) / (min + G))
+  const cols = Math.max(1, Math.floor((w + g) / (minW + g)));
+  const tileWidth = Math.max(minW, Math.floor((w - (cols - 1) * g) / cols));
+  return { cols, tileWidth };
+}
+
+/** Map grid icon slider (16–192) onto the nearest Files grid item width. */
+export function filesGridItemWidthFromIcon(gridIconSize: number): number {
   const icon = Math.max(16, Math.min(192, gridIconSize));
-  // Tile width hugs the icon — label wraps inside this width.
-  const minWidth = Math.max(72, icon + Math.round(icon * 0.35) + 16);
-  const padding = Math.max(4, Math.round(icon * 0.06));
-  const labelBlock = Math.max(26, Math.min(36, Math.round(16 + icon * 0.1)));
-  const gap = Math.max(4, Math.min(10, Math.round(icon / 14)));
-  const iconSlot = icon + 4;
-  const rowHeight = padding * 2 + iconSlot + labelBlock;
+  const t = (icon - 16) / (192 - 16);
+  const idx = Math.round(t * (FILES_GRID_ITEM_WIDTHS.length - 1));
+  return FILES_GRID_ITEM_WIDTHS[Math.max(0, Math.min(FILES_GRID_ITEM_WIDTHS.length - 1, idx))];
+}
+
+export type GridTileMetricsOpts = {
+  /** Appearance → Show cards — reserved for optional card frame; Files Grid is frame-less. */
+  cardChrome?: boolean;
+};
+
+/**
+ * Files Grid: square thumbnail cell (`ItemWidth × ItemWidth`) + caption band under it.
+ * Shell icon fetch size follows Files GetIconSize bands; display fits inside the square with ~12px margin.
+ */
+export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts) {
+  const iconHint = Math.max(16, Math.min(192, gridIconSize));
+  const itemWidth = filesGridItemWidthFromIcon(iconHint);
+  const dense = itemWidth <= 80 && iconHint < 36;
+  const cardChrome = !!opts?.cardChrome && !dense;
+
+  // Files GridViewBrowserTemplate: Margin="12" on thumbnail presenter.
+  const thumbMargin = itemWidth <= 100 ? 10 : 12;
+  const displayIcon = Math.max(16, itemWidth - thumbMargin * 2);
+  // Fetch size near Files bands (96 / 128 / 256) but never below display needs.
+  const icon =
+    itemWidth <= 120 ? Math.max(displayIcon, 96)
+    : itemWidth <= 220 ? Math.max(displayIcon, 128)
+    : Math.max(displayIcon, 192);
+
+  const cardPadX = cardChrome ? 8 : 0;
+  const cardPadTop = cardChrome ? 8 : 0;
+  const cardPadBottom = cardChrome ? 6 : 0;
+
+  // Caption: Files uses ~2 lines under the square (margin 4,0,4,8).
+  const labelBlock = dense ? 0 : Math.max(36, Math.min(48, Math.round(34 + itemWidth * 0.04)));
+  const gap = 4;
+  const iconSlot = itemWidth; // square, Files-identical
+  const padding = 0;
+  const marqueePad = 2;
+  const tileInnerGap = 0;
+
+  const rowHeight =
+    padding * 2
+    + cardPadTop
+    + iconSlot
+    + tileInnerGap
+    + labelBlock
+    + cardPadBottom
+    + marqueePad
+    + (dense ? 0 : 4);
+
   return {
-    icon,
-    minWidth,
-    /** Fixed column width for auto-fill grids (no 1fr stretch). */
-    tileWidth: minWidth,
+    icon: Math.min(icon, 256),
+    minWidth: itemWidth + cardPadX * 2,
+    tileWidth: itemWidth + cardPadX * 2,
     rowHeight,
     stride: rowHeight + gap,
     gap,
     padding,
     labelBlock,
-    marqueePad: Math.max(4, Math.round(gap * 0.5)),
+    marqueePad,
     iconSlot,
+    thumbMargin,
+    dense,
+    cardChrome,
+    cardPadX,
+    cardPadTop,
+    cardPadBottom,
   };
 }
 
 /** This PC drive cards — scale with the same icon size slider as folders. */
 export function driveGridMetrics(gridIconSize: number) {
+  const itemWidth = Math.max(140, filesGridItemWidthFromIcon(gridIconSize) + 40);
   const icon = Math.max(28, Math.min(120, gridIconSize));
-  const minWidth = Math.max(140, icon + 48);
-  const gap = Math.max(6, Math.min(12, Math.round(icon / 12)));
-  const rowHeight = icon + 62;
+  const gap = 8;
+  const rowHeight = Math.max(icon + 56, 100);
   return {
     icon,
-    minWidth,
-    tileWidth: minWidth,
+    minWidth: itemWidth,
+    tileWidth: itemWidth,
     rowHeight,
     stride: rowHeight + gap,
     gap,
@@ -46,45 +118,61 @@ export function driveListMetrics(listIconSize: number) {
   const icon = Math.max(16, Math.min(64, listIconSize));
   const t = (icon - 16) / (64 - 16);
   const tileWidth = Math.round(220 + t * 160);
-  const gap = Math.max(4, Math.round(4 + t * 6));
+  const gap = 4;
   const padX = Math.max(6, Math.round(6 + t * 6));
-  const padY = Math.max(4, Math.round(4 + t * 6));
-  const rowHeight = Math.max(40, icon + padY * 2 + 8);
+  const padY = Math.max(4, Math.round(4 + t * 4));
+  // Files list row heights: 24 / 32 / 36 / 40 / 44
+  const rowHeight =
+    icon <= 14 ? 24
+    : icon <= 18 ? 32
+    : icon <= 22 ? 36
+    : icon <= 28 ? 40
+    : 44;
   return {
     icon,
     tileWidth,
-    rowHeight,
-    stride: rowHeight + gap,
+    rowHeight: Math.max(rowHeight, icon + padY * 2),
+    stride: Math.max(rowHeight, icon + padY * 2) + gap,
     gap,
     padX,
     padY,
   };
 }
 
-/** Details / default list-row metrics from icon size slider. */
+/** Details — Files GetDetailsViewRowHeight ladder (Compact→XL: 28–48). */
 export function detailsTileMetrics(detailsIconSize: number) {
   const icon = Math.max(12, Math.min(48, detailsIconSize));
-  const padY = Math.max(3, Math.round(2 + icon * 0.12));
-  const rowHeight = Math.max(24, icon + padY * 2);
+  const rowHeight =
+    icon <= 14 ? 28
+    : icon <= 18 ? 36
+    : icon <= 22 ? 40
+    : icon <= 28 ? 44
+    : 48;
+  const padY = Math.max(2, Math.round((rowHeight - icon) / 2));
   const iconColClass = icon <= 16 ? 'w-5' : icon <= 24 ? 'w-7' : icon <= 32 ? 'w-9' : 'w-11';
   return { icon, rowHeight, padY, iconColClass };
 }
 
 /**
- * Explorer-style List view metrics.
- * Low slider = dense multi-column name list (small icons, many columns).
- * High slider = large icon+name tiles (few columns) — formatting shifts like Grid.
+ * Files List view: compact multi-column name rows.
+ * Heights from GetListViewRowHeight (24–44); tile width expands with icon for fewer columns at large sizes.
  */
 export function listTileMetrics(listIconSize: number) {
   const icon = Math.max(12, Math.min(96, listIconSize));
-  const t = (icon - 12) / (96 - 12); // 0 = densest, 1 = largest
-  // Wide range so 0% vs 100% clearly changes column count (not just icon size).
-  const tileWidth = Math.round(88 + t * 252); // 88 → 340
-  const gap = Math.max(2, Math.min(14, Math.round(2 + t * 12)));
-  const padY = Math.max(1, Math.round(1 + t * 10));
-  const padX = Math.max(4, Math.round(4 + t * 10));
-  const rowHeight = Math.max(18, icon + padY * 2);
-  const iconSlot = Math.max(14, icon + 2);
+  const t = (icon - 12) / (96 - 12);
+  const dense = icon < 18;
+  const rowHeight =
+    icon <= 14 ? 24
+    : icon <= 18 ? 32
+    : icon <= 22 ? 36
+    : icon <= 28 ? 40
+    : icon <= 40 ? 44
+    : Math.max(48, icon + 8);
+  const tileWidth = dense ? Math.round(120 + t * 40) : Math.round(140 + t * 200);
+  const gap = dense ? 2 : 4;
+  const padY = Math.max(2, Math.round((rowHeight - Math.min(icon, rowHeight - 4)) / 2));
+  const padX = dense ? 6 : 8;
+  const iconSlot = Math.max(16, Math.min(icon + 4, rowHeight - 2));
   return {
     icon,
     tileWidth,
@@ -94,5 +182,6 @@ export function listTileMetrics(listIconSize: number) {
     gap,
     padY,
     padX,
+    dense,
   };
 }

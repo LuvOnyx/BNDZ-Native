@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { IPC } from '../lib/ipcBridge';
+import { formatUiPath } from '../lib/displayPath';
 
 export type BreadcrumbSeg = { path: string; label: string };
 
@@ -158,7 +159,7 @@ export function BreadcrumbTrail({
                     setMenuOpen(false);
                     onNavigate(seg.path, { newTab: e.ctrlKey || e.metaKey });
                   }}
-                  title={seg.path}
+                  title={formatUiPath(seg.path) || seg.label}
                 >
                   {seg.label}
                 </button>

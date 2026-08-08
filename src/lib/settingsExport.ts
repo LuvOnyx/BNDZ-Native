@@ -1,4 +1,5 @@
 import { IPC } from './ipcBridge';
+import { prepareSettingsForDisk } from './settingsPersist';
 
 const EXPORT_VERSION = 1;
 
@@ -54,7 +55,7 @@ export async function importSettingsBundle(
       return { ok: false, message: 'Invalid settings file.' };
     }
     apply(settings);
-    IPC.saveSettings(settings);
+    IPC.saveSettings(prepareSettingsForDisk(settings as any));
     return { ok: true, message: 'Settings imported successfully.' };
   } catch (e: any) {
     if (String(e?.message) === 'cancelled') return { ok: false, message: 'Import cancelled.' };

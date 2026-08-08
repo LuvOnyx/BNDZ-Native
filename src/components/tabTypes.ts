@@ -9,6 +9,14 @@ export interface TabState {
   historyIndex: number;
   selectedItems: string[];
   viewMode?: 'details' | 'grid' | 'list' | 'columns' | 'size' | 'recents' | 'media';
+  /**
+   * Frozen left edge for Columns (Miller) view. Selected path may deepen to the right;
+   * this stays put so columns cascade L→R instead of collapsing to one column.
+   */
+  millerRootPath?: string;
+  /** When Settings → Remember list settings per tab is on, sort sticks to the tab. */
+  sortColumn?: SortColumnId;
+  sortDirection?: 'asc' | 'desc';
   locked?: boolean;
   color?: string;
   /** XYplorer-style persistent search tab */

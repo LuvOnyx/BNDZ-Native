@@ -99,6 +99,10 @@ namespace BNDZ
         private string? _pendingStickyId;
         private string? _pendingPluginTitle;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _backendHostReplies = new();
+        /// <summary>In-flight full listings for backend-host first-paint + GET_DIR_CONTENTS_MORE.</summary>
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<List<DirListingSharedBuffer.DirEntryDto>>> _backendHostListingTasks = new();
+        /// <summary>How many rows were already delivered on first-paint (MORE sends the remainder).</summary>
+        private readonly ConcurrentDictionary<string, int> _backendHostListingFirstPaintCounts = new();
 
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
@@ -322,7 +326,10 @@ namespace BNDZ
             SourceInitialized += (_, _) => ApplyStartupWindowPlacement();
             
             SetupDebouncedWatcher();
-            InitializeWebViewAsync();
+            // Headless FilesMerge host: pipe IPC only — no React WebView / DevTools (was spawning
+            // duplicate Chromium + auto-DevTools under ...\bin\...\bndz-host).
+            if (!App.IsBackendHost)
+                InitializeWebViewAsync();
             // Pre-warm the license cache so the first IPC message doesn't block on a cold license check.
             _ = Task.Run(() => { try { LicenseService.GetStatusCached(); } catch { } });
         }
@@ -336,6 +343,8 @@ namespace BNDZ
         {
             try
             {
+                if (App.IsBackendHost)
+                    return false;
                 if (string.Equals(Environment.GetEnvironmentVariable("BNDZ_DEVTOOLS"), "1", StringComparison.Ordinal))
                     return true;
                 var dir = AppDomain.CurrentDomain.BaseDirectory ?? "";
@@ -344,6 +353,9 @@ namespace BNDZ
                 if (dir.IndexOf(@"\Program Files", StringComparison.OrdinalIgnoreCase) >= 0)
                     return false;
                 // Typical local outputs: ...\bin\Debug\... or ...\dist\publish\...
+                // Staged FilesMerge bndz-host also lives under \bin\ — never auto-open there.
+                if (dir.IndexOf(@"bndz-host", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return false;
                 if (dir.IndexOf(@"\bin\", StringComparison.OrdinalIgnoreCase) >= 0)
                     return true;
                 if (dir.IndexOf(@"\dist\publish\", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -611,11 +623,27 @@ namespace BNDZ
                 if (App.IsBackendHost)
                 {
                     using var doc = JsonDocument.Parse(json);
-                    if (doc.RootElement.TryGetProperty("id", out var idEl))
+                    var root = doc.RootElement;
+                    var msgType = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                    if (root.TryGetProperty("id", out var idEl))
                     {
                         var id = idEl.GetString();
-                        if (!string.IsNullOrEmpty(id) && _backendHostReplies.TryRemove(id!, out var tcs))
+                        // Never complete the pipe waiter on push/stream side-channels that reuse
+                        // the request id (SHELL_GLYPH_MAP was stealing GET_DIR_CONTENTS waiters →
+                        // 60s FE "Folder load timed out").
+                        if (!string.IsNullOrEmpty(id)
+                            && IsBackendHostWaiterCompletingType(msgType)
+                            && _backendHostReplies.TryRemove(id!, out var tcs))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[BackendHost] waiter complete id={id} type={msgType}");
                             tcs.TrySetResult(json);
+                        }
+                        else if (!string.IsNullOrEmpty(id)
+                            && !string.IsNullOrEmpty(msgType)
+                            && _backendHostReplies.ContainsKey(id!))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[BackendHost] skip non-RESULT push id={id} type={msgType}");
+                        }
                     }
                 }
             }
@@ -633,6 +661,18 @@ namespace BNDZ
                 else PostToUi(Post);
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Types that may complete a backend-host named-pipe request/response waiter.
+        /// Push events (glyphs, dir streams, FS watches) must not steal the waiter.
+        /// </summary>
+        private static bool IsBackendHostWaiterCompletingType(string? type)
+        {
+            if (string.IsNullOrEmpty(type)) return false;
+            if (type.Equals("ERROR", StringComparison.Ordinal)) return true;
+            if (type.EndsWith("_RESULT", StringComparison.Ordinal)) return true;
+            return false;
         }
 
         /// <summary>
@@ -683,12 +723,36 @@ namespace BNDZ
                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _backendHostReplies[id!] = tcs;
 
-                await Dispatcher.InvokeAsync(() => { _ = ProcessIncomingIpcMessageAsync(messageStr); });
+                // Backend-host has no product WebView — avoid WPF Dispatcher marshalling on every RPC
+                // (that was serializing cold-load GET_DIR_CONTENTS / settings / icons).
+                if (App.IsBackendHost)
+                    _ = ProcessIncomingIpcMessageAsync(messageStr);
+                else
+                    await Dispatcher.InvokeAsync(() => { _ = ProcessIncomingIpcMessageAsync(messageStr); });
 
-                var finished = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(60))).ConfigureAwait(false);
+                // Media blobs / dir listings can exceed default; GET_MEDIA_BLOB uses up to 48MB base64.
+                var timeoutSec = string.Equals(type, "GET_MEDIA_BLOB", StringComparison.OrdinalIgnoreCase) ? 120 : 60;
+                var finished = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(timeoutSec))).ConfigureAwait(false);
                 _backendHostReplies.TryRemove(id!, out _);
                 if (finished == tcs.Task)
                     return await tcs.Task.ConfigureAwait(false);
+
+                // Map host timeout into the FE-expected RESULT type for dir listing so React
+                // resolves instead of hanging until its own 60s IPC timeout.
+                if (string.Equals(type, "GET_DIR_CONTENTS", StringComparison.OrdinalIgnoreCase))
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        type = "DIR_CONTENTS_RESULT",
+                        id,
+                        payload = new
+                        {
+                            error = $"Host IPC timeout waiting for DIR_CONTENTS_RESULT ({timeoutSec}s)",
+                            path = (string?)null,
+                            items = Array.Empty<object>(),
+                        },
+                    }, opts);
+                }
 
                 return JsonSerializer.Serialize(new
                 {
@@ -714,7 +778,17 @@ namespace BNDZ
             _pendingPluginTitle = title;
         }
 
-        private void PostToUi(Action action) => UiThread.Marshal(Dispatcher, action);
+        private void PostToUi(Action action)
+        {
+            // Backend-host has no product WebView — never marshal RESULT completion onto the WPF
+            // dispatcher (that starved icon batches / dir MORE under FilesMerge load).
+            if (App.IsBackendHost)
+            {
+                try { action(); } catch { /* best-effort */ }
+                return;
+            }
+            UiThread.Marshal(Dispatcher, action);
+        }
 
         private static readonly JsonSerializerOptions MeshJsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -738,7 +812,15 @@ namespace BNDZ
             });
         }
 
-        private Task PostToUiAsync(Action action) => UiThread.MarshalAsync(Dispatcher, action);
+        private Task PostToUiAsync(Action action)
+        {
+            if (App.IsBackendHost)
+            {
+                try { action(); } catch { /* best-effort */ }
+                return Task.CompletedTask;
+            }
+            return UiThread.MarshalAsync(Dispatcher, action);
+        }
 
         public void OpenPathInManager(string path)
         {
@@ -1397,6 +1479,62 @@ namespace BNDZ
             DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions));
         }
 
+        /// <summary>
+        /// Backend-host: one-line RESULT that embeds shell glyphs so FilesMerge WebView
+        /// does not need a dead SHELL_GLYPH_MAP push channel for first paint.
+        /// </summary>
+        private void PostDirContentsJsonWithGlyphs(
+            string? id,
+            string folderPath,
+            List<DirListingSharedBuffer.DirEntryDto> entries,
+            Dictionary<string, string> glyphs,
+            bool partial)
+        {
+            var legacy = entries.Select(DirEntryToLegacy).ToList();
+            var response = new
+            {
+                type = "DIR_CONTENTS_RESULT",
+                id,
+                payload = new
+                {
+                    path = (folderPath ?? "").Replace('\\', '/'),
+                    items = legacy,
+                    partial,
+                    glyphs,
+                },
+            };
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions));
+        }
+
+        private static string BackendHostListingKey(string path)
+        {
+            var n = ShellPathResolver.NormalizeIncoming(path);
+            if (string.IsNullOrEmpty(n)) n = path ?? "";
+            return n.Replace('/', '\\').TrimEnd('\\').ToUpperInvariant();
+        }
+
+        private async Task PostBackendHostDirPageAsync(
+            string? idProp,
+            string path,
+            List<DirListingSharedBuffer.DirEntryDto> page,
+            bool partial)
+        {
+            Dictionary<string, string> glyphs;
+            try
+            {
+                glyphs = await Task.Run(() =>
+                    ShellGlyphMapService.Instance.BuildListingGlyphMap(page)).ConfigureAwait(false);
+            }
+            catch
+            {
+                glyphs = new Dictionary<string, string>();
+            }
+
+            // Backend-host: complete the named-pipe waiter on this thread (no UI dispatcher hop).
+            PostDirContentsJsonWithGlyphs(idProp, path, page, glyphs, partial);
+        }
+
         private void PostDirContentsError(string? id, string path, string error)
         {
             var response = new
@@ -1498,7 +1636,16 @@ namespace BNDZ
 
         private async Task PostDirListingPageAsync(string? idProp, string path, List<DirListingSharedBuffer.DirEntryDto> page, bool partial)
         {
-            // Listing-time shell glyphs — must arrive before / with first paint so FE hydrates typeGlyphCache.
+            // Backend-host pipe: single-line RPC — DIR_CONTENTS_RESULT must win the waiter before
+            // SHELL_GLYPH_MAP (glyphs use null id so they cannot steal correlation).
+            if (App.IsBackendHost)
+            {
+                await PostToUiAsync(() => PostDirContentsJson(idProp, page)).ConfigureAwait(false);
+                await PostShellGlyphMapAsync(null, path, page).ConfigureAwait(false);
+                return;
+            }
+
+            // Classic WebView: listing-time shell glyphs before / with first paint.
             await PostShellGlyphMapAsync(idProp, path, page).ConfigureAwait(false);
 
             await PostToUiAsync(() =>
@@ -1531,10 +1678,13 @@ namespace BNDZ
 
             await PostToUiAsync(() =>
             {
+                // Never attach GET_DIR_CONTENTS request id on backend-host (pipe would complete
+                // early). Classic WebView may keep id for optional FE correlation.
+                var glyphId = App.IsBackendHost ? null : idProp;
                 var response = new
                 {
                     type = "SHELL_GLYPH_MAP",
-                    id = idProp,
+                    id = glyphId,
                     path = (path ?? "").Replace('\\', '/'),
                     payload = glyphs,
                 };
@@ -1591,6 +1741,64 @@ namespace BNDZ
             {
                 var gatePath = HelloGateService.Instance.GetBlockingGatePath(resolvedForGate) ?? resolvedForGate;
                 await PostToUiAsync(() => PostDirContentsError(idProp, path, $"HELLO_GATE_BLOCKED:{gatePath}")).ConfigureAwait(false);
+                return;
+            }
+
+            // Backend-host pipe: first-paint at 64 rows with embedded glyphs, then full list via GET_DIR_CONTENTS_MORE.
+            if (App.IsBackendHost)
+            {
+                var key = BackendHostListingKey(path);
+                var listingTcs = new TaskCompletionSource<List<DirListingSharedBuffer.DirEntryDto>>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                // Supersede any in-flight same-path listing so MORE cannot attach to a stale TCS.
+                if (_backendHostListingTasks.TryRemove(key, out var priorListing))
+                    priorListing.TrySetCanceled();
+                _backendHostListingTasks[key] = listingTcs;
+                _backendHostListingFirstPaintCounts[key] = 0;
+
+                try
+                {
+                    var pipeFirstPaint = Math.Min(40, DirListingSharedBuffer.FirstPaintPageSize);
+                    var pipeAll = new List<DirListingSharedBuffer.DirEntryDto>();
+                    var pipeFirstPosted = false;
+
+                    await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, ct).ConfigureAwait(false))
+                    {
+                        pipeAll.Add(entry);
+                        if (!pipeFirstPosted && pipeAll.Count >= pipeFirstPaint)
+                        {
+                            pipeFirstPosted = true;
+                            var page = pipeAll.ToList();
+                            // Defer Enrich (tags / reparse) until full list — first paint must be raw+glyphs only.
+                            _backendHostListingFirstPaintCounts[key] = page.Count;
+                            await PostBackendHostDirPageAsync(idProp, path, page, partial: true).ConfigureAwait(false);
+                        }
+                    }
+
+                    EnrichDirListingEntries(pipeAll);
+                    if (!pipeFirstPosted)
+                    {
+                        _backendHostListingFirstPaintCounts[key] = 0;
+                        await PostBackendHostDirPageAsync(idProp, path, pipeAll, partial: false).ConfigureAwait(false);
+                    }
+
+                    listingTcs.TrySetResult(pipeAll);
+                }
+                catch (Exception ex)
+                {
+                    listingTcs.TrySetException(ex);
+                    throw;
+                }
+                finally
+                {
+                    // Allow MORE to finish reading; clear task after a short grace so cache-miss re-enum still works.
+                    _ = Task.Run(async () =>
+                    {
+                        try { await Task.Delay(60_000).ConfigureAwait(false); } catch { /* ignore */ }
+                        _backendHostListingTasks.TryRemove(key, out _);
+                        _backendHostListingFirstPaintCounts.TryRemove(key, out _);
+                    });
+                }
                 return;
             }
 
@@ -1961,6 +2169,9 @@ namespace BNDZ
 
         private async void InitializeWebViewAsync()
         {
+            if (App.IsBackendHost)
+                return;
+
             try
             {
             // WebView2 uses D3D11 compositing by default; prefer explicit GPU rasterization for smooth panel resize/scroll.
@@ -2695,6 +2906,50 @@ namespace BNDZ
                         {
                             System.Diagnostics.Debug.WriteLine($"[GET_DIR_CONTENTS] {path}: {ex.Message}");
                             await PostToUiAsync(() => PostDirContentsError(idProp, path, ex.Message)).ConfigureAwait(false);
+                        }
+                    });
+                }
+                else if (type == "GET_DIR_CONTENTS_MORE")
+                {
+                    var payload = root.GetProperty("payload");
+                    string path = payload.GetProperty("path").GetString() ?? "";
+                    var idProp = root.TryGetProperty("id", out var idMore) ? idMore.GetString() : null;
+                    var key = BackendHostListingKey(path);
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            List<DirListingSharedBuffer.DirEntryDto> all;
+                            if (_backendHostListingTasks.TryGetValue(key, out var pending))
+                            {
+                                all = await pending.Task.WaitAsync(TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                // Cache miss — full re-enumerate
+                                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                                all = new List<DirListingSharedBuffer.DirEntryDto>();
+                                await foreach (var entry in _fileService.EnumerateDirEntriesAsync(path, cts.Token).ConfigureAwait(false))
+                                    all.Add(entry);
+                                EnrichDirListingEntries(all);
+                            }
+
+                            var skip = _backendHostListingFirstPaintCounts.TryGetValue(key, out var painted) ? painted : 0;
+                            List<DirListingSharedBuffer.DirEntryDto> page;
+                            if (skip > 0 && skip < all.Count)
+                                page = all.GetRange(skip, all.Count - skip);
+                            else if (skip > 0 && skip >= all.Count)
+                                page = new List<DirListingSharedBuffer.DirEntryDto>(); // exactly first-paint sized
+                            else
+                                page = all;
+
+                            await PostBackendHostDirPageAsync(idProp, path, page, partial: false).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[GET_DIR_CONTENTS_MORE] {path}: {ex.Message}");
+                            PostDirContentsError(idProp, path, ex.Message);
                         }
                     });
                 }

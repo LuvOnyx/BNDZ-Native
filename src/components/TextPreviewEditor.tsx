@@ -10,7 +10,8 @@ interface TextPreviewEditorProps {
   fileName: string;
   extension: string;
   initialContent: string;
-  displayTabsAsSpaces?: boolean;
+  /** true/4 = four spaces; number = that many spaces; false/0 = keep tabs. */
+  displayTabsAsSpaces?: boolean | number;
   readOnly?: boolean;
   onSaved?: () => void;
 }
@@ -36,8 +37,13 @@ export default function TextPreviewEditor({
     setStatus(null);
   }, [path, initialContent]);
 
-  const displayContent = displayTabsAsSpaces
-    ? content.replace(/\t/g, '    ')
+  const tabSpaces = displayTabsAsSpaces === true
+    ? 4
+    : typeof displayTabsAsSpaces === 'number'
+      ? Math.max(0, displayTabsAsSpaces)
+      : 0;
+  const displayContent = tabSpaces > 0
+    ? content.replace(/\t/g, ' '.repeat(tabSpaces))
     : content;
 
   const save = useCallback(async () => {

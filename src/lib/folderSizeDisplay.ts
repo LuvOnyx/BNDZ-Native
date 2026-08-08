@@ -4,11 +4,19 @@ export function formatFolderSizeLabel(
     alwaysShowFolderSizes?: boolean;
     cacheFolderSizes?: boolean;
     showCachedFolderSizesOnly?: boolean;
+    showItemCountWithFolderSizes?: boolean;
   },
   formatSize: (n: number) => string,
+  itemCount?: number | null,
 ): string {
-  if (cached != null && cached >= 0) return formatSize(cached);
-  if (config.showCachedFolderSizesOnly) return '';
-  if (config.alwaysShowFolderSizes || config.cacheFolderSizes) return '…';
-  return '';
+  let base = '';
+  if (cached != null && cached >= 0) base = formatSize(cached);
+  else if (config.showCachedFolderSizesOnly) base = '';
+  else if (config.alwaysShowFolderSizes || config.cacheFolderSizes) base = '…';
+  else base = '';
+
+  if (!config.showItemCountWithFolderSizes) return base;
+  if (itemCount == null || itemCount < 0) return base;
+  const countPart = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+  return base ? `${base} · ${countPart}` : countPart;
 }

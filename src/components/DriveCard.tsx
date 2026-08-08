@@ -11,6 +11,8 @@ export type DriveCardData = {
   type?: string;
   format?: string;
   path?: string;
+  /** When true, hide free-space chrome (Settings → skip calc for mapped network). */
+  skipFreeSpace?: boolean;
 };
 
 type Props = {
@@ -31,7 +33,8 @@ function formatBytes(bytes: number) {
 
 /** Compact drive rows — rectangle-rounded, no pill cards */
 export default function DriveCard({ drive, layout = 'compact', selected, iconSize }: Props) {
-  const usedPct = drive.totalSpace > 0
+  const skipFree = !!drive.skipFreeSpace;
+  const usedPct = !skipFree && drive.totalSpace > 0
     ? ((drive.totalSpace - drive.freeSpace) / drive.totalSpace) * 100
     : 0;
   const letter = formatDriveLetter(drive.name);
@@ -39,7 +42,9 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
   const displayLabel = vol || letter;
   const showLetterSuffix = !!vol && vol.replace(/\\/g, '').toLowerCase() !== letter.replace(/\\/g, '').toLowerCase();
   const title = formatDriveDisplayName(drive.label, drive.name);
-  const freeOfTotal = `${formatBytes(drive.freeSpace)} free of ${formatBytes(drive.totalSpace)}`;
+  const freeOfTotal = skipFree
+    ? 'Free space hidden'
+    : `${formatBytes(drive.freeSpace)} free of ${formatBytes(drive.totalSpace)}`;
   const gridIcon = Math.max(28, Math.min(120, iconSize ?? 40));
   const listIcon = Math.max(16, Math.min(64, iconSize ?? 28));
 
@@ -52,7 +57,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
         <div className="text-[11px] font-medium text-center truncate w-full text-white/90" title={title}>
           {displayLabel}{showLetterSuffix ? <span className="text-white/40"> ({letter})</span> : null}
         </div>
-        <StorageUsageBar usedPct={usedPct} height={6} className="w-full" />
+        {!skipFree && <StorageUsageBar usedPct={usedPct} height={6} className="w-full" />}
         <div className="text-[9px] text-white/45 text-center truncate w-full">{freeOfTotal}</div>
       </div>
     );
@@ -73,10 +78,15 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
             </div>
           </div>
         </div>
-        <div className="flex-1 min-w-0 max-w-[45%]">
-          <StorageUsageBar usedPct={usedPct} height={5} className="mt-0" />
-          <div className="text-[9px] text-white/45 mt-1 truncate">{freeOfTotal}</div>
-        </div>
+        {!skipFree && (
+          <div className="flex-1 min-w-0 max-w-[45%]">
+            <StorageUsageBar usedPct={usedPct} height={5} className="mt-0" />
+            <div className="text-[9px] text-white/45 mt-1 truncate">{freeOfTotal}</div>
+          </div>
+        )}
+        {skipFree && (
+          <div className="text-[9px] text-white/40 shrink-0">{freeOfTotal}</div>
+        )}
       </div>
     );
   }
@@ -89,7 +99,7 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
         </div>
         <div className="bndz-list-select-cell w-[14%] max-w-[110px] px-2 text-[11px] text-white/50 truncate">{drive.type || drive.format || 'Local Disk'}</div>
         <div className="flex-1 min-w-[160px] max-w-[280px] px-2">
-          <StorageUsageBar usedPct={usedPct} height={6} />
+          {!skipFree && <StorageUsageBar usedPct={usedPct} height={6} />}
           <div className="text-[9px] text-white/45 mt-0.5 truncate">
             {freeOfTotal}
           </div>
@@ -106,10 +116,16 @@ export default function DriveCard({ drive, layout = 'compact', selected, iconSiz
         <span className="text-[11px] font-medium truncate" title={title}>{displayLabel}</span>
         {showLetterSuffix ? <span className="text-[10px] text-white/35 truncate">({letter})</span> : null}
       </div>
-      <StorageUsageBar usedPct={usedPct} height={4} className="mb-1" />
+      {!skipFree && <StorageUsageBar usedPct={usedPct} height={4} className="mb-1" />}
       <div className="flex justify-between text-[9px] text-white/40 font-mono">
-        <span>{formatBytes(drive.freeSpace)} free</span>
-        <span>{formatBytes(drive.totalSpace)}</span>
+        {skipFree ? (
+          <span className="truncate">{freeOfTotal}</span>
+        ) : (
+          <>
+            <span>{formatBytes(drive.freeSpace)} free</span>
+            <span>{formatBytes(drive.totalSpace)}</span>
+          </>
+        )}
       </div>
     </div>
   );

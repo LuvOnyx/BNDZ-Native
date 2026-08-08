@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
+import { formatUiPath } from '../../lib/displayPath';
 import { useSettingsRuntime } from '../../hooks/useSettingsRuntime';
 import { useAppConfig } from '../../data/configContext';
 import PluginPanelShell from './PluginPanelShell';
@@ -25,6 +26,7 @@ import {
   type SmartCollection,
 } from '../../lib/smartCollections';
 import { pushToast } from '../ToastHost';
+import { appendDropStackPaths } from '../../lib/dropStackStore';
 
 const PRESET_KEY = 'bndz-find-presets-v1';
 const PROPERTY_CHIPS: Array<{ label: string; token: string }> = [
@@ -152,15 +154,26 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                     rootPath,
                     config?.enableEverythingSearch !== false,
                     searchContent || isAdvanced,
-                    isAdvanced || booleanMode
-                        ? { booleanMode: isAdvanced || booleanMode, rootPaths: isAdvanced ? roots : undefined }
-                        : undefined,
+                    {
+                      booleanMode: isAdvanced || booleanMode,
+                      rootPaths: isAdvanced ? roots : undefined,
+                      matchCase: !!rt.search.matchCase,
+                    },
                 );
                 setResults(items || []);
+                if (rt.search.cacheSearchResults && Array.isArray(items)) {
+                    try {
+                        sessionStorage.setItem(
+                            `bndz-find-cache:${mode}:${effectiveQuery}`,
+                            JSON.stringify({ at: Date.now(), count: items.length }),
+                        );
+                    } catch { /* ignore quota */ }
+                }
                 const scopeLabel = isAdvanced
                     ? `${roots.length} root(s)`
                     : mode === 'global' ? 'All drives' : 'Current folder';
-                setStatus(`${items?.length ?? 0} result(s) · ${scopeLabel}${engine ? ` · ${engine}` : ''}`);
+                const indent = rt.search.levelIndentWidthInPixels || rt.search.levelIndent || 12;
+                setStatus(`${items?.length ?? 0} result(s) · ${scopeLabel}${engine ? ` · ${engine}` : ''} · indent ${indent}px`);
             } else {
                 setResults([]);
                 setStatus('Fast Search requires the BNDZ native host (Everything / indexer).');
@@ -221,7 +234,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
             return;
         }
         if (action === 'dropstack') {
-            window.dispatchEvent(new CustomEvent('bndz-drop-stack-stage', { detail: { paths } }));
+            appendDropStackPaths(paths);
             return;
         }
         if (action === 'catalog') {
@@ -542,13 +555,14 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                               <div className="flex-1">
                                 {results.map((r, i) => {
                                   const path = String(r.path || '');
+                                  const shown = formatUiPath(path) || path;
                                   const checked = selectedResultPaths.has(path);
                                   return (
                                   <div
                                     key={`${path}-${i}`}
                                     className={`grid grid-cols-[24px_minmax(120px,1.1fr)_minmax(160px,2fr)_72px] gap-2 px-3 py-2 text-xs border-b border-white/[0.04] hover:bg-[#094771]/18 cursor-pointer transition-colors ${checked ? 'bg-sky-500/[0.08]' : ''}`}
                                     onDoubleClick={() => navigateTo(path)}
-                                    title={r.snippet ? `${path}\n${r.snippet}` : path}
+                                    title={r.snippet ? `${shown}\n${r.snippet}` : shown}
                                   >
                                     <input
                                       type="checkbox"
@@ -570,7 +584,7 @@ export default function FindPlugin({ config, focusedPath, isPluginTabActive, plu
                                         <span className="text-[10px] text-white/35 truncate block mt-0.5 leading-snug">{r.snippet}</span>
                                       )}
                                     </div>
-                                    <span className="text-white/40 font-mono text-[11px] truncate">{path}</span>
+                                    <span className="text-white/40 font-mono text-[11px] truncate">{formatUiPath(path) || path}</span>
                                     <span className="bndz-plugin-kind-pill w-fit self-center">{r.matchType === 'content' || r.snippet ? 'grep' : r.isDirectory ? 'dir' : 'file'}</span>
                                   </div>
                                   );

@@ -16,10 +16,11 @@ import {
 } from './PluginPanelPrimitives';
 import { FSEntity } from '../../types';
 import { normalizePanePath, isRecycleBinPath } from '../../lib/pathUtils';
-import { formatPropertiesPath } from '../../lib/displayPath';
+import { formatPropertiesPath, formatUiPath } from '../../lib/displayPath';
 import { getPaneTabLabel } from '../../lib/paneLabels';
 import { getLocationIconPath } from '../../lib/virtualLocations';
-import { resolveShellPropertiesPath } from '../../lib/shellPaths';
+import { resolveShellPropertiesPath, toPanePath } from '../../lib/shellPaths';
+import { isBndzHomePath, isBndzVirtualPath } from '../../lib/bndzVirtualViews';
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
 import { isAudioExt, isVideoExt } from '../../lib/mediaTypes';
 
@@ -52,6 +53,8 @@ export default function PropertiesPlugin({
     const [sidecarDirty, setSidecarDirty] = useState(false);
     const [sidecarSaving, setSidecarSaving] = useState(false);
     const [hashCopied, setHashCopied] = useState<'md5' | 'sha256' | null>(null);
+    const [folderByteSize, setFolderByteSize] = useState<number | null>(null);
+    const [folderSizeLoading, setFolderSizeLoading] = useState(false);
 
     const selectionCount = selectedItems.length;
     const isMulti = selectionCount > 1;
@@ -186,6 +189,38 @@ export default function PropertiesPlugin({
         return () => { active = false; };
     }, [targetPath, isMulti, isDriveEntity]);
 
+    // Settings → Show folder size on Properties tab
+    useEffect(() => {
+        if (!config?.showFolderSizeOnPropertiesTab || !isDir || !targetPath || isMulti || isDriveEntity) {
+            setFolderByteSize(null);
+            setFolderSizeLoading(false);
+            return;
+        }
+        let active = true;
+        setFolderSizeLoading(true);
+        setFolderByteSize(null);
+        const winPath = targetPath.replace(/\//g, '\\');
+        import('../../lib/ipcBridge').then(({ IPC }) => {
+            IPC.scanFolderSizes([winPath]).then(result => {
+                if (!active) return;
+                const sizes = result.sizes || {};
+                const hit =
+                    sizes[winPath]
+                    ?? sizes[winPath.toLowerCase()]
+                    ?? sizes[targetPath]
+                    ?? Object.entries(sizes).find(([k]) => k.replace(/\//g, '\\').toLowerCase() === winPath.toLowerCase())?.[1];
+                setFolderByteSize(typeof hit === 'number' && hit >= 0 ? hit : null);
+                setFolderSizeLoading(false);
+            }).catch(() => {
+                if (active) {
+                    setFolderByteSize(null);
+                    setFolderSizeLoading(false);
+                }
+            });
+        });
+        return () => { active = false; };
+    }, [config?.showFolderSizeOnPropertiesTab, isDir, targetPath, isMulti, isDriveEntity]);
+
     const saveSidecarMeta = async () => {
         if (!targetPath || sidecarSaving) return;
         setSidecarSaving(true);
@@ -220,7 +255,22 @@ export default function PropertiesPlugin({
 
     const openItem = () => {
         if (!targetPath) return;
-        runIpc(IPC => IPC.executeContextMenuVerb(targetPath, 'open'));
+        const probe = primarySelectedPath || entity?.path || focusedPath || targetPath;
+        const pane = toPanePath(probe);
+        // Folders / Continuum / smart views: stay inside BNDZ.
+        if (
+            isDir
+            || (entity as any)?.isVirtual
+            || isBndzHomePath(pane)
+            || isBndzVirtualPath(pane)
+        ) {
+            window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: pane } }));
+            return;
+        }
+        // Files: open BNDZ Quick Preview overlay.
+        window.dispatchEvent(new CustomEvent('bndz-open-in-bndz', {
+            detail: { path: pane, isDirectory: false },
+        }));
     };
 
     const showInExplorer = () => {
@@ -263,21 +313,24 @@ export default function PropertiesPlugin({
     const copyHash = async (kind: 'md5' | 'sha256') => {
         const value = (hash as any)[kind];
         if (!value || value === 'Pending...') return;
-        try {
-            await navigator.clipboard.writeText(value);
-            setHashCopied(kind);
-            setTimeout(() => setHashCopied(null), 1500);
-        } catch {
-            runIpc(IPC => IPC.shellExecute('copyPath', value));
-            setHashCopied(kind);
-            setTimeout(() => setHashCopied(null), 1500);
-        }
+        const { writeClipboardText } = await import('../../lib/clipboardSafe');
+        const ok = await writeClipboardText(value);
+        if (!ok) runIpc(IPC => IPC.shellExecute('copyPath', value));
+        setHashCopied(kind);
+        setTimeout(() => setHashCopied(null), 1500);
     };
 
     const heroIconPath = useMemo(() => {
         if (isMulti) return null;
-        if ((entity as any)?.isVirtual || isRecycleBinPath(focusedPath) || isRecycleBinPath(entity?.path)) {
-            return getLocationIconPath(focusedPath || entity?.path || '');
+        const probe = focusedPath || entity?.path || '';
+        if (
+            (entity as any)?.isVirtual
+            || isRecycleBinPath(focusedPath)
+            || isRecycleBinPath(entity?.path)
+            || isBndzHomePath(probe)
+            || isBndzVirtualPath(probe)
+        ) {
+            return getLocationIconPath(probe);
         }
         return resolveShellPropertiesPath(focusedPath || entity?.path || targetPath);
     }, [isMulti, entity, focusedPath, targetPath]);
@@ -332,6 +385,8 @@ export default function PropertiesPlugin({
         <div className="flex-1 w-full flex flex-col overflow-hidden text-slate-300 min-h-0">
             <PluginHeroStrip
                 icon={
+                    // Settings → Show embedded icons on Properties tab
+                    config?.showEmbeddedIconsOnPropertiesTab !== false ? (
                     <PreviewHeroIcon
                         path={heroIconPath}
                         isDir={isDir}
@@ -340,6 +395,16 @@ export default function PropertiesPlugin({
                         extension={ext}
                         preferThumbnail={!isDir && !isMulti}
                     />
+                    ) : (
+                    <PreviewHeroIcon
+                        path={heroIconPath}
+                        isDir={isDir}
+                        isDrive={!!driveInfo}
+                        size={80}
+                        extension={ext}
+                        preferThumbnail={false}
+                    />
+                    )
                 }
                 name={displayName}
                 typeLabel={typeLabel}
@@ -387,7 +452,7 @@ export default function PropertiesPlugin({
                                 </PluginFieldGrid>
                                 <div className="mt-3 max-h-[160px] overflow-y-auto bndz-scrollbar border border-white/[0.08] rounded-lg">
                                     {selectedItems.map((p, i) => (
-                                        <div key={i} className="px-3 py-1.5 text-xs bndz-mono bndz-panel-muted border-b border-white/[0.04] last:border-0 truncate">{p}</div>
+                                        <div key={i} className="px-3 py-1.5 text-xs bndz-mono bndz-panel-muted border-b border-white/[0.04] last:border-0 truncate">{formatUiPath(p)}</div>
                                     ))}
                                 </div>
                                 <p className="bndz-panel-muted mt-3 text-xs leading-relaxed">Use the context menu for bulk copy, move, delete, or compress operations.</p>
@@ -407,10 +472,25 @@ export default function PropertiesPlugin({
                                 <PluginFieldGrid>
                                     <PluginFieldRow label="Location" mono>{targetPath}</PluginFieldRow>
                                     <PluginFieldRow label="Size" mono>
-                                        {fileDetails ? formatSize(fileDetails.exactSize) : '--'}
-                                        {fileDetails?.exactSize != null && (
-                                            <span className="bndz-panel-muted ml-2">({fileDetails.exactSize.toLocaleString()} bytes)</span>
-                                        )}
+                                        {isDir && !config?.showFolderSizeOnPropertiesTab
+                                          ? <span className="bndz-panel-muted">—</span>
+                                          : isDir && folderSizeLoading
+                                            ? <span className="bndz-panel-muted">Calculating…</span>
+                                            : isDir && folderByteSize != null
+                                              ? (
+                                                <>
+                                                  {formatSize(folderByteSize)}
+                                                  <span className="bndz-panel-muted ml-2">({folderByteSize.toLocaleString()} bytes)</span>
+                                                </>
+                                              )
+                                              : (
+                                                <>
+                                                  {fileDetails ? formatSize(fileDetails.exactSize) : '--'}
+                                                  {fileDetails?.exactSize != null && (
+                                                      <span className="bndz-panel-muted ml-2">({fileDetails.exactSize.toLocaleString()} bytes)</span>
+                                                  )}
+                                                </>
+                                              )}
                                     </PluginFieldRow>
                                     <PluginFieldRow label="Created" mono>
                                         {fileDetails?.creation ? new Date(fileDetails.creation).toLocaleString() : '--'}

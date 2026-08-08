@@ -151,9 +151,33 @@ export function hitTestListFolderAtPoint<T extends ListFolderTarget>(
     ?? hitTestSelectorByRect(clientX, clientY, '.fs-item-wrapper');
   const dropId = dropRow?.getAttribute('data-id');
   if (!dropId) return null;
+  // Miller items carry a full pane path — prefer that when present.
+  const millerPath = dropRow?.getAttribute('data-miller-path');
+  const isDirAttr = dropRow?.getAttribute('data-is-dir');
+  if (millerPath && isDirAttr === 'true') {
+    const ent = contents?.find(c => c.id === dropId);
+    if (ent?.type === 'directory') return ent;
+    // Contents may be for a different column — return a synthetic folder target.
+    return { id: dropId, type: 'directory', name: millerPath.split('/').pop() || millerPath } as T;
+  }
   const dropEnt = contents?.find(c => c.id === dropId);
   if (dropEnt?.type === 'directory') return dropEnt;
   return null;
+}
+
+/**
+ * Absolute drop destination for Columns (Miller) view.
+ * Folder item → that folder’s path; empty column chrome → that column’s folder.
+ */
+export function hitTestMillerDropPathAtPoint(clientX: number, clientY: number): string | null {
+  const item = hitTestClosestAtPoint(clientX, clientY, '[data-miller-path][data-is-dir="true"]')
+    ?? hitTestSelectorByRect(clientX, clientY, '[data-miller-path][data-is-dir="true"]');
+  const itemPath = item?.getAttribute('data-miller-path');
+  if (itemPath) return itemPath;
+
+  const col = hitTestClosestAtPoint(clientX, clientY, '[data-miller-col-path]')
+    ?? hitTestSelectorByRect(clientX, clientY, '[data-miller-col-path]');
+  return col?.getAttribute('data-miller-col-path') || null;
 }
 
 export type FileDragSessionState = {

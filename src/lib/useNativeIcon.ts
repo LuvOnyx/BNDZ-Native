@@ -4,7 +4,7 @@ import {
   hasReadyCachedIcon,
   requestNativeIcon,
   subscribeIcon,
-  LIST_THUMB_PX,
+  getRuntimeListThumbPx,
   type IconRequestKind,
 } from './nativeIconService';
 
@@ -14,7 +14,7 @@ export function useNativeIcon(
   isDirectory: boolean,
   kind: IconRequestKind,
   enabled = true,
-  thumbPx = LIST_THUMB_PX,
+  thumbPx = getRuntimeListThumbPx(),
 ): string | null {
   const [src, setSrc] = useState<string | null>(() =>
     path && enabled ? getCachedIcon(path, isDirectory, kind, thumbPx) : null,
@@ -42,7 +42,7 @@ export function useNativeIconFetch(
   kind: IconRequestKind,
   visible: boolean,
   enabled = true,
-  thumbPx = LIST_THUMB_PX,
+  thumbPx = getRuntimeListThumbPx(),
 ) {
   useEffect(() => {
     if (!visible || !path || !enabled) return;

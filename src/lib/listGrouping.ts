@@ -1,6 +1,7 @@
 /** File Pilot / Finder-style list grouping for details view. */
 
 import { isSemanticDeskActive, semanticClusterLabelForEntity } from './semanticDeskRuntime';
+import { isInConfiguredThisWeek } from './weekCalendarSettings';
 
 export type ListGroupBy = 'none' | 'type' | 'date' | 'size' | 'name' | 'semantic';
 
@@ -9,6 +10,11 @@ export type ListGroupHeader = {
   id: string;
   label: string;
   count: number;
+};
+
+export type ListGroupOptions = {
+  /** Settings → Sunday is the first day of the week */
+  sundayIsTheFirstDayOfTheWeek?: boolean | string;
 };
 
 export type ListRowItem = Record<string, unknown> | ListGroupHeader;
@@ -35,15 +41,18 @@ function extensionGroup(entity: Record<string, unknown>): string {
   return ext.toUpperCase();
 }
 
-function dateGroup(entity: Record<string, unknown>): string {
+function dateGroup(entity: Record<string, unknown>, options?: ListGroupOptions): string {
   const raw = entity.modified || entity.created;
   const t = raw ? new Date(String(raw)).getTime() : 0;
   if (!t || Number.isNaN(t)) return 'Unknown date';
   const now = Date.now();
   const day = 86400000;
+  const startToday = new Date(now);
+  startToday.setHours(0, 0, 0, 0);
+  if (t >= startToday.getTime()) return 'Today';
+  // Settings → Sunday is the first day of the week (affects "This week" bucket)
+  if (isInConfiguredThisWeek(t, options || {})) return 'This week';
   const diff = now - t;
-  if (diff < day) return 'Today';
-  if (diff < day * 7) return 'This week';
   if (diff < day * 31) return 'This month';
   if (diff < day * 365) return 'This year';
   return 'Older';
@@ -67,10 +76,15 @@ function nameGroup(entity: Record<string, unknown>): string {
   return '#';
 }
 
-function groupKey(entity: Record<string, unknown>, groupBy: ListGroupBy, panePath?: string): string {
+function groupKey(
+  entity: Record<string, unknown>,
+  groupBy: ListGroupBy,
+  panePath?: string,
+  options?: ListGroupOptions,
+): string {
   switch (groupBy) {
     case 'type': return extensionGroup(entity);
-    case 'date': return dateGroup(entity);
+    case 'date': return dateGroup(entity, options);
     case 'size': return sizeGroup(entity);
     case 'name': return nameGroup(entity);
     case 'semantic': return panePath ? semanticClusterLabelForEntity(entity, panePath) : 'Unclustered';
@@ -101,13 +115,14 @@ export function flattenGroupedList(
   items: Record<string, unknown>[],
   groupBy: ListGroupBy,
   panePath?: string,
+  options?: ListGroupOptions,
 ): ListRowItem[] {
   if (groupBy === 'none' || !items.length) return items;
   if (groupBy === 'semantic' && !isSemanticDeskActive()) return items;
 
   const buckets = new Map<string, Record<string, unknown>[]>();
   for (const item of items) {
-    const key = groupKey(item, groupBy, panePath);
+    const key = groupKey(item, groupBy, panePath, options);
     const list = buckets.get(key);
     if (list) list.push(item);
     else buckets.set(key, [item]);

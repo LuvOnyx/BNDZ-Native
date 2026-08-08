@@ -3,6 +3,7 @@
 
 using CommunityToolkit.WinUI;
 using Files.App.Controls;
+using Files.App.UserControls.Bndz;
 using Files.App.Utils.Bndz;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
@@ -76,65 +77,446 @@ namespace Files.App.Views
 
 		private void ApplyBndzBackendStatus(BndzBackendStatus status)
 		{
-			if (BndzBackendStatusText is null)
-				return;
-
-			BndzBackendStatusText.Text = status.Label;
-			var tip = status.Detail;
+			var label = status.State switch
+			{
+				BndzBackendConnectionState.Connected => status.IndexedFileCount is long n && n > 0
+					? $"BNDZ · {n:N0}"
+					: "BNDZ · live",
+				BndzBackendConnectionState.Starting => "BNDZ · starting",
+				BndzBackendConnectionState.Degraded => "BNDZ · degraded",
+				_ => "BNDZ · offline",
+			};
+			var tip = status.Label;
+			if (!string.IsNullOrEmpty(status.Detail))
+				tip = $"{tip} — {status.Detail}";
 			if (status.ProcessId is int pid)
-				tip = string.IsNullOrEmpty(tip) ? $"PID {pid}" : $"{tip} · PID {pid}";
-			if (!string.IsNullOrEmpty(tip))
+				tip = $"{tip} · PID {pid}";
+
+			if (BndzBackendStatusText is not null)
+			{
+				BndzBackendStatusText.Text = label;
 				ToolTipService.SetToolTip(BndzBackendStatusText, tip);
+			}
+			if (BndzBackendStatusChip is not null)
+				ToolTipService.SetToolTip(BndzBackendStatusChip, tip);
+			if (BndzBackendStatusTextOverlay is not null)
+				BndzBackendStatusTextOverlay.Text = label;
+			if (BndzBackendStatusChipOverlay is not null)
+				ToolTipService.SetToolTip(BndzBackendStatusChipOverlay, tip);
 		}
 
-		private bool _bndzPluginsDockOpen;
-		private bool _bndzPreviewOpen;
+		private bool _bndzPluginsDockOpen = false;
+		private bool _bndzPreviewOpen = false;
 		private string? _bndzWorkspacePane;
+		private double _bndzDockHeight = 280;
+		private bool _bndzNavigatingFromReact;
+		private string? _lastPushedBrowserPath;
+		private DispatcherQueueTimer? _bndzContextDebounceTimer;
+		private int _bndzNavigateGeneration;
 
-		private void BndzPluginsPaneButton_Click(object sender, RoutedEventArgs e)
+		private void EnsureBndzPaneEventsWired()
 		{
-			_bndzPluginsDockOpen = !_bndzPluginsDockOpen;
+			// Idempotent: hosts may materialize later via x:Load / FindName.
+			if (BndzBrowserHost is not null)
+			{
+				BndzBrowserHost.PaneMessage -= BndzPaneHost_PaneMessage;
+				BndzBrowserHost.PaneMessage += BndzPaneHost_PaneMessage;
+			}
 			if (BndzPluginsDockHost is not null)
-				BndzPluginsDockHost.Visibility = _bndzPluginsDockOpen ? Visibility.Visible : Visibility.Collapsed;
-			if (BndzPluginsDockRow is not null)
-				BndzPluginsDockRow.Height = _bndzPluginsDockOpen ? new GridLength(280) : new GridLength(0);
+			{
+				BndzPluginsDockHost.PaneMessage -= BndzPaneHost_PaneMessage;
+				BndzPluginsDockHost.PaneMessage += BndzPaneHost_PaneMessage;
+			}
+			if (BndzWorkspacePaneHost is not null)
+			{
+				BndzWorkspacePaneHost.PaneMessage -= BndzPaneHost_PaneMessage;
+				BndzWorkspacePaneHost.PaneMessage += BndzPaneHost_PaneMessage;
+			}
+			if (BndzPreviewPaneHost is not null)
+			{
+				BndzPreviewPaneHost.PaneMessage -= BndzPaneHost_PaneMessage;
+				BndzPreviewPaneHost.PaneMessage += BndzPaneHost_PaneMessage;
+			}
+		}
+
+		private BndzPaneHost? EnsureBrowserHost()
+		{
+			if (BndzBrowserHost is null)
+				FindName(nameof(BndzBrowserHost));
+			EnsureBndzPaneEventsWired();
+			return BndzBrowserHost;
+		}
+
+		private BndzPaneHost? EnsurePluginsDockHost()
+		{
+			if (BndzPluginsDockHost is null)
+				FindName(nameof(BndzPluginsDockHost));
+			EnsureBndzPaneEventsWired();
+			return BndzPluginsDockHost;
+		}
+
+		private BndzPaneHost? EnsurePreviewPaneHost()
+		{
+			if (BndzPreviewPaneHost is null)
+				FindName(nameof(BndzPreviewPaneHost));
+			EnsureBndzPaneEventsWired();
+			return BndzPreviewPaneHost;
+		}
+
+		private BndzPaneHost? EnsureWorkspacePaneHost()
+		{
+			if (BndzWorkspacePaneHost is null)
+				FindName(nameof(BndzWorkspacePaneHost));
+			EnsureBndzPaneEventsWired();
+			return BndzWorkspacePaneHost;
+		}
+
+		private void BndzMenu_TogglePlugins_Click(object sender, RoutedEventArgs e) => TogglePluginsDock();
+		private void BndzMenu_TogglePreview_Click(object sender, RoutedEventArgs e)
+		{
+			SetBndzPreviewOpen(!_bndzPreviewOpen);
+			UpdatePositioning();
 			PushSelectionToBndzPanes();
 		}
+		private void BndzMenu_OpenHub_Click(object sender, RoutedEventArgs e) => ToggleWorkspacePane("marketplace");
+		private void BndzMenu_OpenConfig_Click(object sender, RoutedEventArgs e) => ToggleWorkspacePane("settings");
+		private void BndzMenu_SmartTools_Click(object sender, RoutedEventArgs e) => ToggleWorkspacePane("smart-tools");
+		private void BndzMenu_Automation_Click(object sender, RoutedEventArgs e) => ToggleWorkspacePane("automation");
+		private void BndzMenu_Spatial_Click(object sender, RoutedEventArgs e) => ToggleWorkspacePane("canvas");
 
-		private void BndzAutomationPaneButton_Click(object sender, RoutedEventArgs e)
+		private void ApplyBndzSurfaceDefaults()
 		{
-			ToggleWorkspacePane("automation");
-		}
+			// Epic filesHost: full classic BNDZUI. Hide Files list/tree/TabBar chrome —
+			// BNDZ PaneTabStrip owns tabs; suppress WinUI enumerate via BrowserOwnsFileViewport.
+			BndzShellOwnership.BrowserOwnsFileViewport = true;
+			_bndzDockHeight = GetPluginsDockHeight();
+			_bndzPluginsDockOpen = false;
+			_bndzPreviewOpen = false;
+			ApplyPluginsDockHeight(false);
 
-		private void BndzSpatialPaneButton_Click(object sender, RoutedEventArgs e)
-		{
-			ToggleWorkspacePane("canvas");
-		}
+			// Kill Files InfoPane — BNDZ owns preview / plugins surfaces.
+			try
+			{
+				UserSettingsService.InfoPaneSettingsService.IsInfoPaneEnabled = false;
+				ViewModel.ShouldPreviewPaneBeDisplayed = false;
+				ViewModel.ShouldPreviewPaneBeActive = false;
+				UserSettingsService.ApplicationSettingsService.HasClickedReviewPrompt = true;
+				UserSettingsService.ApplicationSettingsService.HasClickedSponsorPrompt = true;
+			}
+			catch { /* best-effort */ }
 
-		private void BndzPreviewPaneButton_Click(object sender, RoutedEventArgs e)
-		{
-			_bndzPreviewOpen = !_bndzPreviewOpen;
-			if (BndzPreviewPaneHost is not null)
-				BndzPreviewPaneHost.Visibility = _bndzPreviewOpen ? Visibility.Visible : Visibility.Collapsed;
+			try
+			{
+				if (BndzMenuBar is not null)
+					BndzMenuBar.Visibility = Visibility.Collapsed;
+				if (BndzAddressChromeRow is not null)
+					BndzAddressChromeRow.Visibility = Visibility.Collapsed;
+				if (SidebarControl is not null)
+					SidebarControl.Visibility = Visibility.Collapsed;
+				if (InfoPane is not null)
+					InfoPane.Visibility = Visibility.Collapsed;
+				// Files TabBar is path-holder only — collapse so BNDZUI tabs are the only strip.
+				if (TabControl is not null)
+					TabControl.Visibility = Visibility.Collapsed;
+				if (InnerNavigationToolbar is not null)
+					InnerNavigationToolbar.Visibility = Visibility.Collapsed;
+				if (NavToolbar is not null)
+					NavToolbar.Visibility = Visibility.Collapsed;
+			}
+			catch { /* best-effort */ }
 
-			// Open the preview column when showing BNDZ preview tools.
-			if (_bndzPreviewOpen)
+			UpdatePositioning();
+
+			DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
 			{
 				try
 				{
-					if (InfoPaneColumnDefinition is not null && InfoPaneColumnDefinition.Width.Value < 220)
-						InfoPaneColumnDefinition.Width = new GridLength(280);
-					if (InfoPane is not null)
-						InfoPane.Visibility = Visibility.Collapsed;
+					// Backend must answer before WebView floods GET_DIR_CONTENTS / icons.
+					try
+					{
+						await BndzBackendHostService.Instance.EnsureStartedAsync().ConfigureAwait(true);
+					}
+					catch (Exception ex)
+					{
+						App.Logger.LogWarning(ex, "BNDZ backend not ready before browser prewarm");
+					}
+
+					var browser = EnsureBrowserHost();
+					if (browser is not null)
+					{
+						browser.Visibility = Visibility.Visible;
+						browser.SwitchPane("browser");
+						browser.Prewarm();
+					}
+					UpdatePositioning();
+					PushSelectionToBndzPanes();
 				}
-				catch { /* best-effort */ }
-			}
-			else if (InfoPane is not null)
+				catch (Exception ex)
+				{
+					App.Logger.LogWarning(ex, "Deferred BNDZ browser host load failed");
+				}
+			});
+		}
+
+		private void SyncBndzToggleChrome()
+		{
+			// Omnibar strip removed — pane access is via status-chip flyout / dock.
+		}
+
+		private void BndzBackendStatusChip_Tapped(object sender, TappedRoutedEventArgs e)
+		{
+			var flyout = new MenuFlyout();
+			AddBndzFlyoutItem(flyout, _bndzPluginsDockOpen ? "Hide plugins panel" : "Show plugins panel", TogglePluginsDock);
+			AddBndzFlyoutItem(flyout, _bndzPreviewOpen ? "Hide BNDZ preview" : "Show BNDZ preview", () =>
 			{
-				InfoPane.Visibility = Visibility.Visible;
+				SetBndzPreviewOpen(!_bndzPreviewOpen);
+				PushSelectionToBndzPanes();
+			});
+			flyout.Items.Add(new MenuFlyoutSeparator());
+			AddBndzFlyoutItem(flyout, "Smart Tools", () => ToggleWorkspacePane("smart-tools"));
+			AddBndzFlyoutItem(flyout, "Automation", () => ToggleWorkspacePane("automation"));
+			AddBndzFlyoutItem(flyout, "Spatial Canvas", () => ToggleWorkspacePane("canvas"));
+			AddBndzFlyoutItem(flyout, "Extension Hub", () => ToggleWorkspacePane("marketplace"));
+			AddBndzFlyoutItem(flyout, "BNDZ Configuration…", () => ToggleWorkspacePane("settings"));
+			flyout.ShowAt(BndzBackendStatusChip);
+		}
+
+		private static void AddBndzFlyoutItem(MenuFlyout flyout, string text, Action action)
+		{
+			var item = new MenuFlyoutItem { Text = text };
+			item.Click += (_, _) => action();
+			flyout.Items.Add(item);
+		}
+
+		private void TogglePluginsDock()
+		{
+			_bndzPluginsDockOpen = !_bndzPluginsDockOpen;
+			var plugins = EnsurePluginsDockHost();
+			if (plugins is not null)
+				plugins.Visibility = _bndzPluginsDockOpen ? Visibility.Visible : Visibility.Collapsed;
+			ApplyPluginsDockHeight(_bndzPluginsDockOpen);
+			if (_bndzPluginsDockOpen)
+				plugins?.Prewarm();
+			PushSelectionToBndzPanes();
+		}
+
+		private void BndzPaneHost_PaneMessage(object? sender, System.Text.Json.JsonElement root)
+		{
+			try
+			{
+				var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+				if (type is null)
+					return;
+
+				System.Text.Json.JsonElement payload = default;
+				var hasPayload = root.TryGetProperty("payload", out payload);
+
+				switch (type)
+				{
+					case "BNDZ_PANE_NAVIGATE":
+					{
+						var path = hasPayload && payload.TryGetProperty("path", out var p) ? p.GetString() : null;
+						_ = HandleBndzNavigateAsync(path);
+						break;
+					}
+					case "BNDZ_PANE_SWITCH":
+					{
+						var pane = hasPayload && payload.TryGetProperty("pane", out var pn) ? pn.GetString() : null;
+						var plugin = hasPayload && payload.TryGetProperty("plugin", out var pl) ? pl.GetString() : null;
+						HandleBndzPaneSwitch(pane, plugin);
+						break;
+					}
+					case "BNDZ_PANE_TOOL":
+					{
+						var tool = hasPayload && payload.TryGetProperty("tool", out var tl) ? tl.GetString() : null;
+						_ = HandleBndzPaneToolAsync(tool, payload);
+						break;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				App.Logger.LogDebug(ex, "BNDZ pane message handling failed");
+			}
+		}
+
+		private async Task HandleBndzNavigateAsync(string? path)
+		{
+			if (string.IsNullOrWhiteSpace(path))
+				return;
+
+			await DispatcherQueue.EnqueueAsync(async () =>
+			{
+				try
+				{
+					var target = path!;
+					if (System.IO.File.Exists(target))
+					{
+						var dir = System.IO.Path.GetDirectoryName(target);
+						if (!string.IsNullOrWhiteSpace(dir))
+							target = dir!;
+					}
+
+					var normalized = NormalizeFsPathKey(target);
+					if (string.Equals(normalized, NormalizeFsPathKey(_lastPushedBrowserPath), StringComparison.OrdinalIgnoreCase))
+						return;
+
+					var shell = ContentPageContext.ShellPage
+						?? SidebarAdaptiveViewModel.PaneHolder?.ActivePaneOrColumn;
+					if (shell is null)
+						return;
+
+					var gen = ++_bndzNavigateGeneration;
+					_bndzNavigatingFromReact = true;
+					_lastPushedBrowserPath = target;
+					try
+					{
+						shell.NavigateToPath(target);
+						// Hold echo-suppression briefly so Folder PropertyChanged doesn't re-push.
+						await Task.Delay(120);
+					}
+					finally
+					{
+						if (gen == _bndzNavigateGeneration)
+							_bndzNavigatingFromReact = false;
+					}
+				}
+				catch (Exception ex)
+				{
+					_bndzNavigatingFromReact = false;
+					App.Logger.LogDebug(ex, "BNDZ navigate failed for {Path}", path);
+				}
+			});
+		}
+
+		private static string NormalizeFsPathKey(string? path)
+		{
+			if (string.IsNullOrWhiteSpace(path))
+				return string.Empty;
+			return path.Trim().Replace('/', '\\').TrimEnd('\\').ToLowerInvariant();
+		}
+
+		private void HandleBndzPaneSwitch(string? pane, string? plugin)
+		{
+			if (string.IsNullOrWhiteSpace(pane))
+				return;
+
+			DispatcherQueue.TryEnqueue(() =>
+			{
+				switch (pane!.Trim().ToLowerInvariant())
+				{
+					case "plugins":
+						_bndzPluginsDockOpen = true;
+						{
+							var plugins = EnsurePluginsDockHost();
+							if (plugins is not null)
+							{
+								plugins.Visibility = Visibility.Visible;
+								plugins.SwitchPane("plugins", plugin);
+							}
+						}
+						if (BndzPluginsDockRow is not null)
+							ApplyPluginsDockHeight(true);
+						break;
+					case "preview":
+						SetBndzPreviewOpen(true);
+						break;
+					case "automation":
+					case "canvas":
+					case "smart-tools":
+					case "marketplace":
+					case "settings":
+						ShowWorkspacePane(pane);
+						break;
+				}
+				SyncBndzToggleChrome();
+				PushSelectionToBndzPanes();
+			});
+		}
+
+		private async Task HandleBndzPaneToolAsync(string? tool, System.Text.Json.JsonElement payload)
+		{
+			if (string.IsNullOrWhiteSpace(tool))
+				return;
+
+			await DispatcherQueue.EnqueueAsync(async () =>
+			{
+				try
+				{
+					switch (tool!.Trim().ToLowerInvariant())
+					{
+						case "properties":
+						{
+							var shell = ContentPageContext.ShellPage
+								?? SidebarAdaptiveViewModel.PaneHolder?.ActivePaneOrColumn;
+							if (shell is not null)
+								FilePropertiesHelpers.OpenPropertiesWindow(shell);
+							else
+								HandleBndzPaneSwitch("plugins", "properties");
+							break;
+						}
+						case "quick-look":
+						case "loupe":
+						case "histogram":
+						case "waveform":
+						case "media-tab":
+							SetBndzPreviewOpen(true);
+							break;
+						case "continuum-compose":
+							ShowWorkspacePane("canvas");
+							break;
+						default:
+							// Plugin-mapped tools routed in React; ensure hybrid dock is open.
+							if (!_bndzPluginsDockOpen)
+							{
+								_bndzPluginsDockOpen = true;
+								var plugins = EnsurePluginsDockHost();
+								if (plugins is not null)
+									plugins.Visibility = Visibility.Visible;
+								if (BndzPluginsDockRow is not null)
+									ApplyPluginsDockHeight(true);
+							}
+							var pluginId = BndzPluginCatalog.PluginIdForDeckTool(tool!);
+							if (!string.IsNullOrWhiteSpace(pluginId))
+								EnsurePluginsDockHost()?.SwitchPane("plugins", pluginId);
+							break;
+					}
+					SyncBndzToggleChrome();
+				}
+				catch (Exception ex)
+				{
+					App.Logger.LogDebug(ex, "BNDZ tool {Tool} failed", tool);
+				}
+				await Task.CompletedTask;
+			});
+		}
+
+		private void SetBndzPreviewOpen(bool open)
+		{
+			_bndzPreviewOpen = open;
+			if (!open)
+			{
+				if (BndzPreviewPaneHost is not null)
+					BndzPreviewPaneHost.Visibility = Visibility.Collapsed;
+				UpdatePositioning();
+				return;
 			}
 
-			PushSelectionToBndzPanes();
+			var preview = EnsurePreviewPaneHost();
+			if (preview is not null)
+			{
+				preview.Visibility = Visibility.Visible;
+				preview.ClearValue(FrameworkElement.WidthProperty);
+				preview.MinWidth = 220;
+				preview.Prewarm();
+			}
+			try
+			{
+				if (InfoPane is not null)
+					InfoPane.Visibility = Visibility.Collapsed;
+			}
+			catch { /* best-effort */ }
+			UpdatePositioning();
 		}
 
 		private void ToggleWorkspacePane(string pane)
@@ -144,13 +526,30 @@ namespace Files.App.Views
 				_bndzWorkspacePane = null;
 				if (BndzWorkspaceOverlay is not null)
 					BndzWorkspaceOverlay.Visibility = Visibility.Collapsed;
+				if (PageContent is not null)
+					PageContent.Visibility = Visibility.Visible;
+				SyncBndzToggleChrome();
 				return;
 			}
 
+			ShowWorkspacePane(pane);
+		}
+
+		private void ShowWorkspacePane(string pane)
+		{
 			_bndzWorkspacePane = pane;
 			if (BndzWorkspaceOverlay is not null)
 				BndzWorkspaceOverlay.Visibility = Visibility.Visible;
-			BndzWorkspacePaneHost?.SwitchPane(pane);
+			// Content-mode: swap out the list frame while heavy workspace tools own the row.
+			if (PageContent is not null)
+				PageContent.Visibility = Visibility.Collapsed;
+			var workspace = EnsureWorkspacePaneHost();
+			if (workspace is not null)
+			{
+				// Soft-switch in-place when already warm; Prewarm only first open.
+				workspace.SwitchPane(pane);
+			}
+			SyncBndzToggleChrome();
 			PushSelectionToBndzPanes();
 		}
 
@@ -158,26 +557,123 @@ namespace Files.App.Views
 		{
 			try
 			{
+				if (_bndzNavigatingFromReact)
+					return;
+
 				var path = ContentPageContext.Folder?.ItemPath
 					?? SidebarAdaptiveViewModel?.PaneHolder?.ActivePaneOrColumn?.ShellViewModel?.WorkingDirectory;
+				var pathKey = NormalizeFsPathKey(path);
+
+				// filesHost: only the browser WebView — never FindName plugins/preview/workspace.
+				if (BndzShellOwnership.BrowserOwnsFileViewport)
+				{
+					if (!string.IsNullOrEmpty(pathKey)
+						&& string.Equals(pathKey, NormalizeFsPathKey(_lastPushedBrowserPath), StringComparison.OrdinalIgnoreCase))
+						return;
+					_lastPushedBrowserPath = path;
+					EnsureBrowserHost()?.PostPaneContext(path, null, null, null, null, null);
+					return;
+				}
+
 				var items = ContentPageContext.SelectedItems;
 				List<string>? paths = null;
 				List<string>? names = null;
 				List<string>? types = null;
+				List<long>? sizes = null;
+				List<string>? modified = null;
 				if (items is { Count: > 0 })
 				{
 					paths = items.Select(i => i.ItemPath).Where(p => !string.IsNullOrWhiteSpace(p)).ToList()!;
 					names = items.Select(i => i.Name).ToList();
 					types = items.Select(i => i.IsFolder ? "directory" : "file").ToList();
+					sizes = items.Select(i => i.FileSizeBytes).ToList();
+					modified = items.Select(i =>
+					{
+						try { return i.ItemDateModifiedReal.UtcDateTime.ToString("o"); }
+						catch { return string.Empty; }
+					}).ToList();
 				}
-				BndzPluginsDockHost?.PostPaneContext(path, paths, names, types);
-				BndzWorkspacePaneHost?.PostPaneContext(path, paths, names, types);
-				BndzPreviewPaneHost?.PostPaneContext(path, paths, names, types);
+				if (BndzPluginsDockHost is not null)
+					BndzPluginsDockHost.PostPaneContext(path, paths, names, types, sizes, modified);
+				if (BndzWorkspacePaneHost is not null)
+					BndzWorkspacePaneHost.PostPaneContext(path, paths, names, types, sizes, modified);
+				if (BndzPreviewPaneHost is not null)
+					BndzPreviewPaneHost.PostPaneContext(path, paths, names, types, sizes, modified);
 			}
 			catch
 			{
 				/* selection push is best-effort */
 			}
+		}
+
+		private void SchedulePushSelectionToBndzPanes()
+		{
+			_bndzContextDebounceTimer ??= DispatcherQueue.CreateTimer();
+			_bndzContextDebounceTimer.Stop();
+			_bndzContextDebounceTimer.Interval = TimeSpan.FromMilliseconds(40);
+			_bndzContextDebounceTimer.Tick -= BndzContextDebounce_Tick;
+			_bndzContextDebounceTimer.Tick += BndzContextDebounce_Tick;
+			_bndzContextDebounceTimer.Start();
+		}
+
+		private void BndzContextDebounce_Tick(DispatcherQueueTimer sender, object args)
+		{
+			sender.Stop();
+			PushSelectionToBndzPanes();
+		}
+
+		private double GetPluginsDockHeight()
+		{
+			try
+			{
+				if (Windows.Storage.ApplicationData.Current.LocalSettings.Values.TryGetValue("BndzPluginsDockHeight", out var stored)
+					&& stored is double d
+					&& d >= 160
+					&& d <= 720)
+				{
+					return d;
+				}
+			}
+			catch { /* ignore */ }
+			return _bndzDockHeight > 0 ? _bndzDockHeight : 180;
+		}
+
+		private void ApplyPluginsDockHeight(bool open)
+		{
+			if (BndzPluginsDockRow is null)
+				return;
+			if (BndzPluginsDockSizer is not null)
+				BndzPluginsDockSizer.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+			if (BndzPluginsDockSizerRow is not null)
+				BndzPluginsDockSizerRow.Height = open ? GridLength.Auto : new GridLength(0);
+			if (!open)
+			{
+				BndzPluginsDockRow.Height = new GridLength(0);
+				BndzPluginsDockRow.MinHeight = 0;
+				return;
+			}
+			var h = GetPluginsDockHeight();
+			_bndzDockHeight = h;
+			BndzPluginsDockRow.Height = new GridLength(h);
+			BndzPluginsDockRow.MinHeight = 140;
+		}
+
+		private void PersistPluginsDockHeight()
+		{
+			try
+			{
+				if (BndzPluginsDockRow?.Height.IsAbsolute == true && BndzPluginsDockRow.Height.Value >= 160)
+				{
+					_bndzDockHeight = BndzPluginsDockRow.Height.Value;
+					Windows.Storage.ApplicationData.Current.LocalSettings.Values["BndzPluginsDockHeight"] = _bndzDockHeight;
+				}
+			}
+			catch { /* ignore */ }
+		}
+
+		private void BndzPluginsDockSizer_ManipulationCompleted(object sender, Microsoft.UI.Xaml.Input.ManipulationCompletedRoutedEventArgs e)
+		{
+			PersistPluginsDockHeight();
 		}
 
 		private async Task AppRunningAsAdminPromptAsync()
@@ -220,21 +716,46 @@ namespace Files.App.Views
 
 		private void HorizontalMultitaskingControl_Loaded(object sender, RoutedEventArgs e)
 		{
-			TabControl.DragArea.SizeChanged += (_, _) => MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
-			TabControl.SizeChanged += (_, _) => MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
-			if (ViewModel.MultitaskingControl is not TabBar)
+			if (BndzShellOwnership.BrowserOwnsFileViewport || TabControl is null)
+				return;
+
+			try
 			{
-				ViewModel.MultitaskingControl = TabControl;
-				ViewModel.MultitaskingControls.Add(TabControl);
-				ViewModel.MultitaskingControl.CurrentInstanceChanged += MultitaskingControl_CurrentInstanceChanged;
+				if (TabControl.DragArea is not null)
+					TabControl.DragArea.SizeChanged += (_, _) => MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
+				TabControl.SizeChanged += (_, _) => MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
+				if (ViewModel.MultitaskingControl is not TabBar)
+				{
+					ViewModel.MultitaskingControl = TabControl;
+					ViewModel.MultitaskingControls.Add(TabControl);
+					ViewModel.MultitaskingControl.CurrentInstanceChanged += MultitaskingControl_CurrentInstanceChanged;
+				}
+			}
+			catch (Exception ex)
+			{
+				App.Logger.LogDebug(ex, "TabControl load skipped for filesHost");
 			}
 		}
 
 		private int SetTitleBarDragRegion(InputNonClientPointerSource source, SizeInt32 size, double scaleFactor, Func<UIElement, RectInt32?, RectInt32> getScaledRect)
 		{
-			var height = (int)TabControl.ActualHeight;
-			source.SetRegionRects(NonClientRegionKind.Passthrough, [getScaledRect(this, new RectInt32(0, 0, (int)(TabControl.ActualWidth + TabControl.Margin.Left - TabControl.DragArea.ActualWidth), height))]);
-			return height;
+			// filesHost: BNDZ PaneTabStrip is inside WebView2 — do not invent Files tab passthrough
+			// (collapsed TabControl.ActualHeight was 0 and still fought drag with a dead region).
+			if (BndzShellOwnership.BrowserOwnsFileViewport || TabControl is null || TabControl.Visibility != Visibility.Visible)
+				return 0;
+
+			try
+			{
+				if (TabControl.DragArea is null)
+					return 0;
+				var height = (int)TabControl.ActualHeight;
+				source.SetRegionRects(NonClientRegionKind.Passthrough, [getScaledRect(this, new RectInt32(0, 0, (int)(TabControl.ActualWidth + TabControl.Margin.Left - TabControl.DragArea.ActualWidth), height))]);
+				return height;
+			}
+			catch
+			{
+				return 0;
+			}
 		}
 
 		public async void TabItemContent_ContentChanged(object? sender, TabBarItemParameter e)
@@ -288,10 +809,17 @@ namespace Files.App.Views
 
 			await NavigationHelpers.UpdateInstancePropertiesAsync(navArgs);
 
-			// Focus the content of the selected tab item (this also avoids an issue where the Omnibar sometimes steals the focus)
-			await Task.Delay(100);
-			if (!App.AppModel.IsMainWindowClosed && ContentPageContext?.ShellPage?.PaneHolder != null)
-				ContentPageContext.ShellPage.PaneHolder.FocusActivePane();
+			// filesHost: BNDZUI owns focus — skip focusing hidden Files pane (was +100ms tax).
+			if (!BndzShellOwnership.BrowserOwnsFileViewport)
+			{
+				await Task.Delay(100);
+				if (!App.AppModel.IsMainWindowClosed && ContentPageContext?.ShellPage?.PaneHolder != null)
+					ContentPageContext.ShellPage.PaneHolder.FocusActivePane();
+			}
+			else
+			{
+				SchedulePushSelectionToBndzPanes();
+			}
 		}
 
 		private void PaneHolder_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -312,7 +840,7 @@ namespace Files.App.Views
 				or nameof(IContentPageContext.HasSelection)
 				or null)
 			{
-				PushSelectionToBndzPanes();
+				SchedulePushSelectionToBndzPanes();
 			}
 		}
 
@@ -403,23 +931,11 @@ namespace Files.App.Views
 		{
 			MainWindow.Instance.AppWindow.Changed += (_, _) => MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
 
-			// Defers loading until after the page has loaded to improve startup perf
-			FindName(nameof(InnerNavigationToolbar));
-			FindName(nameof(TabControl));
-			FindName(nameof(NavToolbar));
+			// filesHost: never materialize Files TabBar / toolbars — they steal startup and fight BNDZUI.
+			// FindName only keeps Shell multitasking registration for path holders if ever needed later.
+			try { FindName(nameof(TabControl)); } catch { /* ignore */ }
 
-			// Notify user that drag and drop is disabled
-			// Prompt is disabled in the dev environment to prevent issues with the automation testing 
-			// ToDo put this in a StartupPromptService
-			if
-			(
-				AppLifecycleHelper.AppEnvironment is not AppEnvironment.Dev &&
-				WindowContext.IsRunningAsAdmin &&
-				UserSettingsService.ApplicationSettingsService.ShowRunningAsAdminPrompt
-			)
-			{
-				DispatcherQueue.TryEnqueue(async () => await AppRunningAsAdminPromptAsync());
-			}
+			ApplyBndzSurfaceDefaults();
 		}
 
 		private void PreviewPane_Loaded(object sender, RoutedEventArgs e)
@@ -474,6 +990,44 @@ namespace Files.App.Views
 
 		private void UpdatePositioning()
 		{
+			// BNDZ React preview owns the right column. Never collapse that column when Files
+			// InfoPane is off — that was hiding preview and leaving only the bottom plugin dock.
+			if (_bndzPreviewOpen)
+			{
+				try
+				{
+					if (InfoPane is not null)
+						InfoPane.Visibility = Visibility.Collapsed;
+					var preview = EnsurePreviewPaneHost();
+					if (preview is not null)
+					{
+						preview.Visibility = Visibility.Visible;
+						preview.ClearValue(FrameworkElement.WidthProperty);
+						preview.MinWidth = 220;
+						preview.Prewarm();
+					}
+					if (InfoPaneSizer is not null)
+					{
+						InfoPaneSizer.Visibility = Visibility.Visible;
+						InfoPaneSizer.ChangeCursor(InputSystemCursor.Create(InputSystemCursorShape.SizeWestEast));
+					}
+					var w = UserSettingsService.InfoPaneSettingsService.VerticalSizePx;
+					if (w < 220) w = 280;
+					InfoPaneColumnDefinition.MinWidth = 220;
+					InfoPaneColumnDefinition.Width = new GridLength(w);
+					InfoPaneRowDefinition.MinHeight = 0;
+					InfoPaneRowDefinition.Height = new GridLength(0);
+					VisualStateManager.GoToState(this, "InfoPanePositionRight", true);
+					InfoPaneColumnDefinition.MinWidth = 220;
+					InfoPaneColumnDefinition.Width = new GridLength(w);
+				}
+				catch (Exception ex)
+				{
+					App.Logger.LogDebug(ex, "BNDZ preview column layout failed");
+				}
+				return;
+			}
+
 			if (InfoPane is null || !ViewModel.ShouldPreviewPaneBeActive)
 			{
 				VisualStateManager.GoToState(this, "InfoPanePositionNone", true);
@@ -529,6 +1083,14 @@ namespace Files.App.Views
 		{
 			try
 			{
+				if (BndzShellOwnership.BrowserOwnsFileViewport)
+				{
+					ViewModel.ShouldPreviewPaneBeDisplayed = false;
+					ViewModel.ShouldPreviewPaneBeActive = false;
+					UpdatePositioning();
+					return;
+				}
+
 				var isHomePage = !(SidebarAdaptiveViewModel.PaneHolder?.ActivePane?.InstanceViewModel?.IsPageTypeNotHome ?? false);
 				var isReleaseNotesPage = SidebarAdaptiveViewModel.PaneHolder?.ActivePane?.InstanceViewModel?.IsPageTypeReleaseNotes ?? false;
 				var isSettingsPage = SidebarAdaptiveViewModel.PaneHolder?.ActivePane?.InstanceViewModel?.IsPageTypeSettings ?? false;

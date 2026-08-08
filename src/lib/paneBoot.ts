@@ -1,6 +1,13 @@
-/** Boot detection for FilesMerge-hosted React panes (architecture #3 Phase 3). */
+/** Boot detection for FilesMerge-hosted React panes (architecture #3). */
 
-export type BndzPaneKind = 'automation' | 'canvas' | 'plugins' | 'preview';
+export type BndzPaneKind =
+  | 'automation'
+  | 'canvas'
+  | 'plugins'
+  | 'preview'
+  | 'smart-tools'
+  | 'marketplace'
+  | 'settings';
 
 export type BndzPaneBoot = {
   pane: BndzPaneKind;
@@ -10,7 +17,15 @@ export type BndzPaneBoot = {
   path?: string;
 };
 
-const PANE_KINDS: readonly BndzPaneKind[] = ['automation', 'canvas', 'plugins', 'preview'];
+const PANE_KINDS: readonly BndzPaneKind[] = [
+  'automation',
+  'canvas',
+  'plugins',
+  'preview',
+  'smart-tools',
+  'marketplace',
+  'settings',
+];
 
 function isPaneKind(value: string | null): value is BndzPaneKind {
   return !!value && (PANE_KINDS as readonly string[]).includes(value);
@@ -52,6 +67,12 @@ export function paneTitle(boot: BndzPaneBoot): string {
       return boot.plugin ? `Plugin · ${boot.plugin}` : 'Plugins & Command Deck';
     case 'preview':
       return 'Preview';
+    case 'smart-tools':
+      return 'Smart Tools';
+    case 'marketplace':
+      return 'Extension Hub';
+    case 'settings':
+      return 'Configuration';
     default: {
       const _exhaustive: never = boot.pane;
       return _exhaustive;

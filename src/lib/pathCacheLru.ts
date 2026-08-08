@@ -3,6 +3,25 @@
 const DEFAULT_MAX = 48;
 const accessOrder: string[] = [];
 let pinnedPaths = new Set<string>();
+let configuredMax = DEFAULT_MAX;
+
+/** Settings → Maximum number of items cached (folder listing LRU capacity). */
+export function configurePathCacheMax(max: number | boolean | string | undefined | null): void {
+  if (max === false || max == null || max === '') {
+    configuredMax = DEFAULT_MAX;
+    return;
+  }
+  const n = typeof max === 'number' ? max : Number(max);
+  if (!Number.isFinite(n) || n <= 0) {
+    configuredMax = DEFAULT_MAX;
+    return;
+  }
+  configuredMax = Math.max(8, Math.min(Math.floor(n), 5000));
+}
+
+export function getPathCacheMax(): number {
+  return configuredMax;
+}
 
 /** Paths that must never be evicted (open tabs / active panes). */
 export function setPinnedPathCacheKeys(paths: Iterable<string>): void {
@@ -32,7 +51,7 @@ export function setPathCacheEntry<T>(
   cache: Record<string, T>,
   path: string,
   value: T,
-  max = DEFAULT_MAX,
+  max = configuredMax,
 ): Record<string, T> {
   touchPathCacheKey(path);
   const next = { ...cache, [path]: value };

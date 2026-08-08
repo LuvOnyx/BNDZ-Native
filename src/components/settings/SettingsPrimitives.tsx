@@ -45,19 +45,21 @@ export function SettingsSection({
   className?: string;
 }) {
   return (
-    <section className={`bndz-settings-section ${className}`}>
+    <section className={`bndz-settings-section bndz-settings-section--craft shrink-0 ${className}`}>
       <div className="bndz-settings-section-header">
         <h3 className="text-[13px] font-semibold text-white tracking-tight">{title}</h3>
         {description && <p className="bndz-panel-muted mt-0.5 text-[11px]">{description}</p>}
       </div>
-      <div className="p-4 space-y-[6px]">{children}</div>
+      <div className="bndz-settings-section-body p-4 flex flex-col gap-2.5 rounded-[14px] bg-[linear-gradient(165deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        {children}
+      </div>
     </section>
   );
 }
 
 export function SettingsHint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="bndz-settings-hint text-[11px] text-[#9ca3af] mb-4 p-3 leading-relaxed">
+    <p className="bndz-settings-hint text-[11px] text-[#9ca3af] mb-4 p-3 leading-relaxed rounded-[12px] border border-white/[0.06] bg-[rgba(18,22,30,0.55)] shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
       {children}
     </p>
   );

@@ -9,12 +9,12 @@ export type ShellExecuteOptions = {
 /** Optional custom shell interpreter from Templates → Command line. */
 export function buildShellExecuteOptions(config?: AppConfig | null): ShellExecuteOptions | undefined {
   if (!config?.useCustomCommandLineInterpreterElseDefaultToCmdExe) return undefined;
-  const interpreter = String(config.unwiredConfig15 || '').trim();
+  const interpreter = String(config.customShellInterpreter || '').trim();
   if (!interpreter) return undefined;
   return {
     useCustom: true,
     interpreter,
-    args: String(config.unwiredConfig16 || '').trim(),
+    args: String(config.customShellArgsTemplate || '').trim(),
   };
 }
 

@@ -42,10 +42,17 @@ function shellFingerprint(config: AppConfig): string {
   return JSON.stringify({
     fm: !!(config.isDefaultFileManager ?? config.bndzIsDefaultFileManager),
     ctx: !!(config.inContextMenu ?? config.bndzInShellContextMenu),
+    scope: String(config.shellIntegrationScope || 'Only for the current user'),
     win11: !!config.overrideWin11MoreOptions,
     gcm: !!(config.injectGlobalContextMenu && config.globalContextMenuActions?.length),
     gcmLen: config.globalContextMenuActions?.length ?? 0,
+    iconStudioShell: config.enableIconContextSubmenu !== false,
   });
+}
+
+function shellAllUsers(config: AppConfig): boolean {
+  const scope = String(config.shellIntegrationScope || '');
+  return /all users/i.test(scope);
 }
 
 let lastAppliedFingerprint: string | null = null;
@@ -72,6 +79,7 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
 
   const inContextMenu = !!(config.inContextMenu ?? config.bndzInShellContextMenu);
   const isDefaultFm = !!(config.isDefaultFileManager ?? config.bndzIsDefaultFileManager);
+  const allUsers = shellAllUsers(config);
 
   // Prefer status probe so we skip redundant registry writes that hang the IPC queue.
   let alreadyDefault = false;
@@ -83,7 +91,7 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
   }
 
   if (isDefaultFm && !inContextMenu) {
-    await applyShellSetting('enable shell context menu integration', () => IPC.setInContextMenu(true));
+    await applyShellSetting('enable shell context menu integration', () => IPC.setInContextMenu(true, allUsers));
   }
 
   if (isDefaultFm !== alreadyDefault) {
@@ -94,29 +102,37 @@ async function applyBackendSettingsInner(config: AppConfig): Promise<void> {
   }
 
   await applyShellSetting(
-    inContextMenu ? 'add BNDZ to the shell context menu' : 'remove BNDZ from the shell context menu',
-    () => IPC.setInContextMenu(inContextMenu),
+    inContextMenu ? 'add BNDZ to the shell context menu' : 'remove BNDZ from the Windows shell context menu',
+    () => IPC.setInContextMenu(inContextMenu, allUsers),
   );
   await applyShellSetting(
     config.overrideWin11MoreOptions ? 'enable classic context menu' : 'disable classic context menu override',
     () => IPC.setWin11MoreOptions(!!config.overrideWin11MoreOptions),
   );
 
-  if (config.injectGlobalContextMenu && config.globalContextMenuActions?.length) {
-    try {
-      await withTimeout(
-        IPC.updateGlobalContextMenu(config.globalContextMenuActions.map((a: any) => ({
+  const iconStudioShell = config.enableIconContextSubmenu !== false;
+  await applyShellSetting(
+    iconStudioShell ? 'add Icon Studio to the shell context menu' : 'remove Icon Studio from the shell context menu',
+    () => IPC.setIconStudioShellMenu(iconStudioShell),
+  );
+
+  // Always call deploy — empty / disabled undeploys lingering HKCU shell\BNDZ keys.
+  try {
+    const actions = (config.injectGlobalContextMenu && config.globalContextMenuActions?.length)
+      ? config.globalContextMenuActions.map((a: any) => ({
           id: a.id,
           label: a.name || a.label,
           command: a.command || '',
           icon: a.icon || '',
           targetMode: a.targetMode || 'all',
-        }))),
-        8_000,
-        'UPDATE_GLOBAL_CONTEXT_MENU_RESULT',
-      );
-    } catch { /* best effort — context menu update is non-critical */ }
-  }
+        }))
+      : [];
+    await withTimeout(
+      IPC.updateGlobalContextMenu(actions),
+      8_000,
+      'UPDATE_GLOBAL_CONTEXT_MENU_RESULT',
+    );
+  } catch { /* best effort */ }
   } finally {
     _applyInProgress = false;
   }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { shellIconIsDirectory } from '../lib/shellPaths';
 import { useAppConfig } from '../data/configContext';
 import { shouldFetchNativeShellIcon } from '../lib/settingsRuntime';
-import { applyIconCacheBuster, LIST_THUMB_PX } from '../lib/nativeIconService';
+import { applyIconCacheBuster, getRuntimeListThumbPx } from '../lib/nativeIconService';
 import { useNativeIcon, useNativeIconFetch } from '../lib/useNativeIcon';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IconPlaceholder } from './IconPlaceholder';
@@ -49,11 +49,16 @@ export function ShellNativeIcon({
     IMAGE_EXTS.has(ext) || VIDEO_EXTS.has(ext) || AUDIO_EXTS.has(ext)
   );
   const dirFlag = isDir ?? shellIconIsDirectory(path);
-  const shellFetch = visible && !!path && shouldFetchNativeShellIcon({}, config);
-  const thumbFetch = visible && !!path && useThumb
+  const networkProbe = !!path && (path.startsWith('//') || path.startsWith('\\\\') || /^\/\//.test(path));
+  // Settings → Use generic icons + Apply to all controls (tree/tabs/etc.).
+  const forceGeneric = !!config.useGenericIconsForSuperFastBrowsing
+    && !!config.applyToAllControls
+    && (!config.butOnlyInNetworkLocations || networkProbe);
+  const shellFetch = !forceGeneric && visible && !!path && shouldFetchNativeShellIcon({}, config, path || undefined);
+  const thumbFetch = !forceGeneric && visible && !!path && useThumb
     && config.enableNativeThumbnails !== false
     && !config.showCachedIconsOnly;
-  const thumbPx = hero || size >= 64 ? Math.max(LIST_THUMB_PX, Math.min(256, size)) : LIST_THUMB_PX;
+  const thumbPx = hero || size >= 64 ? Math.max(getRuntimeListThumbPx(), Math.min(256, size)) : getRuntimeListThumbPx();
 
   useEffect(() => {
     applyIconCacheBuster(config.iconCacheBuster);

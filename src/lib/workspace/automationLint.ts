@@ -1,5 +1,6 @@
 import type { AutomationGraph } from '../automationStore';
 import { NODE_DEFS, isTriggerType, FOLDER_FIELD_KEYS, type AutomationNodeType } from './automationNodeDefs';
+import { formatUiPath } from '../displayPath';
 
 export type LintIssue = {
   id: string;
@@ -247,15 +248,20 @@ export function dryRunGraph(graph: AutomationGraph): DryRunStep[] {
 
 function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
   const d = n.data;
+  const pathLabel = (raw: unknown) => {
+    const s = String(raw || '').trim();
+    return s ? formatUiPath(s) : '';
+  };
   switch (n.type) {
     case 'watchFolder': {
       const live = String(d.liveWatch) === 'true';
-      return live ? `Live watch ${d.path || '(unset)'}` : `Scan ${d.path || '(unset)'}`;
+      const p = pathLabel(d.path) || '(unset)';
+      return live ? `Live watch ${p}` : `Scan ${p}`;
     }
     case 'manualRun': return 'Manual trigger';
     case 'onSchedule': return `Schedule every ${d.intervalMinutes || '60'} min`;
     case 'onStartup': return 'Run on BNDZ startup';
-    case 'indexChanged': return `Index changed${d.root ? ` · ${d.root}` : ''}`;
+    case 'indexChanged': return `Index changed${d.root ? ` · ${pathLabel(d.root)}` : ''}`;
     case 'spatialPin': return `Spatial pin (${String(d.paths || '').split('\n').filter(Boolean).length} paths)`;
     case 'filterExtension': return `Filter ext: ${d.extensions || '*'}`;
     case 'filterArchive': return `Archives: ${d.extensions || 'default'}`;
@@ -264,20 +270,20 @@ function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
     case 'filterTag': return `Tag: ${d.tag || '(unset)'}`;
     case 'filterContent': return `Grep: ${d.pattern || '(unset)'}`;
     case 'duplicatesOnly': return `Duplicates ≥ ${d.minSize || '1KB'}`;
-    case 'copyTo': return `Copy → ${d.dest || '(unset)'}`;
-    case 'moveTo': return `Move → ${d.dest || '(unset)'}`;
+    case 'copyTo': return `Copy → ${pathLabel(d.dest) || '(unset)'}`;
+    case 'moveTo': return `Move → ${pathLabel(d.dest) || '(unset)'}`;
     case 'rsyncDeploy': return `Deploy → ${d.remote || '(unset)'}`;
-    case 'ghostLinkTo': return `Ghost-Link → ${d.coldStorageRoot || '(unset)'}`;
+    case 'ghostLinkTo': return `Ghost-Link → ${pathLabel(d.coldStorageRoot) || '(unset)'}`;
     case 'stageToRam': {
       const zoneId = String(d.zoneId || '').trim();
       if (zoneId) return `Stage → zone ${zoneId}`;
       return `Stage → ${d.zoneName || 'Automation Staging'} (${d.sizeBudgetMb || '4096'} MB)`;
     }
     case 'recycleBin': return 'Send to Recycle Bin';
-    case 'compressArchive': return `Compress → ${d.dest || '(unset)'}`;
-    case 'extractArchive': return `Extract → ${d.dest || '(unset)'}`;
-    case 'syncFolders': return `Sync → ${d.dest || '(unset)'}`;
-    case 'generateThumbnail': return `Thumbnails → ${d.dest || '(unset)'}`;
+    case 'compressArchive': return `Compress → ${pathLabel(d.dest) || '(unset)'}`;
+    case 'extractArchive': return `Extract → ${pathLabel(d.dest) || '(unset)'}`;
+    case 'syncFolders': return `Sync → ${pathLabel(d.dest) || '(unset)'}`;
+    case 'generateThumbnail': return `Thumbnails → ${pathLabel(d.dest) || '(unset)'}`;
     case 'applyTag': return `Tag "${d.tag || '(unset)'}"`;
     case 'notifyToast': return `Toast: ${d.title || 'BNDZ'}`;
     case 'runShell': return `Shell: ${d.command || '(unset)'}`;
@@ -285,7 +291,7 @@ function describeDryRunAction(n: AutomationGraph['nodes'][number]): string {
     case 'healthGate': return `Health gate: max ${d.maxErrors || '0'} errors`;
     case 'sandboxCheckpoint': return `Sandbox checkpoint: ${d.label || 'auto'}`;
     case 'capacityApprove': return `Capacity ≥ ${d.requiredMb || '512'} MB on ${d.drive || 'auto'}`;
-    case 'branchCreate': return `Branch "${d.branchName || '(unset)'}" from ${d.sourcePath || '(unset)'}`;
+    case 'branchCreate': return `Branch "${d.branchName || '(unset)'}" from ${pathLabel(d.sourcePath) || '(unset)'}`;
     case 'branch': return `Branch: ${d.condition || 'anyFiles'}`;
     case 'delay': return `Wait ${d.seconds || '1'}s`;
     case 'stopAbort': return `Abort: ${d.message || 'stop'}`;

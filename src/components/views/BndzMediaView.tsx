@@ -6,6 +6,8 @@ import { ThumbnailIcon } from '../ThumbnailIcon';
 import { FSEntity } from '../../types';
 import { VirtualizedFileList } from '../VirtualizedFileList';
 import BndzIndexEmptyState from './BndzIndexEmptyState';
+import { useAppConfig } from '../../data/configContext';
+import { weekdayHeadersShort } from '../../lib/weekCalendarSettings';
 
 export type BndzMediaEntity = FSEntity & { path?: string; modified?: number };
 
@@ -91,6 +93,9 @@ export default function BndzMediaView({
   onContextMenu,
   onIndexBuilt,
 }: Props) {
+  const { config } = useAppConfig();
+  // Settings → Sunday is the first day of the week
+  const weekHeaders = weekdayHeadersShort({ sundayIsTheFirstDayOfTheWeek: config.sundayIsTheFirstDayOfTheWeek });
   const groups = useMemo(() => groupByDate(items), [items]);
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const useVirtualGrid = items.length >= 80;
@@ -114,9 +119,22 @@ export default function BndzMediaView({
     );
   }
 
+  const weekStrip = (
+    <div
+      className="grid grid-cols-7 gap-0.5 px-2 py-1 mb-1 text-[9px] uppercase tracking-wider text-white/35"
+      aria-hidden
+      title={config.sundayIsTheFirstDayOfTheWeek ? 'Week starts Sunday' : 'Week starts Monday'}
+    >
+      {weekHeaders.map(d => (
+        <span key={d} className="text-center">{d}</span>
+      ))}
+    </div>
+  );
+
   if (useVirtualGrid) {
     return (
       <div className="p-2">
+        {weekStrip}
         <VirtualizedFileList
           items={items}
           threshold={1}
@@ -142,6 +160,7 @@ export default function BndzMediaView({
 
   return (
     <div className="flex flex-col gap-4 p-2">
+      {weekStrip}
       {groups.map(group => (
         <section key={group.label}>
           <div className="sticky top-0 z-10 px-2 py-1.5 text-[11px] font-semibold tracking-wide text-[#c5cdd6] bndz-smart-section-header">

@@ -9,25 +9,21 @@
 	d:DesignWidth="800"
 	mc:Ignorable="d">
 
-	<Grid>
-		<Border
-			Background="{ThemeResource LayerFillColorDefaultBrush}"
-			BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-			BorderThickness="1"
-			CornerRadius="12">
-			<WebView2
-				x:Name="PaneWebView"
-				HorizontalAlignment="Stretch"
-				VerticalAlignment="Stretch"
-				DefaultBackgroundColor="Transparent"
-				Loaded="PaneWebView_Loaded" />
-		</Border>
+	<!-- Flush host: no floating card chrome — Files geometry owns the frame. -->
+	<Grid Background="#0C0F14">
+		<WebView2
+			x:Name="PaneWebView"
+			HorizontalAlignment="Stretch"
+			VerticalAlignment="Stretch"
+			DefaultBackgroundColor="#0C0F14"
+			Loaded="PaneWebView_Loaded" />
 		<TextBlock
 			x:Name="PaneStatusHint"
 			Margin="16"
 			HorizontalAlignment="Center"
 			VerticalAlignment="Center"
 			Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+			IsHitTestVisible="False"
 			Text="Loading BNDZ pane…"
 			Visibility="Collapsed" />
 	</Grid>

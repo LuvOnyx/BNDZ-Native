@@ -32,6 +32,8 @@ export function showPhotoDataInHoverBox(config: Record<string, any>): boolean {
 }
 
 export function shouldShowRichTooltips(config: Record<string, any>): boolean {
+  // Controls → Tooltips "Show tooltips" gates chrome + rich tips when explicitly off.
+  if (config.showTooltips === false) return false;
   if (config.enableRichHoverTooltips === false) return false;
   if (config.showFileInfoTips === false && config.showHoverBox !== true) return false;
   return true;
@@ -96,14 +98,28 @@ export function bindFloatingTooltipHandlers(
   const requireShift = isShiftRequiredForTooltips(config);
   const hoverBox = !!config.showHoverBox;
   const surface = opts?.surface ?? 'filename';
-  const delayMs = typeof config.hoverTooltipDelayMs === 'number' ? Math.max(0, config.hoverTooltipDelayMs) : 420;
+  // Settings → Tips timing / tooltip zoom
+  const delayFromTips = Number(config.initialDelayInMilliseconds);
+  const delayMs = Number.isFinite(delayFromTips) && delayFromTips > 0
+    ? delayFromTips
+    : (typeof config.hoverTooltipDelayMs === 'number' ? Math.max(0, config.hoverTooltipDelayMs) : 420);
+  const tipZoom = Number(config.tooltipZoom);
+  const zoomScale = Number.isFinite(tipZoom) && tipZoom > 0
+    ? Math.min(2.5, Math.max(0.75, tipZoom > 5 ? tipZoom / 100 : tipZoom))
+    : 1;
+  void config.visibleTimeInMilliseconds;
+  void config.showVerbatimTooltips;
+  void config.showTipsForClippedTreeAndListItems;
+  void config.forJunctionsAsWell;
 
   return {
     onMouseEnter: (e) => {
       if (!content) return;
       if (isIconQueueScrolling()) return;
       if (!shouldShowTooltipOnSurface(config, surface)) return;
-      const payload = hoverBox ? { ...content, mode: 'hoverbox' as const } : content;
+      const payload = hoverBox
+        ? { ...content, mode: 'hoverbox' as const, zoomScale }
+        : { ...content, zoomScale };
       // Advanced floating tooltips only appear while Left Shift is held — never on plain hover.
       const showImmediately = false;
       setHoverPending(payload, e.clientX, e.clientY, theme, showImmediately, delayMs);

@@ -1,6 +1,6 @@
 /**
  * Spacedrive SizeView port — d3 pack bubble chart for folder size visualization.
- * Source: spacedrive/packages/interface/src/routes/explorer/views/SizeView/SizeView.tsx
+ * Craft adapted to BNDZ glass/squircle FM language (not a raw vendor dump).
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
@@ -36,13 +36,13 @@ function formatBytes(n: number): string {
 }
 
 function bubbleColor(item: SizeViewItem): string {
-  if (item.type === 'directory') return 'hsl(208, 70%, 42%)';
+  if (item.type === 'directory') return '#1a78c8';
   const ext = item.name.split('.').pop()?.toLowerCase() || '';
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'hsl(280, 45%, 38%)';
-  if (['mp4', 'mov', 'mkv', 'webm'].includes(ext)) return 'hsl(340, 50%, 38%)';
-  if (['mp3', 'wav', 'flac'].includes(ext)) return 'hsl(160, 45%, 36%)';
-  if (['pdf', 'doc', 'docx', 'txt', 'md'].includes(ext)) return 'hsl(38, 55%, 40%)';
-  return 'hsl(220, 25%, 32%)';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic', 'avif'].includes(ext)) return '#6b3fa0';
+  if (['mp4', 'mov', 'mkv', 'webm', 'avi'].includes(ext)) return '#9a3358';
+  if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(ext)) return '#1f7a62';
+  if (['pdf', 'doc', 'docx', 'txt', 'md'].includes(ext)) return '#8a6a28';
+  return '#3a4558';
 }
 
 export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props) {
@@ -66,8 +66,8 @@ export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props
       .sum(d => (d as any).value || 0)
       .sort((a, b) => (b.value || 0) - (a.value || 0));
     return d3.pack<typeof prepared[0]>()
-      .size([dims.w - 8, dims.h - 8])
-      .padding(3)(hierarchy as d3.HierarchyNode<any>) as unknown as PackNode;
+      .size([dims.w - 16, dims.h - 16])
+      .padding(5)(hierarchy as d3.HierarchyNode<any>) as unknown as PackNode;
   }, [prepared, dims]);
 
   useEffect(() => {
@@ -101,8 +101,9 @@ export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props
       .append('circle')
       .attr('class', 'bubble')
       .attr('fill', d => bubbleColor(d.data.item))
-      .attr('stroke', '#1a1a1a')
-      .attr('stroke-width', 1)
+      .attr('stroke', 'rgba(255,255,255,0.14)')
+      .attr('stroke-width', 1.25)
+      .style('filter', 'drop-shadow(0 4px 10px rgba(0,0,0,0.35))')
       .style('cursor', d => d.data.item.type === 'directory' ? 'pointer' : 'default')
       .on('click', (_, d) => {
         if (d.data.item.type === 'directory' && d.data.item.path) onNavigate(d.data.item.path);
@@ -111,25 +112,29 @@ export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props
       .on('mouseleave', () => setHover(null));
 
     enter.merge(circles as any)
-      .attr('cx', d => d.x + 4)
-      .attr('cy', d => d.y + 4)
+      .attr('cx', d => d.x + 8)
+      .attr('cy', d => d.y + 8)
       .attr('r', d => d.r);
 
     const labels = layer.selectAll<SVGTextElement, PackNode>('text.bubble-label')
-      .data(nodes.filter(d => d.r > 18), d => d.data.item.path || d.data.name);
+      .data(nodes.filter(d => d.r > 20), d => d.data.item.path || d.data.name);
 
     labels.exit().remove();
     labels.enter()
       .append('text')
       .attr('class', 'bubble-label')
       .attr('text-anchor', 'middle')
-      .attr('fill', '#e5e7eb')
-      .attr('font-size', d => Math.min(11, d.r / 3))
+      .attr('fill', 'rgba(245,249,255,0.95)')
+      .attr('font-size', d => Math.min(12, Math.max(9, d.r / 3.2)))
+      .attr('font-weight', 560)
       .attr('pointer-events', 'none')
+      .style('paint-order', 'stroke')
+      .attr('stroke', 'rgba(0,0,0,0.45)')
+      .attr('stroke-width', 2.5)
       .merge(labels as any)
-      .attr('x', d => d.x + 4)
-      .attr('y', d => d.y + 4)
-      .text(d => d.r > 28 ? d.data.name : '');
+      .attr('x', d => d.x + 8)
+      .attr('y', d => d.y + 8)
+      .text(d => (d.r > 30 ? d.data.name : ''));
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.5, 4])
@@ -148,32 +153,29 @@ export default function SizeView({ items, onNavigate, onScanFolderSizes }: Props
 
   if (!prepared.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-[11px] text-gray-500 gap-2 px-4 text-center">
-        <span>No folder sizes available yet.</span>
+      <div className="bndz-sizemap-empty">
+        <span className="bndz-sizemap-empty-title">No folder sizes available yet</span>
         {onScanFolderSizes && (
-          <button
-            type="button"
-            onClick={onScanFolderSizes}
-            className="mt-1 px-3 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] text-white"
-          >
+          <button type="button" onClick={onScanFolderSizes} className="bndz-sizemap-scan-btn">
             Scan folder sizes
           </button>
         )}
-        <span className="text-[10px] text-gray-600">Or wait for automatic size sync on navigation.</span>
+        <span className="bndz-sizemap-empty-hint">Or wait for automatic size sync on navigation.</span>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="relative w-full h-full min-h-[280px] bg-[#1e1e1e] border border-[#3a3a3a]">
-      <div className="absolute top-2 right-2 z-10 flex gap-1">
-        <button type="button" onClick={resetZoom} className="p-1 bg-[#333] hover:bg-[#444] rounded text-gray-400" title="Reset zoom">
+    <div ref={containerRef} className="bndz-sizemap bndz-sizemap--bubbles">
+      <div className="bndz-sizemap-toolbar">
+        <button type="button" onClick={resetZoom} className="bndz-sizemap-tool-btn" title="Reset zoom">
           <Icons8Icon id="reset_ui" size={12} />
         </button>
       </div>
       {hover && (
-        <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-[#252525]/95 border border-[#454545] text-[10px] text-gray-200 max-w-[60%] truncate">
-          {hover.name} — {formatBytes(hover.size || 0)}
+        <div className="bndz-sizemap-hoverchip">
+          <span className="bndz-sizemap-hoverchip-name">{hover.name}</span>
+          <span className="bndz-sizemap-hoverchip-size">{formatBytes(hover.size || 0)}</span>
         </div>
       )}
       <svg ref={svgRef} width={dims.w} height={dims.h} className="block" />

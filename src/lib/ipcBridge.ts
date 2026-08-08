@@ -7,6 +7,17 @@ import { nativeCall, dedupeInFlight, registerIpcPushHandler } from './ipcCore';
 import { normalizePanePath } from './pathUtils';
 import { EMPTY_LICENSE_STATUS, PENDING_LICENSE_STATUS, type LicenseStatus } from './licenseTypes';
 import { entityHasTag } from './tagUtils';
+import { formatPathsForClipboard } from './clipboardPathFormat';
+import { hydrateShellGlyphMap } from './nativeIconService';
+import { dispatchDirAppend } from './dirListingStream';
+
+function clipboardPathConfigFromDom(): { copyPathsToTheClipboardWithATrailingSlash: boolean } {
+  if (typeof document === 'undefined') return { copyPathsToTheClipboardWithATrailingSlash: false };
+  return {
+    copyPathsToTheClipboardWithATrailingSlash:
+      document.documentElement.dataset.bndzcopypathstotheclipboardwithatrailingslash === 'true',
+  };
+}
 
 export type TagMetaBatchItem = {
   path: string;
@@ -124,6 +135,8 @@ export const IPC = {
 
   _listeners: [] as Array<(events: any[]) => void>,
   _initialized: false as boolean,
+  _hostReady: false as boolean,
+  _hostReadyPromise: null as Promise<boolean> | null,
   _progressListeners: [] as Array<(progress: any) => void>,
   _conflictListeners: [] as Array<(conflict: any) => void>,
   _elevationListeners: [] as Array<(payload: { title?: string; message: string; context?: string }) => void>,
@@ -1067,9 +1080,16 @@ export const IPC = {
     return Promise.resolve({ ok: false, error: 'Native only' });
   },
 
-  startDrag(paths: string | string[]) {
+  startDrag(paths: string | string[], opts?: { extended?: boolean }) {
     if (this.isNative) {
-      (window as any).chrome.webview.postMessage({ type: 'START_DRAG', payload: { paths } });
+      (window as any).chrome.webview.postMessage({
+        type: 'START_DRAG',
+        payload: {
+          paths,
+          // Settings → Extended compatibility for clipboard and drag and drop
+          extended: !!opts?.extended,
+        },
+      });
     }
   },
 
@@ -1304,18 +1324,29 @@ export const IPC = {
     workingDir?: string,
     shell?: { useCustom?: boolean; interpreter?: string; args?: string },
   ) {
+    const resolvedPath = action === 'copyPath'
+      ? (() => {
+          const text = formatPathsForClipboard(clipboardPathConfigFromDom(), path);
+          return text.includes('\n') ? text.split('\n') : text;
+        })()
+      : path;
+
     if (this.isNative) {
       (window as any).chrome.webview.postMessage({
         type: 'SHELL_EXECUTE',
-        payload: { action, path, workingDir, ...(shell ? { shell } : {}) },
+        payload: { action, path: resolvedPath, workingDir, ...(shell ? { shell } : {}) },
       });
     } else {
       if (action === 'copyPath') {
-        const text = Array.isArray(path) ? path.join('\n') : path;
-        navigator.clipboard.writeText(text).catch(err => {
-          window.dispatchEvent(new CustomEvent('bndz-native-alert', {
-            detail: { title: 'Clipboard', message: `Clipboard failed: ${err.message}` },
-          }));
+        const text = Array.isArray(resolvedPath) ? resolvedPath.join('\n') : String(resolvedPath);
+        void import('./clipboardSafe').then(({ writeClipboardText }) => {
+          writeClipboardText(text).then(ok => {
+            if (!ok) {
+              window.dispatchEvent(new CustomEvent('bndz-native-alert', {
+                detail: { title: 'Clipboard', message: 'Clipboard failed' },
+              }));
+            }
+          });
         });
       }
     }
@@ -1504,10 +1535,44 @@ export const IPC = {
       .catch(() => false);
   },
 
-  getNetworkLocations(): Promise<any[]> {
+  /** Poll until backend-host answers (FilesMerge cold start race). */
+  async waitForHostReady(budgetMs = 8000): Promise<boolean> {
+    if (!this.isNative) return false;
+    if (this._hostReady === true) return true;
+    if (this._hostReadyPromise) return this._hostReadyPromise;
+
+    const started = Date.now();
+    this._hostReadyPromise = (async () => {
+      while (Date.now() - started < budgetMs) {
+        if (await this.ipcPing()) {
+          this._hostReady = true;
+          return true;
+        }
+        await new Promise(r => setTimeout(r, 120));
+      }
+      this._hostReady = false;
+      return false;
+    })().finally(() => {
+      this._hostReadyPromise = null;
+    });
+    return this._hostReadyPromise;
+  },
+
+  getNetworkLocations(opts?: {
+    assumeMappedReady?: boolean;
+    cacheServers?: boolean;
+  }): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_network`;
-      return _nativeCall<any[]>('GET_NETWORK_LOCATIONS', 'NETWORK_LOCATIONS_RESULT', id).catch(() => []);
+      return _nativeCall<any[]>(
+        'GET_NETWORK_LOCATIONS',
+        'NETWORK_LOCATIONS_RESULT',
+        id,
+        {
+          assumeMappedReady: !!opts?.assumeMappedReady,
+          cacheServers: !!opts?.cacheServers,
+        },
+      ).catch(() => []);
     }
     return Promise.resolve([]);
   },
@@ -1548,7 +1613,28 @@ export const IPC = {
     });
   },
 
-  checkForUpdates(manifestUrl?: string): Promise<{
+  checkForLanguageUpdates(manifestUrl?: string): Promise<{
+    updates: Array<{ id: string; installedVersion: string; latestVersion: string; url?: string | null }>;
+    error?: string | null;
+    languagesRoot?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_langUpdates`;
+      return _nativeCall<{
+        updates: Array<{ id: string; installedVersion: string; latestVersion: string; url?: string | null }>;
+        error?: string | null;
+        languagesRoot?: string;
+      }>('CHECK_LANGUAGE_UPDATES', 'CHECK_LANGUAGE_UPDATES_RESULT', id, {
+        manifestUrl: manifestUrl || '',
+      }, 20000).catch(err => ({
+        updates: [],
+        error: String(err?.message || err),
+      }));
+    }
+    return Promise.resolve({ updates: [], error: 'Language updates require native host.' });
+  },
+
+  checkForUpdates(manifestUrl?: string, includeBetaVersions = false): Promise<{
     currentVersion: string;
     latestVersion?: string | null;
     updateAvailable: boolean;
@@ -1565,7 +1651,10 @@ export const IPC = {
         releaseUrl?: string | null;
         releaseNotes?: string | null;
         error?: string | null;
-      }>('CHECK_FOR_UPDATES', 'CHECK_FOR_UPDATES_RESULT', id, { manifestUrl: manifestUrl || '' }, 20000)
+      }>('CHECK_FOR_UPDATES', 'CHECK_FOR_UPDATES_RESULT', id, {
+        manifestUrl: manifestUrl || '',
+        includeBetaVersions: !!includeBetaVersions,
+      }, 20000)
         .catch(err => ({
           currentVersion: '1.0.0',
           updateAvailable: false,
@@ -1573,6 +1662,15 @@ export const IPC = {
         }));
     }
     return Promise.resolve({ currentVersion: '1.0.0', updateAvailable: false, error: 'Updates require native host.' });
+  },
+
+  /** Settings → Resolve cache path from current folder — push browse context to disk cache. */
+  setMediaCacheBrowseFolder(folder: string | null | undefined): void {
+    if (!this.isNative) return;
+    (window as any).chrome.webview.postMessage({
+      type: 'SET_MEDIA_CACHE_BROWSE_FOLDER',
+      payload: { folder: folder || '' },
+    });
   },
 
   getIndexedEntry(panePath: string): Promise<Record<string, unknown> | null> {
@@ -1813,10 +1911,19 @@ export const IPC = {
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
   },
 
-  setInContextMenu(enable: boolean): Promise<ShellIntegrationResult> {
+  setInContextMenu(enable: boolean, allUsers = false): Promise<ShellIntegrationResult> {
     if (this.isNative) {
       const id = `${Date.now()}_setContextMenu`;
-      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setContextMenu', enable }, 60000)
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setContextMenu', enable, allUsers }, 60000)
+        .then(r => r ?? { success: false, message: 'No response from shell integration.' });
+    }
+    return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
+  },
+
+  setIconStudioShellMenu(enable: boolean): Promise<ShellIntegrationResult> {
+    if (this.isNative) {
+      const id = `${Date.now()}_setIconStudioShell`;
+      return _nativeCall<ShellIntegrationResult>('SHELL_INTEGRATION', 'SHELL_INTEGRATION_RESULT', id, { action: 'setIconStudioShell', enable }, 60000)
         .then(r => r ?? { success: false, message: 'No response from shell integration.' });
     }
     return Promise.resolve({ success: false, message: 'Shell integration requires the native host.' });
@@ -1964,18 +2071,69 @@ export const IPC = {
     if (this.isNative) {
       const norm = normalizePanePath(path);
       const isMesh = norm === '/mesh' || norm.startsWith('/mesh/');
-      const timeoutMs = isMesh ? 90000 : 60000;
-      return dedupeInFlight(`dir:${norm}`, () =>
-        _nativeCall<any>('GET_DIR_CONTENTS', 'DIR_CONTENTS_RESULT', '', { path: norm }, timeoutMs).then(payload => {
-          if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      const timeoutMs = isMesh ? 90000 : 45000;
+      return dedupeInFlight(`dir:${norm}`, async () => {
+        // Cold start: wait for named-pipe host before the first listing races ConnectAsync failures.
+        await this.waitForHostReady(8000);
+        const payload = await _nativeCall<any>('GET_DIR_CONTENTS', 'DIR_CONTENTS_RESULT', '', { path: norm }, timeoutMs);
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
             const err = (payload as { error?: string }).error;
             if (err) throw new Error(err);
+            const glyphs = (payload as { glyphs?: Record<string, string> }).glyphs;
+            if (glyphs && typeof glyphs === 'object') hydrateShellGlyphMap(glyphs);
             const items = (payload as { items?: unknown[] }).items;
-            if (Array.isArray(items)) return items;
+            const list = Array.isArray(items) ? items : [];
+            const partial = !!(payload as { partial?: boolean }).partial;
+            if (partial && list.length > 0) {
+              const resumePath = String((payload as { path?: string }).path || norm);
+              const runMore = (attempt: number) => {
+                void _nativeCall<any>(
+                  'GET_DIR_CONTENTS_MORE',
+                  'DIR_CONTENTS_RESULT',
+                  '',
+                  { path: resumePath },
+                  timeoutMs,
+                )
+                  .then(more => {
+                    if (!more || typeof more !== 'object') {
+                      if (attempt < 1) { runMore(attempt + 1); return; }
+                      window.dispatchEvent(new CustomEvent('bndz-dir-more-failed', {
+                        detail: { path: resumePath, error: 'Empty MORE response' },
+                      }));
+                      return;
+                    }
+                    if ((more as { error?: string }).error) {
+                      if (attempt < 1) { runMore(attempt + 1); return; }
+                      window.dispatchEvent(new CustomEvent('bndz-dir-more-failed', {
+                        detail: { path: resumePath, error: String((more as { error?: string }).error) },
+                      }));
+                      return;
+                    }
+                    const moreGlyphs = (more as { glyphs?: Record<string, string> }).glyphs;
+                    if (moreGlyphs && typeof moreGlyphs === 'object') hydrateShellGlyphMap(moreGlyphs);
+                    const moreItems = Array.isArray((more as { items?: unknown[] }).items)
+                      ? (more as { items: unknown[] }).items
+                      : Array.isArray(more)
+                        ? more
+                        : [];
+                    dispatchDirAppend(resumePath, moreItems as any[]);
+                  })
+                  .catch((err: unknown) => {
+                    if (attempt < 1) { runMore(attempt + 1); return; }
+                    window.dispatchEvent(new CustomEvent('bndz-dir-more-failed', {
+                      detail: {
+                        path: resumePath,
+                        error: err instanceof Error ? err.message : String(err ?? 'MORE failed'),
+                      },
+                    }));
+                  });
+              };
+              runMore(0);
+            }
+            return list;
           }
           return Array.isArray(payload) ? payload : [];
-        }),
-      );
+      });
     }
     return Promise.reject(new Error('Native host required'));
   },
@@ -1987,7 +2145,7 @@ export const IPC = {
     rootPath = '',
     useEverything = true,
     searchContent = false,
-    opts?: { booleanMode?: boolean; rootPaths?: string[]; preferBndzIndex?: boolean },
+    opts?: { booleanMode?: boolean; rootPaths?: string[]; preferBndzIndex?: boolean; matchCase?: boolean },
   ): Promise<{ items: any[]; engine?: string }> {
     if (this.isNative) {
       const id = `${Date.now()}_globalSearch`;
@@ -2005,6 +2163,7 @@ export const IPC = {
           booleanMode: !!opts?.booleanMode,
           rootPaths: opts?.rootPaths,
           preferBndzIndex: opts?.preferBndzIndex !== false,
+          matchCase: !!opts?.matchCase,
         },
         45000,
       )
@@ -3340,7 +3499,7 @@ export const IPC = {
   jobTicketListOverdue(folderPaths: string[]): Promise<{ ok: boolean; overdueMap?: Record<string, { folderPath: string; count: number; earliestDueUtc: string; title: string }>; error?: string }> {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_jtOverdue`;
-    return _nativeCall<any>('JOB_TICKET_LIST', 'JOB_TICKET_LIST_RESULT', id, { folderPaths }, 15000);
+    return _nativeCall<any>('JOB_TICKET_LIST_OVERDUE', 'JOB_TICKET_LIST_OVERDUE_RESULT', id, { folderPaths }, 15000);
   },
 
   jobTicketSave(ticket: { id?: string; folderPath: string; title: string; dueUtc: string; status?: string; notes?: string }): Promise<{ ok: boolean; ticket?: any; error?: string }> {

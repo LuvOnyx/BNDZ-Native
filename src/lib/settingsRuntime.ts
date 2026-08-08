@@ -11,9 +11,12 @@ import {
   buildSearchRuntime,
   buildShellRuntime,
   buildUiRuntime,
-  WIRED_KEY_COUNT,
+  SETTINGS_DEFAULT_KEY_COUNT,
 } from './settingsWiring';
+import { WIRED_SETTING_COUNT, DEFERRED_SETTING_COUNT } from './settingsRegistry';
+import { applySettingsBehavior } from './settingsBehavior';
 import type { SortColumnId } from './listColumns';
+import { isNetworkPanePath, isNonFsShellIconPath } from './shellPaths';
 
 export interface PaneSortState {
   sortColumn?: SortColumnId;
@@ -53,6 +56,9 @@ export interface SettingsRuntimeContext {
     sortByBase: boolean;
     sizeDescDefault: boolean;
     dateDescDefault: boolean;
+    treeLike: boolean;
+    keepInViewAfterResort: boolean;
+    scrollToTopAfterResort: boolean;
   };
   tree: {
     showHidden: boolean;
@@ -73,10 +79,13 @@ export interface SettingsRuntimeContext {
     autoplay: boolean;
     preferBlob: boolean;
     zoomToFit: boolean;
-    displayTabsAsSpaces: boolean;
+    /** 0 = keep real tabs; otherwise space count for expansion. */
+    displayTabsAsSpaces: number;
     utf8AutoDetection: boolean;
     transparencyBg: boolean;
     audioVideoEnabled: boolean;
+    audioVideoMode: string;
+    loopMedia: boolean;
   };
   thumbnail: {
     enabled: boolean;
@@ -118,6 +127,8 @@ export interface SettingsRuntimeContext {
   ui: ReturnType<typeof buildUiRuntime>;
   keyboard: ReturnType<typeof buildKeyboardMap>;
   wiredKeyCount: number;
+  deferredKeyCount: number;
+  defaultKeyCount: number;
 }
 
 export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext {
@@ -133,8 +144,8 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       useGenericIcons: !!config.useGenericIconsForSuperFastBrowsing,
       applyColorFilters: config.applyColorFiltersToTheList !== false && config.enableColorFilters !== false,
     showHiddenInList: !!config.showHiddenSystemFoldersInTree,
-    zebraRows: !!config.selectConfig5 && config.selectConfig5 !== 'Solid Color' && config.selectConfig5 !== false,
-    zebraIntensity: String(config.selectConfig5 || '').includes('(2)') ? 2 : 1,
+    zebraRows: !!config.listZebraStyle && config.listZebraStyle !== 'Solid Color' && config.listZebraStyle !== false,
+    zebraIntensity: String(config.listZebraStyle || '').includes('(2)') ? 2 : 1,
     selectionChrome: (config.listSelectionChrome === 'nameOnly' || config.listSelectionChrome === 'throughSecondColumn')
       ? config.listSelectionChrome
       : 'fullRow',
@@ -153,6 +164,9 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       sortByBase: !!config.sortFilenamesByBase,
       sizeDescDefault: !!config.sortSizeColumnsDescendingByDefault,
       dateDescDefault: !!config.sortDateColumnsDescendingByDefault,
+      treeLike: !!config.defaultToTreeLikeSortOrder,
+      keepInViewAfterResort: !!config.keepCurrentItemInViewAfterResorting,
+      scrollToTopAfterResort: !!config.scrollToTopAfterResorting,
     },
     tree: {
       showHidden: !!config.showHiddenSystemFoldersInTree,
@@ -168,15 +182,27 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
       asThumbnail: config.previewAsThumbnail !== false,
       animDuration: config.richTransitionAnimations !== false ? 0.15 : 0,
       delayMs: typeof config.previewDelay === 'number' ? config.previewDelay : 250,
-      highQuality: config.highQualityImageResampling !== false,
+      highQuality: !!config.highQualityImageResampling,
       nativeHandling: config.useNativeHandlingInThePreviewPane !== false,
-      autoplay: config.autoplay === true || config.audioVideoPreview === 'Play once' || config.audioVideoPreview === true,
+      autoplay: config.autoplay === true
+        || config.audioVideoPreview === 'Play once'
+        || config.audioVideoPreview === 'Loop'
+        || config.audioVideoPreview === true,
       preferBlob: config.useNativeHandlingInThePreviewPane === false,
-      zoomToFit: config.zoomToFit !== false,
-      displayTabsAsSpaces: config.displayTabsAsSpaces === true,
+      zoomToFit: !!config.zoomToFit,
+      displayTabsAsSpaces: (() => {
+        const v = config.displayTabsAsSpaces;
+        if (v === true) return 4;
+        if (v === false || v == null || v === 'Off' || v === 0 || v === '0') return 0;
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0 ? Math.min(16, Math.max(1, Math.round(n))) : 0;
+      })(),
       utf8AutoDetection: config.utf8AutoDetection !== false,
-      transparencyBg: config.transparencyBackground !== false,
+      transparencyBg: config.transparencyBackground !== false
+        && String(config.transparencyBackground || 'Grid').toLowerCase() !== 'none',
       audioVideoEnabled: config.audioVideoPreview !== 'Disabled',
+      audioVideoMode: String(config.audioVideoPreview || 'Play once'),
+      loopMedia: config.audioVideoPreview === 'Loop' || config.loop === true,
     },
     thumbnail: {
       enabled: config.enableNativeThumbnails !== false,
@@ -190,12 +216,13 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
     operations: {
       autoRefresh: config.autoRefresh !== false,
       fsNotifications: config.respondToFileSystemNotifications !== false,
-      refreshDuringOps: !!config.refreshDuringFileOperations,
+      refreshDuringOps: !!config.refreshDuringFileOperations
+        || !!config.refreshFolderContentsDuringFileOperations,
       bypassRecycleBin: !!config.bypassRecycleBin,
     },
     tabs: {
       shadeInactive: config.shadeInactivePane !== false,
-      flexibleWidth: config.flexibleTabWidth !== false,
+      flexibleWidth: config.flexibleTabWidth === true,
       showNewTab: config.showNewTabButton !== false,
       showTabList: !!config.showTabListButton,
       showCloseButtons: config.showXCloseButtonsOnTabs || 'Active tab',
@@ -217,7 +244,9 @@ export function buildSettingsRuntime(config: AppConfig): SettingsRuntimeContext 
     shell: buildShellRuntime(config),
     ui: buildUiRuntime(config),
     keyboard: buildKeyboardMap(config),
-    wiredKeyCount: WIRED_KEY_COUNT,
+    wiredKeyCount: WIRED_SETTING_COUNT,
+    deferredKeyCount: DEFERRED_SETTING_COUNT,
+    defaultKeyCount: SETTINGS_DEFAULT_KEY_COUNT,
   };
 }
 
@@ -295,7 +324,7 @@ export function compareEntities(
     if (tagsA !== tagsB) return tagsB - tagsA;
   }
 
-  if (rt.sort.foldersFirst || config.sortFoldersApart) {
+  if (rt.sort.foldersFirst || config.sortFoldersApart || config.defaultToTreeLikeSortOrder) {
     const dirA = a.type === 'directory' ? -1 : 1;
     const dirB = b.type === 'directory' ? -1 : 1;
     if (dirA !== dirB) return dirA - dirB;
@@ -484,16 +513,30 @@ export function wrapListIndex(current: number, delta: number, length: number, co
 }
 
 /** Whether list/tree should fetch native shell icons (independent of thumbnail preview settings) */
-export function shouldFetchNativeShellIcon(_entity: any, config: AppConfig): boolean {
+export function shouldFetchNativeShellIcon(_entity: any, config: AppConfig, pathHint?: string): boolean {
   if (config.showCachedIconsOnly) return false;
-  if (config.useGenericIconsForSuperFastBrowsing) return false;
+  const probe = pathHint || String((_entity as any)?.path || '');
+  // Mesh / VF / cloud / smart views — still "fetch" so FE commits __folder__ / type glyphs
+  // (requestNativeIcon short-circuits; never hits Windows shell).
+  if (probe && isNonFsShellIconPath(probe)) return true;
+  if (config.useGenericIconsForSuperFastBrowsing) {
+    // Generic-only everywhere, unless limited to network locations.
+    if (!config.butOnlyInNetworkLocations) return false;
+    if (probe && isNetworkPanePath(probe)) return false;
+  }
   return true;
 }
 
 /** Whether to fetch a high-res thumbnail instead of / in addition to shell icon */
-export function shouldFetchNativeThumbnail(entity: any, config: AppConfig): boolean {
+export function shouldFetchNativeThumbnail(entity: any, config: AppConfig, pathHint?: string): boolean {
   const rt = buildSettingsRuntime(config);
-  if (!rt.thumbnail.enabled || rt.thumbnail.genericFast) return false;
+  if (!rt.thumbnail.enabled) return false;
+  const probe = pathHint || String(entity?.path || '');
+  if (probe && isNonFsShellIconPath(probe)) return false;
+  if (rt.thumbnail.genericFast) {
+    if (!config.butOnlyInNetworkLocations) return false;
+    if (probe && isNetworkPanePath(probe)) return false;
+  }
   if (entity.type === 'directory') return rt.thumbnail.showFolders === true;
   const ext = entityExtension(entity);
   // Images, icons, video frames, audio artwork, and archive shell thumbs.
@@ -551,7 +594,7 @@ export function evaluateColorFilter(
         config.drawBackgroundColorsInDistinctiveShapes ? 'bndz-filter-bg-shape' : '',
         config.drawBackgroundColorsAsWideAsTheColumn ? 'bndz-filter-bg-wide' : '',
       ].filter(Boolean).join(' ') : '';
-      const nameOnly = config?.applyTextColorsToTheNameColumnOnly;
+      const nameOnly = !!config?.applyTextColorsToTheNameColumnOnly;
       const folderIcon = (row as { folderIcon?: string }).folderIcon;
       return {
         className: [parsed.className, drawClasses].filter(Boolean).join(' ') || undefined,
@@ -896,32 +939,32 @@ function readSelectString(config: AppConfig, key: string, fallback: string): str
 }
 
 function applyListStyleDataset(config: AppConfig, root: HTMLElement): void {
-  const borderRaw = readSelectString(config, 'selectConfig6', 'No border');
+  const borderRaw = readSelectString(config, 'listSelectionBorderStyle', 'No border');
   root.dataset.listSelectionBorder = borderRaw === 'Solid border'
     ? 'solid'
     : borderRaw === 'Dashed border'
       ? 'dashed'
       : 'none';
 
-  const shapeRaw = readSelectString(config, 'selectConfig7', 'BNDZ Style (Rounded)');
+  const shapeRaw = readSelectString(config, 'listSelectionChromeStyle', 'BNDZ Style (Rounded)');
   root.dataset.listSelectionShape = shapeRaw === 'Windows Native'
     ? 'native'
     : shapeRaw === 'Flat'
       ? 'flat'
       : 'rounded';
 
-  const focusRaw = readSelectString(config, 'selectConfig8', 'Solid');
+  const focusRaw = readSelectString(config, 'listSelectionFillStyle', 'Solid');
   root.dataset.listSelectionFocus = focusRaw === 'Gradient'
     ? 'gradient'
     : focusRaw === 'Transparent'
       ? 'transparent'
       : 'solid';
 
-  const traceWidth = parseInt(readSelectString(config, 'selectConfig9', '2'), 10) || 2;
+  const traceWidth = parseInt(readSelectString(config, 'listHoverFadeSteps', '2'), 10) || 2;
   root.style.setProperty('--tree-trace-width', `${traceWidth}px`);
 
-  const lineSpacing = parseInt(readSelectString(config, 'selectConfig14', '2'), 10) || 2;
-  const overallSpacing = parseInt(readSelectString(config, 'selectConfig15', '6'), 10) || 6;
+  const lineSpacing = parseInt(readSelectString(config, 'listGridLineWidth', '2'), 10) || 2;
+  const overallSpacing = parseInt(readSelectString(config, 'listSortArrowSize', '6'), 10) || 6;
   root.style.setProperty('--bndz-list-line-spacing', `${lineSpacing}px`);
   root.style.setProperty('--bndz-list-overall-spacing', `${overallSpacing}px`);
 
@@ -936,7 +979,7 @@ function applyListStyleDataset(config: AppConfig, root: HTMLElement): void {
     : 'fullRow';
   root.dataset.listSelChrome = selChrome;
 
-  const zebraIntensity = String(config.selectConfig5 || '').includes('(2)') ? '2' : '1';
+  const zebraIntensity = String(config.listZebraStyle || '').includes('(2)') ? '2' : '1';
   root.dataset.zebraIntensity = zebraIntensity;
   // Visible zebra even when the color pack is off (avoid near-invisible #1e1e1e on dark lists).
   if (!config.applyColors) {
@@ -967,9 +1010,9 @@ function applyListStyleDataset(config: AppConfig, root: HTMLElement): void {
     }
   }
 
-  const darkness = parseInt(readSelectString(config, 'selectConfig11', '20'), 10);
-  const contrast = parseInt(readSelectString(config, 'selectConfig12', '15'), 10);
-  const tint = parseInt(readSelectString(config, 'selectConfig13', '0'), 10);
+  const darkness = parseInt(readSelectString(config, 'listSelectionOpacity', '20'), 10);
+  const contrast = parseInt(readSelectString(config, 'listHoverOpacity', '15'), 10);
+  const tint = parseInt(readSelectString(config, 'listInactiveOpacity', '0'), 10);
   root.dataset.darknessLevel = String(Number.isFinite(darkness) ? darkness : 20);
   root.dataset.textContrast = String(Number.isFinite(contrast) ? contrast : 15);
   root.dataset.colorTint = String(Number.isFinite(tint) ? tint : 0);
@@ -985,6 +1028,7 @@ export function applySettingsRuntime(config: AppConfig): void {
   const rt = buildSettingsRuntime(config);
 
   syncAllSettingsToDocument(config);
+  applySettingsBehavior(config);
 
   root.style.setProperty('--bndz-font-size', `${rt.ui.fontSize}px`);
   root.style.setProperty('--bndz-font-family', rt.ui.fontFamily);
@@ -1008,6 +1052,7 @@ export function applySettingsRuntime(config: AppConfig): void {
   root.dataset.hoverSelect = String(rt.mouse.hoverSelect);
   root.dataset.highlightHovered = String(rt.mouse.highlightHovered);
   root.dataset.globalSearchPrefix = String(rt.search.globalPrefix);
+  root.dataset.listFontAa = config.listFontLcdAa === false ? 'greyscale' : 'lcd';
   root.classList.toggle('bndz-compact', rt.ui.compactMode);
   root.classList.toggle('bndz-adaptive-colors', rt.ui.adaptiveColors);
   root.classList.toggle('bndz-vertical-grid', rt.list.verticalGridLines);

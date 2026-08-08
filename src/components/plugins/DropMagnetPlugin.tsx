@@ -3,6 +3,7 @@ import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -260,7 +261,7 @@ export default function DropMagnetPlugin({
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-gray-500 truncate mt-0.5">{m.targetPath}</p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">{formatUiPath(m.targetPath)}</p>
                   <p className="text-[10px] text-sky-400/80 font-mono mt-1">{m.renamePattern}</p>
                   {m.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">

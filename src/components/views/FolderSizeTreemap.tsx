@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
 
 type Item = { name: string; type?: string; size?: number; path?: string };
@@ -13,6 +14,7 @@ type Rect = { x: number; y: number; w: number; h: number; item: Item; size: numb
 
 const MAX_TILES = 24;
 const MIN_FILE_BYTES = 512 * 1024;
+const GAP = 0.006; // fractional gap between tiles
 
 /** Squarified treemap — folders-first, top-N by size, sqrt weighting so one huge file cannot eat the view. */
 export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes }: Props) {
@@ -33,51 +35,51 @@ export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes
 
   if (!prepared.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-[11px] text-gray-500 gap-2 px-4 text-center">
-        <span>No folder sizes available yet.</span>
+      <div className="bndz-sizemap-empty">
+        <span className="bndz-sizemap-empty-title">No folder sizes available yet</span>
         {onScanFolderSizes && (
-          <button
-            type="button"
-            onClick={onScanFolderSizes}
-            className="mt-1 px-3 py-1.5 text-[11px] bg-[#094771] hover:bg-[#0a5a8c] text-white"
-          >
+          <button type="button" onClick={onScanFolderSizes} className="bndz-sizemap-scan-btn">
             Scan folder sizes
           </button>
         )}
-        <span className="text-[10px] text-gray-600">Or wait for automatic size sync on navigation.</span>
+        <span className="bndz-sizemap-empty-hint">Or wait for automatic size sync on navigation.</span>
       </div>
     );
   }
 
   if (!rects.length) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[200px] text-[11px] text-gray-500">
-        Nothing large enough to map in this folder.
+      <div className="bndz-sizemap-empty">
+        <span className="bndz-sizemap-empty-title">Nothing large enough to map in this folder</span>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-full min-h-[280px] bg-[#1e1e1e] border border-[#3a3a3a]">
+    <div className="bndz-sizemap bndz-sizemap--treemap">
       {rects.map((r, i) => {
         const isDir = r.item.type === 'directory';
         const isOther = r.item.name.endsWith(' more…');
-        const hue = isOther ? 220 : isDir ? 38 : 200;
-        const sat = isDir ? 50 : 55;
-        const lit = 26 + Math.min(24, Math.log10(r.displaySize + 1) * 3.5);
+        const hue = isOther ? 215 : isDir ? 208 : 262;
+        const sat = isDir ? 58 : 42;
+        const lit = 24 + Math.min(22, Math.log10(r.displaySize + 1) * 3.2);
+        const showLabel = r.w > 0.07 && r.h > 0.055;
+        const showSize = r.w > 0.09 && r.h > 0.08;
+        const insetX = Math.min(GAP, r.w * 0.12);
+        const insetY = Math.min(GAP, r.h * 0.12);
         return (
           <button
             key={`${r.item.name}-${i}`}
             type="button"
-            className="absolute overflow-hidden border border-[#1a1a1a] text-left p-1 hover:brightness-125 transition-[filter] focus:outline-none focus:ring-1 focus:ring-[#094771]"
+            className={`bndz-sizemap-tile${isDir ? ' bndz-sizemap-tile--dir' : ''}${isOther ? ' bndz-sizemap-tile--other' : ''}`}
             style={{
-              left: `${r.x * 100}%`,
-              top: `${r.y * 100}%`,
-              width: `${r.w * 100}%`,
-              height: `${r.h * 100}%`,
-              minWidth: r.w > 0.04 ? undefined : '4%',
-              minHeight: r.h > 0.04 ? undefined : '4%',
-              background: `hsl(${hue} ${sat}% ${lit}%)`,
+              left: `${(r.x + insetX) * 100}%`,
+              top: `${(r.y + insetY) * 100}%`,
+              width: `${Math.max(0, r.w - insetX * 2) * 100}%`,
+              height: `${Math.max(0, r.h - insetY * 2) * 100}%`,
+              ['--bndz-size-hue' as string]: String(hue),
+              ['--bndz-size-sat' as string]: `${sat}%`,
+              ['--bndz-size-lit' as string]: `${lit}%`,
             }}
             title={`${r.item.name} — ${formatSize(r.displaySize)}`}
             onClick={() => {
@@ -85,17 +87,18 @@ export default function FolderSizeTreemap({ items, onNavigate, onScanFolderSizes
             }}
             onDoubleClick={() => {
               if (!isDir && !isOther && r.item.path) {
-                import('../../lib/ipcBridge').then(({ IPC }) => {
-                  IPC.executeContextMenuVerb(toWindowsPath(r.item.path!), 'open');
-                });
+                void IPC.executeContextMenuVerb(toWindowsPath(r.item.path), 'open');
               }
             }}
           >
-            {r.w > 0.06 && r.h > 0.05 && (
-              <>
-                <span className="block text-[10px] text-white/90 font-medium truncate leading-tight">{r.item.name}</span>
-                <span className="block text-[9px] text-white/60">{formatSize(r.displaySize)}</span>
-              </>
+            <span className="bndz-sizemap-tile-sheen" aria-hidden />
+            {showLabel && (
+              <span className="bndz-sizemap-tile-copy">
+                <span className="bndz-sizemap-tile-name">{r.item.name}</span>
+                {showSize && (
+                  <span className="bndz-sizemap-tile-size">{formatSize(r.displaySize)}</span>
+                )}
+              </span>
             )}
           </button>
         );

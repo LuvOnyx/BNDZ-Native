@@ -4,6 +4,7 @@ import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -92,9 +93,10 @@ const SEVERITY_STYLES: Record<string, { dot: string; text: string; bg: string; b
 };
 
 function splitPath(full: string): { leaf: string; parent: string } {
-  const normalized = full.replace(/[/\\]+$/, '');
+  const display = formatUiPath(full) || full;
+  const normalized = display.replace(/[/\\]+$/, '');
   const parts = normalized.split(/[/\\]/);
-  const leaf = parts.pop() || full;
+  const leaf = parts.pop() || display;
   const parent = parts.join('\\');
   return { leaf, parent };
 }
@@ -463,7 +465,7 @@ export default function LibraryHealthPlugin({
                         {p.fixHint && (
                           <div className="text-[10px] text-gray-500 mt-0.5 italic">{p.fixHint}</div>
                         )}
-                        <div className="bndz-mono text-[10px] text-gray-500 truncate mt-0.5" title={p.path}>
+                        <div className="bndz-mono text-[10px] text-gray-500 truncate mt-0.5" title={formatUiPath(p.path)}>
                           {parent && <span>{parent}\</span>}{leaf}
                         </div>
                       </div>
@@ -542,7 +544,7 @@ export default function LibraryHealthPlugin({
                       <div className="min-w-0 flex-1">
                         <div className="text-xs text-white font-medium truncate">{a.title}</div>
                         {a.impact && <div className="text-[10px] text-gray-500 mt-0.5">{a.impact}</div>}
-                        <div className="bndz-mono text-[10px] text-gray-500 truncate mt-0.5">{a.path}</div>
+                        <div className="bndz-mono text-[10px] text-gray-500 truncate mt-0.5">{formatUiPath(a.path)}</div>
                       </div>
                     </div>
                   ))}

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import type { RapidAccessItem } from '../lib/rapidAccessDefaults';
+import { formatUiPath } from '../lib/displayPath';
 
 type Props = {
   open: boolean;
@@ -71,7 +72,7 @@ export default function RapidAccessPopup({ open, items, onClose, onNavigate }: P
                     <Icons8Icon id="folder" size={14} className="shrink-0 opacity-90" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[12px] font-medium truncate">{item.name}</span>
-                      <span className="block text-[10px] text-gray-500 truncate font-mono">{item.path}</span>
+                      <span className="block text-[10px] text-gray-500 truncate font-mono">{formatUiPath(item.path)}</span>
                     </span>
                   </button>
                 </li>

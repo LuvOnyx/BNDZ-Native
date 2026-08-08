@@ -64,41 +64,79 @@
 				<ResourceDictionary Source="ms-appx:///Styles/TextBlockStyles.xaml" />
 				<ResourceDictionary Source="ms-appx:///Styles/ShimmerStyles.xaml" />
 				<ResourceDictionary Source="ms-appx:///Styles/MenuFlyoutSubItemWithImageStyle.xaml" />
+				<ResourceDictionary Source="ms-appx:///Styles/BndzTheme.xaml" />
 				<ResourceDictionary>
 					<ResourceDictionary.ThemeDictionaries>
 						<ResourceDictionary x:Key="Light">
+							<!-- Soft BNDZ bleed into light Files chrome (list/tree engines keep Files). -->
 							<SolidColorBrush x:Key="App.Theme.BackgroundBrush" Color="Transparent" />
-							<SolidColorBrush x:Key="App.Theme.AddressBar.BackgroundBrush" Color="{StaticResource LayerOnMicaBaseAltFillColorDefault}" />
-							<SolidColorBrush x:Key="App.Theme.Toolbar.BackgroundBrush" Color="{StaticResource CardBackgroundFillColorSecondary}" />
-							<SolidColorBrush x:Key="App.Theme.Sidebar.BackgroundBrush" Color="{StaticResource LayerOnMicaBaseAltFillColorDefault}" />
-							<SolidColorBrush x:Key="App.Theme.FileArea.BackgroundBrush" Color="#C0FCFCFC" />
-							<SolidColorBrush x:Key="App.Theme.FileArea.SecondaryBackgroundBrush" Color="{StaticResource CardBackgroundFillColorSecondary}" />
-							<SolidColorBrush x:Key="App.Theme.InfoPane.BackgroundBrush" Color="{StaticResource CardBackgroundFillColorSecondary}" />
+							<SolidColorBrush x:Key="App.Theme.AddressBar.BackgroundBrush" Color="#F0E8EEF4" />
+							<SolidColorBrush x:Key="App.Theme.Toolbar.BackgroundBrush" Color="#E6F2F6FA" />
+							<SolidColorBrush x:Key="App.Theme.Sidebar.BackgroundBrush" Color="#F4EEF2F6" />
+							<SolidColorBrush x:Key="App.Theme.FileArea.BackgroundBrush" Color="#F8FAFC" />
+							<SolidColorBrush x:Key="App.Theme.FileArea.SecondaryBackgroundBrush" Color="#EEF2F6" />
+							<SolidColorBrush x:Key="App.Theme.InfoPane.BackgroundBrush" Color="#F0F4F8" />
+							<SolidColorBrush x:Key="App.Theme.StatusBar.BackgroundBrush" Color="#F0E8EEF4" />
 
-							<SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="{StaticResource SubtleFillColorTransparent}" />
-							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="{StaticResource LayerOnMicaBaseAltFillColorDefault}" />
-							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="{StaticResource SubtleFillColorTertiary}" />
-							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="{StaticResource SubtleFillColorSecondary}" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#E6DCE6F0" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#D0C8D8E8" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#E0D8E4F0" />
 
-							<Color x:Key="App.Theme.FillColorAttention">#0070CB</Color>
+							<SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#55264F78" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#66264F78" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#77264F78" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#142A2D2E" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#222A2D2E" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundSelected" Color="#55264F78" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundSelectedPointerOver" Color="#66264F78" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundSelectedPressed" Color="#77264F78" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundPointerOver" Color="#142A2D2E" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundPressed" Color="#222A2D2E" />
+							<SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#FF007ACC" />
+
+							<Color x:Key="App.Theme.FillColorAttention">#3B82C4</Color>
 							<SolidColorBrush x:Key="App.Theme.FillColorAttentionBrush" Color="{StaticResource App.Theme.FillColorAttention}" />
 							<SolidColorBrush x:Key="App.Theme.CardBackgroundFillColorTertiaryBrush" Color="#FFFFFFFF" />
 						</ResourceDictionary>
 						<ResourceDictionary x:Key="Dark">
+							<!-- Official BNDZ craft on Files chrome + list/tree selection washes. -->
 							<SolidColorBrush x:Key="App.Theme.BackgroundBrush" Color="Transparent" />
-							<SolidColorBrush x:Key="App.Theme.AddressBar.BackgroundBrush" Color="{StaticResource LayerOnMicaBaseAltFillColorDefault}" />
-							<SolidColorBrush x:Key="App.Theme.Toolbar.BackgroundBrush" Color="{StaticResource CardBackgroundFillColorSecondary}" />
-							<SolidColorBrush x:Key="App.Theme.Sidebar.BackgroundBrush" Color="{StaticResource LayerOnMicaBaseAltFillColorDefault}" />
-							<SolidColorBrush x:Key="App.Theme.FileArea.BackgroundBrush" Color="{StaticResource CardBackgroundFillColorDefault}" />
-							<SolidColorBrush x:Key="App.Theme.FileArea.SecondaryBackgroundBrush" Color="{StaticResource CardBackgroundFillColorSecondary}" />
-							<SolidColorBrush x:Key="App.Theme.InfoPane.BackgroundBrush" Color="{StaticResource CardBackgroundFillColorSecondary}" />
+							<SolidColorBrush x:Key="App.Theme.AddressBar.BackgroundBrush" Color="{StaticResource BndzSurface}" />
+							<SolidColorBrush x:Key="App.Theme.Toolbar.BackgroundBrush" Color="{StaticResource BndzSurfaceRaised}" />
+							<SolidColorBrush x:Key="App.Theme.Sidebar.BackgroundBrush" Color="{StaticResource BndzSurface}" />
+							<SolidColorBrush x:Key="App.Theme.FileArea.BackgroundBrush" Color="#FF0C0F14" />
+							<SolidColorBrush x:Key="App.Theme.FileArea.SecondaryBackgroundBrush" Color="{StaticResource BndzSurfaceRaised}" />
+							<SolidColorBrush x:Key="App.Theme.InfoPane.BackgroundBrush" Color="{StaticResource BndzSurfaceRaised}" />
+							<SolidColorBrush x:Key="App.Theme.StatusBar.BackgroundBrush" Color="{StaticResource BndzSurface}" />
 
-							<SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="{StaticResource SubtleFillColorTransparent}" />
-							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="{StaticResource LayerOnMicaBaseAltFillColorDefault}" />
-							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="{StaticResource SubtleFillColorTertiary}" />
-							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="{StaticResource SubtleFillColorSecondary}" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="{StaticResource BndzSurfaceRaised}" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#4024475A" />
+							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#3324475A" />
 
-							<Color x:Key="App.Theme.FillColorAttention">#50C0FF</Color>
+							<!-- Files list engine — BNDZ selection/hover (ListView / details) -->
+							<SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="{StaticResource BndzListSelected}" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="{StaticResource BndzListSelectedHover}" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="{StaticResource BndzListSelectedStrong}" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="{StaticResource BndzListHover}" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="{StaticResource BndzListHoverStrong}" />
+							<SolidColorBrush x:Key="ListViewItemBackgroundSelectedDisabled" Color="#80264F78" />
+
+							<!-- Files list engine — BNDZ selection/hover (Grid / tiles) -->
+							<SolidColorBrush x:Key="GridViewItemBackgroundSelected" Color="{StaticResource BndzListSelected}" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundSelectedPointerOver" Color="{StaticResource BndzListSelectedHover}" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundSelectedPressed" Color="{StaticResource BndzListSelectedStrong}" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundPointerOver" Color="{StaticResource BndzListHover}" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundPressed" Color="{StaticResource BndzListHoverStrong}" />
+							<SolidColorBrush x:Key="GridViewItemBackgroundSelectedDisabled" Color="#80264F78" />
+
+							<!-- Accent bar / focus shared with BNDZ tree indicator -->
+							<SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="{StaticResource BndzListAccentBar}" />
+							<SolidColorBrush x:Key="SystemControlHighlightListAccentLowBrush" Color="{StaticResource BndzListSelected}" />
+							<SolidColorBrush x:Key="SystemControlHighlightListAccentMediumBrush" Color="{StaticResource BndzListSelectedHover}" />
+
+							<Color x:Key="App.Theme.FillColorAttention">#99C9F0</Color>
 							<SolidColorBrush x:Key="App.Theme.FillColorAttentionBrush" Color="{StaticResource App.Theme.FillColorAttention}" />
 							<SolidColorBrush x:Key="App.Theme.CardBackgroundFillColorTertiaryBrush" Color="#12FFFFFF" />
 						</ResourceDictionary>
@@ -110,6 +148,7 @@
 							<SolidColorBrush x:Key="App.Theme.FileArea.BackgroundBrush" Color="Transparent" />
 							<SolidColorBrush x:Key="App.Theme.FileArea.SecondaryBackgroundBrush" Color="Transparent" />
 							<SolidColorBrush x:Key="App.Theme.InfoPane.BackgroundBrush" Color="Transparent" />
+							<SolidColorBrush x:Key="App.Theme.StatusBar.BackgroundBrush" Color="Transparent" />
 
 							<SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="{StaticResource SystemColorWindowColor}" />
 							<SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="{StaticResource SystemColorHighlightColor}" />

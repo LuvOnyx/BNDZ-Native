@@ -10,6 +10,7 @@ import {
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 import { IPC } from '../../lib/ipcBridge';
+import { formatPathLeafName, formatUiPath } from '../../lib/displayPath';
 import { isQueuedIpcResult } from '../../lib/transferIpc';
 import { pushToast } from '../ToastHost';
 import { useAppConfig } from '../../data/configContext';
@@ -312,9 +313,9 @@ export default function ActionLogPlugin() {
                             type="button"
                             onClick={() => navigateToPath(entry.destination)}
                             className="truncate text-[10px] text-slate-500 mt-0.5 hover:text-sky-300 text-left block max-w-full"
-                            title={entry.destination}
+                            title={formatUiPath(entry.destination || '')}
                           >
-                            → {entry.destination}
+                            → {formatUiPath(entry.destination || '')}
                           </button>
                         )}
                         {(entry.sourcePaths?.length || entry.targetPaths?.length) ? (
@@ -325,9 +326,9 @@ export default function ActionLogPlugin() {
                                 type="button"
                                 onClick={() => navigateToPath(p)}
                                 className="text-[9px] text-white/40 hover:text-sky-300 truncate max-w-[140px]"
-                                title={p}
+                                title={formatUiPath(p)}
                               >
-                                {p.split(/[/\\]/).pop()}
+                                {formatPathLeafName(p)}
                               </button>
                             ))}
                           </div>

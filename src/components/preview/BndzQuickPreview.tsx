@@ -19,10 +19,12 @@ import PreviewMetadataStrip, { curatedPreviewFacts } from './PreviewMetadataStri
 import { PreviewHeroIcon } from '../PreviewHeroIcon';
 import { requestMediaResume } from '../../lib/mediaPlaybackBridge';
 import { audioPlaybackSession } from '../../lib/audioPlaybackSession';
+import { useAppConfig } from '../../data/configContext';
 
 const DocxPreviewPanel = lazy(() => import('../DocxPreviewPanel'));
 const AudioWaveformEditor = lazy(() => import('./AudioWaveformEditor'));
 const ImageMicroEditor = lazy(() => import('./ImageMicroEditor'));
+const BndzPhotoStudio = lazy(() => import('./BndzPhotoStudio'));
 
 type QuickItem = {
   entity: FSEntity;
@@ -39,6 +41,7 @@ type Props = {
 };
 
 export default function BndzQuickPreview({ open, items, index, onClose, onIndexChange, onNavigate }: Props) {
+  const { config } = useAppConfig();
   const current = items[index];
   const hasPrev = index > 0;
   const hasNext = index < items.length - 1;
@@ -47,7 +50,35 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const [contentLoading, setContentLoading] = useState(false);
   const [extMeta, setExtMeta] = useState<Record<string, string> | null>(null);
   const [editMode, setEditMode] = useState(false);
+  /** Image Edit: full Photo Studio (default) vs lightweight micro adjust. */
+  const [imageEditMode, setImageEditMode] = useState<'studio' | 'quick'>('studio');
   const mediaPlayerRef = useRef<MediaPreviewPlayerHandle>(null);
+  const [panelOffset, setPanelOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  // Settings → Remember relative position (blow-up / Quick Look panel).
+  useEffect(() => {
+    if (!open || !config.rememberRelativePosition) {
+      setPanelOffset({ x: 0, y: 0 });
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem('bndz.quickPreview.offset');
+      if (raw) {
+        const parsed = JSON.parse(raw) as { x?: number; y?: number };
+        setPanelOffset({
+          x: Number(parsed.x) || 0,
+          y: Number(parsed.y) || 0,
+        });
+      }
+    } catch { /* ignore */ }
+  }, [open, config.rememberRelativePosition]);
+
+  const persistOffset = useCallback((next: { x: number; y: number }) => {
+    setPanelOffset(next);
+    if (!config.rememberRelativePosition) return;
+    try { sessionStorage.setItem('bndz.quickPreview.offset', JSON.stringify(next)); } catch { /* ignore */ }
+  }, [config.rememberRelativePosition]);
 
   useEffect(() => {
     if (!open || !current?.path || !IPC.isNative) {
@@ -102,6 +133,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
 
   useEffect(() => {
     setEditMode(false);
+    setImageEditMode('studio');
   }, [current?.path, open]);
 
   const handleClose = useCallback(() => {
@@ -145,12 +177,14 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
         if (editMode) setEditMode(false);
         else handleClose();
       } else if (e.code === 'Space' && !e.repeat && !mediaFocused) {
+        // Space is Hand tool in Photo Studio / audio edit — don't dismiss preview.
+        if (editMode) return;
         e.preventDefault();
         handleClose();
-      } else if (e.code === 'ArrowLeft' && hasPrev) {
+      } else if (e.code === 'ArrowLeft' && hasPrev && !editMode) {
         e.preventDefault();
         onIndexChange(index - 1);
-      } else if (e.code === 'ArrowRight' && hasNext) {
+      } else if (e.code === 'ArrowRight' && hasNext && !editMode) {
         e.preventDefault();
         onIndexChange(index + 1);
       }
@@ -184,7 +218,15 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
     if (editMode && isImage) {
       return (
         <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500"><Icons8Icon id="loading" size={20} spin /></div>}>
-          <ImageMicroEditor path={current.path} title={current.entity.name} />
+          {imageEditMode === 'quick' ? (
+            <ImageMicroEditor path={current.path} title={current.entity.name} />
+          ) : (
+            <BndzPhotoStudio
+              path={current.path}
+              title={current.entity.name}
+              onRequestClose={() => setEditMode(false)}
+            />
+          )}
         </Suspense>
       );
     }
@@ -278,14 +320,56 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
           onMouseDown={e => { if (e.target === e.currentTarget) handleClose(); }}
         >
           <motion.div
-            className={`bndz-quick-preview-panel ${(isVideo || isAudio || isImage) ? 'bndz-quick-preview-panel--media' : ''} ${editMode ? 'bndz-quick-preview-panel--edit' : ''}`}
+            className={[
+              'bndz-quick-preview-panel',
+              (isVideo || isAudio || isImage) ? 'bndz-quick-preview-panel--media' : '',
+              editMode ? 'bndz-quick-preview-panel--edit' : '',
+              editMode && isImage && imageEditMode === 'studio' ? 'bndz-quick-preview-panel--photo-studio' : '',
+              config.useWholeScreen ? 'bndz-quick-preview-panel--fullscreen' : '',
+              config.fitPopupToScreen ? 'bndz-quick-preview-panel--fit-screen' : '',
+              config.fitPopupWidthOnly || config.fitWidthOnly ? 'bndz-quick-preview-panel--fit-width' : '',
+              config.withBorder === false ? 'bndz-quick-preview-panel--no-border' : '',
+            ].filter(Boolean).join(' ')}
             initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{ opacity: 1, scale: 1, x: panelOffset.x, y: panelOffset.y }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.12 }}
             onMouseDown={e => e.stopPropagation()}
+            style={config.useWholeScreen
+              ? { width: '100vw', height: '100vh', maxWidth: '100vw', maxHeight: '100vh', borderRadius: 0 }
+              : config.fitPopupToScreen
+                ? {
+                    width: (config.fitPopupWidthOnly || config.fitWidthOnly) ? undefined : 'min(96vw, 1400px)',
+                    maxWidth: '96vw',
+                    maxHeight: '94vh',
+                    height: (config.fitPopupWidthOnly || config.fitWidthOnly) ? undefined : 'min(94vh, 900px)',
+                  }
+                : undefined}
           >
-            <div className="bndz-quick-preview-toolbar">
+            <div
+              className="bndz-quick-preview-toolbar"
+              onPointerDown={(e) => {
+                if (!config.enableBlowUpsOnFileIconsAsWell && !config.rememberRelativePosition) return;
+                if ((e.target as HTMLElement).closest('button, a, input')) return;
+                dragRef.current = {
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  origX: panelOffset.x,
+                  origY: panelOffset.y,
+                };
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                const d = dragRef.current;
+                if (!d) return;
+                persistOffset({
+                  x: d.origX + (e.clientX - d.startX),
+                  y: d.origY + (e.clientY - d.startY),
+                });
+              }}
+              onPointerUp={() => { dragRef.current = null; }}
+              onPointerCancel={() => { dragRef.current = null; }}
+            >
               <div className="bndz-quick-preview-toolbar-cluster">
                 <button type="button" className="bndz-quick-preview-nav" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)} title="Previous (←)">
                   <Icons8Icon id="chevron_left" size={15} />
@@ -305,12 +389,24 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
                     className={`bndz-quick-preview-edit ${editMode ? 'bndz-quick-preview-edit--active' : ''}`}
                     onClick={() => {
                       if (!editMode && isAudio) mediaPlayerRef.current?.stashPlayback();
+                      if (!editMode && isImage) setImageEditMode('studio');
                       setEditMode(v => !v);
                     }}
-                    title={editMode ? 'Back to preview' : 'Edit — audio tools / image tools'}
+                    title={editMode ? 'Back to preview' : isImage ? 'Open Photo Studio' : 'Edit — audio tools'}
                   >
                     <Icons8Icon id="pencil_ui" size={14} />
-                    {editMode ? 'Preview' : 'Edit'}
+                    {editMode ? 'Preview' : isImage ? 'Studio' : 'Edit'}
+                  </button>
+                )}
+                {editMode && isImage && (
+                  <button
+                    type="button"
+                    className={`bndz-quick-preview-edit ${imageEditMode === 'quick' ? 'bndz-quick-preview-edit--active' : ''}`}
+                    onClick={() => setImageEditMode(m => (m === 'studio' ? 'quick' : 'studio'))}
+                    title={imageEditMode === 'studio' ? 'Switch to quick adjust' : 'Switch to Photo Studio'}
+                  >
+                    <Icons8Icon id={imageEditMode === 'studio' ? 'filter_ui' : 'picture_ui'} size={14} />
+                    {imageEditMode === 'studio' ? 'Quick' : 'Studio'}
                   </button>
                 )}
                 <button
@@ -327,16 +423,18 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
               </div>
             </div>
 
-            <PreviewMetadataStrip
-              name={current.entity.name}
-              path={windowsPath}
-              size={displaySize}
-              modified={displayModified}
-              kindLabel={kindLabel}
-              isDirectory={isDir}
-              facts={curatedPreviewFacts(extMeta)}
-              onReveal={() => runVerb('reveal')}
-            />
+            {!(editMode && isImage && imageEditMode === 'studio') && (
+              <PreviewMetadataStrip
+                name={current.entity.name}
+                path={windowsPath}
+                size={displaySize}
+                modified={displayModified}
+                kindLabel={kindLabel}
+                isDirectory={isDir}
+                facts={curatedPreviewFacts(extMeta)}
+                onReveal={() => runVerb('reveal')}
+              />
+            )}
 
             <div className="bndz-quick-preview-stage">
               {renderPreview()}

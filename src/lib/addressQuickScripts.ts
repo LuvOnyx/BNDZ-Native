@@ -18,6 +18,10 @@ export type QuickScriptHandlers = {
   navigate: (path: string) => void;
   setFilter: (text: string) => void;
   toast: (msg: string) => void;
+  /** Settings → Remember permanent variables */
+  setPermanentVariable?: (name: string, value: string) => void;
+  clearPermanentVariable?: (name: string) => void;
+  listPermanentVariables?: () => Record<string, string>;
 };
 
 type ScriptDef = {
@@ -69,6 +73,41 @@ const SCRIPTS: ScriptDef[] = [
     run: (_, h) => {
       const list = SCRIPTS.map(s => `::${s.names[0]} — ${s.hint}`).join(' · ');
       h.toast(list.slice(0, 240) + (list.length > 240 ? '…' : ''));
+    },
+  },
+  {
+    names: ['pvar', 'var', 'setvar'],
+    hint: 'Permanent variable — ::pvar name=value | ::pvar name | ::pvar -name',
+    run: (args, h) => {
+      const raw = args.trim();
+      if (!raw) {
+        const map = h.listPermanentVariables?.() || {};
+        const keys = Object.keys(map);
+        h.toast(keys.length ? `Permanent vars: ${keys.map(k => `${k}=${map[k]}`).join(', ')}` : 'No permanent variables. ::pvar name=value');
+        return;
+      }
+      if (raw.startsWith('-')) {
+        const name = raw.slice(1).trim();
+        if (!name) { h.toast('Usage: ::pvar -name'); return; }
+        h.clearPermanentVariable?.(name);
+        h.toast(`Cleared permanent variable $${name}`);
+        return;
+      }
+      const eq = raw.indexOf('=');
+      if (eq < 0) {
+        const map = h.listPermanentVariables?.() || {};
+        const v = map[raw];
+        h.toast(v != null ? `$${raw} = ${v}` : `$${raw} is not set`);
+        return;
+      }
+      const name = raw.slice(0, eq).trim();
+      const value = raw.slice(eq + 1);
+      if (!/^[A-Za-z_][\w]*$/.test(name)) {
+        h.toast('Variable names must be letters/digits/underscore.');
+        return;
+      }
+      h.setPermanentVariable?.(name, value);
+      h.toast(`Set $${name} = ${value}`);
     },
   },
   {

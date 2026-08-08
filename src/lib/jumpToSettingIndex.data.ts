@@ -6674,6 +6674,21 @@ export const JUMP_SETTING_INDEX: Array<{
   },
   {
     "tab": "Tabs",
+    "label": "Resizable tabs",
+    "key": "resizableTabs",
+    "keywords": [
+      "resizable",
+      "resize",
+      "tab",
+      "width",
+      "tabs",
+      "handle",
+      "drag"
+    ],
+    "description": "Drag tab edges to set custom widths"
+  },
+  {
+    "tab": "Tabs",
     "label": "Show icons",
     "key": "showIcons",
     "keywords": [

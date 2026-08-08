@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 import DestinationPickerModal from '../DestinationPickerModal';
 import PluginPanelShell from './PluginPanelShell';
 import { pushToast } from '../ToastHost';
@@ -255,7 +256,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
         icon={<Icons8Icon id="sync_folders" size={52} className="opacity-90" />}
         name={jobs.length ? `${jobs.length} sync pair${jobs.length === 1 ? '' : 's'}` : 'Folder sync'}
         typeLabel="Robocopy engine"
-        path={currentPath ? toWindowsPath(currentPath) : undefined}
+        path={currentPath ? formatUiPath(currentPath) : undefined}
         meta={
           <span className="bndz-panel-muted text-xs">
             {jobs.filter(j => j.watchEnabled).length} watching · {syncingId ? 'Sync in progress' : 'Ready'}
@@ -311,7 +312,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                 className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
                 onClick={() => setPicker('source')}
               >
-                {draft.sourcePath || 'Pick source folder…'}
+                {draft.sourcePath ? formatUiPath(draft.sourcePath) : 'Pick source folder…'}
               </button>
               <Icons8Icon id="chevron_right" size={14} className="shrink-0 text-gray-500" />
               <button
@@ -319,7 +320,7 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                 className={`flex-1 text-left ${PLUGIN_INPUT_CLASS} bndz-mono truncate`}
                 onClick={() => setPicker('dest')}
               >
-                {draft.destPath || 'Pick destination…'}
+                {draft.destPath ? formatUiPath(draft.destPath) : 'Pick destination…'}
               </button>
             </div>
             <div className="flex flex-wrap gap-4 text-xs text-gray-300">
@@ -371,9 +372,9 @@ export default function FolderSyncPlugin({ currentPath }: { currentPath?: string
                     <StatusBadge status={isSyncing ? 'syncing' : job.watchEnabled ? 'watching' : job.lastStatus} />
                   </div>
                   <div className="mt-2 flex items-center gap-2 text-xs bndz-mono bndz-panel-muted">
-                    <span className="truncate max-w-[45%]" title={job.sourcePath}>{job.sourcePath}</span>
+                    <span className="truncate max-w-[45%]" title={formatUiPath(job.sourcePath)}>{formatUiPath(job.sourcePath)}</span>
                     <Icons8Icon id="chevron_right" size={10} className="shrink-0" />
-                    <span className="truncate max-w-[45%]" title={job.destPath}>{job.destPath}</span>
+                    <span className="truncate max-w-[45%]" title={formatUiPath(job.destPath)}>{formatUiPath(job.destPath)}</span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-1 text-xs bndz-panel-muted">
                     <Icons8Icon id="clock_ui" size={10} /> Last sync: {formatWhen(job.lastSyncUtc)}

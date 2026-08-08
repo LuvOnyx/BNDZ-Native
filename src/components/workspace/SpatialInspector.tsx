@@ -4,6 +4,7 @@ import { IPC } from '../../lib/ipcBridge';
 import TagStudioPanel from './TagStudioPanel';
 import type { CanvasItem, SpatialSticky } from '../../lib/spatialCanvasStore';
 import type { PinIntelligence } from '../../lib/workspace/useSpatialIntelligence';
+import { formatPathLeafName, formatUiPath, isRawShellDisplayName } from '../../lib/displayPath';
 
 function pathLooksLikeDir(p: string): boolean {
   const base = p.split(/[/\\]/).pop() || '';
@@ -152,8 +153,15 @@ export default function SpatialInspector({
         <div className="bndz-spatial-inspector-hero-row">
           <ShellNativeIcon path={primary!.path} isDir={pathLooksLikeDir(primary!.path)} size={48} />
           <div className="min-w-0">
-            <div className="bndz-spatial-inspector-name" title={primary!.name}>{primary!.name}</div>
-            <div className="bndz-spatial-inspector-path" title={primary!.path}>{primary!.path}</div>
+            <div
+              className="bndz-spatial-inspector-name"
+              title={isRawShellDisplayName(primary!.name) ? formatPathLeafName(primary!.path) : primary!.name}
+            >
+              {isRawShellDisplayName(primary!.name) ? formatPathLeafName(primary!.path) : primary!.name}
+            </div>
+            <div className="bndz-spatial-inspector-path" title={formatUiPath(primary!.path)}>
+              {formatUiPath(primary!.path)}
+            </div>
           </div>
         </div>
         <div className="bndz-spatial-inspector-actions">

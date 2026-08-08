@@ -123,15 +123,15 @@ internal static class BndzEmbedHost
 		if (exe is null)
 			return IntPtr.Zero;
 
-		var hwndPath = Path.Combine(Path.GetTempPath(), HwndFileName);
-		try { if (File.Exists(hwndPath)) File.Delete(hwndPath); } catch { }
+		var hwndPath = SystemIO.Path.Combine(SystemIO.Path.GetTempPath(), HwndFileName);
+		try { if (SystemIO.File.Exists(hwndPath)) SystemIO.File.Delete(hwndPath); } catch { }
 
 		_bndzProcess = Process.Start(new ProcessStartInfo
 		{
 			FileName = exe,
 			Arguments = "--embedded --skip-elevation",
 			UseShellExecute = true,
-			WorkingDirectory = Path.GetDirectoryName(exe)!,
+			WorkingDirectory = SystemIO.Path.GetDirectoryName(exe)!,
 		});
 
 		if (_bndzProcess is null)
@@ -141,11 +141,11 @@ internal static class BndzEmbedHost
 		{
 			ct.ThrowIfCancellationRequested();
 			await Task.Delay(100, ct).ConfigureAwait(true);
-			if (!File.Exists(hwndPath))
+			if (!SystemIO.File.Exists(hwndPath))
 				continue;
 			try
 			{
-				var text = await File.ReadAllTextAsync(hwndPath, ct).ConfigureAwait(true);
+				var text = await SystemIO.File.ReadAllTextAsync(hwndPath, ct).ConfigureAwait(true);
 				if (long.TryParse(text.Trim(), out var hwndVal) && hwndVal != 0)
 					return (IntPtr)hwndVal;
 			}
@@ -160,14 +160,15 @@ internal static class BndzEmbedHost
 		var baseDir = AppContext.BaseDirectory;
 		var candidates = new[]
 		{
-			Path.GetFullPath(Path.Combine(baseDir, "BNDZ.exe")),
-			Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
-			Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Release", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
-			Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "bndz-host", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Release", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(Environment.CurrentDirectory, "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
 		};
 		foreach (var c in candidates)
 		{
-			if (File.Exists(c))
+			if (SystemIO.File.Exists(c))
 				return c;
 		}
 		return null;

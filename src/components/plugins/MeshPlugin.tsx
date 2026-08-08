@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { IPC } from '../../lib/ipcBridge';
+import { formatUiPath } from '../../lib/displayPath';
 import MeshHostsManager from '../mesh/MeshHostsManager';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
@@ -312,8 +313,8 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
                     {liveShareOn ? 'Stop Live Share' : 'Start Live Share'}
                   </PluginToolbarButton>
                   {currentPath && !currentPath.startsWith('/mesh') && (
-                    <span className="text-[10px] text-sky-300/70 bndz-mono truncate max-w-[280px]" title={currentPath}>
-                      Folder: {currentPath}
+                    <span className="text-[10px] text-sky-300/70 bndz-mono truncate max-w-[280px]" title={formatUiPath(currentPath)}>
+                      Folder: {formatUiPath(currentPath)}
                     </span>
                   )}
                 </div>

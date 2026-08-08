@@ -20,6 +20,7 @@ import {
 import { recordExternalDragHover, recordPointerDragHover } from './fileDragHover';
 import { hitTestMagnetAtPoint } from '../components/DropMagnetStrip';
 import { IPC } from './ipcBridge';
+import { appendDropStackPaths } from './dropStackStore';
 
 export type DropSource = 'externalOle' | 'archiveInternal' | 'listPointer';
 
@@ -255,12 +256,15 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
   ctx.applyHover(clientX, clientY);
 
   const dropStackEl = document.elementsFromPoint(clientX, clientY)
-    .map(el => (el as HTMLElement).closest('[data-drop-stack-zone]'))
+    .map(el => {
+      const node = el as HTMLElement;
+      return node.closest('[data-drop-stack-zone]')
+        || node.closest('[data-plugin-tab-id="dropstack"]');
+    })
     .find(Boolean);
   if (dropStackEl) {
-    window.dispatchEvent(new CustomEvent('bndz-drop-stack-stage', {
-      detail: { paths: paths.map(toWindowsPath) },
-    }));
+    appendDropStackPaths(paths);
+    window.dispatchEvent(new CustomEvent('bndz-open-bottom-plugin', { detail: { id: 'dropstack' } }));
     lastDropDebug = { clientX, clientY, coordSource, destPath: 'drop-stack', source: opts.source, committed: true };
     if (isDropDebugEnabled()) {
       window.dispatchEvent(new CustomEvent('bndz-drop-debug', { detail: lastDropDebug }));

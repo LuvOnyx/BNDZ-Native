@@ -195,6 +195,12 @@ class AudioPlaybackSession {
     this.emit();
   }
 
+  setLoop(loop: boolean) {
+    const el = this.ensureEl();
+    el.loop = !!loop;
+    this.emit();
+  }
+
   toggleMute() {
     const el = this.ensureEl();
     el.muted = !el.muted;

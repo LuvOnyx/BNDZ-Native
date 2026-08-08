@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { toWindowsPath } from '../lib/pathUtils';
+import { formatUiPath } from '../lib/displayPath';
 import { IPC } from '../lib/ipcBridge';
 import BndzAssistantPanel from './assistant/BndzAssistantPanel';
 import BndzDuplicatesPanel from './duplicates/BndzDuplicatesPanel';
@@ -235,8 +236,8 @@ export default function SmartToolsDialog({
         <Icons8Icon id="folder_ui" size={12} className="opacity-50 shrink-0" />
         <span className="text-[10px] uppercase tracking-wide text-white/35 shrink-0">Context</span>
         {currentPath && (
-          <span className="text-[11px] text-sky-300/80 bndz-mono truncate max-w-[40%]" title={toWindowsPath(currentPath)}>
-            {toWindowsPath(currentPath)}
+          <span className="text-[11px] text-sky-300/80 bndz-mono truncate max-w-[40%]" title={currentPath ? formatUiPath(currentPath) : ''}>
+            {currentPath ? formatUiPath(currentPath) : ''}
           </span>
         )}
         {paths.length > 0 ? (

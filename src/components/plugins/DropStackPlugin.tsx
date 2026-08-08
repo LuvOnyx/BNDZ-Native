@@ -2,7 +2,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icons8Icon, DragHandleGlyph } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath, splitUiPath } from '../../lib/displayPath';
 import { requestNativePrompt } from '../../lib/nativeDialog';
+import {
+  POINTER_FILE_DRAG_ACTIVE,
+  POINTER_FILE_DRAG_END,
+  POINTER_FILE_DRAG_MOVE,
+} from '../../lib/pointerFileDragBridge';
+import {
+  loadDropStackLibrary,
+  saveDropStackLibrary,
+  type NamedDropStack,
+} from '../../lib/dropStackStore';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -14,9 +25,6 @@ import {
   PLUGIN_INPUT_CLASS,
 } from './PluginPanelPrimitives';
 
-const LEGACY_KEY = 'bndz-dropstack-v1';
-const STACKS_KEY = 'bndz-dropstacks-v2';
-
 export const DropStackPluginDef = {
   id: 'dropstack',
   name: 'Drop Stack',
@@ -25,50 +33,14 @@ export const DropStackPluginDef = {
   targetPanel: 'bottom',
 };
 
-type NamedStack = { id: string; name: string; items: string[] };
-
-function uid() {
-  return `stk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function loadLibrary(): { stacks: NamedStack[]; activeId: string } {
-  try {
-    const raw = localStorage.getItem(STACKS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed?.stacks) && parsed.stacks.length) {
-        const stacks = parsed.stacks.map((s: any) => ({
-          id: String(s.id || uid()),
-          name: String(s.name || 'Stack'),
-          items: Array.isArray(s.items) ? s.items.filter((p: unknown): p is string => typeof p === 'string') : [],
-        }));
-        const activeId = stacks.some((s: NamedStack) => s.id === parsed.activeId) ? parsed.activeId : stacks[0].id;
-        return { stacks, activeId };
-      }
-    }
-  } catch { /* fall through */ }
-  try {
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    const items = legacy ? JSON.parse(legacy) : [];
-    const stack: NamedStack = { id: uid(), name: 'Main', items: Array.isArray(items) ? items : [] };
-    return { stacks: [stack], activeId: stack.id };
-  } catch {
-    const stack: NamedStack = { id: uid(), name: 'Main', items: [] };
-    return { stacks: [stack], activeId: stack.id };
-  }
-}
-
 function splitPath(full: string): { leaf: string; parent: string } {
-  const normalized = full.replace(/[/\\]+$/, '');
-  const parts = normalized.split(/[/\\]/);
-  const leaf = parts.pop() || full;
-  const parent = parts.join('\\');
+  const { leaf, parent } = splitUiPath(full);
   return { leaf, parent };
 }
 
 export default function DropStackPlugin({ focusedPath, selectedItems }: { focusedPath?: string; selectedItems?: string[] }) {
-  const initial = useMemo(() => loadLibrary(), []);
-  const [stacks, setStacks] = useState<NamedStack[]>(initial.stacks);
+  const initial = useMemo(() => loadDropStackLibrary(), []);
+  const [stacks, setStacks] = useState<NamedDropStack[]>(initial.stacks);
   const [activeId, setActiveId] = useState(initial.activeId);
   const [operating, setOperating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -83,10 +55,23 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
   const items = stack?.items || [];
 
   useEffect(() => {
-    localStorage.setItem(STACKS_KEY, JSON.stringify({ stacks, activeId }));
-    const active = stacks.find(s => s.id === activeId);
-    if (active) localStorage.setItem(LEGACY_KEY, JSON.stringify(active.items));
+    saveDropStackLibrary(stacks, activeId);
   }, [stacks, activeId]);
+
+  // Sync if paths were staged while this tab was unmounted / from another surface.
+  useEffect(() => {
+    const sync = () => {
+      const lib = loadDropStackLibrary();
+      setStacks(lib.stacks);
+      setActiveId(lib.activeId);
+    };
+    window.addEventListener('bndz-drop-stack-stage', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('bndz-drop-stack-stage', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
 
   useEffect(() => {
     if (focusedPath && !destPath) setDestPath(toWindowsPath(focusedPath));
@@ -107,14 +92,43 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
     pushToast({ kind: 'success', title: 'Added to stack', message: `${normalized.length} item(s) staged.` });
   }, [updateActiveItems]);
 
+  // Light the glass zone only during real file drags (OLE / pointer session), not idle hover.
   useEffect(() => {
-    const onStage = (e: Event) => {
-      const paths = (e as CustomEvent<{ paths?: string[] }>).detail?.paths;
-      if (paths?.length) addPaths(paths);
+    const hitZone = (clientX: number, clientY: number) => {
+      const over = document.elementsFromPoint(clientX, clientY).some(
+        el => !!(el as HTMLElement).closest?.('[data-drop-stack-zone], [data-plugin-tab-id="dropstack"]'),
+      );
+      setDragOver(over);
     };
-    window.addEventListener('bndz-drop-stack-stage', onStage);
-    return () => window.removeEventListener('bndz-drop-stack-stage', onStage);
-  }, [addPaths]);
+    const onExternalHover = (e: Event) => {
+      const detail = (e as CustomEvent<{ webViewX?: number; webViewY?: number }>).detail || {};
+      if (typeof detail.webViewX !== 'number' || typeof detail.webViewY !== 'number') return;
+      hitZone(detail.webViewX, detail.webViewY);
+    };
+    const onPointerMove = (e: Event) => {
+      const { clientX, clientY } = (e as CustomEvent<{ clientX: number; clientY: number }>).detail;
+      hitZone(clientX, clientY);
+    };
+    const clear = () => setDragOver(false);
+    const onPointerActive = (e: Event) => {
+      if (!(e as CustomEvent<{ active?: boolean }>).detail?.active) clear();
+    };
+    const onPointerEnd = () => clear();
+    window.addEventListener('bndz-external-drag-hover', onExternalHover);
+    window.addEventListener('bndz-external-drop', clear);
+    window.addEventListener('bndz-external-drop-failed', clear);
+    window.addEventListener(POINTER_FILE_DRAG_MOVE, onPointerMove);
+    window.addEventListener(POINTER_FILE_DRAG_ACTIVE, onPointerActive);
+    window.addEventListener(POINTER_FILE_DRAG_END, onPointerEnd);
+    return () => {
+      window.removeEventListener('bndz-external-drag-hover', onExternalHover);
+      window.removeEventListener('bndz-external-drop', clear);
+      window.removeEventListener('bndz-external-drop-failed', clear);
+      window.removeEventListener(POINTER_FILE_DRAG_MOVE, onPointerMove);
+      window.removeEventListener(POINTER_FILE_DRAG_ACTIVE, onPointerActive);
+      window.removeEventListener(POINTER_FILE_DRAG_END, onPointerEnd);
+    };
+  }, []);
 
   const addSelected = () => {
     if (!selectedItems?.length) return;
@@ -360,26 +374,35 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
 
           <div
             data-drop-stack-zone
-            className={`bndz-plugin-dropzone flex-1 flex flex-col justify-center items-center gap-4 px-6 transition-all ${
-              dragOver ? 'bndz-plugin-dropzone-active scale-[1.01]' : ''
+            className={`bndz-dropstack-zone flex-1 flex flex-col justify-center items-center gap-3 min-w-0 px-3 sm:px-5 ${
+              dragOver ? 'is-active' : ''
             }`}
-            onPointerEnter={() => setDragOver(true)}
-            onPointerLeave={() => setDragOver(false)}
           >
-            <div className={`rounded-2xl p-4 border border-dashed transition-colors ${
-              dragOver ? 'border-violet-400/50 bg-violet-500/10' : 'border-white/10 bg-white/[0.02]'
-            }`}>
-              <Icons8Icon id="upload" size={36} className={dragOver ? 'opacity-70 text-violet-300' : 'opacity-30'} />
+            <div className="bndz-dropstack-surface w-full max-w-xl">
+              <div className="bndz-dropstack-frame">
+                <div className="bndz-dropstack-aurora" aria-hidden>
+                  <div className="bndz-dropstack-glow">
+                    <div className="bndz-dropstack-blob bndz-dropstack-blob-a" />
+                    <div className="bndz-dropstack-blob bndz-dropstack-blob-b" />
+                    <div className="bndz-dropstack-blob bndz-dropstack-blob-c" />
+                  </div>
+                </div>
+                <div className="bndz-dropstack-glass">
+                  <div className="bndz-dropstack-copy">
+                    <span className="bndz-dropstack-icon-well" aria-hidden>
+                      <Icons8Icon id="upload" size={20} />
+                    </span>
+                    <span className="bndz-dropstack-title">
+                      {dragOver ? 'Release to stage' : 'Drop files here or browse'}
+                    </span>
+                    <span className="bndz-dropstack-hint">
+                      Stage from Explorer or the list — images, docs, folders…
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-center space-y-1.5 max-w-sm">
-              <p className={`text-sm font-medium ${dragOver ? 'text-violet-200' : 'text-slate-300'}`}>
-                {dragOver ? 'Release to stage' : 'Drop files or folders here'}
-              </p>
-              <p className="text-xs bndz-panel-muted leading-relaxed">
-                Stage from Explorer or the list — reorder, select a subset, then copy or move.
-              </p>
-            </div>
-            <PluginCard className="!py-2.5 !px-3 max-w-md w-full space-y-2">
+            <PluginCard className="!py-2.5 !px-3 max-w-xl w-full space-y-2">
               <div className="bndz-plugin-section-title">Destination</div>
               <div className="flex items-center gap-1.5">
                 <input
@@ -393,7 +416,7 @@ export default function DropStackPlugin({ focusedPath, selectedItems }: { focuse
               {focusedPath && (
                 <button
                   type="button"
-                  className="text-[10px] text-sky-300/80 hover:text-sky-200"
+                  className="bndz-dropstack-dest-link text-[10px]"
                   onClick={() => setDestPath(toWindowsPath(focusedPath))}
                 >
                   Use active pane

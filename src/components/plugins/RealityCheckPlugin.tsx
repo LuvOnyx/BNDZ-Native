@@ -3,6 +3,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatPathLeafName, formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -45,7 +46,7 @@ function normalizeRef(raw: Record<string, unknown>): RealityCheckRef {
 }
 
 function leafName(path: string): string {
-  return path.split(/[/\\]/).pop() || path;
+  return formatPathLeafName(path) || path.split(/[/\\]/).pop() || path;
 }
 
 export default function RealityCheckPlugin({
@@ -145,8 +146,8 @@ export default function RealityCheckPlugin({
           className={tone === 'missing' ? 'text-red-400 shrink-0 mt-0.5' : 'text-emerald-400 shrink-0 mt-0.5'}
         />
         <div className="min-w-0 flex-1">
-          <div className="text-[12px] font-medium truncate" title={ref.resolvedPath}>{leafName(ref.resolvedPath)}</div>
-          <div className="text-[10px] text-gray-500 truncate" title={ref.resolvedPath}>{ref.resolvedPath}</div>
+          <div className="text-[12px] font-medium truncate" title={formatUiPath(ref.resolvedPath)}>{formatPathLeafName(ref.resolvedPath) || leafName(ref.resolvedPath)}</div>
+          <div className="text-[10px] text-gray-500 truncate" title={formatUiPath(ref.resolvedPath)}>{formatUiPath(ref.resolvedPath)}</div>
           <div className="text-[10px] text-gray-600 mt-0.5">
             via {ref.source} · {leafName(ref.projectFile)}
           </div>
@@ -201,7 +202,7 @@ export default function RealityCheckPlugin({
           <PluginStatCard label="OK" value={String(stats.ok)} icon="check" accent="#34d399" />
         </div>
         {scanRoot && (
-          <p className="text-[10px] text-gray-500 mt-2 truncate" title={scanRoot}>Last scan: {scanRoot}</p>
+          <p className="text-[10px] text-gray-500 mt-2 truncate" title={formatUiPath(scanRoot)}>Last scan: {formatUiPath(scanRoot)}</p>
         )}
       </PluginHeroStrip>
 

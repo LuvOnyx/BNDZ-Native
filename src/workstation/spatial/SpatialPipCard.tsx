@@ -2,6 +2,7 @@ import React, { memo, useRef } from 'react';
 import type { CanvasItem } from '../../lib/spatialCanvasStore';
 import { ShellNativeIcon } from '../../components/ShellNativeIcon';
 import { Icons8Icon } from '../../components/Icons8Icon';
+import { formatPathLeafName, formatUiPath, isRawShellDisplayName } from '../../lib/displayPath';
 
 type Props = {
   item: CanvasItem;
@@ -46,6 +47,8 @@ function SpatialPipCardInner({
   const isDir = isDirectoryPath(item.path);
   const kind = isDir ? 'Folder' : 'File';
   const accent = isDir ? '#c4a35a' : '#7eb8e8';
+  const title = isRawShellDisplayName(item.name) ? (formatPathLeafName(item.path) || item.name) : item.name;
+  const pathLabel = formatUiPath(item.path) || item.path;
 
   const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
     const card = cardRef.current;
@@ -64,7 +67,7 @@ function SpatialPipCardInner({
       data-spatial-card={item.id}
       role="button"
       tabIndex={0}
-      aria-label={`${kind}: ${item.name}. Click to select · double-click to open.`}
+      aria-label={`${kind}: ${title}. Click to select · double-click to open.`}
       aria-pressed={selected}
       className={`bndz-spatial-card bndz-pin-module bndz-spatial-pip-card${selected ? ' is-selected' : ''}${dragging ? ' is-dragging' : ''}${isDir ? ' is-folder' : ' is-file'}`}
       style={{ left: item.x, top: item.y, width: cardW, minHeight: cardH, ['--ws-accent' as string]: accent }}
@@ -96,14 +99,14 @@ function SpatialPipCardInner({
         </span>
         <div className="bndz-pin-body">
           <div className="bndz-pin-kicker">{kind} pin</div>
-          <div className="bndz-pin-title" title={item.name}>{item.name}</div>
-          <div className="bndz-pin-path" title={item.path}>{item.path}</div>
+          <div className="bndz-pin-title" title={title}>{title}</div>
+          <div className="bndz-pin-path" title={pathLabel}>{pathLabel}</div>
           {editingNote ? (
             <input
               className="bndz-spatial-card-note-input"
               defaultValue={item.note || ''}
               autoFocus
-              aria-label={`Note for ${item.name}`}
+              aria-label={`Note for ${title}`}
               onBlur={e => onNoteBlur(item.id, e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Escape') onNoteCancel();

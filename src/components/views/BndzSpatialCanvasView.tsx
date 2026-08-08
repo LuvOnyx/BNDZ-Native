@@ -6,7 +6,7 @@ import SpatialSpringBoard from '../../workstation/spatial/SpatialSpringBoard';
 import { readBndzFileDragData, hasBndzFileDrag } from '../../lib/bndzDrag';
 import { getFileDragSession } from '../../lib/fileDragSession';
 import { endInternalFileDragUi } from '../../lib/fileDragUiCleanup';
-import { readClipboardText } from '../../lib/clipboardSafe';
+import { readClipboardText, writeClipboardText } from '../../lib/clipboardSafe';
 import {
   loadSpatialCanvas, hydrateSpatialCanvasFromJson, invalidateSpatialCanvasCache,
   resetSpatialCanvasPersisted,
@@ -17,6 +17,7 @@ import {
 } from '../../lib/spatialCanvasStore';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { toPanePath } from '../../lib/shellPaths';
+import { formatPathLeafName, formatUiPath, isRawShellDisplayName } from '../../lib/displayPath';
 import { useAppConfig } from '../../data/configContext';
 import { IPC } from '../../lib/ipcBridge';
 import { useWorkspaceContextMenu } from '../workspace/useWorkspaceContextMenu';
@@ -59,8 +60,21 @@ const CARD_W = 228;
 const CARD_H = 176;
 
 function newItem(path: string, x: number, y: number): CanvasItem {
-  const name = path.split(/[/\\]/).pop() || path;
+  const name = formatPathLeafName(path) || path.split(/[/\\]/).pop() || path;
   return { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, path, name, x, y };
+}
+
+/** Rewrite stored pin titles that still show raw shell: tokens. */
+function sanitizePinDisplayNames(doc: SpatialCanvasDoc): SpatialCanvasDoc {
+  let changed = false;
+  const items = doc.items.map(it => {
+    if (!isRawShellDisplayName(it.name) && it.name?.trim()) return it;
+    const nextName = formatPathLeafName(it.path) || it.name;
+    if (nextName === it.name) return it;
+    changed = true;
+    return { ...it, name: nextName };
+  });
+  return changed ? { ...doc, items } : doc;
 }
 
 function parentDir(p: string) {
@@ -116,6 +130,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const [status, setStatus] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingStickyId, setEditingStickyId] = useState<string | null>(null);
+  const editingNoteIdRef = useRef<string | null>(null);
+  const editingStickyIdRef = useRef<string | null>(null);
+  editingNoteIdRef.current = editingNoteId;
+  editingStickyIdRef.current = editingStickyId;
   const [displayZoom, setDisplayZoom] = useState(1);
   const [showRelations, setShowRelations] = useState(true);
   const [showMinimap, setShowMinimap] = useState(true);
@@ -282,8 +300,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   }, [engine]);
 
   useEffect(() => {
+    // Only reclaim keyboard focus when switching boards — not on every pin/sticky
+    // mutation (that blurred sticky textareas mid-edit and could storm with reloads).
     focusWorkspaceSurface(surfaceRef.current);
-  }, [doc]);
+  }, [doc?.id]);
 
   useEffect(() => {
     const board = boardRef.current;
@@ -386,11 +406,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     invalidateSpatialCanvasCache();
     Promise.all([loadSpatialCanvas({ force: true }), listSpatialBoards()]).then(([d, boards]) => {
       if (!active) return;
-      docRef.current = d;
-      setDoc(d);
+      const next = sanitizePinDisplayNames(d);
+      docRef.current = next;
+      setDoc(next);
       setBoardList(boards);
-      engine.setTransform(d.panX, d.panY, d.zoom, true);
-      seedAutosave(stableDocJson(d));
+      engine.setTransform(next.panX, next.panY, next.zoom, true);
+      seedAutosave(stableDocJson(next));
     });
     return () => { active = false; };
   }, [engine, seedAutosave]);
@@ -401,7 +422,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
 
   const switchBoard = useCallback(async (boardId: string) => {
     await flushAutosave(true);
-    const d = await switchSpatialBoard(boardId);
+    const d = sanitizePinDisplayNames(await switchSpatialBoard(boardId));
     historyRef.current = createSpatialCanvasHistory();
     docRef.current = d;
     setDoc(d);
@@ -661,7 +682,9 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   }, [closeMenu]);
 
   const copyPath = useCallback((item: CanvasItem) => {
-    void navigator.clipboard.writeText(item.path).then(() => setStatus('Path copied'));
+    void writeClipboardText(item.path).then(ok => {
+      setStatus(ok ? 'Path copied' : 'Could not copy path');
+    });
     closeMenu();
   }, [closeMenu]);
 
@@ -698,6 +721,11 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const updateStickyText = useCallback((id: string, text: string) => {
     const d = docRef.current;
     if (!d) return;
+    const prev = (d.stickies ?? []).find(s => s.id === id);
+    if (prev && prev.text === text) {
+      setEditingStickyId(null);
+      return;
+    }
     commitDoc({
       ...d,
       stickies: (d.stickies ?? []).map(s => (s.id === id ? { ...s, text } : s)),
@@ -962,7 +990,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const paths = d.items.filter(it => selectedSet.has(it.id)).map(it => it.path);
     if (!paths.length) return;
     setWorkspaceClipboard({ kind: 'spatial-pins', paths });
-    void navigator.clipboard.writeText(paths.join('\n'));
+    void writeClipboardText(paths.join('\n'));
     setStatus(`Copied ${paths.length} path${paths.length === 1 ? '' : 's'}`);
   }, [selectedSet]);
 
@@ -1184,25 +1212,87 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   }, [selectedIds, removeSelected, zoomBy, commitTransform, isWorkspaceActive, engine, pastePins, copySelectedPaths, undoDoc, redoDoc, cutSelectedPins, duplicateSelectedPins, nudgeSelectedPins, fitSelection, sendSelectionToAutomation]);
 
   useEffect(() => {
-    const onDocChanged = () => {
-      void loadSpatialCanvas({ force: true }).then(next => {
-        setDoc(next);
-        docRef.current = next;
-        invalidateSpatialVisual();
-      });
+    let cancelled = false;
+    let reloadGen = 0;
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const busyEditing = () =>
+      !!editingStickyIdRef.current
+      || !!editingNoteIdRef.current
+      || interacting.current
+      || !!draggingRef.current;
+
+    const adoptExternalDoc = (next: SpatialCanvasDoc) => {
+      if (cancelled || busyEditing()) return;
+      const sanitized = sanitizePinDisplayNames(next);
+      // Preserve live camera if the external writer didn't change transforms.
+      const cur = docRef.current;
+      const merged = cur && sanitized.id === cur.id
+        ? { ...sanitized, panX: cur.panX, panY: cur.panY, zoom: cur.zoom }
+        : sanitized;
+      docRef.current = merged;
+      setDoc(merged);
+      invalidateSpatialVisual();
     };
-    const onFocus = () => {
-      // Cross-process sticky widgets write the same meta store — refresh when FM regains focus.
-      onDocChanged();
+
+    const scheduleReload = () => {
+      if (busyEditing()) return;
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => {
+        reloadTimer = null;
+        if (cancelled || busyEditing()) return;
+        const gen = ++reloadGen;
+        void loadSpatialCanvas({ force: true }).then(next => {
+          if (cancelled || gen !== reloadGen || busyEditing()) return;
+          adoptExternalDoc(next);
+        });
+      }, 200);
     };
+
+    const onDocChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const stickyId = typeof detail.stickyId === 'string' ? detail.stickyId : '';
+      const cur = docRef.current;
+      if (cur && stickyId) {
+        // Pop-out sticky widget — merge text/note without a full board reload (avoids freeze loops).
+        if (typeof detail.text === 'string') {
+          if (editingStickyIdRef.current === stickyId) return;
+          const stickies = (cur.stickies ?? []).map(s => (
+            s.id === stickyId ? { ...s, text: detail.text as string } : s
+          ));
+          const next = { ...cur, stickies };
+          docRef.current = next;
+          setDoc(next);
+          return;
+        }
+        if ('note' in detail) {
+          if (editingNoteIdRef.current === stickyId) return;
+          const note = typeof detail.note === 'string' ? detail.note : undefined;
+          const items = cur.items.map(it => (
+            it.id === stickyId ? { ...it, note: note || undefined } : it
+          ));
+          const next = { ...cur, items };
+          docRef.current = next;
+          setDoc(next);
+          return;
+        }
+      }
+      scheduleReload();
+    };
+
+    // Do NOT listen to window `focus` — clicking a sticky/textarea fires it in WebView2
+    // and force-reloading the board while editing caused full app freezes.
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') scheduleReload();
+    };
+
     window.addEventListener('bndz-spatial-doc-changed', onDocChanged);
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') onFocus();
-    });
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
+      cancelled = true;
+      if (reloadTimer) clearTimeout(reloadTimer);
       window.removeEventListener('bndz-spatial-doc-changed', onDocChanged);
-      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 

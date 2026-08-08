@@ -15,7 +15,7 @@ type Props = {
   updateLocalConfig: (patch: Partial<AppConfig>) => void;
 };
 
-const FONT_SIZE_OPTIONS = [0, 10, 11, 12, 13, 14, 15, 16, 18];
+const FONT_SIZE_OPTIONS = [0, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22];
 const WEIGHT_OPTIONS = [
   { value: 400, label: 'Regular (400)' },
   { value: 450, label: 'Book (450)' },
@@ -86,9 +86,20 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
               value={baseSize}
               onChange={e => patch({ fontSize: parseInt(e.target.value, 10) })}
             >
-              {[10, 11, 12, 13, 14, 15, 16, 18, 20].map(n => (
+              {[9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22].map(n => (
                 <option key={n} value={n}>{n}px</option>
               ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">List text AA</span>
+            <select
+              className={`${selectClass} w-[160px]`}
+              value={localConfig.listFontLcdAa === false ? 'greyscale' : 'lcd'}
+              onChange={e => patch({ listFontLcdAa: e.target.value !== 'greyscale' })}
+            >
+              <option value="lcd">LCD (ClearType-like)</option>
+              <option value="greyscale">Greyscale</option>
             </select>
           </div>
           <div className="flex flex-wrap items-center gap-4">

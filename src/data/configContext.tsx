@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { formatLibrariesForConfig } from '../lib/iconLibraryUtils';
 import { SETTINGS_DEFAULTS, SETTINGS_VALUE_PATCHES } from '../lib/settingsDefaults';
+import { applySettingsKeyAliases } from '../lib/settingsKeyAliases';
 import { applySettingsRuntime } from '../lib/settingsRuntime';
 import { DEFAULT_CUSTOM_COLUMNS, resolveCustomColumns, type CustomColumnDef } from '../lib/customColumns';
 import { DEFAULT_STANDARD_FIELD_IDS, DEFAULT_EXTRA_FIELD_IDS } from '../lib/fileInfoTipFields';
@@ -8,6 +9,11 @@ import { DEFAULT_HOVER_BOX_CONTEXTS, DEFAULT_HOVER_BOX_ITEM_TYPES } from '../lib
 import { DEFAULT_TREE_LIST_VISIBLE_ITEM_TYPES, type TreeListItemType } from '../lib/treeListItemFilter';
 import type { CustomEventAction } from '../lib/customEventActions';
 import { DEFAULT_OUTER_LAYOUT, DEFAULT_INNER_LAYOUT, DEFAULT_DUAL_PANE_LAYOUT, DEFAULT_MAIN_ROW_LAYOUT, WORKSPACE_LAYOUT_VERSION } from '../lib/workspaceLayout';
+import {
+    noteTabsetsBeforeSettingsSave,
+    prepareSettingsForDisk,
+    settingsFlushDelayMs,
+} from '../lib/settingsPersist';
 
 export interface VisualFilter {
     id: string;
@@ -118,6 +124,8 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     sidebarOrder: ['storage', 'quick', 'cloud', 'tree'],
     folderSizeBarStyle: 'bar',
     appearanceNavTreeColors: 'subtle',
+    appearanceTabStyle: 'soft',
+    showListGridCards: false,
     installedPlugins: [
         'properties',
         'context-menu-manager',
@@ -151,6 +159,7 @@ const defaultStructuredConfig: Partial<AppConfig> = {
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {
+    applySettingsKeyAliases(merged as Record<string, any>, raw as Record<string, any>);
     if ('fileTagging' in raw) merged.fileTaggingFeature = !!raw.fileTagging;
     if ('dualPane' in raw) merged.dualPaneFeature = raw.dualPane !== false;
     if ('showTopMenuBar' in raw) merged.showTopMenubar = !!raw.showTopMenuBar;
@@ -384,11 +393,20 @@ function scheduleSettingsSave(merged: AppConfig) {
     // When "Save settings on exit" is off, keep the in-memory draft but skip disk writes
     // until Apply / persistConfigNow / exit-with-save.
     if (merged.saveSettingsOnExit === false) return;
+    const delay = settingsFlushDelayMs(merged);
+    if (delay === 0) {
+        if (settingsSaveTimer) {
+            clearTimeout(settingsSaveTimer);
+            settingsSaveTimer = null;
+        }
+        void flushPendingSettingsSave();
+        return;
+    }
     if (settingsSaveTimer) return;
     settingsSaveTimer = setTimeout(() => {
         settingsSaveTimer = null;
         void flushPendingSettingsSave();
-    }, 250);
+    }, delay);
 }
 
 /** Drop any debounced settings write so Exit/Restart without Saving can skip persist. */
@@ -409,9 +427,12 @@ export function flushPendingSettingsSave(): Promise<void> {
         clearTimeout(settingsSaveTimer);
         settingsSaveTimer = null;
     }
-    const payload = pendingSettingsSave;
+    const raw = pendingSettingsSave;
     pendingSettingsSave = null;
-    if (!payload) return settingsSaveChain;
+    if (!raw) return settingsSaveChain;
+
+    noteTabsetsBeforeSettingsSave(raw);
+    const payload = prepareSettingsForDisk(raw);
 
     settingsSaveChain = settingsSaveChain
         .catch(() => {})
@@ -439,7 +460,9 @@ export async function persistConfigNow(
         settingsSaveTimer = null;
     }
     pendingSettingsSave = null;
-    await import('../lib/ipcBridge').then(({ IPC }) => IPC.saveSettings(merged));
+    noteTabsetsBeforeSettingsSave(merged);
+    const payload = prepareSettingsForDisk(merged);
+    await import('../lib/ipcBridge').then(({ IPC }) => IPC.saveSettings(payload));
     return merged;
 }
 
@@ -450,7 +473,8 @@ const ConfigContext = createContext<{ config: AppConfig; updateConfig: (v: Parti
 
 export const ConfigProvider = ({ children }: { children: ReactNode }) => {
     const [config, setConfig] = useState<AppConfig>(defaultConfig);
-    const [loaded, setLoaded] = useState(false);
+    // Paint immediately with defaults — native settings hydrate async (filesHost boot must not block).
+    const [loaded, setLoaded] = useState(true);
 
     useEffect(() => {
         import('../lib/ipcBridge').then(({ IPC }) => {
@@ -459,12 +483,8 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
                     const saved = await IPC.loadSettings();
                     let cfg = saved ? mergeWithDefaults(saved) : defaultConfig;
 
-                    // Apply settings immediately so the splash/gate is not blocked on icon libs.
                     setConfig(cfg);
                     applySettingsRuntime(cfg);
-                    // Soft fingerprint-gated shell sync only — forced registry rewrites on boot
-                    // previously stalled the host ("BNDZ is not responding").
-                    setLoaded(true);
 
                     if (IPC.isNative) {
                         try {

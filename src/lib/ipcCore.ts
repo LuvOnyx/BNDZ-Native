@@ -48,6 +48,19 @@ function resolvePending(id: string | undefined, type: string | undefined, payloa
 function ingestHostMessage(data: { type?: string; id?: string; payload?: unknown; [key: string]: unknown }) {
   if (!data?.type) return;
 
+  // Bridge / host errors must unblock the matching waiter (type would never match DIR_CONTENTS_RESULT).
+  if (data.type === 'ERROR' && data.id) {
+    const payload = data.payload as { error?: string } | undefined;
+    const msg = typeof payload?.error === 'string' && payload.error
+      ? payload.error
+      : 'Native host error';
+    rejectPending(data.id, new Error(msg));
+    for (const handler of pushHandlers) {
+      try { handler(data); } catch { /* best-effort */ }
+    }
+    return;
+  }
+
   // Listing-time glyphs — hydrate BEFORE dir contents resolve so first paint has type icons.
   if (data.type === 'SHELL_GLYPH_MAP' && data.payload && typeof data.payload === 'object') {
     hydrateShellGlyphMap(data.payload as Record<string, string>);

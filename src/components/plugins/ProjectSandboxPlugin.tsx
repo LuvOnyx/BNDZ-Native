@@ -4,6 +4,7 @@ import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -356,7 +357,7 @@ export default function ProjectSandboxPlugin({
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{s.name}</div>
-                        <div className="bndz-mono text-[10px] text-gray-500 truncate">{s.rootPath}</div>
+                        <div className="bndz-mono text-[10px] text-gray-500 truncate">{formatUiPath(s.rootPath)}</div>
                       </div>
                       <span className="text-[10px] text-gray-500">{relativeTime(s.createdUtc)}</span>
                     </div>
@@ -424,7 +425,7 @@ export default function ProjectSandboxPlugin({
                           className={statusStyle} />
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium text-white truncate">{s.name}</div>
-                          <div className="bndz-mono text-[10px] text-gray-500 truncate">{s.rootPath}</div>
+                          <div className="bndz-mono text-[10px] text-gray-500 truncate">{formatUiPath(s.rootPath)}</div>
                         </div>
                         <span className={`text-[10px] shrink-0 font-semibold uppercase tracking-wider ${statusStyle}`}>{s.status}</span>
                         <span className="text-[10px] text-gray-600 shrink-0">{relativeTime(s.createdUtc)}</span>

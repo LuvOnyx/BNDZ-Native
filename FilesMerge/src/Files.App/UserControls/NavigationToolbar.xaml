@@ -1,4 +1,4 @@
-﻿<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
+<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
 <UserControl
 	x:Class="Files.App.UserControls.NavigationToolbar"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -65,6 +65,9 @@
 		Height="48"
 		Padding="4,0,4,0"
 		Background="{ThemeResource App.Theme.AddressBar.BackgroundBrush}"
+		BorderBrush="{StaticResource BndzDividerBrush}"
+		BorderThickness="0,0,0,1"
+		CornerRadius="0,0,12,12"
 		ColumnSpacing="4">
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition Width="Auto" />

@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
 import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath, normalizePanePath, isRecycleBinPath } from '../lib/pathUtils';
+import { formatUiPath } from '../lib/displayPath';
 import { isPreviewEnabledForExt, buildSettingsRuntime } from '../lib/settingsRuntime';
+import { getBlowUpMouseBehavior, getPreviewAvBehavior } from '../lib/settingsBehavior';
+import { applyWebPathMap } from '../lib/listReportExport';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { getLocationIconPath } from '../lib/virtualLocations';
 import { isBndzVirtualPath } from '../lib/bndzVirtualViews';
@@ -13,6 +16,7 @@ import TextPreviewEditor from './TextPreviewEditor';
 const MonacoMicroEditor = lazy(() => import('./preview/MonacoMicroEditor'));
 const AudioWaveformEditor = lazy(() => import('./preview/AudioWaveformEditor'));
 import ImageZoomPreview from './ImageZoomPreview';
+import SvgVectorPreview from './SvgVectorPreview';
 import InspectionViewportRouter from '../workstation/inspection/InspectionViewportRouter';
 import type { InspectionShaderMode } from '../workstation/inspection/InspectionViewportRouter';
 import { probeWebGL } from '../workstation/webglProbe';
@@ -88,6 +92,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
   const [htmlView, setHtmlView] = useState<'render' | 'source'>('render');
   const [mdView, setMdView] = useState<'render' | 'source'>('render');
+  const [naturalImageSize, setNaturalImageSize] = useState<{ w: number; h: number } | null>(null);
   const svgBlobUrlRef = useRef<string | null>(null);
   const showLensStage = config.showLensStage !== false;
   // Session survives RightPreviewPanel remounts on selection change — config alone can lag
@@ -307,17 +312,64 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     return () => { active = false; };
   }, [activeTab, path, entity?.id, entity?.type]);
 
+  useEffect(() => {
+    if (!path || !isImage || !config.showDimensionsOfOriginal) {
+      setNaturalImageSize(null);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled) setNaturalImageSize({ w: img.naturalWidth, h: img.naturalHeight });
+    };
+    img.onerror = () => {
+      if (!cancelled) setNaturalImageSize(null);
+    };
+    img.src = virtualUrl;
+    return () => { cancelled = true; };
+  }, [path, isImage, virtualUrl, config.showDimensionsOfOriginal]);
+
+  const mediaAv = getPreviewAvBehavior(config);
+  const blowUp = getBlowUpMouseBehavior(config);
+  // Keep previewCategories / previewFormats as live gates (Configuration → Preview).
+  void config.previewCategories;
+  void config.previewFormats;
+  const previewDelayMs = typeof config.previewDelay === 'number'
+    ? config.previewDelay
+    : (previewRt.delayMs || 0);
+  const nativePreviewHandling = config.useNativeHandlingInThePreviewPane !== false && previewRt.nativeHandling !== false;
+  const avMode = String(config.audioVideoPreview || 'Play once');
+  const audioVideoEnabled = avMode !== 'Disabled' && previewRt.audioVideoEnabled !== false;
+  const seamlessLoop = !!config.seamlessWaveLooping || !!blowUp.loop || avMode === 'Loop' || !!previewRt.loopMedia;
   const mediaPlayerProps = {
-    src: virtualUrl,
+    src: applyWebPathMap(config, virtualUrl),
     filePath: path,
     extension: ext,
     title: entity?.name,
     poster: thumbnailNative ? `data:image/png;base64,${thumbnailNative}` : undefined,
-    autoplay: previewRt.autoplay,
+    autoplay: previewRt.autoplay
+      || avMode === 'Play once'
+      || avMode === 'Loop'
+      || (config.audioPreview === true && avMode !== 'Manual' && avMode !== 'Disabled'),
+    loop: seamlessLoop || !!config.loop,
+    maxPlaySeconds: mediaAv.playOnlyTheFirstSeconds
+      ? Number(mediaAv.playOnlyTheFirstSecondsValue) || 0
+      : 0,
+    keepPlayingWhenHidden: !!(mediaAv.keepPlayingWhenInfoPanelIsHidden || mediaAv.playAlsoWhenInfoPanelIsHidden),
     // Video/audio seeking needs byte-range on bndz-stream — prefer stream for video.
     // Audio stays blob-first (typically smaller; avoids codec edge cases).
-    preferBlob: isAudio || (previewRt.preferBlob && !isVideo),
+    preferBlob: isAudio || ((previewRt.preferBlob || !nativePreviewHandling) && !isVideo),
     onOpenFloating: onOpenFloatingPreview,
+    skipIntroMs: config.skipVideoPreview && isVideo
+      ? Math.max(0, Number(mediaAv.skipVideoPreviewValue) || 0)
+      : 0,
+    seamlessWaveLooping: !!config.seamlessWaveLooping,
+    borderType: String(config.imageVideoBorderType || mediaAv.imageVideoBorderType || 'no-border'),
+    showCaption: !!config.showCaption,
+    overlayCaption: !!config.overlayCaption,
+    showDimensions: !!config.showDimensionsOfOriginal && (isImage || (!!config.forVideosAsWell && isVideo)),
+    compressionBg: String(config.compressionPreviewBgColor || ''),
+    compressionFg: String(config.compressionPreviewFgColor || ''),
   };
 
   useEffect(() => {
@@ -330,7 +382,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
      if (isHtml && htmlView === 'render') return;
      if (isDocx || isPdf) return;
 
-     const delayMs = previewRt.delayMs || 0;
+     const delayMs = previewDelayMs || 0;
      let cancelled = false;
 
      const fetchContent = async () => {
@@ -374,7 +426,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
      }
      return () => { cancelled = true; };
 
-  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isDocx, isHtml, isMarkdown, htmlView, mdView, isArchive, isTorrent, virtualUrl, previewAllowed, previewRt.delayMs]);
+  }, [path, isDir, isEditableText, isBinary, isImage, isAudio, isVideo, isPdf, isDocx, isHtml, isMarkdown, htmlView, mdView, isArchive, isTorrent, virtualUrl, previewAllowed, previewDelayMs]);
 
   useEffect(() => {
     if (!path || isDir || !isSvg || !previewAllowed) {
@@ -446,9 +498,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
      return <Icons8Icon id="file_ui" size={PREVIEW_HERO_FALLBACK_ICON} />;
   };
 
-  const showThumb = previewRt.asThumbnail;
-  const zoom = config.selectConfig || "100%";
-  const animDuration = previewRt.animDuration;
+  const showThumb = previewRt.asThumbnail && config.previewAsThumbnail !== false;
+  const zoom = config.previewZoomPercent || "100%";
+  const animDuration = config.richTransitionAnimations === false ? 0 : previewRt.animDuration;
+  const mediaBorderType = String(config.imageVideoBorderType || 'no-border');
+  const showPreviewCaption = !!config.showCaption || !!config.overlayCaption;
+  const showOriginalDims = !!config.showDimensionsOfOriginal;
 
   const extractArchive = async () => {
     if (!path) return;
@@ -556,7 +611,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       if (isArchive && path) {
           return <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} />;
       }
-      if (isAudio && previewRt.audioVideoEnabled && path) {
+      if (isAudio && audioVideoEnabled && path) {
         return (
           <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform…</div>}>
             <AudioWaveformEditor path={path} title={entity.name} />
@@ -564,7 +619,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         );
       }
 
-      if (isVideo && previewRt.audioVideoEnabled) {
+      if (isVideo && audioVideoEnabled) {
         return (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center">
             <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
@@ -573,7 +628,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         );
       }
 
-      if ((isAudio || isVideo) && !previewRt.audioVideoEnabled) {
+      if ((isAudio || isVideo) && !audioVideoEnabled) {
           return (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-4 text-center">
               <Icons8Icon id="music_ui" size={48} className="opacity-30" />
@@ -592,14 +647,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             );
           }
           return (
-            <InspectionViewportRouter
-              src={src}
-              alt={entity.name}
-              filePath={path}
-              onOpenFloating={onOpenFloatingPreview}
-              gpuEnabled={config.gpuInspection !== false && probeWebGL()}
-              shaderMode={(config.inspectionShaderMode as InspectionShaderMode) || 'passthrough'}
-            />
+            <div className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
+              <SvgVectorPreview
+                key={path || src}
+                src={src}
+                alt={entity.name}
+                filePath={path}
+                onOpenFloating={onOpenFloatingPreview}
+              />
+            </div>
           );
       }
 
@@ -608,9 +664,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
               : null;
-          const primarySrc = virtualUrl || thumbData || '';
+          const primarySrc = (showThumb && thumbData) ? thumbData : (virtualUrl || thumbData || '');
           const fallbackSrc = thumbData || undefined;
           return (
+            <div
+              className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}
+              style={{
+                ...(config.compressionPreviewBgColor
+                  ? { background: `#${String(config.compressionPreviewBgColor).replace(/^#/, '')}` }
+                  : {}),
+              }}
+            >
               <InspectionViewportRouter
                   src={primarySrc}
                   alt={entity.name}
@@ -620,6 +684,23 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   gpuEnabled={config.gpuInspection !== false && probeWebGL()}
                   shaderMode={(config.inspectionShaderMode as InspectionShaderMode) || 'passthrough'}
               />
+              {showPreviewCaption && (
+                <div
+                  className={`pointer-events-none absolute inset-x-0 ${config.overlayCaption ? 'bottom-0 bg-gradient-to-t from-black/75 to-transparent p-2' : 'top-0 bg-black/50 px-2 py-1'} text-[11px] text-white/90 truncate`}
+                  style={config.compressionPreviewFgColor
+                    ? { color: `#${String(config.compressionPreviewFgColor).replace(/^#/, '')}` }
+                    : undefined}
+                >
+                  {entity.name}
+                  {showOriginalDims && naturalImageSize ? ` · ${naturalImageSize.w}×${naturalImageSize.h}` : ''}
+                </div>
+              )}
+              {!showPreviewCaption && showOriginalDims && naturalImageSize && (
+                <div className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/85">
+                  {naturalImageSize.w}×{naturalImageSize.h}
+                </div>
+              )}
+            </div>
           );
       }
 
@@ -949,7 +1030,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     {activeTab === 'preview' && (isArchive || isTorrent) ? (
                       isTorrent && path ? <TorrentPreviewPanel path={path} /> : path ? <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} /> : null
                     ) : activeTab === 'media' && (isAudio || isVideo) ? (
-                      previewRt.audioVideoEnabled ? (
+                      audioVideoEnabled ? (
                         isVideo ? (
                           <MediaPreviewPlayer {...mediaPlayerProps} type="video" />
                         ) : (
@@ -1007,7 +1088,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                                {path && (
                                   <>
                                      <div className="text-gray-500 flex items-center gap-1"><Icons8Icon id="info_ui" size={14} className="bndz-preview-inline-icon" /> Path:</div>
-                                     <div className="bndz-mono text-gray-400 break-all leading-snug">{toWindowsPath(path)}</div>
+                                     <div className="bndz-mono text-gray-400 break-all leading-snug">{formatUiPath(path)}</div>
                                   </>
                                )}
                                {fileHashes?.md5 && (

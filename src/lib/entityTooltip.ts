@@ -24,7 +24,8 @@ import {
   classifyTooltipMedia,
   resolveTooltipMedia,
 } from './tooltipMedia';
-import { hideFloatingTooltip, isShiftKeyHeld, subscribeShiftKey } from './floatingTooltip';
+import { hideFloatingTooltip, isShiftKeyHeld, setHoverPending, subscribeShiftKey } from './floatingTooltip';
+import type { HoverTooltipTheme } from '../components/HoverTooltip';
 
 function formatSize(bytes?: number): string {
   if (bytes == null || bytes === 0) return '—';
@@ -131,6 +132,15 @@ export function buildEntityTooltipContent(
     }
   }
 
+  // Settings → For junctions as well (surface reparse / junction target in tips)
+  const attrs = Array.isArray(entity.attributes) ? entity.attributes.map((a: string) => String(a).toLowerCase()) : [];
+  const isJunction = entity.linkType === 'junction'
+    || attrs.some((a: string) => a.includes('reparse') || a.includes('junction'));
+  if (config.forJunctionsAsWell && isJunction) {
+    const target = String(entity.linkTarget || entity.target || meta.Target || meta['Link Target'] || '').trim();
+    pushLine('Junction', target || 'NTFS reparse point', '#38bdf8', true);
+  }
+
   if (opts?.hoverBox && showPhotoDataInHoverBox(config)) {
     for (const key of ['Date Taken', 'Camera Model', 'F-Stop', 'Exposure Time', 'Focal Length', 'ISO Speed']) {
       if (meta[key] && !lines.some(l => l.label === key)) {
@@ -154,10 +164,16 @@ export function buildEntityTooltipContent(
     if (entity.modified) lines.push({ label: 'Modified', value: formatFsDateTime(entity.modified) });
   }
 
+  // Settings → Show verbatim tooltips (full path as title)
+  const verbatim = !!config.showVerbatimTooltips;
   return {
-    title: entity.name,
-    subtitle: isDir ? 'Folder' : entity.extension ? `.${entity.extension} file` : 'File',
-    lines,
+    title: verbatim ? fullPath.replace(/^\\+/, '') : entity.name,
+    subtitle: verbatim
+      ? (isDir ? 'Folder' : entity.extension ? `.${entity.extension} file` : 'File')
+      : (isDir ? 'Folder' : entity.extension ? `.${entity.extension} file` : 'File'),
+    lines: verbatim && config.hoverTooltipShowPath !== false
+      ? lines.filter(l => l.label !== 'Path')
+      : lines,
     media: opts?.media,
     badge: isDir
       ? { text: 'DIR', color: DIR_BADGE_COLOR }
@@ -186,6 +202,15 @@ function ensureShiftTooltipHook() {
   });
 }
 
+function isPointerTargetClipped(target: EventTarget | null): boolean {
+  const el = target instanceof HTMLElement
+    ? (target.closest('.bndz-list-name, .bndz-list-columns > div:first-child, .nav-tree-row, [data-bndz-clip-tip]') as HTMLElement | null)
+      || target
+    : null;
+  if (!el) return false;
+  return el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+}
+
 export function createEntityTooltipHandlers(
   entity: any,
   panePath: string,
@@ -205,7 +230,8 @@ export function createEntityTooltipHandlers(
   const mediaKind = entity.type !== 'directory' ? classifyTooltipMedia(entity.extension) : null;
   const needsMedia = !!mediaKind;
   const needsAudioMeta = !!config.showAudioInfoAndTags && mediaKind === 'audio';
-  const needsMeta = !!config.showHoverBox || !!config.extraFields || config.showPhotoDataInTheHoverBox || needsAudioMeta;
+  const needsMeta = !!config.showHoverBox || !!config.extraFields || config.showPhotoDataInTheHoverBox || needsAudioMeta
+    || !!config.forJunctionsAsWell;
   const hoverBox = !!config.showHoverBox;
   let cachedContent: HoverTooltipContent | null = null;
   let isHovering = false;
@@ -249,21 +275,48 @@ export function createEntityTooltipHandlers(
     hideFloatingTooltip();
   };
 
-  const tryArm = async (e?: React.MouseEvent) => {
+  const tryArm = async (e?: React.MouseEvent, optsArm?: { forceImmediate?: boolean }) => {
     const ev = e ?? lastEvent;
-    if (!isHovering || !ev || !isShiftKeyHeld()) return;
+    if (!isHovering || !ev) return;
+    const clippedTips = !!config.showTipsForClippedTreeAndListItems;
+    const clipped = isPointerTargetClipped(ev.target);
+    // Clipped-name tips can show without Shift; rich tips still require Shift.
+    if (!optsArm?.forceImmediate && !isShiftKeyHeld() && !(clippedTips && clipped)) return;
     if (!shouldShowTooltipOnSurface(config, surface)) return;
 
     const generation = ++loadGeneration;
     const content = await loadContent();
-    if (generation !== loadGeneration || !isHovering || !isShiftKeyHeld()) return;
+    if (generation !== loadGeneration || !isHovering) return;
     if (!content) return;
 
-    const handlers = bindFloatingTooltipHandlers(content, config, { surface, context });
+    // When only the clipped tip is firing, prefer a lean name tip (no Shift required).
+    const clippedImmediate = clippedTips && clipped && !isShiftKeyHeld();
+    const tipContent = clippedImmediate
+      ? {
+          title: String(entity.name || content.title),
+          subtitle: config.showVerbatimTooltips
+            ? toWindowsPath(entity.path || joinPanePath(panePath, entity))
+            : content.subtitle,
+          lines: [] as HoverTooltipContent['lines'],
+          mode: 'tip' as const,
+        }
+      : content;
+
+    if (clippedImmediate) {
+      const delayFromTips = Number(config.initialDelayInMilliseconds);
+      const delayMs = Number.isFinite(delayFromTips) && delayFromTips > 0
+        ? delayFromTips
+        : (typeof config.hoverTooltipDelayMs === 'number' ? Math.max(0, config.hoverTooltipDelayMs) : 280);
+      const theme = (config.hoverTooltipTheme as HoverTooltipTheme) || 'glass';
+      setHoverPending(tipContent, ev.clientX, ev.clientY, theme, true, delayMs);
+      return;
+    }
+
+    const handlers = bindFloatingTooltipHandlers(tipContent, config, { surface, context });
     handlers.onMouseEnter(ev);
   };
 
-  const hoverController: ActiveEntityHover = { disarm, tryArm };
+  const hoverController: ActiveEntityHover = { disarm, tryArm: () => { void tryArm(); } };
 
   return {
     onMouseEnter: (e: React.MouseEvent) => {
@@ -271,11 +324,15 @@ export function createEntityTooltipHandlers(
       isHovering = true;
       lastEvent = e;
       activeEntityHover = hoverController;
+      const clippedTips = !!config.showTipsForClippedTreeAndListItems;
+      const clipped = isPointerTargetClipped(e.target);
       if (isShiftKeyHeld()) void tryArm(e);
+      else if (clippedTips && clipped) void tryArm(e, { forceImmediate: true });
     },
     onMouseMove: (e: React.MouseEvent) => {
       lastEvent = e;
-      if (!cachedContent || !isShiftKeyHeld()) return;
+      if (!cachedContent) return;
+      if (!isShiftKeyHeld() && !(config.showTipsForClippedTreeAndListItems && isPointerTargetClipped(e.target))) return;
       bindFloatingTooltipHandlers(cachedContent, config, { surface, context }).onMouseMove(e);
     },
     onMouseLeave: () => disarm(),

@@ -14,6 +14,7 @@ import {
   CHROME_PALETTE_OPTIONS,
   GRID_SELECTION_OPTIONS,
   NAV_TREE_COLOR_OPTIONS,
+  visualLabelFromTabStyle,
   type SelectionStyle,
   type SurfaceStyle,
   type CornerRadius,
@@ -227,6 +228,23 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         </label>
       </SettingsSection>
 
+      <SettingsSection title="List & Grid cards">
+        <label className="flex items-start gap-3 py-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-[#0078d4]"
+            checked={localConfig.showListGridCards === true}
+            onChange={e => patch({ showListGridCards: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90 leading-snug">
+            Show cards on List &amp; Grid
+            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+              Off (default): icons and names only — like File Explorer. On: mica/glass tiles; Grid auto-sizes so captions fit.
+            </span>
+          </span>
+        </label>
+      </SettingsSection>
+
       <SettingsSection title="Layout density">
         <VariantSelect<DensityStyle>
           label="Density"
@@ -245,7 +263,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           <span className="text-[12px] text-white/90 leading-snug">
             Adaptive list density
             <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
-              Densifies rows during fast scroll; expands when idle or when items are selected.
+              Slightly expands row spacing when items are focused. Row size no longer changes mid-scroll (that caused flash).
             </span>
           </span>
         </label>
@@ -265,10 +283,10 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
         </label>
         <VariantSelect<TabStyle>
           label="Tab strip"
-          description="Tab bar visual style"
-          value={localConfig.appearanceTabStyle || 'underline'}
+          description="Classic Explorer vs Soft Modern, plus accent variants"
+          value={(localConfig.appearanceTabStyle as TabStyle) || 'explorer'}
           options={TAB_STYLE_OPTIONS}
-          onChange={v => patch({ appearanceTabStyle: v })}
+          onChange={v => patch({ appearanceTabStyle: v, visualStyleTabs: visualLabelFromTabStyle(v) })}
         />
       </SettingsSection>
 

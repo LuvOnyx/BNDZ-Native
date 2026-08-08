@@ -545,8 +545,6 @@ export default function BndzHomeView({
               desc="Premium freeform board — organize references across every folder without moving files on disk."
               icon="view_grid"
               accent="#c4a35a"
-              badge="Gold"
-              badgeVariant="gold"
               features={['Drop from panes', 'Sticky notes', 'Pan & zoom']}
               onClick={() => onNavigate(BNDZ_CANVAS)}
               className="is-canvas"

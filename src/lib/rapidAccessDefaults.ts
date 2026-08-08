@@ -114,17 +114,17 @@ export function buildRapidAccessDefaults(
     const path = collapseKnownFolderShadowPath(toPanePath(raw), shortcuts);
     const hideKey = knownFolderDedupeKey(path, shortcuts) || normPath(path);
     if (hidden.has(hideKey)) continue;
-    // Real FS path → unique Desktop/Documents glyphs. Fall back to shell: only when
-    // we never resolved a profile folder (rare / Public edge cases).
-    const hasFsPath = !/^\/shell:/i.test(path) && !/^shell:/i.test(path);
+    // Navigate via real FS path; fetch icons via shell: known-folder tokens.
+    // FS-only extracts (esp. OneDrive-redirected Documents) resolve to generic yellow folders.
+    const shellIcon = shellKey
+      ? (String(shellKey).startsWith('/') || String(shellKey).startsWith('shell:')
+        ? (String(shellKey).startsWith('/') ? String(shellKey) : `/${String(shellKey)}`)
+        : `/${String(shellKey)}`)
+      : undefined;
     defaults.push({
       name,
       path,
-      iconPath: hasFsPath ? path : (
-        shellKey
-          ? (String(shellKey).startsWith('/') ? String(shellKey) : `/${String(shellKey)}`)
-          : undefined
-      ),
+      iconPath: shellIcon || path,
       isDefault: true,
     });
   }
@@ -133,16 +133,16 @@ export function buildRapidAccessDefaults(
     const gPath = collapseKnownFolderShadowPath(toPanePath(galleryPath), shortcuts);
     const hideKey = knownFolderDedupeKey(gPath, shortcuts) || normPath(gPath);
     if (!hidden.has(hideKey)) {
-      const hasFsPath = !/^\/shell:/i.test(gPath) && !/^shell:/i.test(gPath);
       const galleryIcon = iconMap.Gallery || KNOWN_FOLDER_SHELL.Gallery;
+      const galleryShell = galleryIcon
+        ? (String(galleryIcon).startsWith('/') || String(galleryIcon).startsWith('shell:')
+          ? (String(galleryIcon).startsWith('/') ? String(galleryIcon) : `/${String(galleryIcon)}`)
+          : `/${String(galleryIcon)}`)
+        : undefined;
       defaults.push({
         name: 'Gallery',
         path: gPath,
-        iconPath: hasFsPath
-          ? gPath
-          : (galleryIcon
-            ? (String(galleryIcon).startsWith('/') ? String(galleryIcon) : `/${String(galleryIcon)}`)
-            : undefined),
+        iconPath: galleryShell || gPath,
         isDefault: true,
       });
     }

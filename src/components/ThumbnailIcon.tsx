@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { shouldFetchNativeShellIcon, shouldFetchNativeThumbnail } from '../lib/settingsRuntime';
+import { getOverlaysBehavior } from '../lib/settingsBehavior';
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
 import {
@@ -8,12 +9,14 @@ import {
   fetchIconifySvg,
   iconifySvgToDataUrl,
 } from '../lib/fileTypeIcons';
-import { applyIconCacheBuster, invalidateIconUrl, LIST_THUMB_PX, requestNativeIcon } from '../lib/nativeIconService';
+import { applyIconCacheBuster, invalidateIconUrl, getRuntimeListThumbPx, requestNativeIcon } from '../lib/nativeIconService';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { useNativeIcon } from '../lib/useNativeIcon';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
 import { IconPlaceholder } from './IconPlaceholder';
 import { EmblemIcon } from './EmblemIcon';
+import { audioPlaybackSession } from '../lib/audioPlaybackSession';
+import { toVirtualStreamUrl } from '../lib/pathUtils';
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif', 'heic', 'jfif', 'avif']);
 const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'm4v', 'wmv', 'mpg', 'mpeg', 'flv', 'ts', 'm2ts']);
@@ -40,6 +43,7 @@ export function ThumbnailIcon({
   path,
   size = 16,
   eager = true,
+  forceShellOnly = false,
 }: {
   entity: FSEntity;
   isDir: boolean;
@@ -47,8 +51,11 @@ export function ThumbnailIcon({
   size?: number;
   /** When true (default), fetch immediately — required for virtualized list rows. */
   eager?: boolean;
+  /** Skip thumbnail fetch (shell glyph only) — titles/list when thumbs-in-titles is off. */
+  forceShellOnly?: boolean;
 }) {
   const { config } = useAppConfig();
+  const overlays = getOverlaysBehavior(config);
   const ext = entityExt(entity);
   const isExe = ext === 'exe' || ext === 'lnk' || ext === 'msi';
   const isVideo = VIDEO_EXTS.has(ext);
@@ -67,6 +74,23 @@ export function ThumbnailIcon({
   const showFilm = isVideo && config.showFilmStripOverlayOnVideoThumbnails === true;
   const showTypeBadge = useThumbnail && config.showFileIconOnThumbnail === true;
   const isGhostLink = !!(entity as any).isGhostLink;
+  const isShortcut = !dirFlag && (ext === 'lnk' || !!(entity as any).isShortcut || !!(entity as any).isLink);
+  const isSharedFolder = dirFlag && !!(
+    (entity as any).isShared
+    || (entity as any).isShare
+    || (entity as any).shareName
+    || ((entity as any).attributes || []).includes?.('shared')
+  );
+  const networkProbe = path.startsWith('//') || path.startsWith('\\\\') || /^\/\//.test(path);
+  const overlaysBlockedOnNetwork = networkProbe
+    && !!config.showIconOverlays
+    && !config.inNetworkLocationsAsWell;
+  const showShortcutOverlay = (overlays.showShortcutOverlays || !!config.showShortcutOverlays)
+    && isShortcut
+    && !overlaysBlockedOnNetwork;
+  const showSharedOverlay = (overlays.showSharedFolderOverlays || !!config.showSharedFolderOverlays)
+    && isSharedFolder
+    && !overlaysBlockedOnNetwork;
 
   useEffect(() => {
     if (config.iconCacheBuster) {
@@ -116,20 +140,29 @@ export function ThumbnailIcon({
     return () => observer.disconnect();
   }, [path, eager]);
 
-  const thumbFetchEnabled = isVisible && useThumbnail && shouldFetchNativeThumbnail(entity, config);
+  const forceGeneric = !!config.useGenericIconsForSuperFastBrowsing
+    && (!config.butOnlyInNetworkLocations || networkProbe);
+  const allowThumbs = config.showThumbnailsForNonImages !== false
+    || IMAGE_EXTS.has(ext)
+    || VIDEO_EXTS.has(ext)
+    || (config.showThumbnailsForRawFiles !== false && ['raw', 'cr2', 'nef', 'arw', 'dng', 'orf', 'rw2'].includes(ext));
+  const thumbFetchEnabled = !forceGeneric && !forceShellOnly && isVisible && useThumbnail && allowThumbs
+    && shouldFetchNativeThumbnail(entity, config, path);
   // Always fetch shell glyphs for first paint; thumbs upgrade afterward (Explorer model).
-  const shellFetchEnabled = isVisible && shouldFetchNativeShellIcon(entity, config);
+  const shellFetchEnabled = !forceGeneric && isVisible && shouldFetchNativeShellIcon(entity, config, path);
 
   // Direct fetch — shell first (high priority), then thumbs. Viewport shells fill before offscreen thumbs.
+  // Must use getRuntimeListThumbPx() so viewport keys match listing prefetch (not hardcoded 96).
+  const listThumbPx = getRuntimeListThumbPx();
   useEffect(() => {
     if (!isVisible || !path) return;
     const boost = eager ? 800 : 400;
-    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, boost);
-    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', LIST_THUMB_PX, Math.max(0, boost - 200));
-  }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled, eager]);
+    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', listThumbPx, boost);
+    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', listThumbPx, Math.max(0, boost - 200));
+  }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled, eager, listThumbPx]);
 
-  const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
-  const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail);
+  const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path, listThumbPx);
+  const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail, listThumbPx);
 
   // SVG: CAS PNG first; else inline blob: — never bndz-stream (404s poison previews).
   useEffect(() => {
@@ -166,6 +199,7 @@ export function ThumbnailIcon({
   useEffect(() => {
     if (nativeSrc || !nativeFailed) return;
     if (config.enableIconifyFileIcons === false || config.showCachedIconsOnly) return;
+    if (config.showCustomFileIcons === false) return;
     // Prefer not to flash Devicon letters over media that should have real thumbs.
     if (useThumbnail) return;
     let active = true;
@@ -196,7 +230,28 @@ export function ThumbnailIcon({
     <div
       ref={containerRef}
       className={showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}
-      style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}
+      data-thumb-transparency={String(config.thumbnailTransparency || 'Neutral')}
+      style={{
+        width: size,
+        height: size,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        position: 'relative',
+        borderRadius: 3,
+        boxShadow: config.thumbnailChromeColor
+          ? `inset 0 0 0 1px #${String(config.thumbnailChromeColor).replace(/^#/, '')}`
+          : undefined,
+        background:
+          String(config.thumbnailTransparency || 'Neutral') === 'Checkered'
+            ? 'repeating-conic-gradient(#3a3a3a 0% 25%, #2a2a2a 0% 50%) 50% / 8px 8px'
+            : String(config.thumbnailTransparency || 'Neutral') === 'White'
+              ? '#ffffff'
+              : String(config.thumbnailTransparency || 'Neutral') === 'Black'
+                ? '#000000'
+                : undefined,
+      }}
     >
       {displaySrc ? (
         <img
@@ -204,21 +259,31 @@ export function ThumbnailIcon({
           alt=""
           decoding="async"
           loading="eager"
+          className={config.autoRotateThumbnails !== false ? 'bndz-auto-rotate-thumbs' : undefined}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           draggable={false}
+          onMouseEnter={() => {
+            // Settings → Audio preview (hover thumbnail / icon)
+            if (!config.audioPreview || dirFlag || !AUDIO_EXTS.has(ext) || !path) return;
+            const src = toVirtualStreamUrl(path);
+            if (!src) return;
+            audioPlaybackSession.load(path, src);
+            audioPlaybackSession.setLoop(!!config.loop);
+            audioPlaybackSession.play();
+          }}
           onError={() => {
             const broken = displaySrc;
             invalidateIconUrl(broken);
             if (usableThumb && broken === usableThumb) {
               // Fall back to shell glyph; CAS thumbs stay on custom scheme.
               setThumbBroken(true);
-              void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, 1000);
+              void requestNativeIcon(path, dirFlag, 'shell', listThumbPx, 1000);
               return;
             }
             if (usableShell && broken === usableShell) {
               // Shell delivery is base64 now — clear poison and refetch once.
               setShellBroken(false);
-              void requestNativeIcon(path, dirFlag, 'shell', LIST_THUMB_PX, 1000);
+              void requestNativeIcon(path, dirFlag, 'shell', listThumbPx, 1000);
               return;
             }
             setNativeFailed(true);
@@ -248,6 +313,24 @@ export function ThumbnailIcon({
       {isGhostLink && size >= 14 && (
         <span className="bndz-ghostlink-emblem absolute -right-0.5 -bottom-0.5 leading-none pointer-events-none" title="Ghost link">
           <EmblemIcon id="emblem-symbolic-link" size={Math.max(10, Math.round(size * 0.35))} />
+        </span>
+      )}
+      {showShortcutOverlay && size >= 14 && !isGhostLink && (
+        <span
+          className="bndz-shortcut-overlay absolute -right-0.5 -bottom-0.5 leading-none pointer-events-none rounded-[2px] bg-[#1a1d21]/92 text-[8px] font-bold text-sky-200 px-[2px] ring-1 ring-black/50"
+          title="Shortcut"
+          aria-hidden
+        >
+          ↗
+        </span>
+      )}
+      {showSharedOverlay && size >= 14 && (
+        <span
+          className="bndz-shared-overlay absolute -left-0.5 -bottom-0.5 leading-none pointer-events-none rounded-[2px] bg-[#1a1d21]/92 text-[8px] font-bold text-emerald-300 px-[2px] ring-1 ring-black/50"
+          title="Shared folder"
+          aria-hidden
+        >
+          S
         </span>
       )}
     </div>

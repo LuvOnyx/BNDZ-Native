@@ -1,4 +1,7 @@
 /** XYplorer-style title bar template tokens. */
+
+import { withPermanentVariables } from './permanentVariables';
+
 export function renderTitleBarTemplate(
   template: string,
   vars: {
@@ -8,6 +11,7 @@ export function renderTitleBarTemplate(
     ini?: string;
     selection?: string;
   },
+  config?: { rememberPermanentVariables?: boolean; permanentVariables?: unknown },
 ): string {
   const map: Record<string, string> = {
     path: vars.path ?? '',
@@ -22,8 +26,14 @@ export function renderTitleBarTemplate(
     '<selection>': vars.selection ?? '',
   };
 
-  return template
-    .replace(/<([^>]+)>/g, (_, raw: string) => map[raw.trim().toLowerCase()] ?? map[raw.trim()] ?? '')
+  const rendered = template
+    .replace(/<([^>]+)>/g, (_, raw: string) => {
+      const key = raw.trim();
+      if (/^(p|var):/i.test(key)) return `<${key}>`;
+      return map[key.toLowerCase()] ?? map[key] ?? '';
+    })
     .replace(/\s{2,}/g, ' ')
     .trim();
+
+  return config ? withPermanentVariables(rendered, config) : rendered;
 }

@@ -1,18 +1,42 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import './workstation/inspection/threeCompat';
-import './lib/bndzFontPack';
 import { IPC } from './lib/ipcBridge';
 import App from './App.tsx';
 import './index.css';
+import { isFilesHostBoot } from './lib/filesHostBoot';
 
 // Eager init — external OLE drops must not race the lazy FS-event listener registration.
 IPC.init();
 
+const filesHost = isFilesHostBoot();
+
+// Full font pack is heavy — on FilesMerge, paint chrome first, hydrate faces when idle.
+const loadFontPack = () => {
+  void import('./lib/bndzFontPack');
+};
+if (filesHost) {
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+  if (typeof ric === 'function') ric(() => loadFontPack(), { timeout: 2500 });
+  else window.setTimeout(loadFontPack, 800);
+} else {
+  loadFontPack();
+}
+
 // Re-arm live automation watchers/schedules without requiring the Automation view.
-void import('./lib/automationStore').then(({ restoreArmedAutomationsOnBoot }) => {
-  void restoreArmedAutomationsOnBoot();
-});
+// filesHost: defer — contending with first GET_DIR_CONTENTS / settings floods the pipe.
+const scheduleBootAutomations = () => {
+  void import('./lib/automationStore').then(({ restoreArmedAutomationsOnBoot }) => {
+    void restoreArmedAutomationsOnBoot();
+  });
+};
+if (filesHost) {
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+  if (typeof ric === 'function') ric(() => scheduleBootAutomations(), { timeout: 8000 });
+  else window.setTimeout(scheduleBootAutomations, 5000);
+} else {
+  scheduleBootAutomations();
+}
 
 /**
  * Explorer → BNDZ hover bridge. Host keeps AllowExternalDrop=true (except during BNDZ OLE)

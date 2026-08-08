@@ -35,16 +35,18 @@ function SpatialStickyNoteInner({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(sticky.text);
 
-  useEffect(() => {
-    if (editing) {
-      setDraft(sticky.text);
-      const t = window.setTimeout(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.select();
-      }, 0);
-      return () => clearTimeout(t);
-    }
-  }, [editing, sticky.text]);
+    useEffect(() => {
+    if (!editing) return;
+    setDraft(sticky.text);
+    const t = window.setTimeout(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      el.select();
+    }, 0);
+    return () => clearTimeout(t);
+    // sticky.text intentionally omitted — draft owns in-progress edits while focused.
+  }, [editing, sticky.id]);
 
   return (
     <article

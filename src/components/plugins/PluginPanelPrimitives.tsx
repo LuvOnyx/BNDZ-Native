@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
+import { formatUiPath } from '../../lib/displayPath';
 
 export const PLUGIN_INPUT_CLASS =
   'bndz-plugin-input w-full rounded-lg px-3 py-2 text-xs text-slate-100 outline-none';
@@ -195,7 +196,7 @@ export function PluginHeroStrip({
           {meta}
         </div>
         {path && (
-          <p className="bndz-mono bndz-panel-muted mt-1.5 truncate text-xs" title={path}>{path}</p>
+          <p className="bndz-mono bndz-panel-muted mt-1.5 truncate text-xs" title={formatUiPath(path)}>{formatUiPath(path)}</p>
         )}
       </div>
       {actions && <div className="flex flex-col gap-1.5 shrink-0">{actions}</div>}
@@ -226,7 +227,7 @@ export function PluginIdentityHeader({
           {meta}
         </div>
         {path && (
-          <p className="bndz-mono bndz-panel-muted mt-1 truncate text-xs" title={path}>{path}</p>
+          <p className="bndz-mono bndz-panel-muted mt-1 truncate text-xs" title={formatUiPath(path)}>{formatUiPath(path)}</p>
         )}
       </div>
     </div>

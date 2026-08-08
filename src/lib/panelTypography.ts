@@ -17,6 +17,10 @@ export type PanelFontTokens = {
  */
 const FONT_PRESETS: Record<string, string> = {
   Outfit: 'Outfit, sans-serif',
+  Inter: 'Inter, sans-serif',
+  'IBM Plex Sans': '"IBM Plex Sans", sans-serif',
+  'Source Sans 3': '"Source Sans 3", sans-serif',
+  'Segoe UI': '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif',
   'Space Grotesk': '"Space Grotesk", sans-serif',
   Sora: 'Sora, sans-serif',
   Manrope: 'Manrope, sans-serif',
@@ -29,6 +33,8 @@ const MONO_PRESETS: Record<string, string> = {
   'JetBrains Mono': '"JetBrains Mono", monospace',
   'IBM Plex Mono': '"IBM Plex Mono", monospace',
   'Fira Code': '"Fira Code", monospace',
+  'Source Code Pro': '"Source Code Pro", monospace',
+  Cascadia: '"Cascadia Code", "Cascadia Mono", "Consolas", monospace',
 };
 
 export const UI_FONT_PRESET_OPTIONS = Object.entries(FONT_PRESETS).map(([label, value]) => ({ label, value }));

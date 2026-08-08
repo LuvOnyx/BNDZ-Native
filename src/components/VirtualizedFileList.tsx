@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { packGridTracks } from '../lib/viewModeMetrics';
 
 /** Trailing empty canvas so deselect / marquee / folder context stay reachable when the list is full. */
 export const LIST_FOLDER_CONTEXT_PAD_PX = 140;
@@ -16,6 +17,14 @@ interface VirtualizedFileListProps<T> {
   className?: string;
   renderItem: (item: T, index: number) => React.ReactNode;
   emptyState?: React.ReactNode;
+  /** Visible (+overscan) item index range for icon/thumb warm — no UI change. */
+  onVisibleRangeChange?: (range: { startIndex: number; endIndex: number }) => void;
+}
+
+function contentBoxWidth(el: HTMLElement): number {
+  const style = getComputedStyle(el);
+  const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+  return Math.max(0, el.clientWidth - padX);
 }
 
 export function VirtualizedFileList<T>({
@@ -30,11 +39,15 @@ export function VirtualizedFileList<T>({
   className = 'flex flex-col w-full',
   renderItem,
   emptyState,
+  onVisibleRangeChange,
 }: VirtualizedFileListProps<T>) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [scrollMinHeight, setScrollMinHeight] = useState<number | undefined>(undefined);
-  const [gridCols, setGridCols] = useState(6);
+  const [gridPack, setGridPack] = useState(() => ({
+    cols: 1,
+    tileWidth: Math.max(1, gridMinItemWidth),
+  }));
   const useVirtual = enabled && items.length >= threshold;
 
   // Discover the overflow scroll parent once — never use setState in parent ref callbacks.
@@ -65,17 +78,21 @@ export function VirtualizedFileList<T>({
   }, [scrollEl]);
 
   useEffect(() => {
-    if (mode !== 'grid' || !useVirtual || !scrollEl) return;
-    const syncCols = () => {
-      const w = scrollEl.clientWidth || 800;
-      const next = Math.max(1, Math.floor(w / Math.max(1, gridMinItemWidth)));
-      setGridCols(prev => (prev === next ? prev : next));
+    if (mode !== 'grid' || !scrollEl) return;
+    const syncPack = () => {
+      const next = packGridTracks(contentBoxWidth(scrollEl), gridMinItemWidth, gap);
+      setGridPack(prev => (
+        prev.cols === next.cols && prev.tileWidth === next.tileWidth ? prev : next
+      ));
     };
-    syncCols();
-    const ro = new ResizeObserver(syncCols);
+    syncPack();
+    const ro = new ResizeObserver(syncPack);
     ro.observe(scrollEl);
     return () => ro.disconnect();
-  }, [mode, useVirtual, scrollEl, gridMinItemWidth]);
+  }, [mode, scrollEl, gridMinItemWidth, gap]);
+
+  const gridCols = gridPack.cols;
+  const trackWidth = gridPack.tileWidth;
 
   const virtualCount = mode === 'grid' && useVirtual
     ? Math.ceil(items.length / gridCols)
@@ -89,15 +106,59 @@ export function VirtualizedFileList<T>({
     count: virtualCount,
     getScrollElement: () => scrollEl,
     estimateSize,
-    overscan: mode === 'grid' ? 2 : 5,
+    /** Extra rows hide recycle flash during fast wheel/trackpad flings. */
+    overscan: mode === 'grid' ? 6 : 18,
     enabled: useVirtual && !!scrollEl,
   });
+
+  const rangeNotifyRef = useRef(onVisibleRangeChange);
+  rangeNotifyRef.current = onVisibleRangeChange;
+  const lastRangeKeyRef = useRef('');
+
+  useEffect(() => {
+    const notify = rangeNotifyRef.current;
+    if (!notify || !items.length) return;
+    if (!useVirtual || !scrollEl) {
+      const key = `full:0:${Math.max(0, items.length - 1)}`;
+      if (key === lastRangeKeyRef.current) return;
+      lastRangeKeyRef.current = key;
+      notify({ startIndex: 0, endIndex: Math.max(0, items.length - 1) });
+      return;
+    }
+    const vis = virtualizer.getVirtualItems();
+    if (!vis.length) return;
+    const first = vis[0];
+    const last = vis[vis.length - 1];
+    let startIndex: number;
+    let endIndex: number;
+    if (mode === 'grid') {
+      startIndex = first.index * gridCols;
+      endIndex = Math.min(items.length - 1, (last.index + 1) * gridCols - 1);
+    } else {
+      startIndex = first.index;
+      endIndex = last.index;
+    }
+    const key = `${startIndex}:${endIndex}:${items.length}`;
+    if (key === lastRangeKeyRef.current) return;
+    lastRangeKeyRef.current = key;
+    notify({ startIndex, endIndex });
+  }, [
+    useVirtual,
+    scrollEl,
+    mode,
+    gridCols,
+    items.length,
+    virtualizer.getVirtualItems().length,
+    // Re-evaluate when scroll position changes via virtualizer range.
+    virtualizer.range?.startIndex,
+    virtualizer.range?.endIndex,
+  ]);
 
   useLayoutEffect(() => {
     if (scrollEl && useVirtual) {
       virtualizer.measure();
     }
-  }, [scrollEl, useVirtual, items.length, virtualCount, gridMinItemWidth, gridRowHeight, rowHeight, gap, gridCols]);
+  }, [scrollEl, useVirtual, items.length, virtualCount, trackWidth, gridRowHeight, rowHeight, gap, gridCols]);
 
   if (!items.length) {
     return (
@@ -120,6 +181,8 @@ export function VirtualizedFileList<T>({
     return Math.max(padded, contentMin);
   };
 
+  const gridTemplate = `repeat(${gridCols}, ${trackWidth}px)`;
+
   const renderBody = () => {
     if (!useVirtual || !scrollEl) {
       if (mode === 'grid') {
@@ -128,16 +191,14 @@ export function VirtualizedFileList<T>({
             className="grid w-full justify-start content-start"
             style={{
               gap,
-              // Fixed track size — never stretch with 1fr (that caused huge empty gaps).
-              gridTemplateColumns: `repeat(auto-fill, ${gridMinItemWidth}px)`,
-              // Fill the content box; paddingBottom stays inside minHeight (border-box)
-              // so short lists do not force a scrollbar.
+              // Equal-stretch tracks from packGridTracks — no early wrap, no right clip.
+              gridTemplateColumns: gridTemplate,
               minHeight: contentMin || undefined,
               paddingBottom: LIST_FOLDER_CONTEXT_PAD_PX,
             }}
           >
             {items.map((item, i) => (
-              <div key={i}>{renderItem(item, i)}</div>
+              <div key={i} style={{ minWidth: 0, maxWidth: '100%' }}>{renderItem(item, i)}</div>
             ))}
           </div>
         );
@@ -171,19 +232,21 @@ export function VirtualizedFileList<T>({
           className={className}
           style={{ height: bodyHeight, minHeight: withFolderPad(0), position: 'relative', width: '100%' }}
         >
-          {virtualizer.getVirtualItems().map(vi => {
+            {virtualizer.getVirtualItems().map(vi => {
             const startIdx = vi.index * gridCols;
             const rowItems = items.slice(startIdx, startIdx + gridCols);
             return (
               <div
                 key={vi.key}
+                className="bndz-vlist-row"
                 style={{
                   position: 'absolute',
-                  top: 0,
+                  top: vi.start,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${vi.start}px)`,
-                  contain: 'layout style',
+                  height: vi.size,
+                  contain: 'layout style paint',
+                  overflow: 'hidden',
                   pointerEvents: 'none',
                 }}
               >
@@ -191,12 +254,12 @@ export function VirtualizedFileList<T>({
                   className="grid w-full justify-start"
                   style={{
                     gap,
-                    gridTemplateColumns: `repeat(${gridCols}, ${gridMinItemWidth}px)`,
+                    gridTemplateColumns: gridTemplate,
                     pointerEvents: 'none',
                   }}
                 >
                   {rowItems.map((item, i) => (
-                    <div key={startIdx + i} style={{ pointerEvents: 'auto' }}>{renderItem(item, startIdx + i)}</div>
+                    <div key={startIdx + i} style={{ pointerEvents: 'auto', minWidth: 0, maxWidth: '100%' }}>{renderItem(item, startIdx + i)}</div>
                   ))}
                 </div>
               </div>
@@ -229,14 +292,15 @@ export function VirtualizedFileList<T>({
           <div
             key={vi.key}
             data-index={vi.index}
+            className="bndz-vlist-row"
             style={{
               position: 'absolute',
-              top: 0,
+              top: vi.start,
               left: 0,
               width: '100%',
               height: rowHeight,
-              transform: `translateY(${vi.start}px)`,
-              contain: 'layout style',
+              contain: 'layout style paint',
+              overflow: 'hidden',
               pointerEvents: 'none',
             }}
           >
@@ -261,9 +325,9 @@ export function VirtualizedFileList<T>({
     );
   };
 
-  // Host matches the scrollport when short — do not add the folder pad here
-  // (body already accounts for it without forcing overflow).
-  const nonVirtualMinH = contentMin > 0 ? { minHeight: contentMin } : undefined;
-
-  return <div ref={hostRef} className="w-full min-h-0" style={nonVirtualMinH}>{renderBody()}</div>;
+  return (
+    <div ref={hostRef} className="w-full min-h-0" style={{ minHeight: contentMin || undefined }}>
+      {renderBody()}
+    </div>
+  );
 }

@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { prismLanguageForExt } from '../../lib/textFileTypes';
+import { ensureMonacoLocal } from '../../lib/monacoLocal';
+
+ensureMonacoLocal();
 
 type Props = {
   path: string;

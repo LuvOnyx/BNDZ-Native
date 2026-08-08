@@ -1,6 +1,7 @@
 // Copyright (c) BNDZ — FilesMerge ↔ BNDZBackend host bridge
 // Files Community portions remain MIT (see LICENSE-MIT).
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
@@ -27,10 +28,15 @@ internal sealed record BndzBackendStatus(
 
 /// <summary>
 /// Named-pipe client for <c>BNDZ.Backend.Host</c> — same type/id/payload envelope as WebView2 IPC.
+/// Persistent connection pool (reconnect-per-call was the cold-load killer).
 /// </summary>
 internal static class BndzBackendClient
 {
 	public const string PipeName = "BNDZ.Backend.Host";
+	private const int PoolSize = 8;
+
+	private static readonly ConcurrentBag<PooledPipe> Pool = new();
+	private static int _poolCreated;
 
 	public static async Task<JsonDocument?> InvokeAsync(string type, object? payload = null, int connectTimeoutMs = 2500, CancellationToken ct = default)
 	{
@@ -62,19 +68,53 @@ internal static class BndzBackendClient
 			line = requestJson;
 		}
 
-		using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-		await client.ConnectAsync(connectTimeoutMs, ct).ConfigureAwait(false);
+		var payloadBytes = Encoding.UTF8.GetBytes(line.TrimEnd() + "\n");
+		Exception? last = null;
 
-		var bytes = Encoding.UTF8.GetBytes(line.TrimEnd() + "\n");
-		await client.WriteAsync(bytes, ct).ConfigureAwait(false);
-		await client.FlushAsync(ct).ConfigureAwait(false);
+		for (var attempt = 0; attempt < 2; attempt++)
+		{
+			ct.ThrowIfCancellationRequested();
+			PooledPipe? lease = null;
+			try
+			{
+				lease = await RentAsync(connectTimeoutMs, ct).ConfigureAwait(false);
+				using var roundTripCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+				roundTripCts.CancelAfter(TimeSpan.FromSeconds(60));
+				await lease.SendAndReceiveAsync(payloadBytes, roundTripCts.Token).ConfigureAwait(false);
+				var responseLine = lease.LastResponse;
+				Return(lease);
+				lease = null;
 
-		using var reader = new StreamReader(client, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-		var responseLine = await reader.ReadLineAsync(ct).ConfigureAwait(false);
-		if (string.IsNullOrWhiteSpace(responseLine))
-			return null;
+				if (string.IsNullOrWhiteSpace(responseLine))
+					return null;
 
-		return JsonDocument.Parse(responseLine);
+				return JsonDocument.Parse(responseLine);
+			}
+			catch (Exception ex) when (attempt == 0)
+			{
+				last = ex;
+				DropLease(ref lease);
+			}
+			catch
+			{
+				DropLease(ref lease);
+				throw;
+			}
+		}
+
+		if (last is not null)
+			throw last;
+		return null;
+	}
+
+	private static void DropLease(ref PooledPipe? lease)
+	{
+		if (lease is null) return;
+		var drop = lease;
+		lease = null;
+		try { drop.Dispose(); } catch { }
+		Interlocked.Decrement(ref _poolCreated);
+		try { PoolGate.Release(); } catch { }
 	}
 
 	public static async Task<bool> TryPingAsync(CancellationToken ct = default)
@@ -95,6 +135,122 @@ internal static class BndzBackendClient
 			return false;
 		}
 	}
+
+	private static readonly SemaphoreSlim PoolGate = new(PoolSize, PoolSize);
+
+	private static async Task<PooledPipe> RentAsync(int connectTimeoutMs, CancellationToken ct)
+	{
+		await PoolGate.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			while (Pool.TryTake(out var ready))
+			{
+				if (ready.IsAlive)
+					return ready;
+				ready.Dispose();
+				Interlocked.Decrement(ref _poolCreated);
+			}
+
+			var created = Interlocked.Increment(ref _poolCreated);
+			if (created > PoolSize)
+			{
+				// Should be rare with PoolGate — roll back and wait for a returned pipe.
+				Interlocked.Decrement(ref _poolCreated);
+				for (var i = 0; i < 40; i++)
+				{
+					await Task.Delay(15, ct).ConfigureAwait(false);
+					if (Pool.TryTake(out var reused) && reused.IsAlive)
+						return reused;
+					if (reused is not null)
+					{
+						reused.Dispose();
+						Interlocked.Decrement(ref _poolCreated);
+					}
+				}
+
+				Interlocked.Increment(ref _poolCreated);
+			}
+
+			var pipe = new PooledPipe();
+			try
+			{
+				await pipe.ConnectAsync(connectTimeoutMs, ct).ConfigureAwait(false);
+				return pipe;
+			}
+			catch
+			{
+				try { pipe.Dispose(); } catch { }
+				Interlocked.Decrement(ref _poolCreated);
+				throw;
+			}
+		}
+		catch
+		{
+			PoolGate.Release();
+			throw;
+		}
+	}
+
+	private static void Return(PooledPipe pipe)
+	{
+		try
+		{
+			if (!pipe.IsAlive)
+			{
+				try { pipe.Dispose(); } catch { }
+				Interlocked.Decrement(ref _poolCreated);
+				return;
+			}
+
+			Pool.Add(pipe);
+		}
+		finally
+		{
+			PoolGate.Release();
+		}
+	}
+
+	private sealed class PooledPipe : IDisposable
+	{
+		private NamedPipeClientStream? _client;
+		private SystemIO.StreamReader? _reader;
+		private readonly SemaphoreSlim _gate = new(1, 1);
+		public string? LastResponse { get; private set; }
+		public bool IsAlive => _client is { IsConnected: true };
+
+		public async Task ConnectAsync(int connectTimeoutMs, CancellationToken ct)
+		{
+			_client = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+			await _client.ConnectAsync(connectTimeoutMs, ct).ConfigureAwait(false);
+			_reader = new SystemIO.StreamReader(_client, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+		}
+
+		public async Task SendAndReceiveAsync(byte[] payload, CancellationToken ct)
+		{
+			await _gate.WaitAsync(ct).ConfigureAwait(false);
+			try
+			{
+				if (_client is null || _reader is null)
+					throw new InvalidOperationException("pipe not connected");
+				await _client.WriteAsync(payload, ct).ConfigureAwait(false);
+				await _client.FlushAsync(ct).ConfigureAwait(false);
+				LastResponse = await _reader.ReadLineAsync(ct).ConfigureAwait(false);
+			}
+			finally
+			{
+				_gate.Release();
+			}
+		}
+
+		public void Dispose()
+		{
+			try { _reader?.Dispose(); } catch { }
+			try { _client?.Dispose(); } catch { }
+			try { _gate.Dispose(); } catch { }
+			_reader = null;
+			_client = null;
+		}
+	}
 }
 
 /// <summary>
@@ -106,6 +262,7 @@ internal sealed class BndzBackendHostService
 	public static BndzBackendHostService Instance { get; } = new();
 
 	private readonly object _gate = new();
+	private readonly SemaphoreSlim _startLock = new(1, 1);
 	private Process? _process;
 	private bool _ownsProcess;
 	private CancellationTokenSource? _monitorCts;
@@ -115,20 +272,29 @@ internal sealed class BndzBackendHostService
 
 	public event EventHandler<BndzBackendStatus>? StatusChanged;
 
-	public async Task EnsureStartedAsync(CancellationToken ct = default)
+	public async Task EnsureStartedAsync(CancellationToken ct = default, bool startMonitor = true)
+	{
+		await _startLock.WaitAsync(ct).ConfigureAwait(false);
+		try
+		{
+			await EnsureStartedCoreAsync(ct, startMonitor).ConfigureAwait(false);
+		}
+		finally
+		{
+			_startLock.Release();
+		}
+	}
+
+	private async Task EnsureStartedCoreAsync(CancellationToken ct, bool startMonitor)
 	{
 		SetStatus(new(BndzBackendConnectionState.Starting, "BNDZ backend starting…"));
 
 		if (await BndzBackendClient.TryPingAsync(ct).ConfigureAwait(false))
 		{
-			await ProveBrainAsync(ct).ConfigureAwait(false);
-			return;
-		}
-
-		var exe = ResolveBndzExe();
-		if (exe is null)
-		{
-			SetStatus(new(BndzBackendConnectionState.Offline, "BNDZ backend missing", Detail: "Build BNDZBackend (npm run build + dotnet), then relaunch."));
+			SetStatus(new(BndzBackendConnectionState.Connected, "BNDZ backend connected", SafePid()));
+			_ = ProveBrainAsync(CancellationToken.None);
+			if (startMonitor)
+				StartMonitor();
 			return;
 		}
 
@@ -136,20 +302,32 @@ internal sealed class BndzBackendHostService
 		{
 			if (_process is { HasExited: false })
 			{
-				// already spawning
+				// Spawn already in flight — wait for ping below.
 			}
 			else
 			{
+				var exe = ResolveBndzExe();
+				if (exe is null)
+				{
+					SetStatus(new(BndzBackendConnectionState.Offline, "BNDZ backend missing", Detail: "Build BNDZBackend (npm run build + dotnet), then relaunch."));
+					return;
+				}
+
+				// UseShellExecute=false so package / layout launches are reliable (no shell verb quirks).
 				_process = Process.Start(new ProcessStartInfo
 				{
 					FileName = exe,
 					Arguments = "--backend-host --skip-elevation",
-					UseShellExecute = true,
-					WorkingDirectory = Path.GetDirectoryName(exe)!,
+					UseShellExecute = false,
+					CreateNoWindow = true,
+					WorkingDirectory = SystemIO.Path.GetDirectoryName(exe)!,
 				});
 				_ownsProcess = _process is not null;
 			}
 		}
+
+		if (_process is null && Status.State == BndzBackendConnectionState.Offline)
+			return;
 
 		if (_process is null)
 		{
@@ -162,8 +340,10 @@ internal sealed class BndzBackendHostService
 			ct.ThrowIfCancellationRequested();
 			if (await BndzBackendClient.TryPingAsync(ct).ConfigureAwait(false))
 			{
-				await ProveBrainAsync(ct).ConfigureAwait(false);
-				StartMonitor();
+				SetStatus(new(BndzBackendConnectionState.Connected, "BNDZ backend connected", SafePid()));
+				_ = ProveBrainAsync(CancellationToken.None);
+				if (startMonitor)
+					StartMonitor();
 				return;
 			}
 			await Task.Delay(150, ct).ConfigureAwait(false);
@@ -236,10 +416,35 @@ internal sealed class BndzBackendHostService
 				try
 				{
 					await Task.Delay(8000, token).ConfigureAwait(false);
-					if (!await BndzBackendClient.TryPingAsync(token).ConfigureAwait(false))
+					if (await BndzBackendClient.TryPingAsync(token).ConfigureAwait(false))
+						continue;
+
+					SetStatus(new(BndzBackendConnectionState.Offline, "BNDZ backend offline", Detail: "Reconnecting…"));
+					lock (_gate)
 					{
-						SetStatus(new(BndzBackendConnectionState.Offline, "BNDZ backend offline"));
-						break;
+						// Only clear handle if the child actually died — never orphan a live host
+						// then spawn a second BNDZ.exe.
+						if (_process is null || _process.HasExited)
+						{
+							_process = null;
+							_ownsProcess = false;
+						}
+						else
+						{
+							try { _process.Kill(entireProcessTree: true); } catch { }
+							_process = null;
+							_ownsProcess = false;
+						}
+					}
+					try
+					{
+						// Do not StartMonitor again — this loop owns the watchdog.
+						await EnsureStartedAsync(token, startMonitor: false).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException) { break; }
+					catch
+					{
+						/* next loop retries */
 					}
 				}
 				catch (OperationCanceledException) { break; }
@@ -271,21 +476,23 @@ internal sealed class BndzBackendHostService
 	internal static string? ResolveBndzExe()
 	{
 		var env = Environment.GetEnvironmentVariable("BNDZ_FM_EXE");
-		if (!string.IsNullOrWhiteSpace(env) && File.Exists(env))
+		if (!string.IsNullOrWhiteSpace(env) && SystemIO.File.Exists(env))
 			return env;
 
 		var baseDir = AppContext.BaseDirectory;
+		// Prefer isolated bndz-host/ tree (full WPF output) — never mix BNDZ net8 deps into Files root.
 		var candidates = new[]
 		{
-			Path.GetFullPath(Path.Combine(baseDir, "BNDZ.exe")),
-			Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
-			Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Release", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
-			Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
-			Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "BNDZBackend", "bin", "Release", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "bndz-host", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "bin", "Release", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(Environment.CurrentDirectory, "BNDZBackend", "bin", "Debug", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
+			SystemIO.Path.GetFullPath(SystemIO.Path.Combine(Environment.CurrentDirectory, "BNDZBackend", "bin", "Release", "net8.0-windows10.0.19041.0", "BNDZ.exe")),
 		};
 		foreach (var c in candidates)
 		{
-			if (File.Exists(c))
+			if (SystemIO.File.Exists(c))
 				return c;
 		}
 		return null;

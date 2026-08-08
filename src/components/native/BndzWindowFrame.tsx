@@ -12,6 +12,8 @@ export type BndzWindowFrameProps = {
   widthClass?: string;
   heightClass?: string;
   zIndexClass?: string;
+  /** Settings → Modeless dialog — allow interacting with the FM behind Configuration. */
+  modelessDialog?: boolean;
 };
 
 /** Large app-style window (Configuration, Extension Hub) with flat native title bar. */
@@ -24,13 +26,20 @@ export function BndzWindowFrame({
   widthClass = 'w-[min(850px,calc(100vw-2rem))]',
   heightClass = 'h-[min(650px,calc(100vh-2rem))]',
   zIndexClass = 'z-50',
+  modelessDialog = false,
 }: BndzWindowFrameProps) {
   return createPortal(
-    <div className={`bndz-native-scrim fixed inset-0 ${zIndexClass} flex items-center justify-center p-3 sm:p-4 overflow-hidden`}>
+    <div
+      className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-3 sm:p-4 overflow-hidden ${
+        modelessDialog ? 'pointer-events-none bg-transparent' : 'bndz-native-scrim'
+      }`}
+    >
       <div
-        className={`bndz-native-window ${widthClass} ${heightClass} flex flex-col overflow-hidden select-none`}
+        className={`bndz-native-window pointer-events-auto ${widthClass} ${heightClass} flex flex-col overflow-hidden select-none ${
+          modelessDialog ? 'shadow-2xl ring-1 ring-white/10' : ''
+        }`}
         role="dialog"
-        aria-modal="true"
+        aria-modal={modelessDialog ? false : true}
         onMouseDown={e => e.stopPropagation()}
       >
         <div className="bndz-native-window-titlebar px-3 py-2 flex items-center justify-between shrink-0">

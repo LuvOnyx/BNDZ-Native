@@ -17,9 +17,11 @@ type UpdateInfo = {
 export default function AboutDialog({
   onClose,
   updateCheckUrl,
+  includeBetaVersions = false,
 }: {
   onClose: () => void;
   updateCheckUrl?: string;
+  includeBetaVersions?: boolean;
 }) {
   const [version, setVersion] = useState(FALLBACK_VERSION);
   const [checking, setChecking] = useState(false);
@@ -36,7 +38,8 @@ export default function AboutDialog({
     setUpdateInfo(null);
     try {
       const { IPC } = await import('../lib/ipcBridge');
-      const result = await IPC.checkForUpdates(updateCheckUrl);
+      // Settings → Include beta versions
+      const result = await IPC.checkForUpdates(updateCheckUrl, includeBetaVersions);
       setUpdateInfo(result);
       if (result.currentVersion) setVersion(result.currentVersion);
     } catch (err: any) {

@@ -36,12 +36,13 @@ dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 
 Classic `BNDZ.exe` on this machine (reference): `scripts\run-classic.cmd`
 
-## Phase 1–3 (current)
+## Phase 1–4 (current)
 
 - FilesMerge is the primary host, branded **BNDZ-Native**
 - Default UX = native Files chrome + file list (no nested classic FM)
 - Shell starts `BNDZ.exe --backend-host` and shows a status chip when the full brain is connected
-- Omnibar toggles host React panes: **Plugins** (bottom dock), **Automation** / **Spatial** (workspace overlay)
+- Omnibar toggles host React panes: **Plugins**, **Smart Tools**, **Automation**, **Spatial**, **Hub**, **Config**, **Preview**
+- Plugins dock + BNDZ Preview open by default; pane→shell navigate / Command Deck tools are live
 - Pane UI uses BNDZ craft (soft squircles, aurora chrome) — not nested classic layout
 
 ## Requirements

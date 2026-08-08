@@ -24,8 +24,22 @@ interface MediaPreviewPlayerProps {
   extension?: string;
   autoplay?: boolean;
   preferBlob?: boolean;
+  loop?: boolean;
+  /** Stop playback after N seconds when playOnlyTheFirstSeconds is enabled. */
+  maxPlaySeconds?: number;
+  keepPlayingWhenHidden?: boolean;
   /** Opens BNDZ floating Quick Look overlay for the current media file. */
   onOpenFloating?: () => void;
+  /** Skip into the stream by this many ms before play (Settings → Preview). */
+  skipIntroMs?: number;
+  /** Settings → Seamless wave looping (gapless seek-to-0 on ended). */
+  seamlessWaveLooping?: boolean;
+  borderType?: string;
+  showCaption?: boolean;
+  overlayCaption?: boolean;
+  showDimensions?: boolean;
+  compressionBg?: string;
+  compressionFg?: string;
 }
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -44,7 +58,10 @@ function formatTime(seconds: number): string {
 }
 
 const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlayerProps>(function MediaPreviewPlayer({
-  src, type, title, poster, filePath, extension = '', autoplay = false, preferBlob = false, onOpenFloating,
+  src, type, title, poster, filePath, extension = '', autoplay = false, preferBlob = false,
+  loop = false, maxPlaySeconds = 0, keepPlayingWhenHidden = false, onOpenFloating, skipIntroMs = 0,
+  seamlessWaveLooping = false, borderType = 'no-border', showCaption = false, overlayCaption = false,
+  showDimensions = false, compressionBg = '', compressionFg = '',
 }, ref) {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -454,16 +471,38 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
   const mediaProps = {
     src: resolvedSrc,
     preload: 'auto' as const,
-    onTimeUpdate: syncVideoState,
+    loop: !!loop || !!seamlessWaveLooping,
+    onTimeUpdate: () => {
+      syncVideoState();
+      const el = mediaRef.current;
+      if (el && maxPlaySeconds > 0 && el.currentTime >= maxPlaySeconds) {
+        el.pause();
+        setPlaying(false);
+      }
+    },
     onLoadedMetadata: () => {
       syncVideoState();
       setBuffering(false);
       setLoadError(null);
+      const el = mediaRef.current;
+      if (el && skipIntroMs > 0 && !handoffAppliedRef.current) {
+        try { el.currentTime = Math.min(skipIntroMs / 1000, Math.max(0, (el.duration || 0) - 0.05)); } catch { /* */ }
+      }
       if (!applyHandoffVideo()) tryAutoplay();
     },
     onPlay: () => setPlaying(true),
     onPause: () => setPlaying(false),
-    onEnded: () => setPlaying(false),
+    onEnded: () => {
+      if (seamlessWaveLooping || loop) {
+        const el = mediaRef.current;
+        if (el) {
+          try { el.currentTime = 0; } catch { /* */ }
+          void el.play().catch(() => setPlaying(false));
+          return;
+        }
+      }
+      setPlaying(false);
+    },
     onWaiting: () => setBuffering(true),
     onCanPlay: () => {
       setBuffering(false);
@@ -471,12 +510,29 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     },
     onError: handleMediaError,
   };
+  void keepPlayingWhenHidden;
 
   const volValue = muted ? 0 : volume;
+  const borderClass = `bndz-preview-border-${String(borderType || 'no-border').replace(/[^a-z0-9-]/gi, '')}`;
+  const stageStyle: React.CSSProperties | undefined = compressionBg
+    ? { background: `#${String(compressionBg).replace(/^#/, '')}` }
+    : undefined;
+  const captionStyle: React.CSSProperties | undefined = compressionFg
+    ? { color: `#${String(compressionFg).replace(/^#/, '')}` }
+    : undefined;
 
   return (
-    <div className={`bndz-media-root ${type === 'video' ? 'bndz-media-root--video' : 'bndz-media-root--audio'}`}>
-      <div className={`bndz-media-stage bndz-preview-stage ${type === 'audio' ? 'bndz-media-stage--audio' : ''}`}>
+    <div className={`bndz-media-root ${type === 'video' ? 'bndz-media-root--video' : 'bndz-media-root--audio'} ${borderClass}`} style={stageStyle}>
+      <div className={`bndz-media-stage bndz-preview-stage ${type === 'audio' ? 'bndz-media-stage--audio' : ''} ${borderClass}`}>
+        {(showCaption || overlayCaption) && title && (
+          <div
+            className={`pointer-events-none absolute inset-x-0 z-10 ${overlayCaption ? 'bottom-0 bg-gradient-to-t from-black/75 to-transparent p-2' : 'top-0 bg-black/50 px-2 py-1'} text-[11px] text-white/90 truncate`}
+            style={captionStyle}
+          >
+            {title}
+            {showDimensions && duration > 0 ? ` · ${formatTime(duration)}` : ''}
+          </div>
+        )}
         {loadError ? (
           <div className="bndz-media-error">
             <Icons8Icon id="warning" size={36} className="opacity-80" />

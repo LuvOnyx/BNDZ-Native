@@ -77,7 +77,7 @@ function FileConflictModal({
       size="lg"
       onClose={onClose}
       buttons={[
-        { label: 'Cancel', style: 'secondary', onClick: onClose },
+        { label: 'Cancel', style: 'secondary', onClick: () => resolve('skip') },
         { label: 'Skip', style: 'secondary', onClick: () => resolve('skip') },
         { label: 'Keep both', style: 'secondary', onClick: () => resolve('keepboth') },
         { label: 'Replace', style: 'primary', onClick: () => resolve('replace') },

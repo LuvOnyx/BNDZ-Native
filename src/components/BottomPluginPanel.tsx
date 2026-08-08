@@ -42,7 +42,8 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       style={style}
       type="button"
       onClick={onClick}
-      className={`bndz-bottom-tab relative flex items-center gap-1.5 shrink-0 max-w-[160px] ${
+      data-plugin-tab-id={plugin.id}
+      className={`bndz-bottom-tab relative flex items-center gap-1.5 shrink-0 max-w-[140px] ${
         isActive ? 'bndz-bottom-tab-active' : ''
       }`}
       title={plugin.name}
@@ -50,7 +51,7 @@ function SortableTab({ plugin, isActive, onClick, showIcons }: { plugin: any; is
       {isActive && (
         <motion.span
           layoutId="bndz-bottom-tab-glow"
-          className="absolute inset-x-2 bottom-0 h-[2px] rounded-sm bg-[#99c9f0]/85"
+          className="bndz-bottom-tab-underline pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-[#99c9f0]"
           transition={{ type: 'spring', stiffness: 520, damping: 36 }}
         />
       )}
@@ -98,9 +99,9 @@ export default function BottomPluginPanel(props: any & {
   const { pluginRegistry } = usePluginRegistry();
   const { config, updateConfig } = useAppConfig();
   const panelRef = useRef<HTMLDivElement>(null);
-  const overflowRef = useRef<HTMLDivElement>(null);
-  const [overflowOpen, setOverflowOpen] = useState(false);
+  const tabScrollRef = useRef<HTMLDivElement>(null);
   const [immersiveHost, setImmersiveHost] = useState<HTMLElement | null>(null);
+  const [tabScrollEdges, setTabScrollEdges] = useState({ left: false, right: false });
   const lazyUnmount = config.bottomPanelLazyUnmount !== false;
 
   useEffect(() => {
@@ -139,18 +140,22 @@ export default function BottomPluginPanel(props: any & {
 
   const activePlugin = orderedPlugins.find((p: { id: string }) => p.id === activeTab);
 
+  const updateTabScrollEdges = useCallback(() => {
+    const el = tabScrollRef.current;
+    if (!el) {
+      setTabScrollEdges({ left: false, right: false });
+      return;
+    }
+    const max = el.scrollWidth - el.clientWidth;
+    setTabScrollEdges({
+      left: el.scrollLeft > 2,
+      right: max > 2 && el.scrollLeft < max - 2,
+    });
+  }, []);
+
   useEffect(() => {
     onActiveTabChange?.(activeTab, activePlugin?.name);
   }, [activeTab, activePlugin?.name, onActiveTabChange]);
-
-  useEffect(() => {
-    if (!overflowOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) setOverflowOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [overflowOpen]);
 
   useEffect(() => {
     if (!requestedTab || !orderedPlugins.some((p: any) => p.id === requestedTab)) return;
@@ -172,6 +177,30 @@ export default function BottomPluginPanel(props: any & {
     const def = config.bottomPanelDefaultPlugin || orderedPlugins[0].id;
     setActiveTab(orderedPlugins.some((p: any) => p.id === def) ? def : orderedPlugins[0].id);
   }, [orderedPlugins, activeTab, config.bottomPanelRememberTab, config.bottomPanelLastTab, config.bottomPanelDefaultPlugin]);
+
+  /** Keep the selected plugin tab in view when many plugins are installed. */
+  useEffect(() => {
+    if (!activeTab) return;
+    const scroller = tabScrollRef.current;
+    if (!scroller) return;
+    const tabEl = scroller.querySelector(`[data-plugin-tab-id="${activeTab.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`) as HTMLElement | null;
+    tabEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    updateTabScrollEdges();
+  }, [activeTab, orderedPlugins.length, updateTabScrollEdges]);
+
+  useEffect(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    updateTabScrollEdges();
+    const onScroll = () => updateTabScrollEdges();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => updateTabScrollEdges()) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      ro?.disconnect();
+    };
+  }, [orderedPlugins.length, updateTabScrollEdges]);
 
   const cycleTab = useCallback((direction: 1 | -1) => {
     if (!activeTab || orderedPlugins.length < 2) return;
@@ -203,7 +232,6 @@ export default function BottomPluginPanel(props: any & {
     // Impossible to activate a tab for an uninstalled plugin.
     if (!orderedPlugins.some((p: any) => p.id === id)) return;
     setActiveTab(id);
-    setOverflowOpen(false);
     if (config.bottomPanelRememberTab !== false) {
       updateConfig({ bottomPanelLastTab: id });
     }
@@ -274,10 +302,6 @@ export default function BottomPluginPanel(props: any & {
     if (launchContext && activeTab) onLaunchContextConsumed?.();
   }, [activeTab, launchContext, onLaunchContextConsumed]);
 
-  const visibleTabCount = 16;
-  const primaryTabs = orderedPlugins.slice(0, visibleTabCount);
-  const overflowTabs = orderedPlugins.slice(visibleTabCount);
-
   if (orderedPlugins.length === 0) {
     return (
       <div className="bndz-bottom-panel flex flex-col h-full min-h-0 border-t border-white/[0.06]">
@@ -330,9 +354,14 @@ export default function BottomPluginPanel(props: any & {
         modifiers={[restrictTabDragToHorizontalAxis]}
       >
         <SortableContext items={orderedPlugins.map(p => p.id)} strategy={horizontalListSortingStrategy}>
-          <div className="bndz-bottom-tabstrip flex min-w-0 border-b border-white/[0.06] shrink-0 items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs">
-            <div className="bndz-bottom-tabstrip-scroll flex flex-1 min-w-0 overflow-x-auto scrollbar-hidden items-stretch touch-pan-x">
-            {primaryTabs.map((plugin: any) => (
+          <div className="bndz-bottom-tabstrip flex min-w-0 border-b border-white/[0.06] shrink-0 items-stretch" title="Ctrl+PageDown / Ctrl+PageUp — switch plugin tabs · scroll or drag to reorder when many are installed">
+            <div
+              ref={tabScrollRef}
+              className={`bndz-bottom-tabstrip-scroll flex flex-1 min-w-0 overflow-x-auto scrollbar-hidden items-stretch touch-pan-x${
+                tabScrollEdges.left ? ' is-scroll-left' : ''
+              }${tabScrollEdges.right ? ' is-scroll-right' : ''}`}
+            >
+            {orderedPlugins.map((plugin: any) => (
               <SortableTab
                 key={plugin.id}
                 plugin={plugin}
@@ -342,35 +371,6 @@ export default function BottomPluginPanel(props: any & {
               />
             ))}
             </div>
-            {overflowTabs.length > 0 && (
-              <div ref={overflowRef} className="relative shrink-0 border-l border-white/[0.04]">
-                <button
-                  type="button"
-                  onClick={() => setOverflowOpen(v => !v)}
-                  className={`bndz-bottom-tab h-full px-3 flex items-center gap-1.5 ${
-                    overflowTabs.some((p: any) => p.id === activeTab) ? 'bndz-bottom-tab-active' : ''
-                  }`}
-                >
-                  More <Icons8Icon id="chevron_down" size={12} className={overflowOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
-                </button>
-                {overflowOpen && (
-                  <div className="absolute right-0 top-full z-50 min-w-[200px] py-1 bg-[#16161c] border border-white/[0.08] shadow-xl max-h-[240px] overflow-y-auto bndz-scrollbar rounded-b-md">
-                    {overflowTabs.map((plugin: any) => (
-                      <button
-                        key={plugin.id}
-                        type="button"
-                        onClick={() => handleTabClick(plugin.id)}
-                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-white/[0.05] ${
-                          activeTab === plugin.id ? 'text-[#99c9f0] font-medium bg-[#094771]/25' : 'text-gray-300'
-                        }`}
-                      >
-                        <Icons8Icon id={plugin.icon || 'dropstack'} size={12} /> {plugin.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
             <div className="flex items-center gap-1 px-2 shrink-0 border-l border-white/[0.04]">
               {activeTab && (
                 <button

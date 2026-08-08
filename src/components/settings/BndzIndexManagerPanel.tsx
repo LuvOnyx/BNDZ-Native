@@ -3,6 +3,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { getIndexStatusCached, invalidateIndexStatusCache } from '../../lib/indexStatusCache';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 
 type IndexStatus = {
   fileCount: number;
@@ -127,7 +128,7 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
             {progress?.done
               ? `Indexed ${progress.filesIndexed.toLocaleString()} entries`
               : progress
-                ? `${progress.filesIndexed.toLocaleString()} indexed — ${toWindowsPath(progress.currentPath).split(/[/\\]/).pop() || '…'}`
+                ? `${progress.filesIndexed.toLocaleString()} indexed — ${formatUiPath(progress.currentPath).split(/[/\\]/).pop() || '…'}`
                 : 'Starting index…'}
           </span>
         </div>
@@ -177,8 +178,8 @@ export default function BndzIndexManagerPanel({ onToast }: Props) {
             <tbody>
               {status!.locations.map(loc => (
                 <tr key={loc.path} className="border-t border-[#2a2a2a] hover:bg-[#252525]">
-                  <td className="px-2 py-1 font-mono text-gray-300 truncate max-w-[280px]" title={loc.path}>
-                    {toWindowsPath(loc.path)}
+                  <td className="px-2 py-1 font-mono text-gray-300 truncate max-w-[280px]" title={formatUiPath(loc.path)}>
+                    {formatUiPath(loc.path)}
                   </td>
                   <td className="px-2 py-1 text-gray-500 whitespace-nowrap">{formatWhen(loc.lastIndexed)}</td>
                 </tr>

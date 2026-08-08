@@ -8,7 +8,7 @@ export const Checkbox: React.FC<{
   disabled?: boolean;
 }> = ({ label, checked = false, onChange, disabled = false }) => (
   <label
-    className={`bndz-ui-checkbox group inline-flex items-start justify-start gap-[10px] my-[5px] cursor-pointer max-w-full ${
+    className={`bndz-ui-checkbox group flex w-full items-start justify-start gap-[10px] py-[3px] cursor-pointer max-w-full ${
       disabled ? 'opacity-50 pointer-events-none' : ''
     }`}
   >

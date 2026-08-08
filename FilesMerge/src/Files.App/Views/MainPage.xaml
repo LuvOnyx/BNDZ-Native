@@ -1,4 +1,4 @@
-﻿<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
+<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
 <Page
 	x:Class="Files.App.Views.MainPage"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -142,19 +142,20 @@
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto" />
 			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
 			<RowDefinition Height="*" />
 		</Grid.RowDefinitions>
 
 		<!--  Background Image  -->
 		<Image
-			Grid.RowSpan="3"
+			Grid.RowSpan="4"
 			HorizontalAlignment="{x:Bind ViewModel.AppThemeBackgroundImageHorizontalAlignment, Mode=OneWay}"
 			VerticalAlignment="{x:Bind ViewModel.AppThemeBackgroundImageVerticalAlignment, Mode=OneWay}"
 			Opacity="{x:Bind ViewModel.AppThemeBackgroundImageOpacity, Mode=OneWay}"
 			Source="{x:Bind ViewModel.AppThemeBackgroundImageSource, Mode=OneWay}"
 			Stretch="{x:Bind ViewModel.AppThemeBackgroundImageFit, Mode=OneWay}" />
 
-		<!--  Tab Bar  -->
+		<!--  Tab Bar (Files engine — BNDZ-skinned)  -->
 		<tabbar:TabBar
 			x:Name="TabControl"
 			HorizontalContentAlignment="Stretch"
@@ -162,11 +163,40 @@
 			Loaded="HorizontalMultitaskingControl_Loaded"
 			TabIndex="0" />
 
-		<!--  Address Bar + BNDZ backend status + pane toggles  -->
-		<Grid Grid.Row="1">
+		<!--  BNDZ top menu — collapsed in filesHost (BNDZUI owns menubar)  -->
+		<MenuBar
+			x:Name="BndzMenuBar"
+			Grid.Row="1"
+			Height="32"
+			Padding="8,0,8,0"
+			Background="{StaticResource BndzSurfaceBrush}"
+			BorderBrush="{StaticResource BndzDividerBrush}"
+			BorderThickness="0,0,0,1"
+			Foreground="{StaticResource BndzInkBrush}"
+			Visibility="Collapsed">
+			<MenuBarItem Title="File">
+				<MenuFlyoutItem Click="BndzMenu_TogglePlugins_Click" Text="Plugins panel" />
+				<MenuFlyoutItem Click="BndzMenu_OpenHub_Click" Text="Extension Hub…" />
+				<MenuFlyoutSeparator />
+				<MenuFlyoutItem Click="BndzMenu_OpenConfig_Click" Text="BNDZ Configuration…" />
+			</MenuBarItem>
+			<MenuBarItem Title="View">
+				<MenuFlyoutItem Click="BndzMenu_TogglePreview_Click" Text="Preview pane" />
+				<MenuFlyoutItem Click="BndzMenu_SmartTools_Click" Text="Smart Tools…" />
+			</MenuBarItem>
+			<MenuBarItem Title="Tools">
+				<MenuFlyoutItem Click="BndzMenu_Automation_Click" Text="Automation" />
+				<MenuFlyoutItem Click="BndzMenu_Spatial_Click" Text="Spatial Canvas" />
+			</MenuBarItem>
+		</MenuBar>
+
+		<!--  Address chrome — collapsed in filesHost (BNDZUI omnibar owns address)  -->
+		<Grid
+			x:Name="BndzAddressChromeRow"
+			Grid.Row="2"
+			Visibility="Collapsed">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="*" />
-				<ColumnDefinition Width="Auto" />
 				<ColumnDefinition Width="Auto" />
 			</Grid.ColumnDefinitions>
 			<uc:NavigationToolbar
@@ -177,54 +207,36 @@
 				Loaded="NavToolbar_Loaded"
 				ShowOngoingTasks="True"
 				TabIndex="1" />
-			<StackPanel
+			<Border
+				x:Name="BndzBackendStatusChip"
 				Grid.Column="1"
-				Margin="4,0,4,0"
+				Margin="6,0,10,0"
+				Padding="10,4"
 				VerticalAlignment="Center"
-				Orientation="Horizontal"
-				Spacing="4">
-				<Button
-					x:Name="BndzPluginsPaneButton"
-					Padding="10,4"
-					Click="BndzPluginsPaneButton_Click"
-					Content="Plugins"
-					ToolTipService.ToolTip="BNDZ plugins + Command Deck (hosted pane)" />
-				<Button
-					x:Name="BndzAutomationPaneButton"
-					Padding="10,4"
-					Click="BndzAutomationPaneButton_Click"
-					Content="Automation"
-					ToolTipService.ToolTip="BNDZ Automation workspace (hosted pane)" />
-				<Button
-					x:Name="BndzSpatialPaneButton"
-					Padding="10,4"
-					Click="BndzSpatialPaneButton_Click"
-					Content="Spatial"
-					ToolTipService.ToolTip="BNDZ Spatial Canvas (hosted pane)" />
-				<Button
-					x:Name="BndzPreviewPaneButton"
-					Padding="10,4"
-					Click="BndzPreviewPaneButton_Click"
-					Content="Preview"
-					ToolTipService.ToolTip="BNDZ preview tools (hosted pane)" />
-			</StackPanel>
-			<TextBlock
-				x:Name="BndzBackendStatusText"
-				Grid.Column="2"
-				Margin="4,0,12,0"
-				VerticalAlignment="Center"
-				FontSize="11"
-				Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-				Text="BNDZ backend…"
-				ToolTipService.ToolTip="Full BNDZBackend host (architecture #3) — services via named pipe, not HWND embed" />
+				Background="{StaticResource BndzChipFillBrush}"
+				BorderBrush="{StaticResource BndzDeckBorderBrush}"
+				BorderThickness="1"
+				CornerRadius="10"
+				Tapped="BndzBackendStatusChip_Tapped"
+				ToolTipService.ToolTip="BNDZ backend · click for status">
+				<TextBlock
+					x:Name="BndzBackendStatusText"
+					FontSize="11"
+					FontWeight="SemiBold"
+					Foreground="{StaticResource BndzInkMutedBrush}"
+					Text="BNDZ..." />
+			</Border>
 		</Grid>
 
-		<!--  Content Area  -->
+		<!--  Files tabs keep path holders collapsed; BNDZUI browser fills the viewport  -->
+		<Grid Grid.Row="3">
 		<controls:SidebarView
 			x:Name="SidebarControl"
-			Grid.Row="2"
 			HorizontalAlignment="Stretch"
 			HorizontalContentAlignment="Stretch"
+			Background="{ThemeResource App.Theme.Sidebar.BackgroundBrush}"
+			BorderBrush="{StaticResource BndzDividerBrush}"
+			BorderThickness="0,1,0,0"
 			DisplayMode="{x:Bind SidebarAdaptiveViewModel.SidebarDisplayMode, Mode=TwoWay}"
 			IsPaneOpen="{x:Bind ViewModel.IsSidebarPaneOpen, Mode=TwoWay}"
 			ItemContextInvoked="SidebarControl_ItemContextInvoked"
@@ -236,13 +248,14 @@
 			OpenPaneLength="{x:Bind UserSettingsService.AppearanceSettingsService.SidebarWidth, Mode=TwoWay}"
 			PaneBackgroundBrush="{ThemeResource App.Theme.Sidebar.BackgroundBrush}"
 			SelectedItem="{x:Bind SidebarAdaptiveViewModel.SidebarSelectedItem, Mode=TwoWay}"
-			SupportsExpansion="True">
+			SupportsExpansion="True"
+			Visibility="Collapsed">
 
 			<!--  Inner Content  -->
 			<controls:SidebarView.InnerContent>
 				<Grid
 					x:Name="RootGrid"
-					Padding="0,0,0,8"
+					Padding="0"
 					PreviewKeyDown="RootGrid_PreviewKeyDown"
 					SizeChanged="RootGrid_SizeChanged">
 					<Grid.RowDefinitions>
@@ -253,8 +266,11 @@
 							Height="*"
 							MinHeight="100" />
 						<RowDefinition
+							x:Name="BndzPluginsDockSizerRow"
+							Height="Auto" />
+						<RowDefinition
 							x:Name="BndzPluginsDockRow"
-							Height="0"
+							Height="280"
 							MinHeight="0" />
 						<RowDefinition x:Name="InfoPaneRowDefinition" Height="Auto" />
 					</Grid.RowDefinitions>
@@ -268,11 +284,12 @@
 						<ColumnDefinition x:Name="ShelfPaneColumn" Width="Auto" />
 					</Grid.ColumnDefinitions>
 
-					<!--  File Navigation Toolbar  -->
+					<!--  File Navigation Toolbar (list column only — preview is full-height)  -->
 					<uc:Toolbar
 						x:Name="InnerNavigationToolbar"
 						Grid.Row="0"
-						Grid.ColumnSpan="3"
+						Grid.Column="0"
+						Grid.ColumnSpan="2"
 						Margin="0,0,0,4"
 						x:Load="False"
 						Loaded="NavToolbar_Loaded"
@@ -283,7 +300,8 @@
 					<InfoBar
 						x:Name="NetworkDiscoveryInfoBar"
 						Grid.Row="1"
-						Grid.ColumnSpan="3"
+						Grid.Column="0"
+						Grid.ColumnSpan="2"
 						Margin="0,0,0,4"
 						x:Load="{x:Bind SidebarAdaptiveViewModel.PaneHolder.ActivePaneOrColumn.ShellViewModel.IsNetworkDiscoveryInfoBarOpen, Mode=OneWay}"
 						CornerRadius="8"
@@ -317,65 +335,86 @@
 							HorizontalContentAlignment="Stretch"
 							Content="{x:Bind ViewModel.SelectedTabItem.ContentFrame, Mode=OneWay}" />
 
-						<!--  Workspace overlay: Automation / Spatial (Files list stays underneath)  -->
+						<!--  Workspace content-mode: full ContentRow replace (not a floating glass card).  -->
+						<!--  x:Load=False: WebView2 must not construct during MainPage.InitializeComponent (blocks splash).  -->
 						<Border
 							x:Name="BndzWorkspaceOverlay"
-							Background="{ThemeResource LayerFillColorDefaultBrush}"
-							CornerRadius="12"
+							Background="{ThemeResource App.Theme.FileArea.BackgroundBrush}"
 							Visibility="Collapsed">
 							<bndz:BndzPaneHost
 								x:Name="BndzWorkspacePaneHost"
+								x:Load="False"
 								Pane="automation" />
 						</Border>
 					</Grid>
 
-					<!--  Bottom plugins + Command Deck dock  -->
-					<bndz:BndzPaneHost
-						x:Name="BndzPluginsDockHost"
+					<!--  Resize plugins dock — list column only (preview is full-height)  -->
+					<controls:GridSplitter
+						x:Name="BndzPluginsDockSizer"
 						Grid.Row="3"
 						Grid.Column="0"
-						Grid.ColumnSpan="3"
-						Margin="0,6,0,0"
+						Height="5"
+						HorizontalAlignment="Stretch"
+						Background="Transparent"
+						ManipulationCompleted="BndzPluginsDockSizer_ManipulationCompleted"
+						ResizeBehavior="PreviousAndNext"
+						ResizeDirection="Rows"
+						Style="{StaticResource DefaultGridSplitterStyle}" />
+
+					<!--  Hybrid plugins dock under list only  -->
+					<bndz:BndzPaneHost
+						x:Name="BndzPluginsDockHost"
+						x:Load="False"
+						Grid.Row="4"
+						Grid.Column="0"
+						Margin="0"
 						MinHeight="0"
 						Pane="plugins"
-						Visibility="Collapsed" />
+						Visibility="Visible" />
 
-					<!--  Info Pane Splitter  -->
+					<!--  Preview column splitter (full height beside list + dock)  -->
 					<controls:GridSplitter
 						x:Name="InfoPaneSizer"
-						Grid.Row="2"
+						Grid.Row="0"
+						Grid.RowSpan="6"
 						Grid.Column="1"
-						x:Load="{x:Bind ViewModel.ShouldPreviewPaneBeActive, Mode=OneWay}"
+						Width="4"
+						HorizontalAlignment="Stretch"
 						ManipulationCompleted="PaneSplitter_ManipulationCompleted"
 						ManipulationStarted="PaneSplitter_ManipulationStarted"
-						Opacity="0"
+						Opacity="1"
+						Background="{StaticResource BndzDividerBrush}"
 						ResizeBehavior="BasedOnAlignment"
 						Style="{StaticResource DefaultGridSplitterStyle}" />
 
-					<!--  Info Pane  -->
+					<!--  Info Pane (hidden when BNDZ preview owns the column)  -->
 					<uc:InfoPane
 						x:Name="InfoPane"
-						Grid.Row="2"
+						Grid.Row="0"
+						Grid.RowSpan="6"
 						Grid.Column="2"
 						HorizontalContentAlignment="Stretch"
 						x:Load="{x:Bind ViewModel.ShouldPreviewPaneBeActive, Mode=OneWay}"
 						Loaded="PreviewPane_Loaded"
-						Unloaded="PreviewPane_Unloaded" />
+						Unloaded="PreviewPane_Unloaded"
+						Visibility="Collapsed" />
 
-					<!--  BNDZ preview tools pane (hosted React — toggled from omnibar)  -->
+					<!--  BNDZ preview: full height to app bottom (beside list + plugins dock)  -->
 					<bndz:BndzPaneHost
 						x:Name="BndzPreviewPaneHost"
-						Grid.Row="2"
+						x:Load="False"
+						Grid.Row="0"
+						Grid.RowSpan="6"
 						Grid.Column="2"
-						MinWidth="220"
+						MinWidth="260"
 						Pane="preview"
-						Visibility="Collapsed" />
+						Visibility="Visible" />
 
 					<!--  Shelf Pane  -->
 					<uc:ShelfPane
 						x:Name="ShelfPane"
 						Grid.Row="0"
-						Grid.RowSpan="5"
+						Grid.RowSpan="6"
 						Grid.Column="3"
 						Margin="4,0,0,0"
 						x:Load="{x:Bind ViewModel.ShowShelfPane, Mode=OneWay}"
@@ -447,6 +486,42 @@
 				</StackPanel>
 			</controls:SidebarView.Footer>
 		</controls:SidebarView>
+		</Grid>
+
+		<!-- Full classic BNDZUI — page-root span so it replaces Files TabBar + content -->
+		<bndz:BndzPaneHost
+			x:Name="BndzBrowserHost"
+			Grid.Row="0"
+			Grid.RowSpan="4"
+			x:Load="False"
+			HorizontalAlignment="Stretch"
+			VerticalAlignment="Stretch"
+			Canvas.ZIndex="10"
+			Pane="browser" />
+
+		<!-- Compact backend chip overlay (address row collapsed in filesHost) -->
+		<Border
+			x:Name="BndzBackendStatusChipOverlay"
+			Grid.Row="0"
+			Grid.RowSpan="4"
+			Margin="0,8,12,0"
+			Padding="10,4"
+			HorizontalAlignment="Right"
+			VerticalAlignment="Top"
+			Background="{StaticResource BndzChipFillBrush}"
+			BorderBrush="{StaticResource BndzDeckBorderBrush}"
+			BorderThickness="1"
+			CornerRadius="10"
+			Tapped="BndzBackendStatusChip_Tapped"
+			ToolTipService.ToolTip="BNDZ backend · click for status"
+			Canvas.ZIndex="20">
+			<TextBlock
+				x:Name="BndzBackendStatusTextOverlay"
+				FontSize="11"
+				FontWeight="SemiBold"
+				Foreground="{StaticResource BndzInkMutedBrush}"
+				Text="BNDZ..." />
+		</Border>
 
 		<!--  Review Files Prompt  -->
 		<TeachingTip
@@ -543,22 +618,27 @@
 				</VisualState>
 				<VisualState x:Name="InfoPanePositionRight">
 					<VisualState.Setters>
-						<Setter Target="InfoPane.(Grid.Row)" Value="2" />
+						<!-- BNDZ preview spans full inner height (list + plugins dock). -->
+						<Setter Target="InfoPane.(Grid.Row)" Value="0" />
+						<Setter Target="InfoPane.(Grid.RowSpan)" Value="6" />
 						<Setter Target="InfoPane.(Grid.Column)" Value="2" />
-						<Setter Target="InfoPaneSizer.(Grid.Row)" Value="2" />
+						<Setter Target="InfoPaneSizer.(Grid.Row)" Value="0" />
+						<Setter Target="InfoPaneSizer.(Grid.RowSpan)" Value="6" />
 						<Setter Target="InfoPaneSizer.(Grid.Column)" Value="1" />
-						<Setter Target="InfoPaneSizer.Width" Value="2" />
+						<Setter Target="InfoPaneSizer.Width" Value="4" />
 						<Setter Target="InfoPaneSizer.GripperCursor" Value="SizeWestEast" />
-						<Setter Target="InfoPaneColumnDefinition.MinWidth" Value="{x:Bind InfoPane.MinWidth, Mode=OneWay}" />
+						<Setter Target="InfoPaneColumnDefinition.MinWidth" Value="220" />
 						<Setter Target="InfoPaneRowDefinition.MinHeight" Value="0" />
 						<Setter Target="InfoPaneRowDefinition.Height" Value="0" />
 					</VisualState.Setters>
 				</VisualState>
 				<VisualState x:Name="InfoPanePositionBottom">
 					<VisualState.Setters>
-						<Setter Target="InfoPane.(Grid.Row)" Value="4" />
+						<Setter Target="InfoPane.(Grid.Row)" Value="5" />
+						<Setter Target="InfoPane.(Grid.RowSpan)" Value="1" />
 						<Setter Target="InfoPane.(Grid.Column)" Value="0" />
-						<Setter Target="InfoPaneSizer.(Grid.Row)" Value="3" />
+						<Setter Target="InfoPaneSizer.(Grid.Row)" Value="5" />
+						<Setter Target="InfoPaneSizer.(Grid.RowSpan)" Value="1" />
 						<Setter Target="InfoPaneSizer.(Grid.Column)" Value="0" />
 						<Setter Target="InfoPaneSizer.Height" Value="2" />
 						<Setter Target="InfoPaneSizer.GripperCursor" Value="SizeNorthSouth" />

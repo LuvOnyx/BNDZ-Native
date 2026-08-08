@@ -1,4 +1,5 @@
 import { normalizePanePath, toWindowsPath } from './pathUtils';
+import { SHELL_CLSID } from './shellPaths';
 import type { CloudProvider } from './cloudStatus';
 
 export type { CloudProvider };
@@ -191,13 +192,17 @@ export function groupCloudProvidersForNav(
 
   for (const p of others) {
     const panePath = normalizePanePath(p.path.startsWith('/') ? p.path : `/${p.path.replace(/\\/g, '/')}`);
+    const isOneDrive = cloudProviderNavIcon(p) === 'cloud_drive'
+      || (p.name || '').toLowerCase().includes('onedrive')
+      || (p.icon || '').toLowerCase().includes('onedrive');
     navItems.push({
       label: p.name,
       path: panePath,
       icon: cloudProviderNavIcon(p),
       iconColor: p.syncStatus === 'online-only' ? '#fbbf24' : '#0078d4',
       syncStatus: p.syncStatus,
-      shellIconPath: panePath,
+      // OneDrive FS path alone returns a generic yellow folder — use the shell CLSID glyph.
+      shellIconPath: isOneDrive ? SHELL_CLSID.oneDrive : panePath,
     });
   }
 

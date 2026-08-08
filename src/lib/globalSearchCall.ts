@@ -31,7 +31,9 @@ export function buildGlobalSearchArgs(
     useEverything: config.enableEverythingSearch !== false,
     searchContent: overrides?.searchContent ?? rt.search.searchContent,
     opts: {
-      booleanMode: overrides?.booleanMode ?? config.enableSmartBooleanQueryParsing === true,
+      booleanMode: overrides?.booleanMode
+        ?? (config.enableSmartBooleanQueryParsing === true || config.useSpaceCharacterForBooleanAnd === true),
+      spaceIsAnd: config.useSpaceCharacterForBooleanAnd === true,
       preferBndzIndex: config.enableBndzIndexedSearch !== false,
     },
   };

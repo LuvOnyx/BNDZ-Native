@@ -1,0 +1,174 @@
+<!-- Copyright (c) BNDZ. Official BNDZ craft tokens for WinUI shell. -->
+<ResourceDictionary
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<!-- Command Deck / chips mapped from classic command-deck CSS tokens -->
+	<Color x:Key="BndzDeckFillTop">#F71A202C</Color>
+	<Color x:Key="BndzDeckFillBottom">#FC0D0F15</Color>
+	<Color x:Key="BndzDeckBorder">#4799C9F0</Color>
+	<Color x:Key="BndzDeckChipTop">#17FFFFFF</Color>
+	<Color x:Key="BndzDeckChipBottom">#2E000000</Color>
+	<Color x:Key="BndzDeckChipBorder">#1CFFFFFF</Color>
+	<Color x:Key="BndzDeckChipHoverTop">#2E38BDF8</Color>
+	<Color x:Key="BndzInk">#E8F2FA</Color>
+	<Color x:Key="BndzInkMuted">#A8C0D4</Color>
+	<Color x:Key="BndzAccent">#99C9F0</Color>
+	<Color x:Key="BndzSurface">#E6121822</Color>
+	<Color x:Key="BndzSurfaceRaised">#F01A2434</Color>
+	<Color x:Key="BndzDivider">#2899C9F0</Color>
+	<!-- Classic BNDZ list/tree selection (from src/index.css #264f78 / #007acc / hover wash) -->
+	<Color x:Key="BndzListSelected">#EB264F78</Color>
+	<Color x:Key="BndzListSelectedStrong">#F0264F78</Color>
+	<Color x:Key="BndzListSelectedHover">#F02E5A88</Color>
+	<Color x:Key="BndzListHover">#2A2A2D2E</Color>
+	<Color x:Key="BndzListHoverStrong">#402A2D2E</Color>
+	<Color x:Key="BndzListAccentBar">#FF6DB4E6</Color>
+	<Color x:Key="BndzListFocusedBar">#FF007ACC</Color>
+
+	<SolidColorBrush x:Key="BndzInkBrush" Color="{StaticResource BndzInk}" />
+	<SolidColorBrush x:Key="BndzInkMutedBrush" Color="{StaticResource BndzInkMuted}" />
+	<SolidColorBrush x:Key="BndzAccentBrush" Color="{StaticResource BndzAccent}" />
+	<SolidColorBrush x:Key="BndzSurfaceBrush" Color="{StaticResource BndzSurface}" />
+	<SolidColorBrush x:Key="BndzSurfaceRaisedBrush" Color="{StaticResource BndzSurfaceRaised}" />
+	<SolidColorBrush x:Key="BndzDividerBrush" Color="{StaticResource BndzDivider}" />
+	<SolidColorBrush x:Key="BndzDeckBorderBrush" Color="{StaticResource BndzDeckBorder}" />
+	<SolidColorBrush x:Key="BndzChipBorderBrush" Color="{StaticResource BndzDeckChipBorder}" />
+	<SolidColorBrush x:Key="BndzListSelectedBrush" Color="{StaticResource BndzListSelected}" />
+	<SolidColorBrush x:Key="BndzListSelectedStrongBrush" Color="{StaticResource BndzListSelectedStrong}" />
+	<SolidColorBrush x:Key="BndzListSelectedHoverBrush" Color="{StaticResource BndzListSelectedHover}" />
+	<SolidColorBrush x:Key="BndzListHoverBrush" Color="{StaticResource BndzListHover}" />
+	<SolidColorBrush x:Key="BndzListHoverStrongBrush" Color="{StaticResource BndzListHoverStrong}" />
+	<SolidColorBrush x:Key="BndzListAccentBarBrush" Color="{StaticResource BndzListAccentBar}" />
+	<SolidColorBrush x:Key="BndzListFocusedBarBrush" Color="{StaticResource BndzListFocusedBar}" />
+
+	<!-- Sidebar item states (BNDZ nav-tree craft) -->
+	<SolidColorBrush x:Key="App.Theme.Sidebar.ItemBackgroundBrush" Color="Transparent" />
+	<SolidColorBrush x:Key="App.Theme.Sidebar.ItemHoverBrush" Color="{StaticResource BndzListHover}" />
+	<SolidColorBrush x:Key="App.Theme.Sidebar.ItemSelectedBrush" Color="{StaticResource BndzListSelected}" />
+	<SolidColorBrush x:Key="App.Theme.Sidebar.ItemSelectedHoverBrush" Color="{StaticResource BndzListSelectedHover}" />
+	<SolidColorBrush x:Key="App.Theme.Sidebar.ItemSelectedBorderBrush" Color="#5526475A" />
+	<SolidColorBrush x:Key="App.Theme.Sidebar.SelectionIndicatorBrush" Color="{StaticResource BndzListAccentBar}" />
+
+	<!-- Widget / Home cards -->
+	<Style x:Key="BndzWidgetCardButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+		<Setter Property="Background" Value="{StaticResource BndzSurfaceRaisedBrush}" />
+		<Setter Property="Foreground" Value="{StaticResource BndzInkBrush}" />
+		<Setter Property="BorderBrush" Value="{StaticResource BndzDividerBrush}" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="12" />
+		<Setter Property="Padding" Value="8" />
+	</Style>
+
+	<LinearGradientBrush x:Key="BndzDeckFillBrush" StartPoint="0.15,0" EndPoint="0.85,1">
+		<GradientStop Color="{StaticResource BndzDeckFillTop}" Offset="0" />
+		<GradientStop Color="{StaticResource BndzDeckFillBottom}" Offset="1" />
+	</LinearGradientBrush>
+
+	<LinearGradientBrush x:Key="BndzChipFillBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+		<GradientStop Color="{StaticResource BndzDeckChipTop}" Offset="0" />
+		<GradientStop Color="{StaticResource BndzDeckChipBottom}" Offset="1" />
+	</LinearGradientBrush>
+
+	<LinearGradientBrush x:Key="BndzChipHoverFillBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+		<GradientStop Color="{StaticResource BndzDeckChipHoverTop}" Offset="0" />
+		<GradientStop Color="{StaticResource BndzDeckChipTop}" Offset="1" />
+	</LinearGradientBrush>
+
+	<LinearGradientBrush x:Key="BndzToggleActiveBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+		<GradientStop Color="#8824475A" Offset="0" />
+		<GradientStop Color="#5524475A" Offset="1" />
+	</LinearGradientBrush>
+
+	<LinearGradientBrush x:Key="BndzToggleIdleBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+		<GradientStop Color="#3324475A" Offset="0" />
+		<GradientStop Color="#1A24475A" Offset="1" />
+	</LinearGradientBrush>
+
+	<CornerRadius x:Key="BndzSquircleRadius">12</CornerRadius>
+	<CornerRadius x:Key="BndzChipRadius">10</CornerRadius>
+	<!-- Soften Files Omnibar pill → BNDZ squircle (overrides Controls Generic). -->
+	<CornerRadius x:Key="OmnibarDefaultCornerRadius">12</CornerRadius>
+	<CornerRadius x:Key="OmnibarModeDefaultCornerRadius">10</CornerRadius>
+	<x:Double x:Key="BndzDockMinHeight">280</x:Double>
+
+	<Style x:Key="BndzChipButtonStyle" TargetType="Button">
+		<Setter Property="Background" Value="{StaticResource BndzChipFillBrush}" />
+		<Setter Property="Foreground" Value="{StaticResource BndzInkBrush}" />
+		<Setter Property="BorderBrush" Value="{StaticResource BndzChipBorderBrush}" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="10" />
+		<Setter Property="Padding" Value="12,7" />
+		<Setter Property="FontSize" Value="12" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="MinWidth" Value="0" />
+		<Setter Property="MinHeight" Value="32" />
+	</Style>
+
+	<Style x:Key="BndzOmnibarToggleStyle" TargetType="Button">
+		<Setter Property="Background" Value="{StaticResource BndzToggleIdleBrush}" />
+		<Setter Property="Foreground" Value="{StaticResource BndzInkBrush}" />
+		<Setter Property="BorderBrush" Value="#3399C9F0" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="9" />
+		<Setter Property="Padding" Value="11,6" />
+		<Setter Property="FontSize" Value="11" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="MinWidth" Value="0" />
+		<Setter Property="MinHeight" Value="30" />
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="Button">
+					<Border
+						x:Name="Root"
+						Background="{TemplateBinding Background}"
+						BorderBrush="{TemplateBinding BorderBrush}"
+						BorderThickness="{TemplateBinding BorderThickness}"
+						CornerRadius="{TemplateBinding CornerRadius}"
+						Padding="{TemplateBinding Padding}">
+						<ContentPresenter
+							HorizontalAlignment="Center"
+							VerticalAlignment="Center"
+							Content="{TemplateBinding Content}"
+							Foreground="{TemplateBinding Foreground}" />
+						<VisualStateManager.VisualStateGroups>
+							<VisualStateGroup x:Name="CommonStates">
+								<VisualState x:Name="Normal" />
+								<VisualState x:Name="PointerOver">
+									<Storyboard>
+										<ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background">
+											<DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource BndzChipHoverFillBrush}" />
+										</ObjectAnimationUsingKeyFrames>
+									</Storyboard>
+								</VisualState>
+								<VisualState x:Name="Pressed" />
+								<VisualState x:Name="Disabled">
+									<Storyboard>
+										<DoubleAnimation
+											Storyboard.TargetName="Root"
+											Storyboard.TargetProperty="Opacity"
+											To="0.45"
+											Duration="0" />
+									</Storyboard>
+								</VisualState>
+							</VisualStateGroup>
+						</VisualStateManager.VisualStateGroups>
+					</Border>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
+	<Style x:Key="BndzPluginTabStyle" TargetType="ToggleButton">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{StaticResource BndzInkMutedBrush}" />
+		<Setter Property="BorderBrush" Value="Transparent" />
+		<Setter Property="BorderThickness" Value="0,0,0,2" />
+		<Setter Property="CornerRadius" Value="8,8,0,0" />
+		<Setter Property="Padding" Value="12,8" />
+		<Setter Property="FontSize" Value="12" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="MinWidth" Value="0" />
+		<Setter Property="MinHeight" Value="36" />
+	</Style>
+</ResourceDictionary>

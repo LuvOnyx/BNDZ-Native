@@ -11,6 +11,7 @@ export type ColumnAutosizeLimits = {
   nameMinW: number;
   nameMaxW: number;
   rightMargin: number;
+  extraPadding: number;
 };
 
 export function parseColumnAutosizeLimits(config?: AppConfig | null): ColumnAutosizeLimits {
@@ -19,17 +20,19 @@ export function parseColumnAutosizeLimits(config?: AppConfig | null): ColumnAuto
     const n = parseInt(String(raw ?? ''), 10);
     return Number.isFinite(n) ? n : fallback;
   };
-  const nameMin = num('unwiredConfig6', 200);
-  const nameMax = num('unwiredConfig5', 1000);
-  const colMin = num('unwiredConfig3', 175);
-  const colMax = num('unwiredConfig4', 0);
-  const rightMargin = num('unwiredConfig7', 0);
+  const nameMin = num('columnAutosizeNameMinWidth', 200);
+  const nameMax = num('columnAutosizeNameMaxWidth', 1000);
+  const colMin = num('columnAutosizeMinWidth', 175);
+  const colMax = num('columnAutosizeMaxWidth', 0);
+  const rightMargin = num('columnAutosizeRightMargin', 0);
+  const extraPadding = num('columnAutosizeExtraPadding', 0);
   return {
     minW: colMin,
     maxW: colMax > 0 ? colMax : 520,
     nameMinW: nameMin,
     nameMaxW: nameMax > 0 ? nameMax : 1000,
     rightMargin,
+    extraPadding: Math.max(0, extraPadding),
   };
 }
 
@@ -92,7 +95,7 @@ export function computeAutosizedColumnWidths(
 ): Partial<Record<ListColumnId, number>> {
   const widths: Partial<Record<ListColumnId, number>> = {};
   const limits = options?.limits ?? parseColumnAutosizeLimits();
-  const pad = 18 + limits.rightMargin;
+  const pad = 18 + limits.rightMargin + (limits.extraPadding || 0);
 
   for (const col of columns) {
     if (col.id === 'size' && !options?.alwaysAutosizeSize && items.every(it => it.type === 'directory')) {

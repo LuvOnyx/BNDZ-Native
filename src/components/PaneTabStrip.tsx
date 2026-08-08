@@ -21,6 +21,7 @@ import { ShellNativeIcon } from './ShellNativeIcon';
 import { tabAccentStyle } from '../lib/tabColors';
 import type { TabState } from './tabTypes';
 import { findingTabLabel, isFindingTab } from '../lib/findingTab';
+import { normalizePanePath } from '../lib/pathUtils';
 
 /** Keep reorder on the tab row — only X follows the pointer; kill Y/scale hard. */
 const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
@@ -54,6 +55,11 @@ export type PaneTabStripProps = {
   activeTabIndex: number;
   tabBarHeight?: number;
   flexibleTabWidth?: boolean;
+  /** Settings → Resizable tabs — drag right edge to set width. */
+  resizableTabs?: boolean;
+  /** Per-path custom widths when resizableTabs is on. */
+  tabCustomWidths?: Record<string, number>;
+  onTabWidthChange?: (pathKey: string, widthPx: number) => void;
   makeSelectedTabBold?: boolean;
   applyColors?: boolean;
   showIconsTabs?: boolean;
@@ -61,6 +67,11 @@ export type PaneTabStripProps = {
   showNewTabButton?: boolean;
   showTabListButton?: boolean;
   tabFontSize?: number;
+  /** Settings → Tabs button cluster side. */
+  buttonsPosition?: string;
+  minimumTabWidthInPixels?: number;
+  maximumTabWidthInPixels?: number;
+  visualStyleTabs?: string;
   getPaneTabLabel: (path: string) => string;
   onActivate: (index: number) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
@@ -75,6 +86,9 @@ export type PaneTabStripProps = {
   setNewTabDropActive?: (active: boolean) => void;
   setTabFileDropTargetIndex?: (index: number | null) => void;
   dropModifierCopy?: (copy: boolean) => void;
+  /** When enabled, dropping a folder path onto empty strip chrome opens a new tab. */
+  allowAddTabsViaDragDrop?: boolean;
+  onDropPathAsNewTab?: (path: string) => void;
   /** Disable tab reorder while an internal pointer file-drag is active. */
   suspendTabReorder?: boolean;
   /** Pointer file-drag hover over a tab (immediate tab switch). */
@@ -87,6 +101,10 @@ function SortablePaneTab({
   isActive,
   label,
   flexibleTabWidth,
+  resizableTabs,
+  customWidth,
+  minWidth,
+  maxWidth,
   makeSelectedTabBold,
   applyColors,
   showIconsTabs,
@@ -98,12 +116,17 @@ function SortablePaneTab({
   onClose,
   onContextMenu,
   onMiddleClick,
+  onWidthChange,
 }: {
   tab: TabState;
   index: number;
   isActive: boolean;
   label: string;
   flexibleTabWidth?: boolean;
+  resizableTabs?: boolean;
+  customWidth?: number;
+  minWidth: number;
+  maxWidth: number;
   makeSelectedTabBold?: boolean;
   applyColors?: boolean;
   showIconsTabs?: boolean;
@@ -115,12 +138,16 @@ function SortablePaneTab({
   onClose: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onMiddleClick: (e: React.MouseEvent) => void;
+  onWidthChange?: (widthPx: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
     disabled: !!tab.locked || !!suspendTabReorder,
   });
   const pressRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const [liveWidth, setLiveWidth] = React.useState<number | null>(null);
+  const effectiveWidth = liveWidth ?? customWidth;
+  const useCustom = !flexibleTabWidth && resizableTabs && typeof effectiveWidth === 'number' && effectiveWidth > 0;
 
   const style: React.CSSProperties = {
     ...(applyColors
@@ -133,14 +160,44 @@ function SortablePaneTab({
           color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
         }),
     ...tabAccentStyle(tab.color, isActive),
-    // Force horizontal-only even if a transform frame slips past modifiers.
     transform: CSS.Translate.toString(
       transform ? { ...transform, y: 0, scaleX: 1, scaleY: 1 } : null,
     ),
-    transition: isDragging ? undefined : (transition || 'transform 90ms cubic-bezier(0.2, 0, 0, 1)'),
+    transition: isDragging || liveWidth != null
+      ? undefined
+      : (transition || 'transform 90ms cubic-bezier(0.2, 0, 0, 1)'),
     zIndex: isDragging ? 40 : undefined,
     position: 'relative',
     touchAction: 'pan-x',
+    ...(useCustom
+      ? { ['--bndz-tab-custom-width' as string]: `${effectiveWidth}px` }
+      : {}),
+  };
+
+  const startResize = (e: React.PointerEvent) => {
+    if (!resizableTabs || !onWidthChange) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = (e.currentTarget as HTMLElement).closest('.bndz-tab-item') as HTMLElement | null;
+    if (!el) return;
+    const startX = e.clientX;
+    const startW = el.getBoundingClientRect().width;
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    let last = Math.round(startW);
+    setLiveWidth(last);
+
+    const onMove = (ev: PointerEvent) => {
+      last = Math.round(Math.max(minWidth, Math.min(maxWidth, startW + (ev.clientX - startX))));
+      setLiveWidth(last);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setLiveWidth(null);
+      onWidthChange(last);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   return (
@@ -150,23 +207,24 @@ function SortablePaneTab({
       data-tab-id={tab.id}
       data-tab-index={index}
       className={`relative bndz-tab-item flex items-center px-3 py-[6px] ml-[2px] rounded-t-[6px] z-10 -mb-[1px] cursor-default group border-t border-l border-r transition-[background,border-color,color,box-shadow] duration-75 ease-out ${
-        flexibleTabWidth ? 'max-w-[180px]' : 'max-w-[200px]'
+        flexibleTabWidth
+          ? 'bndz-tab-item--flexible'
+          : useCustom
+            ? 'bndz-tab-item--custom-width'
+            : 'bndz-tab-item--fixed'
       } ${isActive ? 'bndz-tab-active border-[#333]' : 'border-transparent hover:border-[#333]'} ${
         makeSelectedTabBold && isActive ? 'font-bold' : 'font-semibold'
       } ${isDragging ? 'opacity-60 bndz-tab-item--dragging' : ''} ${
-        isFileDropHover ? 'ring-2 ring-[#38bdf8]/70 bg-[#094771]/30 shadow-[inset_0_-2px_0_#38bdf8]' : ''
+        isFileDropHover ? 'bndz-tab-item--file-drop' : ''
       } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''}`}
       {...attributes}
       {...listeners}
-      // dnd-kit defaults tabIndex=0 + role=button — WebView first-letter navigates
-      // those tabs when type-ahead is off / list isn't eating keys. Override last.
       role="tab"
       aria-selected={isActive}
       tabIndex={-1}
       onMouseDown={e => {
-        if ((e.target as HTMLElement).closest('[data-tab-close]')) return;
+        if ((e.target as HTMLElement).closest('[data-tab-close],[data-tab-resize]')) return;
         pressRef.current = { x: e.clientX, y: e.clientY, moved: false };
-        // Keep keyboard ownership on the file list after activating a tab.
         try { (e.currentTarget as HTMLElement).blur?.(); } catch { /* ignore */ }
       }}
       onMouseMove={e => {
@@ -176,7 +234,7 @@ function SortablePaneTab({
       }}
       onClick={e => {
         e.stopPropagation();
-        if ((e.target as HTMLElement).closest('[data-tab-close]')) return;
+        if ((e.target as HTMLElement).closest('[data-tab-close],[data-tab-resize]')) return;
         const press = pressRef.current;
         pressRef.current = null;
         if (press?.moved) return;
@@ -220,6 +278,14 @@ function SortablePaneTab({
           <CloseGlyph size={12} />
         </span>
       )}
+      {resizableTabs && !flexibleTabWidth && (
+        <span
+          data-tab-resize
+          className="bndz-tab-resize-handle"
+          title="Drag to resize tab"
+          onPointerDown={startResize}
+        />
+      )}
     </div>
   );
 }
@@ -232,6 +298,9 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     activeTabIndex,
     tabBarHeight,
     flexibleTabWidth,
+    resizableTabs,
+    tabCustomWidths,
+    onTabWidthChange,
     makeSelectedTabBold,
     applyColors,
     showIconsTabs,
@@ -239,6 +308,9 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     showNewTabButton,
     showTabListButton,
     tabFontSize,
+    buttonsPosition,
+    minimumTabWidthInPixels,
+    maximumTabWidthInPixels,
     getPaneTabLabel,
     onActivate,
     onReorder,
@@ -253,6 +325,8 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     setNewTabDropActive,
     setTabFileDropTargetIndex,
     dropModifierCopy,
+    allowAddTabsViaDragDrop,
+    onDropPathAsNewTab,
     suspendTabReorder,
     onPointerFileDragOverTab,
   } = props;
@@ -264,6 +338,8 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const ids = useMemo(() => tabs.map(t => t.id), [tabs]);
+  const minWidth = Math.max(48, Number(minimumTabWidthInPixels) || 72);
+  const maxWidth = Math.max(minWidth, Number(maximumTabWidthInPixels) || 200);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -285,12 +361,16 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     <div
       data-tabstrip
       data-pane-id={paneId}
-      className={`bndz-chrome-tabstrip flex pt-1 px-1 pb-0.5 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''}`}
+      className={`bndz-chrome-tabstrip flex pt-1 px-1 pb-0.5 shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#333] items-end scrollbar-hidden ${activeId ? 'bndz-tabstrip--reordering' : ''} ${
+        String(buttonsPosition || '').toLowerCase() === 'right' ? 'flex-row-reverse' : ''
+      }`}
       style={{
         minHeight: Math.max(tabBarHeight || 28, 32),
         background: 'var(--bndz-surface-chrome)',
         overscrollBehavior: 'contain',
         touchAction: 'pan-x',
+        ['--bndz-tab-min-width' as string]: `${minWidth}px`,
+        ['--bndz-tab-max-width' as string]: `${maxWidth}px`,
       }}
       onPointerMove={(e) => {
         if (!suspendTabReorder) return;
@@ -298,6 +378,31 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
         if (!tabEl) return;
         const idx = parseInt(tabEl.getAttribute('data-tab-index') || '-1', 10);
         if (idx >= 0) onPointerFileDragOverTab?.(idx);
+      }}
+      onDragOver={(e) => {
+        if (!allowAddTabsViaDragDrop) return;
+        const types = Array.from(e.dataTransfer?.types || []);
+        if (!types.includes('Files') && !types.includes('text/uri-list') && !types.includes('text/plain')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setNewTabDropActive?.(true);
+      }}
+      onDragLeave={() => setNewTabDropActive?.(false)}
+      onDrop={(e) => {
+        if (!allowAddTabsViaDragDrop || !onDropPathAsNewTab) return;
+        e.preventDefault();
+        setNewTabDropActive?.(false);
+        const file = e.dataTransfer?.files?.[0];
+        if (file && (file as any).path) {
+          onDropPathAsNewTab(String((file as any).path));
+          return;
+        }
+        const uri = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '';
+        const line = uri.split(/\r?\n/).find((l) => l.trim() && !l.startsWith('#'));
+        if (line) {
+          const cleaned = line.replace(/^file:\/\//i, '').replace(/\//g, '\\');
+          onDropPathAsNewTab(decodeURIComponent(cleaned));
+        }
       }}
     >
       <DndContext
@@ -317,6 +422,8 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
               showXCloseButtonsOnTabs !== 'None'
               && tabs.length > 1
               && (showXCloseButtonsOnTabs === 'All tabs' || isActive);
+            const pathKey = normalizePanePath(tab.path);
+            const customWidth = tabCustomWidths?.[pathKey] ?? tabCustomWidths?.[tab.path];
 
             return (
               <SortablePaneTab
@@ -326,6 +433,10 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
                 isActive={isActive}
                 label={name}
                 flexibleTabWidth={flexibleTabWidth}
+                resizableTabs={resizableTabs}
+                customWidth={customWidth}
+                minWidth={minWidth}
+                maxWidth={maxWidth}
                 makeSelectedTabBold={makeSelectedTabBold}
                 applyColors={applyColors}
                 showIconsTabs={showIconsTabs}
@@ -337,6 +448,7 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
                 onClose={e => onClose(idx, e)}
                 onContextMenu={e => onContextMenu(idx, e)}
                 onMiddleClick={e => onMiddleClick(idx, e)}
+                onWidthChange={w => onTabWidthChange?.(pathKey, w)}
               />
             );
           })}
@@ -366,4 +478,3 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
     </div>
   );
 }
-

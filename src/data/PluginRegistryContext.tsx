@@ -47,23 +47,8 @@ export type PluginManifest = {
     installOnFirstUse?: boolean;
 };
 
-/** Core plugins shipped and enabled by default */
-export const DEFAULT_INSTALLED_PLUGINS = [
-    'properties',
-    'context-menu-manager',
-    'batch-rename',
-    'find',
-    'dropstack',
-    'filters',
-    'metadata',
-    'storage-cleanup',
-    'folder-sync',
-    'catalog',
-    'action-log',
-    'compare',
-    'ghost-link',
-    'ram-staging',
-];
+/** Core plugins — marketplace ships Uninstalled; user installs from Extension Hub. */
+export const DEFAULT_INSTALLED_PLUGINS: string[] = [];
 
 /**
  * Selling-pillar plugins that may soft-install when opened from FM homes.
@@ -318,6 +303,24 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
     // guard for configs saved before the uninstall scrub path was added.
     useEffect(() => {
         const catalogIds = new Set(ALL_PLUGINS.map(p => p.id));
+        const shell = typeof document !== 'undefined' ? document.documentElement?.dataset?.bndzShell : undefined;
+        const isFilesMergeShell = shell === 'files-pane' || shell === 'files-host';
+
+        // FilesMerge: one-time clear of classic "all core plugins installed" dump so the dock
+        // matches marketplace policy (Uninstalled until Hub install) — never freeze first hydrate.
+        if (isFilesMergeShell && !(config as { filesMergePluginsClearedV1?: boolean }).filesMergePluginsClearedV1) {
+            updateConfig({
+                installedPlugins: [],
+                bottomPluginTabOrder: [],
+                bottomPanelLastTab: '',
+                bottomPanelDefaultPlugin: '',
+                commandDeck: false,
+                filesMergePluginsClearedV1: true,
+            } as any);
+            setPlugins(ALL_PLUGINS.map(p => ({ ...p, isInstalled: false })));
+            return;
+        }
+
         const savedRaw = config.installedPlugins as string[] | undefined;
         const remapped = Array.isArray(savedRaw)
             ? savedRaw.map(id => RETIRED_PLUGIN_REMAP[id] ?? id)

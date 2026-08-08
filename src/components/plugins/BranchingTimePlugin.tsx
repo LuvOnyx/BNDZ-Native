@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { EmblemIcon } from '../EmblemIcon';
 import { IPC } from '../../lib/ipcBridge';
+import { formatUiPath } from '../../lib/displayPath';
 import { pushToast } from '../ToastHost';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -309,7 +310,7 @@ export default function BranchingTimePlugin({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <PluginSectionTitle>{b.name}</PluginSectionTitle>
-                      <div className="text-[10px] text-gray-500 truncate" title={b.rootWinPath}>{b.rootWinPath}</div>
+                      <div className="text-[10px] text-gray-500 truncate" title={formatUiPath(b.rootWinPath)}>{formatUiPath(b.rootWinPath)}</div>
                       <div className="text-[10px] text-gray-400 mt-0.5">
                         {b.fileCount} files · {b.createdUtc ? new Date(b.createdUtc).toLocaleString() : ''}
                       </div>
@@ -346,7 +347,7 @@ export default function BranchingTimePlugin({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <PluginSectionTitle>{b.name}</PluginSectionTitle>
-                      <div className="text-[10px] text-gray-500 truncate" title={b.rootPath}>{b.rootPath}</div>
+                      <div className="text-[10px] text-gray-500 truncate" title={formatUiPath(b.rootPath)}>{formatUiPath(b.rootPath)}</div>
                       <div className="text-[10px] text-gray-400 mt-0.5">
                         VSS · {b.createdUtc ? new Date(b.createdUtc).toLocaleString() : ''}
                       </div>

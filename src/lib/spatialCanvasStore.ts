@@ -1,6 +1,7 @@
 import { IPC } from './ipcBridge';
 import { flushBndzMeta, readBndzMeta, writeBndzMetaDebounced } from './bndzMetaStore';
 import { toWindowsPath } from './pathUtils';
+import { formatPathLeafName } from './displayPath';
 
 export type CanvasItem = {
   id: string;
@@ -191,9 +192,18 @@ async function persistLibrary(lib: SpatialBoardLibrary, delayMs = 400): Promise<
   const active = lib.boards.find(b => b.id === lib.activeBoardId) || lib.boards[0];
   cache = active;
   if (!IPC.isNative) return true;
+  // When spatialCanvasV2 is off, still persist library but mirror only the active board
+  // to the legacy META_KEY for older readers (v1 single-board consumers).
+  const spatialCanvasV2 = typeof document !== 'undefined'
+    ? document.documentElement.classList.contains('bndz-spatial-v2')
+      || document.documentElement.dataset.behSpatialCanvasV2 !== 'false'
+    : true;
   await writeBndzMetaDebounced(LIBRARY_KEY, JSON.stringify(lib), delayMs);
-  // Keep legacy key in sync for older readers / exports.
-  await writeBndzMetaDebounced(META_KEY, JSON.stringify(active), delayMs);
+  if (spatialCanvasV2) {
+    await writeBndzMetaDebounced(META_KEY, JSON.stringify(active), delayMs);
+  } else {
+    await writeBndzMetaDebounced(META_KEY, JSON.stringify(active), delayMs);
+  }
   return true;
 }
 
@@ -395,7 +405,7 @@ const PIN_CARD_W = 228;
 const PIN_CARD_H = 176;
 
 function makeCanvasPin(path: string, x: number, y: number): CanvasItem {
-  const name = path.split(/[/\\]/).pop() || path;
+  const name = formatPathLeafName(path) || path.split(/[/\\]/).pop() || path;
   return { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, path, name, x, y };
 }
 

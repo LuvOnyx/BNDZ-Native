@@ -122,23 +122,54 @@ namespace Files.App
 
 				if (!(isStartupTask && isLeaveAppRunning))
 				{
-					// Wait for the UI to update
-					await SplashScreenLoadingTCS!.Task.WithTimeoutAsync(TimeSpan.FromMilliseconds(500));
+					// Do not block the UI thread on splash image load — missing AppTiles used to deadlock here.
+					try
+					{
+						if (SplashScreenLoadingTCS is not null)
+							await SplashScreenLoadingTCS.Task.WithTimeoutAsync(TimeSpan.FromMilliseconds(250));
+					}
+					catch (Exception ex)
+					{
+						Logger.LogWarning(ex, "Splash wait failed");
+					}
 					SplashScreenLoadingTCS = null;
 
-					// Create a system tray icon
-					SystemTrayIcon = new SystemTrayIcon();
-					if (userSettingsService.GeneralSettingsService.ShowSystemTrayIcon)
-						SystemTrayIcon.Show();
+					// Navigate MainPage BEFORE tray chrome. SystemTrayIcon loads Logo.ico from disk and
+					// hung / threw when AppTiles were absent from the loose MSIX layout — leaving splash forever.
+					try
+					{
+						Logger.LogInformation("Initializing main window / MainPage navigation");
+						await MainWindow.Instance.InitializeApplicationAsync(appActivationArguments.Data);
+						Logger.LogInformation("MainPage navigation complete");
+					}
+					catch (Exception ex)
+					{
+						Logger.LogError(ex, "InitializeApplicationAsync failed — remaining on splash");
+					}
 
-					_ = MainWindow.Instance.InitializeApplicationAsync(appActivationArguments.Data);
+					try
+					{
+						SystemTrayIcon = new SystemTrayIcon();
+						if (userSettingsService.GeneralSettingsService.ShowSystemTrayIcon)
+							SystemTrayIcon.Show();
+					}
+					catch (Exception ex)
+					{
+						Logger.LogWarning(ex, "System tray icon failed (non-fatal)");
+					}
 				}
 				else
 				{
-					// Create a system tray icon
-					SystemTrayIcon = new SystemTrayIcon();
-					if (userSettingsService.GeneralSettingsService.ShowSystemTrayIcon)
-						SystemTrayIcon.Show();
+					try
+					{
+						SystemTrayIcon = new SystemTrayIcon();
+						if (userSettingsService.GeneralSettingsService.ShowSystemTrayIcon)
+							SystemTrayIcon.Show();
+					}
+					catch (Exception ex)
+					{
+						Logger.LogWarning(ex, "System tray icon failed (non-fatal)");
+					}
 
 					// Sleep current instance
 					Program.Pool = new(0, 1, $"Files-{AppLifecycleHelper.AppEnvironment}-Instance");
@@ -153,7 +184,14 @@ namespace Files.App
 					}
 				}
 
-				await AppLifecycleHelper.InitializeAppComponentsAsync();
+				try
+				{
+					await AppLifecycleHelper.InitializeAppComponentsAsync();
+				}
+				catch (Exception ex)
+				{
+					Logger.LogError(ex, "InitializeAppComponentsAsync failed");
+				}
 
 				// Architecture #3 Phase 2: keep full BNDZBackend live for the WinUI shell.
 				_ = Task.Run(async () =>

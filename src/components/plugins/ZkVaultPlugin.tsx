@@ -3,6 +3,7 @@ import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -126,7 +127,7 @@ export default function ZkVaultPlugin({
 
       <PluginCard className="p-3 mb-3 space-y-2">
         <PluginSectionTitle>Target folder</PluginSectionTitle>
-        <div className="text-xs text-gray-400 bndz-mono truncate">{folder || '— select a folder —'}</div>
+        <div className="text-xs text-gray-400 bndz-mono truncate">{folder ? formatUiPath(folder) : '— select a folder —'}</div>
         <input
           type="password"
           className="w-full bg-[#1a1a1e] border border-white/10 rounded-md px-2 py-1.5 text-sm"
@@ -160,9 +161,9 @@ export default function ZkVaultPlugin({
                 <div className="min-w-0">
                   <div className="text-sm text-white flex items-center gap-2">
                     <Icons8Icon id="folder_ui" size={14} />
-                    <span className="truncate">{s.sourcePath}</span>
+                    <span className="truncate">{formatUiPath(s.sourcePath)}</span>
                   </div>
-                  <div className="text-[11px] text-sky-300/80 mt-1 bndz-mono truncate">Mount: {s.mountPath}</div>
+                  <div className="text-[11px] text-sky-300/80 mt-1 bndz-mono truncate">Mount: {formatUiPath(s.mountPath)}</div>
                 </div>
                 <PluginToolbarButton label="Lock" onClick={() => void lockVault(s.vaultId)} disabled={busy} />
               </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { formatFsDate } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 
 export type PreviewMetaFact = { label: string; value: string };
 
@@ -48,7 +49,9 @@ export default function PreviewMetadataStrip({
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-medium text-[#f3f4f6] truncate" title={name}>{name}</div>
           {path && (
-            <div className="text-[10px] text-[#9ca3af] truncate font-mono mt-0.5" title={path}>{path}</div>
+            <div className="text-[10px] text-[#9ca3af] truncate font-mono mt-0.5" title={formatUiPath(path)}>
+              {formatUiPath(path)}
+            </div>
           )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-[#b0b8c0]">
             {kindLabel && <span className="bndz-preview-kind-pill">{kindLabel}</span>}

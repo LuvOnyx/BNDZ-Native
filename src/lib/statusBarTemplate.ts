@@ -1,4 +1,7 @@
 /** XYplorer-style status bar template tokens. */
+
+import { withPermanentVariables } from './permanentVariables';
+
 export function renderStatusBarTemplate(
   template: string,
   vars: {
@@ -13,6 +16,7 @@ export function renderStatusBarTemplate(
     durationMs?: number;
     clipboard?: string;
   },
+  config?: { rememberPermanentVariables?: boolean; permanentVariables?: unknown },
 ): string {
   const itemCount = vars.items ?? 0;
   const selectedCount = vars.selected ?? 0;
@@ -43,10 +47,17 @@ export function renderStatusBarTemplate(
     '<ver>': vars.ver ?? '',
   };
 
-  return template
-    .replace(/<([^>]+)>/g, (_, raw: string) => map[raw.trim().toLowerCase()] ?? map[raw.trim()] ?? '')
+  const rendered = template
+    .replace(/<([^>]+)>/g, (_, raw: string) => {
+      const key = raw.trim();
+      // Leave <p:name> / <var:name> for permanent-variable expansion.
+      if (/^(p|var):/i.test(key)) return `<${key}>`;
+      return map[key.toLowerCase()] ?? map[key] ?? '';
+    })
     .replace(/\s{2,}/g, ' ')
     .trim();
+
+  return config ? withPermanentVariables(rendered, config) : rendered;
 }
 
 function formatDuration(ms?: number): string {

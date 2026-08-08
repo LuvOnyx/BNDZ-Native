@@ -12,6 +12,7 @@ import { buildMeshPath } from '../../lib/meshPaths';
 import { BNDZ_AUTOMATION, BNDZ_CANVAS } from '../../lib/bndzVirtualViews';
 import WorkspaceLaunchCard from '../workspace/WorkspaceLaunchCard';
 import { toWindowsPath } from '../../lib/pathUtils';
+import { formatUiPath } from '../../lib/displayPath';
 
 type ToolTab = 'remote-mesh' | 'live-mirror' | 'folder-sync' | 'spatial-automation' | 'mesh-drop' | 'ghost-link' | 'ram-staging';
 
@@ -524,7 +525,7 @@ export default function WorkspaceToolsTabContent({
                   ) : ghostRecent.map(g => (
                     <div key={g.path} className="bndz-ws-tools-row">
                       <div className="bndz-ws-tools-row-body">
-                        <div className="bndz-ws-tools-row-title truncate" title={g.path}>{g.path}</div>
+                        <div className="bndz-ws-tools-row-title truncate" title={formatUiPath(g.path)}>{formatUiPath(g.path)}</div>
                         <div className="bndz-ws-tools-row-meta">{formatBytes(g.bytesSaved)} saved on volume</div>
                       </div>
                     </div>
@@ -896,7 +897,7 @@ export default function WorkspaceToolsTabContent({
                   </p>
                   <Checkbox
                     label="Context Command Deck (selection tool morph bar)"
-                    checked={localConfig.commandDeck !== false}
+                    checked={localConfig.commandDeck === true}
                     onChange={e => updateLocalConfig({ commandDeck: e.target.checked })}
                   />
                   <div className="mt-2">

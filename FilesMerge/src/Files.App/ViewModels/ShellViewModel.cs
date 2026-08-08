@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 using Files.App.Services.SizeProvider;
+using Files.App.Utils.Bndz;
 using Files.Shared.Helpers;
 using LibGit2Sharp;
 using Microsoft.Extensions.Logging;
@@ -1846,7 +1847,39 @@ namespace Files.App.ViewModels
 
 		public void RefreshItems(string? previousDir, Action postLoadCallback = null)
 		{
+			// filesHost: BNDZUI owns list/tree — keep cwd for tab titles, skip WinUI enumerate/thumbs.
+			if (BndzShellOwnership.BrowserOwnsFileViewport)
+			{
+				_ = SkipEnumerationForFilesHostAsync(previousDir, postLoadCallback);
+				return;
+			}
 			_ = RapidAddItemsToCollectionAsync(WorkingDirectory, previousDir, postLoadCallback);
+		}
+
+		private async Task SkipEnumerationForFilesHostAsync(string? previousDir, Action? postLoadCallback)
+		{
+			try
+			{
+				ItemLoadStatusChanged?.Invoke(this, new ItemLoadStatusChangedEventArgs() { Status = ItemLoadStatusChangedEventArgs.ItemLoadStatus.Starting });
+				CancelLoadAndClearFiles();
+				filesAndFolders.Clear();
+				FilesAndFolders.Clear();
+				IsLoadingItems = false;
+				HasNoWatcher = true;
+				ItemLoadStatusChanged?.Invoke(this, new ItemLoadStatusChangedEventArgs()
+				{
+					Status = ItemLoadStatusChangedEventArgs.ItemLoadStatus.Complete,
+					PreviousDirectory = previousDir,
+					Path = WorkingDirectory,
+				});
+				DirectoryInfoUpdated?.Invoke(this, EventArgs.Empty);
+			}
+			catch
+			{
+				/* best-effort skip */
+			}
+			postLoadCallback?.Invoke();
+			await Task.CompletedTask;
 		}
 
 		private async Task RapidAddItemsToCollectionAsync(string path, string? previousDir, Action postLoadCallback)

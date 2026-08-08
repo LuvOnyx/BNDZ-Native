@@ -1,4 +1,4 @@
-﻿<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
+<!--  Copyright (c) Files Community. Licensed under the MIT License.  -->
 <UserControl
 	x:Class="Files.App.UserControls.Widgets.QuickAccessWidget"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -33,7 +33,7 @@
 						VerticalContentAlignment="Stretch"
 						AutomationProperties.Name="{x:Bind AutomationProperties}"
 						Click="Button_Click"
-						CornerRadius="{StaticResource ControlCornerRadius}"
+						Style="{StaticResource BndzWidgetCardButtonStyle}"
 						DataContext="{x:Bind}"
 						PointerPressed="Button_PointerPressed"
 						RightTapped="Button_RightTapped"

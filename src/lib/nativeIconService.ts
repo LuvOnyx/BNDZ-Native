@@ -1,11 +1,31 @@
-import { entityShellIsDirectory, resolveShellIconPath } from './shellPaths';
+import { entityShellIsDirectory, resolveShellIconPath, isNonFsShellIconPath } from './shellPaths';
 import { toWindowsPath } from './pathUtils';
 import { enqueueIconRequest } from './iconRequestQueue';
+
+export { isNonFsShellIconPath } from './shellPaths';
 
 export type IconRequestKind = 'shell' | 'thumbnail';
 
 /** Canonical list/grid CAS thumb size — one size = one cache key = warm after first visit. */
 export const LIST_THUMB_PX = 96;
+
+/** Live list-thumb size from settings (thumbnailSizePreset1). */
+let runtimeListThumbPx = LIST_THUMB_PX;
+/** High-res preset (thumbnailSizePreset2). */
+let runtimeHiResThumbPx = 256;
+
+export function setRuntimeThumbPresets(preset1: number, preset2: number): void {
+  runtimeListThumbPx = Math.max(16, Math.min(512, Math.round(preset1) || LIST_THUMB_PX));
+  runtimeHiResThumbPx = Math.max(32, Math.min(1024, Math.round(preset2) || 256));
+}
+
+export function getRuntimeListThumbPx(): number {
+  return runtimeListThumbPx;
+}
+
+export function getRuntimeHiResThumbPx(): number {
+  return runtimeHiResThumbPx;
+}
 /** Side-panel / Quick Look CAS size — still tiny vs full-file stream. */
 export const PREVIEW_THUMB_PX = 256;
 
@@ -180,6 +200,14 @@ function commitCache(key: string, data: string | null, typeKey?: string | null, 
 
 export function getCachedIcon(path: string, isDirectory: boolean, kind: IconRequestKind = 'shell', thumbPx = LIST_THUMB_PX): string | null {
   const key = iconKey(path, isDirectory, kind, thumbPx);
+  // Virtual remote/mesh paths: never trust a prior shell extract (often the white document).
+  if (isNonFsShellIconPath(path)) {
+    if (kind !== 'shell') return null;
+    if (isDirectory) return typeGlyphCache.get(FOLDER_GLYPH_KEY) ?? null;
+    const typeKey = hostIconCacheKey(path, isDirectory);
+    if (typeKey?.startsWith('.')) return typeGlyphCache.get(typeKey) ?? null;
+    return null;
+  }
   const entry = cache.get(key);
   if (entry?.status === 'ready' && entry.data) return entry.data;
   if (kind === 'shell') {
@@ -207,6 +235,8 @@ export function hasReadyCachedIcon(
   kind: IconRequestKind = 'shell',
   thumbPx = LIST_THUMB_PX,
 ): boolean {
+  // Virtual remotes always re-resolve to type glyphs (may overwrite white-doc poison).
+  if (isNonFsShellIconPath(path)) return false;
   const entry = cache.get(iconKey(path, isDirectory, kind, thumbPx));
   return !!(entry?.status === 'ready' && entry.data);
 }
@@ -245,12 +275,34 @@ export function requestNativeIcon(
   path: string | null | undefined,
   isDirectory: boolean,
   kind: IconRequestKind = 'shell',
-  thumbPx = LIST_THUMB_PX,
+  thumbPx = getRuntimeListThumbPx(),
   priorityBoost = 0,
 ): Promise<string | null> {
   if (!path) return Promise.resolve(null);
   const key = iconKey(path, isDirectory, kind, thumbPx);
   const typeKey = kind === 'shell' ? hostIconCacheKey(path, isDirectory) : null;
+
+  // Mesh / VF / cloud / BNDZ smart views: never SHGetFileInfo fake paths (white docs).
+  // Serve type glyphs immediately and overwrite any previously poisoned per-path cache.
+  if (isNonFsShellIconPath(path)) {
+    if (kind === 'thumbnail') {
+      commitCache(key, null, null, kind);
+      return Promise.resolve(null);
+    }
+    let glyph: string | null = null;
+    if (isDirectory) {
+      glyph = typeGlyphCache.get(FOLDER_GLYPH_KEY) ?? null;
+    } else if (typeKey?.startsWith('.')) {
+      glyph = typeGlyphCache.get(typeKey) ?? null;
+    }
+    if (glyph) {
+      commitCache(key, glyph, typeKey?.startsWith('.') ? typeKey : null, kind);
+      return Promise.resolve(glyph);
+    }
+    // Folder glyph not hydrated yet — leave unresolved; listing SHELL_GLYPH_MAP will refill.
+    cache.delete(key);
+    return Promise.resolve(null);
+  }
 
   const cached = cache.get(key);
   if (cached?.status === 'ready' && cached.data) return Promise.resolve(cached.data);
@@ -444,7 +496,8 @@ export async function prefetchMediaThumbnailsForEntities(
       continue;
     }
     const fullPath = joinPanePath(panePath, ent);
-    const key = iconKey(fullPath, !!isDir, 'thumbnail', LIST_THUMB_PX);
+    const thumbPx = getRuntimeListThumbPx();
+    const key = iconKey(fullPath, !!isDir, 'thumbnail', thumbPx);
     if (cache.get(key)?.data || inflight.has(key)) continue;
     media.push({ path: fullPath, isDirectory: !!isDir });
     if (media.length >= limit) break;
@@ -452,21 +505,24 @@ export async function prefetchMediaThumbnailsForEntities(
   if (!media.length) return;
 
   const CHUNK = 12;
+  const thumbPx = getRuntimeListThumbPx();
   for (let i = 0; i < media.length; i += CHUNK) {
     const chunk = media.slice(i, i + CHUNK);
     if (IPC.isNative && typeof IPC.getNativeThumbnailsBatch === 'function') {
       try {
         const batch = await enqueueIconRequest(
-          () => IPC.getNativeThumbnailsBatch(chunk.map(c => c.path), LIST_THUMB_PX),
+          () => IPC.getNativeThumbnailsBatch(chunk.map(c => c.path), thumbPx),
           750,
-          'thumb',
         );
-        applyBatchChunk(chunk, batch, 'thumbnail', LIST_THUMB_PX);
-        continue;
-      } catch { /* per-item */ }
+        applyBatchChunk(chunk, batch, 'thumbnail', thumbPx);
+      } catch {
+        /* fall through to miss refill */
+      }
     }
-    for (const r of chunk) {
-      await requestNativeIcon(r.path, r.isDirectory, 'thumbnail', LIST_THUMB_PX);
+    // Only refill batch misses — never re-await every path after a warm batch hit.
+    const misses = chunk.filter(r => !hasReadyCachedIcon(r.path, r.isDirectory, 'thumbnail', thumbPx));
+    if (misses.length) {
+      await Promise.all(misses.map(r => requestNativeIcon(r.path, r.isDirectory, 'thumbnail', thumbPx)));
     }
   }
 }
@@ -510,6 +566,33 @@ export function prefetchListingVisuals(
       includeFolders: options?.includeFolderThumbs === true,
     }),
   ]);
+}
+
+/** Prefetch options from Settings → Thumbnails (create-all-at-once raises limits). */
+export function listingPrefetchFromConfig(config: {
+  showFolderThumbnails?: boolean;
+  createAllThumbnailsAtOnce?: boolean;
+  cacheThumbnailsOnDisk?: boolean;
+  includeSearchResults?: boolean;
+}): { iconLimit?: number; thumbLimit?: number; includeFolderThumbs?: boolean; diskCacheSearch?: boolean } {
+  const all = !!config.createAllThumbnailsAtOnce;
+  const filesHost =
+    typeof document !== 'undefined'
+    && document.documentElement?.dataset?.bndzShell === 'files-host';
+  // FilesMerge pipe is shared — never flood cold navigate with create-all-at-once 50k icons.
+  if (filesHost) {
+    return {
+      includeFolderThumbs: config.showFolderThumbnails === true,
+      diskCacheSearch: config.cacheThumbnailsOnDisk !== false && !!config.includeSearchResults,
+      iconLimit: all ? 256 : 96,
+      thumbLimit: all ? 48 : 24,
+    };
+  }
+  return {
+    includeFolderThumbs: config.showFolderThumbnails === true,
+    diskCacheSearch: config.cacheThumbnailsOnDisk !== false && !!config.includeSearchResults,
+    ...(all ? { iconLimit: 50_000, thumbLimit: 50_000 } : {}),
+  };
 }
 
 /** Drop a poisoned cache entry so the next paint can refetch (broken CAS / 404 img). */

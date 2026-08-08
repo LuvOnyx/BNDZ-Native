@@ -89,6 +89,10 @@ interface VirtualizedNavTreeProps {
   clipboard?: { items: string[]; action: ClipboardAction | null };
   /** Hover-prefetch child listing for dynamic folder rows. */
   onPrefetchPath?: (path: string) => void;
+  /** When Settings → Remember tree scroll position per tab, persist scroll against this key. */
+  treeScrollKey?: string;
+  /** Settings → Folder contents preview (In tree + mouse up). */
+  onFolderContentsPeek?: (path: string, label: string, clientX: number, clientY: number) => void;
 }
 
 async function loadDirectoryChildren(
@@ -157,6 +161,7 @@ function TreeRow({
   treeLastClickRef,
   treeRenameTimerRef,
   onPrefetchPath,
+  onFolderContentsPeek,
 }: {
   row: FlatNavRow;
   config: AppConfig;
@@ -186,11 +191,18 @@ function TreeRow({
   treeLastClickRef: React.MutableRefObject<SlowClickStamp>;
   treeRenameTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   onPrefetchPath?: (path: string) => void;
+  onFolderContentsPeek?: VirtualizedNavTreeProps['onFolderContentsPeek'];
 }) {
   const isSelected = row.selected || (row.path && panePathsEqual(currentPath, row.path));
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
   const treeRt = buildSettingsRuntime(config).tree;
-  const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick && !treeRt.lockState;
+  const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick
+    && !(treeRt.lockState || !!config.lockTreeState);
+  const treeColorFilter = (treeRt.applyColorFilters
+    || (!!config.applyColorFiltersToTheTree && config.enableColorFilters !== false))
+    && row.path
+    ? evaluateColorFilter({ name: row.label, path: row.path, type: 'directory' }, config.colorFilters, config)
+    : null;
   const indentPx = row.depth * 16 + 8;
 
   const handleClick = (e: React.MouseEvent) => {
@@ -232,9 +244,6 @@ function TreeRow({
   const canReorder = !!row.draggable && !row.isPlaceholder && !disallowDragFromTree;
   const canDragFile = !!row.path && !row.isPlaceholder && !disallowDragFromTree && !canReorder;
   const isFileDropTarget = !!row.path && fileDropTarget === row.path;
-  const treeColorFilter = treeRt.applyColorFilters && row.path
-    ? evaluateColorFilter({ name: row.label, path: row.path, type: 'directory' }, config.colorFilters, config)
-    : null;
   const clipboardMark = row.path && clipboard?.items?.length && clipboard.action
     ? getClipboardMarkForEntity(toWindowsPath(row.path), clipboard as { items: string[]; action: ClipboardAction })
     : null;
@@ -273,6 +282,17 @@ function TreeRow({
       }}
       onMouseDown={e => {
         if (e.button === 2) e.preventDefault();
+      }}
+      onMouseUp={e => {
+        if (!row.path || row.isPlaceholder || !onFolderContentsPeek) return;
+        if (!config.folderContentsPreview || !config.inTree) return;
+        const leftOk = e.button === 0 && !!config.onLeftMouseUp;
+        const rightOk = e.button === 2 && !!config.onRightMouseUp;
+        const midOk = e.button === 1 && !!config.onMiddleMouseDown;
+        if (!leftOk && !rightOk && !midOk) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onFolderContentsPeek(row.path, row.label, e.clientX, e.clientY);
       }}
       onContextMenu={e => {
         e.preventDefault();
@@ -408,6 +428,8 @@ export function VirtualizedNavTree({
   fileDropTarget: externalFileDropTarget,
   clipboard,
   onPrefetchPath,
+  treeScrollKey,
+  onFolderContentsPeek,
 }: VirtualizedNavTreeProps) {
   const showIndexBadges = config.showNavIndexBadges === true;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -424,7 +446,27 @@ export function VirtualizedNavTree({
   const expandDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressTreeClickRef = useRef(false);
 
-  const rt = useMemo(() => buildSettingsRuntime(config), [config]);
+  const rt = useMemo(() => {
+    const base = buildSettingsRuntime(config);
+    return {
+      ...base,
+      tree: {
+        ...base.tree,
+        lockState: base.tree.lockState || !!config.lockTreeState,
+        expandOnBrowse: base.tree.expandOnBrowse || !!config.expandTreeNodesOnBrowse,
+        rememberState: base.tree.rememberState || !!config.rememberStateOfTree,
+        applyColorFilters: base.tree.applyColorFilters
+          || (!!config.applyColorFiltersToTheTree && config.enableColorFilters !== false),
+      },
+    };
+  }, [
+    config,
+    config.lockTreeState,
+    config.expandTreeNodesOnBrowse,
+    config.rememberStateOfTree,
+    config.applyColorFiltersToTheTree,
+    config.enableColorFilters,
+  ]);
 
   // Persist expanded paths when "Remember state of tree" is enabled.
   useEffect(() => {
@@ -546,7 +588,9 @@ export function VirtualizedNavTree({
         dispatchPointerFileDragActive(false);
         endFileDragSession();
         cleanup();
-        IPC.startDrag([winPath]);
+        IPC.startDrag([winPath], {
+          extended: !!config.extendedCompatibilityForClipboardAndDragAndDrop,
+        });
       }
     };
 
@@ -569,8 +613,8 @@ export function VirtualizedNavTree({
           shiftKey: ev.shiftKey,
           sourcePaths: session.paths,
           destDir: destPath,
-          sameDriveDefault: config.selectConfig2,
-          crossDriveDefault: config.selectConfig3,
+          sameDriveDefault: config.dragDropSameVolumeAction ?? config.selectConfig2,
+          crossDriveDefault: config.dragDropCrossVolumeAction ?? config.selectConfig3,
         });
         onFileDrop(
           { paths: session.paths, sourcePath: row.path, fromTree: true },
@@ -585,7 +629,7 @@ export function VirtualizedNavTree({
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
-  }, [config.selectConfig2, config.selectConfig3, disallowDragFromTree, onFileDrop]);
+  }, [config.dragDropSameVolumeAction, config.dragDropCrossVolumeAction, config.selectConfig2, config.selectConfig3, disallowDragFromTree, onFileDrop]);
 
   const handleReorderDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
     if (!row.treeKey || !row.draggable) return;
@@ -778,6 +822,18 @@ export function VirtualizedNavTree({
     return () => window.removeEventListener('bndz-tree-expand-drag', onExpandDrag);
   }, [config?.expandTreeNodesOnDragOver, rt.tree.lockState, flatRows, clearExpandDragTimer]);
 
+  // Settings → Expand in tree (favorites / path locate)
+  useEffect(() => {
+    const onExpandPath = (e: Event) => {
+      const path = (e as CustomEvent<{ path?: string }>).detail?.path;
+      if (!path || rt.tree.lockState || !config?.expandInTree) return;
+      const row = flatRows.find(r => r.path && panePathsEqual(r.path, path));
+      if (row?.hasChildren) void toggleRowRef.current(row);
+    };
+    window.addEventListener('bndz-expand-tree-path', onExpandPath);
+    return () => window.removeEventListener('bndz-expand-tree-path', onExpandPath);
+  }, [config?.expandInTree, rt.tree.lockState, flatRows]);
+
   const scheduleTreePrefetch = useCallback((path?: string) => {
     if (!onPrefetchPath || !path) return;
     const prev = treePrefetchTimerRef.current.get(path);
@@ -865,6 +921,7 @@ export function VirtualizedNavTree({
       treeLastClickRef={treeLastClickRef}
       treeRenameTimerRef={treeRenameTimerRef}
       onPrefetchPath={onPrefetchPath ? scheduleTreePrefetch : undefined}
+      onFolderContentsPeek={onFolderContentsPeek}
     />
   );
   };
@@ -877,6 +934,28 @@ export function VirtualizedNavTree({
     window.addEventListener('bndz-focus-nav-tree', onFocusTree);
     return () => window.removeEventListener('bndz-focus-nav-tree', onFocusTree);
   }, []);
+
+  // Settings → Remember tree scroll position per tab
+  useEffect(() => {
+    const enabled = !!config.rememberTreeScrollPositionPerTab
+      && String(config.rememberTreeScrollPositionPerTab).toLowerCase() !== 'false';
+    if (!enabled || !treeScrollKey) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const storageKey = `bndz.treeScroll.${treeScrollKey}`;
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved != null) {
+        const top = parseInt(saved, 10);
+        if (Number.isFinite(top)) el.scrollTop = top;
+      }
+    } catch { /* ignore */ }
+    const onScroll = () => {
+      try { sessionStorage.setItem(storageKey, String(el.scrollTop)); } catch { /* ignore */ }
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [treeScrollKey, config.rememberTreeScrollPositionPerTab]);
 
   return (
     <div ref={containerRef} className="nav-tree-host w-full">
@@ -905,14 +984,16 @@ export function VirtualizedNavTree({
               const row = flatRows[vi.index];
               return (
                 <div
-                  key={row.id}
+                  key={`${row.id}:${vi.index}`}
+                  className="nav-tree-virtual-row"
                   style={{
                     position: 'absolute',
-                    top: 0,
+                    top: vi.start,
                     left: 0,
                     width: '100%',
                     height: vi.size,
-                    transform: `translateY(${vi.start}px)`,
+                    overflow: 'hidden',
+                    contain: 'layout style',
                   }}
                 >
                   {renderRow(row, true)}

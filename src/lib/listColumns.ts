@@ -83,7 +83,8 @@ export function resolveListColumnVisibility(
   const stored = (config.listColumnVisibility || {}) as Partial<Record<ListColumnId, boolean>>;
   const merged = { ...DEFAULT_LIST_COLUMN_VISIBILITY, ...stored };
   merged.name = true;
-  if (options?.isGlobalSearch) merged.path = true;
+  // Search results normally force a Path column; inherit current columns keeps the folder layout.
+  if (options?.isGlobalSearch && !config.searchResultsInheritCurrentColumns) merged.path = true;
   // Recycle Bin: surface original location/path (and path) even when hidden by default.
   if (isRecycleBinPath(options?.folderPath)) {
     merged.originalLocation = true;
