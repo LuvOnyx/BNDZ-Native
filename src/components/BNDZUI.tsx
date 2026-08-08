@@ -1469,20 +1469,12 @@ export default function BNDZUI() {
     if (!installedPluginIdSet.has('properties')) return;
     filesHostPropsBootedRef.current = true;
     openBottomPlugin('properties');
-    const patch: Record<string, unknown> = {
+    updateConfig({
       bottomPanelOpen: true,
       bottomPanelDefaultPlugin: 'properties',
       bottomPanelLastTab: 'properties',
-    };
-    // One-shot migrate Files Classic Explorer tab chrome → BNDZ soft squircles.
-    try {
-      if (localStorage.getItem('bndz-fileshost-soft-tabs') !== '1') {
-        patch.appearanceTabStyle = 'soft';
-        patch.visualStyleTabs = 'Soft Modern';
-        localStorage.setItem('bndz-fileshost-soft-tabs', '1');
-      }
-    } catch { /* ignore */ }
-    updateConfig(patch as any);
+      commandDeck: false,
+    } as any);
   }, [installedPluginIdSet, openBottomPlugin, updateConfig]);
 
   // Truncated first-paint when MORE fails — clear sticky Streaming and force one full refetch.

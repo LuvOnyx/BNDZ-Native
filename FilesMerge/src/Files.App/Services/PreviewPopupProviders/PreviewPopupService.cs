@@ -8,6 +8,9 @@ namespace Files.App.Services.PreviewPopupProviders
 	{
 		public async Task<IPreviewPopupProvider?> GetProviderAsync()
 		{			
+			// Prefer BNDZ Quick Preview / Photo Studio over third-party peek tools.
+			if (await BndzPreviewPopupProvider.Instance.DetectAvailability())
+				return BndzPreviewPopupProvider.Instance;
 			if (await QuickLookProvider.Instance.DetectAvailability())
 				return await Task.FromResult<IPreviewPopupProvider>(QuickLookProvider.Instance);
 			if (await SeerProProvider.Instance.DetectAvailability())

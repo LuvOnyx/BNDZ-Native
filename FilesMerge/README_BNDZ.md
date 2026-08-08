@@ -6,15 +6,17 @@ Classic official BNDZ stays in [BNDZ-1.0](https://github.com/LuvOnyx/BNDZ-1.0). 
 
 ---
 
-## Locked architecture (#3)
+## Locked architecture (#3) — full blend
 
 ```text
-WinUI / FilesMerge     →  title bar, tabs, sidebar, omnibar, file list,
+WinUI / FilesMerge     →  title bar, tabs, sidebar, omnibar, file list engines,
                           dock geometry (grid-push plugins row)
 BNDZBackend (full)     →  ALL services + IPC + plugins brain — no stubs
 BNDZ React surfaces    →  plugins dock + Automation / Spatial / Smart Tools /
-                          Hub / Config / preview (real BNDZ components)
+                          Hub / Config / preview / Spacebar Quick Preview+Photo Studio
 ```
+
+**Product meaning:** Files engines enumerate and own cwd/items; BNDZ components paint plugins, preview, and workspace craft. Do **not** flip `BrowserOwnsFileViewport=true` (classic `?filesHost=1` takeover) — that path starved list IPC and killed window drag.
 
 **Not the product end state:** HWND-painting classic `BNDZ.exe --embedded` inside Files (`Utils/Bndz/BndzEmbedHost.cs`). That was an A/B glue experiment. The code may remain as **reference only**; it is not wired into MainPage and must not be treated as “merge complete.”
 

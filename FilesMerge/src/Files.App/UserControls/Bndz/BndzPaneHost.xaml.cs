@@ -314,6 +314,11 @@ public sealed partial class BndzPaneHost : UserControl
 			Prewarm();
 	}
 
+	public void PostHostMessage(object payload)
+	{
+		PostJson(payload);
+	}
+
 	private void PostJson(object payload)
 	{
 		PostJsonRaw(JsonSerializer.Serialize(payload));

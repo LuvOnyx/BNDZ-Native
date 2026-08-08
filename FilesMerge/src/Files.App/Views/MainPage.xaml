@@ -163,7 +163,7 @@
 			Loaded="HorizontalMultitaskingControl_Loaded"
 			TabIndex="0" />
 
-		<!--  BNDZ top menu — collapsed in filesHost (BNDZUI owns menubar)  -->
+		<!--  BNDZ top menu — blend craft above Files address chrome  -->
 		<MenuBar
 			x:Name="BndzMenuBar"
 			Grid.Row="1"
@@ -173,7 +173,7 @@
 			BorderBrush="{StaticResource BndzDividerBrush}"
 			BorderThickness="0,0,0,1"
 			Foreground="{StaticResource BndzInkBrush}"
-			Visibility="Collapsed">
+			Visibility="Visible">
 			<MenuBarItem Title="File">
 				<MenuFlyoutItem Click="BndzMenu_TogglePlugins_Click" Text="Plugins panel" />
 				<MenuFlyoutItem Click="BndzMenu_OpenHub_Click" Text="Extension Hub…" />
@@ -190,11 +190,11 @@
 			</MenuBarItem>
 		</MenuBar>
 
-		<!--  Address chrome — collapsed in filesHost (BNDZUI omnibar owns address)  -->
+		<!--  Address chrome — Files NavigationToolbar + BNDZ status chip  -->
 		<Grid
 			x:Name="BndzAddressChromeRow"
 			Grid.Row="2"
-			Visibility="Collapsed">
+			Visibility="Visible">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="*" />
 				<ColumnDefinition Width="Auto" />
@@ -249,7 +249,7 @@
 			PaneBackgroundBrush="{ThemeResource App.Theme.Sidebar.BackgroundBrush}"
 			SelectedItem="{x:Bind SidebarAdaptiveViewModel.SidebarSelectedItem, Mode=TwoWay}"
 			SupportsExpansion="True"
-			Visibility="Collapsed">
+			Visibility="Visible">
 
 			<!--  Inner Content  -->
 			<controls:SidebarView.InnerContent>
@@ -488,7 +488,7 @@
 		</controls:SidebarView>
 		</Grid>
 
-		<!-- Full classic BNDZUI — page-root span so it replaces Files TabBar + content -->
+		<!-- Optional classic filesHost takeover — kept collapsed; blend uses Files ContentRow + panes -->
 		<bndz:BndzPaneHost
 			x:Name="BndzBrowserHost"
 			Grid.Row="0"
@@ -497,6 +497,7 @@
 			HorizontalAlignment="Stretch"
 			VerticalAlignment="Stretch"
 			Canvas.ZIndex="10"
+			Visibility="Collapsed"
 			Pane="browser" />
 
 		<!-- Compact backend chip overlay (address row collapsed in filesHost) -->

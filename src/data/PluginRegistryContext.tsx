@@ -47,8 +47,23 @@ export type PluginManifest = {
     installOnFirstUse?: boolean;
 };
 
-/** Core plugins — marketplace ships Uninstalled; user installs from Extension Hub. */
-export const DEFAULT_INSTALLED_PLUGINS: string[] = [];
+/** Core plugins seeded on FilesMerge + classic so Properties/dock are usable immediately. */
+export const DEFAULT_INSTALLED_PLUGINS: string[] = [
+    'properties',
+    'context-menu-manager',
+    'batch-rename',
+    'find',
+    'dropstack',
+    'filters',
+    'metadata',
+    'storage-cleanup',
+    'folder-sync',
+    'catalog',
+    'action-log',
+    'compare',
+    'ghost-link',
+    'ram-staging',
+];
 
 /**
  * Selling-pillar plugins that may soft-install when opened from FM homes.
@@ -306,18 +321,32 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
         const shell = typeof document !== 'undefined' ? document.documentElement?.dataset?.bndzShell : undefined;
         const isFilesMergeShell = shell === 'files-pane' || shell === 'files-host';
 
-        // FilesMerge: one-time clear of classic "all core plugins installed" dump so the dock
-        // matches marketplace policy (Uninstalled until Hub install) — never freeze first hydrate.
-        if (isFilesMergeShell && !(config as { filesMergePluginsClearedV1?: boolean }).filesMergePluginsClearedV1) {
+        // FilesMerge: undo wipe-to-empty; seed core plugins + System Properties; Command Deck off.
+        const filesMergeFlags = config as {
+            filesMergePluginsClearedV1?: boolean;
+            filesMergePluginsReseededV2?: boolean;
+        };
+        const savedEmpty =
+            !Array.isArray(config.installedPlugins) || config.installedPlugins.length === 0;
+        if (
+            isFilesMergeShell
+            && !filesMergeFlags.filesMergePluginsReseededV2
+            && (filesMergeFlags.filesMergePluginsClearedV1 || savedEmpty)
+        ) {
             updateConfig({
-                installedPlugins: [],
-                bottomPluginTabOrder: [],
-                bottomPanelLastTab: '',
-                bottomPanelDefaultPlugin: '',
+                installedPlugins: [...DEFAULT_INSTALLED_PLUGINS],
+                bottomPluginTabOrder: [...DEFAULT_INSTALLED_PLUGINS],
+                bottomPanelLastTab: 'properties',
+                bottomPanelDefaultPlugin: 'properties',
+                bottomPanelOpen: true,
                 commandDeck: false,
                 filesMergePluginsClearedV1: true,
+                filesMergePluginsReseededV2: true,
             } as any);
-            setPlugins(ALL_PLUGINS.map(p => ({ ...p, isInstalled: false })));
+            setPlugins(ALL_PLUGINS.map(p => ({
+                ...p,
+                isInstalled: DEFAULT_INSTALLED_PLUGINS.includes(p.id),
+            })));
             return;
         }
 

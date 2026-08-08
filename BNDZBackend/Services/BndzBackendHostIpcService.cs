@@ -144,12 +144,13 @@ public sealed class BndzBackendHostIpcService : IDisposable
                 continue;
 
             string response;
+            var requestId = TryReadRequestId(line);
             try
             {
                 var main = _main;
                 if (main is null)
                 {
-                    response = JsonSerializer.Serialize(new { type = "ERROR", payload = new { error = "backend main window not ready" } });
+                    response = BuildErrorResponse(requestId, "backend main window not ready");
                 }
                 else
                 {
@@ -160,7 +161,7 @@ public sealed class BndzBackendHostIpcService : IDisposable
             catch (Exception ex)
             {
                 Debug.WriteLine($"[BndzBackendHostIpc] Handle error: {ex.Message}");
-                response = JsonSerializer.Serialize(new { type = "ERROR", payload = new { error = ex.Message } });
+                response = BuildErrorResponse(requestId, ex.Message);
             }
 
             try
@@ -183,5 +184,31 @@ public sealed class BndzBackendHostIpcService : IDisposable
             await server.FlushAsync(token);
         }
         catch { }
+    }
+
+    private static string? TryReadRequestId(string line)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(line);
+            if (doc.RootElement.TryGetProperty("id", out var idEl))
+            {
+                return idEl.ValueKind switch
+                {
+                    JsonValueKind.String => idEl.GetString(),
+                    JsonValueKind.Number => idEl.GetRawText(),
+                    _ => null,
+                };
+            }
+        }
+        catch { /* ignore malformed */ }
+        return null;
+    }
+
+    private static string BuildErrorResponse(string? requestId, string error)
+    {
+        if (!string.IsNullOrEmpty(requestId))
+            return JsonSerializer.Serialize(new { type = "ERROR", id = requestId, payload = new { error } });
+        return JsonSerializer.Serialize(new { type = "ERROR", payload = new { error } });
     }
 }

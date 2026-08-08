@@ -24,7 +24,8 @@ BNDZ React surfaces          →  hosted panes: plugins dock (Command Deck + too
 | **2** | Full BNDZBackend live via IPC from the WinUI shell (`BNDZ.exe --backend-host` + `BNDZ.Backend.Host` pipe) | **Done** |
 | **3** | Host Automation, Spatial, plugins, Command Deck, preview as React panes (`BndzPaneHost`) | **Done** (hybrid — soft-switch, no full reload) |
 | **4** | Product polish / ready-to-see: pane→shell navigate/tools, default Plugins+Preview, Smart Tools / Hub / Config panes, branded toggles | **Done** |
-| **5** | Hybrid craft: Files geometry + Spatial-class React surfaces, dock resize, prop parity, instant open | **Active** |
+| **5** | Hybrid craft: Files geometry + Spatial-class React surfaces, dock resize, prop parity, instant open | **Active (full blend)** |
+| **blend** | Files engines + BNDZ panes; no `?filesHost=1` takeover; Properties dock + Spacebar Photo Studio | **On `Files-BNDZ-full-blend`** |
 
 Primary runnable shell: `FilesMerge/` (branded **BNDZ-Native**). See `FilesMerge/README_BNDZ.md`.
 

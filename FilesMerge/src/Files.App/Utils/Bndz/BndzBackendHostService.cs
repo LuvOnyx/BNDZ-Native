@@ -140,7 +140,10 @@ internal static class BndzBackendClient
 
 	private static async Task<PooledPipe> RentAsync(int connectTimeoutMs, CancellationToken ct)
 	{
-		await PoolGate.WaitAsync(ct).ConfigureAwait(false);
+		// Bound the wait so a starved pool fails the IPC call instead of hanging until FE 45s.
+		var rented = await PoolGate.WaitAsync(TimeSpan.FromSeconds(8), ct).ConfigureAwait(false);
+		if (!rented)
+			throw new TimeoutException("BNDZ backend pipe pool exhausted (waited 8s).");
 		try
 		{
 			while (Pool.TryTake(out var ready))

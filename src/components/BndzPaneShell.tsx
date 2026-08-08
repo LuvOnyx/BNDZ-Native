@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import { IPC } from '../lib/ipcBridge';
 import {
   applyPaneDocumentMark,
@@ -21,6 +21,8 @@ import type { FSEntity } from '../types';
 import SmartToolsDialog from './SmartToolsDialog';
 import { PluginStoreDialog } from './PluginStoreDialog';
 import ConfigurationDialog from './ConfigurationDialog';
+
+const BndzQuickPreview = lazy(() => import('./preview/BndzQuickPreview'));
 
 type Props = {
   initial: BndzPaneBoot;
@@ -54,6 +56,7 @@ export default function BndzPaneShell({ initial }: Props) {
   const [pathContentsCache, setPathContentsCache] = useState<Record<string, any[]>>({});
   const [toast, setToast] = useState<{ msg: string; tone?: 'info' | 'warning' } | null>(null);
   const [immersive, setImmersive] = useState(false);
+  const [quickPreview, setQuickPreview] = useState<{ open: boolean; path: string } | null>(null);
   const { pluginRegistry } = usePluginRegistry();
   const { config, updateConfig } = useAppConfig();
 
@@ -70,6 +73,21 @@ export default function BndzPaneShell({ initial }: Props) {
       /* ignore */
     }
   }, [boot]);
+
+  // FilesMerge plugins dock: System Properties on every launch; Command Deck stays off.
+  useEffect(() => {
+    if (boot.pane !== 'plugins') return;
+    const patch: Record<string, unknown> = {
+      bottomPanelOpen: true,
+      commandDeck: false,
+    };
+    if (!boot.plugin) {
+      patch.bottomPanelDefaultPlugin = 'properties';
+      patch.bottomPanelLastTab = 'properties';
+      setBoot((prev) => (prev.plugin ? prev : { ...prev, plugin: 'properties' }));
+    }
+    updateConfig(patch as any);
+  }, [boot.pane, boot.plugin, updateConfig]);
 
   useEffect(() => {
     if (!toast) return;
@@ -115,6 +133,13 @@ export default function BndzPaneShell({ initial }: Props) {
               ? payload.selectedModified.map(String)
               : undefined,
           });
+          return;
+        }
+        if (data.type === 'BNDZ_QUICK_PREVIEW') {
+          const path = data.payload?.path ? String(data.payload.path) : '';
+          const open = data.payload?.open !== false;
+          if (!path) return;
+          setQuickPreview(open ? { open: true, path } : null);
         }
       } catch {
         /* ignore */
@@ -423,6 +448,33 @@ export default function BndzPaneShell({ initial }: Props) {
         <div className={`bndz-native-pane-toast bndz-native-pane-toast--${toast.tone || 'info'}`} role="status">
           {toast.msg}
         </div>
+      )}
+      {quickPreview?.open && (
+        <Suspense fallback={null}>
+          <BndzQuickPreview
+            open
+            items={[{
+              entity: {
+                id: quickPreview.path,
+                name: quickPreview.path.split(/[/\\]/).pop() || quickPreview.path,
+                path: quickPreview.path,
+                type: 'file',
+                size: 0,
+                modified: '',
+                created: '',
+                extension: (() => {
+                  const n = quickPreview.path.split(/[/\\]/).pop() || '';
+                  return n.includes('.') ? n.slice(n.lastIndexOf('.') + 1) : '';
+                })(),
+              } as FSEntity,
+              path: quickPreview.path,
+            }]}
+            index={0}
+            onClose={() => setQuickPreview(null)}
+            onIndexChange={() => undefined}
+            onNavigate={onNavigate}
+          />
+        </Suspense>
       )}
     </div>
   );

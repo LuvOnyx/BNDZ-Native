@@ -1,10 +1,11 @@
-// Copyright (c) BNDZ — FilesMerge filesHost ownership flag.
+// Copyright (c) BNDZ — FilesMerge ownership flags for the Files↔BNDZ blend.
 
 namespace Files.App.Utils.Bndz;
 
 /// <summary>
-/// When true, full classic BNDZUI (<c>?filesHost=1</c>) owns the browsing viewport.
-/// Files tabs remain path holders — WinUI list enumerate/thumbnail must not duplicate that work.
+/// Full blend (default): Files browse engines own cwd/items; BNDZ React owns plugins/preview/workspace craft.
+/// When <see cref="BrowserOwnsFileViewport"/> is true, classic <c>?filesHost=1</c> takes the viewport
+/// and WinUI enumerate is skipped — do not use that for the product blend path.
 /// </summary>
 internal static class BndzShellOwnership
 {

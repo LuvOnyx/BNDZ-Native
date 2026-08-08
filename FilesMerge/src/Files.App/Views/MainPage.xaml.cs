@@ -3,6 +3,7 @@
 
 using CommunityToolkit.WinUI;
 using Files.App.Controls;
+using Files.App.Services.PreviewPopupProviders;
 using Files.App.UserControls.Bndz;
 using Files.App.Utils.Bndz;
 using Microsoft.Extensions.Logging;
@@ -68,6 +69,30 @@ namespace Files.App.Views
 
 			BndzBackendHostService.Instance.StatusChanged += BndzBackendHostService_StatusChanged;
 			ApplyBndzBackendStatus(BndzBackendHostService.Instance.Status);
+			BndzPreviewPopupProvider.PreviewRequested += BndzPreviewPopupProvider_PreviewRequested;
+		}
+
+		private void BndzPreviewPopupProvider_PreviewRequested(string path, bool open)
+		{
+			DispatcherQueue.TryEnqueue(() =>
+			{
+				try
+				{
+					if (open && !_bndzPreviewOpen)
+						SetBndzPreviewOpen(true);
+					var preview = EnsurePreviewPaneHost();
+					preview?.PostHostMessage(new
+					{
+						type = "BNDZ_QUICK_PREVIEW",
+						payload = new { path, open },
+					});
+					PushSelectionToBndzPanes();
+				}
+				catch (Exception ex)
+				{
+					App.Logger.LogDebug(ex, "BNDZ quick preview post failed");
+				}
+			});
 		}
 
 		private void BndzBackendHostService_StatusChanged(object? sender, BndzBackendStatus status)
@@ -186,15 +211,14 @@ namespace Files.App.Views
 
 		private void ApplyBndzSurfaceDefaults()
 		{
-			// Epic filesHost: full classic BNDZUI. Hide Files list/tree/TabBar chrome —
-			// BNDZ PaneTabStrip owns tabs; suppress WinUI enumerate via BrowserOwnsFileViewport.
-			BndzShellOwnership.BrowserOwnsFileViewport = true;
+			// Full blend: Files engines enumerate ContentRow; BNDZ React owns plugins/preview/workspace.
+			// Never take over the viewport with ?filesHost=1 (that killed list reliability + drag).
+			BndzShellOwnership.BrowserOwnsFileViewport = false;
 			_bndzDockHeight = GetPluginsDockHeight();
-			_bndzPluginsDockOpen = false;
-			_bndzPreviewOpen = false;
-			ApplyPluginsDockHeight(false);
+			_bndzPluginsDockOpen = true;
+			_bndzPreviewOpen = true;
+			ApplyPluginsDockHeight(true);
 
-			// Kill Files InfoPane — BNDZ owns preview / plugins surfaces.
 			try
 			{
 				UserSettingsService.InfoPaneSettingsService.IsInfoPaneEnabled = false;
@@ -207,53 +231,55 @@ namespace Files.App.Views
 
 			try
 			{
+				// Files chrome stays visible (tabs/sidebar/toolbars) — BNDZ menu sits above address.
 				if (BndzMenuBar is not null)
-					BndzMenuBar.Visibility = Visibility.Collapsed;
+					BndzMenuBar.Visibility = Visibility.Visible;
 				if (BndzAddressChromeRow is not null)
-					BndzAddressChromeRow.Visibility = Visibility.Collapsed;
+					BndzAddressChromeRow.Visibility = Visibility.Visible;
 				if (SidebarControl is not null)
-					SidebarControl.Visibility = Visibility.Collapsed;
+					SidebarControl.Visibility = Visibility.Visible;
+				if (TabControl is not null)
+					TabControl.Visibility = Visibility.Visible;
 				if (InfoPane is not null)
 					InfoPane.Visibility = Visibility.Collapsed;
-				// Files TabBar is path-holder only — collapse so BNDZUI tabs are the only strip.
-				if (TabControl is not null)
-					TabControl.Visibility = Visibility.Collapsed;
-				if (InnerNavigationToolbar is not null)
-					InnerNavigationToolbar.Visibility = Visibility.Collapsed;
-				if (NavToolbar is not null)
-					NavToolbar.Visibility = Visibility.Collapsed;
+				// Fullscreen classic BNDZUI takeover stays off.
+				if (BndzBrowserHost is not null)
+					BndzBrowserHost.Visibility = Visibility.Collapsed;
 			}
 			catch { /* best-effort */ }
 
 			UpdatePositioning();
+			SetBndzPreviewOpen(true);
 
 			DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
 			{
 				try
 				{
-					// Backend must answer before WebView floods GET_DIR_CONTENTS / icons.
 					try
 					{
 						await BndzBackendHostService.Instance.EnsureStartedAsync().ConfigureAwait(true);
 					}
 					catch (Exception ex)
 					{
-						App.Logger.LogWarning(ex, "BNDZ backend not ready before browser prewarm");
+						App.Logger.LogWarning(ex, "BNDZ backend not ready before pane prewarm");
 					}
 
-					var browser = EnsureBrowserHost();
-					if (browser is not null)
+					var plugins = EnsurePluginsDockHost();
+					if (plugins is not null)
 					{
-						browser.Visibility = Visibility.Visible;
-						browser.SwitchPane("browser");
-						browser.Prewarm();
+						plugins.Visibility = Visibility.Visible;
+						plugins.SwitchPane("plugins", "properties");
+						plugins.Prewarm();
 					}
+					ApplyPluginsDockHeight(true);
+					SetBndzPreviewOpen(true);
 					UpdatePositioning();
 					PushSelectionToBndzPanes();
+					MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
 				}
 				catch (Exception ex)
 				{
-					App.Logger.LogWarning(ex, "Deferred BNDZ browser host load failed");
+					App.Logger.LogWarning(ex, "Deferred BNDZ blend panes failed");
 				}
 			});
 		}
@@ -739,22 +765,31 @@ namespace Files.App.Views
 
 		private int SetTitleBarDragRegion(InputNonClientPointerSource source, SizeInt32 size, double scaleFactor, Func<UIElement, RectInt32?, RectInt32> getScaledRect)
 		{
-			// filesHost: BNDZ PaneTabStrip is inside WebView2 — do not invent Files tab passthrough
-			// (collapsed TabControl.ActualHeight was 0 and still fought drag with a dead region).
-			if (BndzShellOwnership.BrowserOwnsFileViewport || TabControl is null || TabControl.Visibility != Visibility.Visible)
-				return 0;
-
+			// Caption height must be > 0 so DragZoneHelper installs a real move region.
+			// Never return 0 for the blend — that made the window undraggable.
 			try
 			{
-				if (TabControl.DragArea is null)
-					return 0;
-				var height = (int)TabControl.ActualHeight;
-				source.SetRegionRects(NonClientRegionKind.Passthrough, [getScaledRect(this, new RectInt32(0, 0, (int)(TabControl.ActualWidth + TabControl.Margin.Left - TabControl.DragArea.ActualWidth), height))]);
-				return height;
+				var tabVisible = TabControl is not null && TabControl.Visibility == Visibility.Visible;
+				var height = tabVisible && TabControl!.ActualHeight > 1
+					? (int)TabControl.ActualHeight
+					: 40;
+
+				if (tabVisible && TabControl!.DragArea is not null && TabControl.ActualWidth > 0)
+				{
+					var passW = (int)Math.Max(0, TabControl.ActualWidth + TabControl.Margin.Left - TabControl.DragArea.ActualWidth);
+					if (passW > 0)
+					{
+						source.SetRegionRects(
+							NonClientRegionKind.Passthrough,
+							[getScaledRect(this, new RectInt32(0, 0, passW, height))]);
+					}
+				}
+
+				return Math.Max(height, 32);
 			}
 			catch
 			{
-				return 0;
+				return 40;
 			}
 		}
 
@@ -931,9 +966,10 @@ namespace Files.App.Views
 		{
 			MainWindow.Instance.AppWindow.Changed += (_, _) => MainWindow.Instance.RaiseSetTitleBarDragRegion(SetTitleBarDragRegion);
 
-			// filesHost: never materialize Files TabBar / toolbars — they steal startup and fight BNDZUI.
-			// FindName only keeps Shell multitasking registration for path holders if ever needed later.
+			// Blend: materialize Files tabs + address chrome so engines and window drag work.
 			try { FindName(nameof(TabControl)); } catch { /* ignore */ }
+			try { FindName(nameof(NavToolbar)); } catch { /* ignore */ }
+			try { FindName(nameof(InnerNavigationToolbar)); } catch { /* ignore */ }
 
 			ApplyBndzSurfaceDefaults();
 		}

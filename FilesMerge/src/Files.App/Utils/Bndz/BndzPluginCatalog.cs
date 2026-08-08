@@ -13,7 +13,20 @@ internal static class BndzPluginCatalog
 {
 		public static readonly BndzPluginDescriptor[] DefaultInstalled =
 		[
-			// Empty — marketplace / Hub install only (matches React DEFAULT_INSTALLED_PLUGINS).
+			new("properties", "System Properties", "Hashes, ACL, attributes, BNDZ tips."),
+			new("context-menu-manager", "Shell Menus", "Inside-BNDZ menus and Explorer verb forge."),
+			new("batch-rename", "Batch Rename", "Pattern rename with live preview."),
+			new("find", "Fast Search", "Index-backed search across volumes."),
+			new("dropstack", "Drop Stack", "Stage paths then flush to the active folder."),
+			new("filters", "Visual Filters", "Mask the list by type, size, and tags."),
+			new("metadata", "Metadata Inspect", "EXIF / media / document inspect."),
+			new("storage-cleanup", "Storage Cleanup", "Large files and cleanup workflows."),
+			new("folder-sync", "Folder Sync", "Robocopy watchers and sync jobs."),
+			new("catalog", "Catalog", "Virtual collections as /vf folders."),
+			new("action-log", "Action Log", "Reversible ops history."),
+			new("compare", "Compare", "Side-by-side folder/file compare."),
+			new("ghost-link", "Ghost Link", "Placeholder links into deep trees."),
+			new("ram-staging", "RAM Staging", "ImDisk / AIM scratch volumes."),
 		];
 
 	public static readonly BndzPluginDescriptor[] Marketplace =
