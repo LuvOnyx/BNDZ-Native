@@ -1470,11 +1470,16 @@ export default function BNDZUI() {
     if (!installedPluginIdSet.has('properties')) return;
     filesHostPropsBootedRef.current = true;
     openBottomPlugin('properties');
+    // Files modern layout language via BNDZ chrome (explorer tabs + denser address strip).
     updateConfig({
       bottomPanelOpen: true,
       bottomPanelDefaultPlugin: 'properties',
       bottomPanelLastTab: 'properties',
       commandDeck: false,
+      appearanceTabStyle: 'explorer',
+      visualStyleTabs: 'Classic Explorer',
+      tabBarHeight: 36,
+      makeSelectedTabBold: true,
     } as any);
   }, [installedPluginIdSet, openBottomPlugin, updateConfig]);
 
@@ -2262,16 +2267,26 @@ export default function BNDZUI() {
 
   beginDirFetchRef.current = beginDirFetch;
 
+  /** Cancelable Files-feed wait per path — listing handler clears; short IPC fallback. */
+  const filesHostFetchTimersRef = useRef<Map<string, number>>(new Map());
+
   useEffect(() => {
     const timers: number[] = [];
     panes.forEach(pane => {
       const tab = pane.tabs[pane.activeTabIndex];
       const path = normalizePanePath(tab?.path || '');
       if (!path) return;
-      // Blend: give Files ShellViewModel a beat to push BNDZ_DIR_LISTING before IPC fallback.
+      // Blend: Files ShellViewModel feeds BNDZ_DIR_LISTING — short fallback, not a 2.2s stall.
       if (isFilesHostBoot()) {
+        if (filesFedPathsRef.current.has(path) && pathContentsCacheRef.current[path] !== undefined) {
+          return;
+        }
         setLoadingPaths((prev) => new Set(prev).add(path));
+        notifyFilesHostNavigate(path);
+        const prevT = filesHostFetchTimersRef.current.get(path);
+        if (prevT) window.clearTimeout(prevT);
         const t = window.setTimeout(() => {
+          filesHostFetchTimersRef.current.delete(path);
           if (filesFedPathsRef.current.has(path) && pathContentsCacheRef.current[path] !== undefined) {
             setLoadingPaths((prev) => {
               if (!prev.has(path)) return prev;
@@ -2282,13 +2297,16 @@ export default function BNDZUI() {
             return;
           }
           beginDirFetch(path);
-        }, 2200);
+        }, 400);
+        filesHostFetchTimersRef.current.set(path, t);
         timers.push(t);
         return;
       }
       beginDirFetch(path);
     });
-    return () => timers.forEach((t) => window.clearTimeout(t));
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePanePathsKey, beginDirFetch]);
 
@@ -7073,6 +7091,11 @@ export default function BNDZUI() {
     return subscribeFilesHostListing((path, items) => {
       const norm = normalizePanePath(path);
       if (!norm) return;
+      const pending = filesHostFetchTimersRef.current.get(norm);
+      if (pending) {
+        window.clearTimeout(pending);
+        filesHostFetchTimersRef.current.delete(norm);
+      }
       filesFedPathsRef.current.add(norm);
       const normalized = normalizeDirEntries(items as any[]);
       cachePathContents(norm, normalized);
@@ -9361,16 +9384,16 @@ export default function BNDZUI() {
           onPointerFileDragOverTab={(idx) => activateTabForFileDragImmediate(pane.id, idx)}
         />
         
-        {/* Breadcrumb Row */}
-        <div className={`flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1 py-[2px] shrink-0 ${isDualPane && !isActive ? 'opacity-90' : ''}`}
+        {/* Breadcrumb Row — Files NavigationToolbar-height address strip under filesHost */}
+        <div className={`bndz-files-address-strip flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1.5 shrink-0 ${isDualPane && !isActive ? 'opacity-90' : ''}`}
              style={config.applyColors
                ? { background: 'var(--breadcrumb-bg)', color: 'var(--breadcrumb-text)' }
                : { background: 'var(--breadcrumb-bg, var(--bndz-surface-chrome))', color: 'var(--breadcrumb-text, var(--text-muted))' }}>
-            <ToolbarButton launcherIcon={launcherIconUrl('nav_back')} className={`w-5 ${currentTab.historyIndex > 0 ? '' : 'opacity-30'}`} onClick={() => goBack(pane.id)} />
-            <ToolbarButton launcherIcon={launcherIconUrl('nav_forward')} className={`w-5 ${currentTab.historyIndex < currentTab.history.length - 1 ? '' : 'opacity-30'}`} onClick={() => goForward(pane.id)} />
-            <ToolbarButton launcherIcon={launcherIconUrl('nav_up')} className="w-5" onClick={() => goUp(pane.id)} />
+            <ToolbarButton launcherIcon={launcherIconUrl('nav_back')} className={`bndz-files-nav-btn ${currentTab.historyIndex > 0 ? '' : 'opacity-30'}`} onClick={() => goBack(pane.id)} />
+            <ToolbarButton launcherIcon={launcherIconUrl('nav_forward')} className={`bndz-files-nav-btn ${currentTab.historyIndex < currentTab.history.length - 1 ? '' : 'opacity-30'}`} onClick={() => goForward(pane.id)} />
+            <ToolbarButton launcherIcon={launcherIconUrl('nav_up')} className="bndz-files-nav-btn" onClick={() => goUp(pane.id)} />
             <div 
-              className="bndz-breadcrumb-slot flex flex-1 min-w-0 basis-0 items-center text-[12px] px-1 overflow-x-auto overflow-y-hidden whitespace-nowrap cursor-text relative"
+              className="bndz-breadcrumb-slot bndz-files-address-well flex flex-1 min-w-0 basis-0 items-center text-[13px] px-2 overflow-x-auto overflow-y-hidden whitespace-nowrap cursor-text relative"
               onClick={() => {
                  if (!isGlobal) {
                      if (isDualPane && pane.id !== activePaneId) setActivePaneId(pane.id);

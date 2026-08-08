@@ -609,6 +609,7 @@ namespace Files.App.Views
 						return;
 					}
 					_lastPushedBrowserPath = path;
+					_lastPushedListingSignature = null;
 					EnsureBrowserHost()?.PostPaneContext(path, null, null, null, null, null);
 					PushDirListingToBndzUi();
 					return;
@@ -671,6 +672,14 @@ namespace Files.App.Views
 
 		private void ShellViewModel_ItemLoadStatusChanged(object sender, ItemLoadStatusChangedEventArgs e)
 		{
+			if (e.Status is ItemLoadStatusChangedEventArgs.ItemLoadStatus.Starting)
+			{
+				DispatcherQueue.TryEnqueue(() =>
+				{
+					_lastPushedListingSignature = null;
+				});
+				return;
+			}
 			if (e.Status != ItemLoadStatusChangedEventArgs.ItemLoadStatus.Complete)
 				return;
 			DispatcherQueue.TryEnqueue(() =>
