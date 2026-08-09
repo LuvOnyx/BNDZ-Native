@@ -21,13 +21,14 @@ import { BreadcrumbTrail } from './BreadcrumbTrail';
 import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
-  canStartDragFromList, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT, LIST_CLICK_DEFER_MS,
+  canStartDragFromList, DRAG_DELAY_SELECTED, DRAG_DELAY_DEFAULT,
   isWithinDoubleClickGuard,
   setMarqueeDragOccurred, consumeMarqueeDragOccurred,
 } from '../lib/dragController';
 import {
   isFilesHostBoot,
   notifyFilesHostNavigate,
+  requestFilesHostDirListing,
   subscribeFilesHostContext,
   subscribeFilesHostListing,
 } from '../lib/filesHostBoot';
@@ -331,7 +332,7 @@ import {
   getMainRowDefaultLayout,
   computeVisibleMainRowLayout,
   computeVisibleOuterLayout,
-  migrateLayoutV43,
+  migrateLayoutV45,
   DEFAULT_INNER_LAYOUT,
   DEFAULT_OUTER_LAYOUT,
   DEFAULT_DUAL_PANE_LAYOUT,
@@ -1016,22 +1017,8 @@ export default function BNDZUI() {
   /** Force-reset workspace panel sizes when layout defaults change (must re-run after settings load). */
   useEffect(() => {
     const ver = config.workspaceLayoutVersion ?? 0;
-    if (ver === 44) {
-      const migrated = migrateLayoutV43(
-        config.workspaceLayoutOuter as Record<string, number>,
-        config.workspaceLayoutMainRow as Record<string, number>,
-        config.previewDockedInWorkspace === true,
-      );
-      updateConfig({
-        workspaceLayoutVersion: WORKSPACE_LAYOUT_VERSION,
-        workspaceLayoutOuter: migrated.outer,
-        workspaceLayoutMainRow: migrated.mainRow,
-        workspaceLayoutInner: config.workspaceLayoutInner ?? { ...DEFAULT_INNER_LAYOUT },
-      });
-      return;
-    }
     if (ver >= WORKSPACE_LAYOUT_VERSION) return;
-    const migrated = migrateLayoutV43(
+    const migrated = migrateLayoutV45(
       config.workspaceLayoutOuter as Record<string, number>,
       config.workspaceLayoutMainRow as Record<string, number>,
       config.previewDockedInWorkspace === true,
@@ -1084,6 +1071,36 @@ export default function BNDZUI() {
         const cloudIdx = order.indexOf('cloud');
         order.splice(cloudIdx >= 0 ? cloudIdx + 1 : order.length, 0, 'ram');
         patches.sidebarOrder = order;
+      }
+    }
+    if (sidebarVer < 4) {
+      patches.sidebarOrderVersion = 4;
+      const order = [...((patches.sidebarOrder as string[] | undefined) || config.sidebarOrder || ['storage', 'quick', 'cloud', 'tree'])];
+      if (order.includes('miniTree')) {
+        order.splice(order.indexOf('miniTree'), 1);
+      }
+      const treeIdx = order.indexOf('tree');
+      if (treeIdx >= 0) order.splice(treeIdx + 1, 0, 'miniTree');
+      else order.push('miniTree');
+      patches.sidebarOrder = order;
+      patches.showMiniTree = false;
+    }
+    if ((config.productDefaultsVersion ?? 0) < 1) {
+      patches.productDefaultsVersion = 1;
+      patches.branchViewStrip = false;
+      patches.theme = 'Midnight Cobalt';
+      patches.applyColors = true;
+      const legacyPlugins = [
+        'properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters',
+        'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare',
+        'ghost-link', 'ram-staging',
+      ];
+      const installed = config.installedPlugins as string[] | undefined;
+      if (Array.isArray(installed) && installed.length >= 10 && legacyPlugins.every(id => installed.includes(id))) {
+        patches.installedPlugins = ['properties', 'find', 'filters'];
+        patches.bottomPluginTabOrder = ['properties', 'find', 'filters'];
+        patches.bottomPanelLastTab = 'properties';
+        patches.bottomPanelDefaultPlugin = 'properties';
       }
     }
     if ((config.tooltipBehaviorVersion ?? 0) < 1) {
@@ -1498,7 +1515,11 @@ export default function BNDZUI() {
         next.delete(path);
         return next;
       });
-      if (n <= 2) beginDirFetchRef.current?.(path, { force: true });
+      if (n <= 2 && !isFilesHostBoot()) beginDirFetchRef.current?.(path, { force: true });
+      if (n <= 2 && isFilesHostBoot()) {
+        requestFilesHostDirListing(path);
+        notifyFilesHostNavigate(path);
+      }
     };
     window.addEventListener('bndz-dir-more-failed', onFail as EventListener);
     return () => window.removeEventListener('bndz-dir-more-failed', onFail as EventListener);
@@ -1889,7 +1910,18 @@ export default function BNDZUI() {
   const beginDirFetchRef = useRef<(path: string, opts?: { force?: boolean }) => Promise<void> | undefined>(() => undefined);
   /** Paths seeded by Files ShellViewModel (`BNDZ_DIR_LISTING`) — prefer over GET_DIR_CONTENTS. */
   const filesFedPathsRef = useRef(new Set<string>());
+  /** Cancelable Files-feed wait per path — listing handler clears; never falls back to GET_DIR_CONTENTS. */
+  const filesHostFetchTimersRef = useRef<Map<string, number>>(new Map());
+  /** Resolvers for filesHost beginDirFetch promises (listing arrive / timeout). */
+  const filesHostListingWaitersRef = useRef(new Map<string, Array<() => void>>());
   const dirFetchTransientRetryRef = useRef<Record<string, number>>({});
+
+  const resolveFilesHostListingWaiters = React.useCallback((path: string) => {
+    const waiters = filesHostListingWaitersRef.current.get(path);
+    if (!waiters?.length) return;
+    filesHostListingWaitersRef.current.delete(path);
+    for (const resolve of waiters) resolve();
+  }, []);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
   const [prefetchingPaths, setPrefetchingPaths] = useState<Set<string>>(() => new Set());
   const [, setRealityCheckTick] = useState(0);
@@ -2059,6 +2091,51 @@ export default function BNDZUI() {
       return undefined;
     }
     if (!opts?.force && dirFetchInFlightRef.current.has(path)) return undefined;
+
+    const isFilesHostFsFolder = isFilesHostBoot()
+      && path !== '/'
+      && !path.startsWith('/vf/')
+      && !path.includes('>')
+      && !isBndzVirtualPath(path)
+      && !isVirtualCatalogPath(path);
+
+    if (isFilesHostFsFolder) {
+      if (opts?.force) filesFedPathsRef.current.delete(path);
+      dirFetchInFlightRef.current.add(path);
+      setLoadingPaths(prev => new Set(prev).add(path));
+      notifyFilesHostNavigate(path);
+      requestFilesHostDirListing(path);
+      const prevT = filesHostFetchTimersRef.current.get(path);
+      if (prevT) window.clearTimeout(prevT);
+      const retryT = window.setTimeout(() => {
+        requestFilesHostDirListing(path);
+        notifyFilesHostNavigate(path);
+      }, 1200);
+      const t = window.setTimeout(() => {
+        window.clearTimeout(retryT);
+        filesHostFetchTimersRef.current.delete(path);
+        dirFetchInFlightRef.current.delete(path);
+        resolveFilesHostListingWaiters(path);
+        setLoadingPaths((prev) => {
+          if (!prev.has(path)) return prev;
+          const next = new Set(prev);
+          next.delete(path);
+          return next;
+        });
+        if (!filesFedPathsRef.current.has(path)) {
+          setPathLoadErrors((prev) => ({
+            ...prev,
+            [path]: 'Waiting for Files folder listing…',
+          }));
+        }
+      }, 12000);
+      filesHostFetchTimersRef.current.set(path, t);
+      return new Promise<void>((resolve) => {
+        const waiters = filesHostListingWaitersRef.current.get(path) ?? [];
+        waiters.push(resolve);
+        filesHostListingWaitersRef.current.set(path, waiters);
+      });
+    }
 
     if (isVirtualCatalogPath(path)) {
       dirFetchInFlightRef.current.add(path);
@@ -2263,12 +2340,9 @@ export default function BNDZUI() {
       });
       clearStream();
     });
-  }, [cachePathContents]);
+  }, [cachePathContents, resolveFilesHostListingWaiters]);
 
   beginDirFetchRef.current = beginDirFetch;
-
-  /** Cancelable Files-feed wait per path — listing handler clears; short IPC fallback. */
-  const filesHostFetchTimersRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     const timers: number[] = [];
@@ -2281,25 +2355,7 @@ export default function BNDZUI() {
         if (filesFedPathsRef.current.has(path) && pathContentsCacheRef.current[path] !== undefined) {
           return;
         }
-        setLoadingPaths((prev) => new Set(prev).add(path));
-        notifyFilesHostNavigate(path);
-        const prevT = filesHostFetchTimersRef.current.get(path);
-        if (prevT) window.clearTimeout(prevT);
-        const t = window.setTimeout(() => {
-          filesHostFetchTimersRef.current.delete(path);
-          if (filesFedPathsRef.current.has(path) && pathContentsCacheRef.current[path] !== undefined) {
-            setLoadingPaths((prev) => {
-              if (!prev.has(path)) return prev;
-              const next = new Set(prev);
-              next.delete(path);
-              return next;
-            });
-            return;
-          }
-          beginDirFetch(path);
-        }, 400);
-        filesHostFetchTimersRef.current.set(path, t);
-        timers.push(t);
+        void beginDirFetch(path);
         return;
       }
       beginDirFetch(path);
@@ -7088,7 +7144,7 @@ export default function BNDZUI() {
   // Files engines → BNDZ list (blend): seed cache and skip GET_DIR_CONTENTS for that path.
   useEffect(() => {
     if (!isFilesHostBoot()) return;
-    return subscribeFilesHostListing((path, items) => {
+    return subscribeFilesHostListing((path, items, complete) => {
       const norm = normalizePanePath(path);
       if (!norm) return;
       const pending = filesHostFetchTimersRef.current.get(norm);
@@ -7097,8 +7153,10 @@ export default function BNDZUI() {
         filesHostFetchTimersRef.current.delete(norm);
       }
       filesFedPathsRef.current.add(norm);
+      dirFetchInFlightRef.current.delete(norm);
       const normalized = normalizeDirEntries(items as any[]);
       cachePathContents(norm, normalized);
+      resolveFilesHostListingWaiters(norm);
       setPathLoadErrors((prev) => {
         if (!(norm in prev)) return prev;
         const next = { ...prev };
@@ -7117,11 +7175,20 @@ export default function BNDZUI() {
         next.delete(norm);
         return next;
       });
-      if (normalized.length > 0) {
-        prefetchListingVisuals(normalized, norm, listingPrefetchFromConfig(configRef.current));
+      if (complete && normalized.length > 0) {
+        const runPrefetch = () => prefetchListingVisuals(
+          normalized,
+          norm,
+          listingPrefetchFromConfig(configRef.current),
+        );
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(() => runPrefetch(), { timeout: 1200 });
+        } else {
+          window.setTimeout(runPrefetch, 0);
+        }
       }
     });
-  }, []);
+  }, [cachePathContents, resolveFilesHostListingWaiters]);
 
   useEffect(() => {
     const onNavigate = (e: Event) => {
@@ -9933,9 +10000,20 @@ export default function BNDZUI() {
               const cancelDeferredClick = isWithinDoubleClickGuard() && !!listClickDeferTimerRef.current;
               markPointerDown();
 
-              // Select on press; plain click+drag arms immediately (threshold separates click from drag).
-              // Ctrl arms copy-drag (Explorer-like). Shift click still range-selects via click handlers.
-              if (!wasSelected && !ctrlKey && !shiftKey) {
+              // Select on press when the hit target matches list click rules (name column / icon-only).
+              const hitTarget = e.target as HTMLElement;
+              const pressSelectAllowed = (() => {
+                if (ctrlKey || shiftKey) return false;
+                if ((mouseRt.fullRowSelect || !!config.fullNameColumnSelect) && computedViewMode === 'details') {
+                  const inName = !!hitTarget.closest('.bndz-list-columns > div:first-child, .bndz-clipboard-icon-slot, [data-col-id="name"]');
+                  if (!inName) return false;
+                }
+                if (mouseRt.pointToSelect && (mouseRt.onTheIconOnly || !!config.toTheIconOnly)) {
+                  if (!hitTarget.closest('.bndz-clipboard-icon-slot, img, canvas')) return false;
+                }
+                return true;
+              })();
+              if (!wasSelected && pressSelectAllowed) {
                 setSelectedItems([entityId], pane.id);
                 scheduleSelectionChrome([entityId], true);
                 scheduleQuickActionsBar(true, true);
@@ -10521,21 +10599,7 @@ export default function BNDZUI() {
                   endFileDragSession();
                 } else if (gesture?.mode === 'pending' && !hasMetDragThreshold() && !oleDragStarted) {
                   clearDragSession();
-                  suppressRowClickRef.current = true;
-                  const clickEntityId = gesture.entityId;
-                  const clickEvent = {
-                    ctrlKey: gesture.ctrlKey,
-                    metaKey: gesture.ctrlKey,
-                    shiftKey: gesture.shiftKey,
-                    altKey: gesture.altKey,
-                    stopPropagation: () => {},
-                    preventDefault: () => {},
-                  } as React.MouseEvent;
-                  if (listClickDeferTimerRef.current) clearTimeout(listClickDeferTimerRef.current);
-                  listClickDeferTimerRef.current = setTimeout(() => {
-                    listClickDeferTimerRef.current = null;
-                    handleEntityClicked(clickEvent, clickEntityId);
-                  }, LIST_CLICK_DEFER_MS);
+                  // Row onClick handles the click with accurate column/icon hit tests — no defer.
                 } else if (gesture?.mode === 'pending') {
                   if (!hasMetDragThreshold()) clearDragSession();
                 }

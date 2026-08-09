@@ -32,6 +32,9 @@ public sealed partial class BndzPaneHost : UserControl
 	private string? _navigatedPane;
 	private CoreWebView2Environment? _webEnv;
 	private string? _pendingContextJson;
+	private string? _pendingListingJson;
+	/// <summary>Last DIR listing JSON — re-posted on BNDZ_UI_READY because early PostWebMessage drops if React has not subscribed yet.</summary>
+	private string? _lastListingJson;
 
 	private static CoreWebView2Environment? s_sharedPaneEnv;
 	private static readonly SemaphoreSlim s_envLock = new(1, 1);
@@ -190,12 +193,10 @@ public sealed partial class BndzPaneHost : UserControl
 
 	private void Core_NavigationCompleted(CoreWebView2 sender, CoreWebView2NavigationCompletedEventArgs args)
 	{
-		_documentReady = args.IsSuccess;
+		// Do not mark ready / flush listings here — React message listeners attach after first paint.
+		// BNDZ_UI_READY owns document-ready + flush so DIR listings are not dropped.
 		if (args.IsSuccess)
-		{
 			PaneStatusHint.Visibility = Visibility.Collapsed;
-			FlushPendingContext();
-		}
 	}
 
 	private void ApplyPaneRoute(bool forceNavigate)
@@ -280,10 +281,20 @@ public sealed partial class BndzPaneHost : UserControl
 
 	private void FlushPendingContext()
 	{
-		if (string.IsNullOrEmpty(_pendingContextJson) || PaneWebView.CoreWebView2 is null || !_documentReady)
+		if (PaneWebView.CoreWebView2 is null || !_documentReady)
 			return;
-		PostJsonRaw(_pendingContextJson);
-		_pendingContextJson = null;
+		if (!string.IsNullOrEmpty(_pendingContextJson))
+		{
+			PostJsonRaw(_pendingContextJson);
+			_pendingContextJson = null;
+		}
+		// Always re-post last listing on ready — NavigationCompleted can race ahead of React listeners.
+		var listing = _pendingListingJson ?? _lastListingJson;
+		if (!string.IsNullOrEmpty(listing))
+		{
+			PostJsonRaw(listing);
+			_pendingListingJson = null;
+		}
 	}
 
 	public void SwitchPane(string pane, string? plugin = null)
@@ -316,7 +327,22 @@ public sealed partial class BndzPaneHost : UserControl
 
 	public void PostHostMessage(object payload)
 	{
-		PostJson(payload);
+		var json = JsonSerializer.Serialize(payload);
+		if (json.Contains("\"BNDZ_DIR_LISTING\"", StringComparison.Ordinal))
+		{
+			_lastListingJson = json;
+			_pendingListingJson = json;
+		}
+		// Queue until React signals BNDZ_UI_READY — NavigationCompleted alone is too early (listeners not attached).
+		if (!_documentReady || PaneWebView.CoreWebView2 is null)
+		{
+			if (json.Contains("\"BNDZ_PANE_CONTEXT\"", StringComparison.Ordinal))
+				_pendingContextJson = json;
+			else if (!json.Contains("\"BNDZ_DIR_LISTING\"", StringComparison.Ordinal))
+				_pendingListingJson = json;
+			return;
+		}
+		PostJsonRaw(json);
 	}
 
 	private void PostJson(object payload)
@@ -359,7 +385,7 @@ public sealed partial class BndzPaneHost : UserControl
 				requestId = idEl.GetString();
 			var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
 			requestType = type;
-			if (type is "BNDZ_PANE_TOOL" or "BNDZ_PANE_NAVIGATE" or "BNDZ_PANE_SWITCH")
+			if (type is "BNDZ_PANE_TOOL" or "BNDZ_PANE_NAVIGATE" or "BNDZ_PANE_SWITCH" or "BNDZ_REQUEST_DIR_LISTING")
 			{
 				PaneMessage?.Invoke(this, root.Clone());
 				return;
@@ -370,6 +396,7 @@ public sealed partial class BndzPaneHost : UserControl
 				PaneStatusHint.Visibility = Visibility.Collapsed;
 				_documentReady = true;
 				FlushPendingContext();
+				PaneMessage?.Invoke(this, root.Clone());
 				return;
 			}
 		}

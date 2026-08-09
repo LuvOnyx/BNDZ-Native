@@ -252,6 +252,7 @@ export function applyThemeCssVars(preset: ThemePreset): void {
 
 export function applyThemeByName(themeName: string | undefined): void {
   if (!themeName) return;
-  const preset = ALL_THEME_PRESETS.find(t => t.name === themeName);
+  const resolved = themeName === 'Midnight' ? 'Midnight Cobalt' : themeName;
+  const preset = ALL_THEME_PRESETS.find(t => t.name === resolved);
   if (preset) applyThemeCssVars(preset);
 }

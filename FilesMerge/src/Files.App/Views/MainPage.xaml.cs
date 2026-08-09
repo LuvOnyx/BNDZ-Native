@@ -354,6 +354,20 @@ namespace Files.App.Views
 						_ = HandleBndzNavigateAsync(path);
 						break;
 					}
+					case "BNDZ_REQUEST_DIR_LISTING":
+					{
+						var path = hasPayload && payload.TryGetProperty("path", out var rp) ? rp.GetString() : null;
+						_ = HandleBndzRequestDirListingAsync(path);
+						break;
+					}
+					case "BNDZ_UI_READY":
+					{
+						WireShellListingPush();
+						_lastPushedListingSignature = null;
+						PushDirListingToBndzUi();
+						PushSelectionToBndzPanes();
+						break;
+					}
 					case "BNDZ_PANE_SWITCH":
 					{
 						var pane = hasPayload && payload.TryGetProperty("pane", out var pn) ? pn.GetString() : null;
@@ -384,7 +398,11 @@ namespace Files.App.Views
 			{
 				try
 				{
-					var target = path!;
+					// React pane paths are `/C:/Users/...` or `/shell:Desktop` — Files needs Windows/shell paths.
+					var target = ToWindowsFsPath(path!);
+					if (string.IsNullOrWhiteSpace(target))
+						return;
+
 					if (System.IO.File.Exists(target))
 					{
 						var dir = System.IO.Path.GetDirectoryName(target);
@@ -392,20 +410,31 @@ namespace Files.App.Views
 							target = dir!;
 					}
 
-					var normalized = NormalizeFsPathKey(target);
-					if (string.Equals(normalized, NormalizeFsPathKey(_lastPushedBrowserPath), StringComparison.OrdinalIgnoreCase))
-						return;
-
 					var shell = ContentPageContext.ShellPage
 						?? SidebarAdaptiveViewModel.PaneHolder?.ActivePaneOrColumn;
 					if (shell is null)
 						return;
 
+					var normalized = NormalizeFsPathKey(target);
+					var cwdKey = NormalizeFsPathKey(shell.ShellViewModel?.WorkingDirectory ?? _lastPushedBrowserPath);
+
+					// Same folder (Retry / re-request): force re-enumerate + push — do not no-op.
+					if (string.Equals(normalized, cwdKey, StringComparison.OrdinalIgnoreCase))
+					{
+						WireShellListingPush();
+						_lastPushedListingSignature = null;
+						shell.ShellViewModel?.RefreshItems(shell.ShellViewModel.WorkingDirectory);
+						PushDirListingToBndzUi();
+						return;
+					}
+
 					var gen = ++_bndzNavigateGeneration;
 					_bndzNavigatingFromReact = true;
 					_lastPushedBrowserPath = target;
+					_lastPushedListingSignature = null;
 					try
 					{
+						WireShellListingPush();
 						shell.NavigateToPath(target);
 						// Hold echo-suppression briefly so Folder PropertyChanged doesn't re-push.
 						await Task.Delay(120);
@@ -414,6 +443,8 @@ namespace Files.App.Views
 					{
 						if (gen == _bndzNavigateGeneration)
 							_bndzNavigatingFromReact = false;
+						// Ensure listing reaches React even if PropertyChanged was suppressed.
+						PushDirListingToBndzUi();
 					}
 				}
 				catch (Exception ex)
@@ -424,11 +455,75 @@ namespace Files.App.Views
 			});
 		}
 
+		private async Task HandleBndzRequestDirListingAsync(string? path)
+		{
+			await DispatcherQueue.EnqueueAsync(() =>
+			{
+				try
+				{
+					WireShellListingPush();
+					_lastPushedListingSignature = null;
+					var shell = ContentPageContext.ShellPage
+						?? SidebarAdaptiveViewModel.PaneHolder?.ActivePaneOrColumn;
+					var svm = shell?.ShellViewModel;
+					if (svm is null)
+						return;
+
+					if (!string.IsNullOrWhiteSpace(path))
+					{
+						var want = NormalizeFsPathKey(path);
+						var have = NormalizeFsPathKey(svm.WorkingDirectory);
+						if (!string.Equals(want, have, StringComparison.OrdinalIgnoreCase))
+						{
+							_ = HandleBndzNavigateAsync(path);
+							return;
+						}
+					}
+
+					svm.RefreshItems(svm.WorkingDirectory);
+					PushDirListingToBndzUi();
+					// Enumerate is async — push again shortly after Complete may race.
+					DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+					{
+						_lastPushedListingSignature = null;
+						PushDirListingToBndzUi();
+					});
+				}
+				catch (Exception ex)
+				{
+					App.Logger.LogDebug(ex, "BNDZ request dir listing failed for {Path}", path);
+				}
+			});
+		}
+
+		/// <summary>Convert React pane paths (`/C:/Users/...`, `/shell:Desktop`) to Files navigation paths.</summary>
+		private static string ToWindowsFsPath(string? path)
+		{
+			if (string.IsNullOrWhiteSpace(path))
+				return string.Empty;
+
+			var p = path.Trim().Replace('/', '\\');
+
+			// `/C:\Users\...` or `\C:\Users\...` → `C:\Users\...`
+			if (p.Length >= 3 && p[0] == '\\' && char.IsLetter(p[1]) && p[2] == ':')
+				p = p[1..];
+
+			// `/shell:Desktop` → `shell:Desktop`
+			if (p.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
+				return p;
+
+			if (p.StartsWith("\\shell:", StringComparison.OrdinalIgnoreCase))
+				return p[1..];
+
+			return p;
+		}
+
 		private static string NormalizeFsPathKey(string? path)
 		{
 			if (string.IsNullOrWhiteSpace(path))
 				return string.Empty;
-			return path.Trim().Replace('/', '\\').TrimEnd('\\').ToLowerInvariant();
+			var win = ToWindowsFsPath(path);
+			return win.TrimEnd('\\').ToLowerInvariant();
 		}
 
 		private void HandleBndzPaneSwitch(string? pane, string? plugin)
@@ -648,6 +743,7 @@ namespace Files.App.Views
 
 		private ShellViewModel? _wiredListingShell;
 		private string? _lastPushedListingSignature;
+		private int _lastPushedPartialCount;
 
 		private void WireShellListingPush()
 		{
@@ -677,6 +773,16 @@ namespace Files.App.Views
 				DispatcherQueue.TryEnqueue(() =>
 				{
 					_lastPushedListingSignature = null;
+					_lastPushedPartialCount = 0;
+				});
+				return;
+			}
+			if (e.Status == ItemLoadStatusChangedEventArgs.ItemLoadStatus.InProgress)
+			{
+				DispatcherQueue.TryEnqueue(() =>
+				{
+					WireShellListingPush();
+					PushDirListingToBndzUi(complete: false);
 				});
 				return;
 			}
@@ -685,11 +791,11 @@ namespace Files.App.Views
 			DispatcherQueue.TryEnqueue(() =>
 			{
 				WireShellListingPush();
-				PushDirListingToBndzUi();
+				PushDirListingToBndzUi(complete: true);
 			});
 		}
 
-		private void PushDirListingToBndzUi()
+		private void PushDirListingToBndzUi(bool complete = true)
 		{
 			if (!BndzShellOwnership.BndzUiFaceActive)
 				return;
@@ -731,9 +837,19 @@ namespace Files.App.Views
 				}
 
 				var signature = $"{NormalizeFsPathKey(path)}|{rows.Count}|{shell.FilesAndFolders.FirstOrDefault()?.ItemPath}";
-				if (string.Equals(signature, _lastPushedListingSignature, StringComparison.Ordinal))
-					return;
-				_lastPushedListingSignature = signature;
+				if (complete)
+				{
+					if (string.Equals(signature, _lastPushedListingSignature, StringComparison.Ordinal))
+						return;
+					_lastPushedListingSignature = signature;
+					_lastPushedPartialCount = rows.Count;
+				}
+				else
+				{
+					if (rows.Count == 0 || rows.Count <= _lastPushedPartialCount)
+						return;
+					_lastPushedPartialCount = rows.Count;
+				}
 
 				EnsureBrowserHost()?.PostHostMessage(new
 				{
@@ -741,7 +857,7 @@ namespace Files.App.Views
 					payload = new
 					{
 						path,
-						complete = true,
+						complete,
 						items = rows,
 					},
 				});

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { toWindowsPath, normalizePanePath } from './pathUtils';
+
 /** True when FilesMerge hosts full classic BNDZUI (`?filesHost=1`). */
 export function isFilesHostBoot(): boolean {
   try {
@@ -31,10 +33,26 @@ function postToHost(type: string, payload: Record<string, unknown>): void {
   }
 }
 
+/** Convert pane/virtual path to what Files NavigateToPath understands. */
+function toFilesHostNavPath(path: string): string {
+  const norm = normalizePanePath(path);
+  if (!norm) return path;
+  if (norm === '/') return 'Home';
+  if (norm.toLowerCase().startsWith('/shell:')) return norm.slice(1); // shell:Desktop
+  if (norm.startsWith('/bndz/')) return norm; // virtual — host may ignore / fall through
+  return toWindowsPath(norm);
+}
+
 /** Tell Files shell to sync the active tab path (best-effort). */
 export function notifyFilesHostNavigate(path: string): void {
   if (!isFilesHostBoot() || !path) return;
-  postToHost('BNDZ_PANE_NAVIGATE', { path });
+  postToHost('BNDZ_PANE_NAVIGATE', { path: toFilesHostNavPath(path) });
+}
+
+/** Ask Files ShellViewModel to re-push `BNDZ_DIR_LISTING` (never use GET_DIR_CONTENTS on blend). */
+export function requestFilesHostDirListing(path?: string): void {
+  if (!isFilesHostBoot()) return;
+  postToHost('BNDZ_REQUEST_DIR_LISTING', path ? { path: toFilesHostNavPath(path) } : {});
 }
 
 export type FilesHostContextHandler = (path: string) => void;

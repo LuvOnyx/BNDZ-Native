@@ -8,12 +8,12 @@ const DRAG_THRESHOLD_PX = 6;
 const DOUBLE_CLICK_GUARD_MS = 280;
 /**
  * Hold after threshold before drag arms. Keep near-zero so drag feels Explorer-instant;
- * click-vs-drag is already separated by movement threshold + LIST_CLICK_DEFER_MS.
+ * click-vs-drag is already separated by movement threshold.
  */
 const DEFAULT_DRAG_DELAY_MS = 0;
 const SELECTED_DRAG_DELAY_MS = 0;
-/** Defer synthetic click so native dblclick can win. */
-export const LIST_CLICK_DEFER_MS = 50;
+/** Legacy defer slot — row onClick handles clicks directly (0 = instant). */
+export const LIST_CLICK_DEFER_MS = 0;
 
 /** Marquee arm distance once intent prefers marquee. */
 export const MARQUEE_ARM_PX = 5;

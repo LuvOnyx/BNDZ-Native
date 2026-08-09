@@ -584,8 +584,9 @@ export function listingPrefetchFromConfig(config: {
     return {
       includeFolderThumbs: config.showFolderThumbnails === true,
       diskCacheSearch: config.cacheThumbnailsOnDisk !== false && !!config.includeSearchResults,
-      iconLimit: all ? 256 : 96,
-      thumbLimit: all ? 48 : 24,
+      // Keep cold navigate light — icons after first paint, not a pipe storm before list lands.
+      iconLimit: all ? 48 : 32,
+      thumbLimit: all ? 16 : 8,
     };
   }
   return {

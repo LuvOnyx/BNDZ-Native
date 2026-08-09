@@ -139,7 +139,8 @@ type AutomationFlowPaneProps = {
   onPaneContextMenu: (e: React.MouseEvent | MouseEvent) => void;
   onNodeDragStart: (e: React.MouseEvent, node: Node) => void;
   onNodeDragStop: () => void;
-  onNodeClick?: (e: React.MouseEvent, node: Node) => void;
+  onNodeMouseDown: (e: React.MouseEvent, node: Node) => void;
+  onPaneClick: () => void;
   onViewportMoveEnd: (event: MouseEvent | TouchEvent | null, viewport: Viewport) => void;
   onSelectionChange: (params: { nodes: Node[]; edges: Edge[] }) => void;
   loadRecipe: (id: string) => void;
@@ -163,7 +164,8 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
   onPaneContextMenu,
   onNodeDragStart,
   onNodeDragStop,
-  onNodeClick,
+  onNodeMouseDown,
+  onPaneClick,
   onViewportMoveEnd,
   onSelectionChange,
   loadRecipe,
@@ -184,7 +186,8 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         onPaneContextMenu={onPaneContextMenu}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
-        onNodeClick={onNodeClick}
+        onNodeMouseDown={onNodeMouseDown}
+        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         nodeDragThreshold={4}
         nodesDraggable
@@ -643,6 +646,7 @@ export default function BndzAutomationView() {
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<Node<NodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  selectedNodeIdRef.current = selectedNodeId;
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
@@ -662,6 +666,7 @@ export default function BndzAutomationView() {
   const viewportRef = useRef<AutomationViewport>(defaultAutomationViewport());
   const viewportSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nodeDraggingRef = useRef(false);
+  const selectedNodeIdRef = useRef<string | null>(null);
   const chromeFrozenRef = useRef({ nodes: 0, edges: 0 });
   const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rfInstanceRef = useRef<ReactFlowInstance<Node<NodeData>, Edge> | null>(null);
@@ -1308,8 +1313,28 @@ export default function BndzAutomationView() {
     pending.clear();
   }, []);
 
+  const applyNodeSelection = useCallback((nodeId: string | null, { toggle }: { toggle: boolean }) => {
+    nodeDraggingRef.current = false;
+    setSelectedEdgeId(null);
+    const prev = selectedNodeIdRef.current;
+    const next = toggle && prev === nodeId ? null : nodeId;
+    selectedNodeIdRef.current = next;
+    setSelectedNodeId(next);
+    setNodes(nds => nds.map(n => ({ ...n, selected: next !== null && n.id === next })));
+  }, [setNodes]);
+
+  const onNodeMouseDown = useCallback((e: React.MouseEvent, node: Node) => {
+    if (e.button !== 0) return;
+    applyNodeSelection(node.id, { toggle: true });
+  }, [applyNodeSelection]);
+
+  const onPaneClick = useCallback(() => {
+    if (nodeDraggingRef.current) return;
+    applyNodeSelection(null, { toggle: false });
+  }, [applyNodeSelection]);
+
   const onNodeDragStart = useCallback((_e: React.MouseEvent, node: Node) => {
-    setSelectedNodeId(node.id);
+    applyNodeSelection(node.id, { toggle: false });
     nodeDraggingRef.current = true;
     chromeFrozenRef.current = {
       nodes: nodesRef.current.length,
@@ -1332,7 +1357,7 @@ export default function BndzAutomationView() {
       }
     }
     setFlowDraggingClass(true);
-  }, [setFlowDraggingClass]);
+  }, [setFlowDraggingClass, applyNodeSelection]);
 
   const onNodeDragStop = useCallback(() => {
     if (dragRafRef.current) {
@@ -1351,7 +1376,10 @@ export default function BndzAutomationView() {
     nodesRef.current = flushed;
     setNodes(flushed);
     const sel = flushed.find(n => n.selected);
-    if (sel) setSelectedNodeId(sel.id);
+    if (sel) {
+      selectedNodeIdRef.current = sel.id;
+      setSelectedNodeId(sel.id);
+    }
     scheduleSave();
   }, [scheduleSave, setNodes, setFlowDraggingClass, flushDragTransforms]);
 
@@ -1388,18 +1416,14 @@ export default function BndzAutomationView() {
     onNodesChangeBase(changes);
   }, [onNodesChangeBase, flushDragTransforms]);
 
-  const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
-    // Authoritative selection — micro-drags must not block inspector sync.
-    nodeDraggingRef.current = false;
-    setSelectedNodeId(node.id);
-    setSelectedEdgeId(null);
-  }, []);
-
   const onSelectionChange = useCallback(({ nodes: sel, edges: selE }: { nodes: Node[]; edges: Edge[] }) => {
     if (nodeDraggingRef.current) return;
     const nid = sel[0]?.id || null;
     const eid = selE[0]?.id || null;
-    setSelectedNodeId(prev => (prev === nid ? prev : nid));
+    if (nid !== selectedNodeIdRef.current) {
+      selectedNodeIdRef.current = nid;
+      setSelectedNodeId(nid);
+    }
     setSelectedEdgeId(prev => (prev === eid ? prev : eid));
   }, []);
 
@@ -1611,7 +1635,8 @@ export default function BndzAutomationView() {
           onPaneContextMenu={onPaneContextMenu}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
-          onNodeClick={onNodeClick}
+          onNodeMouseDown={onNodeMouseDown}
+          onPaneClick={onPaneClick}
           onViewportMoveEnd={onViewportMoveEnd}
           onSelectionChange={onSelectionChange}
           loadRecipe={loadRecipe}

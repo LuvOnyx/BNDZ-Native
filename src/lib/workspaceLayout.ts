@@ -11,16 +11,16 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 43;
+export const WORKSPACE_LAYOUT_VERSION = 45;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
- * Classic default (v38 / d216b26): slim preview, sidebar 17%, workspace 71%.
+ * v45: slightly slimmer preview (10%), workspace 73%, sidebar 17%.
  */
 export const DEFAULT_OUTER_LAYOUT: Layout = {
     sidebar: 17,
-    workspace: 71,
-    preview: 12,
+    workspace: 73,
+    preview: 10,
 };
 
 /** File list | preview split inside the workspace top row (above bottom plugins). */
@@ -391,6 +391,22 @@ export function migrateLayoutV41(
         return migrateLayoutV39(outer, mainRow);
     }
     const nextOuter = normalizeOuterLayout(outer);
+    const nextMainRow = normalizeMainRowLayout({ list: 100, preview: 0 });
+    return { outer: nextOuter, mainRow: nextMainRow };
+}
+
+/**
+ * v45: slimmer preview (10%), workspace 73%, sidebar 17%.
+ */
+export function migrateLayoutV45(
+    outer: Layout | undefined,
+    mainRow: Layout | undefined,
+    previewDockedInWorkspace: boolean,
+): { outer: Layout; mainRow: Layout } {
+    if (previewDockedInWorkspace) {
+        return migrateLayoutV39(outer, mainRow);
+    }
+    const nextOuter = normalizeOuterLayout({ ...DEFAULT_OUTER_LAYOUT });
     const nextMainRow = normalizeMainRowLayout({ list: 100, preview: 0 });
     return { outer: nextOuter, mainRow: nextMainRow };
 }

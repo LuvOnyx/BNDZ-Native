@@ -13708,6 +13708,39 @@ html[data-bndz-shell="files-host"] .bndz-chrome-omnibar input {
   border-radius: 8px !important;
 }
 
+/* Files SidebarItem / NavigationTree density — taller rows like Files shell. */
+html[data-bndz-shell="files-host"] .bndz-chrome-sidebar .nav-tree-row,
+html[data-bndz-shell="files-host"] .bndz-files-modern-sidebar .nav-tree-row {
+  min-height: 32px !important;
+  height: 32px !important;
+  margin: 1px 6px !important;
+  padding: 0 10px !important;
+  border-radius: 4px !important;
+  gap: 8px;
+}
+html[data-bndz-shell="files-host"] .bndz-chrome-sidebar .nav-tree-label,
+html[data-bndz-shell="files-host"] .bndz-files-modern-sidebar .nav-tree-label {
+  font-size: 13px !important;
+  font-weight: 500;
+}
+html[data-bndz-shell="files-host"] .bndz-chrome-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected),
+html[data-bndz-shell="files-host"] .bndz-files-modern-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected) {
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+html[data-bndz-shell="files-host"] .bndz-chrome-sidebar .nav-tree-row-selected,
+html[data-bndz-shell="files-host"] .bndz-files-modern-sidebar .nav-tree-row-selected {
+  background: color-mix(in srgb, var(--accent, #0078d4) 26%, rgba(255, 255, 255, 0.05)) !important;
+  border: 1px solid color-mix(in srgb, var(--accent, #0078d4) 35%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--accent, #0078d4);
+}
+html[data-bndz-shell="files-host"] .bndz-chrome-sidebar .sidebar-pin-row,
+html[data-bndz-shell="files-host"] .bndz-files-modern-sidebar .sidebar-pin-row {
+  min-height: 32px !important;
+  margin: 1px 6px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+}
+
 html[data-bndz-shell="files-pane"],
 body.bndz-native-pane-body {
   margin: 0;

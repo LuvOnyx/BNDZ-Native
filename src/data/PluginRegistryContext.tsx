@@ -47,22 +47,11 @@ export type PluginManifest = {
     installOnFirstUse?: boolean;
 };
 
-/** Core plugins seeded on FilesMerge + classic so Properties/dock are usable immediately. */
+/** Core plugins on first launch — System Properties, Fast Search, Visual Filters only. */
 export const DEFAULT_INSTALLED_PLUGINS: string[] = [
     'properties',
-    'context-menu-manager',
-    'batch-rename',
     'find',
-    'dropstack',
     'filters',
-    'metadata',
-    'storage-cleanup',
-    'folder-sync',
-    'catalog',
-    'action-log',
-    'compare',
-    'ghost-link',
-    'ram-staging',
 ];
 
 /**
@@ -93,7 +82,7 @@ const ALL_PLUGINS: PluginManifest[] = [
         ...ContextMenuPluginDef,
         name: 'Shell Menus',
         description: 'Inside-BNDZ menus, Windows Explorer inject (Deploy), live shell-extension pin/hide, and Explorer verb forge.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: ContextMenuPlugin,
@@ -109,7 +98,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...BatchRenamePluginDef,
         description: 'Batch rename files with pattern matching, numbering, and AI-assisted suggestions.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: BatchRenamePlugin,
@@ -125,7 +114,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...DropStackPluginDef,
         description: 'Stage files from multiple directories, then batch copy or move to the active pane.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: DropStackPlugin,
@@ -137,13 +126,13 @@ const ALL_PLUGINS: PluginManifest[] = [
     },
     {
         ...MetadataPluginDef,
-        isInstalled: true,
+        isInstalled: false,
         component: MetadataPlugin,
     },
     {
         ...StorageCleanupPluginDef,
         description: 'Smart folder organization, large-file discovery, and storage cleanup workflows.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: StorageCleanupPlugin,
@@ -151,7 +140,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...FolderSyncPluginDef,
         description: 'Automatic folder sync with live watching — keeps backup folders up to date using robocopy.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: FolderSyncPlugin,
@@ -159,7 +148,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...CatalogPluginDef,
         description: 'Virtual collections of paths — browse as /vf folders, add selections from any pane.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: CatalogPlugin,
@@ -167,7 +156,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...ActionLogPluginDef,
         description: 'Reversible operation history with undo/redo — XYplorer-style action log.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: ActionLogPlugin,
@@ -175,7 +164,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...ComparePluginDef,
         description: 'Binary file compare and recursive folder diff — XYplorer branch compare parity.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: ComparePlugin,
@@ -191,7 +180,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...GhostLinkPluginDef,
         description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: GhostLinkPlugin,
@@ -199,7 +188,7 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...RamStagingPluginDef,
         description: 'RAM-disk staging zones — stage projects at memory speed, flush on eject. Browse at /bndz/ram.',
-        isInstalled: true,
+        isInstalled: false,
         isNative: true,
         targetPanel: 'bottom',
         component: RamStagingPlugin,
@@ -325,13 +314,38 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
         const filesMergeFlags = config as {
             filesMergePluginsClearedV1?: boolean;
             filesMergePluginsReseededV2?: boolean;
+            filesMergePluginsReseededV3?: boolean;
+            defaultPluginsV3Applied?: boolean;
         };
+        const LEGACY_DEFAULT_PLUGINS = [
+            'properties', 'context-menu-manager', 'batch-rename', 'find', 'dropstack', 'filters',
+            'metadata', 'storage-cleanup', 'folder-sync', 'catalog', 'action-log', 'compare',
+            'ghost-link', 'ram-staging',
+        ];
+        const savedRawEarly = config.installedPlugins as string[] | undefined;
+        const hasLegacyDefaultInstall = Array.isArray(savedRawEarly)
+            && savedRawEarly.length === LEGACY_DEFAULT_PLUGINS.length
+            && LEGACY_DEFAULT_PLUGINS.every(id => savedRawEarly.includes(id));
+        if (!filesMergeFlags.defaultPluginsV3Applied && hasLegacyDefaultInstall) {
+            updateConfig({
+                installedPlugins: [...DEFAULT_INSTALLED_PLUGINS],
+                bottomPluginTabOrder: [...DEFAULT_INSTALLED_PLUGINS],
+                bottomPanelLastTab: 'properties',
+                bottomPanelDefaultPlugin: 'properties',
+                defaultPluginsV3Applied: true,
+            } as any);
+            setPlugins(ALL_PLUGINS.map(p => ({
+                ...p,
+                isInstalled: DEFAULT_INSTALLED_PLUGINS.includes(p.id),
+            })));
+            return;
+        }
         const savedEmpty =
             !Array.isArray(config.installedPlugins) || config.installedPlugins.length === 0;
         if (
             isFilesMergeShell
-            && !filesMergeFlags.filesMergePluginsReseededV2
-            && (filesMergeFlags.filesMergePluginsClearedV1 || savedEmpty)
+            && !filesMergeFlags.filesMergePluginsReseededV3
+            && (filesMergeFlags.filesMergePluginsClearedV1 || savedEmpty || filesMergeFlags.filesMergePluginsReseededV2)
         ) {
             updateConfig({
                 installedPlugins: [...DEFAULT_INSTALLED_PLUGINS],
@@ -342,6 +356,7 @@ export const PluginRegistryProvider = ({ children }: { children: ReactNode }) =>
                 commandDeck: false,
                 filesMergePluginsClearedV1: true,
                 filesMergePluginsReseededV2: true,
+                filesMergePluginsReseededV3: true,
             } as any);
             setPlugins(ALL_PLUGINS.map(p => ({
                 ...p,

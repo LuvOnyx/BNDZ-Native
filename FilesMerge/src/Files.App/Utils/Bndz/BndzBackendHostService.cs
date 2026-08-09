@@ -33,7 +33,7 @@ internal sealed record BndzBackendStatus(
 internal static class BndzBackendClient
 {
 	public const string PipeName = "BNDZ.Backend.Host";
-	private const int PoolSize = 8;
+	private const int PoolSize = 16;
 
 	private static readonly ConcurrentBag<PooledPipe> Pool = new();
 	private static int _poolCreated;
@@ -141,9 +141,9 @@ internal static class BndzBackendClient
 	private static async Task<PooledPipe> RentAsync(int connectTimeoutMs, CancellationToken ct)
 	{
 		// Bound the wait so a starved pool fails the IPC call instead of hanging until FE 45s.
-		var rented = await PoolGate.WaitAsync(TimeSpan.FromSeconds(8), ct).ConfigureAwait(false);
+		var rented = await PoolGate.WaitAsync(TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
 		if (!rented)
-			throw new TimeoutException("BNDZ backend pipe pool exhausted (waited 8s).");
+			throw new TimeoutException("BNDZ backend pipe pool exhausted (waited 3s).");
 		try
 		{
 			while (Pool.TryTake(out var ready))
