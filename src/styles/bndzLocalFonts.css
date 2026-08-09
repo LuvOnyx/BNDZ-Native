@@ -1,0 +1,73 @@
+/* Bundled local fonts from public/Fonts — Clarity City, Faustina, Solitus */
+
+@font-face {
+  font-family: 'Clarity City';
+  src: url('/Fonts/clarity-city-1.0.0/clarity-city-1.0.0/Webfonts/WOFF2/ClarityCity-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Clarity City';
+  src: url('/Fonts/clarity-city-1.0.0/clarity-city-1.0.0/Webfonts/WOFF2/ClarityCity-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Clarity City';
+  src: url('/Fonts/clarity-city-1.0.0/clarity-city-1.0.0/Webfonts/WOFF2/ClarityCity-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Clarity City';
+  src: url('/Fonts/clarity-city-1.0.0/clarity-city-1.0.0/Webfonts/WOFF2/ClarityCity-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Faustina';
+  src: url('/Fonts/Faustina/static/Faustina-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Faustina';
+  src: url('/Fonts/Faustina/static/Faustina-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Faustina';
+  src: url('/Fonts/Faustina/static/Faustina-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Faustina';
+  src: url('/Fonts/Faustina/static/Faustina-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Solitus';
+  src: url('/Fonts/Solitus-font-master/Solitus.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

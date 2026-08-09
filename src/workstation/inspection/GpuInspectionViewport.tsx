@@ -4,6 +4,7 @@ import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import OrthoCameraController from './OrthoCameraController';
 import { histogramFrag, loupeFrag, passthroughFrag, passthroughVert } from './shaders/inspectionShaders';
+import { getDisplayDpr } from '../../lib/displayDpr';
 import type { InspectionShaderMode } from './InspectionViewportRouter';
 
 type SceneProps = {
@@ -182,9 +183,9 @@ export default function GpuInspectionViewport({ src, alt, shaderMode = 'passthro
         orthographic
         frameloop="demand"
         camera={{ position: [0, 0, 2], zoom: 1, near: 0.1, far: 10 }}
-        dpr={1}
+        dpr={getDisplayDpr()}
         gl={{
-          powerPreference: 'default',
+          powerPreference: 'high-performance',
           antialias: false,
           stencil: false,
           depth: false,

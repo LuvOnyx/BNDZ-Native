@@ -688,6 +688,7 @@ export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean 
     'Archive Files': ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'jar', 'torrent', 'zst', 'lz', 'arj'],
     'Web Files': ['htm', 'html', 'svg', 'url', 'xml', 'mhtml', 'xhtml', 'rss', 'atom'],
     'Font Files': ['ttf', 'otf', 'fon', 'woff', 'woff2', 'eot', 'ttc', 'pfm', 'pfb'],
+    '3D Model Files': ['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds'],
   };
 
   for (const cat of categories) {
@@ -888,6 +889,16 @@ function applyColorCssVars(config: AppConfig, root: HTMLElement): void {
   }
   applyStatusNeonAndPluginHeroVars(config, root);
   applyCommandDeckVars(config, root);
+  const listSel = config.listSelectionHighlightColor;
+  if (typeof listSel === 'string' && listSel.trim()) {
+    const solid = listSel.trim().startsWith('#') ? listSel.trim() : `#${listSel.trim()}`;
+    root.style.setProperty('--list-selected-bg', solid);
+    root.style.setProperty('--list-focused-bg', solid);
+    root.style.setProperty('--highlight-bg', solid);
+    root.style.setProperty('--tree-trace', solid);
+    root.style.setProperty('--bndz-files-selected', `${solid}57`);
+    root.style.setProperty('--bndz-files-selected-hover', `${solid}66`);
+  }
   const radius = config.tooltipCornerRadius;
   if (typeof radius === 'number' && radius >= 0) {
     root.style.setProperty('--tooltip-radius', `${radius}px`);

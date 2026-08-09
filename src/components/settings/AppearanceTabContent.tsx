@@ -116,7 +116,7 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           <div className="flex items-center gap-2">
             <input
               type="color"
-              value={localConfig.listSelectionHighlightColor || '#264f78'}
+              value={localConfig.listSelectionHighlightColor || '#a855f7'}
               onChange={e => patch({ listSelectionHighlightColor: e.target.value })}
               className="w-9 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
             />

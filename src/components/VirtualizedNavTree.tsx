@@ -146,7 +146,7 @@ function TreeRow({
   dropBefore,
   dropAfter,
   isVirtualRow,
-  onReorderDragStart,
+  onReorderPointerDown,
   onDragOver,
   onDragEnd,
   onDrop,
@@ -176,7 +176,7 @@ function TreeRow({
   dropBefore?: boolean;
   dropAfter?: boolean;
   isVirtualRow?: boolean;
-  onReorderDragStart?: (e: React.DragEvent, row: FlatNavRow) => void;
+  onReorderPointerDown?: (row: FlatNavRow, e: React.PointerEvent) => void;
   onDragOver?: (e: React.DragEvent, row: FlatNavRow) => void;
   onDragEnd?: () => void;
   onDrop?: (e: React.DragEvent, row: FlatNavRow) => void;
@@ -242,7 +242,7 @@ function TreeRow({
   };
 
   const canReorder = !!row.draggable && !row.isPlaceholder && !disallowDragFromTree;
-  const canDragFile = !!row.path && !row.isPlaceholder && !disallowDragFromTree && !canReorder;
+  const canDragFile = !!row.path && !row.isPlaceholder && !disallowDragFromTree;
   const isFileDropTarget = !!row.path && fileDropTarget === row.path;
   const clipboardMark = row.path && clipboard?.items?.length && clipboard.action
     ? getClipboardMarkForEntity(toWindowsPath(row.path), clipboard as { items: string[]; action: ClipboardAction })
@@ -255,6 +255,7 @@ function TreeRow({
       } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''} ${treeColorFilter?.className || ''} ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}`}
       style={{ paddingLeft: `${indentPx}px`, ...(treeColorFilter?.inlineStyle && !isSelected ? treeColorFilter.inlineStyle : {}) }}
       data-nav-path={row.path || undefined}
+      data-tree-key={row.treeKey || undefined}
       onPointerDown={canDragFile ? (e) => {
         if (e.button !== 0) return;
         onFilePointerDown?.(row, e);
@@ -302,15 +303,12 @@ function TreeRow({
     >
       {canReorder && (
         <div
-          draggable
-          className="nav-tree-reorder-grip shrink-0 opacity-30 group-hover/tree:opacity-60 hover:!opacity-90 cursor-grab active:cursor-grabbing p-0.5 -ml-1 mr-0.5 rounded"
+          className="nav-tree-reorder-grip shrink-0 opacity-30 group-hover/tree:opacity-60 hover:!opacity-90 cursor-grab active:cursor-grabbing p-0.5 -ml-1 mr-0.5 rounded touch-none"
           title="Drag to reorder"
-          onMouseDown={e => e.stopPropagation()}
-          onDragStart={e => {
+          onPointerDown={e => {
             e.stopPropagation();
-            onReorderDragStart?.(e, row);
+            onReorderPointerDown?.(row, e);
           }}
-          onDragEnd={onDragEnd}
         >
           <DragHandleGlyph size={10} />
         </div>
@@ -552,14 +550,19 @@ export function VirtualizedNavTree({
     const startX = e.clientX;
     const startY = e.clientY;
     const capturePointerId = e.pointerId;
+    const rowEl = (e.currentTarget as HTMLElement);
     let oleStarted = false;
     let outsideChromeStreak = 0;
     let sessionStarted = false;
+    let captured = false;
 
     const cleanup = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      if (captured) {
+        try { rowEl.releasePointerCapture(capturePointerId); } catch { /* ignore */ }
+      }
     };
 
     const onMove = (ev: PointerEvent) => {
@@ -568,6 +571,10 @@ export function VirtualizedNavTree({
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < FILE_DRAG_THRESHOLD_PX) return;
         sessionStarted = true;
         suppressTreeClickRef.current = true;
+        try {
+          rowEl.setPointerCapture(capturePointerId);
+          captured = true;
+        } catch { /* ignore */ }
         beginFileDragSession({
           paths: [winPath],
           op: ev.ctrlKey || ev.altKey ? 'copy' : 'move',
@@ -631,54 +638,6 @@ export function VirtualizedNavTree({
     window.addEventListener('pointercancel', onUp);
   }, [config.dragDropSameVolumeAction, config.dragDropCrossVolumeAction, config.selectConfig2, config.selectConfig3, disallowDragFromTree, onFileDrop]);
 
-  const handleReorderDragStart = useCallback((e: React.DragEvent, row: FlatNavRow) => {
-    if (!row.treeKey || !row.draggable) return;
-    setDragKey(row.treeKey);
-    e.dataTransfer.clearData();
-    e.dataTransfer.setData(BNDZ_TREE_REORDER_MIME, row.treeKey);
-    e.dataTransfer.effectAllowed = 'move';
-
-    // Soft-squircle ghost that matches BNDZ sidebar visual language.
-    const ghost = document.createElement('div');
-    ghost.className = 'nav-tree-reorder-ghost';
-
-    const gripEl = document.createElement('span');
-    gripEl.className = 'nav-tree-reorder-ghost-grip';
-    gripEl.innerHTML = `<svg width="8" height="12" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="2" cy="2" r="1.2" fill="currentColor"/>
-      <circle cx="6" cy="2" r="1.2" fill="currentColor"/>
-      <circle cx="2" cy="6" r="1.2" fill="currentColor"/>
-      <circle cx="6" cy="6" r="1.2" fill="currentColor"/>
-      <circle cx="2" cy="10" r="1.2" fill="currentColor"/>
-      <circle cx="6" cy="10" r="1.2" fill="currentColor"/>
-    </svg>`;
-
-    const iconEl = document.createElement('span');
-    iconEl.className = 'nav-tree-reorder-ghost-icon';
-    // Use a simple folder/module SVG as placeholder icon
-    if (row.icon === 'hdd') {
-      iconEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="3.5" width="11" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 7.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z" fill="currentColor"/></svg>`;
-    } else {
-      iconEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1.5 3.5C1.5 2.67 2.17 2 3 2h2.36l1.28 1.5H10c.83 0 1.5.67 1.5 1.5v5C11.5 10.83 10.83 11.5 10 11.5H3c-.83 0-1.5-.67-1.5-1.5v-6z" stroke="currentColor" stroke-width="1.2"/></svg>`;
-    }
-
-    const labelEl = document.createElement('span');
-    labelEl.className = 'nav-tree-reorder-ghost-label';
-    labelEl.textContent = row.label;
-
-    ghost.appendChild(gripEl);
-    ghost.appendChild(iconEl);
-    ghost.appendChild(labelEl);
-    document.body.appendChild(ghost);
-
-    // Measure after insertion so the browser has a rendered size for setDragImage.
-    const w = ghost.offsetWidth;
-    e.dataTransfer.setDragImage(ghost, Math.min(w / 2, 80), 14);
-    requestAnimationFrame(() => {
-      if (document.body.contains(ghost)) document.body.removeChild(ghost);
-    });
-  }, []);
-
   const handleDragOver = useCallback((e: React.DragEvent, row: FlatNavRow) => {
     if (!dragKey || !row.treeKey || dragKey === row.treeKey || row.depth !== 0) return;
     e.preventDefault();
@@ -720,6 +679,68 @@ export function VirtualizedNavTree({
     }),
     [nodes, dynamicState, currentPath, config?.markIntermediateNodes, config?.checkExistenceOfSubfoldersInTree],
   );
+
+  const handleReorderPointerDown = useCallback((row: FlatNavRow, e: React.PointerEvent) => {
+    if (!row.treeKey || !row.draggable || !onTreeOrderChange || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const gripEl = e.currentTarget as HTMLElement;
+    const captureId = e.pointerId;
+    try { gripEl.setPointerCapture(captureId); } catch { /* ignore */ }
+
+    const reorderKey = row.treeKey;
+    setDragKey(reorderKey);
+    suppressTreeClickRef.current = true;
+
+    const resolveTarget = (clientX: number, clientY: number) => {
+      const hit = document.elementsFromPoint(clientX, clientY)
+        .map(el => (el as HTMLElement).closest('[data-tree-key]'))
+        .find(Boolean) as HTMLElement | null;
+      const targetKey = hit?.getAttribute('data-tree-key');
+      if (!targetKey || targetKey === reorderKey) return;
+      const targetRow = flatRows.find(r => r.treeKey === targetKey && r.depth === 0);
+      if (!targetRow?.treeKey) return;
+      const rect = hit!.getBoundingClientRect();
+      const after = clientY > rect.top + rect.height / 2;
+      setDropTargetKey(targetRow.treeKey);
+      setDropAfter(after);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== captureId) return;
+      resolveTarget(ev.clientX, ev.clientY);
+    };
+
+    const finish = (ev: PointerEvent) => {
+      if (ev.pointerId !== captureId) return;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      try { gripEl.releasePointerCapture(captureId); } catch { /* ignore */ }
+
+      const hit = document.elementsFromPoint(ev.clientX, ev.clientY)
+        .map(el => (el as HTMLElement).closest('[data-tree-key]'))
+        .find(Boolean) as HTMLElement | null;
+      const targetKey = hit?.getAttribute('data-tree-key');
+      if (targetKey && targetKey !== reorderKey) {
+        const targetRow = flatRows.find(r => r.treeKey === targetKey && r.depth === 0);
+        if (targetRow?.treeKey) {
+          const rect = hit!.getBoundingClientRect();
+          const after = ev.clientY > rect.top + rect.height / 2;
+          const base = navTreeOrder?.length ? [...navTreeOrder] : nodes.map(n => n.treeKey!).filter(Boolean);
+          const next = reorderNavTreeKeys(base, reorderKey, targetRow.treeKey, after);
+          onTreeOrderChange(next);
+          suppressTreeClickRef.current = true;
+        }
+      }
+      setDragKey(null);
+      setDropTargetKey(null);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+  }, [flatRows, navTreeOrder, nodes, onTreeOrderChange]);
 
   useEffect(() => {
     if (rt.tree.lockState || !rt.tree.expandOnBrowse || !currentPath) return;
@@ -906,7 +927,7 @@ export function VirtualizedNavTree({
       dropBefore={dropTargetKey === row.treeKey && !dropAfter}
       dropAfter={dropTargetKey === row.treeKey && dropAfter}
       isVirtualRow={isVirtualRow}
-      onReorderDragStart={handleReorderDragStart}
+      onReorderPointerDown={handleReorderPointerDown}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDrop={handleDrop}

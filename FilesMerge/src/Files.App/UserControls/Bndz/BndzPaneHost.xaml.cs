@@ -153,8 +153,10 @@ public sealed partial class BndzPaneHost : UserControl
 			var options = new CoreWebView2EnvironmentOptions
 			{
 				AdditionalBrowserArguments =
-					"--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing " +
-					"--disable-features=CalculateNativeWinOcclusion",
+					"--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
+					"--enable-features=CanvasOopRasterization " +
+					"--disable-features=CalculateNativeWinOcclusion " +
+					"--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist",
 			};
 			options.CustomSchemeRegistrations.Add(streamScheme);
 

@@ -38,6 +38,6 @@ export function focusWorkspaceSurface(surface: HTMLElement | null): void {
  */
 export function isWorkspacePointerTarget(target: EventTarget | null): boolean {
   return !!(target as Element)?.closest?.(
-    '[data-bndz-workspace-surface], [data-bndz-workspace-menu], .react-flow__pane',
+    '[data-bndz-workspace-surface], [data-bndz-workspace-menu], .react-flow__pane, .react-flow__node, .bndz-rack-module, .bndz-automation-canvas-wrap',
   );
 }

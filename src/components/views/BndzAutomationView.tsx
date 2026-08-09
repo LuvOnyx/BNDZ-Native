@@ -3,6 +3,7 @@ import {
   ReactFlow, Background, Controls, MiniMap, addEdge, useNodesState, useEdgesState, applyNodeChanges,
   type Connection, type Node, type Edge, Handle, Position, Panel, SelectionMode,
   type Viewport, type ReactFlowInstance, type OnNodesChange, type OnEdgesChange, type NodeChange,
+  type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Icons8Icon } from '../Icons8Icon';
@@ -34,6 +35,7 @@ import {
 } from '../../lib/workspace/automationLint';
 import {
   NODE_DEFS, PALETTE_GROUPS, CATEGORY_LABEL, type AutomationNodeDef,
+  resolveAutomationNodeDef,
 } from '../../lib/workspace/automationNodeDefs';
 import { consumeAutomationSeed, type AutomationPendingSeed } from '../../lib/workspace/automationPendingSeed';
 import { AUTOMATION_RECIPES, recipeToGraph } from '../../lib/workspace/automationTemplates';
@@ -48,8 +50,8 @@ type NodeData = {
   lintSeverity?: 'error' | 'warn' | null;
 };
 
-function BndzNode({ data, selected }: { data: NodeData; selected?: boolean }) {
-  const def = NODE_DEFS[data.nodeType];
+function BndzNode({ data, selected }: NodeProps<Node<NodeData>>) {
+  const def = resolveAutomationNodeDef(data.nodeType);
   const filled = def.fields.filter(f => data.fields[f.key]?.trim()).length;
   const lintClass = data.lintSeverity === 'error'
     ? ' has-lint-error'
@@ -139,10 +141,9 @@ type AutomationFlowPaneProps = {
   onPaneContextMenu: (e: React.MouseEvent | MouseEvent) => void;
   onNodeDragStart: (e: React.MouseEvent, node: Node) => void;
   onNodeDragStop: () => void;
-  onNodeMouseDown: (e: React.MouseEvent, node: Node) => void;
+  onNodeClick: (e: React.MouseEvent, node: Node) => void;
   onPaneClick: () => void;
   onViewportMoveEnd: (event: MouseEvent | TouchEvent | null, viewport: Viewport) => void;
-  onSelectionChange: (params: { nodes: Node[]; edges: Edge[] }) => void;
   loadRecipe: (id: string) => void;
 };
 
@@ -164,10 +165,9 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
   onPaneContextMenu,
   onNodeDragStart,
   onNodeDragStop,
-  onNodeMouseDown,
+  onNodeClick,
   onPaneClick,
   onViewportMoveEnd,
-  onSelectionChange,
   loadRecipe,
 }: AutomationFlowPaneProps) {
   return (
@@ -186,17 +186,17 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         onPaneContextMenu={onPaneContextMenu}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
-        onNodeMouseDown={onNodeMouseDown}
+        onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
-        nodeDragThreshold={4}
+        nodeDragThreshold={10}
         nodesDraggable
         nodesConnectable
         elementsSelectable
         onlyRenderVisibleElements
         elevateNodesOnSelect={false}
         deleteKeyCode={['Delete', 'Backspace']}
-        selectionOnDrag
+        selectNodesOnDrag={false}
         selectionMode={SelectionMode.Partial}
         panOnDrag={[1]}
         panOnScroll={panOnScroll}
@@ -207,7 +207,6 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         onMoveEnd={onViewportMoveEnd}
         minZoom={0.4}
         maxZoom={1.8}
-        onSelectionChange={onSelectionChange}
         defaultEdgeOptions={{ type: 'smoothstep', animated: true, style: { stroke: '#7eb8e8', strokeWidth: 2 } }}
         connectionLineStyle={{ stroke: '#7eb8e8', strokeWidth: 2 }}
         className="bndz-automation-flow"
@@ -220,7 +219,7 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
           <MiniMap
             className="bndz-flow-minimap"
             maskColor="rgba(0,0,0,0.75)"
-            nodeColor={n => NODE_DEFS[(n.data as NodeData).nodeType]?.color || '#38bdf8'}
+            nodeColor={n => resolveAutomationNodeDef((n.data as NodeData).nodeType).color}
             pannable
             zoomable
           />
@@ -381,11 +380,14 @@ const AutomationInspector = React.memo(function AutomationInspector({
     <aside className="bndz-automation-inspector shrink-0 bndz-scrollbar">
       <div className="bndz-automation-inspector-head">
         <span className="bndz-automation-inspector-title">Inspector</span>
-        {selectedNode && (
-          <span className="bndz-automation-inspector-chip" style={{ color: NODE_DEFS[selectedNode.data.nodeType].color }}>
-            {NODE_DEFS[selectedNode.data.nodeType].label}
-          </span>
-        )}
+        {selectedNode && (() => {
+          const def = resolveAutomationNodeDef(selectedNode.data.nodeType);
+          return (
+            <span className="bndz-automation-inspector-chip" style={{ color: def.color }}>
+              {def.label}
+            </span>
+          );
+        })()}
       </div>
       <div className="bndz-automation-inspector-scroll overflow-y-auto bndz-scrollbar flex-1 min-h-0">
       {!selectedNode ? (
@@ -393,10 +395,12 @@ const AutomationInspector = React.memo(function AutomationInspector({
           <Icons8Icon id="zap_ui" size={28} className="opacity-25 mb-2" />
           <p>Select a block to edit its properties, or click the library to add one.</p>
         </div>
-      ) : (
+      ) : (() => {
+        const def = resolveAutomationNodeDef(selectedNode.data.nodeType);
+        return (
         <div className="bndz-automation-inspector-body">
-          <p className="bndz-automation-inspector-desc">{NODE_DEFS[selectedNode.data.nodeType].desc}</p>
-          {NODE_DEFS[selectedNode.data.nodeType].fields.map(f => renderField(f, selectedNode))}
+          <p className="bndz-automation-inspector-desc">{def.desc}</p>
+          {def.fields.map(f => renderField(f, selectedNode))}
           <div className="bndz-automation-inspector-actions">
             <button type="button" className="bndz-lens-chip" onClick={() => duplicateNode(selectedNode.id)}>Duplicate</button>
             <button type="button" className="bndz-lens-chip" onClick={() => copySelectedNode()}>Copy</button>
@@ -404,7 +408,8 @@ const AutomationInspector = React.memo(function AutomationInspector({
           </div>
           <p className="bndz-automation-inspector-kbd">Press <kbd>Delete</kbd> to remove · <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy/paste</p>
         </div>
-      )}
+        );
+      })()}
       {lintIssues.length > 0 && (
         <div className="bndz-automation-lint">
           <div className="bndz-automation-log-head">
@@ -645,8 +650,8 @@ export default function BndzAutomationView() {
   const [library, setLibrary] = useState<AutomationLibrary | null>(null);
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<Node<NodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const selectedNodeIdRef = useRef<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  selectedNodeIdRef.current = selectedNodeId;
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
@@ -666,7 +671,6 @@ export default function BndzAutomationView() {
   const viewportRef = useRef<AutomationViewport>(defaultAutomationViewport());
   const viewportSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nodeDraggingRef = useRef(false);
-  const selectedNodeIdRef = useRef<string | null>(null);
   const chromeFrozenRef = useRef({ nodes: 0, edges: 0 });
   const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rfInstanceRef = useRef<ReactFlowInstance<Node<NodeData>, Edge> | null>(null);
@@ -683,6 +687,10 @@ export default function BndzAutomationView() {
   });
 
   const fieldSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId;
+  }, [selectedNodeId]);
 
   const autosave = useWorkspaceAutosave(
     () => stableGraphJson(graphMetaRef.current, nodesRef.current, edgesRef.current, viewportRef.current),
@@ -1313,7 +1321,10 @@ export default function BndzAutomationView() {
     pending.clear();
   }, []);
 
+  const nodePressStampRef = useRef(0);
+
   const applyNodeSelection = useCallback((nodeId: string | null, { toggle }: { toggle: boolean }) => {
+    if (nodeId) nodePressStampRef.current = performance.now();
     nodeDraggingRef.current = false;
     setSelectedEdgeId(null);
     const prev = selectedNodeIdRef.current;
@@ -1323,13 +1334,14 @@ export default function BndzAutomationView() {
     setNodes(nds => nds.map(n => ({ ...n, selected: next !== null && n.id === next })));
   }, [setNodes]);
 
-  const onNodeMouseDown = useCallback((e: React.MouseEvent, node: Node) => {
-    if (e.button !== 0) return;
-    applyNodeSelection(node.id, { toggle: true });
+  const onNodeClick = useCallback((e: React.MouseEvent, node: Node) => {
+    e.stopPropagation();
+    applyNodeSelection(node.id, { toggle: false });
   }, [applyNodeSelection]);
 
   const onPaneClick = useCallback(() => {
     if (nodeDraggingRef.current) return;
+    if (performance.now() - nodePressStampRef.current < 400) return;
     applyNodeSelection(null, { toggle: false });
   }, [applyNodeSelection]);
 
@@ -1415,17 +1427,6 @@ export default function BndzAutomationView() {
     }
     onNodesChangeBase(changes);
   }, [onNodesChangeBase, flushDragTransforms]);
-
-  const onSelectionChange = useCallback(({ nodes: sel, edges: selE }: { nodes: Node[]; edges: Edge[] }) => {
-    if (nodeDraggingRef.current) return;
-    const nid = sel[0]?.id || null;
-    const eid = selE[0]?.id || null;
-    if (nid !== selectedNodeIdRef.current) {
-      selectedNodeIdRef.current = nid;
-      setSelectedNodeId(nid);
-    }
-    setSelectedEdgeId(prev => (prev === eid ? prev : eid));
-  }, []);
 
   const menuNode = nodes.find(n => n.id === menu?.targetId);
   const liveWatchers = liveStatus?.watchers?.filter(w => w.live).length ?? 0;
@@ -1635,10 +1636,9 @@ export default function BndzAutomationView() {
           onPaneContextMenu={onPaneContextMenu}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
-          onNodeMouseDown={onNodeMouseDown}
+          onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           onViewportMoveEnd={onViewportMoveEnd}
-          onSelectionChange={onSelectionChange}
           loadRecipe={loadRecipe}
         />
 

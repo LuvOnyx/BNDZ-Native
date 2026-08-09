@@ -2283,6 +2283,18 @@ export const IPC = {
     });
   },
 
+  saveFileDialog(
+    defaultPath: string,
+    filter = 'PNG (*.png)|*.png|JPEG (*.jpg;*.jpeg)|*.jpg;*.jpeg|WebP (*.webp)|*.webp|All files (*.*)|*.*',
+  ): Promise<string | null> {
+    if (this.isNative) {
+      const id = `${Date.now()}_saveFile`;
+      return _nativeCall<string | null>('SAVE_FILE_DIALOG', 'SAVE_FILE_DIALOG_RESULT', id, { defaultPath, filter })
+        .then(p => (p && String(p).trim() ? String(p) : null));
+    }
+    return Promise.resolve(defaultPath || null);
+  },
+
   clearIconCache(): Promise<void> {
     if (this.isNative) {
       const id = `${Date.now()}_clearIconCache`;

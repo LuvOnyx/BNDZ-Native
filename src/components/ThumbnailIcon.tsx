@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { shouldFetchNativeShellIcon, shouldFetchNativeThumbnail } from '../lib/settingsRuntime';
 import { getOverlaysBehavior } from '../lib/settingsBehavior';
 import { useAppConfig } from '../data/configContext';
@@ -9,7 +9,7 @@ import {
   fetchIconifySvg,
   iconifySvgToDataUrl,
 } from '../lib/fileTypeIcons';
-import { applyIconCacheBuster, invalidateIconUrl, getRuntimeListThumbPx, requestNativeIcon } from '../lib/nativeIconService';
+import { applyIconCacheBuster, invalidateIconUrl, getRuntimeListThumbPx, getRuntimeHiResThumbPx, requestNativeIcon } from '../lib/nativeIconService';
 import { entityShellIsDirectory } from '../lib/shellPaths';
 import { useNativeIcon } from '../lib/useNativeIcon';
 import { resolveSvgInlineThumb } from '../lib/svgInlineThumb';
@@ -33,11 +33,20 @@ function entityExt(entity: FSEntity): string {
   return name.slice(dot + 1).toLowerCase();
 }
 
+/** Request native icons at display resolution — avoids upscaling tiny 16px shell glyphs in grid. */
+function iconRequestPx(displaySize: number): number {
+  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const want = Math.ceil(displaySize * dpr);
+  const listPx = getRuntimeListThumbPx();
+  const hiPx = getRuntimeHiResThumbPx();
+  return Math.min(hiPx, Math.max(listPx, want, displaySize));
+}
+
 /**
  * List/grid icon — CAS thumb first, shell glyph second.
  * Virtualized rows are already viewport-culled, so we fetch eagerly (no IntersectionObserver).
  */
-export function ThumbnailIcon({
+export const ThumbnailIcon = memo(function ThumbnailIcon({
   entity,
   isDir,
   path,
@@ -152,17 +161,16 @@ export function ThumbnailIcon({
   const shellFetchEnabled = !forceGeneric && isVisible && shouldFetchNativeShellIcon(entity, config, path);
 
   // Direct fetch — shell first (high priority), then thumbs. Viewport shells fill before offscreen thumbs.
-  // Must use getRuntimeListThumbPx() so viewport keys match listing prefetch (not hardcoded 96).
-  const listThumbPx = getRuntimeListThumbPx();
+  const requestPx = iconRequestPx(size);
   useEffect(() => {
     if (!isVisible || !path) return;
     const boost = eager ? 800 : 400;
-    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', listThumbPx, boost);
-    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', listThumbPx, Math.max(0, boost - 200));
-  }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled, eager, listThumbPx]);
+    if (shellFetchEnabled) void requestNativeIcon(path, dirFlag, 'shell', requestPx, boost);
+    if (thumbFetchEnabled) void requestNativeIcon(path, dirFlag, 'thumbnail', requestPx, Math.max(0, boost - 200));
+  }, [path, dirFlag, isVisible, thumbFetchEnabled, shellFetchEnabled, eager, requestPx]);
 
-  const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path, listThumbPx);
-  const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail, listThumbPx);
+  const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path, requestPx);
+  const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumbnail, requestPx);
 
   // SVG: CAS PNG first; else inline blob: — never bndz-stream (404s poison previews).
   useEffect(() => {
@@ -277,13 +285,13 @@ export function ThumbnailIcon({
             if (usableThumb && broken === usableThumb) {
               // Fall back to shell glyph; CAS thumbs stay on custom scheme.
               setThumbBroken(true);
-              void requestNativeIcon(path, dirFlag, 'shell', listThumbPx, 1000);
+              void requestNativeIcon(path, dirFlag, 'shell', requestPx, 1000);
               return;
             }
             if (usableShell && broken === usableShell) {
               // Shell delivery is base64 now — clear poison and refetch once.
               setShellBroken(false);
-              void requestNativeIcon(path, dirFlag, 'shell', listThumbPx, 1000);
+              void requestNativeIcon(path, dirFlag, 'shell', requestPx, 1000);
               return;
             }
             setNativeFailed(true);
@@ -335,4 +343,11 @@ export function ThumbnailIcon({
       )}
     </div>
   );
-}
+}, (prev, next) => (
+  prev.entity.id === next.entity.id
+  && prev.path === next.path
+  && prev.size === next.size
+  && prev.isDir === next.isDir
+  && prev.eager === next.eager
+  && prev.forceShellOnly === next.forceShellOnly
+));

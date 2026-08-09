@@ -38,9 +38,11 @@ type Props = {
   onClose: () => void;
   onIndexChange: (index: number) => void;
   onNavigate?: (path: string) => void;
+  /** Jump straight into Photo Studio edit mode when opened. */
+  startInStudioEdit?: boolean;
 };
 
-export default function BndzQuickPreview({ open, items, index, onClose, onIndexChange, onNavigate }: Props) {
+export default function BndzQuickPreview({ open, items, index, onClose, onIndexChange, onNavigate, startInStudioEdit }: Props) {
   const { config } = useAppConfig();
   const current = items[index];
   const hasPrev = index > 0;
@@ -53,6 +55,17 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   /** Image Edit: full Photo Studio (default) vs lightweight micro adjust. */
   const [imageEditMode, setImageEditMode] = useState<'studio' | 'quick'>('studio');
   const mediaPlayerRef = useRef<MediaPreviewPlayerHandle>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setEditMode(false);
+      return;
+    }
+    if (startInStudioEdit) {
+      setEditMode(true);
+      setImageEditMode('studio');
+    }
+  }, [open, startInStudioEdit, current?.path]);
   const [panelOffset, setPanelOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 

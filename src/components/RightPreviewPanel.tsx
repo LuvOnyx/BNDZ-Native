@@ -24,12 +24,13 @@ import PdfPreviewPanel from './PdfPreviewPanel';
 import MarkdownPreviewPanel from './MarkdownPreviewPanel';
 import HtmlPreviewPanel from './HtmlPreviewPanel';
 const DocxPreviewPanel = lazy(() => import('./DocxPreviewPanel'));
+const GpuModelViewport = lazy(() => import('../workstation/inspection/GpuModelViewport'));
 import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
 import { isArchiveExt, isTorrentExt } from '../lib/archiveTypes';
-import { isAudioExt, isVideoExt, isImageExt } from '../lib/mediaTypes';
+import { isAudioExt, isVideoExt, isImageExt, isModelExt } from '../lib/mediaTypes';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
@@ -249,6 +250,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const heroPath = (entity as any)?.isVirtual ? getLocationIconPath(path) : path;
   const ext = !isDir ? (entity as any)?.extension?.toLowerCase() || '' : '';
   const isImage = isImageExt(ext);
+  const isModel = isModelExt(ext);
   const isSvg = ext === 'svg';
   const isAudio = isAudioExt(ext);
   const isVideo = isVideoExt(ext);
@@ -657,6 +659,30 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               />
             </div>
           );
+      }
+
+      if (isModel && previewAllowed && virtualUrl) {
+        const webGlReady = probeWebGL();
+        const gltfFamily = ext === 'glb' || ext === 'gltf';
+        if (!webGlReady || !gltfFamily) {
+          return (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+              <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
+              <p>
+                {!webGlReady
+                  ? 'WebGL is unavailable — enable GPU acceleration to preview 3D models.'
+                  : `Preview supports GLB/GLTF today. ${ext.toUpperCase()} can be opened in an external viewer.`}
+              </p>
+            </div>
+          );
+        }
+        return (
+          <div className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
+            <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport…</div>}>
+              <GpuModelViewport src={virtualUrl} title={entity.name} />
+            </Suspense>
+          </div>
+        );
       }
 
       if (isImage && previewAllowed) {

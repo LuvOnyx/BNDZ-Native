@@ -1,4 +1,5 @@
 /** Bundled BNDZ font pack — imported once at app boot. */
+import '../styles/bndzLocalFonts.css';
 import '@fontsource/outfit/400.css';
 import '@fontsource/outfit/500.css';
 import '@fontsource/outfit/600.css';

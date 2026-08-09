@@ -9,6 +9,7 @@ import { endInternalFileDragUi } from '../../lib/fileDragUiCleanup';
 import { readClipboardText, writeClipboardText } from '../../lib/clipboardSafe';
 import {
   loadSpatialCanvas, hydrateSpatialCanvasFromJson, invalidateSpatialCanvasCache,
+  defaultCanvas,
   resetSpatialCanvasPersisted,
   listSpatialBoards, switchSpatialBoard, createSpatialBoard, deleteSpatialBoard, renameSpatialBoard,
   duplicateSpatialBoard,
@@ -121,7 +122,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   const minZoom = typeof config.spatialCanvasMinZoom === 'number' ? config.spatialCanvasMinZoom : 0.35;
   const maxZoom = typeof config.spatialCanvasMaxZoom === 'number' ? config.spatialCanvasMaxZoom : 2.5;
 
-  const [doc, setDoc] = useState<SpatialCanvasDoc | null>(null);
+  const [doc, setDoc] = useState<SpatialCanvasDoc | null>(() => defaultCanvas());
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
   const panningRef = useRef(false);
@@ -412,6 +413,15 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       setBoardList(boards);
       engine.setTransform(next.panX, next.panY, next.zoom, true);
       seedAutosave(stableDocJson(next));
+    }).catch((err: unknown) => {
+      if (!active) return;
+      console.error('[spatial] load failed', err);
+      const fallback = defaultCanvas();
+      docRef.current = fallback;
+      setDoc(fallback);
+      engine.setTransform(fallback.panX, fallback.panY, fallback.zoom, true);
+      seedAutosave(stableDocJson(fallback));
+      setStatus('Could not load spatial board — showing empty canvas.');
     });
     return () => { active = false; };
   }, [engine, seedAutosave]);
@@ -1738,7 +1748,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
   if (!doc) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500 text-sm gap-2">
-        <Icons8Icon id="loading" size={18} spin /> Loading spatial canvas…
+        <Icons8Icon id="loading" size={18} spin /> Preparing spatial canvas…
       </div>
     );
   }

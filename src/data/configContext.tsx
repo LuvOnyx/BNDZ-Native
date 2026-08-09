@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { formatLibrariesForConfig } from '../lib/iconLibraryUtils';
 import { SETTINGS_DEFAULTS, SETTINGS_VALUE_PATCHES } from '../lib/settingsDefaults';
 import { applySettingsKeyAliases } from '../lib/settingsKeyAliases';
@@ -214,6 +214,20 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
     }
     if (merged.fileTaggingFeature === undefined) {
         merged.fileTaggingFeature = merged.fileTagging !== false;
+    }
+    if ((merged.selectionColorMigrationVersion ?? 0) < 1) {
+        const legacyBlues = new Set(['#264f78', '#007acc', '#0078d4', '264f78']);
+        const isLegacyBlue = (v: unknown) => {
+            const s = String(v || '').trim().toLowerCase().replace(/^#/, '');
+            return legacyBlues.has(`#${s}`) || legacyBlues.has(s) || s === '264f78';
+        };
+        if (!merged.listSelectionHighlightColor || isLegacyBlue(merged.listSelectionHighlightColor)) {
+            merged.listSelectionHighlightColor = '#a855f7';
+        }
+        if (!merged.colorConfig14 || isLegacyBlue(merged.colorConfig14)) {
+            merged.colorConfig14 = '#a855f7';
+        }
+        merged.selectionColorMigrationVersion = 1;
     }
     if ((merged.xCloseActionVersion ?? 0) < 1) {
         // Reset silent tray-on-X so the close dialog asks again; choice is remembered after.
@@ -506,6 +520,8 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         });
     }, []);
 
+    const contextValue = useMemo(() => ({ config, updateConfig }), [config, updateConfig]);
+
     if (!loaded) {
         return (
             <div className="w-screen h-screen flex flex-col items-center justify-center bg-[#111114] text-gray-400 gap-3 select-none">
@@ -515,7 +531,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         );
     }
 
-    return <ConfigContext.Provider value={{ config, updateConfig }}>{children}</ConfigContext.Provider>;
+    return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };
 
 export const useAppConfig = () => useContext(ConfigContext);

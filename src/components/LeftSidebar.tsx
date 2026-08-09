@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
 import { dropSideFromPointer, computeReorderInsertIndex, reorderArrayMove } from '../lib/reorderOnDrop';
 
@@ -72,54 +72,62 @@ export function LeftSidebar({
         setExpandedSections(prev => ({ ...prev, [section]: !(prev as any)[section] }));
     };
 
-    const handleDragStart = (e: React.DragEvent, id: string) => {
+    const handleGripPointerDown = useCallback((e: React.PointerEvent, id: string) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
         e.stopPropagation();
+        const gripEl = e.currentTarget as HTMLElement;
+        const captureId = e.pointerId;
+        try { gripEl.setPointerCapture(captureId); } catch { /* ignore */ }
         setDraggedItem(id);
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', `sidebar-section:${id}`);
-        if (e.dataTransfer.setDragImage) {
-            const ghost = document.createElement('div');
-            ghost.className = 'fixed pointer-events-none opacity-0';
-            document.body.appendChild(ghost);
-            e.dataTransfer.setDragImage(ghost, 0, 0);
-            requestAnimationFrame(() => ghost.remove());
-        }
-    };
 
-    const handleDragOver = (e: React.DragEvent, id: string) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!draggedItem || draggedItem === id) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        const side = dropSideFromPointer(e.clientX, e.clientY, rect, 'y');
-        setDragOverId(id);
-        setDropSide(side);
-        e.dataTransfer.dropEffect = 'move';
-    };
+        const resolveTarget = (clientX: number, clientY: number) => {
+            const hit = document.elementsFromPoint(clientX, clientY)
+                .map(el => (el as HTMLElement).closest('[data-section-id]'))
+                .find(Boolean) as HTMLElement | null;
+            const targetId = hit?.getAttribute('data-section-id');
+            if (!targetId || targetId === id) return;
+            const rect = hit!.getBoundingClientRect();
+            setDragOverId(targetId);
+            setDropSide(dropSideFromPointer(clientX, clientY, rect, 'y'));
+        };
 
-    const handleDrop = (e: React.DragEvent, id: string) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!draggedItem || draggedItem === id) {
+        const onMove = (ev: PointerEvent) => {
+            if (ev.pointerId !== captureId) return;
+            resolveTarget(ev.clientX, ev.clientY);
+        };
+
+        const finish = (ev: PointerEvent) => {
+            if (ev.pointerId !== captureId) return;
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', finish);
+            window.removeEventListener('pointercancel', finish);
+            try { gripEl.releasePointerCapture(captureId); } catch { /* ignore */ }
+
+            const hit = document.elementsFromPoint(ev.clientX, ev.clientY)
+                .map(el => (el as HTMLElement).closest('[data-section-id]'))
+                .find(Boolean) as HTMLElement | null;
+            const targetId = hit?.getAttribute('data-section-id');
+            if (targetId && targetId !== id) {
+                const from = order.indexOf(id);
+                const to = order.indexOf(targetId);
+                if (from >= 0 && to >= 0) {
+                    const rect = hit!.getBoundingClientRect();
+                    const side = dropSideFromPointer(ev.clientX, ev.clientY, rect, 'y');
+                    const insertAt = computeReorderInsertIndex(from, to, side);
+                    const next = reorderArrayMove(order, from, insertAt);
+                    setOrder(next);
+                    onSectionOrderChange?.(next.map((k: string) => REVERSE_SECTION_MAP[k] || k));
+                }
+            }
             setDraggedItem(null);
             setDragOverId(null);
-            return;
-        }
-        const from = order.indexOf(draggedItem);
-        const to = order.indexOf(id);
-        if (from < 0 || to < 0) return;
-        const insertAt = computeReorderInsertIndex(from, to, dropSide);
-        const next = reorderArrayMove(order, from, insertAt);
-        setOrder(next);
-        onSectionOrderChange?.(next.map((k: string) => REVERSE_SECTION_MAP[k] || k));
-        setDraggedItem(null);
-        setDragOverId(null);
-    };
+        };
 
-    const handleDragEnd = () => {
-        setDraggedItem(null);
-        setDragOverId(null);
-    };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', finish);
+        window.addEventListener('pointercancel', finish);
+    }, [order, onSectionOrderChange]);
 
     const sections = {
         quickAccess: { content: quickAccessContent, label: 'Rapid access', icon: 'zap_ui', iconColor: 'text-emerald-400' },
@@ -166,9 +174,8 @@ export function LeftSidebar({
                     <div
                         key={key}
                         id={`section-${key}`}
+                        data-section-id={key}
                         className={`transition-opacity duration-150 ease-out ${draggedItem === key ? 'opacity-40' : ''} ${dragOverId === key && draggedItem !== key ? (dropSide === 'before' ? 'bndz-sidebar-drop-before' : 'bndz-sidebar-drop-after') : ''} ${sectionSpacing}`}
-                        onDragOver={e => handleDragOver(e, key)}
-                        onDrop={e => handleDrop(e, key)}
                     >
                         <div
                             data-section={key}
@@ -185,11 +192,9 @@ export function LeftSidebar({
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#888] group-hover:text-gray-100 transition-colors">{sec.label}</span>
                             </div>
                             <div
-                                draggable
-                                onDragStart={e => handleDragStart(e, key)}
-                                onDragEnd={handleDragEnd}
-                                className="opacity-0 group-hover:opacity-50 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 transition-opacity"
+                                className="opacity-0 group-hover:opacity-50 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 transition-opacity touch-none"
                                 title="Drag to reorder module"
+                                onPointerDown={e => handleGripPointerDown(e, key)}
                             >
                                 <DragHandleGlyph size={12} />
                             </div>

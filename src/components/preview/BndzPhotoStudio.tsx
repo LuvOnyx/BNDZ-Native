@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { toVirtualStreamUrl, toWindowsPath } from '../../lib/pathUtils';
+import { isImageExt } from '../../lib/mediaTypes';
 
 type Props = {
   path: string;
@@ -23,10 +24,12 @@ type StudioMsg =
       docName?: string;
     };
 
+type SaveMode = 'sibling' | 'overwrite' | 'pick';
+
 function editedPathFor(sourcePath: string, ext: string): string {
   const win = toWindowsPath(sourcePath);
   const stem = win.replace(/\.[^.]+$/, '');
-  const outExt = ext === 'jpg' || ext === 'jpeg' ? 'jpg' : 'png';
+  const outExt = ext === 'jpg' || ext === 'jpeg' ? 'jpg' : ext === 'webp' ? 'webp' : 'png';
   return `${stem}_edited.${outExt}`;
 }
 
@@ -38,7 +41,8 @@ function dataUrlToBase64(dataUrl: string): string {
 export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const blobUrlRef = useRef<string | null>(null);
-  const readyRef = useRef(false);
+  const saveModeRef = useRef<SaveMode>('sibling');
+  const saveDestRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -59,16 +63,22 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     win.postMessage({ source: 'bndz-host', ...msg }, '*');
   }, []);
 
+  const requestExport = useCallback((mode: SaveMode, dest?: string | null, kind: 'png' | 'jpeg' = 'png') => {
+    saveModeRef.current = mode;
+    saveDestRef.current = dest ?? null;
+    postToStudio({ type: 'requestExport', kind });
+  }, [postToStudio]);
+
   const loadImage = useCallback(async () => {
     setLoading(true);
     setError(null);
     setStatus(null);
-    readyRef.current = false;
     revokeBlob();
     try {
       const { IPC } = await import('../../lib/ipcBridge');
       let src = toVirtualStreamUrl(path);
-      if (IPC.isNative) {
+      // Virtual stream avoids base64 round-trips for large camera files.
+      if (!src && IPC.isNative) {
         const result = await IPC.getMediaBlob(toWindowsPath(path));
         if (result.base64 && result.mime) {
           const binary = atob(result.base64);
@@ -77,6 +87,8 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
           const blob = new Blob([bytes], { type: result.mime });
           src = URL.createObjectURL(blob);
           blobUrlRef.current = src;
+        } else if (result.error) {
+          throw new Error(result.error);
         }
       }
       const name = title || path.split(/[/\\]/).pop() || 'image';
@@ -109,7 +121,6 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
       if (!data || data.source !== 'bndz-photo-studio') return;
       switch (data.type) {
         case 'ready':
-          readyRef.current = true;
           setFrameReady(true);
           break;
         case 'opened':
@@ -130,8 +141,13 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
             setBusy(true);
             setStatus(null);
             try {
-              const ext = data.ext === 'jpg' || data.ext === 'jpeg' ? 'jpg' : 'png';
-              const dest = editedPathFor(path, ext);
+              const ext = data.ext === 'jpg' || data.ext === 'jpeg' ? 'jpg' : data.ext === 'webp' ? 'webp' : 'png';
+              const mode = saveModeRef.current;
+              let dest = saveDestRef.current;
+              if (!dest) {
+                if (mode === 'overwrite') dest = toWindowsPath(path);
+                else dest = editedPathFor(path, ext);
+              }
               const base64 = dataUrlToBase64(data.dataUrl);
               const { IPC } = await import('../../lib/ipcBridge');
               const ok = await IPC.writeBinaryFile(dest, base64);
@@ -142,6 +158,8 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
               setStatus(err instanceof Error ? err.message : 'Save failed');
             } finally {
               setBusy(false);
+              saveModeRef.current = 'sibling';
+              saveDestRef.current = null;
             }
           })();
           break;
@@ -150,6 +168,19 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [onRequestClose, onSaved, path]);
+
+  const onSave = () => requestExport('sibling');
+  const onSaveOverwrite = () => {
+    if (!window.confirm('Overwrite the original file with your edits?')) return;
+    requestExport('overwrite');
+  };
+  const onSaveAs = async () => {
+    const { IPC } = await import('../../lib/ipcBridge');
+    const stem = toWindowsPath(path).replace(/\.[^.]+$/, '');
+    const picked = await IPC.saveFileDialog(`${stem}_edited.png`);
+    if (!picked) return;
+    requestExport('pick', picked);
+  };
 
   if (loading) {
     return (
@@ -171,6 +202,11 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
 
   return (
     <div className="bndz-photo-studio">
+      <div className="bndz-photo-studio-hostbar">
+        <button type="button" className="bndz-lens-chip" onClick={onSave} disabled={busy}>Save copy</button>
+        <button type="button" className="bndz-lens-chip" onClick={onSaveOverwrite} disabled={busy}>Overwrite</button>
+        <button type="button" className="bndz-lens-chip" onClick={() => void onSaveAs()} disabled={busy}>Save As…</button>
+      </div>
       <iframe
         ref={iframeRef}
         className="bndz-photo-studio-frame"
@@ -182,7 +218,6 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         })()}
         sandbox="allow-scripts allow-same-origin allow-downloads"
         onLoad={() => {
-          // Hosted studio posts ready; ping in case we missed the first message.
           setTimeout(() => postToStudio({ type: 'ping' }), 40);
         }}
       />
@@ -193,4 +228,10 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
       )}
     </div>
   );
+}
+
+/** Open Photo Studio for a single image path (context menu / shortcuts). */
+export function dispatchOpenPhotoStudio(path: string) {
+  if (!path || !isImageExt(path.split('.').pop() || '')) return;
+  window.dispatchEvent(new CustomEvent('bndz-open-photo-studio', { detail: { path } }));
 }

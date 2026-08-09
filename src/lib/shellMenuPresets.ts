@@ -66,19 +66,22 @@ export const OPTIONAL_STOCK_CONTEXT_ITEMS = [
   { id: 'ghost-link', label: 'Ghost-Link offload…', desc: 'Offload selection to ghost links', iconVerb: 'link', surfaces: ['file', 'folder'] as const },
   { id: 'ram-staging', label: 'Stage to RAM…', desc: 'ImDisk / AIM RAM staging', iconVerb: 'harddrive', surfaces: ['file', 'folder'] as const },
   { id: 'change-icon', label: 'Change Icon', desc: 'Icon Studio submenu on Properties', iconVerb: 'picture_ui', surfaces: ['file', 'folder'] as const },
+  { id: 'photo-studio', label: 'Edit in Photo Studio', desc: 'Full layered image editor', iconVerb: 'picture_ui', surfaces: ['file'] as const },
 ] as const;
 
 export type OptionalStockContextId = (typeof OPTIONAL_STOCK_CONTEXT_ITEMS)[number]['id'];
 
 /** Default: empty — shorter core menu. */
-export const DEFAULT_ENABLED_STOCK_CONTEXT_IDS: OptionalStockContextId[] = [];
+export const DEFAULT_ENABLED_STOCK_CONTEXT_IDS: OptionalStockContextId[] = ['photo-studio'];
 
 export function isOptionalStockContextEnabled(
   config: { enabledStockContextMenuIds?: string[] | null } | null | undefined,
   id: OptionalStockContextId,
 ): boolean {
   const list = config?.enabledStockContextMenuIds;
-  if (!Array.isArray(list) || list.length === 0) return false;
+  if (!Array.isArray(list) || list.length === 0) {
+    return DEFAULT_ENABLED_STOCK_CONTEXT_IDS.includes(id);
+  }
   return list.includes(id);
 }
 

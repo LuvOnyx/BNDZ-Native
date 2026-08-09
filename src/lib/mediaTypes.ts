@@ -15,6 +15,15 @@ export const IMAGE_EXTENSIONS = new Set([
   'psd', 'xcf', 'raw', 'cr2', 'nef', 'dng', 'exr', 'hdr', 'apng', 'jfif',
 ]);
 
+/** 3D mesh / scene formats — previewed via WebGL (GLB/GLTF primary). */
+export const MODEL_EXTENSIONS = new Set([
+  'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds', 'blend',
+]);
+
+export function isModelExt(ext: string): boolean {
+  return MODEL_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
+}
+
 export function isAudioExt(ext: string): boolean {
   return AUDIO_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
 }

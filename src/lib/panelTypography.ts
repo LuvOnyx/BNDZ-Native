@@ -17,6 +17,9 @@ export type PanelFontTokens = {
  */
 const FONT_PRESETS: Record<string, string> = {
   Outfit: 'Outfit, sans-serif',
+  'Clarity City': '"Clarity City", sans-serif',
+  Faustina: 'Faustina, serif',
+  Solitus: 'Solitus, sans-serif',
   Inter: 'Inter, sans-serif',
   'IBM Plex Sans': '"IBM Plex Sans", sans-serif',
   'Source Sans 3': '"Source Sans 3", sans-serif',

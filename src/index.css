@@ -203,8 +203,8 @@
   }
 
   .nav-tree-row-selected {
-    background: linear-gradient(90deg, #264f78 0%, rgba(38, 79, 120, 0.55) 100%);
-    box-shadow: inset 2px 0 0 #6db4e6;
+    background: linear-gradient(90deg, var(--list-selected-bg, #a855f7) 0%, color-mix(in srgb, var(--list-selected-bg, #a855f7) 55%, transparent) 100%);
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--list-focused-bg, #a855f7) 85%, #6db4e6);
   }
 
   .nav-tree-row-trace {
@@ -622,6 +622,23 @@
     height: 100%;
     min-height: 0;
     background: #202020;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bndz-photo-studio-hostbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(32,36,44,0.98), rgba(24,26,32,0.96));
+    flex-shrink: 0;
+  }
+
+  .bndz-photo-studio-hostbar .bndz-lens-chip {
+    font-size: 10px;
+    padding: 4px 10px;
   }
 
   .bndz-photo-studio--status {
@@ -1296,12 +1313,23 @@ html.theme-light .nav-tree-row:hover {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   scroll-behavior: auto;
+  overflow-anchor: none;
+  touch-action: pan-y;
   cursor: default;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   /* Files-like clarity at FM sizes — prefer LCD subpixel over grayscale AA */
   -webkit-font-smoothing: subpixel-antialiased;
   text-rendering: optimizeLegibility;
+}
+
+.bndz-vlist-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 26px;
+}
+
+.bndz-model-viewport canvas {
+  touch-action: none;
 }
 
 html[data-list-font-aa="greyscale"] .bndz-file-list-scroll {
@@ -3482,12 +3510,12 @@ html[data-list-sel-chrome="throughSecondColumn"] .fs-list-item.fs-item-selected 
 }
 html[data-list-sel-chrome="nameOnly"] .fs-list-item.fs-item-selected .bndz-list-select-cell,
 html[data-list-sel-chrome="nameOnly"] .fs-list-item.fs-item-selected .bndz-list-columns > div:first-child {
-  background-color: var(--list-selected-bg, rgba(38, 79, 120, 0.92));
+  background-color: var(--list-selected-bg, rgba(168, 85, 247, 0.42));
   border-radius: 6px;
 }
 html[data-list-sel-chrome="throughSecondColumn"] .fs-list-item.fs-item-selected .bndz-list-select-cell,
 html[data-list-sel-chrome="throughSecondColumn"] .fs-list-item.fs-item-selected .bndz-list-columns > div:nth-child(-n+3) {
-  background-color: var(--list-selected-bg, rgba(38, 79, 120, 0.92));
+  background-color: var(--list-selected-bg, rgba(168, 85, 247, 0.42));
 }
 html[data-list-sel-chrome="throughSecondColumn"] .fs-list-item.fs-item-selected .bndz-list-select-cell {
   border-radius: 6px 0 0 6px;
@@ -3502,24 +3530,24 @@ html[data-list-sel-chrome="throughSecondColumn"] .fs-list-item.fs-item-selected 
 
 /* ── Appearance: list selection variants (Settings → Appearance) ── */
 html[data-selection-style="classic"] .fs-list-item.fs-item-selected:not([style*="background"]) {
-  background-color: rgba(38, 79, 120, 0.92);
+  background-color: var(--list-selected-bg, rgba(168, 85, 247, 0.42));
   box-shadow: none;
 }
 
 html[data-selection-style="inset"] .fs-list-item.fs-item-selected {
-  background-color: rgba(0, 122, 204, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(0, 122, 204, 0.75);
+  background-color: color-mix(in srgb, var(--list-selected-bg, #a855f7) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--list-selected-bg, #a855f7) 75%, transparent);
 }
 
 html[data-selection-style="xyplorer"] .fs-list-item.fs-item-selected:not([style*="background"]) {
-  background-color: #264f78;
+  background-color: var(--list-selected-bg, #a855f7);
   box-shadow: none;
   border-radius: 0;
 }
 
 html[data-selection-style="filepilot"] .fs-list-item.fs-item-selected {
-  background-color: rgba(0, 122, 204, 0.14);
-  box-shadow: inset 3px 0 0 #007acc;
+  background-color: color-mix(in srgb, var(--list-selected-bg, #a855f7) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--list-focused-bg, #a855f7);
   border-radius: var(--bndz-radius-sm);
 }
 
@@ -3529,32 +3557,32 @@ html[data-selection-style="minimal"] .fs-list-item.fs-item-selected {
 }
 
 html[data-selection-style="glow"] .fs-list-item.fs-item-selected {
-  background-color: rgba(38, 79, 120, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(0, 122, 204, 0.85), 0 0 12px rgba(0, 122, 204, 0.22);
+  background-color: color-mix(in srgb, var(--list-selected-bg, #a855f7) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--list-focused-bg, #a855f7) 85%, transparent), 0 0 12px color-mix(in srgb, var(--list-selected-bg, #a855f7) 22%, transparent);
 }
 
 /* Grid / icon tile selection — Files GridViewItemSelected wash */
 html[data-grid-selection="subtle"] .fs-grid-item.fs-item-selected {
-  background: rgba(38, 79, 120, 0.28) !important;
+  background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 28%, transparent) !important;
   box-shadow: none;
 }
 
 html[data-grid-selection="filled"] .fs-grid-item.fs-item-selected:not([style*="background"]) {
-  background: rgba(38, 79, 120, 0.4) !important;
+  background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 40%, transparent) !important;
   box-shadow: none;
 }
 
 html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
-  background: rgba(38, 79, 120, 0.22) !important;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent, #0078d4) 72%, transparent);
+  background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 22%, transparent) !important;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--list-selected-bg, #a855f7) 72%, transparent);
 }
 
 /* ── Grid + List — Files WinUI GridLayoutPage look (square thumb + soft selection) ── */
 .bndz-view-grid {
   --bndz-tile-radius: 4px;
   --bndz-files-hover: rgba(42, 45, 46, 0.08);
-  --bndz-files-selected: rgba(38, 79, 120, 0.34);
-  --bndz-files-selected-hover: rgba(38, 79, 120, 0.4);
+  --bndz-files-selected: color-mix(in srgb, var(--list-selected-bg, #a855f7) 34%, transparent);
+  --bndz-files-selected-hover: color-mix(in srgb, var(--list-selected-bg, #a855f7) 40%, transparent);
   border-radius: var(--bndz-tile-radius) !important;
   background: transparent;
   border-color: transparent !important;
@@ -4382,7 +4410,7 @@ html[data-list-selection-shape="flat"] .fs-grid-item.fs-item-selected {
 }
 
 html[data-list-selection-focus="gradient"] .fs-item-wrapper.fs-item-selected:not([style*="background"]) {
-  background: linear-gradient(90deg, var(--highlight-bg, rgba(38, 79, 120, 0.92)) 0%, color-mix(in srgb, var(--highlight-bg, #264f78) 35%, transparent) 100%) !important;
+  background: linear-gradient(90deg, var(--highlight-bg, color-mix(in srgb, var(--list-selected-bg, #a855f7) 92%, transparent)) 0%, color-mix(in srgb, var(--highlight-bg, var(--list-selected-bg, #a855f7)) 35%, transparent) 100%) !important;
 }
 
 html[data-list-selection-focus="transparent"] .fs-item-wrapper.fs-item-selected:not([style*="background"]) {
@@ -4395,12 +4423,12 @@ html[data-translucent-selection="true"] .fs-item-wrapper.fs-item-selected {
 }
 
 html[data-semi-transparent-grid="true"] .fs-grid-item.fs-item-selected:not([style*="background"]) {
-  background-color: color-mix(in srgb, var(--list-selected, rgba(38, 79, 120, 0.45)) 55%, transparent) !important;
+  background-color: color-mix(in srgb, var(--list-selected, color-mix(in srgb, var(--list-selected-bg, #a855f7) 45%, transparent)) 55%, transparent) !important;
 }
 
 html[data-mirror-tree-box-in-list="true"] .fs-list-item.fs-item-selected:not([style*="background"]) {
-  background: linear-gradient(90deg, var(--tree-trace, #264f78) 0%, color-mix(in srgb, var(--tree-trace, #264f78) 45%, transparent) 100%);
-  box-shadow: inset var(--tree-trace-width, 2px) 0 0 var(--tree-trace, #6db4e6);
+  background: linear-gradient(90deg, var(--tree-trace, var(--list-selected-bg, #a855f7)) 0%, color-mix(in srgb, var(--tree-trace, var(--list-selected-bg, #a855f7)) 45%, transparent) 100%);
+  box-shadow: inset var(--tree-trace-width, 2px) 0 0 var(--tree-trace, var(--list-focused-bg, #a855f7));
 }
 
 .bndz-filter-highlight {

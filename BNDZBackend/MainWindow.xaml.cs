@@ -7513,6 +7513,32 @@ namespace BNDZ
                         DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions));
                     });
                 }
+                else if (type == "SAVE_FILE_DIALOG")
+                {
+                    var payload = root.GetProperty("payload");
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    PostToUi(() => {
+                        var saveDialog = new Microsoft.Win32.SaveFileDialog();
+                        saveDialog.Filter = payload.TryGetProperty("filter", out var filterElement) ? filterElement.GetString() : "All files (*.*)|*.*";
+                        if (payload.TryGetProperty("defaultPath", out var defaultPathEl))
+                        {
+                            var defaultPath = defaultPathEl.GetString();
+                            if (!string.IsNullOrWhiteSpace(defaultPath))
+                            {
+                                saveDialog.FileName = System.IO.Path.GetFileName(defaultPath);
+                                var dir = System.IO.Path.GetDirectoryName(defaultPath);
+                                if (!string.IsNullOrWhiteSpace(dir) && System.IO.Directory.Exists(dir))
+                                    saveDialog.InitialDirectory = dir;
+                            }
+                        }
+                        string? selected = null;
+                        if (saveDialog.ShowDialog() == true)
+                            selected = saveDialog.FileName;
+                        var response = new { type = "SAVE_FILE_DIALOG_RESULT", id = idProp, payload = selected };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions));
+                    });
+                }
                 else if (type == "OPEN_FOLDER_DIALOG")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;

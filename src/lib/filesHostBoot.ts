@@ -134,7 +134,7 @@ export function subscribeFilesHostListing(handler: FilesHostListingHandler): () 
           isDirectory: isDir,
         };
       }).filter((x: FilesHostListingItem) => !!x.path);
-      handler(path.trim(), items, data.payload?.complete !== false);
+      handler(normalizePanePath(path.trim()), items, data.payload?.complete !== false);
     } catch {
       /* ignore */
     }

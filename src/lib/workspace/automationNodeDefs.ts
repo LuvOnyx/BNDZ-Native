@@ -350,3 +350,12 @@ export const FOLDER_FIELD_KEYS = new Set(['path', 'dest', 'source', 'coldStorage
 export function isTriggerType(type: AutomationNodeType): boolean {
   return TRIGGER_TYPES.includes(type);
 }
+
+const FALLBACK_NODE_TYPE: AutomationNodeType = 'manualRun';
+
+export function resolveAutomationNodeDef(nodeType: string | undefined | null): AutomationNodeDef {
+  if (nodeType && NODE_DEFS[nodeType as AutomationNodeType]) {
+    return NODE_DEFS[nodeType as AutomationNodeType];
+  }
+  return NODE_DEFS[FALLBACK_NODE_TYPE];
+}

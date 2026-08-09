@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { packGridTracks } from '../lib/viewModeMetrics';
 
@@ -27,7 +27,7 @@ function contentBoxWidth(el: HTMLElement): number {
   return Math.max(0, el.clientWidth - padX);
 }
 
-export function VirtualizedFileList<T>({
+export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
   items,
   enabled = true,
   threshold = 1,
@@ -330,4 +330,4 @@ export function VirtualizedFileList<T>({
       {renderBody()}
     </div>
   );
-}
+}) as <T>(props: VirtualizedFileListProps<T>) => React.ReactElement;

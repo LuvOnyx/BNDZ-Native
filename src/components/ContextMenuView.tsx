@@ -31,6 +31,8 @@ import { buildSettingsRuntime, getRenameInitialValue } from '../lib/settingsRunt
 import { getContextBehavior } from '../lib/settingsBehavior';
 import { buildShellExecuteOptions } from '../lib/shellExecuteRuntime';
 import { isArchiveExt } from '../lib/archiveTypes';
+import { isImageExt } from '../lib/mediaTypes';
+import { dispatchOpenPhotoStudio } from './preview/BndzPhotoStudio';
 import type { SortColumnId } from '../lib/listColumns';
 import type { ListGroupBy } from '../lib/listGrouping';
 import { LIST_GROUP_BY_OPTIONS } from '../lib/listGrouping';
@@ -1273,6 +1275,17 @@ function ContextMenuView({
           onClick={() => { onOpenBatchRename?.(); onClose(); }}
         />
         ) : null
+      )}
+
+      {!isBackground && targetPaths.length === 1 && stockOn('photo-studio') && isImageExt((targetPaths[0].split('.').pop() || '').toLowerCase()) && (
+        <ContextMenuItem
+          label="Edit in Photo Studio"
+          iconVerb="picture_ui"
+          onClick={() => {
+            dispatchOpenPhotoStudio(targetPaths[0]);
+            onClose();
+          }}
+        />
       )}
 
       {!isBackground && targetPaths.length > 0 && stockOn('spatial-pin') && (

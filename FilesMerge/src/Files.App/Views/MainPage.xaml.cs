@@ -467,7 +467,31 @@ namespace Files.App.Views
 						?? SidebarAdaptiveViewModel.PaneHolder?.ActivePaneOrColumn;
 					var svm = shell?.ShellViewModel;
 					if (svm is null)
+					{
+						// Shell may not be wired yet when BNDZUI boots — retry shortly.
+						var retry = DispatcherQueue.CreateTimer();
+						retry.Interval = TimeSpan.FromMilliseconds(250);
+						var attempts = 0;
+						retry.Tick += (_, _) =>
+						{
+							attempts++;
+							retry.Stop();
+							if (attempts > 12)
+								return;
+							WireShellListingPush();
+							var laterShell = ContentPageContext.ShellPage
+								?? SidebarAdaptiveViewModel.PaneHolder?.ActivePaneOrColumn;
+							var laterSvm = laterShell?.ShellViewModel;
+							if (laterSvm is null)
+							{
+								retry.Start();
+								return;
+							}
+							_ = HandleBndzRequestDirListingAsync(path);
+						};
+						retry.Start();
 						return;
+					}
 
 					if (!string.IsNullOrWhiteSpace(path))
 					{
