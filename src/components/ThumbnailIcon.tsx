@@ -36,17 +36,20 @@ function entityExt(entity: FSEntity): string {
 /** Request native icons at display resolution — avoids upscaling tiny 16px shell glyphs in grid. */
 function iconRequestPx(displaySize: number): number {
   const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1;
-  const largeTile = displaySize >= 80;
+  const largeTile = displaySize >= 72;
+  const heroTile = displaySize >= 120;
   const mediumTile = displaySize >= 48;
-  const boost = largeTile ? 1.4 : mediumTile ? 1.2 : 1;
+  const boost = heroTile ? 1.65 : largeTile ? 1.45 : mediumTile ? 1.22 : 1;
   const want = Math.ceil(displaySize * dpr * boost);
   const listPx = getRuntimeListThumbPx();
   const hiPx = getRuntimeHiResThumbPx();
-  const floor = largeTile
-    ? Math.max(96, Math.ceil(displaySize * 1.1))
-    : mediumTile
-      ? Math.max(48, displaySize)
-      : Math.max(listPx, displaySize);
+  const floor = heroTile
+    ? Math.max(128, Math.ceil(displaySize * 1.25))
+    : largeTile
+      ? Math.max(96, Math.ceil(displaySize * 1.12))
+      : mediumTile
+        ? Math.max(48, displaySize)
+        : Math.max(listPx, displaySize);
   return Math.min(256, Math.max(floor, want, hiPx, listPx));
 }
 
@@ -245,7 +248,7 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
   return (
     <div
       ref={containerRef}
-      className={`${showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}${size >= 72 ? ' bndz-list-thumb--hero' : ''}`}
+      className={`${showFilm && hasRealThumb ? 'bndz-list-thumb bndz-list-thumb--film' : 'bndz-list-thumb'}${size >= 64 ? ' bndz-list-thumb--hero' : ''}`}
       data-thumb-transparency={String(config.thumbnailTransparency || 'Neutral')}
       style={{
         width: size,

@@ -10,5 +10,10 @@
     <PackageVersion Include="Vanara.Windows.Shell" Version="5.0.5" />
     <PackageVersion Include="CommunityToolkit.WinUI" Version="8.2.250402" />
     <PackageVersion Include="CommunityToolkit.WinUI.Extensions" Version="8.2.250402" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls" Version="8.2.250402" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Behaviors" Version="8.2.250402" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Animations" Version="8.2.250402" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Helpers" Version="8.2.250402" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Media" Version="8.2.250402" />
   </ItemGroup>
 </Project>

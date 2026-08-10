@@ -124,6 +124,7 @@ import { isRealityCheckActive, isRealityCheckMissing, subscribeRealityCheck } fr
 import { mergeDirEntryChunks } from '../lib/dirListingStream';
 import { applyFsEventsToListing } from '../lib/fsListingPatch';
 import { classifyListPointerDown } from '../lib/listGestureHit';
+import { runWebViewPrimaryAction } from '../lib/webViewClick';
 import { markScrolling as markIconQueueScrolling, getIconQueueDepth } from '../lib/iconRequestQueue';
 import { getLocationEntityFromPath, getLocationIconPath } from '../lib/virtualLocations';
 import BottomPluginPanel from './BottomPluginPanel';
@@ -8819,10 +8820,13 @@ export default function BNDZUI() {
     const compactRowHeight = settingsRt.ui.rowHeight;
     const listFontPx = readSettingNumber(config, 'listFontSize', 0)
       || (typeof document !== 'undefined' && document.documentElement.dataset.bndzShell === 'native-host' ? 14 : 13);
-    // Row height follows Appearance density + list font (Settings → Fonts / Appearance).
-    const detailsRowHeight = isNeutralDefault
-      ? Math.max(compactRowHeight, Math.ceil(listFontPx * 2.1) + 2)
-      : detailsMetrics.rowHeight;
+    const configuredRowH = readSettingNumber(config, 'rowHeight', 0);
+    // Row height follows Appearance density + list font (Settings → Appearance).
+    const detailsRowHeight = configuredRowH > 0
+      ? configuredRowH
+      : isNeutralDefault
+        ? Math.max(compactRowHeight, Math.ceil(listFontPx * 1.85) + 4)
+        : detailsMetrics.rowHeight;
     const detailsIconSize = isNeutralDefault ? 14 : detailsMetrics.icon;
     const detailsIconColClass = isNeutralDefault ? 'w-5' : detailsMetrics.iconColClass;
     const detailsPadY = isNeutralDefault
@@ -9769,19 +9773,19 @@ export default function BNDZUI() {
             {/* Views · Group · size slider · Filter — packed tight (no mid-bar gutter). */}
             <div className="bndz-list-views-cluster flex items-center shrink-0 gap-1 ml-0.5 mr-0.5 min-w-0">
             <div className="flex bg-[#222] border border-[#444] rounded-[var(--bndz-radius-sm)] items-center p-[2px] text-[11px] shrink-0 gap-[2px]">
-                 <button onClick={() => setViewMode('details', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--details w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'details' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Details View (click again for default)">
+                 <button onMouseDown={e => runWebViewPrimaryAction(e, () => setViewMode('details', pane.id))} className={`bndz-view-mode-btn bndz-view-mode-btn--details w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'details' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Details View (click again for default)">
                      <img src={launcherIconUrl('view_details')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
-                 <button onClick={() => setViewMode('grid', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--grid w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'grid' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Grid View (click again for default)">
+                 <button onMouseDown={e => runWebViewPrimaryAction(e, () => setViewMode('grid', pane.id))} className={`bndz-view-mode-btn bndz-view-mode-btn--grid w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'grid' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Grid View (click again for default)">
                      <img src={launcherIconUrl('view_grid')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
-                 <button onClick={() => setViewMode('list', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--list w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'list' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="List View (click again for default)">
+                 <button onMouseDown={e => runWebViewPrimaryAction(e, () => setViewMode('list', pane.id))} className={`bndz-view-mode-btn bndz-view-mode-btn--list w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'list' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="List View (click again for default)">
                      <img src={launcherIconUrl('view_list')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
-                 <button onClick={() => setViewMode('columns', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--columns w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'columns' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Columns View (click again for default)">
+                 <button onMouseDown={e => runWebViewPrimaryAction(e, () => setViewMode('columns', pane.id))} className={`bndz-view-mode-btn bndz-view-mode-btn--columns w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'columns' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Columns View (click again for default)">
                      <img src={launcherIconUrl('view_columns')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
-                 <button onClick={() => setViewMode('size', pane.id)} className={`bndz-view-mode-btn bndz-view-mode-btn--size w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'size' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Size map">
+                 <button onMouseDown={e => runWebViewPrimaryAction(e, () => setViewMode('size', pane.id))} className={`bndz-view-mode-btn bndz-view-mode-btn--size w-6 h-6 flex items-center justify-center ${currentTab.viewMode === 'size' ? 'bndz-view-mode-btn--active' : 'text-gray-300 hover:bg-[#333]'}`} title="Size map">
                      <img src={launcherIconUrl('folder_size_sync')} alt="" className="w-3 h-3 object-contain pointer-events-none" draggable={false} />
                  </button>
             </div>

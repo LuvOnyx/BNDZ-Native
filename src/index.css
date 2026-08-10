@@ -3685,6 +3685,28 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: none;
 }
 
+/* Large grid/list tiles — Files-style icon wells when zoomed in */
+.bndz-list-thumb--hero {
+  border-radius: 10px;
+  padding: 5px;
+  background:
+    linear-gradient(155deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.2) 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 8px 18px rgba(0,0,0,0.24);
+}
+.bndz-view-grid .bndz-grid-icon-well:has(.bndz-list-thumb--hero),
+.bndz-view-list .bndz-list-icon-well:has(.bndz-list-thumb--hero) {
+  border-radius: 12px;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.015) 50%, rgba(0,0,0,0.18) 100%);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
+}
+.bndz-list-thumb--hero img,
+.bndz-list-thumb--hero canvas {
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.32));
+}
+
 .bndz-view-grid.bndz-tile--dense {
   background: transparent !important;
   border-color: transparent !important;
@@ -13799,8 +13821,9 @@ html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row-trace {
 }
 html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-label,
 html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-label {
-  font-size: 13.5px !important;
-  font-weight: 560;
+  font-size: var(--bndz-font-tree-size, 13.5px) !important;
+  font-weight: var(--bndz-font-tree-weight, 560);
+  line-height: var(--bndz-font-tree-line-height, 1.35);
 }
 html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row-selected,
 html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row-selected,

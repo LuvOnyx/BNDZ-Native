@@ -31,6 +31,11 @@
     <PackageReference Include="Vanara.Windows.Shell" />
     <PackageReference Include="CommunityToolkit.WinUI" />
     <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls" />
+    <PackageReference Include="CommunityToolkit.WinUI.Behaviors" />
+    <PackageReference Include="CommunityToolkit.WinUI.Animations" />
+    <PackageReference Include="CommunityToolkit.WinUI.Helpers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Media" />
   </ItemGroup>
 
   <ItemGroup>

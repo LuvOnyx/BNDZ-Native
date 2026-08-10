@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { DragHandleGlyph } from './Icons8Icon';
+import { runWebViewPrimaryAction } from '../lib/webViewClick';
 import {
   getColumnStyle,
   type ListColumnDef,
@@ -140,11 +141,23 @@ function SortableColumnHeader({
       >
         <DragHandleGlyph size={10} />
       </div>
-      <span className="bndz-list-col-header-label">{col.label}</span>
+      <span
+        className="bndz-list-col-header-label"
+        onMouseDown={e => {
+          if (!col.sortable) return;
+          runWebViewPrimaryAction(e, () => onToggleSort(col.id as SortColumnId));
+        }}
+      >
+        {col.label}
+      </span>
       {isActiveSort && (
         <span
           className={`bndz-list-sort-caret ${sortDirection === 'asc' ? 'bndz-list-sort-caret--asc' : 'bndz-list-sort-caret--desc'}`}
           aria-hidden
+          onMouseDown={e => {
+            if (!col.sortable) return;
+            runWebViewPrimaryAction(e, () => onToggleSort(col.id as SortColumnId));
+          }}
         />
       )}
       {!isActiveSort && showSecondaryCaret && (
