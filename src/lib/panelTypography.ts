@@ -75,13 +75,13 @@ export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelF
     && document.documentElement.dataset.bndzShell === 'native-host';
 
   const zoneDefaults: Record<PanelFontZone, { size: number; weight: number; lineHeight: number }> = {
-    list: { size: isNativeHost ? 14 : 13, weight: baseWeight, lineHeight: 1.35 },
+    list: { size: isNativeHost ? 13.5 : 13, weight: baseWeight, lineHeight: 1.32 },
     tabs: { size: readSettingNumber(config, 'tabFontSize', 11) || 11, weight: baseWeight, lineHeight: 1.25 },
     preview: { size: 12, weight: baseWeight, lineHeight: 1.4 },
     bottom: { size: 12, weight: baseWeight, lineHeight: 1.35 },
     status: { size: 11, weight: baseWeight, lineHeight: 1.25 },
     chrome: { size: baseSize, weight: baseWeight, lineHeight: 1.3 },
-    tree: { size: isNativeHost ? 13.5 : 12.5, weight: baseWeight, lineHeight: 1.35 },
+    tree: { size: isNativeHost ? 13 : 12.5, weight: baseWeight, lineHeight: 1.35 },
   };
 
   const zoneDef = zoneDefaults[zone];

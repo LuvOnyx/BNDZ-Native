@@ -430,6 +430,24 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     setBoardList(await listSpatialBoards());
   }, []);
 
+  useEffect(() => {
+    if (!showBoardPicker) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.('.bndz-spatial-board-picker, [data-spatial-board-trigger]')) return;
+      setShowBoardPicker(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowBoardPicker(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [showBoardPicker]);
+
   const switchBoard = useCallback(async (boardId: string) => {
     await flushAutosave(true);
     const d = sanitizePinDisplayNames(await switchSpatialBoard(boardId));
@@ -1325,6 +1343,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const rx = Math.max(m.x1, m.x2);
     const ry = Math.max(m.y1, m.y2);
     el.style.display = 'block';
+    el.classList.toggle('is-additive', !!marqueeRef.current.additive);
     el.style.left = `${t.panX + lx * t.zoom}px`;
     el.style.top = `${t.panY + ly * t.zoom}px`;
     el.style.width = `${Math.max(1, (rx - lx) * t.zoom)}px`;
@@ -1804,6 +1823,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
               />
               <button
                 type="button"
+                data-spatial-board-trigger
                 className="bndz-ws-pill bndz-ws-pill--spatial"
                 onClick={() => { void refreshBoards(); setShowBoardPicker(v => !v); }}
                 title="Switch board"

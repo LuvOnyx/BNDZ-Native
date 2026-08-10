@@ -291,6 +291,7 @@ import {
   resolveSortDirection,
 } from '../lib/settingsRuntime';
 import { buildFileOpsRuntime, readSettingNumber } from '../lib/settingsWiring';
+import { resolvePanelFont } from '../lib/panelTypography';
 import {
   getTabLimitBehavior,
   getListIxBehavior,
@@ -8818,15 +8819,15 @@ export default function BNDZUI() {
     const isNeutralDefault = currentTab.viewMode === undefined;
     const computedViewMode = currentTab.viewMode || 'details';
     const compactRowHeight = settingsRt.ui.rowHeight;
-    const listFontPx = readSettingNumber(config, 'listFontSize', 0)
-      || (typeof document !== 'undefined' && document.documentElement.dataset.bndzShell === 'native-host' ? 14 : 13);
+    const listFontPx = resolvePanelFont(config, 'list').size;
     const configuredRowH = readSettingNumber(config, 'rowHeight', 0);
-    // Row height follows Appearance density + list font (Settings → Appearance).
+    // Settings → Fonts → List row height is authoritative when set; auto path stays snug.
+    const autoRowH = Math.max(24, Math.min(30, Math.ceil(listFontPx * 1.68) + 2));
     const detailsRowHeight = configuredRowH > 0
       ? configuredRowH
       : isNeutralDefault
-        ? Math.max(compactRowHeight, Math.ceil(listFontPx * 1.85) + 4)
-        : detailsMetrics.rowHeight;
+        ? Math.max(compactRowHeight, autoRowH)
+        : Math.max(detailsMetrics.rowHeight, autoRowH);
     const detailsIconSize = isNeutralDefault ? 14 : detailsMetrics.icon;
     const detailsIconColClass = isNeutralDefault ? 'w-5' : detailsMetrics.iconColClass;
     const detailsPadY = isNeutralDefault

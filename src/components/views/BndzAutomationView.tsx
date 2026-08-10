@@ -920,8 +920,8 @@ export default function BndzAutomationView() {
     const target = nodesRef.current.find(n => n.id === nodeId);
     const rf = rfInstanceRef.current;
     if (target && rf) {
-      const w = (target.measured?.width ?? 220);
-      const h = (target.measured?.height ?? 120);
+      const w = (target.measured?.width ?? 280);
+      const h = (target.measured?.height ?? 190);
       void rf.setCenter(target.position.x + w / 2, target.position.y + h / 2, { zoom: Math.max(rf.getZoom(), 1), duration: 320 });
     }
   }, [setNodes]);

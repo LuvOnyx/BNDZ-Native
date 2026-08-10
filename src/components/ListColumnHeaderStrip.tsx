@@ -17,7 +17,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { DragHandleGlyph } from './Icons8Icon';
-import { runWebViewPrimaryAction } from '../lib/webViewClick';
 import {
   getColumnStyle,
   type ListColumnDef,
@@ -127,6 +126,8 @@ function SortableColumnHeader({
         if (!press || press.pointerId !== e.pointerId) return;
         if (press.moved) return;
         if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4) return;
+        if (isChromeTarget(e.target)) return;
+        // WebView2-safe: one sort toggle on pointerup (do not also use mousedown — doubles cancel).
         e.preventDefault();
         e.stopPropagation();
         onToggleSort(col.id as SortColumnId);
@@ -141,23 +142,11 @@ function SortableColumnHeader({
       >
         <DragHandleGlyph size={10} />
       </div>
-      <span
-        className="bndz-list-col-header-label"
-        onMouseDown={e => {
-          if (!col.sortable) return;
-          runWebViewPrimaryAction(e, () => onToggleSort(col.id as SortColumnId));
-        }}
-      >
-        {col.label}
-      </span>
+      <span className="bndz-list-col-header-label">{col.label}</span>
       {isActiveSort && (
         <span
           className={`bndz-list-sort-caret ${sortDirection === 'asc' ? 'bndz-list-sort-caret--asc' : 'bndz-list-sort-caret--desc'}`}
           aria-hidden
-          onMouseDown={e => {
-            if (!col.sortable) return;
-            runWebViewPrimaryAction(e, () => onToggleSort(col.id as SortColumnId));
-          }}
         />
       )}
       {!isActiveSort && showSecondaryCaret && (

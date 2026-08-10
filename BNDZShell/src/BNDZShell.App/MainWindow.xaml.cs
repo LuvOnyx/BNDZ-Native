@@ -12,8 +12,8 @@ namespace BNDZShell;
 
 public sealed partial class MainWindow : Window
 {
-    private const int MinWindowWidth = 416;
-    private const int MinWindowHeight = 316;
+    private const int MinWindowWidth = 960;
+    private const int MinWindowHeight = 640;
 
     private AppWindow? _appWindow;
     private IntPtr _hwnd;
@@ -118,7 +118,7 @@ public sealed partial class MainWindow : Window
             _hwnd = WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
-            _appWindow.Resize(new Windows.Graphics.SizeInt32(1920, 1080));
+            _appWindow.Resize(new Windows.Graphics.SizeInt32(1920, 1200));
             if (_appWindow.Presenter is OverlappedPresenter overlapped)
             {
                 overlapped.PreferredMinimumWidth = MinWindowWidth;

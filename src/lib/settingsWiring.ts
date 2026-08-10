@@ -213,7 +213,7 @@ export function buildUiRuntime(config: AppConfig) {
     fontFamilyMono: readSettingString(config, 'uiFontFamilyMono', 'Cascadia Code, Consolas, monospace'),
     tabFontSize: readSettingNumber(config, 'tabFontSize', 11),
     tabBarHeight: readSettingNumber(config, 'tabBarHeight', 28),
-    rowHeight: readSettingNumber(config, 'rowHeight', 22),
+    rowHeight: readSettingNumber(config, 'rowHeight', 26),
     showMenubar: readSettingBool(config, 'showTopMenubar', true)
       && readSettingBool(config, 'showTopMenuBar', true),
     showToolbar: readSettingBool(config, 'showToolbar', true),

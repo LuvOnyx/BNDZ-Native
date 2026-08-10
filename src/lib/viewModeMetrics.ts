@@ -161,18 +161,26 @@ export function listTileMetrics(listIconSize: number) {
   const icon = Math.max(12, Math.min(96, listIconSize));
   const t = (icon - 12) / (96 - 12);
   const dense = icon < 18;
+  const large = icon >= 48;
+  const hero = icon >= 72;
   const rowHeight =
     icon <= 14 ? 24
     : icon <= 18 ? 32
     : icon <= 22 ? 36
     : icon <= 28 ? 40
     : icon <= 40 ? 44
-    : Math.max(48, icon + 8);
-  const tileWidth = dense ? Math.round(120 + t * 40) : Math.round(140 + t * 200);
-  const gap = dense ? 2 : 4;
+    : Math.max(hero ? icon + 16 : 48, icon + 10);
+  const tileWidth = dense
+    ? Math.round(120 + t * 40)
+    : hero
+      ? Math.round(200 + t * 180)
+      : large
+        ? Math.round(170 + t * 160)
+        : Math.round(140 + t * 200);
+  const gap = dense ? 2 : large ? 6 : 4;
   const padY = Math.max(2, Math.round((rowHeight - Math.min(icon, rowHeight - 4)) / 2));
-  const padX = dense ? 6 : 8;
-  const iconSlot = Math.max(16, Math.min(icon + 4, rowHeight - 2));
+  const padX = dense ? 6 : large ? 10 : 8;
+  const iconSlot = Math.max(16, Math.min(icon + (hero ? 8 : 4), rowHeight - 2));
   return {
     icon,
     tileWidth,
@@ -183,5 +191,7 @@ export function listTileMetrics(listIconSize: number) {
     padY,
     padX,
     dense,
+    large,
+    hero,
   };
 }

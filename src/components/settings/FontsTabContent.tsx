@@ -167,10 +167,10 @@ export default function FontsTabContent({ localConfig, updateLocalConfig }: Prop
             <span className="text-[12px] text-[#e0e0e0] w-[140px] shrink-0">List row height</span>
             <select
               className={`${selectClass} w-[120px]`}
-              value={localConfig.rowHeight ?? 22}
+              value={localConfig.rowHeight ?? 26}
               onChange={e => patch({ rowHeight: parseInt(e.target.value, 10) })}
             >
-              {[18, 20, 22, 24, 26, 28, 32].map(n => (
+              {[18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 44].map(n => (
                 <option key={n} value={n}>{n}px</option>
               ))}
             </select>

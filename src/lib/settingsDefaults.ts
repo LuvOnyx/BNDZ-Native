@@ -657,7 +657,7 @@ export const SETTINGS_VALUE_PATCHES: Record<string, string | number | boolean> =
   bottomFontSize: 0,
   statusFontSize: 0,
   chromeFontSize: 0,
-  rowHeight: 22,
+  rowHeight: 26,
   wheelScrollLines: 3,
   previewDelay: 250,
   maximumNumberOfTabs: 50,
