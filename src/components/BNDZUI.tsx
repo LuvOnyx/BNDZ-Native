@@ -289,7 +289,7 @@ import {
   resolveSortColumn,
   resolveSortDirection,
 } from '../lib/settingsRuntime';
-import { buildFileOpsRuntime } from '../lib/settingsWiring';
+import { buildFileOpsRuntime, readSettingNumber } from '../lib/settingsWiring';
 import {
   getTabLimitBehavior,
   getListIxBehavior,
@@ -8817,14 +8817,17 @@ export default function BNDZUI() {
     const isNeutralDefault = currentTab.viewMode === undefined;
     const computedViewMode = currentTab.viewMode || 'details';
     const compactRowHeight = settingsRt.ui.rowHeight;
-    const nativeHostList = isNativeShellHostBoot();
-    // Neutral default is a fixed compact layout (no slider). Explicit Details uses detailsIconSize.
-    const detailsRowHeight = nativeHostList
-      ? 38
-      : (isNeutralDefault ? compactRowHeight : detailsMetrics.rowHeight);
-    const detailsIconSize = isNeutralDefault ? (nativeHostList ? 16 : 14) : detailsMetrics.icon;
-    const detailsIconColClass = isNeutralDefault ? (nativeHostList ? 'w-6' : 'w-5') : detailsMetrics.iconColClass;
-    const detailsPadY = nativeHostList ? 5 : (isNeutralDefault ? 1 : detailsMetrics.padY);
+    const listFontPx = readSettingNumber(config, 'listFontSize', 0)
+      || (typeof document !== 'undefined' && document.documentElement.dataset.bndzShell === 'native-host' ? 14 : 13);
+    // Row height follows Appearance density + list font (Settings → Fonts / Appearance).
+    const detailsRowHeight = isNeutralDefault
+      ? Math.max(compactRowHeight, Math.ceil(listFontPx * 2.1) + 2)
+      : detailsMetrics.rowHeight;
+    const detailsIconSize = isNeutralDefault ? 14 : detailsMetrics.icon;
+    const detailsIconColClass = isNeutralDefault ? 'w-5' : detailsMetrics.iconColClass;
+    const detailsPadY = isNeutralDefault
+      ? Math.max(2, Math.floor((detailsRowHeight - detailsIconSize) / 2))
+      : detailsMetrics.padY;
     const listRt = settingsRt.list;
     const panePath = currentTab.path;
     const isFindingTabActive = isFindingTab(currentTab);

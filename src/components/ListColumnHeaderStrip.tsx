@@ -65,7 +65,7 @@ function SortableColumnHeader({
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: col.id,
   });
-  const pressRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const pressRef = React.useRef<{ x: number; y: number; moved: boolean; pointerId: number } | null>(null);
 
   // Translate only — never scale. Scale is what made the bars look deformed.
   const style: React.CSSProperties = {
@@ -97,6 +97,11 @@ function SortableColumnHeader({
     onStartResize(col.id, e.clientX, header);
   };
 
+  const isChromeTarget = (target: EventTarget | null) => {
+    const el = target as HTMLElement | null;
+    return !!el?.closest?.('.bndz-col-resize-handle, .bndz-col-reorder-grip');
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -104,23 +109,28 @@ function SortableColumnHeader({
       className={`bndz-list-col-header group/col ${lockedWidth ? 'shrink-0' : (col.widthClass || 'shrink-0')} ${col.sortable ? 'bndz-list-col-header--sortable' : ''} ${isActiveSort ? 'bndz-list-col-header--active' : ''} ${col.align === 'right' ? 'bndz-list-col-header--right' : ''} ${isDragging ? 'bndz-list-col-header--dragging' : ''}`}
       data-col-id={col.id}
       {...attributes}
-      onMouseDown={e => {
-        if ((e.target as HTMLElement).closest('.bndz-col-resize-handle')) return;
-        if ((e.target as HTMLElement).closest('.bndz-col-reorder-grip')) return;
-        pressRef.current = { x: e.clientX, y: e.clientY, moved: false };
+      onPointerDown={e => {
+        if (e.button !== 0) return;
+        if (isChromeTarget(e.target)) return;
+        pressRef.current = { x: e.clientX, y: e.clientY, moved: false, pointerId: e.pointerId };
       }}
-      onMouseMove={e => {
+      onPointerMove={e => {
         const press = pressRef.current;
-        if (!press) return;
+        if (!press || press.pointerId !== e.pointerId) return;
         if (Math.abs(e.clientX - press.x) > 3 || Math.abs(e.clientY - press.y) > 3) press.moved = true;
       }}
-      onClick={() => {
+      onPointerUp={e => {
         if (!col.sortable) return;
         const press = pressRef.current;
         pressRef.current = null;
-        if (press?.moved) return;
+        if (!press || press.pointerId !== e.pointerId) return;
+        if (press.moved) return;
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4) return;
+        e.preventDefault();
+        e.stopPropagation();
         onToggleSort(col.id as SortColumnId);
       }}
+      onPointerCancel={() => { pressRef.current = null; }}
     >
       <div
         ref={setActivatorNodeRef}

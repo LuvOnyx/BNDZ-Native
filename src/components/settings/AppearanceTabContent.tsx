@@ -28,6 +28,9 @@ import { SIZE_BAR_STYLE_OPTIONS, type SizeBarStyle, SizeBar } from '../SizeBar';
 import { applySettingsRuntime } from '../../lib/settingsRuntime';
 import type { AppConfig } from '../../data/configContext';
 
+const FONT_SIZE_OPTIONS = [0, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22];
+const ROW_HEIGHT_OPTIONS = [0, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 44, 48];
+
 type Props = {
   localConfig: AppConfig;
   updateLocalConfig: (patch: Partial<AppConfig>) => void;
@@ -243,6 +246,54 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
             </span>
           </span>
         </label>
+      </SettingsSection>
+
+      <SettingsSection title="Typography (list & tree)">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">List font size</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Details / list view text</div>
+          </div>
+          <select
+            className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-[#0078d4]/45"
+            value={localConfig.listFontSize ?? 0}
+            onChange={e => patch({ listFontSize: parseInt(e.target.value, 10) })}
+          >
+            {FONT_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>{n === 0 ? 'Default (zone preset)' : `${n}px`}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Tree font size</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Sidebar tree, Rapid access, Cloud</div>
+          </div>
+          <select
+            className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-[#0078d4]/45"
+            value={localConfig.treeFontSize ?? 0}
+            onChange={e => patch({ treeFontSize: parseInt(e.target.value, 10) })}
+          >
+            {FONT_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>{n === 0 ? 'Default (zone preset)' : `${n}px`}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">List row height</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Overrides density when set</div>
+          </div>
+          <select
+            className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-[#0078d4]/45"
+            value={localConfig.rowHeight ?? 0}
+            onChange={e => patch({ rowHeight: parseInt(e.target.value, 10) })}
+          >
+            {ROW_HEIGHT_OPTIONS.map(n => (
+              <option key={n} value={n}>{n === 0 ? 'From density preset' : `${n}px`}</option>
+            ))}
+          </select>
+        </div>
       </SettingsSection>
 
       <SettingsSection title="Layout density">

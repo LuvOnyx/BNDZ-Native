@@ -13683,44 +13683,57 @@ html[data-bndz-shell="native-host"] .bndz-native-list-slot {
   background: transparent !important;
 }
 
-/* Readable list density — soft squircle rows, not crushed type */
+/* Native WinUI list overlay is not used over full-window WebView2 (HWND airspace).
+   Typography + row height come from Settings → Appearance / Fonts (CSS vars). */
 html[data-bndz-shell="native-host"] {
-  --bndz-font-list-size: 15px;
-  --bndz-density-row: 38px;
   --bndz-list-density: 1;
-  --bndz-font-tree-size: 14px;
-  font-size: 15px;
 }
 html[data-bndz-shell="native-host"] .bndz-list-name,
 html[data-bndz-shell="native-host"] .bndz-list-select-cell {
-  font-size: var(--bndz-font-list-size, 14px) !important;
+  font-size: var(--bndz-font-list-size, 13px) !important;
   letter-spacing: 0.01em;
-  line-height: 1.35;
+  line-height: var(--bndz-font-list-line-height, 1.35);
 }
 html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-select-cell,
 html[data-bndz-shell="native-host"] .bndz-view-details [data-col-id] {
-  font-size: var(--bndz-font-list-size, 15px) !important;
+  font-size: var(--bndz-font-list-size, 13px) !important;
   font-family: var(--bndz-font-list-family, var(--bndz-font-family));
-  line-height: 1.35;
+  line-height: var(--bndz-font-list-line-height, 1.35);
 }
 html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-col-muted,
 html[data-bndz-shell="native-host"] .bndz-view-details .bndz-detail-col-muted {
-  font-size: calc(var(--bndz-font-list-size, 15px) - 1px) !important;
+  font-size: calc(var(--bndz-font-list-size, 13px) - 1px) !important;
   opacity: 0.92;
 }
 html[data-bndz-shell="native-host"] .fs-list-item.bndz-view-details {
-  font-size: var(--bndz-font-list-size, 15px);
-  min-height: var(--bndz-density-row, 38px);
-  line-height: 1.35;
+  font-size: var(--bndz-font-list-size, 13px);
+  min-height: var(--bndz-density-row, 24px);
+  line-height: var(--bndz-font-list-line-height, 1.35);
 }
 html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-select-cell,
 html[data-bndz-shell="native-host"] .bndz-view-details [data-col-id] {
-  line-height: 1.35;
   padding-top: 1px;
   padding-bottom: 1px;
 }
-html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-name {
-  line-height: 1.35;
+/* Large grid/list tiles — Files-style icon wells at max zoom */
+html[data-bndz-shell="native-host"] .bndz-list-thumb--hero {
+  border-radius: 10px;
+  padding: 6px;
+  background:
+    linear-gradient(155deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.22) 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 10px 22px rgba(0,0,0,0.28);
+}
+html[data-bndz-shell="native-host"] .bndz-view-grid .bndz-grid-icon-well {
+  border-radius: 12px;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.015) 50%, rgba(0,0,0,0.2) 100%);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
+}
+html[data-bndz-shell="native-host"] .bndz-view-grid .bndz-list-thumb--hero img,
+html[data-bndz-shell="native-host"] .bndz-view-list .bndz-list-thumb--hero img {
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.35));
 }
 html[data-bndz-shell="native-host"] .bndz-drive-card {
   border-radius: 10px;
@@ -13817,9 +13830,9 @@ html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .sidebar-pin-row 
 }
 html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .bndz-sidebar-pin-label,
 html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .bndz-sidebar-pin-label {
-  font-size: 13.5px !important;
-  font-weight: 560;
-  line-height: 1.35;
+  font-size: var(--bndz-font-tree-size, 13.5px) !important;
+  font-weight: var(--bndz-font-tree-weight, 560);
+  line-height: var(--bndz-font-tree-line-height, 1.35);
   letter-spacing: 0.01em;
 }
 html[data-bndz-shell="native-host"] .bndz-sidebar-section-header span {

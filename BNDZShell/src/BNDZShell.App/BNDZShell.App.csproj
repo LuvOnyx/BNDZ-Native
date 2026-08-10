@@ -29,6 +29,8 @@
     <PackageReference Include="Microsoft.Web.WebView2" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Vanara.Windows.Shell" />
+    <PackageReference Include="CommunityToolkit.WinUI" />
+    <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
   </ItemGroup>
 
   <ItemGroup>

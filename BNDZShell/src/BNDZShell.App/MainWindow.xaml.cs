@@ -5,6 +5,7 @@ using BNDZShell.Bndz;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
 
 namespace BNDZShell;
@@ -117,7 +118,7 @@ public sealed partial class MainWindow : Window
             _hwnd = WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
-            _appWindow.Resize(new Windows.Graphics.SizeInt32(1520, 960));
+            _appWindow.Resize(new Windows.Graphics.SizeInt32(1920, 1080));
             if (_appWindow.Presenter is OverlappedPresenter overlapped)
             {
                 overlapped.PreferredMinimumWidth = MinWindowWidth;
@@ -125,6 +126,14 @@ public sealed partial class MainWindow : Window
             }
 
             ExtendsContentIntoTitleBar = true;
+            try
+            {
+                SystemBackdrop = new MicaBackdrop();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BNDZShell] mica: {ex.Message}");
+            }
             var tb = _appWindow.TitleBar;
             tb.ButtonBackgroundColor = Colors.Transparent;
             tb.ButtonInactiveBackgroundColor = Colors.Transparent;
