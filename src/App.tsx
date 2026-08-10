@@ -20,15 +20,26 @@ import LegalAcceptGate from './components/LegalAcceptGate';
 import { readPluginWindowBootFromUrl } from './lib/pluginWindowBoot';
 import { getStartupBehavior } from './lib/settingsBehavior';
 import { applyNativeShellDocumentMark, isNativeShellBoot } from './lib/nativeShellBoot';
+import { applyNativeShellHostDocumentMark } from './lib/nativeShellHostBoot';
 import { applyPaneDocumentMark, readPaneBootFromUrl } from './lib/paneBoot';
 import { applyFilesHostDocumentMark, isFilesHostBoot } from './lib/filesHostBoot';
 
 const PLUGIN_BOOT = readPluginWindowBootFromUrl();
 const PANE_BOOT = readPaneBootFromUrl();
 const FILES_HOST = isFilesHostBoot();
+const CRAFT_ISLAND =
+  PANE_BOOT?.pane === 'chrome' || PANE_BOOT?.pane === 'sidebar' ? PANE_BOOT.pane : null;
 applyNativeShellDocumentMark();
+applyNativeShellHostDocumentMark();
 applyPaneDocumentMark(PANE_BOOT);
 applyFilesHostDocumentMark();
+if (CRAFT_ISLAND) {
+  try {
+    document.documentElement.dataset.bndzIsland = CRAFT_ISLAND;
+    document.documentElement.dataset.bndzShell = 'native-host';
+    document.body?.classList.add('bndz-native-host-body');
+  } catch { /* ignore */ }
+}
 
 function LaunchSplashGate({ onDone }: { onDone: () => void }) {
   const { config } = useAppConfig();
@@ -67,6 +78,25 @@ export default function App() {
           <PluginPopoutShell initial={PLUGIN_BOOT} />
           <ToastHost />
         </PluginRegistryProvider>
+      </ConfigProvider>
+    );
+  }
+
+  if (CRAFT_ISLAND) {
+    return (
+      <ConfigProvider>
+        <ClipboardProvider>
+          <PluginRegistryProvider>
+            <ModalProvider>
+              <AiModelGateProvider>
+                <Suspense fallback={null}>
+                  <BNDZUI />
+                </Suspense>
+                <ToastHost />
+              </AiModelGateProvider>
+            </ModalProvider>
+          </PluginRegistryProvider>
+        </ClipboardProvider>
       </ConfigProvider>
     );
   }

@@ -142,6 +142,7 @@ type AutomationFlowPaneProps = {
   onNodeDragStart: (e: React.MouseEvent, node: Node) => void;
   onNodeDragStop: () => void;
   onNodeClick: (e: React.MouseEvent, node: Node) => void;
+  onNodePress: (nodeId: string) => void;
   onPaneClick: () => void;
   onViewportMoveEnd: (event: MouseEvent | TouchEvent | null, viewport: Viewport) => void;
   loadRecipe: (id: string) => void;
@@ -166,12 +167,24 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
   onNodeDragStart,
   onNodeDragStop,
   onNodeClick,
+  onNodePress,
   onPaneClick,
   onViewportMoveEnd,
   loadRecipe,
 }: AutomationFlowPaneProps) {
   return (
-    <div className="flex-1 min-w-0 relative bndz-automation-canvas-wrap" onContextMenu={e => e.stopPropagation()}>
+    <div
+      className="flex-1 min-w-0 relative bndz-automation-canvas-wrap"
+      onContextMenu={e => e.stopPropagation()}
+      onPointerDownCapture={(e) => {
+        if (e.button !== 0) return;
+        const nodeEl = (e.target as HTMLElement).closest('.react-flow__node[data-id]') as HTMLElement | null;
+        if (!nodeEl) return;
+        const id = nodeEl.getAttribute('data-id');
+        if (!id) return;
+        onNodePress(id);
+      }}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1339,6 +1352,10 @@ export default function BndzAutomationView() {
     applyNodeSelection(node.id, { toggle: false });
   }, [applyNodeSelection]);
 
+  const onNodePress = useCallback((nodeId: string) => {
+    applyNodeSelection(nodeId, { toggle: false });
+  }, [applyNodeSelection]);
+
   const onPaneClick = useCallback(() => {
     if (nodeDraggingRef.current) return;
     if (performance.now() - nodePressStampRef.current < 400) return;
@@ -1637,6 +1654,7 @@ export default function BndzAutomationView() {
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
           onNodeClick={onNodeClick}
+          onNodePress={onNodePress}
           onPaneClick={onPaneClick}
           onViewportMoveEnd={onViewportMoveEnd}
           loadRecipe={loadRecipe}

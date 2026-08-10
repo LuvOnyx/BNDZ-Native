@@ -8,48 +8,48 @@ const TUTORIAL_STEPS = [
   {
     id: 'welcome',
     iconId: 'sparkles_ui',
-    color: '#a475d4',
+    color: '#c026d3',
     title: 'Welcome to BNDZ',
-    body: 'A fast, modern file manager built for Windows. This quick tour highlights the essentials — you can replay it anytime from View → Show tutorial.',
+    body: 'Windows-native file manager with BNDZ craft UI. This short tour covers the surfaces you will use every day — replay anytime from View → Show tutorial.',
   },
   {
     id: 'sidebar',
     iconId: 'category_ui',
     color: '#34d399',
-    title: 'Navigation tree',
-    body: 'Use Home, Gallery, Recycle Bin, Rapid access, This PC, and Network in the sidebar. Pin folders to Rapid access from the right-click menu.',
+    title: 'Navigate',
+    body: 'Drives, Rapid access, Cloud, and the Navigation Tree live in the sidebar. Selected tree rows use the same Files-modern highlight as drive cards.',
     anchor: 'sidebar',
   },
   {
     id: 'search',
     iconId: 'search',
     color: '#fbbf24',
-    title: 'Global search',
-    body: 'Type > followed by a filename in the filter bar for instant Everything-powered search across your PC.',
+    title: 'Find anything',
+    body: 'Type in the filter bar to fuzzy-filter the active folder, or start with > for Everything-powered global search.',
     anchor: 'omnibar',
   },
   {
     id: 'dualpane',
     iconId: 'columns_ui',
-    color: '#0078d4',
-    title: 'Dual pane & views',
-    body: 'Open View → Dual Pane for side-by-side browsing. Switch between Details, Grid, and List views from the toolbar.',
+    color: '#38bdf8',
+    title: 'Workspace & views',
+    body: 'The center list is your browsing surface. Switch Details / Grid / List from the toolbar. Dual pane is under View when you need side-by-side work.',
     anchor: 'workspace',
   },
   {
     id: 'plugins',
     iconId: 'puzzle_ui',
     color: '#c084fc',
-    title: 'Plugins & extensions',
-    body: 'Open the bottom panel for Icon Studio, Fast Search, Storage Cleanup, and more. Use the puzzle icon for the Extension Hub.',
+    title: 'Plugins & Continuum',
+    body: 'Bottom plugins (Properties, Fast Search, Visual Filters) stay docked. Open Continuum from Go → Continuum or Home for the live rail.',
     anchor: 'toolbar',
   },
   {
     id: 'rapid',
     iconId: 'zap_ui',
-    color: '#6dc2b8',
-    title: 'Rapid access',
-    body: 'Right-click any folder and choose Pin to Rapid access. Your pins appear in the sidebar and under Rapid access in the tree.',
+    color: '#f59e0b',
+    title: 'Rapid access & Undo',
+    body: 'Pin folders to Rapid access from the context menu. Undo file operations with Ctrl+Z — the Action Log tracks what can be reversed.',
     anchor: 'sidebar',
   },
 ];
@@ -168,7 +168,15 @@ export default function TutorialOverlay({ forceShow = false, onClose }: Tutorial
     }
     if (config.tutorialNeverShow) return;
     if (config.tutorialCompleted) return;
-    const timer = setTimeout(() => setVisible(true), 900);
+    try {
+      if (localStorage.getItem('bndz-legal-accepted') !== '1') return;
+    } catch { /* ignore */ }
+    // Give Continuum / chrome a beat to settle before the tip fights first paint.
+    let delay = 900;
+    try {
+      if (document.documentElement.dataset.bndzShell === 'native-host') delay = 2800;
+    } catch { /* ignore */ }
+    const timer = setTimeout(() => setVisible(true), delay);
     return () => clearTimeout(timer);
   }, [forceShow, config.tutorialNeverShow, config.tutorialCompleted]);
 

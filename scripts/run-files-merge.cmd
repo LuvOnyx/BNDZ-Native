@@ -2,7 +2,9 @@
 setlocal EnableExtensions
 cd /d "%~dp0.."
 
-REM BNDZ-Native primary shell = FilesMerge WinUI app (FilesDev package).
+REM ARCHIVED: FilesMerge hybrid — use scripts\run-bndz-native.cmd for BNDZ-Native product.
+echo [archived] FilesMerge is reference-only. Primary launcher: scripts\run-bndz-native.cmd
+echo.
 REM MUST be launched as a registered MSIX layout — raw Files.exe crashes instantly
 REM (DeploymentManager REGDB_E_CLASSNOTREG / blank flash then exit).
 

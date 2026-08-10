@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(WindowsTargetFramework)</TargetFramework>
+    <TargetPlatformMinVersion>$(MinimalWindowsVersion)</TargetPlatformMinVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWinUI>true</UseWinUI>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>BNDZShell</AssemblyName>
+    <!-- Unpackaged self-contained: double-click BNDZShell.exe works (no MSIX register required). -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <RootNamespace>BNDZShell</RootNamespace>
+    <ApplicationIcon>..\..\..\BNDZBackend\Assets\BNDZ.ico</ApplicationIcon>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <!-- BNDZCore may carry a WebView2.Core.dll copy; WinUI package also brings one — allow publish. -->
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Vanara.Windows.Shell" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BNDZBackend\BNDZ.csproj" AdditionalProperties="ReferenceAssemblyName=BNDZCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\*.png" />
+    <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Square44x44Logo.scale-*.png" />
+    <Content Include="..\..\..\BNDZBackend\Assets\ui\**\*">
+      <Link>Assets\ui\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Embedded backend is a DLL only — drop WPF WebView2 + stray host exe from output. -->
+  <Target Name="StripEmbeddedBackendArtifacts" AfterTargets="CopyFilesToOutputDirectory">
+    <Delete Files="$(OutputPath)BNDZCore.exe;$(OutputPath)BNDZCore.runtimeconfig.json;$(OutputPath)Microsoft.Web.WebView2.Wpf.dll;$(OutputPath)Microsoft.Web.WebView2.Wpf.xml" ContinueOnError="true" />
+  </Target>
+</Project>

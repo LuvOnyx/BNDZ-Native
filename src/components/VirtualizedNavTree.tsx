@@ -250,8 +250,8 @@ function TreeRow({
 
   const rowEl = (
       <div
-      className={`nav-tree-row group/tree group flex items-center py-[3px] pr-2 cursor-pointer whitespace-nowrap rounded-sm mx-0.5 transition-colors duration-100 ${
-        isSelected ? 'nav-tree-row-selected' : row.pathTrace ? 'nav-tree-row-trace' : 'hover:bg-[#2a2d2e]/90'
+      className={`nav-tree-row group/tree group flex items-center pr-2 cursor-pointer whitespace-nowrap transition-colors duration-100 ${
+        isSelected ? 'nav-tree-row-selected' : row.pathTrace ? 'nav-tree-row-trace' : ''
       } ${row.isPlaceholder ? 'opacity-50 cursor-default italic' : ''} ${isDragging ? 'nav-tree-row-dragging' : ''} ${isFileDropTarget ? 'nav-tree-file-drop-target' : ''} ${treeColorFilter?.className || ''} ${clipboardMark === 'copy' ? 'fs-item-clipboard-copy' : clipboardMark === 'cut' ? 'fs-item-clipboard-cut' : ''}`}
       style={{ paddingLeft: `${indentPx}px`, ...(treeColorFilter?.inlineStyle && !isSelected ? treeColorFilter.inlineStyle : {}) }}
       data-nav-path={row.path || undefined}

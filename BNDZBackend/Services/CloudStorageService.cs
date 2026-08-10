@@ -178,7 +178,7 @@ public class CloudStorageService
 
     // TTL cache — serialises concurrent DriveInfo probes so multiple rapid callers
     // (BNDZ_UI_READY → PushDrivesUpdate, GET_DRIVES, CONTINUUM_FINGERPRINT_REQUEST)
-    // share one in-flight enumeration instead of each running their own 400ms-per-drive probes.
+    // share one in-flight enumeration instead of each running their own probes.
     private static readonly SemaphoreSlim _drivesWorkSemaphore = new(1, 1);
     private static volatile List<object>? _annotatedDrivesCache;
     private static long _annotatedDrivesCacheExpiryTicks = long.MinValue;
@@ -188,28 +188,35 @@ public class CloudStorageService
     /// Never drops a ready volume solely because VolumeLabel/size timed out — that left This PC empty.
     /// Callers are always inside Task.Run; blocking on the semaphore is intentional and safe.
     /// </summary>
-    public List<object> GetAnnotatedDrives()
+    public List<object> GetAnnotatedDrives(bool force = false)
     {
         // Hot path: return fresh cached snapshot without acquiring the semaphore.
-        var cached = _annotatedDrivesCache;
-        if (cached != null && DateTime.UtcNow.Ticks < Volatile.Read(ref _annotatedDrivesCacheExpiryTicks))
-            return cached;
+        if (!force)
+        {
+            var cached = _annotatedDrivesCache;
+            if (cached != null && DateTime.UtcNow.Ticks < Volatile.Read(ref _annotatedDrivesCacheExpiryTicks))
+                return cached;
+        }
 
         // Serialize expensive work so latecomers get the freshly-built result for free.
         _drivesWorkSemaphore.Wait();
         try
         {
-            // Re-check after acquiring — another caller may have already refreshed.
-            cached = _annotatedDrivesCache;
-            if (cached != null && DateTime.UtcNow.Ticks < Volatile.Read(ref _annotatedDrivesCacheExpiryTicks))
-                return cached;
+            if (!force)
+            {
+                var cached = _annotatedDrivesCache;
+                if (cached != null && DateTime.UtcNow.Ticks < Volatile.Read(ref _annotatedDrivesCacheExpiryTicks))
+                    return cached;
+            }
 
-            var result = BuildAnnotatedDrivesCore();
+            var result = BuildAnnotatedDrivesCore(out var anySizeUnavailable);
 
             if (result.Count > 0)
             {
                 _annotatedDrivesCache = result;
-                Volatile.Write(ref _annotatedDrivesCacheExpiryTicks, DateTime.UtcNow.AddSeconds(2.5).Ticks);
+                // Longer TTL once sizes are warm; short TTL when any drive still calculating.
+                var ttl = anySizeUnavailable ? TimeSpan.FromMilliseconds(800) : TimeSpan.FromSeconds(8);
+                Volatile.Write(ref _annotatedDrivesCacheExpiryTicks, DateTime.UtcNow.Add(ttl).Ticks);
             }
             else if (_annotatedDrivesCache is { Count: > 0 })
             {
@@ -225,29 +232,33 @@ public class CloudStorageService
         }
     }
 
-    private List<object> BuildAnnotatedDrivesCore()
+    private List<object> BuildAnnotatedDrivesCore(out bool anySizeUnavailable)
     {
+        anySizeUnavailable = false;
         var dedicated = BuildDedicatedCloudVolumeMap();
-        var list = new List<object>();
 
         DriveInfo[] all;
         try { all = DriveInfo.GetDrives(); }
         catch { all = Array.Empty<DriveInfo>(); }
 
-        foreach (var d in all)
+        var candidates = all
+            .Where(d => d.DriveType is not (DriveType.Unknown or DriveType.NoRootDirectory or DriveType.Network))
+            .ToArray();
+
+        // Parallel per-drive probes — sequential 400ms timeouts made every letter look like 0 B free.
+        var bag = new System.Collections.Concurrent.ConcurrentBag<(int Ordinal, object Row, bool Unavailable)>();
+        Parallel.For(0, candidates.Length, i =>
         {
-            // Skip obvious non-volumes; still include Fixed/Removable/Ram even when IsReady is slow.
-            if (d.DriveType is DriveType.Unknown or DriveType.NoRootDirectory)
-                continue;
-            if (d.DriveType == DriveType.Network)
-                continue; // network letters live under Network tree, not This PC local drives
+            var d = candidates[i];
+            var readyTimeout = d.DriveType is DriveType.Fixed or DriveType.Ram ? 2000 : 900;
+            var metaTimeout = d.DriveType is DriveType.Fixed or DriveType.Ram ? 2500 : 1200;
 
-            var ready = TryDriveReady(d, timeoutMs: 400);
-            // Fixed drives: include even when readiness probe times out (common with GDFS / antivirus).
+            var ready = TryDriveReady(d, timeoutMs: readyTimeout);
             if (!ready && d.DriveType != DriveType.Fixed && d.DriveType != DriveType.Ram)
-                continue;
+                return;
 
-            var hasMeta = TryReadDriveMeta(d, out var label, out var total, out var free, out var format, timeoutMs: 400);
+            var hasMeta = TryReadDriveMeta(d, out var label, out var total, out var free, out var format, timeoutMs: metaTimeout);
+            var sizeUnavailable = !hasMeta || (total <= 0 && free <= 0 && string.IsNullOrWhiteSpace(format));
             if (!hasMeta)
             {
                 label = "";
@@ -256,7 +267,7 @@ public class CloudStorageService
                 format = "";
             }
 
-            var letter = (d.Name.Length >= 2 ? d.Name.Substring(0, 2) : d.Name).ToUpperInvariant(); // "G:"
+            var letter = (d.Name.Length >= 2 ? d.Name.Substring(0, 2) : d.Name).ToUpperInvariant();
             dedicated.TryGetValue(letter, out var cloud);
 
             var googleByLabel = LooksLikeGoogleDriveLabel(label);
@@ -264,22 +275,24 @@ public class CloudStorageService
                 || string.Equals(cloud?.Icon, "gdrive", StringComparison.OrdinalIgnoreCase);
             var isCloudVolume = isGoogle || cloud != null;
 
-            list.Add(new
+            bag.Add((i, new
             {
                 name = "/" + d.Name.Replace("\\", ""),
                 label = string.IsNullOrWhiteSpace(label) ? "Local Disk" : label,
                 totalSpace = total,
                 freeSpace = free,
                 fileSystem = format,
+                sizeUnavailable,
                 isCloudVolume,
                 cloudProvider = isGoogle ? "gdrive" : cloud?.Icon,
                 cloudAccountLabel = isGoogle
                     ? (ExtractEmail(label) ?? cloud?.AccountLabel ?? label)
                     : cloud?.AccountLabel,
-            });
-        }
+            }, sizeUnavailable));
+        });
 
-        return list;
+        anySizeUnavailable = bag.Any(t => t.Unavailable);
+        return bag.OrderBy(t => t.Ordinal).Select(t => t.Row).ToList();
     }
 
     private Dictionary<string, CloudVolumeInfo> BuildDedicatedCloudVolumeMap()

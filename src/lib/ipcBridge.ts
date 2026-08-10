@@ -1514,10 +1514,10 @@ export const IPC = {
     ]);
   },
 
-  getSystemDrives(): Promise<any[]> {
+  getSystemDrives(opts?: { force?: boolean }): Promise<any[]> {
     if (this.isNative) {
       const id = `${Date.now()}_drives`;
-      return _nativeCall<any>('GET_DRIVES', 'DRIVES_RESULT', id)
+      return _nativeCall<any>('GET_DRIVES', 'DRIVES_RESULT', id, opts?.force ? { force: true } : undefined)
         .then(r => (Array.isArray(r) ? r : []))
         .catch(() => []);
     }
@@ -2071,7 +2071,7 @@ export const IPC = {
     if (this.isNative) {
       const norm = normalizePanePath(path);
       const isMesh = norm === '/mesh' || norm.startsWith('/mesh/');
-      const timeoutMs = isMesh ? 90000 : 45000;
+      const timeoutMs = isMesh ? 90000 : 60000;
       return dedupeInFlight(`dir:${norm}`, async () => {
         // Cold start: wait for named-pipe host before the first listing races ConnectAsync failures.
         await this.waitForHostReady(8000);

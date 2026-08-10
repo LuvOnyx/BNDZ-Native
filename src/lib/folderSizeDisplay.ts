@@ -10,7 +10,9 @@ export function formatFolderSizeLabel(
   itemCount?: number | null,
 ): string {
   let base = '';
-  if (cached != null && cached >= 0) base = formatSize(cached);
+  // Backend uses -1 for access-denied / unscannable — never leave a stuck ellipsis.
+  if (cached != null && cached < 0) base = '—';
+  else if (cached != null && cached >= 0) base = formatSize(cached);
   else if (config.showCachedFolderSizesOnly) base = '';
   else if (config.alwaysShowFolderSizes || config.cacheFolderSizes) base = '…';
   else base = '';

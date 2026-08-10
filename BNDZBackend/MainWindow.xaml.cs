@@ -107,11 +107,15 @@ namespace BNDZ
         public MainWindow(FileManagementService fileService, AiAssistantService aiService, LocalAiService localAi, ShellIntegrationService shellIntegrationService)
         {
             InitializeComponent();
-            // Prefer WPF hardware rendering for the host chrome around WebView2 (never force SoftwareOnly).
-            try { System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.Default; } catch { /* ignore */ }
-            // AllowExternalDrop=true: WebView2's own OLE target will be replaced by BNDZ's
-            // native IDropTarget via RegisterWebView2OleDropTarget() after CoreWebView2 init.
-            MainWebView.AllowExternalDrop = true;
+            if (App.IsEmbeddedInWinUiShell && Content is System.Windows.Controls.Grid shellRoot)
+            {
+                // WinUI shell owns the only WebView2 — detach WPF control so COM loader is not contested.
+                shellRoot.Children.Remove(MainWebView);
+            }
+            else
+            {
+                MainWebView.AllowExternalDrop = true;
+            }
             _fileService = fileService;
             _aiService = aiService;
             _localAi = localAi;

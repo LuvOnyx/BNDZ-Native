@@ -1,4 +1,4 @@
-/** Boot detection for FilesMerge-hosted React panes (architecture #3). */
+/** Boot detection for FilesMerge / BNDZShell craft pane islands. */
 
 export type BndzPaneKind =
   | 'automation'
@@ -7,7 +7,10 @@ export type BndzPaneKind =
   | 'preview'
   | 'smart-tools'
   | 'marketplace'
-  | 'settings';
+  | 'settings'
+  | 'sidebar'
+  | 'chrome'
+  | 'home';
 
 export type BndzPaneBoot = {
   pane: BndzPaneKind;
@@ -25,6 +28,9 @@ const PANE_KINDS: readonly BndzPaneKind[] = [
   'smart-tools',
   'marketplace',
   'settings',
+  'sidebar',
+  'chrome',
+  'home',
 ];
 
 function isPaneKind(value: string | null): value is BndzPaneKind {
@@ -50,7 +56,10 @@ export function applyPaneDocumentMark(boot: BndzPaneBoot | null): void {
   try {
     if (!boot) return;
     document.documentElement.dataset.bndzPane = boot.pane;
-    document.documentElement.dataset.bndzShell = 'files-pane';
+    const shell = new URLSearchParams(window.location.search).get('nativeShell') === '1'
+      ? 'native-craft'
+      : 'files-pane';
+    document.documentElement.dataset.bndzShell = shell;
     document.body?.classList.add('bndz-native-pane-body');
   } catch {
     /* ignore */
@@ -73,6 +82,12 @@ export function paneTitle(boot: BndzPaneBoot): string {
       return 'Extension Hub';
     case 'settings':
       return 'Configuration';
+    case 'sidebar':
+      return 'Sidebar';
+    case 'chrome':
+      return 'Chrome';
+    case 'home':
+      return 'Home';
     default: {
       const _exhaustive: never = boot.pane;
       return _exhaustive;

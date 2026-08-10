@@ -6,12 +6,14 @@ import {
   type BndzPaneBoot,
   type BndzPaneKind,
 } from '../lib/paneBoot';
+import { isNativeCraftIslandBoot } from '../lib/nativeShellBoot';
 import { routeCommandDeckTool } from '../lib/paneCommandDeck';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
 import BottomPluginPanel from './BottomPluginPanel';
 import BndzAutomationView from './views/BndzAutomationView';
 import BndzSpatialCanvasView from './views/BndzSpatialCanvasView';
+import BndzHomeView from './views/BndzHomeView';
 import RightPreviewPanel from './RightPreviewPanel';
 import CommandDeckShell from '../workstation/command-deck/CommandDeckShell';
 import { deriveSelectionSignature } from '../workstation/selectionSignature';
@@ -21,6 +23,8 @@ import type { FSEntity } from '../types';
 import SmartToolsDialog from './SmartToolsDialog';
 import { PluginStoreDialog } from './PluginStoreDialog';
 import ConfigurationDialog from './ConfigurationDialog';
+import NativeShellSidebar from './native-shell/NativeShellSidebar';
+import NativeShellChrome from './native-shell/NativeShellChrome';
 
 const BndzQuickPreview = lazy(() => import('./preview/BndzQuickPreview'));
 
@@ -46,11 +50,11 @@ function postToHost(type: string, payload: Record<string, unknown>) {
 }
 
 /**
- * FilesMerge-hosted pane shell.
- * Hybrid: Files owns shell geometry; React owns real BNDZ surfaces
- * (plugins dock, preview, Automation, Spatial, Hub, Config).
+ * Craft island shell (BNDZShell native list + React panes).
+ * Native WinUI owns folder browse; React owns Automation, Spatial, plugins, preview.
  */
 export default function BndzPaneShell({ initial }: Props) {
+  const nativeCraft = isNativeCraftIslandBoot();
   const [boot, setBoot] = useState(initial);
   const [ctx, setCtx] = useState<PaneContextMsg>({ path: initial.path });
   const [pathContentsCache, setPathContentsCache] = useState<Record<string, any[]>>({});
@@ -141,6 +145,9 @@ export default function BndzPaneShell({ initial }: Props) {
           if (!path) return;
           setQuickPreview(open ? { open: true, path } : null);
         }
+        if (data.type === 'BNDZ_OPEN_CONTINUUM') {
+          window.dispatchEvent(new CustomEvent('bndz-open-continuum'));
+        }
       } catch {
         /* ignore */
       }
@@ -149,10 +156,11 @@ export default function BndzPaneShell({ initial }: Props) {
     return () => (window as any).chrome?.webview?.removeEventListener('message', onMsg);
   }, []);
 
-  // Folder listing for plugins / preview filmstrip — classic pathContentsCache parity.
+  // Folder listing for preview filmstrip / plugins — native shell uses in-process IPC (not DOM list).
   useEffect(() => {
     const folder = ctx.path;
     if (!folder || !IPC.isNative) return;
+    if (nativeCraft && boot.pane !== 'preview' && boot.pane !== 'plugins') return;
     let cancelled = false;
     void IPC.getDirContents(folder)
       .then((items) => {
@@ -165,7 +173,7 @@ export default function BndzPaneShell({ initial }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [ctx.path]);
+  }, [ctx.path, nativeCraft, boot.pane]);
 
   const installedPluginIds = useMemo(() => {
     const saved = (config as { installedPlugins?: string[] }).installedPlugins;
@@ -252,6 +260,10 @@ export default function BndzPaneShell({ initial }: Props) {
     postToHost('BNDZ_PANE_SWITCH', { pane: 'marketplace' });
   }, []);
 
+  const openWorkspace = useCallback((pane: 'automation' | 'canvas' | 'home' | 'settings') => {
+    postToHost('BNDZ_PANE_SWITCH', { pane });
+  }, []);
+
   const previewEntity: FSEntity | null = useMemo(() => {
     if (!selectedPaths[0]) return null;
     const name = ctx.selectedNames?.[0] || selectedPaths[0].split(/[/\\]/).pop() || selectedPaths[0];
@@ -280,12 +292,14 @@ export default function BndzPaneShell({ initial }: Props) {
 
   const isPluginsDock = boot.pane === 'plugins';
   const isPreviewPane = boot.pane === 'preview';
-  const isWorkspaceTool = boot.pane === 'automation' || boot.pane === 'canvas';
+  const isSidebarPane = boot.pane === 'sidebar';
+  const isChromePane = boot.pane === 'chrome';
+  const isWorkspaceTool = boot.pane === 'automation' || boot.pane === 'canvas' || boot.pane === 'home';
   const isWorkspaceDialog =
     boot.pane === 'smart-tools' || boot.pane === 'marketplace' || boot.pane === 'settings';
   const isWorkspaceContent = isWorkspaceTool || isWorkspaceDialog;
-  // Preview: no BNDZ-NATIVE chrome — Workspace/Details sit at the top edge; flush to host.
-  const isFlushHost = isPluginsDock || isWorkspaceContent || isPreviewPane;
+  // Preview / plugins / split chrome islands: flush to host, no decorative pane header.
+  const isFlushHost = isPluginsDock || isWorkspaceContent || isPreviewPane || isSidebarPane || isChromePane;
 
   let body: React.ReactNode;
   switch (boot.pane) {
@@ -300,6 +314,31 @@ export default function BndzPaneShell({ initial }: Props) {
       body = (
         <div className="bndz-native-pane-surface bndz-native-pane-surface--workspace bndz-native-pane-surface--content-flush">
           <BndzSpatialCanvasView onNavigate={onNavigate} onOpenPath={onNavigate} />
+        </div>
+      );
+      break;
+    case 'home':
+      body = (
+        <div className="bndz-native-pane-surface bndz-native-pane-surface--workspace bndz-native-pane-surface--content-flush">
+          <BndzHomeView onNavigate={onNavigate} onOpenPath={onNavigate} />
+        </div>
+      );
+      break;
+    case 'sidebar':
+      body = (
+        <div className="bndz-native-pane-surface bndz-native-pane-surface--sidebar bndz-native-pane-surface--content-flush">
+          <NativeShellSidebar currentPath={ctx.path} onNavigate={onNavigate} />
+        </div>
+      );
+      break;
+    case 'chrome':
+      body = (
+        <div className="bndz-native-pane-surface bndz-native-pane-surface--chrome bndz-native-pane-surface--content-flush">
+          <NativeShellChrome
+            currentPath={ctx.path}
+            onNavigate={onNavigate}
+            onOpenWorkspace={openWorkspace}
+          />
         </div>
       );
       break;

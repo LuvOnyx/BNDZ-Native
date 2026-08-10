@@ -233,9 +233,15 @@ export default function BndzHomeView({
       setLoading(false);
     }
     refreshDeck(!cached);
+    // Never leave Continuum stuck on "Loading…" if IPC hangs in headless host.
+    const failsafe = window.setTimeout(() => {
+      setLoading(false);
+      setDeckSyncing(false);
+    }, 8000);
     const unsubQ = IPC.onFileTransferQueueChanged(() => refreshDeck(false));
     const unsubG = subscribeGhostTrail(() => setGhost(getGhostTrail()));
     return () => {
+      window.clearTimeout(failsafe);
       unsubQ();
       unsubG();
     };

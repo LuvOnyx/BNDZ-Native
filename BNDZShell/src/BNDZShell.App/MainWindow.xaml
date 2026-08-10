@@ -1,0 +1,13 @@
+<Window
+    x:Class="BNDZShell.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:bndz="using:BNDZShell.Bndz"
+    Title="BNDZ">
+
+    <!-- One cohesive BNDZUI face. Native list overlay stays collapsed (WebView2 HWND airspace). -->
+    <Grid Background="#0C0F14">
+        <bndz:CraftPaneHost x:Name="ChromeHost" Pane="browser" />
+        <bndz:NativeListHost x:Name="NativeList" Visibility="Collapsed" IsHitTestVisible="False" />
+    </Grid>
+</Window>

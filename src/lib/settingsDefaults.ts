@@ -490,7 +490,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   showFilmStripOverlayOnVideoThumbnails: false,
   showFilterInformationInList: false,
   showFilterInformationInTabHeaders: false,
-  showFolderSizeOnPropertiesTab: false,
+  showFolderSizeOnPropertiesTab: true,
   showFolderThumbnails: false,
   showHiddenSystemFoldersInTree: false,
   showHoverBox: false,

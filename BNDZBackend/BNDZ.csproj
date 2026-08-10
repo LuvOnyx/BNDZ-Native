@@ -6,9 +6,11 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>BNDZ</RootNamespace>
-    <AssemblyName>BNDZ</AssemblyName>
+    <AssemblyName Condition="'$(ReferenceAssemblyName)' != ''">$(ReferenceAssemblyName)</AssemblyName>
+    <AssemblyName Condition="'$(ReferenceAssemblyName)' == ''">BNDZ</AssemblyName>
     <ApplicationIcon Condition="Exists('Assets\BNDZ.ico')">Assets\BNDZ.ico</ApplicationIcon>
     <Platforms>AnyCPU</Platforms>
     <Version>1.0.0</Version>
@@ -20,6 +22,41 @@
     <!-- Never compile/copy outputs nested under the project (verify builds, stale -o dirs). -->
     <DefaultItemExcludes>$(DefaultItemExcludes);_build_verify_out\**;_build*\**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(ReferenceAssemblyName)' != ''">
+    <PackageReference Update="Microsoft.Web.WebView2" ExcludeAssets="runtime;native;contentfiles;buildTransitive" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- BNDZShell in-process: library brain only — no WPF Application / MainWindow / App.xaml. -->
+  <PropertyGroup Condition="'$(ReferenceAssemblyName)' != ''">
+    <OutputType>Library</OutputType>
+    <DefineConstants>$(DefineConstants);BNDZ_HEADLESS_CORE</DefineConstants>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(ReferenceAssemblyName)' != ''">
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Remove="MainWindow.xaml" />
+    <Page Remove="**\*.xaml" />
+    <Compile Remove="App.xaml.cs" />
+    <Compile Remove="MainWindow.xaml.cs" />
+    <Compile Remove="Services\BndzFileManagerIpcService.cs" />
+    <Compile Remove="Services\BndzBackendHostIpcService.cs" />
+  </ItemGroup>
+  <!-- Classic WPF product keeps MainWindow brain; headless host is shell-only. -->
+  <ItemGroup Condition="'$(ReferenceAssemblyName)' == ''">
+    <Compile Remove="Services\BndzIpcHost.cs" />
+    <Compile Remove="Services\App.Headless.cs" />
+  </ItemGroup>
+
+  <!-- Headless: strip WebView2 payloads so BNDZShell MSIX does not see duplicate Core.dll. -->
+  <Target Name="StripHeadlessWebView2Outputs" AfterTargets="CopyFilesToOutputDirectory" Condition="'$(ReferenceAssemblyName)' != ''">
+    <ItemGroup>
+      <_Wv2Junk Include="$(OutputPath)Microsoft.Web.WebView2.*.dll" />
+      <_Wv2Junk Include="$(OutputPath)Microsoft.Web.WebView2.*.xml" />
+      <_Wv2Junk Include="$(OutputPath)runtimes\**\WebView2Loader.dll" />
+    </ItemGroup>
+    <Delete Files="@(_Wv2Junk)" ContinueOnError="true" />
+  </Target>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <PublishReadyToRun>true</PublishReadyToRun>

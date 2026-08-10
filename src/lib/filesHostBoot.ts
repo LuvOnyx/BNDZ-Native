@@ -5,7 +5,7 @@
 
 import { toWindowsPath, normalizePanePath } from './pathUtils';
 
-/** True when FilesMerge hosts full classic BNDZUI (`?filesHost=1`). */
+/** True when FilesMerge hosts full classic BNDZUI (`?filesHost=1`). Archived — BNDZ-Native uses native list + craft islands only. */
 export function isFilesHostBoot(): boolean {
   try {
     return new URLSearchParams(window.location.search).get('filesHost') === '1';

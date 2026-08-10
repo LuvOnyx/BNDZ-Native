@@ -21,7 +21,7 @@
     rgba(56, 189, 248, 0.07) 100%
   );
   --plugin-hero-edge: rgba(56, 189, 248, 0.16);
-  /* macOS-inspired glass & radii — cool slate, subtle corners (NOT pills) */
+  /* macOS-inspired glass & radii ? cool slate, subtle corners (NOT pills) */
   --bndz-radius-sm: 5px;
   --bndz-radius-md: 6px;
   --bndz-radius-lg: 8px;
@@ -37,7 +37,7 @@
   --bndz-transfer-accent: #0078d4;
   --bndz-transfer-accent-dim: #094771;
 
-  /* Command Deck — floating island above bottom panel */
+  /* Command Deck ? floating island above bottom panel */
   --command-deck-fill: linear-gradient(165deg, rgba(26, 32, 44, 0.97), rgba(13, 15, 21, 0.99));
   --command-deck-border: rgba(153, 201, 240, 0.28);
   --command-deck-chip-bg: linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(0,0,0,0.18) 100%);
@@ -48,7 +48,7 @@
   --command-deck-aurora-cool: rgba(56, 189, 248, 0.16);
 }
 
-/* ── Flat native surfaces (Explorer-style; no glass blur by default) ── */
+/* ?? Flat native surfaces (Explorer-style; no glass blur by default) ?? */
 .bndz-glass-surface {
   border-radius: var(--bndz-radius-md);
   background: #2b2b2b;
@@ -146,7 +146,7 @@
 }
 
 @layer utilities {
-  /* Themed scrollbars — thumb hidden until hover (auto-hide feel) */
+  /* Themed scrollbars ? thumb hidden until hover (auto-hide feel) */
   .bndz-scrollbar,
   .styled-scrollbar {
     scrollbar-width: thin;
@@ -225,7 +225,7 @@
   }
 
   .nav-tree-scroll {
-    /* Soft fade via padding only — CSS mask-image forces extra compositing on every scroll frame. */
+    /* Soft fade via padding only ? CSS mask-image forces extra compositing on every scroll frame. */
     padding-block: 2px;
     /* Always show a usable scroll thumb in the tree (global styled-scrollbar hides until hover). */
     scrollbar-color: var(--scrollbar-thumb) transparent;
@@ -434,7 +434,7 @@
     filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
   }
 
-  /* Video list thumbs — subtle film-strip rails when enabled in Config */
+  /* Video list thumbs ? subtle film-strip rails when enabled in Config */
   .bndz-list-thumb--film::before,
   .bndz-list-thumb--film::after {
     content: '';
@@ -703,7 +703,7 @@
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   }
 
-  /* ── Instrument strip ─────────────────────────────────── */
+  /* ?? Instrument strip ??????????????????????????????????? */
   .bndz-image-editor-strip {
     flex-shrink: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.09);
@@ -786,7 +786,7 @@
     align-items: stretch;
   }
 
-  /* Icon glyph well — Uiverse-inspired inset button */
+  /* Icon glyph well ? Uiverse-inspired inset button */
   .bndz-image-editor-well {
     display: inline-flex;
     align-items: center;
@@ -1059,7 +1059,7 @@ html.theme-macos-light .status-bar-glow {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-/* Theme-aware chrome — driven by applyThemeCssVars */
+/* Theme-aware chrome ? driven by applyThemeCssVars */
 html[data-theme] body {
   background: var(--bg-main);
   color: var(--text-main);
@@ -1077,7 +1077,7 @@ html[data-theme] .bndz-chrome-omnibar {
   border-color: var(--border-subtle) !important;
 }
 
-/* Custom Colors pack — paint fills (solid OR gradient) without requiring a named theme. */
+/* Custom Colors pack ? paint fills (solid OR gradient) without requiring a named theme. */
 html[data-apply-colors="true"] .bndz-chrome-sidebar {
   background: var(--tree-bg) !important;
   color: var(--tree-text);
@@ -1286,7 +1286,7 @@ html.theme-light .nav-tree-row:hover {
   overflow: hidden !important;
 }
 
-/* GPU promotion for static chrome only — avoid will-change/contain on scroll surfaces (breaks HTML5 drag in WebView2). */
+/* GPU promotion for static chrome only ? avoid will-change/contain on scroll surfaces (breaks HTML5 drag in WebView2). */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
 .bndz-chrome-toolbar,
@@ -1318,7 +1318,7 @@ html.theme-light .nav-tree-row:hover {
   cursor: default;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
-  /* Files-like clarity at FM sizes — prefer LCD subpixel over grayscale AA */
+  /* Files-like clarity at FM sizes ? prefer LCD subpixel over grayscale AA */
   -webkit-font-smoothing: subpixel-antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -1363,7 +1363,7 @@ html[data-list-font-aa="greyscale"] .bndz-file-list-scroll {
   backface-visibility: hidden;
 }
 
-/* Panel typography — driven by Configuration → Fonts */
+/* Panel typography ? driven by Configuration ? Fonts */
 .bndz-chrome-sidebar,
 .bndz-nav-tree,
 .bndz-chrome-sidebar .bndz-nav-tree {
@@ -1409,7 +1409,7 @@ html[data-list-font-aa="greyscale"] .bndz-file-list-scroll {
 }
 
 /*
- * Status bar — identical chrome to Tree DRIVES section headers
+ * Status bar ? identical chrome to Tree DRIVES section headers
  * (metal inset + neon left rail + blue wash). Always on, including
  * when nav-tree-colors is off / themed statusbar-bg would flatten it.
  */
@@ -1548,7 +1548,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   width: 100%;
 }
 
-/* ── Archive previewer (sidebar Contents) — soft squircle, readable density ── */
+/* ?? Archive previewer (sidebar Contents) ? soft squircle, readable density ?? */
 .bndz-archive-root {
   display: flex;
   flex-direction: column;
@@ -2469,7 +2469,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   contain: layout style;
 }
 
-/* Kill motion leftovers when restored — prevents phantom workspace scrollbars */
+/* Kill motion leftovers when restored ? prevents phantom workspace scrollbars */
 .bndz-bottom-immersive-host:not(.is-open) {
   transform: none !important;
   opacity: 0 !important;
@@ -2614,7 +2614,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
     0 16px 36px rgba(0, 0, 0, 0.4);
 }
 
-/* Capacity Solver — what-if scrubbers + budget */
+/* Capacity Solver ? what-if scrubbers + budget */
 .bndz-capacity-scrubber {
   display: flex;
   flex-direction: column;
@@ -3074,7 +3074,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
 
 .bndz-plugin-hero {
   /*
-   * Classic System Properties wash — must stay VISIBLE over solid --panel-bottom-bg.
+   * Classic System Properties wash ? must stay VISIBLE over solid --panel-bottom-bg.
    * Ends in a faint accent veil (not fully transparent) so themes cannot flatten it
    * into the same navy as the plugin panel body.
    */
@@ -3089,7 +3089,7 @@ html[data-nav-tree-colors="vivid"] .bndz-chrome-statusbar.bndz-status-bar-tree-t
   box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.16) !important;
 }
 
-/* Theme / Colors tint — same geometry, theme-colored stops (set on html). */
+/* Theme / Colors tint ? same geometry, theme-colored stops (set on html). */
 html[data-plugin-hero-themed="true"] .bndz-plugin-hero {
   background-color: transparent !important;
   background-image: var(--plugin-hero-fill) !important;
@@ -3150,7 +3150,7 @@ html[data-plugin-hero-themed="true"] .bndz-plugin-hero {
   box-shadow: inset 0 0 24px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-/* Drop Stack — glass stage with theme-tied aurora (from --accent) */
+/* Drop Stack ? glass stage with theme-tied aurora (from --accent) */
 .bndz-dropstack-zone {
   position: relative;
 }
@@ -3498,7 +3498,7 @@ html[data-theme='macOS Light'] .bndz-dropstack-icon-well {
 }
 
 .fs-item-wrapper.fs-item-selected {
-  /* Base — overridden by appearance variants below */
+  /* Base ? overridden by appearance variants below */
 }
 
 /* Selection chrome: name-only / through second column (details + list) */
@@ -3528,7 +3528,7 @@ html[data-list-sel-chrome="throughSecondColumn"] .fs-list-item.fs-item-selected 
   background: transparent !important;
 }
 
-/* ── Appearance: list selection variants (Settings → Appearance) ── */
+/* ?? Appearance: list selection variants (Settings ? Appearance) ?? */
 html[data-selection-style="classic"] .fs-list-item.fs-item-selected:not([style*="background"]) {
   background-color: var(--list-selected-bg, rgba(168, 85, 247, 0.42));
   box-shadow: none;
@@ -3561,7 +3561,7 @@ html[data-selection-style="glow"] .fs-list-item.fs-item-selected {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--list-focused-bg, #a855f7) 85%, transparent), 0 0 12px color-mix(in srgb, var(--list-selected-bg, #a855f7) 22%, transparent);
 }
 
-/* Grid / icon tile selection — Files GridViewItemSelected wash */
+/* Grid / icon tile selection ? Files GridViewItemSelected wash */
 html[data-grid-selection="subtle"] .fs-grid-item.fs-item-selected {
   background: color-mix(in srgb, var(--list-selected-bg, #a855f7) 28%, transparent) !important;
   box-shadow: none;
@@ -3577,7 +3577,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--list-selected-bg, #a855f7) 72%, transparent);
 }
 
-/* ── Grid + List — Files WinUI GridLayoutPage look (square thumb + soft selection) ── */
+/* ?? Grid + List ? Files WinUI GridLayoutPage look (square thumb + soft selection) ?? */
 .bndz-view-grid {
   --bndz-tile-radius: 4px;
   --bndz-files-hover: rgba(42, 45, 46, 0.08);
@@ -3597,7 +3597,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   align-items: center;
 }
 
-/* Square thumbnail pane — Files ItemWidth × ItemWidth */
+/* Square thumbnail pane ? Files ItemWidth ? ItemWidth */
 .bndz-view-grid .bndz-grid-icon-well {
   aspect-ratio: 1 / 1;
   width: 100%;
@@ -3663,14 +3663,14 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   white-space: nowrap;
 }
 
-/* Files GridViewItemBackgroundPointerOver ≈ #142A2D2E */
+/* Files GridViewItemBackgroundPointerOver ? #142A2D2E */
 .bndz-view-grid.bndz-tile--hoverable:hover:not(.fs-item-selected) {
   background: rgba(42, 45, 46, 0.14) !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
 
-/* Files GridViewItemBackgroundSelected ≈ #55264F78 */
+/* Files GridViewItemBackgroundSelected ? #55264F78 */
 .bndz-view-grid.fs-item-selected {
   background: rgba(38, 79, 120, 0.34) !important;
   border-color: transparent !important;
@@ -3742,7 +3742,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   max-width: none;
   flex-shrink: 0;
   image-rendering: auto;
-  /* Avoid CSS transform scaling — keeps SVG vector-sharp on reselect. */
+  /* Avoid CSS transform scaling ? keeps SVG vector-sharp on reselect. */
   transform: none !important;
 }
 
@@ -3793,7 +3793,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: inset 0 0 0 1px rgba(0, 120, 215, 0.45);
 }
 
-/* Files List layout — flat row, no paper chrome */
+/* Files List layout ? flat row, no paper chrome */
 .bndz-view-list {
   --bndz-tile-radius: 2px;
   border-radius: var(--bndz-tile-radius) !important;
@@ -3851,7 +3851,7 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
   box-shadow: none;
 }
 
-/* List-mode selection variants — keep details rows on plain .fs-list-item. */
+/* List-mode selection variants ? keep details rows on plain .fs-list-item. */
 html[data-selection-style="classic"] .bndz-view-list.fs-item-selected:not([style*="background"]) {
   background: rgba(38, 79, 120, 0.55);
   box-shadow: none;
@@ -3929,7 +3929,7 @@ html.theme-light .bndz-view-list.fs-item-selected {
   background: rgba(0, 120, 215, 0.28) !important;
 }
 
-/* ── List/Grid cards setting (Appearance → Show cards). Default: off. ── */
+/* ?? List/Grid cards setting (Appearance ? Show cards). Default: off. ?? */
 html[data-tile-cards="off"] .bndz-view-grid:not(.bndz-tile--dense),
 html[data-tile-cards="off"] .bndz-view-list:not(.bndz-tile--dense) {
   background: transparent !important;
@@ -3984,7 +3984,7 @@ html.theme-light[data-tile-cards="off"] .bndz-view-list.bndz-tile--hoverable:hov
   background: rgba(0, 0, 0, 0.05) !important;
 }
 
-/* Cards ON — mica / glass (Card-2x language without stretching a square PNG onto rect tiles). */
+/* Cards ON ? mica / glass (Card-2x language without stretching a square PNG onto rect tiles). */
 html[data-tile-cards="on"] .bndz-view-grid:not(.bndz-tile--dense) {
   --bndz-tile-radius: 12px;
   border-radius: var(--bndz-tile-radius) !important;
@@ -4011,7 +4011,7 @@ html[data-tile-cards="on"] .bndz-view-grid:not(.bndz-tile--dense) .bndz-grid-cap
   line-height: 1.25;
 }
 
-/* Hover/select keep the same box — outline only (no layout jump / filter resize). */
+/* Hover/select keep the same box ? outline only (no layout jump / filter resize). */
 html[data-tile-cards="on"] .bndz-view-grid.bndz-tile--hoverable:hover:not(.fs-item-selected) {
   background:
     linear-gradient(165deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 42%, rgba(255, 255, 255, 0.03) 100%),
@@ -4068,7 +4068,7 @@ html.theme-light[data-tile-cards="on"] .bndz-view-list:not(.bndz-tile--dense) {
   padding: 8px !important;
 }
 
-/* ── Details view row polish (keeps column layout; elevates row chrome) ── */
+/* ?? Details view row polish (keeps column layout; elevates row chrome) ?? */
 .bndz-view-details {
   border-radius: 6px !important;
   transition: background 0.1s ease, box-shadow 0.1s ease;
@@ -4088,7 +4088,7 @@ html.bndz-scrolling .bndz-view-details {
   transition: none !important;
 }
 
-/* ── Size map (list / treemap / bubbles) ── */
+/* ?? Size map (list / treemap / bubbles) ?? */
 .bndz-sizemap {
   position: relative;
   width: 100%;
@@ -4382,7 +4382,7 @@ html.bndz-scrolling .bndz-view-details {
   border-radius: var(--bndz-tile-radius, 10px);
 }
 
-/* Highlights & Styles tab — list selection chrome overrides */
+/* Highlights & Styles tab ? list selection chrome overrides */
 html[data-list-selection-border="solid"] .fs-item-wrapper.fs-item-selected {
   outline: 1px solid var(--list-selected-border, #007acc);
   outline-offset: -1px;
@@ -4462,7 +4462,7 @@ html[data-darkness-level] #root {
 .bndz-list-col-header--dragging {
   opacity: 1;
   filter: none;
-  /* Keep the same chrome as a normal header — only lift slightly above siblings */
+  /* Keep the same chrome as a normal header ? only lift slightly above siblings */
   cursor: grabbing;
   pointer-events: none;
   box-shadow:
@@ -4478,7 +4478,7 @@ html[data-darkness-level] #root {
   box-sizing: border-box;
 }
 
-/* List kind filters — soft squircle + per-kind accent */
+/* List kind filters ? soft squircle + per-kind accent */
 .bndz-list-filter-chip {
   display: inline-flex;
   align-items: center;
@@ -4549,7 +4549,7 @@ html[data-col-resizing] * {
   box-sizing: border-box;
 }
 
-/* Matches .bndz-list-header-bar outer height — reserved when column headers are hidden but tools remain. */
+/* Matches .bndz-list-header-bar outer height ? reserved when column headers are hidden but tools remain. */
 .bndz-list-header-bar-spacer {
   min-height: 34px;
   height: 34px;
@@ -4588,7 +4588,7 @@ html[data-col-resizing] * {
 .bndz-list-col-header[data-col-id="comment"] { --col-accent: var(--col-accent-comment, #fb923c); }
 .bndz-list-col-header[data-col-id="path"] { --col-accent: var(--col-accent-path, #60a5fa); }
 
-/* Quiet left rail — readable color coding without loud fills */
+/* Quiet left rail ? readable color coding without loud fills */
 .bndz-list-col-header:not(.bndz-list-col-header--gutter)::before {
   content: '';
   position: absolute;
@@ -4756,7 +4756,7 @@ html[data-theme] .bndz-list-col-header--active {
   animation: bndz-icon8-spin 1s linear infinite;
 }
 
-/* Force default cursor over list canvas during marquee — override grab/crosshair/col-resize. */
+/* Force default cursor over list canvas during marquee ? override grab/crosshair/col-resize. */
 html[data-marquee-active] [data-list-body],
 html[data-marquee-active] [data-list-body] *,
 html[data-marquee-active] .bndz-list-col-header,
@@ -4769,7 +4769,7 @@ html[data-marquee-active] .bndz-list-col-gutter {
   cursor: default !important;
 }
 
-/* Gaps between detail columns — drag here to marquee-select */
+/* Gaps between detail columns ? drag here to marquee-select */
 .bndz-list-col-gutter {
   flex-shrink: 0;
   min-width: 6px;
@@ -4778,7 +4778,7 @@ html[data-marquee-active] .bndz-list-col-gutter {
   align-self: stretch;
 }
 
-/* Leading edge of a details/list row — always a non-select marquee strip */
+/* Leading edge of a details/list row ? always a non-select marquee strip */
 .bndz-list-marquee-lead {
   flex: 0 0 14px;
   width: 14px;
@@ -4787,7 +4787,7 @@ html[data-marquee-active] .bndz-list-col-gutter {
   cursor: inherit;
 }
 
-/* Trailing empty canvas after columns — grows so full folders still have deselect/marquee space */
+/* Trailing empty canvas after columns ? grows so full folders still have deselect/marquee space */
 .bndz-list-marquee-trail {
   flex: 1 1 0%;
   min-width: 48px;
@@ -5021,7 +5021,7 @@ html[data-density="spacious"] .fs-list-item {
   transition: min-height 0.12s ease, padding 0.12s ease;
 }
 
-/* Freeze density geometry while scrolling — animated row size vs virtualizer = flash/clunk. */
+/* Freeze density geometry while scrolling ? animated row size vs virtualizer = flash/clunk. */
 html.bndz-scrolling .bndz-list-header-bar,
 html.bndz-scrolling .fs-list-item,
 html.bndz-scrolling .fs-item-wrapper,
@@ -5034,7 +5034,7 @@ html.bndz-scrolling .bndz-density-slider-thumb {
   transition: none !important;
 }
 
-/* ── Views-bar density slider (Uiverse glass craft → BNDZ squircles) ── */
+/* ?? Views-bar density slider (Uiverse glass craft ? BNDZ squircles) ?? */
 .bndz-density-slider {
   --bndz-ds-pct: 0;
   --bndz-ds-h: 24px;
@@ -5153,7 +5153,7 @@ html.bndz-scrolling .bndz-density-slider-thumb {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.32),
     0 0 12px color-mix(in srgb, var(--accent, #0078d4) 26%, transparent);
-  /* No width transition — lag vs thumb feels clunky while scrubbing. */
+  /* No width transition ? lag vs thumb feels clunky while scrubbing. */
   will-change: width;
 }
 
@@ -5198,7 +5198,7 @@ html.bndz-scrolling .bndz-density-slider-thumb {
   transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Inner notch — reads as a precision FM control, not a generic web knob. */
+/* Inner notch ? reads as a precision FM control, not a generic web knob. */
 .bndz-density-slider-thumb-core::after {
   content: '';
   position: absolute;
@@ -5370,7 +5370,7 @@ html[data-density="spacious"] .nav-tree-row {
   padding-bottom: 4px;
 }
 
-/* Tab strip variants — snappy press; Classic Explorer vs Soft Modern */
+/* Tab strip variants ? snappy press; Classic Explorer vs Soft Modern */
 .bndz-tab-item {
   transition: background 0.06s ease, border-color 0.06s ease, color 0.06s ease, box-shadow 0.06s ease !important;
   user-select: none;
@@ -5482,7 +5482,7 @@ html[data-density="spacious"] .nav-tree-row {
   background: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Classic Explorer — rectangular, Fluent-like strip */
+/* Classic Explorer ? rectangular, Fluent-like strip */
 html[data-tab-style="explorer"] .bndz-chrome-tabstrip {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
@@ -5512,7 +5512,7 @@ html[data-tab-style="explorer"] .bndz-tab-close:hover {
   color: #ffb4b4;
 }
 
-/* Soft Modern — calm squircle tabs (Card-2x language) */
+/* Soft Modern ? calm squircle tabs (Card-2x language) */
 html[data-tab-style="soft"] .bndz-tab-item {
   border-radius: 10px 10px 4px 4px !important;
   margin-bottom: 2px;
@@ -5625,7 +5625,7 @@ html[data-theme] .bndz-shift-hint-active {
   background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
 }
 
-/* Floating shift-tooltips — colors follow active theme / custom palette */
+/* Floating shift-tooltips ? colors follow active theme / custom palette */
 .bndz-floating-tooltip-panel {
   color: var(--tooltip-text, #e8e8e8);
   border: 1px solid var(--tooltip-border, rgba(255, 255, 255, 0.14));
@@ -5698,7 +5698,7 @@ html[data-theme] .bndz-shift-hint-active {
   color: #94a3b8;
 }
 
-/* Destination picker (Copy to / Move to) — theme-aware */
+/* Destination picker (Copy to / Move to) ? theme-aware */
 .bndz-destination-picker-modal {
   background: linear-gradient(
     165deg,
@@ -5832,7 +5832,7 @@ html[data-theme] .bndz-destination-picker-footer {
   position: relative;
 }
 
-/* Settings left-nav selection — Base UI uses data-active (not data-state=active).
+/* Settings left-nav selection ? Base UI uses data-active (not data-state=active).
    Line-variant tabs default to transparent active bg; force a clear highlight. */
 .bndz-settings-nav [data-slot="tabs-trigger"].bndz-settings-nav-item[data-active],
 .bndz-settings-nav [data-slot="tabs-trigger"].bndz-settings-nav-item[aria-selected="true"] {
@@ -5886,7 +5886,7 @@ html[data-theme] .bndz-destination-picker-footer {
   }
 }
 
-/* Theme-aware context / menubar menus — flat desktop density (Explorer-like) */
+/* Theme-aware context / menubar menus ? flat desktop density (Explorer-like) */
 .bndz-context-menu,
 .bndz-context-submenu,
 .bndz-menubar-menu {
@@ -5938,7 +5938,7 @@ html[data-theme] .bndz-destination-picker-footer {
 }
 
 
-/* ── Native dialogs (Win11-style alert + sheet) ─────────────────────────── */
+/* ?? Native dialogs (Win11-style alert + sheet) ??????????????????????????? */
 
 .bndz-native-scrim {
   background:
@@ -6582,7 +6582,7 @@ html[data-theme] .bndz-destination-picker-footer {
   color: #fecaca;
 }
 
-/* Command palette — flat Win-style */
+/* Command palette ? flat Win-style */
 .bndz-command-palette {
   background: #2d2d30;
   border: 1px solid #454545;
@@ -6783,8 +6783,8 @@ html[data-theme] .bndz-destination-picker-footer {
   justify-content: center;
 }
 
-/* Sidebar section bars (Appearance → Sidebar section colors)
-   Reads as inset metal tabs — left color rail + stroke, not flat web chips. */
+/* Sidebar section bars (Appearance ? Sidebar section colors)
+   Reads as inset metal tabs ? left color rail + stroke, not flat web chips. */
 html[data-nav-tree-colors="off"] .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab) {
   background: transparent !important;
   border-color: transparent !important;
@@ -6906,7 +6906,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   padding: 8px 10px;
 }
 
-/* ── Toolbar Designer (workshop surface — distinct from Extension Hub) ── */
+/* ?? Toolbar Designer (workshop surface ? distinct from Extension Hub) ?? */
 .bndz-tb-root {
   background:
     radial-gradient(1200px 480px at 12% -10%, rgba(251, 191, 36, 0.06), transparent 55%),
@@ -7152,7 +7152,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   line-height: 1.45;
 }
 
-/* ── Shell Menus Designer (live context-menu workshop) ─────────────────── */
+/* ?? Shell Menus Designer (live context-menu workshop) ??????????????????? */
 .bndz-cm-root {
   background:
     radial-gradient(1000px 420px at 8% -20%, rgba(34, 211, 238, 0.07), transparent 55%),
@@ -7534,7 +7534,7 @@ html[data-nav-tree-colors="vivid"] .bndz-sidebar-section-tree {
   box-shadow: inset 0 0 0 1px var(--accent, #0078d4);
 }
 
-/* Transfer queue — soft squircle chrome, real cancel affordance */
+/* Transfer queue ? soft squircle chrome, real cancel affordance */
 .bndz-transfer-panel {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 28%),
@@ -7689,7 +7689,7 @@ html[data-theme] .status-bar-glow {
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, #000) 0%, var(--bg, #1a1a1a) 100%);
 }
 
-/* BNDZ Launcher — Flow-style quick launcher */
+/* BNDZ Launcher ? Flow-style quick launcher */
 /* Focus rings (keyboard navigation) */
 .fs-item-wrapper:focus-visible,
 .nav-tree-row:focus-visible,
@@ -7777,7 +7777,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
-/* ── Physics Toast (BNDZ-themed, rounded-rect Dynamic Island style) ── */
+/* ?? Physics Toast (BNDZ-themed, rounded-rect Dynamic Island style) ?? */
 :root {
   --bndz-pt-spring-easing: linear(0, 0.002 0.6%, 0.007 1.2%, 0.015 1.8%, 0.026 2.4%, 0.041 3.1%,
       0.06 3.8%, 0.108 5.3%, 0.157 6.6%, 0.214 8%, 0.467 13.7%,
@@ -8075,7 +8075,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   }
 }
 
-/* ── Smart Views hub (native chrome, not card-grid web UI) ── */
+/* ?? Smart Views hub (native chrome, not card-grid web UI) ?? */
 .bndz-smart-hub-header {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background:
@@ -8197,7 +8197,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* ── Continuum Home (`/bndz/home`) — native command deck, not a dashboard ── */
+/* ?? Continuum Home (`/bndz/home`) ? native command deck, not a dashboard ?? */
 .bndz-home {
   position: relative;
   height: 100%;
@@ -8958,7 +8958,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   }
 }
 
-/* ── Lens Stage (preview dock) ── */
+/* ?? Lens Stage (preview dock) ?? */
 .bndz-lens {
   padding: 10px 12px 12px;
   background:
@@ -9144,9 +9144,9 @@ html[data-theme] .nav-tree-row:focus-visible {
   flex-shrink: 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Workspace Tools — Spatial Canvas, Automation, Splash, Launch cards
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ???????????????????????????????????????????????????????????????????????????
+   Workspace Tools ? Spatial Canvas, Automation, Splash, Launch cards
+   ??????????????????????????????????????????????????????????????????????????? */
 
 /* Gold intro splash */
 .bndz-ws-splash {
@@ -9424,7 +9424,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   border-radius: 4px;
 }
 
-/* BNDZ workspace chrome — instrument-panel aesthetic (not generic SaaS) */
+/* BNDZ workspace chrome ? instrument-panel aesthetic (not generic SaaS) */
 .bndz-ws-chrome {
   display: flex;
   align-items: center;
@@ -9593,7 +9593,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   font-size: 9px;
 }
 
-/* Workspace skins — Spatial (warm organic) vs Automation (cool angular) */
+/* Workspace skins ? Spatial (warm organic) vs Automation (cool angular) */
 .bndz-ws-skin--spatial {
   --ws-accent: #c48b4a;
   background: #0c0d10;
@@ -9656,7 +9656,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   padding: 12px;
 }
 
-/* Workspace context menus — separate from Open Space file menus */
+/* Workspace context menus ? separate from Open Space file menus */
 .bndz-ws-menu {
   position: fixed;
   z-index: 99990;
@@ -9925,7 +9925,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   font-size: 9px;
 }
 
-/* Workspace panes: list marquee is skipped in JS — do not use pointer-events:none (breaks hit-testing). */
+/* Workspace panes: list marquee is skipped in JS ? do not use pointer-events:none (breaks hit-testing). */
 .bndz-list-body--workspace {
   overscroll-behavior: contain;
 }
@@ -9938,7 +9938,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   zoom: calc(1 / var(--bndz-interface-scale, 1));
   cursor: default;
 }
-/* Spatial Canvas / Automation: bottom plugin dock collapsed — main workspace fills height. */
+/* Spatial Canvas / Automation: bottom plugin dock collapsed ? main workspace fills height. */
 #workspace-inner.bndz-workspace-inner--tools [data-panel-id="main"],
 #workspace-inner.bndz-workspace-inner--tools [data-panel-id="main"] > * {
   min-height: 100%;
@@ -9985,7 +9985,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   z-index: 20;
 }
 
-/* Remote Mesh dashboard (Settings → Workspace Tools) */
+/* Remote Mesh dashboard (Settings ? Workspace Tools) */
 .bndz-mesh-dashboard {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -10081,7 +10081,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   pointer-events: none;
 }
 
-/* Launch cards — premium glass + bloom (Aceternity/Magic-inspired, BNDZ tokens) */
+/* Launch cards ? premium glass + bloom (Aceternity/Magic-inspired, BNDZ tokens) */
 .bndz-ws-launch-card {
   position: relative;
   display: flex;
@@ -10381,7 +10381,7 @@ html[data-theme] .nav-tree-row:focus-visible {
     linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
 }
-/* ── Rack hardware chassis (Spatial pins + Automation nodes) ── */
+/* ?? Rack hardware chassis (Spatial pins + Automation nodes) ?? */
 .bndz-rack-screw {
   position: absolute; width: 7px; height: 7px; border-radius: 50%; z-index: 3;
   background: radial-gradient(circle at 35% 35%, #8a9098, #2a2e34 55%, #12141a);
@@ -10701,7 +10701,7 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-spatial-layer .bndz-spatial-card { pointer-events: auto; }
 .bndz-spatial-layer .bndz-spatial-sticky { pointer-events: auto; }
 
-/* Free sticky notes — paper craft on the Spatial board */
+/* Free sticky notes ? paper craft on the Spatial board */
 .bndz-spatial-sticky {
   position: absolute;
   z-index: 12;
@@ -11133,7 +11133,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   text-transform: uppercase;
   color: rgba(255,255,255,0.3);
 }
-/* Node type badge — pill with accent colour glow */
+/* Node type badge ? pill with accent colour glow */
 .bndz-automation-inspector-chip {
   font-size: 9px;
   font-weight: 700;
@@ -11795,7 +11795,7 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-home-badge.is-frequent { background: rgba(96, 165, 250, 0.18); color: #60a5fa; }
 .bndz-home-badge.is-regular { background: rgba(148, 163, 184, 0.18); color: #94a3b8; }
 
-/* Streaming directory list — skeleton + live stream bar */
+/* Streaming directory list ? skeleton + live stream bar */
 .bndz-list-skeleton {
   background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%);
 }
@@ -12062,7 +12062,7 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-spatial-inspector-kbd { font-size: 10px; color: #6b7280; margin-top: 12px; }
 .bndz-spatial-inspector-kbd kbd { padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,0.08); }
 
-/* ── Spatial Intelligence Badges (Phase 6) ── */
+/* ?? Spatial Intelligence Badges (Phase 6) ?? */
 .bndz-pin-intel-badges {
   display: flex;
   flex-wrap: wrap;
@@ -12120,7 +12120,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   transition: width 0.3s ease;
 }
 
-/* ── Spatial Intelligence Inspector Sections ── */
+/* ?? Spatial Intelligence Inspector Sections ?? */
 .bndz-spatial-intel-sections {
   margin-top: 10px;
   display: flex;
@@ -12695,7 +12695,7 @@ html[data-theme] .nav-tree-row:focus-visible {
     inset 0 1px 3px rgba(0, 0, 0, 0.3),
     inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
-/* Host/mode role tools — slightly muted border, dimmer glyph tint to distinguish from plugin chips */
+/* Host/mode role tools ? slightly muted border, dimmer glyph tint to distinguish from plugin chips */
 .bndz-command-deck-tool--host {
   border-color: rgba(255, 255, 255, 0.05);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
@@ -12725,7 +12725,7 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-command-deck-tool-label {
   white-space: nowrap;
 }
-/* Legacy chip class — keep harmless if anything still references it */
+/* Legacy chip class ? keep harmless if anything still references it */
 .bndz-command-deck-chip {
   display: none;
 }
@@ -12873,7 +12873,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   text-align: center;
   line-height: 1.1;
 }
-/* Spatial board empty-state container — glass paper floating over the board */
+/* Spatial board empty-state container ? glass paper floating over the board */
 .bndz-spatial-empty {
   pointer-events: none;
 }
@@ -13435,7 +13435,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   border: 1px solid rgba(255,255,255,0.06);
 }
 
-/* ── Plugin pop-out + desktop sticky widget ── */
+/* ?? Plugin pop-out + desktop sticky widget ?? */
 .bndz-plugin-popout-shell {
   background:
     radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56, 189, 248, 0.08), transparent 55%),
@@ -13616,7 +13616,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   color: rgba(120, 113, 108, 0.55);
 }
 
-/* Predictive prefetch — subtle warm pulse on folders being pre-cached */
+/* Predictive prefetch ? subtle warm pulse on folders being pre-cached */
 .bndz-prefetch-warm {
   position: relative;
 }
@@ -13639,7 +13639,7 @@ html[data-theme] .nav-tree-row:focus-visible {
   50% { opacity: 1; transform: scale(1); }
 }
 
-/* Reality Check mode — missing project assets glow in list */
+/* Reality Check mode ? missing project assets glow in list */
 .bndz-reality-missing {
   box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.55), 0 0 10px rgba(248, 113, 113, 0.22) !important;
   background: linear-gradient(90deg, rgba(248, 113, 113, 0.12), transparent 72%) !important;
@@ -13663,17 +13663,237 @@ html[data-bndz-shell="files-host"] #root {
   height: 100%;
 }
 
-/* Files modern layout language — BNDZ components, Files proportions (not WinUI TabBar). */
-html[data-bndz-shell="files-host"] .bndz-chrome-menubar {
-  height: 32px !important;
-  min-height: 32px !important;
+/* BNDZShell greenfield: full BNDZUI chrome + native WinUI list overlay in workspace slot */
+html[data-bndz-shell="native-host"],
+html[data-bndz-shell="native-host"] body.bndz-native-host-body,
+body.bndz-native-host-body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-main, #0f0f0f);
 }
-html[data-bndz-shell="files-host"] .bndz-chrome-menubar img {
-  width: 22px !important;
-  height: 22px !important;
+html[data-bndz-shell="native-host"] #root {
+  width: 100%;
+  height: 100%;
+}
+/* Native WinUI list overlay is not used over full-window WebView2 (HWND airspace).
+   Keep slot class inert so workspace tools / React list always paint. */
+html[data-bndz-shell="native-host"] .bndz-native-list-slot {
+  background: transparent !important;
+}
+
+/* Readable list density — soft squircle rows, not crushed type */
+html[data-bndz-shell="native-host"] {
+  --bndz-font-list-size: 15px;
+  --bndz-density-row: 38px;
+  --bndz-list-density: 1;
+  --bndz-font-tree-size: 14px;
+  font-size: 15px;
+}
+html[data-bndz-shell="native-host"] .bndz-list-name,
+html[data-bndz-shell="native-host"] .bndz-list-select-cell {
+  font-size: var(--bndz-font-list-size, 14px) !important;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+}
+html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-select-cell,
+html[data-bndz-shell="native-host"] .bndz-view-details [data-col-id] {
+  font-size: var(--bndz-font-list-size, 15px) !important;
+  font-family: var(--bndz-font-list-family, var(--bndz-font-family));
+  line-height: 1.35;
+}
+html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-col-muted,
+html[data-bndz-shell="native-host"] .bndz-view-details .bndz-detail-col-muted {
+  font-size: calc(var(--bndz-font-list-size, 15px) - 1px) !important;
+  opacity: 0.92;
+}
+html[data-bndz-shell="native-host"] .fs-list-item.bndz-view-details {
+  font-size: var(--bndz-font-list-size, 15px);
+  min-height: var(--bndz-density-row, 38px);
+  line-height: 1.35;
+}
+html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-select-cell,
+html[data-bndz-shell="native-host"] .bndz-view-details [data-col-id] {
+  line-height: 1.35;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+html[data-bndz-shell="native-host"] .bndz-view-details .bndz-list-name {
+  line-height: 1.35;
+}
+html[data-bndz-shell="native-host"] .bndz-drive-card {
+  border-radius: 10px;
+  margin: 2px 8px;
+  border: 1px solid transparent;
+  border-left-width: 3px;
+  background:
+    linear-gradient(155deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 45%, rgba(0,0,0,0.18) 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.05) inset,
+    0 8px 18px rgba(0,0,0,0.22);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+html[data-bndz-shell="native-host"] .bndz-drive-card:hover:not(.bndz-drive-card--selected) {
+  background:
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--accent, #c026d3) 14%, rgba(255,255,255,0.06)) 0%,
+      rgba(255,255,255,0.03) 55%,
+      rgba(0,0,0,0.14) 100%);
+  border-color: color-mix(in srgb, var(--accent, #c026d3) 28%, transparent);
+  border-left-color: color-mix(in srgb, var(--accent, #c026d3) 62%, transparent);
+}
+html[data-bndz-shell="native-host"] .bndz-drive-card--selected,
+.bndz-drive-card--selected {
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 36%, rgba(255,255,255,0.06)) 0%,
+      color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 14%, transparent) 100%) !important;
+  border: 1px solid color-mix(in srgb, var(--accent, #c026d3) 44%, transparent) !important;
+  border-left-color: var(--accent, #c026d3) !important;
+  box-shadow:
+    inset 3px 0 0 var(--accent, #c026d3),
+    0 1px 0 rgba(255,255,255,0.05) inset !important;
+}
+
+/* Tree selection — Files-modern magenta squircle (not flat Files blue rows) */
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row,
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row {
+  min-height: 36px !important;
+  height: 36px !important;
+  margin: 2px 8px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  gap: 10px;
+  border: 1px solid transparent;
+}
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected),
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected) {
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--accent, #c026d3) 12%, rgba(255,255,255,0.05)) 0%,
+      rgba(255,255,255,0.03) 100%) !important;
+  border-color: color-mix(in srgb, var(--accent, #c026d3) 20%, transparent) !important;
+}
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row-trace,
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row-trace {
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--accent, #c026d3) 16%, transparent) 0%,
+      transparent 100%) !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent, #c026d3) 70%, #6db4e6) !important;
+  border-radius: 8px !important;
+}
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-label,
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-label {
+  font-size: 13.5px !important;
+  font-weight: 560;
+}
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row-selected,
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row-selected,
+html[data-bndz-shell="native-host"][data-theme] .bndz-files-modern-sidebar .nav-tree-row-selected,
+html[data-bndz-shell="native-host"][data-theme] .bndz-chrome-sidebar .nav-tree-row-selected,
+html[data-bndz-shell="native-host"][data-apply-colors="true"] .bndz-files-modern-sidebar .nav-tree-row-selected,
+html[data-bndz-shell="native-host"][data-apply-colors="true"] .bndz-chrome-sidebar .nav-tree-row-selected {
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 38%, rgba(255,255,255,0.06)) 0%,
+      color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 16%, transparent) 100%) !important;
+  border: 1px solid color-mix(in srgb, var(--accent, #c026d3) 44%, transparent) !important;
+  box-shadow:
+    inset 3px 0 0 var(--accent, #c026d3),
+    0 1px 0 rgba(255,255,255,0.05) inset !important;
+  color: var(--tree-text, #f3f4f6);
+}
+
+/* Rapid access + cloud — same squircle language as tree */
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .sidebar-pin-row,
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .sidebar-pin-row {
+  min-height: 34px !important;
+  margin: 2px 8px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  border-left-width: 3px !important;
+}
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .bndz-sidebar-pin-label,
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .bndz-sidebar-pin-label {
+  font-size: 13.5px !important;
+  font-weight: 560;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+html[data-bndz-shell="native-host"] .bndz-sidebar-section-header span {
+  font-size: 10px !important;
+  letter-spacing: 0.14em;
+}
+html[data-bndz-shell="native-host"] .bndz-chrome-sidebar .sidebar-pin-row:hover:not(.sidebar-pin-row-selected),
+html[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .sidebar-pin-row:hover:not(.sidebar-pin-row-selected) {
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--accent, #c026d3) 10%, rgba(255,255,255,0.04)) 0%,
+      rgba(255,255,255,0.03) 100%) !important;
+  border-left-color: color-mix(in srgb, var(--accent, #c026d3) 45%, transparent) !important;
+}
+html[data-bndz-shell="native-host"] .sidebar-pin-row-selected,
+.sidebar-pin-row-selected {
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 34%, rgba(255,255,255,0.06)) 0%,
+      color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 12%, transparent) 100%) !important;
+  border-color: color-mix(in srgb, var(--accent, #c026d3) 40%, transparent) !important;
+  border-left-color: var(--accent, #c026d3) !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 var(--accent, #c026d3), 0 1px 0 rgba(255,255,255,0.05) inset;
+}
+
+/* Files / BNDZShell modern layout language ? BNDZ components, Files proportions. */
+html[data-bndz-shell="files-host"] .bndz-chrome-menubar,
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar {
+  height: 38px !important;
+  min-height: 38px !important;
+  align-items: center !important;
+}
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar .bndz-menubar-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 13px;
+  line-height: 1.2;
+}
+/* WinUI caption buttons only ? never paint a second React min/max/close set. */
+html[data-bndz-shell="native-host"] .bndz-window-controls,
+html[data-bndz-shell="native-host"] [data-bndz-window-controls],
+html[data-bndz-shell="native-host"] [data-window-btn] {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  pointer-events: none !important;
+}
+/* WinUI caption buttons overlay the top-right ? keep menubar clear + drag via non-client support. */
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar {
+  padding-right: max(138px, env(titlebar-area-height, 32px)) !important;
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-menu-trigger],
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar button,
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar a,
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar input {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+html[data-bndz-shell="files-host"] .bndz-chrome-menubar img,
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar img {
+  width: 28px !important;
+  height: 28px !important;
   border-radius: 6px !important;
 }
-html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip {
+html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip,
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {
   min-height: 40px !important;
   padding-top: 8px !important;
   padding-left: 6px !important;
@@ -13682,21 +13902,24 @@ html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip {
   background:
     linear-gradient(180deg, rgba(40, 44, 52, 0.55) 0%, rgba(22, 24, 28, 0.92) 100%) !important;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item {
+html[data-bndz-shell="files-host"] .bndz-tab-item,
+html[data-bndz-shell="native-host"] .bndz-tab-item {
   border-radius: 6px 6px 0 0 !important;
   min-height: 30px !important;
   padding: 5px 12px !important;
   margin-right: 2px !important;
   font-size: 12px !important;
 }
-html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active {
+html[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active,
+html[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active {
   background: color-mix(in srgb, var(--bndz-surface-raised, #1e222a) 92%, var(--accent, #0078d4) 8%) !important;
   border: 1px solid rgba(255, 255, 255, 0.10) !important;
   border-bottom-color: transparent !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   font-weight: 600;
 }
-html[data-bndz-shell="files-host"] .bndz-files-address-strip {
+html[data-bndz-shell="files-host"] .bndz-files-address-strip,
+html[data-bndz-shell="native-host"] .bndz-files-address-strip {
   min-height: 48px !important;
   height: 48px !important;
   gap: 4px;
@@ -13705,13 +13928,15 @@ html[data-bndz-shell="files-host"] .bndz-files-address-strip {
   background:
     linear-gradient(180deg, rgba(36, 40, 48, 0.75) 0%, rgba(24, 26, 32, 0.95) 100%) !important;
 }
-html[data-bndz-shell="files-host"] .bndz-files-nav-btn {
+html[data-bndz-shell="files-host"] .bndz-files-nav-btn,
+html[data-bndz-shell="native-host"] .bndz-files-nav-btn {
   width: 36px !important;
   height: 32px !important;
   min-width: 36px !important;
   border-radius: 6px !important;
 }
-html[data-bndz-shell="files-host"] .bndz-files-address-well {
+html[data-bndz-shell="files-host"] .bndz-files-address-well,
+html[data-bndz-shell="native-host"] .bndz-files-address-well {
   min-height: 32px !important;
   height: 32px !important;
   margin: 0 4px;
@@ -13722,21 +13947,24 @@ html[data-bndz-shell="files-host"] .bndz-files-address-well {
   background: color-mix(in srgb, var(--bndz-surface-raised, #1a1d24) 88%, transparent) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
-html[data-bndz-shell="files-host"] .bndz-chrome-toolbar {
+html[data-bndz-shell="files-host"] .bndz-chrome-toolbar,
+html[data-bndz-shell="native-host"] .bndz-chrome-toolbar {
   min-height: 32px !important;
   padding-top: 2px !important;
   padding-bottom: 2px !important;
 }
-html[data-bndz-shell="files-host"] .bndz-chrome-omnibar {
+html[data-bndz-shell="files-host"] .bndz-chrome-omnibar,
+html[data-bndz-shell="native-host"] .bndz-chrome-omnibar {
   padding-top: 4px !important;
   padding-bottom: 4px !important;
 }
-html[data-bndz-shell="files-host"] .bndz-chrome-omnibar input {
+html[data-bndz-shell="files-host"] .bndz-chrome-omnibar input,
+html[data-bndz-shell="native-host"] .bndz-chrome-omnibar input {
   min-height: 28px !important;
   border-radius: 8px !important;
 }
 
-/* Files SidebarItem / NavigationTree density — taller rows like Files shell. */
+/* FilesMerge sidebar density only ? do NOT override native-host Files-modern tree above. */
 html[data-bndz-shell="files-host"] .bndz-chrome-sidebar .nav-tree-row,
 html[data-bndz-shell="files-host"] .bndz-files-modern-sidebar .nav-tree-row {
   min-height: 32px !important;
@@ -13948,4 +14176,356 @@ body.bndz-native-pane-body {
   font-size: 12.5px;
   line-height: 1.45;
   color: rgba(198, 210, 224, 0.78);
+}
+
+/* -- Native-shell split islands (chrome / sidebar) ? Uiverse depth ? BNDZ tokens -- */
+.bndz-native-pane-surface--chrome,
+.bndz-native-pane-surface--sidebar {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+.bndz-ns-chrome {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(40, 44, 52, 0.72) 0%, rgba(18, 20, 26, 0.96) 100%);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.bndz-ns-chrome-glow {
+  position: absolute;
+  inset: -50% 20% auto -20%;
+  height: 140%;
+  background: radial-gradient(ellipse at 30% 40%, rgba(192, 38, 211, 0.16), transparent 60%);
+  pointer-events: none;
+  filter: blur(10px);
+}
+.bndz-ns-menubar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  z-index: 2;
+}
+.bndz-ns-brand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f3f7fc;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
+}
+.bndz-ns-brand-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(145deg, #e879f9, #c026d3 55%, #c4a35a);
+  box-shadow: 0 0 12px rgba(192, 38, 211, 0.45);
+}
+.bndz-ns-menu-trigger-wrap { position: relative; }
+.bndz-ns-menu-trigger {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(232, 238, 246, 0.88);
+  font-size: 12.5px;
+  font-weight: 560;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.bndz-ns-menu-trigger:hover,
+.bndz-ns-menu-trigger.is-open {
+  background: rgba(255,255,255,0.07);
+  color: #fff;
+}
+.bndz-ns-menu-flyout {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  padding: 6px;
+  border-radius: 14px;
+  z-index: 40;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(165deg, rgba(36, 40, 50, 0.97), rgba(16, 18, 24, 0.98));
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 18px 40px rgba(0,0,0,0.45);
+  backdrop-filter: blur(16px) saturate(1.15);
+}
+.bndz-ns-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #e8eef6;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.bndz-ns-menu-item:hover {
+  background: color-mix(in srgb, #c026d3 28%, transparent);
+}
+.bndz-ns-address-strip {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+.bndz-ns-nav-btn {
+  width: 36px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: #dbe4f0;
+  cursor: pointer;
+}
+.bndz-ns-nav-btn:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.14);
+}
+.bndz-ns-nav-btn--accent {
+  border-color: rgba(192, 38, 211, 0.35);
+  background: color-mix(in srgb, #c026d3 18%, transparent);
+}
+.bndz-ns-address-well {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: color-mix(in srgb, #1a1d24 88%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.bndz-ns-address-display,
+.bndz-ns-address-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #e8eef6;
+  font-size: 12.5px;
+  font-family: inherit;
+  text-align: left;
+  outline: none;
+}
+.bndz-ns-address-display {
+  cursor: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bndz-ns-sidebar {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px 8px 8px;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  background:
+    linear-gradient(180deg, rgba(28, 32, 40, 0.92) 0%, rgba(12, 14, 18, 0.98) 100%);
+  overflow: hidden;
+}
+.bndz-ns-sidebar-aurora {
+  position: absolute;
+  inset: -20% -30% auto auto;
+  width: 180%;
+  height: 55%;
+  background: radial-gradient(ellipse at 70% 20%, rgba(56, 189, 248, 0.12), transparent 55%);
+  pointer-events: none;
+  filter: blur(12px);
+}
+.bndz-ns-sidebar-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 12px;
+}
+.bndz-ns-sidebar-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 5px;
+  background: linear-gradient(145deg, #99c9f0, #3b82c4 55%, #c4a35a);
+  box-shadow: 0 0 14px rgba(153, 201, 240, 0.4);
+}
+.bndz-ns-sidebar-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f3f7fc;
+  letter-spacing: 0.03em;
+}
+.bndz-ns-sidebar-sub {
+  font-size: 10px;
+  color: rgba(180, 190, 205, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bndz-ns-section {
+  position: relative;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.025);
+  overflow: hidden;
+}
+.bndz-ns-section--grow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bndz-ns-section-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(210, 220, 235, 0.85);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.bndz-ns-section-body {
+  padding: 0 6px 8px;
+  overflow: auto;
+  min-height: 0;
+}
+.bndz-ns-section--grow .bndz-ns-section-body {
+  flex: 1;
+}
+.bndz-ns-place {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #dbe4f0;
+  font-size: 12.5px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: left;
+}
+.bndz-ns-place:hover {
+  background: rgba(255,255,255,0.06);
+}
+.bndz-ns-place.is-selected {
+  background: color-mix(in srgb, #c026d3 22%, transparent);
+  box-shadow: inset 3px 0 0 #c026d3;
+}
+.bndz-ns-drive-hit {
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.bndz-ns-drive-hit.is-selected {
+  outline: 1px solid rgba(192, 38, 211, 0.45);
+  background: color-mix(in srgb, #c026d3 12%, transparent);
+}
+.bndz-ns-empty {
+  padding: 10px;
+  font-size: 11.5px;
+  color: rgba(180, 190, 205, 0.65);
+}
+.bndz-ns-sidebar-foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(0,0,0,0.22);
+  color: rgba(190, 200, 214, 0.85);
+  font-size: 11px;
+}
+
+/* BNDZUI craft islands for WinUI split (full menubar/sidebar ? not a redesign) */
+html[data-bndz-island="chrome"] .bndz-chrome-sidebar,
+html[data-bndz-island="chrome"] .bndz-native-list-slot,
+html[data-bndz-island="chrome"] [data-tutorial="workspace"],
+html[data-bndz-island="chrome"] .bndz-preview-column,
+html[data-bndz-island="chrome"] .bndz-bottom-plugin-host,
+html[data-bndz-island="chrome"] .bndz-status-bar,
+html[data-bndz-island="chrome"] .bndz-command-deck-host {
+  display: none !important;
+}
+html[data-bndz-island="sidebar"] .bndz-chrome-menubar,
+html[data-bndz-island="sidebar"] .bndz-chrome-toolbar,
+html[data-bndz-island="sidebar"] .bndz-chrome-tabstrip,
+html[data-bndz-island="sidebar"] .bndz-files-address-strip,
+html[data-bndz-island="sidebar"] .bndz-chrome-omnibar,
+html[data-bndz-island="sidebar"] .bndz-native-list-slot,
+html[data-bndz-island="sidebar"] [data-tutorial="workspace"],
+html[data-bndz-island="sidebar"] .bndz-preview-column,
+html[data-bndz-island="sidebar"] .bndz-bottom-plugin-host,
+html[data-bndz-island="sidebar"] .bndz-status-bar,
+html[data-bndz-island="sidebar"] .bndz-command-deck-host,
+html[data-bndz-island="sidebar"] .bndz-toolbar-zone {
+  display: none !important;
+}
+html[data-bndz-island="chrome"],
+html[data-bndz-island="sidebar"] {
+  height: 100%;
+  overflow: hidden;
+}
+html[data-bndz-island="chrome"] #root,
+html[data-bndz-island="sidebar"] #root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+html[data-bndz-island="sidebar"] .bndz-chrome-sidebar,
+html[data-bndz-island="sidebar"] .bndz-files-modern-sidebar {
+  width: 100% !important;
+  max-width: none !important;
+  flex: 1 1 auto;
+  border-right: 0 !important;
 }

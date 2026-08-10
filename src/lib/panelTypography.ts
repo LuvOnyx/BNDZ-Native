@@ -17,6 +17,7 @@ export type PanelFontTokens = {
  */
 const FONT_PRESETS: Record<string, string> = {
   Outfit: 'Outfit, sans-serif',
+  Figtree: 'Figtree, sans-serif',
   'Clarity City': '"Clarity City", sans-serif',
   Faustina: 'Faustina, serif',
   Solitus: 'Solitus, sans-serif',
@@ -71,13 +72,13 @@ export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelF
   const sizeOverride = readSettingNumber(config, String(zoneSizeKey(zone)), 0);
 
   const zoneDefaults: Record<PanelFontZone, { size: number; weight: number; lineHeight: number }> = {
-    tree: { size: 12, weight: baseWeight, lineHeight: 1.35 },
-    list: { size: 12, weight: baseWeight, lineHeight: 1.3 },
+    list: { size: 13, weight: baseWeight, lineHeight: 1.35 },
     tabs: { size: readSettingNumber(config, 'tabFontSize', 11) || 11, weight: baseWeight, lineHeight: 1.25 },
     preview: { size: 12, weight: baseWeight, lineHeight: 1.4 },
     bottom: { size: 12, weight: baseWeight, lineHeight: 1.35 },
     status: { size: 11, weight: baseWeight, lineHeight: 1.25 },
     chrome: { size: baseSize, weight: baseWeight, lineHeight: 1.3 },
+    tree: { size: 12.5, weight: baseWeight, lineHeight: 1.35 },
   };
 
   const zoneDef = zoneDefaults[zone];

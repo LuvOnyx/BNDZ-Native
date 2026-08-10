@@ -106,7 +106,7 @@ public sealed class BndzAutomationWatcherService : IDisposable
 
     public IReadOnlyList<AutomationWatcherRunLog> GetRecentRuns(int limit = 20)
     {
-        return _recentRuns.ToArray().Reverse().Take(limit).ToList();
+        return _recentRuns.AsEnumerable().Reverse().Take(limit).ToList();
     }
 
     public void StopAll()
