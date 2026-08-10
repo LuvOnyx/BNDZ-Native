@@ -663,15 +663,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       if (isModel && previewAllowed && virtualUrl) {
         const webGlReady = probeWebGL();
-        const gltfFamily = ext === 'glb' || ext === 'gltf';
-        if (!webGlReady || !gltfFamily) {
+        const gpuFamily = ext === 'glb' || ext === 'gltf' || ext === 'obj' || ext === 'stl';
+        if (!webGlReady || !gpuFamily) {
           return (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
               <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
               <p>
                 {!webGlReady
                   ? 'WebGL is unavailable — enable GPU acceleration to preview 3D models.'
-                  : `Preview supports GLB/GLTF today. ${ext.toUpperCase()} can be opened in an external viewer.`}
+                  : `Inline GPU preview supports GLB/GLTF/OBJ/STL. ${ext.toUpperCase()} can be opened externally.`}
               </p>
             </div>
           );
@@ -686,11 +686,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isImage && previewAllowed) {
-          // Stream for full-res; CAS thumb as fallback if stream misses (never shell glyphs).
+          // Always prefer full-res stream for the panel — CAS thumbs are interim/fallback only.
+          // Preferring thumbs as primary made zoom look soft/pixelated.
           const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
               : null;
-          const primarySrc = (showThumb && thumbData) ? thumbData : (virtualUrl || thumbData || '');
+          const primarySrc = virtualUrl || thumbData || '';
           const fallbackSrc = thumbData || undefined;
           return (
             <div

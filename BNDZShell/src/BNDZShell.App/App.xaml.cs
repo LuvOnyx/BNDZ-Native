@@ -1,20 +1,39 @@
 using Microsoft.UI.Xaml;
 
-namespace BNDZShell;
+namespace BNDZShell.App;
 
 public partial class App : Application
 {
-    public App()
-    {
-        InitializeComponent();
-        UnhandledException += (_, e) =>
-        {
-            System.Diagnostics.Debug.WriteLine($"[BNDZShell] Unhandled: {e.Exception}");
-        };
-    }
+	/// <summary>
+	/// Must be retained — WinUI GC collects the Window if only a local in OnLaunched holds it,
+	/// which leaves a dead HWND and a blank native shell (WebView2 never paints).
+	/// </summary>
+	private Window? _mainWindow;
 
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
-    {
-        _ = new MainWindow();
-    }
+	public App()
+	{
+		InitializeComponent();
+		UnhandledException += (_, e) =>
+		{
+			System.Diagnostics.Debug.WriteLine($"[BNDZShell] Unhandled: {e.Exception}");
+			try
+			{
+				var logDir = System.IO.Path.Combine(
+					Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+					"BNDZ");
+				System.IO.Directory.CreateDirectory(logDir);
+				System.IO.File.AppendAllText(
+					System.IO.Path.Combine(logDir, "shell-crash.log"),
+					$"{DateTime.UtcNow:o} {e.Exception}\n");
+			}
+			catch { /* best-effort */ }
+			e.Handled = true;
+		};
+	}
+
+	protected override void OnLaunched(LaunchActivatedEventArgs args)
+	{
+		_mainWindow = new MainWindow();
+		_mainWindow.Activate();
+	}
 }

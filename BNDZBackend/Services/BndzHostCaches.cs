@@ -59,15 +59,20 @@ public static class BndzHostCaches
         };
     }
 
-    public static string IconCacheKey(string path, bool isDirectory)
+    public static string IconCacheKey(string path, bool isDirectory, int pixelSize = 48)
     {
         path ??= "";
+        int band = pixelSize >= 160 ? 256
+            : pixelSize >= 96 ? 128
+            : pixelSize >= 56 ? 64
+            : pixelSize >= 40 ? 48
+            : 32;
         bool isVirtual = ShellPathResolver.IsShellVirtualPath(path)
             || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("::{", StringComparison.Ordinal);
         // Bust prior disk/L1 poison where CLSIDs were stored under the generic white-doc glyph.
         if (isVirtual)
-            return "shellns:v2:" + path;
+            return "shellns:v2:" + path + "@" + band;
         if (!isDirectory && path.Length > 0
             && !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             && !path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
@@ -75,9 +80,9 @@ public static class BndzHostCaches
         {
             var ext = System.IO.Path.GetExtension(path);
             if (!string.IsNullOrEmpty(ext))
-                return ext.ToLowerInvariant();
+                return ext.ToLowerInvariant() + "@" + band;
         }
-        return path;
+        return path + "@" + band;
     }
 
     public static string ThumbnailCacheKey(string path, int size)
@@ -99,9 +104,9 @@ public static class BndzHostCaches
     /// Shell glyphs always return base64 PNG (never bndz-media://) so list paint cannot 404
     /// when the custom-scheme handler or WebView CORS path misbehaves. CAS is still the L2 store.
     /// </summary>
-    public static string? ResolveIconBase64(string path, bool isDirectory, Func<string> extract)
+    public static string? ResolveIconBase64(string path, bool isDirectory, Func<string> extract, int pixelSize = 48)
     {
-        var key = IconCacheKey(path, isDirectory);
+        var key = IconCacheKey(path, isDirectory, pixelSize);
         if (Icons.TryGet(key, out var hit) && !string.IsNullOrEmpty(hit))
         {
             // Poisoned L1: CAS/legacy URLs — materialize bytes or ignore and reload from disk.
@@ -134,13 +139,16 @@ public static class BndzHostCaches
             }
         }
 
-        // Shared imagelist glyph (encode-once per SYSICONINDEX / type key).
-        var sysHit = ShellGlyphMapService.Instance.TryResolveViaSysIconIndex(path, isDirectory);
-        if (!string.IsNullOrEmpty(sysHit))
+        // Shared imagelist glyphs are ~32–48px — skip for jumbo/hi-res asks (zoom-in grid/list).
+        if (pixelSize < 64)
         {
-            Interlocked.Increment(ref _iconL1Hits);
-            Icons.AddOrUpdate(key, sysHit);
-            return sysHit;
+            var sysHit = ShellGlyphMapService.Instance.TryResolveViaSysIconIndex(path, isDirectory);
+            if (!string.IsNullOrEmpty(sysHit))
+            {
+                Interlocked.Increment(ref _iconL1Hits);
+                Icons.AddOrUpdate(key, sysHit);
+                return sysHit;
+            }
         }
 
         if (disk.CurrentPolicy.ShowCachedIconsOnly)
@@ -154,7 +162,8 @@ public static class BndzHostCaches
             return null;
 
         Interlocked.Increment(ref _iconMissExtract);
-        ShellGlyphMapService.Instance.RememberExtractedIcon(path, isDirectory, extracted);
+        if (pixelSize < 64)
+            ShellGlyphMapService.Instance.RememberExtractedIcon(path, isDirectory, extracted);
         Icons.AddOrUpdate(key, extracted);
         if (disk.CurrentPolicy.CacheIconsOnDisk)
             disk.PutBase64(BndzMediaDiskCache.Kind.Icon, key, extracted);

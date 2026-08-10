@@ -1328,6 +1328,19 @@ function ContextMenuView({
             onClick={() => { onOpenMeshDrop?.(targetPaths); onClose(); }}
           />
           )}
+          <ContextMenuItem
+            label="Add to Shared Libraries"
+            iconVerb="emblem-shared"
+            onClick={() => {
+              const paths = (menu.isDirectory || targetPaths.length === 1)
+                ? targetPaths.map(p => toWindowsPath(p))
+                : targetPaths.filter(p => !/\.[^./\\]+$/.test(p)).map(p => toWindowsPath(p));
+              const usePaths = paths.length ? paths : targetPaths.slice(0, 1).map(p => toWindowsPath(p));
+              window.dispatchEvent(new CustomEvent('bndz-add-shared-libraries', { detail: { paths: usePaths } }));
+              setToastMessage(usePaths.length > 1 ? `Added ${usePaths.length} shared libraries` : 'Added to Shared Libraries');
+              onClose();
+            }}
+          />
           {stockOn('ghost-link') && (
           <ContextMenuItem
             label="Ghost-Link offload…"

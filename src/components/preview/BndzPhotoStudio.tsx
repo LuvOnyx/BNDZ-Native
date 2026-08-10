@@ -76,9 +76,9 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     revokeBlob();
     try {
       const { IPC } = await import('../../lib/ipcBridge');
-      let src = toVirtualStreamUrl(path);
-      // Virtual stream avoids base64 round-trips for large camera files.
-      if (!src && IPC.isNative) {
+      // Prefer blob for the sandboxed studio iframe — bndz-stream often fails inside iframes.
+      let src = '';
+      if (IPC.isNative) {
         const result = await IPC.getMediaBlob(toWindowsPath(path));
         if (result.base64 && result.mime) {
           const binary = atob(result.base64);
@@ -91,6 +91,8 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
           throw new Error(result.error);
         }
       }
+      if (!src) src = toVirtualStreamUrl(path);
+      if (!src) throw new Error('Could not load image bytes for Photo Studio');
       const name = title || path.split(/[/\\]/).pop() || 'image';
       setImagePayload({ url: src, name });
       setLoading(false);
@@ -113,6 +115,15 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
       url: imagePayload.url,
       name: imagePayload.name,
     });
+    // Re-send in case the first message races the studio bootstrap.
+    const t = window.setTimeout(() => {
+      postToStudio({
+        type: 'openImage',
+        url: imagePayload.url,
+        name: imagePayload.name,
+      });
+    }, 180);
+    return () => window.clearTimeout(t);
   }, [frameReady, imagePayload, postToStudio]);
 
   useEffect(() => {

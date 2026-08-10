@@ -263,7 +263,7 @@ function SortablePaneTab({
         </span>
       )}
       {tab.locked && <Icons8Icon id="lock_ui" size={10} className="mr-1 shrink-0 pointer-events-none" title="Locked" />}
-      <span className="truncate pointer-events-none" style={{ fontSize: tabFontSize || 11 }}>{label}</span>
+      <span className="truncate pointer-events-none bndz-tab-label" style={{ fontSize: 'var(--bndz-font-tabs-size, 11px)' }}>{label}</span>
       {showXClose && (
         <span
           data-tab-close

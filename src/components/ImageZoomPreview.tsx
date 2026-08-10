@@ -179,43 +179,6 @@ export default function ImageZoomPreview({
   };
   const fit = () => fitToContainer(false);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    const leftOk = e.button === 0 && (blowUp.onLeftMouseDown || blowUp.allowPanning);
-    const rightOk = e.button === 2 && blowUp.onRightMouseDown;
-    const middleOk = e.button === 1 && (blowUp.onMiddleMouseDown || !!config.onMiddleMouseDown);
-    if (!leftOk && !rightOk && !middleOk) return;
-    if (!blowUp.allowPanning && e.button === 0 && !blowUp.movementBlowUp) return;
-    if (middleOk && e.button === 1) {
-      // Middle-down: quick recenter / fit when enabled.
-      fitToContainer(false);
-      e.preventDefault();
-      return;
-    }
-    draggingRef.current = true;
-    setIsDragging(true);
-    lastPosRef.current = { x: e.clientX, y: e.clientY };
-    e.preventDefault();
-  }, [blowUp.allowPanning, blowUp.movementBlowUp, blowUp.onLeftMouseDown, blowUp.onRightMouseDown, blowUp.onMiddleMouseDown, config.onMiddleMouseDown, fitToContainer]);
-
-  const onMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!draggingRef.current) return;
-    if (!blowUp.allowPanning && !blowUp.movementBlowUp) return;
-    const dx = e.clientX - lastPosRef.current.x;
-    const dy = e.clientY - lastPosRef.current.y;
-    lastPosRef.current = { x: e.clientX, y: e.clientY };
-    offsetRef.current = {
-      x: offsetRef.current.x + dx,
-      y: offsetRef.current.y + dy,
-    };
-    scheduleTransform();
-  }, [blowUp.allowPanning, blowUp.movementBlowUp, scheduleTransform]);
-
-  const endDrag = useCallback(() => {
-    if (blowUp.stayUp && blowUp.onRightMouseDown) return;
-    draggingRef.current = false;
-    setIsDragging(false);
-  }, [blowUp.stayUp, blowUp.onRightMouseDown]);
-
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -247,26 +210,63 @@ export default function ImageZoomPreview({
   const checker = previewRt.transparencyBg !== false
     && config.transparencyBackground !== false
     && String(config.transparencyBackground || 'Grid').toLowerCase() !== 'none';
-  const imageRendering = (previewRt.highQuality || !!config.highQualityImageResampling
-    || String(config.thumbnailQuality || '') === 'High Quality')
-    ? 'auto'
-    : 'pixelated';
+  const imageRendering = 'auto' as const;
   const thumbPad = Math.max(0, parseInt(String(config.thumbnailPadding ?? 4), 10) || 4);
   const thumbStyle = String(config.thumbnailStyle || 'Shadow');
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button === 1 && (blowUp.onMiddleMouseDown || !!config.onMiddleMouseDown)) {
+      fitToContainer(false);
+      e.preventDefault();
+      return;
+    }
+    // Always allow drag-pan in the preview panel (WebView2-safe pointer path).
+    if (e.button === 2 && !blowUp.onRightMouseDown) return;
+    if (e.button !== 0 && e.button !== 2) return;
+    draggingRef.current = true;
+    setIsDragging(true);
+    lastPosRef.current = { x: e.clientX, y: e.clientY };
+    try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
+    e.preventDefault();
+  }, [blowUp.onMiddleMouseDown, blowUp.onRightMouseDown, config.onMiddleMouseDown, fitToContainer]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const dx = e.clientX - lastPosRef.current.x;
+    const dy = e.clientY - lastPosRef.current.y;
+    lastPosRef.current = { x: e.clientX, y: e.clientY };
+    offsetRef.current = {
+      x: offsetRef.current.x + dx,
+      y: offsetRef.current.y + dy,
+    };
+    scheduleTransform();
+  }, [scheduleTransform]);
+
+  const endPointerDrag = useCallback((e?: React.PointerEvent) => {
+    if (blowUp.stayUp && blowUp.onRightMouseDown) return;
+    draggingRef.current = false;
+    setIsDragging(false);
+    if (e) {
+      try { (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId); } catch { /* ignore */ }
+    }
+  }, [blowUp.stayUp, blowUp.onRightMouseDown]);
 
   return (
     <div
       ref={containerRef}
       className={`bndz-image-preview ${checker ? 'bndz-image-preview--checker' : ''} bndz-thumb-style-${thumbStyle.replace(/\s+/g, '-').toLowerCase()}`}
       style={{ ['--bndz-thumb-pad' as string]: `${thumbPad}px` }}
-      onMouseMove={onMouseMove}
-      onMouseUp={endDrag}
-      onMouseLeave={endDrag}
     >
       <div
         ref={stageRef}
         className={`bndz-image-preview-stage ${isDragging ? 'is-dragging' : ''}`}
-        onMouseDown={onMouseDown}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endPointerDrag}
+        onPointerCancel={endPointerDrag}
+        onContextMenu={(e) => {
+          if (blowUp.onRightMouseDown) e.preventDefault();
+        }}
       >
         <div
           ref={transformRef}
@@ -278,6 +278,7 @@ export default function ImageZoomPreview({
             src={imgSrc}
             alt={alt}
             draggable={false}
+            decoding="async"
             className={`bndz-image-preview-img${config.autoRotatePreview ? ' bndz-auto-rotate-preview' : ''}`}
             style={{ imageRendering }}
             onLoad={() => {

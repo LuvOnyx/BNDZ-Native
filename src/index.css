@@ -13941,24 +13941,53 @@ html[data-bndz-shell="native-host"] [data-window-btn] {
   margin: 0 !important;
   pointer-events: none !important;
 }
-/* WinUI caption buttons overlay the top-right ? keep menubar clear + drag via non-client support. */
+/* WinUI caption buttons overlay the top-right — pad clear space; do NOT mark the whole
+   menubar as app-region:drag (WebView2 non-client hit-test races steal first clicks on File/Edit).
+   Drag only an explicit trailing strip; JS windowChrome('drag') still owns empty-bar dragging. */
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar {
   padding-right: max(138px, env(titlebar-area-height, 32px)) !important;
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-bndz-menubar-drag],
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar .bndz-menubar-drag-strip {
+  flex: 1 1 auto;
+  min-width: 48px;
+  align-self: stretch;
   app-region: drag;
   -webkit-app-region: drag;
 }
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar [data-menu-trigger],
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar button,
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar a,
-html[data-bndz-shell="native-host"] .bndz-chrome-menubar input {
-  app-region: no-drag;
-  -webkit-app-region: no-drag;
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar input,
+html[data-bndz-shell="native-host"] .bndz-chrome-menubar [role="menuitem"] {
+  app-region: no-drag !important;
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
 }
 html[data-bndz-shell="files-host"] .bndz-chrome-menubar img,
 html[data-bndz-shell="native-host"] .bndz-chrome-menubar img {
   width: 28px !important;
   height: 28px !important;
   border-radius: 6px !important;
+}
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip,
+html[data-bndz-shell="native-host"] .bndz-chrome-toolbar,
+html[data-bndz-shell="native-host"] .bndz-toolbar-zone,
+html[data-bndz-shell="native-host"] .bndz-chrome-breadcrumb,
+html[data-bndz-shell="native-host"] .bndz-chrome-addressbar {
+  app-region: no-drag !important;
+  -webkit-app-region: no-drag !important;
+}
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip button,
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip [data-tab-id],
+html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip .bndz-tab-item,
+html[data-bndz-shell="native-host"] .bndz-toolbar-zone button,
+html[data-bndz-shell="native-host"] .bndz-view-mode-btn {
+  app-region: no-drag !important;
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
 }
 html[data-bndz-shell="files-host"] .bndz-chrome-tabstrip,
 html[data-bndz-shell="native-host"] .bndz-chrome-tabstrip {

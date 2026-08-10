@@ -166,7 +166,7 @@ namespace BNDZ.Services
             return HIconToBase64(shfi.hIcon);
         }
 
-        public string GetNativeShellIconBase64(string filePath, bool isDirectory = false)
+        public string GetNativeShellIconBase64(string filePath, bool isDirectory = false, int pixelSize = 48)
         {
             if (string.IsNullOrEmpty(filePath))
                 return "";
@@ -174,6 +174,8 @@ namespace BNDZ.Services
             filePath = ShellPathResolver.ResolveForShell(filePath);
             if (string.IsNullOrEmpty(filePath))
                 return "";
+
+            int size = Math.Clamp(pixelSize <= 0 ? 48 : pixelSize, 16, 256);
 
             bool isVirtual = ShellPathResolver.IsShellVirtualPath(filePath)
                 || filePath.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
@@ -185,17 +187,38 @@ namespace BNDZ.Services
             if (!isDirectory && !isVirtual)
                 isDirectory = Directory.Exists(filePath);
 
+            // Zoomed grid/list: IShellItemImageFactory at display size (jumbolike 128–256).
+            // Avoid SHGFI_LARGEICON upscaling blur when tiles are huge.
+            if (size >= 48)
+            {
+                try
+                {
+                    using var item = new ShellItem(filePath);
+                    var hi = TryGetShellImageBase64(
+                        item,
+                        ShellItemGetImageOptions.IconOnly | ShellItemGetImageOptions.ResizeToFit,
+                        size);
+                    if (!string.IsNullOrEmpty(hi))
+                        return hi;
+                }
+                catch { /* fall through */ }
+            }
+
             // Universal path: PIDL parse handles CLSIDs, shell: folders, drives, custom folder icons
             var pidlIcon = GetIconViaPidl(filePath);
             if (!string.IsNullOrEmpty(pidlIcon))
-                return pidlIcon;
+            {
+                if (size < 64)
+                    return pidlIcon;
+                // Upscale-free path already tried above; keep PIDL as last-resort type glyph.
+            }
 
             // String-path SHGetFileInfo on ::{clsid} often returns the generic white document —
             // skip it for virtual namespaces and go straight to ShellItem / fail empty.
             if (!isVirtual)
             {
                 var shellIcon = GetIconViaShell32(filePath, isDirectory);
-                if (!string.IsNullOrEmpty(shellIcon))
+                if (!string.IsNullOrEmpty(shellIcon) && size < 64)
                     return shellIcon;
             }
 
@@ -204,7 +227,8 @@ namespace BNDZ.Services
                 using var item = new ShellItem(filePath);
                 var imageBase64 = TryGetShellImageBase64(
                     item,
-                    ShellItemGetImageOptions.IconOnly | ShellItemGetImageOptions.ResizeToFit);
+                    ShellItemGetImageOptions.IconOnly | ShellItemGetImageOptions.ResizeToFit,
+                    size);
                 if (!string.IsNullOrEmpty(imageBase64))
                     return imageBase64;
             }
@@ -226,6 +250,16 @@ namespace BNDZ.Services
                 }
             }
             catch { }
+
+            // Last resort: whatever PIDL/SHGFI returned (may upscale — better than empty).
+            if (!string.IsNullOrEmpty(pidlIcon))
+                return pidlIcon;
+            if (!isVirtual)
+            {
+                var shellIcon = GetIconViaShell32(filePath, isDirectory);
+                if (!string.IsNullOrEmpty(shellIcon))
+                    return shellIcon;
+            }
 
             return "";
         }

@@ -3158,17 +3158,26 @@ namespace BNDZ.Services
                         try
                         {
                             System.Windows.Point screenPt;
+                            // Headless WinUI host: MainWebView is a stub whose PointToScreen is identity.
+                            // Always map WebView client coords through the real WinUI HWND.
                             try
                             {
-                                screenPt = MainWebView != null
-                                    ? MainWebView.PointToScreen(new System.Windows.Point(clientX, clientY))
-                                    : PointToScreen(new System.Windows.Point(clientX, clientY));
+                                var hwnd = _hostWindowHandle != IntPtr.Zero
+                                    ? _hostWindowHandle
+                                    : new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                                if (hwnd != IntPtr.Zero)
+                                {
+                                    var (sx, sy) = HostContextMenuService.ClientToScreenPoint(hwnd, clientX, clientY);
+                                    screenPt = new System.Windows.Point(sx, sy);
+                                }
+                                else
+                                {
+                                    screenPt = PointToScreen(new System.Windows.Point(clientX, clientY));
+                                }
                             }
                             catch
                             {
-                                var hwnd = (_hostWindowHandle != IntPtr.Zero ? _hostWindowHandle : new System.Windows.Interop.WindowInteropHelper(this).Handle);
-                                var (sx, sy) = HostContextMenuService.ClientToScreenPoint(hwnd, clientX, clientY);
-                                screenPt = new System.Windows.Point(sx, sy);
+                                screenPt = new System.Windows.Point(clientX, clientY);
                             }
 
                             HostContextMenuService.Show(
@@ -6925,15 +6934,21 @@ namespace BNDZ.Services
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     string path = "";
                     bool isDirectory = false;
+                    int pixelSize = 48;
                     try {
                         var payload = root.GetProperty("payload");
                         path = payload.TryGetProperty("path", out var pathEl) ? pathEl.GetString() ?? "" : "";
                         path = ShellPathResolver.ResolveForShell(path);
                         isDirectory = payload.TryGetProperty("isDirectory", out var dirElem) && dirElem.GetBoolean();
+                        if (payload.TryGetProperty("size", out var sizeEl) && sizeEl.TryGetInt32(out var sz))
+                            pixelSize = sz;
+                        else if (payload.TryGetProperty("pixelSize", out var pxEl) && pxEl.TryGetInt32(out var px))
+                            pixelSize = px;
                     } catch { }
 
                     var pathCopy = path;
                     var isDirCopy = isDirectory;
+                    var sizeCopy = Math.Clamp(pixelSize <= 0 ? 48 : pixelSize, 16, 256);
 
                     _ = Task.Run(async () =>
                     {
@@ -6945,7 +6960,8 @@ namespace BNDZ.Services
                                 extractedBase64 = BndzHostCaches.ResolveIconBase64(
                                     pathCopy,
                                     isDirCopy,
-                                    () => _nativeShellService.GetNativeShellIconBase64(pathCopy, isDirCopy) ?? "");
+                                    () => _nativeShellService.GetNativeShellIconBase64(pathCopy, isDirCopy, sizeCopy) ?? "",
+                                    sizeCopy);
                             }
                             catch (Exception ex)
                             {
@@ -6961,7 +6977,17 @@ namespace BNDZ.Services
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                    int batchSize = 48;
+                    try
+                    {
+                        if (root.TryGetProperty("payload", out var sizePayload)
+                            && sizePayload.TryGetProperty("size", out var batchSizeEl)
+                            && batchSizeEl.TryGetInt32(out var bsz))
+                            batchSize = Math.Clamp(bsz <= 0 ? 48 : bsz, 16, 256);
+                    }
+                    catch { }
 
+                    var sizeCopy = batchSize;
                     _ = Task.Run(() =>
                     {
                         try
@@ -6973,6 +6999,9 @@ namespace BNDZ.Services
                                 {
                                     string rawPath = item.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
                                     bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
+                                    int itemSize = sizeCopy;
+                                    if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
+                                        itemSize = Math.Clamp(isz <= 0 ? sizeCopy : isz, 16, 256);
                                     string path = ShellPathResolver.ResolveForShell(rawPath);
                                     if (string.IsNullOrEmpty(path)) continue;
 
@@ -6982,10 +7011,12 @@ namespace BNDZ.Services
                                     string? extracted = null;
                                     try
                                     {
+                                        int sz = itemSize;
                                         extracted = BndzHostCaches.ResolveIconBase64(
                                             path,
                                             isDir,
-                                            () => _nativeShellService.GetNativeShellIconBase64(path, isDir) ?? "");
+                                            () => _nativeShellService.GetNativeShellIconBase64(path, isDir, sz) ?? "",
+                                            sz);
                                     }
                                     catch { }
 

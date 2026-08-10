@@ -2335,7 +2335,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
                   </div>
                   
                   <div className="flex items-center gap-2 mt-4 ml-[2px]">
-                     <Checkbox label={<span className="font-semibold text-[12px]">Use</span>} checked={localConfig.use ?? false} onChange={e => updateLocalConfig({ use: e.target.checked })} />
+                     <Checkbox label={<span className="font-semibold text-[12px]">Use</span>} checked={localConfig.useThumbnailChromeColor ?? false} onChange={e => updateLocalConfig({ useThumbnailChromeColor: e.target.checked })} />
                      <div className="flex rounded-sm overflow-hidden border border-[#555] h-6 flex-1 ml-4 mr-2">
                         <button className="bg-[#1e1e1e] text-white text-[12px] px-4 flex-1 outline-none text-center h-full hover:bg-[#333]">Thumbnails View Background</button>
                         <input type="text" className="w-[80px] bg-[#1e1e1e] border-l border-[#555] text-white text-[12px] px-2 outline-none text-center h-full" value={localConfig.thumbnailChromeColor || "F9F9F9"} onChange={e => updateLocalConfig({ thumbnailChromeColor: e.target.value })}  />
@@ -2871,7 +2871,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
 
               <div className="flex items-start gap-4 mb-6">
-                 <div className="mt-1"><Checkbox label="Use custom selection colors" checked={localConfig.use ?? false} onChange={e => updateLocalConfig({ use: e.target.checked })} /></div>
+                 <div className="mt-1"><Checkbox label="Use custom selection colors" checked={localConfig.useCustomSelectionColors ?? false} onChange={e => updateLocalConfig({ useCustomSelectionColors: e.target.checked })} /></div>
               </div>
               
               <div className="flex mt-8 mb-4">
@@ -2946,7 +2946,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               
               <div className="flex items-center gap-2 mb-6 ml-[18px]">
                   <input type="text" className="w-[50px] h-[22px] bg-transparent border border-[#555] text-white text-[12px] px-1 text-right outline-none" value={localConfig.columnAutosizeExtraPadding || ''} onChange={e => updateLocalConfig({ columnAutosizeExtraPadding: e.target.value })} />
-                  <span className="text-[12px] text-[#e0e0e0]">Show Age maximum hours (0 = unlimited)</span>
+                  <span className="text-[12px] text-[#e0e0e0]">Column autosize extra padding (px)</span>
               </div>
               
               <SectionHeader title="Clipboard Markers" />

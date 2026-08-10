@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { IPC } from '../../lib/ipcBridge';
 import { formatUiPath } from '../../lib/displayPath';
 import MeshHostsManager from '../mesh/MeshHostsManager';
+import MeshBucketsSharesPanel from '../mesh/MeshBucketsSharesPanel';
 import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -71,7 +72,7 @@ type Props = {
 };
 
 export default function MeshPlugin({ onNavigate, currentPath }: Props) {
-  const [tab, setTab] = useState<'hosts' | 'mirror' | 'terminal' | 'liveshare'>('hosts');
+  const [tab, setTab] = useState<'buckets' | 'hosts' | 'mirror' | 'terminal' | 'liveshare'>('buckets');
   const [hosts, setHosts] = useState<MeshHost[]>([]);
   const [rules, setRules] = useState<MeshSyncRule[]>([]);
   const [busy, setBusy] = useState(false);
@@ -177,7 +178,7 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
       title="Remote Mesh"
       icon="cloud_ui"
       iconColor="#38bdf8"
-      subtitle="SSH/SFTP mesh — remote browsing, live deploy mirrors, integrated terminal"
+      subtitle="Buckets, shared folders, SSH/SFTP mesh, deploy mirrors, and MeshDrop link sharing"
       variant="embedded"
       toolbar={
         <PluginToolbarButton onClick={() => {
@@ -189,20 +190,33 @@ export default function MeshPlugin({ onNavigate, currentPath }: Props) {
       status={status && <span className="text-xs text-gray-400">{status}</span>}
     >
       <div className="flex flex-col h-full min-h-0">
-        <div className="flex gap-1 px-3 pt-2 shrink-0">
-          {(['hosts', 'mirror', 'terminal', 'liveshare'] as const).map(t => (
+        <div className="flex gap-1 px-3 pt-2 shrink-0 flex-wrap">
+          {([
+            ['buckets', 'Buckets & Shares'],
+            ['hosts', 'Hosts'],
+            ['mirror', 'Mirror'],
+            ['terminal', 'Terminal'],
+            ['liveshare', 'Live Share'],
+          ] as const).map(([id, label]) => (
             <button
-              key={t}
+              key={id}
               type="button"
-              onClick={() => setTab(t)}
-              className={`px-3 py-1 text-xs font-semibold rounded-md capitalize ${tab === t ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30' : 'text-gray-500 hover:text-gray-300'}`}
+              onClick={() => setTab(id)}
+              className={`px-3 py-1 text-xs font-semibold rounded-md ${tab === id ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30' : 'text-gray-500 hover:text-gray-300'}`}
             >
-              {t === 'liveshare' ? 'Live Share' : t}
+              {label}
             </button>
           ))}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto bndz-scrollbar p-3">
+          {tab === 'buckets' && (
+            <MeshBucketsSharesPanel
+              onNavigate={onNavigate}
+              onStatus={setStatus}
+            />
+          )}
+
           {tab === 'hosts' && (
             <MeshHostsManager
               onNavigate={onNavigate}

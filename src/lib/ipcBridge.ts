@@ -2215,20 +2215,29 @@ export const IPC = {
     return Promise.resolve(null);
   },
 
-  getNativeShellIconBase64(path: string, isDirectory: boolean): Promise<string | null> {
+  getNativeShellIconBase64(path: string, isDirectory: boolean, size = 48): Promise<string | null> {
     if (this.isNative) {
-      return _nativeCall<string | null>('GET_SHELL_ICON', 'SHELL_ICON_RESULT', '', { path, isDirectory }, 45000);
+      return _nativeCall<string | null>(
+        'GET_SHELL_ICON',
+        'SHELL_ICON_RESULT',
+        '',
+        { path, isDirectory, size: Math.max(16, Math.min(256, Math.round(size) || 48)) },
+        45000,
+      );
     }
     return Promise.resolve(null);
   },
 
-  getNativeShellIconsBatch(items: Array<{ path: string; isDirectory: boolean }>): Promise<Record<string, string | null>> {
+  getNativeShellIconsBatch(
+    items: Array<{ path: string; isDirectory: boolean; size?: number }>,
+    size = 48,
+  ): Promise<Record<string, string | null>> {
     if (this.isNative) {
       return _nativeCall<Record<string, string | null>>(
         'GET_SHELL_ICONS_BATCH',
         'SHELL_ICONS_BATCH_RESULT',
         '',
-        { items },
+        { items, size: Math.max(16, Math.min(256, Math.round(size) || 48)) },
         90000,
       );
     }

@@ -76,7 +76,7 @@ export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelF
 
   const zoneDefaults: Record<PanelFontZone, { size: number; weight: number; lineHeight: number }> = {
     list: { size: isNativeHost ? 13.5 : 13, weight: baseWeight, lineHeight: 1.32 },
-    tabs: { size: readSettingNumber(config, 'tabFontSize', 11) || 11, weight: baseWeight, lineHeight: 1.25 },
+    tabs: { size: readSettingNumber(config, 'tabsFontSize', 0) || readSettingNumber(config, 'tabFontSize', 11) || 11, weight: baseWeight, lineHeight: 1.25 },
     preview: { size: 12, weight: baseWeight, lineHeight: 1.4 },
     bottom: { size: 12, weight: baseWeight, lineHeight: 1.35 },
     status: { size: 11, weight: baseWeight, lineHeight: 1.25 },

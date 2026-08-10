@@ -11,15 +11,15 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 50;
+export const WORKSPACE_LAYOUT_VERSION = 51;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
- * v50: sidebar 14% default; workspace 76%, preview 10%.
+ * v51: sidebar 17% default (restore classic FM tree presence); workspace 73%, preview 10%.
  */
 export const DEFAULT_OUTER_LAYOUT: Layout = {
-    sidebar: 14,
-    workspace: 76,
+    sidebar: 17,
+    workspace: 73,
     preview: 10,
 };
 
@@ -49,7 +49,7 @@ export const MIN_DUAL_PANE_LAYOUT: Layout = {
 };
 
 export const MIN_OUTER_LAYOUT: Layout = {
-    sidebar: 8,
+    sidebar: 12,
     workspace: 35,
     preview: 18,
 };
@@ -141,7 +141,7 @@ export function normalizeOuterLayout(raw: unknown): Layout {
     const clearlyBroken =
         sidebar > MAX_SIDEBAR_SIZE + 2
         || preview < MIN_PREVIEW_SIZE
-        || (sidebar > 0 && sidebar < 8)
+        || (sidebar > 0 && sidebar < MIN_SIDEBAR_SIZE)
         || (preview > 0 && preview < 12)
         || Math.abs(sidebar + preview + workspace - 100) > 1;
 

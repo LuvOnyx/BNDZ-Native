@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { IPC } from '../lib/ipcBridge';
 import { formatUiPath } from '../lib/displayPath';
+import { runWebViewPrimaryAction } from '../lib/webViewClick';
 
 export type BreadcrumbSeg = { path: string; label: string };
 
@@ -104,9 +105,9 @@ export function BreadcrumbTrail({
       {showSep && <span className="text-gray-500 mx-1 shrink-0">&gt;</span>}
       <span
         className={`hover:underline cursor-pointer font-semibold shrink-0 rounded-[var(--bndz-radius-sm)] transition-colors ${dropTarget === seg.path ? 'bg-[#0078d4]/20 ring-1 ring-[#0078d4]/60 px-1 -mx-1' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onNavigate(seg.path, { newTab: e.ctrlKey || e.metaKey });
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          runWebViewPrimaryAction(e, () => onNavigate(seg.path, { newTab: e.ctrlKey || e.metaKey }));
         }}
         onAuxClick={(e) => {
           if (e.button !== 1) return;
@@ -131,14 +132,16 @@ export function BreadcrumbTrail({
           <button
             type="button"
             className="shrink-0 px-1.5 py-0.5 rounded-[8px] text-[11px] font-semibold text-gray-300 hover:bg-[#333] border border-transparent hover:border-[#555]"
-            onClick={(e) => {
-              e.stopPropagation();
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
               const { clientX, clientY } = e;
-              void (async () => {
-                const usedHost = await showBreadcrumbOverflowHostMenu(clientX, clientY, mid, onNavigate);
-                if (!usedHost) setMenuOpen(v => !v);
-                else setMenuOpen(false);
-              })();
+              runWebViewPrimaryAction(e, () => {
+                void (async () => {
+                  const usedHost = await showBreadcrumbOverflowHostMenu(clientX, clientY, mid, onNavigate);
+                  if (!usedHost) setMenuOpen(v => !v);
+                  else setMenuOpen(false);
+                })();
+              });
             }}
             title={`${mid.length} hidden segment(s)`}
           >

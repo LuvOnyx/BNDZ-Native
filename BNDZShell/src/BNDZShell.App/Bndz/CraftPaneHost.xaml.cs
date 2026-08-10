@@ -106,6 +106,7 @@ public sealed partial class CraftPaneHost : UserControl
 			{
 				PaneStatusHint.Visibility = Visibility.Visible;
 				PaneStatusHint.Text = "BNDZ UI assets missing — run npm run build and stage Assets/ui.";
+				_initStarted = false;
 				return;
 			}
 
@@ -261,7 +262,14 @@ public sealed partial class CraftPaneHost : UserControl
 		// Do not mark ready / flush listings here — React message listeners attach after first paint.
 		// BNDZ_UI_READY owns document-ready + flush so DIR listings are not dropped.
 		if (args.IsSuccess)
+		{
 			PaneStatusHint.Visibility = Visibility.Collapsed;
+			return;
+		}
+
+		PaneStatusHint.Visibility = Visibility.Visible;
+		PaneStatusHint.Text = $"WebView navigation failed ({args.WebErrorStatus}). Close other BNDZShell windows and relaunch.";
+		Debug.WriteLine($"[CraftPaneHost] NavigationCompleted failed: {args.WebErrorStatus}");
 	}
 
 	private void ApplyPaneRoute(bool forceNavigate)

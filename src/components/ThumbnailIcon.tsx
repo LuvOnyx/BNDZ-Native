@@ -43,14 +43,17 @@ function iconRequestPx(displaySize: number): number {
   const want = Math.ceil(displaySize * dpr * boost);
   const listPx = getRuntimeListThumbPx();
   const hiPx = getRuntimeHiResThumbPx();
-  const floor = heroTile
-    ? Math.max(128, Math.ceil(displaySize * 1.25))
-    : largeTile
-      ? Math.max(96, Math.ceil(displaySize * 1.12))
-      : mediumTile
-        ? Math.max(48, displaySize)
-        : Math.max(listPx, displaySize);
-  return Math.min(256, Math.max(floor, want, hiPx, listPx));
+  if (heroTile) {
+    return Math.min(256, Math.max(128, Math.ceil(displaySize * 1.35), want, hiPx));
+  }
+  if (largeTile) {
+    return Math.min(256, Math.max(96, Math.ceil(displaySize * 1.2), want, Math.min(hiPx, 192)));
+  }
+  if (mediumTile) {
+    return Math.min(256, Math.max(48, displaySize, want));
+  }
+  // Details / small icons — band to list preset, not full jumbo.
+  return Math.min(128, Math.max(32, listPx, displaySize * dpr));
 }
 
 /**
@@ -259,7 +262,7 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
         flexShrink: 0,
         position: 'relative',
         borderRadius: 3,
-        boxShadow: config.thumbnailChromeColor
+        boxShadow: config.useThumbnailChromeColor && config.thumbnailChromeColor
           ? `inset 0 0 0 1px #${String(config.thumbnailChromeColor).replace(/^#/, '')}`
           : undefined,
         background:

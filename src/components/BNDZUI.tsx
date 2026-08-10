@@ -119,7 +119,7 @@ import MeshDropDialog from './meshdrop/MeshDropDialog';
 import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
 import { TabContextMenu, showTabHostContextMenu } from './TabContextMenu';
 import { requestNativePrompt } from '../lib/nativeDialog';
-import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals, listingPrefetchFromConfig } from '../lib/nativeIconService';
+import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals, listingPrefetchFromConfig, setRuntimeThumbPresets } from '../lib/nativeIconService';
 import { isRealityCheckActive, isRealityCheckMissing, subscribeRealityCheck } from '../lib/realityCheckState';
 import { mergeDirEntryChunks } from '../lib/dirListingStream';
 import { applyFsEventsToListing } from '../lib/fsListingPatch';
@@ -4265,6 +4265,18 @@ export default function BNDZUI() {
     if (Number(committed) === liveDensity.value) setLiveDensity(null);
   }, [config.gridIconSize, config.listIconSize, config.detailsIconSize, liveDensity]);
 
+  useEffect(() => {
+    const p1 = Math.max(
+      Number(config.thumbnailSizePreset1) || 64,
+      Math.round(Math.max(listIconSz, detailsIconSz, Math.min(gridIconSz, 128))),
+    );
+    const p2 = Math.max(
+      Number(config.thumbnailSizePreset2) || 192,
+      Math.round(Math.min(256, Math.max(gridIconSz * 1.35, 128))),
+    );
+    setRuntimeThumbPresets(p1, p2);
+  }, [gridIconSz, listIconSz, detailsIconSz, config.thumbnailSizePreset1, config.thumbnailSizePreset2]);
+
   // Auto-select first item when entering a folder (settings: autoSelectFirstItem)
   const lastAutoSelectPathRef = useRef<string | null>(null);
   useEffect(() => {
@@ -5033,8 +5045,29 @@ export default function BNDZUI() {
       iconPath: p.iconPath,
       isDefault: false,
     }));
-    return orderRapidAccessItems(mergeRapidAccessItems(pins, defaults, shortcuts), config.rapidAccessOrder, shortcuts);
-  }, [config.pinnedFavorites, config.hiddenRapidAccess, config.listHoverFadeMs, config.rapidAccessOrder, shortcuts, windowsUsername, galleryShortcut]);
+    const sharedLibs = (Array.isArray(config.sharedLibraries) ? config.sharedLibraries : [])
+      .map((s: any) => {
+        const path = String(s?.path || '').trim();
+        if (!path) return null;
+        const pane = path.includes('\\') || /^[A-Za-z]:/.test(path)
+          ? `/${path.replace(/\\/g, '/')}`
+          : path.startsWith('/') ? path : `/${path}`;
+        return {
+          name: String(s.name || path.split(/[/\\]/).filter(Boolean).pop() || 'Shared'),
+          path: collapseKnownFolderShadowPath(
+            resolveShellKnownFolderToFs(normalizePanePath(pane), shortcuts),
+            shortcuts,
+          ),
+          isDefault: false,
+        };
+      })
+      .filter(Boolean) as Array<{ name: string; path: string; isDefault: boolean }>;
+    return orderRapidAccessItems(
+      mergeRapidAccessItems([...pins, ...sharedLibs], defaults, shortcuts),
+      config.rapidAccessOrder,
+      shortcuts,
+    );
+  }, [config.pinnedFavorites, config.sharedLibraries, config.hiddenRapidAccess, config.listHoverFadeMs, config.rapidAccessOrder, shortcuts, windowsUsername, galleryShortcut]);
 
   const rapidAccessItemsRef = useRef(rapidAccessItems);
   rapidAccessItemsRef.current = rapidAccessItems;
@@ -6051,8 +6084,8 @@ export default function BNDZUI() {
   };
 
   const closeMenu = () => setOpenMenuId(null);
-  const toggleMenubarMenu = (menuId: string) => (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+  const toggleMenubarMenu = (menuId: string) => (e: React.MouseEvent | React.PointerEvent) => {
+    if ('button' in e && e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     setOpenMenuId(prev => (prev === menuId ? null : menuId));
@@ -6837,7 +6870,9 @@ export default function BNDZUI() {
   };
 
   const openTabContextMenuAt = (paneId: string, tabIndex: number, clientX: number, clientY: number) => {
-    if (IPC.isNative) {
+    // WinUI native shell: always use the React tab menu (full color presets + reliable hit-testing).
+    // Classic WPF host may use the host-owned ContextMenu for true out-of-HWND chrome.
+    if (IPC.isNative && !isNativeShellHostBoot()) {
       void (async () => {
         const pane = panes.find(p => p.id === paneId);
         const tab = pane?.tabs[tabIndex];
@@ -7418,6 +7453,27 @@ export default function BNDZUI() {
     window.addEventListener('bndz-mesh-drop-send', onMeshDropSend);
     return () => window.removeEventListener('bndz-mesh-drop-send', onMeshDropSend);
   }, []);
+
+  useEffect(() => {
+    const onAddShared = (e: Event) => {
+      const raw = (e as CustomEvent).detail?.paths as string[] | undefined;
+      const paths = Array.isArray(raw) ? raw.filter(Boolean) : [];
+      if (!paths.length) return;
+      const prev = Array.isArray(config.sharedLibraries) ? config.sharedLibraries : [];
+      const next = [...prev];
+      for (const path of paths) {
+        const win = toWindowsPath(path) || path;
+        if (next.some((s: any) => String(s?.path || '').toLowerCase() === win.toLowerCase())) continue;
+        const name = win.split(/[/\\]/).filter(Boolean).pop() || 'Shared';
+        next.push({ id: `share-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, path: win, kind: 'folder' });
+      }
+      updateConfig({ sharedLibraries: next });
+      openBottomPlugin('remote-mesh');
+      setToastMessage(next.length > prev.length ? 'Added to Shared Libraries (Remote Mesh → Buckets & Shares).' : 'Already in Shared Libraries.');
+    };
+    window.addEventListener('bndz-add-shared-libraries', onAddShared);
+    return () => window.removeEventListener('bndz-add-shared-libraries', onAddShared);
+  }, [config.sharedLibraries, updateConfig, openBottomPlugin]);
 
   useEffect(() => {
     const onInboundCopy = (e: Event) => {
@@ -11796,7 +11852,7 @@ export default function BNDZUI() {
                  role="menuitem"
                  aria-label="File menu"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'File' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('File')}
+                 onPointerDown={toggleMenubarMenu('File')}
              >File</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'File'} anchorEl={menubarAnchors.current['File']} minWidth={260}>
@@ -12083,7 +12139,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Edit"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Edit' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Edit')}
+                 onPointerDown={toggleMenubarMenu('Edit')}
              >Edit</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Edit'} anchorEl={menubarAnchors.current['Edit']} minWidth={240}>
@@ -12315,7 +12371,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="View"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'View' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('View')}
+                 onPointerDown={toggleMenubarMenu('View')}
              >View</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'View'} anchorEl={menubarAnchors.current['View']} minWidth={200}>
@@ -12367,7 +12423,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Go"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Go' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Go')}
+                 onPointerDown={toggleMenubarMenu('Go')}
              >Go</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Go'} anchorEl={menubarAnchors.current['Go']} minWidth={260}>
@@ -12514,7 +12570,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tools"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tools' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Tools')}
+                 onPointerDown={toggleMenubarMenu('Tools')}
              >Tools</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tools'} anchorEl={menubarAnchors.current['Tools']} minWidth={260}>
@@ -12618,7 +12674,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Favorites"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Favorites' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Favorites')}
+                 onPointerDown={toggleMenubarMenu('Favorites')}
              >Rapid access</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Favorites'} anchorEl={menubarAnchors.current['Favorites']} minWidth={260}>
@@ -12689,7 +12745,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tags"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tags' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Tags')}
+                 onPointerDown={toggleMenubarMenu('Tags')}
              >Tags</div>
              {config.fileTaggingFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tags'} anchorEl={menubarAnchors.current['Tags']} minWidth={240}>
@@ -12800,7 +12856,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="User"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'User' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('User')}
+                 onPointerDown={toggleMenubarMenu('User')}
              >User</div>
              {config.userDefinedCommands !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'User'} anchorEl={menubarAnchors.current['User']} minWidth={200}>
@@ -12819,7 +12875,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Scripting"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Scripting' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Scripting')}
+                 onPointerDown={toggleMenubarMenu('Scripting')}
              >Scripting</div>
              {config.scripting !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Scripting'} anchorEl={menubarAnchors.current['Scripting']} minWidth={200}>
@@ -12843,7 +12899,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Panes"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Panes' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Panes')}
+                 onPointerDown={toggleMenubarMenu('Panes')}
              >Panes</div>
              {config.dualPaneFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Panes'} anchorEl={menubarAnchors.current['Panes']} minWidth={200}>
@@ -12860,7 +12916,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tabsets"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tabsets' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Tabsets')}
+                 onPointerDown={toggleMenubarMenu('Tabsets')}
              >Tabsets</div>
              {config.tabsets !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tabsets'} anchorEl={menubarAnchors.current['Tabsets']} minWidth={200}>
@@ -12877,7 +12933,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Window"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Window' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Window')}
+                 onPointerDown={toggleMenubarMenu('Window')}
              >Window</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Window'} anchorEl={menubarAnchors.current['Window']} minWidth={200}>
@@ -12923,7 +12979,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Help"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Help' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onMouseDown={toggleMenubarMenu('Help')}
+                 onPointerDown={toggleMenubarMenu('Help')}
              >Help</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Help'} anchorEl={menubarAnchors.current['Help']} minWidth={220}>
@@ -12963,6 +13019,23 @@ export default function BNDZUI() {
              )}
          </div>
          </div>
+         {/* Native-host: dedicated drag region (not the menu triggers — WebView2 app-region race). */}
+         {isNativeShellHostBoot() && (
+           <div
+             className="bndz-menubar-drag-strip"
+             data-bndz-menubar-drag
+             aria-hidden
+             onMouseDown={e => {
+               if (e.button !== 0) return;
+               if ((e.target as HTMLElement).closest('[data-menu-trigger],[data-window-btn]')) return;
+               e.stopPropagation();
+               void import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('drag'));
+             }}
+             onDoubleClick={() => {
+               void import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize'));
+             }}
+           />
+         )}
          {!isFilesHostBoot() && !isNativeShellHostBoot() && !isNativeShellCraftIslandBoot() && <WindowControls />}
       </div>
       )}

@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { toVirtualStreamUrl, toWindowsPath } from '../../lib/pathUtils';
+import { dispatchOpenPhotoStudio } from './BndzPhotoStudio';
 
 type Adjustments = {
   brightness: number;
   contrast: number;
   saturation: number;
+  hue: number;
+  blur: number;
   rotation: number;
   flipX: boolean;
   flipY: boolean;
@@ -15,6 +18,8 @@ const DEFAULT_ADJ: Adjustments = {
   brightness: 100,
   contrast: 100,
   saturation: 100,
+  hue: 0,
+  blur: 0,
   rotation: 0,
   flipX: false,
   flipY: false,
@@ -131,7 +136,7 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
 
     ctx.save();
     ctx.clearRect(0, 0, w, h);
-    ctx.filter = `brightness(${adjust.brightness}%) contrast(${adjust.contrast}%) saturate(${adjust.saturation}%)`;
+    ctx.filter = `brightness(${adjust.brightness}%) contrast(${adjust.contrast}%) saturate(${adjust.saturation}%) hue-rotate(${adjust.hue}deg) blur(${adjust.blur}px)`;
     ctx.translate(w / 2, h / 2);
     ctx.rotate((rot * Math.PI) / 180);
     ctx.scale(adjust.flipX ? -1 : 1, adjust.flipY ? -1 : 1);
@@ -258,6 +263,8 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
                   { key: 'brightness', label: 'Brt', min: 40, max: 180, def: 100 },
                   { key: 'contrast',   label: 'Cnt', min: 40, max: 180, def: 100 },
                   { key: 'saturation', label: 'Sat', min: 0,  max: 200, def: 100 },
+                  { key: 'hue',        label: 'Hue', min: -180, max: 180, def: 0 },
+                  { key: 'blur',       label: 'Blur', min: 0, max: 12, def: 0 },
                 ] as const
               ).map(({ key, label, min, max, def }) => (
                 <label key={key} className="bndz-image-editor-adj-row">
@@ -286,6 +293,15 @@ export default function ImageMicroEditor({ path, title, onSaved }: Props) {
           <div className="bndz-image-editor-rack bndz-image-editor-rack--actions" role="group" aria-label="Actions">
             <span className="bndz-image-editor-rack-label">Output</span>
             <div className="bndz-image-editor-rack-wells bndz-image-editor-rack-wells--col">
+              <button
+                type="button"
+                className="bndz-image-editor-action-btn"
+                title="Open full Photo Studio"
+                onClick={() => dispatchOpenPhotoStudio(path)}
+              >
+                <Icons8Icon id="edit" size={13} />
+                <span>Studio</span>
+              </button>
               <button
                 type="button"
                 className="bndz-image-editor-action-btn"

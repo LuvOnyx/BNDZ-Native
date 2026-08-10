@@ -89,10 +89,16 @@ export function buildListReportCsv(
   }
 
   const leaf = (opts?.folderPath || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || 'report';
+  let csv = lines.join('\n');
+  const enc = String(config.encoding || 'UTF-8').toLowerCase();
+  // Prefixed BOM so Notepad/Excel honor the Settings → Encoding choice for UTF-8 / UTF-16 LE.
+  if (enc.includes('utf-16')) csv = `\uFEFF${csv}`;
+  else if (enc.includes('utf-8') || enc.includes('utf8')) csv = `\uFEFF${csv}`;
   return {
-    csv: lines.join('\n'),
+    csv,
     filename: formatReportCsvFilename(config, leaf),
     separator: sep,
+    encoding: enc.includes('utf-16') ? 'utf-16le' : enc.includes('ascii') || enc.includes('ansi') ? 'ascii' : 'utf-8',
   };
 }
 

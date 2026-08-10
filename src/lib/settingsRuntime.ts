@@ -1021,16 +1021,22 @@ function applyListStyleDataset(config: AppConfig, root: HTMLElement): void {
     }
   }
 
-  const darkness = parseInt(readSelectString(config, 'listSelectionOpacity', '20'), 10);
-  const contrast = parseInt(readSelectString(config, 'listHoverOpacity', '15'), 10);
+  const useCustomSel = config.useCustomSelectionColors === true;
+  const darkness = parseInt(readSelectString(config, 'listSelectionOpacity', useCustomSel ? '60' : '60'), 10);
+  const contrast = parseInt(readSelectString(config, 'listHoverOpacity', '30'), 10);
   const tint = parseInt(readSelectString(config, 'listInactiveOpacity', '0'), 10);
-  root.dataset.darknessLevel = String(Number.isFinite(darkness) ? darkness : 20);
-  root.dataset.textContrast = String(Number.isFinite(contrast) ? contrast : 15);
-  root.dataset.colorTint = String(Number.isFinite(tint) ? tint : 0);
-  const brightness = 0.58 + ((100 - Math.min(100, Math.max(0, darkness))) / 100) * 0.42;
+  // When custom selection colors are off, keep vivid default magenta selection opacity.
+  const darknessEff = useCustomSel ? darkness : 60;
+  const contrastEff = useCustomSel ? contrast : 30;
+  const tintEff = useCustomSel ? tint : 0;
+  root.dataset.darknessLevel = String(Number.isFinite(darknessEff) ? darknessEff : 60);
+  root.dataset.textContrast = String(Number.isFinite(contrastEff) ? contrastEff : 30);
+  root.dataset.colorTint = String(Number.isFinite(tintEff) ? tintEff : 0);
+  const brightness = 0.58 + ((100 - Math.min(100, Math.max(0, darknessEff))) / 100) * 0.42;
   root.style.setProperty('--bndz-chrome-brightness', String(brightness));
-  root.style.setProperty('--bndz-text-contrast-mix', `${Math.min(100, Math.max(0, contrast))}%`);
-  root.style.setProperty('--bndz-color-tint-mix', `${Math.min(100, Math.max(0, tint))}%`);
+  root.style.setProperty('--bndz-text-contrast-mix', `${Math.min(100, Math.max(0, contrastEff))}%`);
+  root.style.setProperty('--bndz-color-tint-mix', `${Math.min(100, Math.max(0, tintEff))}%`);
+  root.dataset.customSelectionColors = useCustomSel ? '1' : '0';
 }
 
 export function applySettingsRuntime(config: AppConfig): void {

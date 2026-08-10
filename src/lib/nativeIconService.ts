@@ -62,8 +62,11 @@ function canonicalizeIconPath(path: string): string {
 
 function iconKey(path: string, isDirectory: boolean, kind: IconRequestKind, thumbPx = LIST_THUMB_PX): string {
   const win = canonicalizeIconPath(path);
+  const band =
+    thumbPx >= 160 ? 256 : thumbPx >= 96 ? 128 : thumbPx >= 56 ? 64 : thumbPx >= 40 ? 48 : 32;
   const base = `${kind}:${win}:${isDirectory ? 'd' : 'f'}`;
-  return kind === 'thumbnail' ? `${base}:${thumbPx}` : base;
+  // Shell glyphs are size-banded too — zoomed grid must not reuse a 32px bitmap.
+  return `${base}:${kind === 'thumbnail' ? thumbPx : band}`;
 }
 
 export function hostIconCacheKey(path: string, isDirectory: boolean): string | null {
@@ -267,7 +270,7 @@ async function fetchOne(
     const res = await IPC.getNativeThumbnailBase64(winPath, thumbPx);
     return toDataUrl(res);
   }
-  const res = await IPC.getNativeShellIconBase64(winPath, isDirectory);
+  const res = await IPC.getNativeShellIconBase64(winPath, isDirectory, thumbPx);
   return toDataUrl(res);
 }
 
@@ -310,7 +313,10 @@ export function requestNativeIcon(
   // Negative CAS — thumbnails only; shell icons retry on next visible row.
   if (kind !== 'shell' && isNegativeFresh(cached)) return Promise.resolve(null);
 
-  if (typeKey?.startsWith('.')) {
+  // Type glyphs from the shared map are ~32px — never reuse them for zoomed tiles.
+  const shareTypeGlyph = kind === 'shell' && thumbPx < 64;
+
+  if (shareTypeGlyph && typeKey?.startsWith('.')) {
     const glyph = typeGlyphCache.get(typeKey);
     if (glyph) {
       commitCache(key, glyph, typeKey);
@@ -323,7 +329,7 @@ export function requestNativeIcon(
   const existing = inflight.get(key);
   if (existing) return existing;
 
-  if (typeKey?.startsWith('.')) {
+  if (shareTypeGlyph && typeKey?.startsWith('.')) {
     const typeInflight = inflight.get(`type:${typeKey}`);
     if (typeInflight) {
       const shared = typeInflight.then(data => {
@@ -349,20 +355,21 @@ export function requestNativeIcon(
   const promise = enqueueIconRequest(() => fetchOne(path, isDirectory, kind, thumbPx), priority, queueKind)
     .then(data => {
       // Never pass FOLDER_GLYPH_KEY — per-path folder extracts must not poison the shared glyph.
-      commitCache(key, data, typeKey?.startsWith('.') ? typeKey : null, kind);
+      // Hi-res shell extracts must not overwrite the shared ~32px type glyph either.
+      commitCache(key, data, shareTypeGlyph && typeKey?.startsWith('.') ? typeKey : null, kind);
       return data;
     })
     .catch(() => {
-      commitCache(key, null, typeKey, kind);
+      commitCache(key, null, shareTypeGlyph ? typeKey : null, kind);
       return null;
     })
     .finally(() => {
       inflight.delete(key);
-      if (typeKey?.startsWith('.')) inflight.delete(`type:${typeKey}`);
+      if (shareTypeGlyph && typeKey?.startsWith('.')) inflight.delete(`type:${typeKey}`);
     });
 
   inflight.set(key, promise);
-  if (typeKey?.startsWith('.')) inflight.set(`type:${typeKey}`, promise);
+  if (shareTypeGlyph && typeKey?.startsWith('.')) inflight.set(`type:${typeKey}`, promise);
   return promise;
 }
 
@@ -437,28 +444,31 @@ export async function prefetchIconsForEntities(
     requests.push({ path: fullPath, isDirectory: isDir });
   }
   if (!requests.length) return;
+  const shellPx = getRuntimeListThumbPx();
   const CHUNK = 48;
   for (let i = 0; i < requests.length; i += CHUNK) {
     const chunk = requests.slice(i, i + CHUNK);
-    if (IPC.isNative && IPC.getNativeShellIconsBatch) {
+    if (IPC.isNative && IPC.getNativeShellIconsBatch && kind === 'shell') {
       try {
-        const batch = await IPC.getNativeShellIconsBatch(chunk);
-        applyBatchChunk(chunk, batch, kind);
+        const batch = await IPC.getNativeShellIconsBatch(chunk, shellPx);
+        applyBatchChunk(chunk, batch, kind, shellPx);
         for (const ent of entities) {
           const fullPath = joinPanePath(panePath, ent);
           const isDir = entityShellIsDirectory(ent, fullPath);
           if (isDir) continue; // per-path via applyBatchChunk / requestNativeIcon
-          const key = iconKey(fullPath, isDir, kind);
+          const key = iconKey(fullPath, isDir, kind, shellPx);
           if (cache.get(key)?.data) continue;
-          const typeKey = hostIconCacheKey(fullPath, isDir);
-          if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
-            commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
+          if (shellPx < 64) {
+            const typeKey = hostIconCacheKey(fullPath, isDir);
+            if (typeKey?.startsWith('.') && typeGlyphCache.has(typeKey)) {
+              commitCache(key, typeGlyphCache.get(typeKey)!, typeKey);
+            }
           }
         }
         continue;
       } catch { /* per-item */ }
     }
-    await Promise.all(chunk.map(r => requestNativeIcon(r.path, r.isDirectory, kind)));
+    await Promise.all(chunk.map(r => requestNativeIcon(r.path, r.isDirectory, kind, shellPx)));
   }
 }
 
@@ -531,6 +541,7 @@ export async function prefetchShellIconPaths(
   items: Array<{ path: string; iconPath?: string }>,
 ): Promise<void> {
   if (!items.length) return;
+  const shellPx = getRuntimeListThumbPx();
   const requests = items
     .filter(i => i.iconPath || i.path)
     .map(i => {
@@ -543,12 +554,12 @@ export async function prefetchShellIconPaths(
     const chunk = requests.slice(i, i + CHUNK);
     if (IPC.isNative && IPC.getNativeShellIconsBatch) {
       try {
-        const batch = await IPC.getNativeShellIconsBatch(chunk);
-        applyBatchChunk(chunk, batch, 'shell');
+        const batch = await IPC.getNativeShellIconsBatch(chunk, shellPx);
+        applyBatchChunk(chunk, batch, 'shell', shellPx);
         continue;
       } catch { /* per-item */ }
     }
-    await Promise.all(chunk.map(r => requestNativeIcon(r.path, r.isDirectory, 'shell')));
+    await Promise.all(chunk.map(r => requestNativeIcon(r.path, r.isDirectory, 'shell', shellPx)));
   }
 }
 
