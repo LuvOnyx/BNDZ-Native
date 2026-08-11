@@ -58,7 +58,12 @@ export function ShellNativeIcon({
   const thumbFetch = !forceGeneric && visible && !!path && useThumb
     && config.enableNativeThumbnails !== false
     && !config.showCachedIconsOnly;
-  const thumbPx = hero || size >= 64 ? Math.max(getRuntimeListThumbPx(), Math.min(256, size)) : getRuntimeListThumbPx();
+  const thumbPx = hero || size >= 48
+    ? Math.max(getRuntimeListThumbPx(), Math.min(512, Math.ceil(size * (typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1) * 1.35)))
+    : getRuntimeListThumbPx();
+  const shellPx = hero || size >= 48
+    ? Math.min(512, Math.max(64, Math.ceil(size * (typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1) * 1.5)))
+    : Math.max(32, size);
 
   useEffect(() => {
     applyIconCacheBuster(config.iconCacheBuster);
@@ -98,11 +103,11 @@ export function ShellNativeIcon({
     return () => obs.disconnect();
   }, [eager, path]);
 
-  useNativeIconFetch(path, dirFlag, 'shell', visible, shellFetch);
+  useNativeIconFetch(path, dirFlag, 'shell', visible, shellFetch, shellPx);
   useNativeIconFetch(path, dirFlag, 'thumbnail', visible, thumbFetch, thumbPx);
 
-  const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path);
-  const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumb);
+  const shellSrc = useNativeIcon(path, dirFlag, 'shell', !!path, shellPx);
+  const thumbSrc = useNativeIcon(path, dirFlag, 'thumbnail', useThumb, thumbPx);
 
   // SVG: CAS PNG first; if empty, inline blob: (never bndz-stream — custom scheme 404s poison previews).
   useEffect(() => {

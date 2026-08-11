@@ -33,6 +33,7 @@ type LanPeer = {
 
 type Props = {
   paths?: string[];
+  initialMode?: Mode;
   onClose: () => void;
 };
 
@@ -66,9 +67,9 @@ function parseRoomIdFromJoinInput(input: string): string | null {
   }
 }
 
-export default function MeshDropDialog({ paths = [], onClose }: Props) {
+export default function MeshDropDialog({ paths = [], initialMode, onClose }: Props) {
   const { config } = useAppConfig();
-  const [mode, setMode] = useState<Mode>(paths.length ? 'host' : 'receive');
+  const [mode, setMode] = useState<Mode>(initialMode ?? (paths.length ? 'host' : 'receive'));
   const [shareMode, setShareMode] = useState<MeshDropShareMode>('link');
   const [receiveChannel, setReceiveChannel] = useState<ReceiveChannel>('paste');
 

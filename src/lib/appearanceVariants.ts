@@ -107,8 +107,8 @@ const PALETTE_MAP: Record<ChromePalette, { chrome: string; raised: string; base:
 
 const DENSITY_ROW: Record<DensityStyle, number> = {
   compact: 20,
-  comfortable: 24,
-  spacious: 28,
+  comfortable: 22,
+  spacious: 26,
 };
 
 const TAB_STYLE_IDS = new Set<TabStyle>(['explorer', 'soft', 'underline', 'segment', 'flat']);

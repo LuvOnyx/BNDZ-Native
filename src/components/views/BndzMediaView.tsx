@@ -9,7 +9,7 @@ import BndzIndexEmptyState from './BndzIndexEmptyState';
 import { useAppConfig } from '../../data/configContext';
 import { weekdayHeadersShort } from '../../lib/weekCalendarSettings';
 
-export type BndzMediaEntity = FSEntity & { path?: string; modified?: number };
+export type BndzMediaEntity = FSEntity & { path?: string; modified?: number | string };
 
 type Props = {
   items: BndzMediaEntity[];
@@ -22,9 +22,18 @@ type Props = {
   onIndexBuilt?: () => void;
 };
 
-function dateLabel(ts?: number): string {
-  if (!ts) return 'Unknown date';
-  const d = new Date(ts * 1000);
+function dateLabel(ts?: number | string): string {
+  if (ts == null || ts === '') return 'Unknown date';
+  let d: Date;
+  if (typeof ts === 'number' && Number.isFinite(ts)) {
+    d = new Date(ts < 1e12 ? ts * 1000 : ts);
+  } else if (typeof ts === 'string' && /^\d+$/.test(ts.trim())) {
+    const n = Number(ts);
+    d = new Date(n < 1e12 ? n * 1000 : n);
+  } else {
+    d = new Date(ts);
+  }
+  if (Number.isNaN(d.getTime())) return 'Unknown date';
   const today = new Date();
   const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
   const diff = startOf(today).getTime() - startOf(d).getTime();
@@ -74,7 +83,8 @@ function MediaTile({
       onDoubleClick={() => onItemDoubleClick(entity)}
       onContextMenu={e => onContextMenu(e, entity)}
     >
-      <ThumbnailIcon entity={entity} isDir={false} path={path} size={108} />
+      {/* size drives native extract px — keep under 72 so we stay in medium band (≤256), not jumbo 384+. */}
+      <ThumbnailIcon entity={entity} isDir={false} path={path} size={64} />
       <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/75 to-transparent opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
         <span className="text-[10px] text-white truncate block">{entity.name}</span>
         {dateHint && <span className="text-[9px] text-white/70 truncate block">{dateHint}</span>}

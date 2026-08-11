@@ -30,7 +30,8 @@ export async function loadGpuTexture(url: string, key = textureKeyFromUrl(url)):
   }
   return new Promise((resolve, reject) => {
     const loader = new THREE.TextureLoader();
-    loader.setCrossOrigin('anonymous');
+    // Empty crossOrigin — 'anonymous' breaks bndz-stream:// custom-scheme loads.
+    loader.setCrossOrigin('');
     loader.load(
       url,
       tex => {

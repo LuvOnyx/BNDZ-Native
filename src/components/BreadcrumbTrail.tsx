@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { IPC } from '../lib/ipcBridge';
 import { formatUiPath } from '../lib/displayPath';
 import { runWebViewPrimaryAction } from '../lib/webViewClick';
+import { isNativeShellHostBoot } from '../lib/nativeShellHostBoot';
 
 export type BreadcrumbSeg = { path: string; label: string };
 
@@ -35,7 +36,8 @@ async function showBreadcrumbOverflowHostMenu(
   mid: BreadcrumbSeg[],
   onNavigate: (path: string, opts?: { newTab?: boolean }) => void,
 ): Promise<boolean> {
-  if (!IPC.isNative || !mid.length) return false;
+  // Classic WPF host only — BNDZShell headless IPC cannot own a reliable popup.
+  if (!IPC.isNative || isNativeShellHostBoot() || !mid.length) return false;
   const items = mid.map((seg, i) => ({
     id: `crumb-${i}`,
     label: seg.label || seg.path,
@@ -147,7 +149,7 @@ export function BreadcrumbTrail({
           >
             …
           </button>
-          {menuOpen && !IPC.isNative && (
+          {menuOpen && (!IPC.isNative || isNativeShellHostBoot()) && (
             <div
               className="absolute top-full left-8 z-[80] mt-1 min-w-[180px] max-w-[320px] py-1 rounded-[10px] border border-[#454545] bg-[#1e1e22]/98 shadow-xl backdrop-blur-sm"
               onMouseLeave={() => setMenuOpen(false)}

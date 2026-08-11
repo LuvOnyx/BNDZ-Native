@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import './threeCompat';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -6,6 +6,8 @@ import OrthoCameraController from './OrthoCameraController';
 import { histogramFrag, loupeFrag, passthroughFrag, passthroughVert } from './shaders/inspectionShaders';
 import { getDisplayDpr } from '../../lib/displayDpr';
 import type { InspectionShaderMode } from './InspectionViewportRouter';
+import BndzErrorBoundary from '../../components/BndzErrorBoundary';
+import { toWindowsPath } from '../../lib/pathUtils';
 
 type SceneProps = {
   src: string;
@@ -58,6 +60,14 @@ function FitCamera({
   return null;
 }
 
+/** TextureLoader defaults to crossOrigin=anonymous which breaks bndz-stream://. */
+class LocalTextureLoader extends THREE.TextureLoader {
+  constructor() {
+    super();
+    this.setCrossOrigin('');
+  }
+}
+
 function InspectionPlane({
   src,
   shaderMode,
@@ -66,7 +76,7 @@ function InspectionPlane({
   planeHalfRef,
   onZoomChange,
 }: SceneProps) {
-  const texture = useLoader(THREE.TextureLoader, src);
+  const texture = useLoader(LocalTextureLoader, src);
   const { size, invalidate, camera } = useThree();
   const mouse = useMemo(() => new THREE.Vector2(0.5, 0.5), []);
 
@@ -143,91 +153,148 @@ function InspectionPlane({
 type Props = {
   src: string;
   alt?: string;
+  filePath?: string | null;
   shaderMode?: InspectionShaderMode;
   onFailed?: () => void;
 };
 
-export default function GpuInspectionViewport({ src, alt, shaderMode = 'passthrough', onFailed }: Props) {
+/**
+ * Prefer a blob:// URL for TextureLoader — bndz-stream + CORS/crossOrigin=anonymous
+ * throws "Could not load …: undefined" and used to blank the whole shell via the root boundary.
+ */
+async function resolveTextureSrc(src: string, filePath?: string | null): Promise<string> {
+  if (!src) return '';
+  if (src.startsWith('blob:') || src.startsWith('data:')) return src;
+  const needsBlob = /^bndz-stream:/i.test(src) || src.includes('/local-stream/');
+  if (!needsBlob || !filePath) return src;
+  try {
+    const { IPC } = await import('../../lib/ipcBridge');
+    if (!IPC.isNative) return src;
+    const result = await IPC.getMediaBlob(toWindowsPath(filePath));
+    if (!result.base64 || !result.mime) return src;
+    const binary = atob(result.base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: result.mime }));
+  } catch {
+    return src;
+  }
+}
+
+export default function GpuInspectionViewport({ src, alt, filePath, shaderMode = 'passthrough', onFailed }: Props) {
   const [zoomPct, setZoomPct] = useState(100);
   const [failed, setFailed] = useState(false);
   const [canvasKey, setCanvasKey] = useState(0);
+  const [textureSrc, setTextureSrc] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const baseZoomRef = useRef(1);
   const planeHalfRef = useRef({ x: 1, y: 1 });
   const fitZoomAtStart = useRef(1);
+  const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (failed) onFailed?.();
   }, [failed, onFailed]);
 
   useEffect(() => {
+    let cancelled = false;
     setFailed(false);
     baseZoomRef.current = 1;
     fitZoomAtStart.current = 1;
     setZoomPct(100);
+    setTextureSrc(null);
     setCanvasKey(k => k + 1);
-  }, [src, shaderMode]);
 
-  if (!src || failed) {
+    void resolveTextureSrc(src, filePath).then(resolved => {
+      if (cancelled) {
+        if (resolved.startsWith('blob:')) URL.revokeObjectURL(resolved);
+        return;
+      }
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+      if (resolved.startsWith('blob:') && resolved !== src) blobUrlRef.current = resolved;
+      setTextureSrc(resolved || src);
+    });
+
+    return () => {
+      cancelled = true;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [src, filePath, shaderMode]);
+
+  if (!src || failed || !textureSrc) {
     return (
       <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
-        GPU preview unavailable
+        {failed ? 'GPU preview unavailable' : 'Loading GPU preview…'}
       </div>
     );
   }
 
   return (
     <div ref={viewportRef} className="bndz-gpu-viewport group relative w-full h-full min-h-0">
-      <Canvas
-        key={canvasKey}
-        orthographic
-        frameloop="demand"
-        camera={{ position: [0, 0, 2], zoom: 1, near: 0.1, far: 10 }}
-        dpr={getDisplayDpr()}
-        gl={{
-          powerPreference: 'high-performance',
-          antialias: false,
-          stencil: false,
-          depth: false,
-          failIfMajorPerformanceCaveat: false,
-          preserveDrawingBuffer: false,
-        }}
-        onCreated={({ gl, invalidate }) => {
-          const canvas = gl.domElement;
-          const onLost = (e: Event) => {
-            // Do NOT dispose — that leaves a dead black/empty canvas and blocks restore.
-            e.preventDefault();
-          };
-          const onRestored = () => {
-            setFailed(false);
-            setCanvasKey(k => k + 1);
-            invalidate();
-          };
-          canvas.addEventListener('webglcontextlost', onLost, false);
-          canvas.addEventListener('webglcontextrestored', onRestored, false);
-          invalidate();
-        }}
+      <BndzErrorBoundary
+        isolate
+        label="GPU inspection"
+        resetKey={`${textureSrc}:${shaderMode}`}
         onError={() => setFailed(true)}
+        fallback={<div className="w-full h-full flex items-center justify-center text-xs text-gray-500">GPU preview unavailable</div>}
       >
-        <color attach="background" args={['#0a0a0c']} />
-        <React.Suspense fallback={null}>
-          <InspectionPlane
-            src={src}
-            shaderMode={shaderMode}
-            viewportRef={viewportRef}
-            baseZoomRef={baseZoomRef}
-            planeHalfRef={planeHalfRef}
-            onZoomChange={mul => {
-              if (fitZoomAtStart.current <= 1 && baseZoomRef.current > 1) {
-                fitZoomAtStart.current = baseZoomRef.current;
-              }
-              const base = fitZoomAtStart.current > 1 ? fitZoomAtStart.current : baseZoomRef.current;
-              const pct = base > 0 ? Math.round((baseZoomRef.current * mul) / base * 100) : Math.round(mul * 100);
-              setZoomPct(pct);
-            }}
-          />
-        </React.Suspense>
-      </Canvas>
+        <Canvas
+          key={canvasKey}
+          orthographic
+          frameloop="demand"
+          camera={{ position: [0, 0, 2], zoom: 1, near: 0.1, far: 10 }}
+          dpr={getDisplayDpr()}
+          gl={{
+            powerPreference: 'high-performance',
+            antialias: false,
+            stencil: false,
+            depth: false,
+            failIfMajorPerformanceCaveat: false,
+            preserveDrawingBuffer: false,
+          }}
+          onCreated={({ gl, invalidate }) => {
+            const canvas = gl.domElement;
+            const onLost = (e: Event) => {
+              // Do NOT dispose — that leaves a dead black/empty canvas and blocks restore.
+              e.preventDefault();
+            };
+            const onRestored = () => {
+              setFailed(false);
+              setCanvasKey(k => k + 1);
+              invalidate();
+            };
+            canvas.addEventListener('webglcontextlost', onLost, false);
+            canvas.addEventListener('webglcontextrestored', onRestored, false);
+            invalidate();
+          }}
+          onError={() => setFailed(true)}
+        >
+          <color attach="background" args={['#0a0a0c']} />
+          <Suspense fallback={null}>
+            <InspectionPlane
+              src={textureSrc}
+              shaderMode={shaderMode}
+              viewportRef={viewportRef}
+              baseZoomRef={baseZoomRef}
+              planeHalfRef={planeHalfRef}
+              onZoomChange={mul => {
+                if (fitZoomAtStart.current <= 1 && baseZoomRef.current > 1) {
+                  fitZoomAtStart.current = baseZoomRef.current;
+                }
+                const base = fitZoomAtStart.current > 1 ? fitZoomAtStart.current : baseZoomRef.current;
+                const pct = base > 0 ? Math.round((baseZoomRef.current * mul) / base * 100) : Math.round(mul * 100);
+                setZoomPct(pct);
+              }}
+            />
+          </Suspense>
+        </Canvas>
+      </BndzErrorBoundary>
       <div className="absolute left-2 bottom-2 text-[10px] text-white/50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
         {zoomPct}%
       </div>

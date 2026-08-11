@@ -63,7 +63,12 @@ function canonicalizeIconPath(path: string): string {
 function iconKey(path: string, isDirectory: boolean, kind: IconRequestKind, thumbPx = LIST_THUMB_PX): string {
   const win = canonicalizeIconPath(path);
   const band =
-    thumbPx >= 160 ? 256 : thumbPx >= 96 ? 128 : thumbPx >= 56 ? 64 : thumbPx >= 40 ? 48 : 32;
+    thumbPx >= 320 ? 512
+    : thumbPx >= 200 ? 256
+    : thumbPx >= 96 ? 128
+    : thumbPx >= 56 ? 64
+    : thumbPx >= 40 ? 48
+    : 32;
   const base = `${kind}:${win}:${isDirectory ? 'd' : 'f'}`;
   // Shell glyphs are size-banded too — zoomed grid must not reuse a 32px bitmap.
   return `${base}:${kind === 'thumbnail' ? thumbPx : band}`;
@@ -587,15 +592,16 @@ export function listingPrefetchFromConfig(config: {
   includeSearchResults?: boolean;
 }): { iconLimit?: number; thumbLimit?: number; includeFolderThumbs?: boolean; diskCacheSearch?: boolean } {
   const all = !!config.createAllThumbnailsAtOnce;
-  const filesHost =
+  const shell =
     typeof document !== 'undefined'
-    && document.documentElement?.dataset?.bndzShell === 'files-host';
-  // FilesMerge pipe is shared — never flood cold navigate with create-all-at-once 50k icons.
-  if (filesHost) {
+      ? document.documentElement?.dataset?.bndzShell
+      : undefined;
+  // Hosted/native shells share one WebView2 IPC pump — never flood cold navigate with 50k thumbs
+  // (Photos & Videos + create-all-at-once was blanking the whole native face).
+  if (shell === 'files-host' || shell === 'native-host') {
     return {
       includeFolderThumbs: config.showFolderThumbnails === true,
       diskCacheSearch: config.cacheThumbnailsOnDisk !== false && !!config.includeSearchResults,
-      // Keep cold navigate light — icons after first paint, not a pipe storm before list lands.
       iconLimit: all ? 48 : 32,
       thumbLimit: all ? 16 : 8,
     };
@@ -604,6 +610,21 @@ export function listingPrefetchFromConfig(config: {
     includeFolderThumbs: config.showFolderThumbnails === true,
     diskCacheSearch: config.cacheThumbnailsOnDisk !== false && !!config.includeSearchResults,
     ...(all ? { iconLimit: 50_000, thumbLimit: 50_000 } : {}),
+  };
+}
+
+/** Extra-tight prefetch for index smart views that are almost entirely media tiles. */
+export function virtualMediaPrefetchOptions(config: {
+  showFolderThumbnails?: boolean;
+  createAllThumbnailsAtOnce?: boolean;
+  cacheThumbnailsOnDisk?: boolean;
+  includeSearchResults?: boolean;
+}): { iconLimit: number; thumbLimit: number; includeFolderThumbs?: boolean } {
+  const base = listingPrefetchFromConfig(config);
+  return {
+    includeFolderThumbs: false,
+    iconLimit: Math.min(base.iconLimit ?? 32, 24),
+    thumbLimit: Math.min(base.thumbLimit ?? 8, 12),
   };
 }
 

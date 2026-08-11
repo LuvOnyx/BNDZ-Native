@@ -12,10 +12,12 @@ export type PanelFontTokens = {
 };
 
 /**
- * BNDZ font pack — expressive UI faces (bundled via @fontsource).
- * Avoids generic stacks (Inter / Roboto / Arial / system defaults as the product look).
+ * BNDZ font pack — Navigation Tree / Files-modern default is Segoe UI Variable.
+ * Bundled faces (Outfit, Figtree, …) remain selectable in Fonts settings.
  */
 const FONT_PRESETS: Record<string, string> = {
+  'Segoe UI Variable': '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+  'Segoe UI': '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif',
   Outfit: 'Outfit, sans-serif',
   Figtree: 'Figtree, sans-serif',
   'Clarity City': '"Clarity City", sans-serif',
@@ -24,7 +26,6 @@ const FONT_PRESETS: Record<string, string> = {
   Inter: 'Inter, sans-serif',
   'IBM Plex Sans': '"IBM Plex Sans", sans-serif',
   'Source Sans 3': '"Source Sans 3", sans-serif',
-  'Segoe UI': '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif',
   'Space Grotesk': '"Space Grotesk", sans-serif',
   Sora: 'Sora, sans-serif',
   Manrope: 'Manrope, sans-serif',
@@ -63,10 +64,10 @@ function zoneSizeKey(zone: PanelFontZone): keyof AppConfig {
 }
 
 export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelFontTokens {
-  const baseFamily = readSettingString(config, 'uiFontFamily', FONT_PRESETS.Outfit);
+  const baseFamily = readSettingString(config, 'uiFontFamily', FONT_PRESETS['Segoe UI Variable']);
   const baseSize = readSettingNumber(config, 'fontSize', 12);
   const baseWeight = readSettingNumber(config, 'uiFontWeight', 500);
-  const monoFamily = readSettingString(config, 'uiFontFamilyMono', MONO_PRESETS['JetBrains Mono']);
+  const monoFamily = readSettingString(config, 'uiFontFamilyMono', MONO_PRESETS.Cascadia);
 
   const familyOverride = readSettingString(config, String(zoneFamilyKey(zone)), '');
   const sizeOverride = readSettingNumber(config, String(zoneSizeKey(zone)), 0);
@@ -74,14 +75,15 @@ export function resolvePanelFont(config: AppConfig, zone: PanelFontZone): PanelF
   const isNativeHost = typeof document !== 'undefined'
     && document.documentElement.dataset.bndzShell === 'native-host';
 
+  // Match Navigation Tree Files-modern sizing — do not shrink the tree and leave chrome mismatched.
   const zoneDefaults: Record<PanelFontZone, { size: number; weight: number; lineHeight: number }> = {
-    list: { size: isNativeHost ? 13.5 : 13, weight: baseWeight, lineHeight: 1.32 },
+    list: { size: isNativeHost ? 13.5 : 13, weight: baseWeight, lineHeight: 1.35 },
     tabs: { size: readSettingNumber(config, 'tabsFontSize', 0) || readSettingNumber(config, 'tabFontSize', 11) || 11, weight: baseWeight, lineHeight: 1.25 },
     preview: { size: 12, weight: baseWeight, lineHeight: 1.4 },
     bottom: { size: 12, weight: baseWeight, lineHeight: 1.35 },
     status: { size: 11, weight: baseWeight, lineHeight: 1.25 },
     chrome: { size: baseSize, weight: baseWeight, lineHeight: 1.3 },
-    tree: { size: isNativeHost ? 13 : 12.5, weight: baseWeight, lineHeight: 1.35 },
+    tree: { size: isNativeHost ? 13.5 : 12.5, weight: baseWeight, lineHeight: 1.35 },
   };
 
   const zoneDef = zoneDefaults[zone];

@@ -114,9 +114,10 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     hiddenRapidAccess: [],
     navigationHistory: [],
     showMiniTree: false,
-    listIconSize: 16,
+    listIconSize: 14,
     gridIconSize: 48,
-    detailsIconSize: 20,
+    detailsIconSize: 16,
+    rowHeight: 0,
     pinnedContextActions: [] as Array<{ id: string; label: string; verb?: string }>,
     customUserCommands: [] as Array<{ id: string; label: string; hint?: string; keywords?: string[]; action: string; shell?: 'powershell' | 'cmd' }>,
     customEventActions: [] as CustomEventAction[],
@@ -258,6 +259,19 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
             return rest;
         });
         merged.folderColorFilterVersion = 2;
+    }
+    // Restore Navigation Tree / Files-modern face (Segoe). Outfit was forced as a global
+    // default and replaced the tree font instead of matching the rest of the UI to it.
+    if ((merged.uiFontFamilyMigrationVersion ?? 0) < 1) {
+        const fam = String(merged.uiFontFamily || '').trim();
+        if (!fam || /^Outfit\b/i.test(fam) || fam === 'Outfit, sans-serif') {
+            merged.uiFontFamily = '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif';
+        }
+        const mono = String(merged.uiFontFamilyMono || '').trim();
+        if (!mono || /^"?JetBrains Mono/i.test(mono)) {
+            merged.uiFontFamilyMono = '"Cascadia Code", "Cascadia Mono", Consolas, monospace';
+        }
+        merged.uiFontFamilyMigrationVersion = 1;
     }
     return merged;
 }

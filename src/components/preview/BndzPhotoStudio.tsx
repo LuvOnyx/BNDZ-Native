@@ -227,7 +227,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
           const prefix = base.endsWith('/') ? base : `${base}/`;
           return `${prefix}editors/bndz-photo-studio.html`;
         })()}
-        sandbox="allow-scripts allow-same-origin allow-downloads"
+        sandbox="allow-scripts allow-same-origin allow-downloads allow-modals"
         onLoad={() => {
           setTimeout(() => postToStudio({ type: 'ping' }), 40);
         }}

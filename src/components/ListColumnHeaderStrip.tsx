@@ -66,6 +66,7 @@ function SortableColumnHeader({
     id: col.id,
   });
   const pressRef = React.useRef<{ x: number; y: number; moved: boolean; pointerId: number } | null>(null);
+  const lastSortAtRef = React.useRef(0);
 
   // Translate only — never scale. Scale is what made the bars look deformed.
   const style: React.CSSProperties = {
@@ -102,6 +103,16 @@ function SortableColumnHeader({
     return !!el?.closest?.('.bndz-col-resize-handle, .bndz-col-reorder-grip');
   };
 
+  const fireSort = (e: React.SyntheticEvent) => {
+    if (!col.sortable || isDragging) return;
+    const now = performance.now();
+    if (now - lastSortAtRef.current < 280) return;
+    lastSortAtRef.current = now;
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleSort(col.id as SortColumnId);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -117,7 +128,8 @@ function SortableColumnHeader({
       onPointerMove={e => {
         const press = pressRef.current;
         if (!press || press.pointerId !== e.pointerId) return;
-        if (Math.abs(e.clientX - press.x) > 3 || Math.abs(e.clientY - press.y) > 3) press.moved = true;
+        // 8px slack — WebView2 / trackpad micro-jitter was cancelling sort toggles at 3px.
+        if (Math.abs(e.clientX - press.x) > 8 || Math.abs(e.clientY - press.y) > 8) press.moved = true;
       }}
       onPointerUp={e => {
         if (!col.sortable) return;
@@ -125,14 +137,17 @@ function SortableColumnHeader({
         pressRef.current = null;
         if (!press || press.pointerId !== e.pointerId) return;
         if (press.moved) return;
-        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4) return;
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) return;
         if (isChromeTarget(e.target)) return;
-        // WebView2-safe: one sort toggle on pointerup (do not also use mousedown — doubles cancel).
-        e.preventDefault();
-        e.stopPropagation();
-        onToggleSort(col.id as SortColumnId);
+        fireSort(e);
       }}
       onPointerCancel={() => { pressRef.current = null; }}
+      onClick={e => {
+        // Fallback when pointerup is dropped (WebView2 / dnd-kit) but click still arrives.
+        if (!col.sortable || isDragging || isChromeTarget(e.target)) return;
+        if (pressRef.current) return;
+        fireSort(e);
+      }}
     >
       <div
         ref={setActivatorNodeRef}

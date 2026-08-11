@@ -62,7 +62,8 @@ public static class BndzHostCaches
     public static string IconCacheKey(string path, bool isDirectory, int pixelSize = 48)
     {
         path ??= "";
-        int band = pixelSize >= 160 ? 256
+        int band = pixelSize >= 320 ? 512
+            : pixelSize >= 200 ? 256
             : pixelSize >= 96 ? 128
             : pixelSize >= 56 ? 64
             : pixelSize >= 40 ? 48

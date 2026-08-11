@@ -836,11 +836,11 @@ public sealed class BndzFileIndexService : IDisposable
         return new { images, videos, audio, documents, large };
     }
 
-    public List<object> GetMediaFiles(int limit = 1000) =>
-        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind IN ('image','video') ORDER BY modified DESC LIMIT $lim", limit);
+    public List<object> GetMediaFiles(int limit = 200) =>
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind IN ('image','video') ORDER BY modified DESC LIMIT $lim", Math.Min(limit, 250));
 
-    public List<object> GetAudioFiles(int limit = 1000) =>
-        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind='audio' ORDER BY modified DESC LIMIT $lim", limit);
+    public List<object> GetAudioFiles(int limit = 200) =>
+        QueryView($"SELECT {FileRowColumns} FROM files WHERE is_dir=0 AND media_kind='audio' ORDER BY modified DESC LIMIT $lim", Math.Min(limit, 250));
 
     public List<object> GetDocumentFiles(int limit = 1000) =>
         QueryView($"""

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ImageZoomPreview from '../../components/ImageZoomPreview';
 import GpuInspectionViewport from './GpuInspectionViewport';
 import { probeWebGL } from '../webglProbe';
@@ -25,6 +25,10 @@ export default function InspectionViewportRouter({
   shaderMode = 'passthrough',
 }: Props) {
   const [gpuFailed, setGpuFailed] = useState(false);
+  useEffect(() => {
+    setGpuFailed(false);
+  }, [src, filePath, shaderMode]);
+
   const wantsGpuShader = shaderMode === 'histogram' || shaderMode === 'loupe';
   const useGpu = !gpuFailed
     && gpuEnabled !== false
@@ -51,6 +55,7 @@ export default function InspectionViewportRouter({
       <GpuInspectionViewport
         src={src}
         alt={alt}
+        filePath={filePath}
         shaderMode={shaderMode}
         onFailed={() => setGpuFailed(true)}
       />

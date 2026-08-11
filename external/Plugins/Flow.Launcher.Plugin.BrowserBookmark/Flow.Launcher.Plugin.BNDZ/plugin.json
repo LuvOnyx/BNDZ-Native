@@ -1,0 +1,12 @@
+{
+  "ID": "BNDZ7A1C4E2F3D4B5A6980C1D2E3F4A5B6",
+  "ActionKeyword": "*",
+  "Name": "BNDZ Launcher",
+  "Description": "BNDZ Launcher system commands, clipboard history, and file manager integration.",
+  "Author": "BNDZ",
+  "Version": "1.1.0",
+  "Language": "csharp",
+  "Website": "https://github.com/bndz",
+  "ExecuteFileName": "Flow.Launcher.Plugin.BNDZ.dll",
+  "IcoPath": "Images\\bndz.png"
+}

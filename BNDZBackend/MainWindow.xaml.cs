@@ -6844,7 +6844,7 @@ namespace BNDZ
 
                     var pathCopy = path;
                     var isDirCopy = isDirectory;
-                    var sizeCopy = Math.Clamp(pixelSize <= 0 ? 48 : pixelSize, 16, 256);
+                    var sizeCopy = Math.Clamp(pixelSize <= 0 ? 48 : pixelSize, 16, 512);
 
                     _ = Task.Run(async () =>
                     {
@@ -6879,7 +6879,7 @@ namespace BNDZ
                         if (root.TryGetProperty("payload", out var sizePayload)
                             && sizePayload.TryGetProperty("size", out var batchSizeEl)
                             && batchSizeEl.TryGetInt32(out var bsz))
-                            batchSize = Math.Clamp(bsz <= 0 ? 48 : bsz, 16, 256);
+                            batchSize = Math.Clamp(bsz <= 0 ? 48 : bsz, 16, 512);
                     }
                     catch { }
 
@@ -6897,7 +6897,7 @@ namespace BNDZ
                                     bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
                                     int itemSize = sizeCopy;
                                     if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
-                                        itemSize = Math.Clamp(isz <= 0 ? sizeCopy : isz, 16, 256);
+                                        itemSize = Math.Clamp(isz <= 0 ? sizeCopy : isz, 16, 512);
                                     string path = ShellPathResolver.ResolveForShell(rawPath);
                                     if (string.IsNullOrEmpty(path)) continue;
 
@@ -7679,14 +7679,17 @@ namespace BNDZ
                     _ = Task.Run(() =>
                     {
                         var svc = BndzFileIndexService.Instance;
+                        var safeLimit = view is "media" or "audio"
+                            ? Math.Clamp(limit, 1, 250)
+                            : Math.Clamp(limit, 1, 2000);
                         List<object> rawItems = view switch
                         {
-                            "recent" => svc.GetRecentFiles(limit),
-                            "media" => svc.GetMediaFiles(limit),
-                            "audio" => svc.GetAudioFiles(limit),
-                            "documents" => svc.GetDocumentFiles(limit),
-                            "large" => svc.GetLargeFiles(limit),
-                            "problems" => LibraryHealthService.Instance.ListProblems(null, limit)
+                            "recent" => svc.GetRecentFiles(safeLimit),
+                            "media" => svc.GetMediaFiles(safeLimit),
+                            "audio" => svc.GetAudioFiles(safeLimit),
+                            "documents" => svc.GetDocumentFiles(safeLimit),
+                            "large" => svc.GetLargeFiles(safeLimit),
+                            "problems" => LibraryHealthService.Instance.ListProblems(null, safeLimit)
                                 .Select(p => (object)new
                                 {
                                     id = p.Id,
@@ -7711,14 +7714,16 @@ namespace BNDZ
                                     modified = e.CreatedUtc,
                                     extension = "",
                                 }).ToList(),
-                            "portal-health" => BndzNamespaceService.Instance.ResolvePortalView("health", limit),
-                            "portal-magnets" => BndzNamespaceService.Instance.ResolvePortalView("magnets", limit),
-                            "portal-sandboxes" => BndzNamespaceService.Instance.ResolvePortalView("sandboxes", limit),
-                            "portal-capture" => BndzNamespaceService.Instance.ResolvePortalView("capture", limit),
+                            "portal-health" => BndzNamespaceService.Instance.ResolvePortalView("health", safeLimit),
+                            "portal-magnets" => BndzNamespaceService.Instance.ResolvePortalView("magnets", safeLimit),
+                            "portal-sandboxes" => BndzNamespaceService.Instance.ResolvePortalView("sandboxes", safeLimit),
+                            "portal-capture" => BndzNamespaceService.Instance.ResolvePortalView("capture", safeLimit),
                             _ => [],
                         };
-                        var items = BndzTagSidecarStore.EnrichDirResults(rawItems, _tagSidecarStore);
-                        var response = new { type = "VIRTUAL_VIEW_CONTENTS_RESULT", id = idProp, payload = new { items } };
+                        object itemsPayload = view is "media" or "audio"
+                            ? rawItems
+                            : BndzTagSidecarStore.EnrichDirResults(rawItems, _tagSidecarStore);
+                        var response = new { type = "VIRTUAL_VIEW_CONTENTS_RESULT", id = idProp, payload = new { items = itemsPayload } };
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() =>
                         {

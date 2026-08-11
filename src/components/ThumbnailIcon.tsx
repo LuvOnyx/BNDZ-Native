@@ -33,24 +33,25 @@ function entityExt(entity: FSEntity): string {
   return name.slice(dot + 1).toLowerCase();
 }
 
-/** Request native icons at display resolution — avoids upscaling tiny 16px shell glyphs in grid. */
+/** Request native icons at display resolution — avoids upscaling tiny shell glyphs in zoomed grid. */
 function iconRequestPx(displaySize: number): number {
   const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1;
   const largeTile = displaySize >= 72;
   const heroTile = displaySize >= 120;
   const mediumTile = displaySize >= 48;
-  const boost = heroTile ? 1.65 : largeTile ? 1.45 : mediumTile ? 1.22 : 1;
+  const boost = heroTile ? 1.75 : largeTile ? 1.5 : mediumTile ? 1.25 : 1;
   const want = Math.ceil(displaySize * dpr * boost);
   const listPx = getRuntimeListThumbPx();
   const hiPx = getRuntimeHiResThumbPx();
   if (heroTile) {
-    return Math.min(256, Math.max(128, Math.ceil(displaySize * 1.35), want, hiPx));
+    // Files Extra Large / jumbo: prefer 256–512 native extract, never soft-upscale a 32px glyph.
+    return Math.min(512, Math.max(192, Math.ceil(displaySize * 1.5), want, hiPx));
   }
   if (largeTile) {
-    return Math.min(256, Math.max(96, Math.ceil(displaySize * 1.2), want, Math.min(hiPx, 192)));
+    return Math.min(384, Math.max(128, Math.ceil(displaySize * 1.35), want, Math.min(hiPx, 256)));
   }
   if (mediumTile) {
-    return Math.min(256, Math.max(48, displaySize, want));
+    return Math.min(256, Math.max(64, displaySize, want));
   }
   // Details / small icons — band to list preset, not full jumbo.
   return Math.min(128, Math.max(32, listPx, displaySize * dpr));
@@ -279,10 +280,15 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
         <img
           src={displaySrc}
           alt=""
-          decoding="async"
+          decoding={size >= 64 ? 'sync' : 'async'}
           loading="eager"
           className={config.autoRotateThumbnails !== false ? 'bndz-auto-rotate-thumbs' : undefined}
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            imageRendering: size >= 96 ? 'auto' : undefined,
+          }}
           draggable={false}
           onMouseEnter={() => {
             // Settings → Audio preview (hover thumbnail / icon)

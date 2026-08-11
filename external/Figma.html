@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProDesign Canvas - UI3 Edition</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bg-base': '#1e1e1e',
+                        'bg-panel': '#2c2c2c',
+                        'bg-hover': '#3a3a3a',
+                        'bg-active': '#4a4a4a',
+                        'border-color': '#444',
+                        'text-primary': '#f0f0f0',
+                        'text-secondary': '#aaaaaa',
+                        'accent': '#0d99ff',
+                        'danger': '#ff4d4f',
+                        'canvas-bg': '#181818',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            margin: 0; padding: 0; overflow: hidden;
+            background-color: #1e1e1e; color: #f0f0f0;
+            font-family: 'Inter', sans-serif;
+            height: 100vh; width: 100vw;
+            display: flex; flex-direction: column;
+        }
+
+        /* Top Bar */
+        #top-bar {
+            height: 48px;
+            background: #2c2c2c;
+            border-bottom: 1px solid #444;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px; z-index: 100;
+        }
+        .menu-item { font-size: 13px; padding: 6px 12px; cursor: pointer; border-radius: 6px; position: relative; transition: 0.2s; }
+        .menu-item:hover { background: #3a3a3a; }
+        .dropdown {
+            display: none; position: absolute; top: 100%; left: 0;
+            background: #2c2c2c; border: 1px solid #444; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            min-width: 180px; border-radius: 8px; padding: 6px 0; z-index: 1000;
+        }
+        .menu-item:hover .dropdown { display: block; }
+        .dropdown-item { padding: 8px 16px; font-size: 12px; color: #ccc; cursor: pointer; transition: 0.1s; }
+        .dropdown-item:hover { background: #0d99ff; color: white; }
+
+        /* App Layout */
+        #main-container { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+        /* Sidebars */
+        .sidebar { background-color: #2c2c2c; display: flex; flex-direction: column; z-index: 50; }
+        #left-sidebar { width: 260px; border-right: 1px solid #444; }
+        #right-sidebar { width: 280px; border-left: 1px solid #444; overflow-y: auto; }
+
+        .panel-section { padding: 16px; border-bottom: 1px solid #444; }
+        .panel-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: #888; margin-bottom: 12px; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .panel-title i { transition: transform 0.2s; }
+
+        .prop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .prop-group { display: flex; align-items: center; background: #1e1e1e; border-radius: 6px; padding: 6px 8px; border: 1px solid transparent; transition: 0.2s; }
+        .prop-group:focus-within { border-color: #0d99ff; }
+        .prop-group i { font-size: 10px; color: #666; margin-right: 8px; width: 12px; font-style: normal; font-weight: 500;}
+        .prop-input-small { background: transparent; border: none; color: #fff; font-size: 12px; width: 100%; outline: none; font-family: 'Inter', sans-serif;}
+
+        .align-btn { flex: 1; padding: 6px; font-size: 14px; color: #aaa; background: transparent; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+        .align-btn:hover { color: #fff; background: #3a3a3a; }
+
+        /* Pages & Layers */
+        .list-item { display: flex; align-items: center; padding: 6px 16px; font-size: 12px; cursor: pointer; color: #ccc; transition: 0.1s; border-radius: 4px; margin: 2px 8px; }
+        .list-item:hover { background: #3a3a3a; }
+        .list-item.active { background: rgba(13, 153, 255, 0.15); color: #0d99ff; font-weight: 500; }
+        .layer-icon { width: 16px; color: #777; font-size: 11px; margin-right: 8px; text-align: center; }
+        
+        /* Floating Toolbar */
+        #floating-toolbar {
+            position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+            background-color: #2c2c2c; border: 1px solid #444; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; align-items: center;
+            padding: 8px; gap: 4px; z-index: 1000;
+        }
+        .tool-btn {
+            width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            color: #aaaaaa; cursor: pointer; transition: all 0.2s ease; font-size: 14px;
+        }
+        .tool-btn:hover { color: #f0f0f0; background-color: #3a3a3a; }
+        .tool-btn.active { color: #0d99ff; background-color: rgba(13, 153, 255, 0.15); }
+
+        #color-indicator { width: 24px; height: 24px; border-radius: 6px; border: 2px solid #555; cursor: pointer; margin-left: 8px; }
+
+        /* Workspace & Rulers */
+        #workspace { flex: 1; background-color: #181818; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+        
+        #ruler-h { height: 20px; background: #1e1e1e; border-bottom: 1px solid #333; position: absolute; top: 0; left: 20px; right: 0; z-index: 40; cursor: ns-resize; background-image: repeating-linear-gradient(to right, #444 0, #444 1px, transparent 1px, transparent 100px), repeating-linear-gradient(to right, #333 0, #333 1px, transparent 1px, transparent 10px); }
+        #ruler-v { width: 20px; background: #1e1e1e; border-right: 1px solid #333; position: absolute; top: 20px; left: 0; bottom: 0; z-index: 40; cursor: ew-resize; background-image: repeating-linear-gradient(to bottom, #444 0, #444 1px, transparent 1px, transparent 100px), repeating-linear-gradient(to bottom, #333 0, #333 1px, transparent 1px, transparent 10px); }
+        #ruler-corner { width: 20px; height: 20px; background: #1e1e1e; border-right: 1px solid #333; border-bottom: 1px solid #333; position: absolute; top: 0; left: 0; z-index: 41; }
+
+        #canvas-scroll { flex: 1; overflow: auto; position: relative; margin-top: 20px; margin-left: 20px; }
+        #canvas-wrapper { width: 5000px; height: 5000px; background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px; }
+
+        /* Context Menu */
+        #context-menu {
+            position: fixed; background: #2c2c2c; border: 1px solid #444; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 8px; padding: 6px 0; z-index: 10000; display: none; min-width: 200px;
+        }
+        .ctx-item { padding: 8px 16px; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: #eee; }
+        .ctx-item:hover { background: #0d99ff; color: white; }
+        .ctx-divider { height: 1px; background: #444; margin: 6px 0; }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; border: 2px solid #2c2c2c; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        input[type="range"] { accent-color: #0d99ff; }
+        select { background: #1e1e1e; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 4px; font-size: 11px; outline: none; }
+    </style>
+</head>
+<body>
+
+    <!-- TOP MENU -->
+    <div id="top-bar">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-shapes text-accent text-xl mr-4"></i>
+            <div class="menu-item">File
+                <div class="dropdown">
+                    <div class="dropdown-item" onclick="newCanvas()">New File</div>
+                    <div class="dropdown-item" onclick="document.getElementById('import-input').click()">Place Image...</div>
+                    <div class="ctx-divider"></div>
+                    <div class="dropdown-item" onclick="exportFile('png')">Export as PNG</div>
+                    <div class="dropdown-item" onclick="exportFile('svg')">Export as SVG</div>
+                </div>
+            </div>
+            <div class="menu-item">Edit
+                <div class="dropdown">
+                    <div class="dropdown-item" onclick="undo()">Undo <span class="float-right text-[10px] text-gray-400">Ctrl+Z</span></div>
+                    <div class="dropdown-item" onclick="redo()">Redo <span class="float-right text-[10px] text-gray-400">Ctrl+Y</span></div>
+                    <div class="ctx-divider"></div>
+                    <div class="dropdown-item" onclick="copy()">Copy <span class="float-right text-[10px] text-gray-400">Ctrl+C</span></div>
+                    <div class="dropdown-item" onclick="paste()">Paste <span class="float-right text-[10px] text-gray-400">Ctrl+V</span></div>
+                    <div class="dropdown-item" onclick="deleteSelected()">Delete <span class="float-right text-[10px] text-gray-400">Del</span></div>
+                </div>
+            </div>
+            <div class="menu-item">View
+                <div class="dropdown">
+                    <div class="dropdown-item" onclick="zoom(1.2)">Zoom In</div>
+                    <div class="dropdown-item" onclick="zoom(0.8)">Zoom Out</div>
+                    <div class="dropdown-item" onclick="resetZoom()">Zoom to 100%</div>
+                </div>
+            </div>
+        </div>
+        <div class="text-xs text-text-primary font-medium tracking-wide">Untitled Design</div>
+        <div class="flex items-center gap-3">
+            <div class="flex -space-x-2 mr-2">
+                <div class="w-7 h-7 rounded-full bg-blue-500 border border-bg-panel flex items-center justify-center text-[10px] font-bold">JD</div>
+                <div class="w-7 h-7 rounded-full bg-green-500 border border-bg-panel flex items-center justify-center text-[10px] font-bold">AK</div>
+            </div>
+            <button class="bg-accent hover:bg-blue-500 text-white px-4 py-1.5 rounded-md text-xs font-semibold transition">Share</button>
+            <button class="bg-bg-hover hover:bg-bg-active text-white p-1.5 rounded-md transition"><i class="fa-solid fa-play text-xs w-4"></i></button>
+        </div>
+    </div>
+
+    <div id="main-container">
+        
+        <!-- LEFT SIDEBAR -->
+        <div id="left-sidebar" class="sidebar">
+            <div class="flex flex-col h-full">
+                <!-- Pages -->
+                <div class="panel-section flex-shrink-0" style="padding-bottom: 8px;">
+                    <div class="panel-title mb-2">Pages <i class="fa-solid fa-plus text-xs hover:text-white cursor-pointer" onclick="addPage()" title="Add Page"></i></div>
+                    <div id="pages-list" class="flex flex-col gap-1 max-h-32 overflow-y-auto"></div>
+                </div>
+                <!-- Layers -->
+                <div class="panel-section flex-1 overflow-hidden flex flex-col !border-b-0" style="padding-top: 8px;">
+                    <div class="panel-title mb-2">Layers</div>
+                    <div id="layers-list" class="flex-1 overflow-y-auto flex flex-col gap-1 -mx-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WORKSPACE -->
+        <div id="workspace">
+            <div id="ruler-corner"></div>
+            <div id="ruler-h"></div>
+            <div id="ruler-v"></div>
+            
+            <div id="canvas-scroll">
+                <div id="canvas-wrapper">
+                    <canvas id="c"></canvas>
+                </div>
+            </div>
+
+            <!-- FLOATING TOOLBAR -->
+            <div id="floating-toolbar">
+                <div class="tool-btn active" data-tool="select" title="Move (V)"><i class="fa-solid fa-arrow-pointer"></i></div>
+                <div class="tool-btn" data-tool="hand" title="Hand (H)"><i class="fa-solid fa-hand"></i></div>
+                <div class="w-px h-6 bg-border-color mx-1"></div>
+                <div class="tool-btn" data-tool="rect" title="Rectangle (R)"><i class="fa-regular fa-square"></i></div>
+                <div class="tool-btn" data-tool="circle" title="Circle (O)"><i class="fa-regular fa-circle"></i></div>
+                <div class="tool-btn" data-tool="line" title="Line (L)"><i class="fa-solid fa-minus rotate-45"></i></div>
+                <div class="tool-btn" data-tool="text" title="Text (T)"><i class="fa-solid fa-font"></i></div>
+                <div class="w-px h-6 bg-border-color mx-1"></div>
+                <div class="tool-btn" data-tool="pen" title="Pen Tool (P)"><i class="fa-solid fa-pen-nib"></i></div>
+                <div class="tool-btn" data-tool="pencil" title="Pencil (Shift+P)"><i class="fa-solid fa-pencil"></i></div>
+                <div class="tool-btn" data-tool="eraser" title="Eraser"><i class="fa-solid fa-eraser"></i></div>
+                
+                <div class="w-px h-6 bg-border-color mx-1"></div>
+                <div id="color-indicator" style="background-color: #D9D9D9;"></div>
+                
+                <input type="color" id="hidden-picker" class="hidden">
+                <input type="file" id="import-input" class="hidden" accept="image/*">
+            </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR -->
+        <div id="right-sidebar" class="sidebar">
+            
+            <!-- ALIGNMENT -->
+            <div class="panel-section border-b border-border-color">
+                <div class="flex gap-1">
+                    <button class="align-btn" onclick="alignObj('left')" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
+                    <button class="align-btn" onclick="alignObj('centerH')" title="Align Center"><i class="fa-solid fa-align-center"></i></button>
+                    <button class="align-btn" onclick="alignObj('right')" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
+                    <button class="align-btn" onclick="alignObj('top')" title="Align Top"><i class="fa-solid fa-align-left rotate-90"></i></button>
+                    <button class="align-btn" onclick="alignObj('centerV')" title="Align Middle"><i class="fa-solid fa-align-center rotate-90"></i></button>
+                    <button class="align-btn" onclick="alignObj('bottom')" title="Align Bottom"><i class="fa-solid fa-align-right rotate-90"></i></button>
+                </div>
+            </div>
+
+            <div id="multi-select-msg" class="hidden p-4 text-xs text-accent bg-[#0d99ff11] border-b border-border-color text-center font-medium">
+                Multiple items selected
+            </div>
+
+            <!-- LAYOUT INFO -->
+            <div class="panel-section">
+                <div class="prop-grid">
+                    <div class="prop-group"><i>X</i><input type="text" id="inp-x" class="prop-input-small" value="0"></div>
+                    <div class="prop-group"><i>Y</i><input type="text" id="inp-y" class="prop-input-small" value="0"></div>
+                    <div class="prop-group"><i>W</i><input type="text" id="inp-w" class="prop-input-small" value="0"></div>
+                    <div class="prop-group"><i>H</i><input type="text" id="inp-h" class="prop-input-small" value="0"></div>
+                    <div class="prop-group"><i><i class="fa-solid fa-angle-right rotate-45"></i></i><input type="text" id="inp-rot" class="prop-input-small" value="0°"></div>
+                    <div class="prop-group"><i><i class="fa-solid fa-crop-simple"></i></i><input type="text" id="inp-rad" class="prop-input-small" value="0"></div>
+                </div>
+            </div>
+
+            <!-- APPEARANCE -->
+            <div class="panel-section">
+                <div class="panel-title">Appearance</div>
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs text-secondary">Opacity</span>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="opacity-slider" min="0" max="100" value="100" class="w-24">
+                        <span id="opacity-val" class="text-xs w-8 text-right">100%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FILL & STROKE -->
+            <div class="panel-section">
+                <div class="panel-title">Fill</div>
+                <div class="flex items-center gap-3">
+                    <input type="color" id="prop-fill" class="w-6 h-6 border-none bg-transparent cursor-pointer rounded overflow-hidden" value="#D9D9D9">
+                    <span id="fill-hex" class="text-xs text-primary font-mono uppercase">#D9D9D9</span>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Stroke</div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <input type="color" id="prop-stroke" class="w-6 h-6 border-none bg-transparent cursor-pointer rounded overflow-hidden" value="#000000">
+                        <span id="stroke-hex" class="text-xs text-primary font-mono uppercase">#000000</span>
+                    </div>
+                    <div class="prop-group !w-16 !mb-0">
+                        <i class="fa-solid fa-bars font-normal text-[8px]"></i>
+                        <input type="number" id="prop-stroke-w" value="0" class="prop-input-small">
+                    </div>
+                </div>
+            </div>
+
+            <!-- LAYOUT GRID -->
+            <div class="panel-section">
+                <div class="panel-title flex justify-between">
+                    <span>Layout Grid</span>
+                    <i class="fa-solid fa-plus text-xs hover:text-white cursor-pointer" onclick="toggleGrid()"></i>
+                </div>
+                <div id="grid-settings" class="hidden flex-col gap-2 mt-2">
+                    <div class="flex gap-2">
+                        <select id="grid-type" class="flex-1" onchange="renderGrid()">
+                            <option value="columns">Columns</option>
+                            <option value="rows">Rows</option>
+                            <option value="grid">Grid</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <div class="prop-group flex-1"><i>Cnt</i><input type="number" id="grid-count" class="prop-input-small" value="12" onchange="renderGrid()"></div>
+                        <div class="prop-group flex-1"><i>Gap</i><input type="number" id="grid-gutter" class="prop-input-small" value="20" onchange="renderGrid()"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EXPORT -->
+            <div class="panel-section">
+                <div class="panel-title">Export</div>
+                <button class="w-full bg-bg-base hover:bg-bg-hover border border-border-color text-xs p-2 rounded transition" onclick="exportFile('png')">
+                    Export Design
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTEXT MENU -->
+    <div id="context-menu">
+        <div class="ctx-item" onclick="copy()"><span>Copy</span> <span class="text-secondary text-[10px]">Ctrl+C</span></div>
+        <div class="ctx-item" onclick="paste()"><span>Paste</span> <span class="text-secondary text-[10px]">Ctrl+V</span></div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="group()"><span>Group Selection</span> <span class="text-secondary text-[10px]">Ctrl+G</span></div>
+        <div class="ctx-item" onclick="ungroup()"><span>Ungroup</span> <span class="text-secondary text-[10px]">Ctrl+Shift+G</span></div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="arrange('front')">Bring to Front <span class="text-secondary text-[10px]">]</span></div>
+        <div class="ctx-item" onclick="arrange('back')">Send to Back <span class="text-secondary text-[10px]">[</span></div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item text-danger" onclick="deleteSelected()"><span>Delete</span> <span class="text-danger text-[10px]">Del</span></div>
+    </div>
+
+    <script>
+        // --- Core Setup ---
+        const canvas = new fabric.Canvas('c', {
+            width: 5000, height: 5000,
+            selection: true,
+            preserveObjectStacking: true,
+            stopContextMenu: true
+        });
+
+        fabric.Object.prototype.set({
+            transparentCorners: false,
+            cornerColor: '#ffffff',
+            cornerStrokeColor: '#0d99ff',
+            borderColor: '#0d99ff',
+            cornerSize: 8,
+            cornerStyle: 'rect',
+            borderDashArray: null,
+            padding: 0
+        });
+
+        let currentTool = 'select';
+        let layerCount = 1;
+        let clipboard = null;
+
+        // Init workspace position
+        const ws = document.getElementById('canvas-scroll');
+        ws.scrollLeft = (5000 - ws.clientWidth) / 2;
+        ws.scrollTop = (5000 - ws.clientHeight) / 2;
+
+        // --- Pages System ---
+        let pages = [{ id: 1, name: 'Page 1', data: null }];
+        let currentPageId = 1;
+
+        function renderPagesList() {
+            const list = document.getElementById('pages-list');
+            list.innerHTML = '';
+            pages.forEach(p => {
+                const item = document.createElement('div');
+                item.className = `list-item ${p.id === currentPageId ? 'active' : ''}`;
+                item.innerHTML = `<i class="fa-regular fa-file-lines layer-icon"></i> <span>${p.name}</span>`;
+                item.onclick = () => switchPage(p.id);
+                list.appendChild(item);
+            });
+        }
+
+        function switchPage(id) {
+            if (id === currentPageId) return;
+            const cur = pages.find(p => p.id === currentPageId);
+            cur.data = canvas.toJSON(['customName', 'id', 'isGuide', 'selectable', 'evented']);
+            
+            currentPageId = id;
+            const next = pages.find(p => p.id === currentPageId);
+            
+            canvas.clear();
+            if (next.data) {
+                canvas.loadFromJSON(next.data, () => {
+                    canvas.renderAll();
+                    updateLayers();
+                });
+            }
+            renderPagesList();
+            updateLayers();
+        }
+
+        function addPage() {
+            const id = Date.now();
+            pages.push({ id, name: `Page ${pages.length + 1}`, data: null });
+            switchPage(id);
+        }
+        renderPagesList();
+
+        // --- Toolbar & Tools ---
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTool = btn.dataset.tool;
+                
+                canvas.isDrawingMode = (currentTool === 'pencil' || currentTool === 'eraser');
+                canvas.selection = (currentTool === 'select');
+                canvas.defaultCursor = currentTool === 'hand' ? 'grab' : (currentTool === 'select' ? 'default' : 'crosshair');
+
+                if(canvas.isDrawingMode) {
+                    canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+                    canvas.freeDrawingBrush.width = currentTool === 'eraser' ? 20 : 2;
+                    canvas.freeDrawingBrush.color = currentTool === 'eraser' ? '#181818' : document.getElementById('prop-stroke').value;
+                }
+            });
+        });
+
+        // --- Canvas Events ---
+        canvas.on('mouse:down', (e) => {
+            if (currentTool === 'select' || currentTool === 'hand') return;
+            if (e.target && e.target.type !== 'guide') return; // Don't draw over objects unless clicking guides
+            
+            const pointer = canvas.getPointer(e.e);
+            let obj;
+
+            const fill = document.getElementById('prop-fill').value;
+            const stroke = document.getElementById('prop-stroke').value;
+            const sWidth = parseInt(document.getElementById('prop-stroke-w').value) || 0;
+
+            switch(currentTool) {
+                case 'rect':
+                    obj = new fabric.Rect({ left: pointer.x, top: pointer.y, width: 100, height: 100, fill, stroke, strokeWidth: sWidth });
+                    break;
+                case 'circle':
+                    obj = new fabric.Circle({ left: pointer.x, top: pointer.y, radius: 50, fill, stroke, strokeWidth: sWidth });
+                    break;
+                case 'line':
+                    obj = new fabric.Line([pointer.x, pointer.y, pointer.x + 100, pointer.y], { stroke: stroke || fill, strokeWidth: sWidth || 2 });
+                    break;
+                case 'text':
+                    obj = new fabric.IText('Text', { left: pointer.x, top: pointer.y, fill: fill || '#ffffff', fontSize: 32, fontFamily: 'Inter' });
+                    break;
+                case 'pen':
+                    obj = new fabric.Path('M 0 0 L 50 0 L 25 50 z', { left: pointer.x, top: pointer.y, fill, stroke, strokeWidth: sWidth });
+                    break;
+            }
+
+            if(obj) {
+                obj.customName = `${obj.type.charAt(0).toUpperCase() + obj.type.slice(1)} ${layerCount++}`;
+                canvas.add(obj);
+                canvas.setActiveObject(obj);
+                document.querySelector('[data-tool="select"]').click();
+            }
+        });
+
+        // Hand tool panning
+        let isPanning = false;
+        canvas.on('mouse:down', (e) => {
+            if (currentTool === 'hand') {
+                isPanning = true;
+                canvas.selection = false;
+                canvas.defaultCursor = 'grabbing';
+            }
+        });
+        canvas.on('mouse:move', (e) => {
+            if (isPanning && currentTool === 'hand') {
+                const delta = new fabric.Point(e.e.movementX, e.e.movementY);
+                canvas.relativePan(delta);
+            }
+        });
+        canvas.on('mouse:up', () => {
+            if (currentTool === 'hand') {
+                isPanning = false;
+                canvas.defaultCursor = 'grab';
+            }
+        });
+
+        // --- Rulers & Guides ---
+        function createGuide(type, pos) {
+            const isH = type === 'h';
+            const p = canvas.getPointer({ clientX: pos.x, clientY: pos.y });
+            const line = new fabric.Line(
+                isH ? [-10000, p.y, 10000, p.y] : [p.x, -10000, p.x, 10000],
+                {
+                    stroke: '#ff00ff', strokeWidth: 1, selectable: true, evented: true,
+                    hasControls: false, hasBorders: false, isGuide: true,
+                    lockMovementX: isH, lockMovementY: !isH,
+                    hoverCursor: isH ? 'ns-resize' : 'ew-resize'
+                }
+            );
+            line.customName = 'Guide';
+            canvas.add(line);
+            canvas.setActiveObject(line);
+        }
+
+        document.getElementById('ruler-h').addEventListener('mousedown', (e) => createGuide('h', { x: e.clientX, y: e.clientY }));
+        document.getElementById('ruler-v').addEventListener('mousedown', (e) => createGuide('v', { x: e.clientX, y: e.clientY }));
+
+        // Prevent guides from scaling visually on zoom
+        canvas.on('before:render', () => {
+            const z = canvas.getZoom();
+            canvas.getObjects().forEach(o => {
+                if(o.isGuide) o.strokeWidth = 1 / z;
+            });
+        });
+
+        // --- Context Menu ---
+        window.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('#workspace')) {
+                e.preventDefault();
+                const menu = document.getElementById('context-menu');
+                menu.style.display = 'block';
+                menu.style.left = e.pageX + 'px';
+                menu.style.top = e.pageY + 'px';
+            }
+        });
+        window.addEventListener('click', () => document.getElementById('context-menu').style.display = 'none');
+
+        // --- Properties & Sidebar Sync ---
+        function applyToSelection(key, val) {
+            const active = canvas.getActiveObjects();
+            if(!active.length) return;
+            active.forEach(obj => obj.set(key, val));
+            canvas.renderAll();
+        }
+
+        function syncSidebar() {
+            const active = canvas.getActiveObjects();
+            const msg = document.getElementById('multi-select-msg');
+            
+            if (active.length === 0) {
+                msg.classList.add('hidden');
+                document.querySelectorAll('.prop-input-small').forEach(el => el.value = '');
+                return;
+            }
+            
+            if (active.length > 1) {
+                msg.classList.remove('hidden');
+                document.getElementById('inp-x').value = 'Mixed';
+                document.getElementById('inp-y').value = 'Mixed';
+                document.getElementById('inp-w').value = 'Mixed';
+                document.getElementById('inp-h').value = 'Mixed';
+            } else {
+                msg.classList.add('hidden');
+                const obj = active[0];
+                document.getElementById('inp-x').value = Math.round(obj.left);
+                document.getElementById('inp-y').value = Math.round(obj.top);
+                document.getElementById('inp-w').value = Math.round(obj.width * obj.scaleX);
+                document.getElementById('inp-h').value = Math.round(obj.height * obj.scaleY);
+                document.getElementById('inp-rot').value = Math.round(obj.angle || 0) + '°';
+                document.getElementById('opacity-slider').value = obj.opacity * 100;
+                document.getElementById('opacity-val').innerText = Math.round(obj.opacity * 100) + '%';
+                
+                if(obj.fill && typeof obj.fill === 'string') {
+                    document.getElementById('prop-fill').value = obj.fill;
+                    document.getElementById('fill-hex').innerText = obj.fill;
+                    document.getElementById('color-indicator').style.backgroundColor = obj.fill;
+                }
+                if(obj.stroke && typeof obj.stroke === 'string') {
+                    document.getElementById('prop-stroke').value = obj.stroke;
+                    document.getElementById('stroke-hex').innerText = obj.stroke;
+                }
+                document.getElementById('prop-stroke-w').value = obj.strokeWidth || 0;
+            }
+        }
+
+        canvas.on('selection:created', syncSidebar);
+        canvas.on('selection:updated', syncSidebar);
+        canvas.on('object:moving', syncSidebar);
+        canvas.on('object:scaling', syncSidebar);
+        canvas.on('object:rotating', syncSidebar);
+
+        // Inputs logic
+        document.getElementById('opacity-slider').addEventListener('input', (e) => {
+            applyToSelection('opacity', e.target.value / 100);
+            document.getElementById('opacity-val').innerText = e.target.value + '%';
+        });
+        document.getElementById('prop-fill').addEventListener('input', (e) => {
+            applyToSelection('fill', e.target.value);
+            document.getElementById('fill-hex').innerText = e.target.value.toUpperCase();
+            document.getElementById('color-indicator').style.backgroundColor = e.target.value;
+        });
+        document.getElementById('prop-stroke').addEventListener('input', (e) => {
+            applyToSelection('stroke', e.target.value);
+            document.getElementById('stroke-hex').innerText = e.target.value.toUpperCase();
+        });
+        document.getElementById('prop-stroke-w').addEventListener('input', (e) => {
+            applyToSelection('strokeWidth', parseInt(e.target.value) || 0);
+        });
+
+        // Alignment
+        function alignObj(type) {
+            const active = canvas.getActiveObjects();
+            if(!active.length) return;
+            
+            if(active.length === 1) {
+                const obj = active[0];
+                switch(type) {
+                    case 'left': obj.set('left', 0); break;
+                    case 'centerH': obj.centerH(); break;
+                    case 'right': obj.set('left', canvas.width - (obj.width * obj.scaleX)); break;
+                    case 'top': obj.set('top', 0); break;
+                    case 'centerV': obj.centerV(); break;
+                    case 'bottom': obj.set('top', canvas.height - (obj.height * obj.scaleY)); break;
+                }
+            } else {
+                // Group alignment
+                const group = new fabric.Group(active);
+                const bound = group.getBoundingRect();
+                group.destroy(); // just for calc
+                
+                active.forEach(obj => {
+                    switch(type) {
+                        case 'left': obj.set('left', bound.left); break;
+                        case 'centerH': obj.set('left', bound.left + bound.width/2 - (obj.width * obj.scaleX)/2); break;
+                        case 'right': obj.set('left', bound.left + bound.width - (obj.width * obj.scaleX)); break;
+                        case 'top': obj.set('top', bound.top); break;
+                        case 'centerV': obj.set('top', bound.top + bound.height/2 - (obj.height * obj.scaleY)/2); break;
+                        case 'bottom': obj.set('top', bound.top + bound.height - (obj.height * obj.scaleY)); break;
+                    }
+                    obj.setCoords();
+                });
+            }
+            canvas.renderAll();
+            syncSidebar();
+        }
+
+        function arrange(dir) {
+            const active = canvas.getActiveObjects();
+            active.forEach(obj => {
+                if(dir === 'front') obj.bringToFront();
+                if(dir === 'back') obj.sendToBack();
+            });
+            canvas.discardActiveObject();
+            const sel = new fabric.ActiveSelection(active, { canvas: canvas });
+            canvas.setActiveObject(sel);
+            canvas.renderAll();
+            updateLayers();
+        }
+
+        // --- Groups ---
+        function group() {
+            if (!canvas.getActiveObject() || canvas.getActiveObject().type !== 'activeSelection') return;
+            canvas.getActiveObject().toGroup();
+            canvas.requestRenderAll();
+            updateLayers();
+        }
+        function ungroup() {
+            if (!canvas.getActiveObject() || canvas.getActiveObject().type !== 'group') return;
+            canvas.getActiveObject().toActiveSelection();
+            canvas.requestRenderAll();
+            updateLayers();
+        }
+
+        // --- Layers Panel ---
+        function getIcon(type) {
+            if(type === 'group') return 'fa-object-group';
+            if(type === 'i-text') return 'fa-font';
+            if(type === 'rect') return 'fa-square';
+            if(type === 'circle') return 'fa-circle';
+            if(type === 'image') return 'fa-image';
+            if(type === 'path') return 'fa-pen-nib';
+            if(type === 'line') return 'fa-minus rotate-45';
+            return 'fa-shapes';
+        }
+
+        function renderLayerItems(objects, container, level = 0) {
+            [...objects].reverse().forEach(obj => {
+                if (obj.isGuide) return; // Hide guides from layers
+                
+                const item = document.createElement('div');
+                const isActive = canvas.getActiveObjects().includes(obj);
+                item.className = `list-item ${isActive ? 'active' : ''}`;
+                item.style.paddingLeft = `${level * 16 + 16}px`;
+                
+                const name = obj.customName || obj.type.charAt(0).toUpperCase() + obj.type.slice(1);
+                item.innerHTML = `<i class="fa-solid ${getIcon(obj.type)} layer-icon"></i> <span class="truncate">${name}</span>`;
+                
+                item.onclick = (e) => {
+                    if (e.shiftKey) {
+                        const sel = canvas.getActiveObjects();
+                        sel.push(obj);
+                        canvas.discardActiveObject();
+                        canvas.setActiveObject(new fabric.ActiveSelection(sel, {canvas: canvas}));
+                    } else {
+                        canvas.setActiveObject(obj);
+                    }
+                    canvas.renderAll();
+                };
+                
+                container.appendChild(item);
+                
+                if (obj.type === 'group' && obj._objects) {
+                    renderLayerItems(obj._objects, container, level + 1);
+                }
+            });
+        }
+
+        function updateLayers() {
+            const list = document.getElementById('layers-list');
+            list.innerHTML = '';
+            renderLayerItems(canvas.getObjects(), list);
+        }
+
+        canvas.on('object:added', updateLayers);
+        canvas.on('object:removed', updateLayers);
+        canvas.on('selection:cleared', updateLayers);
+
+        // --- Layout Grid ---
+        let gridState = { enabled: false, type: 'columns', count: 12, gutter: 20 };
+        
+        function toggleGrid() {
+            gridState.enabled = !gridState.enabled;
+            document.getElementById('grid-settings').style.display = gridState.enabled ? 'flex' : 'none';
+            canvas.renderAll();
+        }
+        function renderGrid() {
+            gridState.type = document.getElementById('grid-type').value;
+            gridState.count = parseInt(document.getElementById('grid-count').value) || 1;
+            gridState.gutter = parseInt(document.getElementById('grid-gutter').value) || 0;
+            canvas.renderAll();
+        }
+
+        canvas.on('before:render', () => {
+            if (!gridState.enabled) return;
+            const ctx = canvas.contextContainer;
+            ctx.save();
+            ctx.transform.apply(ctx, canvas.viewportTransform);
+            ctx.fillStyle = 'rgba(255, 77, 79, 0.05)';
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            const c = gridState.count;
+            const g = gridState.gutter;
+
+            if (gridState.type === 'columns') {
+                const colW = (w - (g * (c - 1))) / c;
+                for (let i = 0; i < c; i++) ctx.fillRect(i * (colW + g), 0, colW, h);
+            } else if (gridState.type === 'rows') {
+                const rowH = (h - (g * (c - 1))) / c;
+                for (let i = 0; i < c; i++) ctx.fillRect(0, i * (rowH + g), w, rowH);
+            } else if (gridState.type === 'grid') {
+                const size = g || 10;
+                ctx.strokeStyle = 'rgba(255, 77, 79, 0.1)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let x = 0; x <= w; x += size) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+                for (let y = 0; y <= h; y += size) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+                ctx.stroke();
+            }
+            ctx.restore();
+        });
+
+        // --- Import / Export ---
+        function exportFile(format) {
+            canvas.discardActiveObject().renderAll();
+            const d = new Date().getTime();
+            let dataURL = format === 'png' 
+                ? canvas.toDataURL({ format: 'png', quality: 1, multiplier: 1 })
+                : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(canvas.toSVG());
+            
+            const link = document.createElement('a');
+            link.download = `design-${d}.${format}`;
+            link.href = dataURL;
+            link.click();
+        }
+
+        document.getElementById('import-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => {
+                fabric.Image.fromURL(f.target.result, (img) => {
+                    img.scaleToWidth(500);
+                    img.customName = `Image ${layerCount++}`;
+                    canvas.add(img);
+                    canvas.centerObject(img);
+                    canvas.setActiveObject(img);
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // --- Standard Functions ---
+        function deleteSelected() {
+            canvas.getActiveObjects().forEach(obj => canvas.remove(obj));
+            canvas.discardActiveObject().renderAll();
+        }
+
+        function copy() {
+            const active = canvas.getActiveObject();
+            if(active) active.clone(cloned => clipboard = cloned);
+        }
+
+        function paste() {
+            if(!clipboard) return;
+            clipboard.clone(cloned => {
+                canvas.discardActiveObject();
+                cloned.set({ left: cloned.left + 20, top: cloned.top + 20, evented: true });
+                if (cloned.type === 'activeSelection') {
+                    cloned.canvas = canvas;
+                    cloned.forEachObject(obj => canvas.add(obj));
+                    cloned.setCoords();
+                } else {
+                    canvas.add(cloned);
+                }
+                clipboard.top += 20; clipboard.left += 20;
+                canvas.setActiveObject(cloned);
+                canvas.requestRenderAll();
+            });
+        }
+
+        function zoom(val) { canvas.zoomToPoint({x: canvas.width/2, y: canvas.height/2}, canvas.getZoom() * val); }
+        function resetZoom() { canvas.zoomToPoint({x: canvas.width/2, y: canvas.height/2}, 1); }
+        function newCanvas() { if(confirm("Clear current canvas?")) canvas.clear(); }
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+            if (e.ctrlKey && e.key === 'c') copy();
+            if (e.ctrlKey && e.key === 'v') paste();
+            if (e.ctrlKey && e.key === 'g') { e.preventDefault(); group(); }
+            if (e.ctrlKey && e.shiftKey && e.key === 'G') { e.preventDefault(); ungroup(); }
+            if (e.key === ']') arrange('front');
+            if (e.key === '[') arrange('back');
+            
+            // Tools
+            if (e.key.toLowerCase() === 'v') document.querySelector('[data-tool="select"]').click();
+            if (e.key.toLowerCase() === 'h') document.querySelector('[data-tool="hand"]').click();
+            if (e.key.toLowerCase() === 'r') document.querySelector('[data-tool="rect"]').click();
+            if (e.key.toLowerCase() === 'o') document.querySelector('[data-tool="circle"]').click();
+            if (e.key.toLowerCase() === 't') document.querySelector('[data-tool="text"]').click();
+            if (e.key.toLowerCase() === 'p' && !e.shiftKey) document.querySelector('[data-tool="pen"]').click();
+            if (e.key.toLowerCase() === 'p' && e.shiftKey) document.querySelector('[data-tool="pencil"]').click();
+            if (e.key.toLowerCase() === 'l') document.querySelector('[data-tool="line"]').click();
+        });
+
+    </script>
+</body>
+</html>
+

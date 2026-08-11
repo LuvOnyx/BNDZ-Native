@@ -1286,14 +1286,13 @@ html.theme-light .nav-tree-row:hover {
   overflow: hidden !important;
 }
 
-/* GPU promotion for static chrome only ? avoid will-change/contain on scroll surfaces (breaks HTML5 drag in WebView2). */
+/* GPU promotion for static chrome only — never promote the menubar (WebView2 app-region / first-click races). */
 .bndz-gpu-layer,
 .bndz-chrome-workspace,
 .bndz-chrome-toolbar,
 .bndz-chrome-bottom,
 .bndz-chrome-sidebar,
 .bndz-chrome-preview,
-.bndz-chrome-menubar,
 .bndz-chrome-tabstrip,
 .bndz-quick-actions-bar {
   transform: translate3d(0, 0, 0);
@@ -1351,10 +1350,8 @@ html[data-list-font-aa="greyscale"] .bndz-file-list-scroll {
 }
 
 .bndz-chrome-menubar {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
   overflow: visible;
+  /* No will-change / translate3d — those break WebView2 non-client hit testing on File/Edit. */
 }
 
 .bndz-chrome-sidebar,
@@ -3705,6 +3702,12 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
 .bndz-list-thumb--hero img,
 .bndz-list-thumb--hero canvas {
   filter: drop-shadow(0 3px 8px rgba(0,0,0,0.32));
+  image-rendering: auto;
+}
+.bndz-view-grid .bndz-list-thumb img,
+.bndz-view-list .bndz-list-thumb img,
+.bndz-view-details .bndz-list-thumb img {
+  image-rendering: auto;
 }
 
 .bndz-view-grid.bndz-tile--dense {
@@ -9996,6 +9999,74 @@ html[data-theme] .nav-tree-row:focus-visible {
 }
 .bndz-automation-flow .react-flow__node.dragging {
   cursor: grabbing !important;
+}
+.bndz-automation-flow .react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  background: radial-gradient(circle at 35% 30%, #9ad4ff, #3b9fd9 55%, #1a5f8a);
+  box-shadow:
+    0 0 0 3px rgba(62, 155, 220, 0.28),
+    0 0 14px rgba(62, 155, 220, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  opacity: 0.92;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  z-index: 5;
+}
+.bndz-automation-flow .react-flow__handle:hover,
+.bndz-automation-flow .react-flow__handle.connecting {
+  transform: scale(1.2);
+  opacity: 1;
+  box-shadow:
+    0 0 0 4px rgba(62, 155, 220, 0.4),
+    0 0 20px rgba(126, 184, 232, 0.65),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.bndz-automation-flow .react-flow__edge-path {
+  stroke: #7eb8e8 !important;
+  stroke-width: 2.25px !important;
+  filter: drop-shadow(0 0 4px rgba(126, 184, 232, 0.45));
+}
+.bndz-automation-flow .react-flow__edge.selected .react-flow__edge-path,
+.bndz-automation-flow .react-flow__edge:focus .react-flow__edge-path {
+  stroke: #b8e0ff !important;
+  stroke-width: 2.75px !important;
+  filter: drop-shadow(0 0 8px rgba(126, 184, 232, 0.7));
+}
+.bndz-automation-flow .react-flow__connection-path {
+  stroke: #9ad4ff !important;
+  stroke-width: 2px !important;
+  stroke-dasharray: 6 4;
+}
+.bndz-spatial-board {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+}
+.bndz-spatial-board::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 42% 36% at var(--mouse-x) var(--mouse-y), rgba(196, 163, 90, 0.14), transparent 70%),
+    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(126, 184, 232, 0.05), transparent 72%);
+}
+.bndz-spatial-canvas .bndz-spatial-stage {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+}
+.bndz-spatial-canvas .bndz-spatial-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 42% 36% at var(--mouse-x) var(--mouse-y), rgba(196, 163, 90, 0.14), transparent 70%),
+    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(126, 184, 232, 0.05), transparent 72%);
+  transition: background 0.12s ease-out;
 }
 .bndz-spatial-marquee {
   position: absolute;

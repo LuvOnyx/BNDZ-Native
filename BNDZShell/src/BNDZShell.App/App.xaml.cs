@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml;
 
-namespace BNDZShell.App;
+namespace BNDZShell;
 
 public partial class App : Application
 {

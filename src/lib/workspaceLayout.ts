@@ -11,15 +11,15 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 51;
+export const WORKSPACE_LAYOUT_VERSION = 53;
 
 /**
  * Balanced three-pane layout (percentages, sum = 100).
- * v51: sidebar 17% default (restore classic FM tree presence); workspace 73%, preview 10%.
+ * v53: sidebar 16.5% — a touch wider than v52’s 15% (still under classic 17%).
  */
 export const DEFAULT_OUTER_LAYOUT: Layout = {
-    sidebar: 17,
-    workspace: 73,
+    sidebar: 16.5,
+    workspace: 73.5,
     preview: 10,
 };
 
@@ -49,14 +49,14 @@ export const MIN_DUAL_PANE_LAYOUT: Layout = {
 };
 
 export const MIN_OUTER_LAYOUT: Layout = {
-    sidebar: 12,
+    sidebar: 10,
     workspace: 35,
     preview: 18,
 };
 
 export const MAX_OUTER_LAYOUT: Layout = {
-    sidebar: 24,
-    workspace: 70,
+    sidebar: 22,
+    workspace: 72,
     preview: 40,
 };
 
@@ -396,7 +396,7 @@ export function migrateLayoutV41(
 }
 
 /**
- * v48: sidebar 16% default; workspace 74%, preview 10%.
+ * v53 / v45+: apply current DEFAULT_OUTER_LAYOUT (sidebar 16.5 / workspace 73.5 / preview 10).
  */
 export function migrateLayoutV45(
     outer: Layout | undefined,

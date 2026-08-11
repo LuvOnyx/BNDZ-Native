@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { getDisplayDpr } from '../../lib/displayDpr';
+import BndzErrorBoundary from '../../components/BndzErrorBoundary';
 
 type ModelSceneProps = { url: string; kind: 'gltf' | 'obj' | 'stl' };
 
@@ -99,41 +100,54 @@ export default function GpuModelViewport({ src, title }: GpuModelViewportProps) 
 
   return (
     <div className="bndz-gpu-viewport bndz-model-viewport group relative w-full h-full min-h-0">
-      <Canvas
-        key={`${canvasKey}:${kind}:${src}`}
-        dpr={getDisplayDpr()}
-        camera={{ position: [2.4, 1.8, 3.2], fov: 42, near: 0.01, far: 2000 }}
-        gl={{
-          antialias: true,
-          powerPreference: 'high-performance',
-          alpha: false,
-          stencil: false,
-          failIfMajorPerformanceCaveat: false,
-        }}
-        onCreated={({ gl, invalidate }) => {
-          const canvas = gl.domElement;
-          const onLost = (e: Event) => { e.preventDefault(); };
-          const onRestored = () => {
-            setFailed(false);
-            setCanvasKey(k => k + 1);
-            invalidate();
-          };
-          canvas.addEventListener('webglcontextlost', onLost, false);
-          canvas.addEventListener('webglcontextrestored', onRestored, false);
-          invalidate();
-        }}
+      <BndzErrorBoundary
+        isolate
+        label="3D preview"
+        resetKey={src}
         onError={() => setFailed(true)}
+        fallback={
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-xs text-gray-500 p-4 text-center">
+            <span>3D preview unavailable</span>
+            {title ? <span className="text-[10px] text-gray-600 truncate max-w-full">{title}</span> : null}
+          </div>
+        }
       >
-        <color attach="background" args={['#0a0a0c']} />
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[6, 10, 4]} intensity={1.15} castShadow={false} />
-        <directionalLight position={[-4, 2, -6]} intensity={0.35} />
-        <Suspense fallback={<Html center><span className="text-xs text-gray-400 animate-pulse">Loading model…</span></Html>}>
-          <ModelScene url={src} kind={kind} />
-        </Suspense>
-        <Environment preset="studio" environmentIntensity={0.45} />
-        <OrbitControls makeDefault enableDamping dampingFactor={0.06} minDistance={0.05} maxDistance={200} />
-      </Canvas>
+        <Canvas
+          key={`${canvasKey}:${kind}:${src}`}
+          dpr={getDisplayDpr()}
+          camera={{ position: [2.4, 1.8, 3.2], fov: 42, near: 0.01, far: 2000 }}
+          gl={{
+            antialias: true,
+            powerPreference: 'high-performance',
+            alpha: false,
+            stencil: false,
+            failIfMajorPerformanceCaveat: false,
+          }}
+          onCreated={({ gl, invalidate }) => {
+            const canvas = gl.domElement;
+            const onLost = (e: Event) => { e.preventDefault(); };
+            const onRestored = () => {
+              setFailed(false);
+              setCanvasKey(k => k + 1);
+              invalidate();
+            };
+            canvas.addEventListener('webglcontextlost', onLost, false);
+            canvas.addEventListener('webglcontextrestored', onRestored, false);
+            invalidate();
+          }}
+          onError={() => setFailed(true)}
+        >
+          <color attach="background" args={['#0a0a0c']} />
+          <ambientLight intensity={0.55} />
+          <directionalLight position={[6, 10, 4]} intensity={1.15} castShadow={false} />
+          <directionalLight position={[-4, 2, -6]} intensity={0.35} />
+          <Suspense fallback={<Html center><span className="text-xs text-gray-400 animate-pulse">Loading model…</span></Html>}>
+            <ModelScene url={src} kind={kind} />
+          </Suspense>
+          <Environment preset="studio" environmentIntensity={0.45} />
+          <OrbitControls makeDefault enableDamping dampingFactor={0.06} minDistance={0.05} maxDistance={200} />
+        </Canvas>
+      </BndzErrorBoundary>
       <div className="absolute left-2 bottom-2 text-[10px] text-white/45 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
         Drag to orbit · scroll to zoom · {kind.toUpperCase()}
       </div>

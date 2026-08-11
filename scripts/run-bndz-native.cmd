@@ -3,8 +3,8 @@ setlocal EnableExtensions
 REM BNDZ-Native — unpackaged WinUI shell (self-contained Windows App SDK).
 cd /d "%~dp0.."
 
-REM Avoid WebView2 profile lock / zombie second instances (blank dark window).
-taskkill /F /IM BNDZShell.exe >nul 2>&1
+REM Kill shell + child WebView2 tree so the NativeShell profile is not locked (blank dark window).
+taskkill /F /T /IM BNDZShell.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 set "EXE="

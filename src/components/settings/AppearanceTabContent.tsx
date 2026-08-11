@@ -30,6 +30,8 @@ import type { AppConfig } from '../../data/configContext';
 
 const FONT_SIZE_OPTIONS = [0, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22];
 const ROW_HEIGHT_OPTIONS = [0, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 44, 48];
+const ICON_SIZE_OPTIONS = [12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48];
+const GRID_ICON_SIZE_OPTIONS = [24, 32, 40, 48, 64, 80, 96, 120, 144, 160, 192, 224, 256];
 
 type Props = {
   localConfig: AppConfig;
@@ -291,6 +293,51 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
           >
             {ROW_HEIGHT_OPTIONS.map(n => (
               <option key={n} value={n}>{n === 0 ? 'From density preset' : `${n}px`}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Details icon size</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Icon column in details view</div>
+          </div>
+          <select
+            className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-[#0078d4]/45"
+            value={localConfig.detailsIconSize ?? 16}
+            onChange={e => patch({ detailsIconSize: parseInt(e.target.value, 10) })}
+          >
+            {ICON_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>{n}px</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">List icon size</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Multi-column list view</div>
+          </div>
+          <select
+            className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-[#0078d4]/45"
+            value={localConfig.listIconSize ?? 14}
+            onChange={e => patch({ listIconSize: parseInt(e.target.value, 10) })}
+          >
+            {ICON_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>{n}px</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 py-2 border-b border-white/[0.06]">
+          <div className="sm:w-[160px] shrink-0">
+            <div className="text-[12px] font-medium text-white/90">Grid icon size</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Tiles; large values fetch jumbo shell icons</div>
+          </div>
+          <select
+            className="w-full max-w-md bg-[#1a1d26] border border-white/10 text-[12px] text-white/90 px-2.5 py-1.5 rounded-md outline-none focus:border-[#0078d4]/45"
+            value={localConfig.gridIconSize ?? 48}
+            onChange={e => patch({ gridIconSize: parseInt(e.target.value, 10) })}
+          >
+            {GRID_ICON_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>{n}px</option>
             ))}
           </select>
         </div>

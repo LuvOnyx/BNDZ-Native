@@ -119,7 +119,7 @@ import MeshDropDialog from './meshdrop/MeshDropDialog';
 import { filterSupplementalNativeItems, takeShellCascadeByLabel, resolveNativeItemVerb, type ContextMenuSurface, type NativeContextMenuItem } from '../lib/contextMenuActions';
 import { TabContextMenu, showTabHostContextMenu } from './TabContextMenu';
 import { requestNativePrompt } from '../lib/nativeDialog';
-import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals, listingPrefetchFromConfig, setRuntimeThumbPresets } from '../lib/nativeIconService';
+import { prefetchIconsForEntities, prefetchMediaThumbnailsForEntities, prefetchShellIconPaths, prefetchListingVisuals, listingPrefetchFromConfig, virtualMediaPrefetchOptions, setRuntimeThumbPresets } from '../lib/nativeIconService';
 import { isRealityCheckActive, isRealityCheckMissing, subscribeRealityCheck } from '../lib/realityCheckState';
 import { mergeDirEntryChunks } from '../lib/dirListingStream';
 import { applyFsEventsToListing } from '../lib/fsListingPatch';
@@ -1358,6 +1358,7 @@ export default function BNDZUI() {
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [meshDropPaths, setMeshDropPaths] = useState<string[]>([]);
   const [showMeshDropDialog, setShowMeshDropDialog] = useState(false);
+  const [meshDropInitialMode, setMeshDropInitialMode] = useState<'host' | 'receive'>('host');
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [licenseEpoch, setLicenseEpoch] = useState(0);
@@ -2293,11 +2294,31 @@ export default function BNDZUI() {
       }
       dirFetchInFlightRef.current.add(path);
       setLoadingPaths(prev => new Set(prev).add(path));
-      return IPC.getVirtualViewContents(view, configRef.current.globalSearchLimit || 500).then(items => {
+      // Photos/Videos (and other media-heavy smart views) must not pull thousands of rows or
+      // fire create-all-at-once thumbnail storms — that OOM/kills WebView2 and leaves a blank shell.
+      const mediaHeavy = view === 'media' || view === 'audio';
+      const nativeHost =
+        typeof document !== 'undefined'
+        && document.documentElement?.dataset?.bndzShell === 'native-host';
+      const configured = Math.max(50, Number(configRef.current.globalSearchLimit) || 500);
+      const viewLimit = mediaHeavy
+        ? Math.min(configured, nativeHost ? 200 : 400)
+        : Math.min(configured, nativeHost ? 500 : 2000);
+      return IPC.getVirtualViewContents(view, viewLimit).then(items => {
         setVirtualViewErrors(prev => { const next = { ...prev }; delete next[path]; return next; });
         const normalized = normalizeDirEntries(items || []);
         cachePathContents(path, normalized);
-        prefetchListingVisuals(normalized, path, listingPrefetchFromConfig(configRef.current));
+        const prefetchOpts = mediaHeavy
+          ? virtualMediaPrefetchOptions(configRef.current)
+          : listingPrefetchFromConfig(configRef.current);
+        const runPrefetch = () => prefetchListingVisuals(normalized, path, prefetchOpts);
+        if (mediaHeavy && typeof window !== 'undefined') {
+          const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+          if (typeof ric === 'function') ric(() => runPrefetch(), { timeout: 1800 });
+          else window.setTimeout(runPrefetch, 400);
+        } else {
+          runPrefetch();
+        }
       }).catch((err: unknown) => {
         setVirtualViewErrors(prev => ({ ...prev, [path]: err instanceof Error ? err.message : 'Failed to load smart view.' }));
         cachePathContents(path, []);
@@ -2857,6 +2878,8 @@ export default function BNDZUI() {
     const startWidth = headerEl.getBoundingClientRect().width;
     const folderKey = normalizePanePath(currentPath || '/');
     let finalWidth = Math.round(startWidth);
+    let finished = false;
+    let safetyTimer: ReturnType<typeof setTimeout> | null = null;
 
     const applyLiveWidth = (w: number) => {
       const sel = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
@@ -2872,16 +2895,19 @@ export default function BNDZUI() {
       });
     };
 
-    const onMove = (ev: PointerEvent) => {
-      finalWidth = Math.max(56, Math.min(640, Math.round(startWidth + (ev.clientX - startX))));
-      applyLiveWidth(finalWidth);
-    };
-    const onUp = () => {
+    const finish = () => {
+      if (finished) return;
+      finished = true;
       columnResizeActiveRef.current = false;
       delete document.documentElement.dataset.colResizing;
+      if (safetyTimer != null) {
+        clearTimeout(safetyTimer);
+        safetyTimer = null;
+      }
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('blur', onUp);
       // Read latest config via ref — mid-drag updates must not clobber sibling widths.
       const cfg = configRef.current;
       const folderWidths = {
@@ -2896,9 +2922,18 @@ export default function BNDZUI() {
         },
       });
     };
+
+    const onMove = (ev: PointerEvent) => {
+      finalWidth = Math.max(56, Math.min(640, Math.round(startWidth + (ev.clientX - startX))));
+      applyLiveWidth(finalWidth);
+    };
+    const onUp = () => finish();
+    // If pointerup is lost (WebView2 focus steal), unblock sort clicks after 2.5s.
+    safetyTimer = setTimeout(() => finish(), 2500);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
+    window.addEventListener('blur', onUp);
   };
 
   const runUndoRedo = React.useCallback(async (redo = false) => {
@@ -4244,9 +4279,9 @@ export default function BNDZUI() {
 
   /** Live density while scrubbing — avoid config/save/runtime churn every pointer move. */
   const [liveDensity, setLiveDensity] = useState<null | { mode: 'grid' | 'list' | 'details'; value: number }>(null);
-  const listIconSz = Math.max(12, Math.min(96, (liveDensity?.mode === 'list' ? liveDensity.value : null) ?? config.listIconSize ?? 16));
-  const gridIconSz = Math.max(12, Math.min(192, (liveDensity?.mode === 'grid' ? liveDensity.value : null) ?? config.gridIconSize ?? 48));
-  const detailsIconSz = Math.max(12, Math.min(48, (liveDensity?.mode === 'details' ? liveDensity.value : null) ?? config.detailsIconSize ?? 20));
+  const listIconSz = Math.max(12, Math.min(96, (liveDensity?.mode === 'list' ? liveDensity.value : null) ?? config.listIconSize ?? 14));
+  const gridIconSz = Math.max(12, Math.min(256, (liveDensity?.mode === 'grid' ? liveDensity.value : null) ?? config.gridIconSize ?? 48));
+  const detailsIconSz = Math.max(12, Math.min(48, (liveDensity?.mode === 'details' ? liveDensity.value : null) ?? config.detailsIconSize ?? 16));
   const gridMetrics = useMemo(
     () => gridTileMetrics(gridIconSz, { cardChrome: config.showListGridCards === true }),
     [gridIconSz, config.showListGridCards],
@@ -4260,8 +4295,8 @@ export default function BNDZUI() {
     if (!liveDensity) return;
     const committed =
       liveDensity.mode === 'grid' ? (config.gridIconSize ?? 48)
-      : liveDensity.mode === 'list' ? (config.listIconSize ?? 16)
-      : (config.detailsIconSize ?? 20);
+      : liveDensity.mode === 'list' ? (config.listIconSize ?? 14)
+      : (config.detailsIconSize ?? 16);
     if (Number(committed) === liveDensity.value) setLiveDensity(null);
   }, [config.gridIconSize, config.listIconSize, config.detailsIconSize, liveDensity]);
 
@@ -4272,7 +4307,7 @@ export default function BNDZUI() {
     );
     const p2 = Math.max(
       Number(config.thumbnailSizePreset2) || 192,
-      Math.round(Math.min(256, Math.max(gridIconSz * 1.35, 128))),
+      Math.round(Math.min(512, Math.max(gridIconSz * 1.5, 160))),
     );
     setRuntimeThumbPresets(p1, p2);
   }, [gridIconSz, listIconSz, detailsIconSz, config.thumbnailSizePreset1, config.thumbnailSizePreset2]);
@@ -6085,8 +6120,8 @@ export default function BNDZUI() {
 
   const closeMenu = () => setOpenMenuId(null);
   const toggleMenubarMenu = (menuId: string) => (e: React.MouseEvent | React.PointerEvent) => {
-    if ('button' in e && e.button !== 0) return;
-    e.preventDefault();
+    if ('button' in e && typeof e.button === 'number' && e.button !== 0) return;
+    // Never preventDefault on pointerdown — WebView2 + app-region need the click to complete.
     e.stopPropagation();
     setOpenMenuId(prev => (prev === menuId ? null : menuId));
   };
@@ -7445,9 +7480,11 @@ export default function BNDZUI() {
 
   useEffect(() => {
     const onMeshDropSend = (e: Event) => {
-      const raw = (e as CustomEvent).detail?.paths as string[] | undefined;
+      const detail = (e as CustomEvent).detail || {};
+      const raw = detail.paths as string[] | undefined;
       const paths = Array.isArray(raw) ? raw.filter(Boolean) : [];
       setMeshDropPaths(paths);
+      setMeshDropInitialMode(detail.receive ? 'receive' : 'host');
       setShowMeshDropDialog(true);
     };
     window.addEventListener('bndz-mesh-drop-send', onMeshDropSend);
@@ -8878,7 +8915,7 @@ export default function BNDZUI() {
     const listFontPx = resolvePanelFont(config, 'list').size;
     const configuredRowH = readSettingNumber(config, 'rowHeight', 0);
     // Settings → Fonts → List row height is authoritative when set; auto path stays snug.
-    const autoRowH = Math.max(24, Math.min(30, Math.ceil(listFontPx * 1.68) + 2));
+    const autoRowH = Math.max(22, Math.min(28, Math.ceil(listFontPx * 1.55) + 1));
     const detailsRowHeight = configuredRowH > 0
       ? configuredRowH
       : isNeutralDefault
@@ -11821,14 +11858,21 @@ export default function BNDZUI() {
         ref={menubarRef}
         className="bndz-chrome-menubar flex items-stretch h-9 border-b border-[#333] text-[#ccc] shrink-0 select-none z-[200]"
         style={{ background: 'var(--menubar-bg, var(--bndz-surface-chrome))' }}
-        onMouseDown={e => {
+        onPointerDown={(e) => {
           e.stopPropagation();
-          if (isFilesHostBoot()) return;
+          // Native shell: CSS drag-strip owns window move — IPC drag races WebView2 NC hit-test
+          // and steals the first File/Edit click (looks like spam-clicking is required).
+          if (isFilesHostBoot() || isNativeShellHostBoot()) return;
           if ((e.target as HTMLElement).closest('[data-window-btn],[data-menu-trigger]')) return;
           if (e.button === 0) import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('drag'));
         }}
+        onMouseDown={(e) => {
+          // Also stop mouse path — pointer stopPropagation does not cancel mouse events.
+          e.stopPropagation();
+          if ((e.target as HTMLElement).closest('[data-window-btn],[data-menu-trigger]')) return;
+        }}
         onDoubleClick={() => {
-          if (isFilesHostBoot()) return;
+          if (isFilesHostBoot() || isNativeShellHostBoot()) return;
           import('../lib/ipcBridge').then(({ IPC }) => IPC.windowChrome('maximize'));
         }}
       >
@@ -11852,7 +11896,7 @@ export default function BNDZUI() {
                  role="menuitem"
                  aria-label="File menu"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'File' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('File')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('File')}
              >File</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'File'} anchorEl={menubarAnchors.current['File']} minWidth={260}>
@@ -12139,7 +12183,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Edit"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Edit' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Edit')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Edit')}
              >Edit</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Edit'} anchorEl={menubarAnchors.current['Edit']} minWidth={240}>
@@ -12371,7 +12415,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="View"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'View' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('View')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('View')}
              >View</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'View'} anchorEl={menubarAnchors.current['View']} minWidth={200}>
@@ -12423,7 +12467,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Go"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Go' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Go')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Go')}
              >Go</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Go'} anchorEl={menubarAnchors.current['Go']} minWidth={260}>
@@ -12570,7 +12614,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tools"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tools' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Tools')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Tools')}
              >Tools</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tools'} anchorEl={menubarAnchors.current['Tools']} minWidth={260}>
@@ -12674,7 +12718,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Favorites"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Favorites' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Favorites')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Favorites')}
              >Rapid access</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Favorites'} anchorEl={menubarAnchors.current['Favorites']} minWidth={260}>
@@ -12745,7 +12789,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tags"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tags' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Tags')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Tags')}
              >Tags</div>
              {config.fileTaggingFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tags'} anchorEl={menubarAnchors.current['Tags']} minWidth={240}>
@@ -12856,7 +12900,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="User"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'User' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('User')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('User')}
              >User</div>
              {config.userDefinedCommands !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'User'} anchorEl={menubarAnchors.current['User']} minWidth={200}>
@@ -12875,7 +12919,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Scripting"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Scripting' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Scripting')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Scripting')}
              >Scripting</div>
              {config.scripting !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Scripting'} anchorEl={menubarAnchors.current['Scripting']} minWidth={200}>
@@ -12899,7 +12943,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Panes"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Panes' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Panes')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Panes')}
              >Panes</div>
              {config.dualPaneFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Panes'} anchorEl={menubarAnchors.current['Panes']} minWidth={200}>
@@ -12916,7 +12960,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tabsets"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tabsets' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Tabsets')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Tabsets')}
              >Tabsets</div>
              {config.tabsets !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tabsets'} anchorEl={menubarAnchors.current['Tabsets']} minWidth={200}>
@@ -12933,7 +12977,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Window"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Window' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Window')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Window')}
              >Window</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Window'} anchorEl={menubarAnchors.current['Window']} minWidth={200}>
@@ -12979,7 +13023,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Help"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Help' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={toggleMenubarMenu('Help')}
+                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Help')}
              >Help</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Help'} anchorEl={menubarAnchors.current['Help']} minWidth={220}>
@@ -14409,7 +14453,8 @@ export default function BNDZUI() {
         {showMeshDropDialog && (
           <MeshDropDialog
             paths={meshDropPaths}
-            onClose={() => { setShowMeshDropDialog(false); setMeshDropPaths([]); }}
+            initialMode={meshDropInitialMode}
+            onClose={() => { setShowMeshDropDialog(false); setMeshDropPaths([]); setMeshDropInitialMode('host'); }}
           />
         )}
       </AnimatePresence>

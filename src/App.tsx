@@ -23,6 +23,7 @@ import { applyNativeShellDocumentMark, isNativeShellBoot } from './lib/nativeShe
 import { applyNativeShellHostDocumentMark } from './lib/nativeShellHostBoot';
 import { applyPaneDocumentMark, readPaneBootFromUrl } from './lib/paneBoot';
 import { applyFilesHostDocumentMark, isFilesHostBoot } from './lib/filesHostBoot';
+import BndzErrorBoundary from './components/BndzErrorBoundary';
 
 const PLUGIN_BOOT = readPluginWindowBootFromUrl();
 const PANE_BOOT = readPaneBootFromUrl();
@@ -90,7 +91,9 @@ export default function App() {
             <ModalProvider>
               <AiModelGateProvider>
                 <Suspense fallback={null}>
-                  <BNDZUI />
+                  <BndzErrorBoundary label="BNDZ">
+                    <BNDZUI />
+                  </BndzErrorBoundary>
                 </Suspense>
                 <ToastHost />
               </AiModelGateProvider>
@@ -127,7 +130,9 @@ export default function App() {
             <ModalProvider>
               <AiModelGateProvider>
                 <Suspense fallback={null}>
-                  <BNDZUI />
+                  <BndzErrorBoundary label="BNDZ">
+                    <BNDZUI />
+                  </BndzErrorBoundary>
                 </Suspense>
                 <ToastHost />
               </AiModelGateProvider>
@@ -147,7 +152,9 @@ export default function App() {
             <LegalAcceptGate>
             {!splashDone && <LaunchSplashGate onDone={handleSplashDone} />}
             <Suspense fallback={null}>
-              <BNDZUI />
+              <BndzErrorBoundary label="BNDZ">
+                <BNDZUI />
+              </BndzErrorBoundary>
             </Suspense>
             <ToastHost />
             <PerfHud />

@@ -2221,7 +2221,7 @@ export const IPC = {
         'GET_SHELL_ICON',
         'SHELL_ICON_RESULT',
         '',
-        { path, isDirectory, size: Math.max(16, Math.min(256, Math.round(size) || 48)) },
+        { path, isDirectory, size: Math.max(16, Math.min(512, Math.round(size) || 48)) },
         45000,
       );
     }
@@ -2237,7 +2237,7 @@ export const IPC = {
         'GET_SHELL_ICONS_BATCH',
         'SHELL_ICONS_BATCH_RESULT',
         '',
-        { items, size: Math.max(16, Math.min(256, Math.round(size) || 48)) },
+        { items, size: Math.max(16, Math.min(512, Math.round(size) || 48)) },
         90000,
       );
     }

@@ -399,6 +399,21 @@ public sealed class MeshDropService : IDisposable
                 HandleChunk(ctx, payload);
                 break;
             case MeshDropProtocol.CompleteType:
+                // Flush and close all receive streams for this session so files are fully written.
+                foreach (var kv in _recvStreams.ToArray())
+                {
+                    try
+                    {
+                        if (kv.Key.Contains(ctx.SessionId, StringComparison.OrdinalIgnoreCase)
+                            || (ctx.DestDir != null && kv.Key.StartsWith(ctx.DestDir, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            kv.Value.Flush(true);
+                            kv.Value.Dispose();
+                            _recvStreams.TryRemove(kv.Key, out _);
+                        }
+                    }
+                    catch { /* best-effort */ }
+                }
                 if (_sessions.TryGetValue(ctx.SessionId, out var s))
                 {
                     s.State = MeshDropSessionState.Completed;
@@ -428,6 +443,12 @@ public sealed class MeshDropService : IDisposable
 
         var streamKey = destFile;
         var fs = _recvStreams.GetOrAdd(streamKey, _ => new FileStream(destFile, FileMode.Create, FileAccess.Write, FileShare.Read));
+        if (data.Length > 0)
+        {
+            // Chunks arrive in order for MeshDrop; write bytes so receive is not an empty stub.
+            fs.Write(data, 0, data.Length);
+            fs.Flush(false);
+        }
 
         if (_sessions.TryGetValue(ctx.SessionId, out var session))
         {

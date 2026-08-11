@@ -220,8 +220,12 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         onMoveEnd={onViewportMoveEnd}
         minZoom={0.4}
         maxZoom={1.8}
-        defaultEdgeOptions={{ type: 'smoothstep', animated: true, style: { stroke: '#7eb8e8', strokeWidth: 2 } }}
-        connectionLineStyle={{ stroke: '#7eb8e8', strokeWidth: 2 }}
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: '#7eb8e8', strokeWidth: 2.25, filter: 'drop-shadow(0 0 4px rgba(126,184,232,0.4))' },
+        }}
+        connectionLineStyle={{ stroke: '#9ad4ff', strokeWidth: 2, strokeDasharray: '6 4' }}
         className="bndz-automation-flow"
         proOptions={{ hideAttribution: true }}
       >

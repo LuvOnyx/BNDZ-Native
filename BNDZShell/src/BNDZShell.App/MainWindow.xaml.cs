@@ -12,8 +12,11 @@ namespace BNDZShell;
 
 public sealed partial class MainWindow : Window
 {
-    private const int MinWindowWidth = 960;
-    private const int MinWindowHeight = 640;
+    private const int MinWindowWidth = 1100;
+    private const int MinWindowHeight = 720;
+    // Comfortable default — not 2560×1440 (oversized on many displays; tiny chrome on 4K).
+    private const int DefaultWindowWidth = 1600;
+    private const int DefaultWindowHeight = 1000;
 
     private AppWindow? _appWindow;
     private IntPtr _hwnd;
@@ -118,12 +121,31 @@ public sealed partial class MainWindow : Window
             _hwnd = WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
-            _appWindow.Resize(new Windows.Graphics.SizeInt32(1920, 1200));
+
+            var (w, h) = ResolveDefaultWindowSize(windowId);
+            _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
             if (_appWindow.Presenter is OverlappedPresenter overlapped)
             {
                 overlapped.PreferredMinimumWidth = MinWindowWidth;
                 overlapped.PreferredMinimumHeight = MinWindowHeight;
             }
+
+            // WinUIEx: persist placement across launches (falls back silently if unavailable).
+            // v54 bumps PersistenceId so a prior 2560×1440 restore does not stick forever.
+            try
+            {
+                var mgr = WinUIEx.WindowManager.Get(this);
+                mgr.MinWidth = MinWindowWidth;
+                mgr.MinHeight = MinWindowHeight;
+                mgr.PersistenceId = "BNDZShell.MainWindow.v54";
+            }
+            catch (Exception winUiEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BNDZShell] WinUIEx WindowManager: {winUiEx.Message}");
+            }
+
+            // After persistence restore, clamp into the work area (never larger than the display).
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ClampWindowToWorkArea);
 
             ExtendsContentIntoTitleBar = true;
             try
@@ -172,6 +194,48 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[BNDZShell] titlebar: {ex.Message}");
+        }
+    }
+
+    private static (int Width, int Height) ResolveDefaultWindowSize(WindowId windowId)
+    {
+        try
+        {
+            var area = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
+            var work = area.WorkArea;
+            // ~72% of work area, capped at 1920×1080 — readable on 1080p and 4K alike.
+            var w = Math.Clamp((int)(work.Width * 0.72), MinWindowWidth, Math.Min(1920, Math.Max(MinWindowWidth, work.Width - 48)));
+            var h = Math.Clamp((int)(work.Height * 0.78), MinWindowHeight, Math.Min(1080, Math.Max(MinWindowHeight, work.Height - 48)));
+            return (w, h);
+        }
+        catch
+        {
+            return (DefaultWindowWidth, DefaultWindowHeight);
+        }
+    }
+
+    private void ClampWindowToWorkArea()
+    {
+        try
+        {
+            if (_appWindow is null) return;
+            var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Nearest);
+            var work = area.WorkArea;
+            var size = _appWindow.Size;
+            var pos = _appWindow.Position;
+            var w = Math.Min(size.Width, Math.Max(MinWindowWidth, work.Width - 16));
+            var h = Math.Min(size.Height, Math.Max(MinWindowHeight, work.Height - 16));
+            if (w != size.Width || h != size.Height)
+                _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
+
+            var x = Math.Min(Math.Max(pos.X, work.X), work.X + work.Width - w);
+            var y = Math.Min(Math.Max(pos.Y, work.Y), work.Y + work.Height - h);
+            if (x != pos.X || y != pos.Y)
+                _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] ClampWindowToWorkArea: {ex.Message}");
         }
     }
 

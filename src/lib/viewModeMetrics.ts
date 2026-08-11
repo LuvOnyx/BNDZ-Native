@@ -24,10 +24,10 @@ export function packGridTracks(
   return { cols, tileWidth };
 }
 
-/** Map grid icon slider (16–192) onto the nearest Files grid item width. */
+/** Map grid icon slider (16–256) onto the nearest Files grid item width. */
 export function filesGridItemWidthFromIcon(gridIconSize: number): number {
-  const icon = Math.max(16, Math.min(192, gridIconSize));
-  const t = (icon - 16) / (192 - 16);
+  const icon = Math.max(16, Math.min(256, gridIconSize));
+  const t = (icon - 16) / (256 - 16);
   const idx = Math.round(t * (FILES_GRID_ITEM_WIDTHS.length - 1));
   return FILES_GRID_ITEM_WIDTHS[Math.max(0, Math.min(FILES_GRID_ITEM_WIDTHS.length - 1, idx))];
 }
@@ -42,7 +42,7 @@ export type GridTileMetricsOpts = {
  * Shell icon fetch size follows Files GetIconSize bands; display fits inside the square with ~12px margin.
  */
 export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts) {
-  const iconHint = Math.max(16, Math.min(192, gridIconSize));
+  const iconHint = Math.max(16, Math.min(256, gridIconSize));
   const itemWidth = filesGridItemWidthFromIcon(iconHint);
   const dense = itemWidth <= 80 && iconHint < 36;
   const cardChrome = !!opts?.cardChrome && !dense;
@@ -50,11 +50,12 @@ export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts
   // Files GridViewBrowserTemplate: Margin="12" on thumbnail presenter.
   const thumbMargin = itemWidth <= 100 ? 10 : 12;
   const displayIcon = Math.max(16, itemWidth - thumbMargin * 2);
-  // Fetch size near Files bands (96 / 128 / 256) but never below display needs.
+  // Fetch size near Files bands (96 / 128 / 256 / 384) — never below display needs.
   const icon =
     itemWidth <= 120 ? Math.max(displayIcon, 96)
-    : itemWidth <= 220 ? Math.max(displayIcon, 128)
-    : Math.max(displayIcon, 192);
+    : itemWidth <= 180 ? Math.max(displayIcon, 128)
+    : itemWidth <= 240 ? Math.max(displayIcon, 192)
+    : Math.max(displayIcon, 256);
 
   const cardPadX = cardChrome ? 8 : 0;
   const cardPadTop = cardChrome ? 8 : 0;
@@ -79,7 +80,7 @@ export function gridTileMetrics(gridIconSize: number, opts?: GridTileMetricsOpts
     + (dense ? 0 : 4);
 
   return {
-    icon: Math.min(icon, 256),
+    icon: Math.min(icon, 384),
     minWidth: itemWidth + cardPadX * 2,
     tileWidth: itemWidth + cardPadX * 2,
     rowHeight,
@@ -139,15 +140,15 @@ export function driveListMetrics(listIconSize: number) {
   };
 }
 
-/** Details — Files GetDetailsViewRowHeight ladder (Compact→XL: 28–48). */
+/** Details — Files GetDetailsViewRowHeight ladder (Compact→XL: 24–44), snug default. */
 export function detailsTileMetrics(detailsIconSize: number) {
   const icon = Math.max(12, Math.min(48, detailsIconSize));
   const rowHeight =
-    icon <= 14 ? 28
-    : icon <= 18 ? 36
-    : icon <= 22 ? 40
-    : icon <= 28 ? 44
-    : 48;
+    icon <= 14 ? 24
+    : icon <= 18 ? 28
+    : icon <= 22 ? 32
+    : icon <= 28 ? 36
+    : 44;
   const padY = Math.max(2, Math.round((rowHeight - icon) / 2));
   const iconColClass = icon <= 16 ? 'w-5' : icon <= 24 ? 'w-7' : icon <= 32 ? 'w-9' : 'w-11';
   return { icon, rowHeight, padY, iconColClass };

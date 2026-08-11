@@ -175,7 +175,7 @@ namespace BNDZ.Services
             if (string.IsNullOrEmpty(filePath))
                 return "";
 
-            int size = Math.Clamp(pixelSize <= 0 ? 48 : pixelSize, 16, 256);
+            int size = Math.Clamp(pixelSize <= 0 ? 48 : pixelSize, 16, 512);
 
             bool isVirtual = ShellPathResolver.IsShellVirtualPath(filePath)
                 || filePath.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
@@ -187,19 +187,36 @@ namespace BNDZ.Services
             if (!isDirectory && !isVirtual)
                 isDirectory = Directory.Exists(filePath);
 
-            // Zoomed grid/list: IShellItemImageFactory at display size (jumbolike 128–256).
+            // Zoomed grid/list: IShellItemImageFactory at display size (Files Extra Large / jumbo).
             // Avoid SHGFI_LARGEICON upscaling blur when tiles are huge.
             if (size >= 48)
             {
                 try
                 {
                     using var item = new ShellItem(filePath);
+                    // Prefer crisp icon extract at exact pixel size.
                     var hi = TryGetShellImageBase64(
                         item,
                         ShellItemGetImageOptions.IconOnly | ShellItemGetImageOptions.ResizeToFit,
                         size);
                     if (!string.IsNullOrEmpty(hi))
                         return hi;
+                    // Media / folder thumbs: allow thumbnail memory when IconOnly fails at jumbo.
+                    if (size >= 128)
+                    {
+                        var thumb = TryGetShellImageBase64(
+                            item,
+                            ShellItemGetImageOptions.ThumbnailOnly | ShellItemGetImageOptions.ResizeToFit,
+                            size);
+                        if (!string.IsNullOrEmpty(thumb))
+                            return thumb;
+                        var any = TryGetShellImageBase64(
+                            item,
+                            ShellItemGetImageOptions.ResizeToFit,
+                            size);
+                        if (!string.IsNullOrEmpty(any))
+                            return any;
+                    }
                 }
                 catch { /* fall through */ }
             }

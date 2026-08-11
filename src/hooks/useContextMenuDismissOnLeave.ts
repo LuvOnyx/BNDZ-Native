@@ -17,9 +17,9 @@ export function isPointerInsideMenuTree(x: number, y: number, root: PointRoot = 
 }
 
 /**
- * Close a context menu on outside pointer-down, Escape, or window blur.
- * Does NOT auto-close on hover leave — that caused Recycle Bin menus to vanish
- * when elementFromPoint(0,0) was tested before any real pointer move.
+ * Close a context menu on outside pointer-down or Escape.
+ * Do NOT close on window blur — WebView2 / WinUI non-client hit-testing fires
+ * spurious blur on right-click and instantly kills tab / list menus.
  */
 export function useContextMenuDismissOnLeave(active: boolean, onClose: () => void, _graceMs = 180) {
   const onCloseRef = useRef(onClose);
@@ -40,21 +40,17 @@ export function useContextMenuDismissOnLeave(active: boolean, onClose: () => voi
       if (e.key === 'Escape') onCloseRef.current();
     };
 
-    const onBlur = () => onCloseRef.current();
-
-    // Arm after the opening click's pointerup cycle so we don't instantly dismiss.
-    const armTimer = setTimeout(() => { armed = true; }, 0);
+    // Arm after the opening gesture's pointer cycle so we don't instantly dismiss.
+    const armTimer = setTimeout(() => { armed = true; }, 80);
 
     document.addEventListener('pointerdown', onPointerDown, true);
     document.addEventListener('keydown', onKeyDown, true);
-    window.addEventListener('blur', onBlur);
 
     return () => {
       clearTimeout(armTimer);
       armed = false;
       document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown, true);
-      window.removeEventListener('blur', onBlur);
     };
   }, [active]);
 }

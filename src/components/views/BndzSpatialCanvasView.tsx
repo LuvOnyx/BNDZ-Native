@@ -1606,6 +1606,11 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     e.stopPropagation();
     const board = e.currentTarget as HTMLElement;
     if (!panningRef.current) board.style.cursor = 'default';
+    const rect = board.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      board.style.setProperty('--mouse-x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
+      board.style.setProperty('--mouse-y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
+    }
     const d = docRef.current;
     if (!d) return;
     if (panning) {

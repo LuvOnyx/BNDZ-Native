@@ -283,11 +283,19 @@ export default function MeshBucketsSharesPanel({ onNavigate, onStatus }: Props) 
           </div>
         </div>
         <p className="text-[11px] text-white/50 mb-2 leading-relaxed">
-          From any list selection use Share → MeshDrop. Deep links use bndz:// so another BNDZ desktop can join on LAN.
+          Pick files in the list, then Share → MeshDrop — or open MeshDrop here to create a share code,
+          copy a <code className="text-white/70">bndz://meshdrop/…</code> deep link, show a QR, or join via LAN/relay.
         </p>
-        <PluginToolbarButton onClick={() => shareViaMeshDrop(folderDraft.trim() || '')}>
-          Open MeshDrop
-        </PluginToolbarButton>
+        <div className="flex flex-wrap gap-2">
+          <PluginToolbarButton onClick={() => shareViaMeshDrop(folderDraft.trim() || '')}>
+            Open MeshDrop sender
+          </PluginToolbarButton>
+          <PluginToolbarButton onClick={() => {
+            window.dispatchEvent(new CustomEvent('bndz-mesh-drop-send', { detail: { paths: [], receive: true } }));
+          }}>
+            Receive / join link
+          </PluginToolbarButton>
+        </div>
       </PluginCard>
     </div>
   );

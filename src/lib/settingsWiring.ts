@@ -207,13 +207,16 @@ export function buildFileOpsRuntime(config: AppConfig) {
 
 /** UI chrome / layout */
 export function buildUiRuntime(config: AppConfig) {
+  const density = (config.appearanceDensity as 'compact' | 'comfortable' | 'spacious') || 'comfortable';
+  const densityRow = density === 'compact' ? 20 : density === 'spacious' ? 26 : 22;
+  const configuredRow = readSettingNumber(config, 'rowHeight', 0);
   return {
     fontSize: readSettingNumber(config, 'fontSize', 12),
-    fontFamily: readSettingString(config, 'uiFontFamily', 'Segoe UI, system-ui, sans-serif'),
-    fontFamilyMono: readSettingString(config, 'uiFontFamilyMono', 'Cascadia Code, Consolas, monospace'),
+    fontFamily: readSettingString(config, 'uiFontFamily', '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif'),
+    fontFamilyMono: readSettingString(config, 'uiFontFamilyMono', '"Cascadia Code", "Cascadia Mono", Consolas, monospace'),
     tabFontSize: readSettingNumber(config, 'tabFontSize', 11),
     tabBarHeight: readSettingNumber(config, 'tabBarHeight', 28),
-    rowHeight: readSettingNumber(config, 'rowHeight', 26),
+    rowHeight: configuredRow > 0 ? configuredRow : densityRow,
     showMenubar: readSettingBool(config, 'showTopMenubar', true)
       && readSettingBool(config, 'showTopMenuBar', true),
     showToolbar: readSettingBool(config, 'showToolbar', true),
