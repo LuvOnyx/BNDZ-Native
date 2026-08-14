@@ -6057,6 +6057,42 @@ namespace BNDZ
                         PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
+                else if (type == "GET_MODEL_PREVIEW")
+                {
+                    var payload = root.GetProperty("payload");
+                    string rawPath = payload.GetProperty("path").GetString() ?? "";
+                    string path = MeshPath.IsMeshPath(rawPath) ? rawPath : NormalizeFsPath(rawPath);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        object resultPayload;
+                        try
+                        {
+                            if (MeshPath.IsMeshPath(path))
+                                path = _meshOrchestrator.HydrateToCacheAsync(path).GetAwaiter().GetResult();
+                            var ext = Path.GetExtension(path)?.TrimStart('.').ToLowerInvariant() ?? "";
+                            if (RageModelPreviewService.NeedsHostConversion(ext))
+                            {
+                                var (ok, previewPath, format, kind, verts, tris, error) = RageModelPreviewService.TryGetPreviewObj(path);
+                                resultPayload = ok
+                                    ? new { path = previewPath, format, kind, vertices = verts, triangles = tris, converted = true }
+                                    : new { error = error ?? "RAGE preview failed", kind = ext };
+                            }
+                            else
+                            {
+                                resultPayload = File.Exists(path)
+                                    ? new { path, format = ext, kind = ext, converted = false }
+                                    : new { error = "File not found", kind = ext };
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { error = ex.Message };
+                        }
+                        var response = new { type = "MODEL_PREVIEW_RESULT", id = idProp, payload = resultPayload };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response)));
+                    });
+                }
                 else if (type == "GET_MEDIA_BLOB")
                 {
                     var payload = root.GetProperty("payload");

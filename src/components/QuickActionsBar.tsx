@@ -56,7 +56,7 @@ export default function QuickActionsBar({
                 {count} selected
               </span>
               <div className="h-4 w-px bg-[#555] shrink-0" />
-              {actions.map((a, i) => (
+              {(actions || []).map((a, i) => (
                 <motion.button
                   key={a.id}
                   type="button"

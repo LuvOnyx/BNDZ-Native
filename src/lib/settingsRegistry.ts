@@ -56,6 +56,7 @@ const PREVIEW_KEYS = new Set([
   'previewCategories', 'previewFormats', 'previewAsThumbnail', 'previewDelay',
   'richTransitionAnimations', 'limitOriginalPreviewSize', 'limitOriginalPreviewSizeValue',
   'useNativeHandlingInThePreviewPane', 'audioPreview', 'audioVideoPreview', 'autoplay',
+  'osWideQuickLook',
   'folderContentsPreview', 'folderContentsPreviewSortedBy', 'skipVideoPreview',
   'highQualityImageResampling', 'autoRotatePreview', 'previewZoomPercent',
   'compressionPreviewBgColor', 'compressionPreviewFgColor', 'webPathMapSource', 'webPathMapTarget',

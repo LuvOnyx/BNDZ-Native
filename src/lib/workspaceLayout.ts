@@ -11,22 +11,22 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 53;
+export const WORKSPACE_LAYOUT_VERSION = 61;
 
 /**
- * Balanced three-pane layout (percentages, sum = 100).
- * v53: sidebar 16.5% — a touch wider than v52’s 15% (still under classic 17%).
+ * Canonical outer split (user-confirmed):
+ * sidebar/tree 12% / workspace 72% / preview 16% (preview wider than tree).
  */
 export const DEFAULT_OUTER_LAYOUT: Layout = {
-    sidebar: 16.5,
-    workspace: 73.5,
-    preview: 10,
+    sidebar: 12,
+    workspace: 72,
+    preview: 16,
 };
 
 /** File list | preview split inside the workspace top row (above bottom plugins). */
 export const DEFAULT_MAIN_ROW_LAYOUT: Layout = {
-    list: 74,
-    preview: 26,
+    list: 70,
+    preview: 30,
 };
 
 /** Bottom plugin panel start height — full heroes + usable content. */
@@ -49,16 +49,24 @@ export const MIN_DUAL_PANE_LAYOUT: Layout = {
 };
 
 export const MIN_OUTER_LAYOUT: Layout = {
-    sidebar: 10,
+    /** Soft floor under default tree (12) so a small shrink does not collapse. */
+    sidebar: 9,
     workspace: 35,
-    preview: 18,
+    /** Soft floor under default preview (16) so small shrinks do not collapse. */
+    preview: 11,
 };
 
 export const MAX_OUTER_LAYOUT: Layout = {
     sidebar: 22,
-    workspace: 72,
+    workspace: 82,
     preview: 40,
 };
+
+/**
+ * ResizablePanel minSize for preview: drag below this % and it collapses.
+ * Kept well under the 10% default so a small shrink does NOT shut the panel.
+ */
+export const PREVIEW_COLLAPSE_SIZE = 5;
 
 export const MIN_INNER_LAYOUT: Layout = {
     main: 8,
@@ -117,8 +125,8 @@ function layoutFromArray(
 }
 
 /**
- * Repair persisted outer layouts — fixes sidebar too wide / preview too thin
- * from earlier migrations. Always returns values that sum to 100.
+ * Repair persisted outer layouts. Prefer the user's sidebar/preview sizes —
+ * never wipe a wide preview back to a skinny default just because the sum drifted.
  */
 export function normalizeOuterLayout(raw: unknown): Layout {
     const base = { ...DEFAULT_OUTER_LAYOUT };
@@ -137,30 +145,31 @@ export function normalizeOuterLayout(raw: unknown): Layout {
         workspace = fromArr.workspace ?? workspace;
     }
 
-    // Hard repair: bad migrations, collapsed sliver sizes, or sidebar hogging space.
-    const clearlyBroken =
-        sidebar > MAX_SIDEBAR_SIZE + 2
-        || preview < MIN_PREVIEW_SIZE
-        || (sidebar > 0 && sidebar < MIN_SIDEBAR_SIZE)
-        || (preview > 0 && preview < 12)
-        || Math.abs(sidebar + preview + workspace - 100) > 1;
+    // Only hard-reset when panels are nonsensical slivers / impossible values.
+    const irreparable =
+        !Number.isFinite(sidebar) || !Number.isFinite(preview) || !Number.isFinite(workspace)
+        || sidebar < 0 || preview < 0 || workspace < 0
+        || sidebar > 60 || preview > 60;
 
-    if (clearlyBroken) {
-        sidebar = DEFAULT_OUTER_LAYOUT.sidebar!;
-        preview = DEFAULT_OUTER_LAYOUT.preview!;
-        workspace = DEFAULT_OUTER_LAYOUT.workspace!;
-    } else {
-        sidebar = clamp(sidebar, MIN_SIDEBAR_SIZE, MAX_SIDEBAR_SIZE);
-        preview = clamp(preview, MIN_PREVIEW_SIZE, MAX_PREVIEW_SIZE);
+    if (irreparable) {
+        return {
+            sidebar: DEFAULT_OUTER_LAYOUT.sidebar!,
+            workspace: DEFAULT_OUTER_LAYOUT.workspace!,
+            preview: DEFAULT_OUTER_LAYOUT.preview!,
+        };
+    }
+
+    sidebar = clamp(sidebar, MIN_SIDEBAR_SIZE, MAX_SIDEBAR_SIZE);
+    preview = clamp(preview, Math.min(MIN_PREVIEW_SIZE, DEFAULT_OUTER_LAYOUT.preview!), MAX_PREVIEW_SIZE);
+    workspace = 100 - sidebar - preview;
+    if (workspace < MIN_OUTER_LAYOUT.workspace!) {
+        const deficit = MIN_OUTER_LAYOUT.workspace! - workspace;
+        const minPreviewKeep = Math.min(MIN_PREVIEW_SIZE, DEFAULT_OUTER_LAYOUT.preview!);
+        const fromPreview = Math.min(deficit, Math.max(0, preview - minPreviewKeep));
+        preview -= fromPreview;
+        const fromSidebar = Math.min(deficit - fromPreview, Math.max(0, sidebar - MIN_SIDEBAR_SIZE));
+        sidebar -= fromSidebar;
         workspace = 100 - sidebar - preview;
-        if (workspace < MIN_OUTER_LAYOUT.workspace!) {
-            const deficit = MIN_OUTER_LAYOUT.workspace! - workspace;
-            const fromPreview = Math.min(deficit, preview - MIN_PREVIEW_SIZE);
-            preview -= fromPreview;
-            const fromSidebar = Math.min(deficit - fromPreview, sidebar - MIN_SIDEBAR_SIZE);
-            sidebar -= fromSidebar;
-            workspace = 100 - sidebar - preview;
-        }
     }
 
     return {
@@ -396,7 +405,8 @@ export function migrateLayoutV41(
 }
 
 /**
- * v53 / v45+: apply current DEFAULT_OUTER_LAYOUT (sidebar 16.5 / workspace 73.5 / preview 10).
+ * v45 / v61+: apply current DEFAULT_OUTER_LAYOUT (sidebar 12 / workspace 72 / preview 16).
+ * Always snaps to the canonical split so skinny preview / fat tree cannot stick.
  */
 export function migrateLayoutV45(
     outer: Layout | undefined,
@@ -404,7 +414,13 @@ export function migrateLayoutV45(
     previewDockedInWorkspace: boolean,
 ): { outer: Layout; mainRow: Layout } {
     if (previewDockedInWorkspace) {
-        return migrateLayoutV39(outer, mainRow);
+        const nextOuter = normalizeOuterLayout({
+            sidebar: DEFAULT_OUTER_LAYOUT.sidebar,
+            workspace: 100 - DEFAULT_OUTER_LAYOUT.sidebar!,
+            preview: 0,
+        });
+        const nextMainRow = normalizeMainRowLayout({ ...DEFAULT_MAIN_ROW_LAYOUT });
+        return { outer: nextOuter, mainRow: nextMainRow };
     }
     const nextOuter = normalizeOuterLayout({ ...DEFAULT_OUTER_LAYOUT });
     const nextMainRow = normalizeMainRowLayout({ list: 100, preview: 0 });
@@ -412,7 +428,7 @@ export function migrateLayoutV45(
 }
 
 /**
- * v43: restore canonical classic split (17/71/12) from v38 / d216b26.
+ * v43 / settings reset: restore canonical split (12/72/16).
  */
 export function migrateLayoutV43(
     outer: Layout | undefined,
@@ -423,8 +439,12 @@ export function migrateLayoutV43(
         return migrateLayoutV39(outer, mainRow);
     }
     const savedPreview = typeof outer?.preview === 'number' ? outer.preview : 0;
-    const savedWorkspace = typeof outer?.workspace === 'number' ? outer.workspace : 0;
-    const needsReset = savedPreview <= 0 || savedPreview >= 28 || savedWorkspace >= 80;
+    const savedSidebar = typeof outer?.sidebar === 'number' ? outer.sidebar : 0;
+    const needsReset =
+        savedPreview < 14
+        || savedPreview >= 28
+        || savedSidebar > 16
+        || savedSidebar < 10;
     const nextOuter = needsReset
         ? normalizeOuterLayout({ ...DEFAULT_OUTER_LAYOUT })
         : normalizeOuterLayout(outer);

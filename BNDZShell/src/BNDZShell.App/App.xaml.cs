@@ -33,6 +33,7 @@ public partial class App : Application
 
 	protected override void OnLaunched(LaunchActivatedEventArgs args)
 	{
+		PluginWindowBoot.Parse(Environment.GetCommandLineArgs());
 		_mainWindow = new MainWindow();
 		_mainWindow.Activate();
 	}

@@ -26,7 +26,7 @@ function measureContainScale(
   if (!imgW || !imgH || !boxW || !boxH) return 1;
   const sx = (boxW - padding) / imgW;
   const sy = (boxH - padding) / imgH;
-  return Math.min(sx, sy, 24);
+  return Math.min(sx, sy);
 }
 
 function measureCoverScale(
@@ -78,16 +78,10 @@ export default function ImageZoomPreview({
     setImgSrc(applyWebPathMap(config, src));
     offsetRef.current = { x: 0, y: 0 };
     baseFitScaleRef.current = 1;
-    if (previewRt.zoomToFit || blowVisual.shrinkToFit || blowVisual.zoomToFill) {
-      scaleRef.current = 1;
-      setDisplayScale(1);
-      // fitToContainer runs on image load
-    } else {
-      const zoomPct = blowUp.applyZoom ? Math.max(10, blowUp.applyZoomBlowUpValue || 100) / 100 : 1;
-      scaleRef.current = zoomPct;
-      setDisplayScale(zoomPct);
-    }
-  }, [src, filePath, config, blowUp.applyZoom, blowUp.applyZoomBlowUpValue, previewRt.zoomToFit, blowVisual.shrinkToFit, blowVisual.zoomToFill]);
+    // Always start from identity; fit runs on load so large PNGs are not stuck at 100% native.
+    scaleRef.current = 1;
+    setDisplayScale(1);
+  }, [src, filePath, config]);
 
   useEffect(() => () => {
     if (blobUrlRef.current) {
@@ -143,33 +137,47 @@ export default function ImageZoomPreview({
     const img = imgRef.current;
     const stage = stageRef.current;
     if (!img?.naturalWidth || !stage) return 1;
+    const boxW = stage.clientWidth;
+    const boxH = stage.clientHeight;
+    if (boxW < 8 || boxH < 8) return 1;
     const measure = blowVisual.zoomToFill ? measureCoverScale : measureContainScale;
-    let fit = measure(
-      img.naturalWidth,
-      img.naturalHeight,
-      stage.clientWidth,
-      stage.clientHeight,
-    );
+    let fit = measure(img.naturalWidth, img.naturalHeight, boxW, boxH);
+    // Fit-to-screen: never enlarge past 100% for photos (avoids "already zoomed in" on small PNGs).
+    // Cover mode may still fill; contain caps at 1 unless the user zooms manually.
+    if (!blowVisual.zoomToFill) {
+      fit = Math.min(fit, 1);
+    }
     // Settings → Limit original preview size (px) caps the fitted native scale.
     if (config.limitOriginalPreviewSize) {
       const maxPx = Math.max(64, Number(config.limitOriginalPreviewSizeValue) || 1600);
       const maxScale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
       fit = Math.min(fit, maxScale);
     }
-    return fit;
+    return Math.max(0.05, fit);
   }, [blowVisual.zoomToFill, config.limitOriginalPreviewSize, config.limitOriginalPreviewSizeValue]);
 
   const fitToContainer = useCallback((preserveZoom = false) => {
     const stage = stageRef.current;
-    if (!stage?.clientWidth || !stage?.clientHeight) return;
+    if (!stage?.clientWidth || !stage?.clientHeight) return false;
     const fit = measureFitScale();
-    if (!fit || !Number.isFinite(fit)) return;
+    if (!fit || !Number.isFinite(fit)) return false;
     baseFitScaleRef.current = fit;
     if (!preserveZoom) {
       offsetRef.current = { x: 0, y: 0 };
       setScaleImmediate(fit);
     }
+    return true;
   }, [measureFitScale, setScaleImmediate]);
+
+  const scheduleFit = useCallback(() => {
+    // Stage often has 0×0 on first onLoad — retry until layout settles.
+    const tryFit = (attempt: number) => {
+      if (fitToContainer(false)) return;
+      if (attempt >= 12) return;
+      window.requestAnimationFrame(() => tryFit(attempt + 1));
+    };
+    tryFit(0);
+  }, [fitToContainer]);
 
   const zoomIn = () => setScaleImmediate(scaleRef.current + 0.25);
   const zoomOut = () => setScaleImmediate(scaleRef.current - 0.25);
@@ -177,7 +185,7 @@ export default function ImageZoomPreview({
     offsetRef.current = { x: 0, y: 0 };
     setScaleImmediate(1);
   };
-  const fit = () => fitToContainer(false);
+  const fit = () => { scheduleFit(); };
 
   useEffect(() => {
     const el = containerRef.current;
@@ -199,13 +207,13 @@ export default function ImageZoomPreview({
     if (!stage) return;
     const ro = new ResizeObserver(() => {
       if (!stage.clientWidth || !stage.clientHeight) return;
-      if (!(previewRt.zoomToFit || blowVisual.shrinkToFit || blowVisual.zoomToFill)) return;
+      // Keep fitted while the user has not manually zoomed away from fit.
       const nearFit = Math.abs(scaleRef.current - baseFitScaleRef.current) < 0.08;
       if (nearFit || baseFitScaleRef.current <= 1.01) fitToContainer(false);
     });
     ro.observe(stage);
     return () => ro.disconnect();
-  }, [fitToContainer, imgSrc, previewRt.zoomToFit, blowVisual.shrinkToFit, blowVisual.zoomToFill]);
+  }, [fitToContainer, imgSrc]);
 
   const checker = previewRt.transparencyBg !== false
     && config.transparencyBackground !== false
@@ -216,7 +224,7 @@ export default function ImageZoomPreview({
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button === 1 && (blowUp.onMiddleMouseDown || !!config.onMiddleMouseDown)) {
-      fitToContainer(false);
+      scheduleFit();
       e.preventDefault();
       return;
     }
@@ -228,7 +236,7 @@ export default function ImageZoomPreview({
     lastPosRef.current = { x: e.clientX, y: e.clientY };
     try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
     e.preventDefault();
-  }, [blowUp.onMiddleMouseDown, blowUp.onRightMouseDown, config.onMiddleMouseDown, fitToContainer]);
+  }, [blowUp.onMiddleMouseDown, blowUp.onRightMouseDown, config.onMiddleMouseDown, scheduleFit]);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!draggingRef.current) return;
@@ -282,7 +290,8 @@ export default function ImageZoomPreview({
             className={`bndz-image-preview-img${config.autoRotatePreview ? ' bndz-auto-rotate-preview' : ''}`}
             style={{ imageRendering }}
             onLoad={() => {
-              if (previewRt.zoomToFit || blowVisual.shrinkToFit || blowVisual.zoomToFill) fitToContainer(false);
+              // Always fit PNGs/images to the preview panel on open (not stuck at 100% native).
+              scheduleFit();
             }}
             onError={(e) => {
               void tryBlobFallback().then((ok) => {

@@ -83,7 +83,9 @@ function defaultIsPathAncestor(ancestor?: string, descendant?: string): boolean 
 }
 
 function nodeId(node: NavTreeSourceNode, index: number, prefix: string): string {
-  if (node.path) return `path:${node.path}`;
+  // Include label so parent/child sharing a path (or same path different roles) never collide.
+  if (node.treeKey) return `key:${node.treeKey}`;
+  if (node.path) return `${prefix}:path:${node.path}:${node.label}`;
   return `${prefix}:${node.label}:${index}`;
 }
 

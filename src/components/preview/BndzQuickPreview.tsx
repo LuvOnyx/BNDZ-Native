@@ -4,11 +4,12 @@ import { Icons8Icon } from '../Icons8Icon';
 import { CloseGlyph } from '../ChromeGlyphs';
 import { FSEntity } from '../../types';
 import { toWindowsPath, toVirtualStreamUrl } from '../../lib/pathUtils';
-import { isImageExt, isVideoExt, isAudioExt } from '../../lib/mediaTypes';
-import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../../lib/textFileTypes';
+import { isImageExt, isVideoExt, isAudioExt, isModelExt, isShellActivateExt } from '../../lib/mediaTypes';
+import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt, isFontExt } from '../../lib/textFileTypes';
 import { isArchiveExt } from '../../lib/archiveTypes';
 import { getExtendedMetadataCached } from '../../lib/extendedMetadataCache';
 import { IPC } from '../../lib/ipcBridge';
+import { useModelPreviewSource } from '../../lib/useModelPreviewSource';
 import MediaPreviewPlayer, { type MediaPreviewPlayerHandle } from '../MediaPreviewPlayer';
 import ImageZoomPreview from '../ImageZoomPreview';
 import PdfPreviewPanel from '../PdfPreviewPanel';
@@ -20,11 +21,13 @@ import { PreviewHeroIcon } from '../PreviewHeroIcon';
 import { requestMediaResume } from '../../lib/mediaPlaybackBridge';
 import { audioPlaybackSession } from '../../lib/audioPlaybackSession';
 import { useAppConfig } from '../../data/configContext';
+import { probeWebGL } from '../../workstation/webglProbe';
 
 const DocxPreviewPanel = lazy(() => import('../DocxPreviewPanel'));
 const AudioWaveformEditor = lazy(() => import('./AudioWaveformEditor'));
 const ImageMicroEditor = lazy(() => import('./ImageMicroEditor'));
 const BndzPhotoStudio = lazy(() => import('./BndzPhotoStudio'));
+const GpuModelViewport = lazy(() => import('../../workstation/inspection/GpuModelViewport'));
 
 type QuickItem = {
   entity: FSEntity;
@@ -44,9 +47,11 @@ type Props = {
 
 export default function BndzQuickPreview({ open, items, index, onClose, onIndexChange, onNavigate, startInStudioEdit }: Props) {
   const { config } = useAppConfig();
-  const current = items[index];
-  const hasPrev = index > 0;
-  const hasNext = index < items.length - 1;
+  const safeItems = Array.isArray(items) ? items : [];
+  const safeIndex = Math.min(Math.max(0, index), Math.max(0, safeItems.length - 1));
+  const current = safeItems[safeIndex];
+  const hasPrev = safeIndex > 0;
+  const hasNext = safeIndex < safeItems.length - 1;
   const [indexedMeta, setIndexedMeta] = useState<Record<string, unknown> | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
@@ -112,12 +117,19 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       setExtMeta(null);
       return;
     }
+    const name = current.entity?.name || '';
+    const dot = name.lastIndexOf('.');
+    const fileExt = dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+    if (isShellActivateExt(fileExt)) {
+      setExtMeta(null);
+      return;
+    }
     let active = true;
     void getExtendedMetadataCached(toWindowsPath(current.path), { priority: 950 }).then(entry => {
       if (active) setExtMeta(entry.meta || null);
     }).catch(() => { if (active) setExtMeta(null); });
     return () => { active = false; };
-  }, [open, current?.path, current?.entity?.type]);
+  }, [open, current?.path, current?.entity?.type, current?.entity?.name]);
 
   const displaySize = (current?.entity as any)?.size ?? (indexedMeta?.size as number | undefined);
   const displayModified = (current?.entity as any)?.modified ?? (indexedMeta?.modified as number | undefined);
@@ -140,9 +152,13 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
   const isTextRaw = !isDir && isTextEditableExt(ext) && !isCode && !isHtml && !isMarkdown;
   const isDocx = !isDir && isDocxExt(ext);
   const isArchive = !isDir && isArchiveExt(ext);
+  const isFont = !isDir && isFontExt(ext);
+  const isModel = !isDir && isModelExt(ext);
   const isEditableText = isTextRaw || isCode || isMarkdown;
   const virtualUrl = current?.path ? toVirtualStreamUrl(current.path) : '';
   const canEditMedia = isImage || isAudio;
+  const fontFamilyName = isFont ? `bndz-ql-font-${ext}-${(current?.entity?.name || 'f').replace(/[^a-zA-Z0-9]/g, '')}` : '';
+  const modelPreview = useModelPreviewSource(isModel && current?.path ? current.path : null, ext);
 
   useEffect(() => {
     setEditMode(false);
@@ -167,7 +183,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
 
   useEffect(() => {
     setFileContent(null);
-    if (!open || !current?.path || isDir || isImage || isVideo || isAudio || isPdf || isDocx || isArchive) return;
+    if (!open || !current?.path || isDir || isImage || isVideo || isAudio || isPdf || isDocx || isArchive || isFont || isModel) return;
     if (!isEditableText && !isHtml) return;
 
     let cancelled = false;
@@ -179,7 +195,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       .catch(() => { if (!cancelled) setFileContent(null); })
       .finally(() => { if (!cancelled) setContentLoading(false); });
     return () => { cancelled = true; };
-  }, [open, current?.path, isDir, isImage, isVideo, isAudio, isPdf, isDocx, isArchive, isEditableText, isHtml]);
+  }, [open, current?.path, isDir, isImage, isVideo, isAudio, isPdf, isDocx, isArchive, isFont, isModel, isEditableText, isHtml]);
 
   useEffect(() => {
     if (!open) return;
@@ -191,20 +207,23 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
         else handleClose();
       } else if (e.code === 'Space' && !e.repeat && !mediaFocused) {
         // Space is Hand tool in Photo Studio / audio edit — don't dismiss preview.
+        // Also ignore while an editable field or waveform control is focused.
         if (editMode) return;
+        const t = e.target as HTMLElement | null;
+        if (t?.closest?.('button, input, textarea, select, [contenteditable="true"], .bndz-wave-editor')) return;
         e.preventDefault();
         handleClose();
       } else if (e.code === 'ArrowLeft' && hasPrev && !editMode) {
         e.preventDefault();
-        onIndexChange(index - 1);
+        onIndexChange(safeIndex - 1);
       } else if (e.code === 'ArrowRight' && hasNext && !editMode) {
         e.preventDefault();
-        onIndexChange(index + 1);
+        onIndexChange(safeIndex + 1);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, handleClose, onIndexChange, index, hasPrev, hasNext, editMode]);
+  }, [open, handleClose, onIndexChange, safeIndex, hasPrev, hasNext, editMode]);
 
   const runVerb = (verb: string) => {
     if (!current?.path) return;
@@ -225,7 +244,7 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
 
   const kindLabel = indexedKind
     ? indexedKind.charAt(0).toUpperCase() + indexedKind.slice(1)
-    : isDir ? 'Folder' : isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isPdf ? 'PDF' : isArchive ? 'Archive' : isDocx ? 'Word' : ext ? ext.toUpperCase() : 'File';
+    : isDir ? 'Folder' : isImage ? 'Image' : isVideo ? 'Video' : isAudio ? 'Audio' : isPdf ? 'PDF' : isArchive ? 'Archive' : isModel ? '3D' : isFont ? 'Font' : isDocx ? 'Word' : ext ? ext.toUpperCase() : 'File';
 
   const renderPreview = () => {
     if (editMode && isImage) {
@@ -274,6 +293,54 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
       );
     }
     if (isArchive) return <ArchivePreviewPanel path={current.path} format={ext} />;
+    if (isModel) {
+      if (!probeWebGL()) {
+        return (
+          <div className="flex flex-col items-center justify-center gap-3 text-[#9ca3af] p-8">
+            <PreviewHeroIcon path={current.path} isDir={false} size={72} extension={ext} />
+            <span className="text-[12px]">WebGL unavailable for 3D preview</span>
+          </div>
+        );
+      }
+      if (modelPreview.loading) {
+        return (
+          <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
+            <Icons8Icon id="loading" size={20} spin />
+            <span className="text-[12px]">Preparing {ext.toUpperCase()} mesh…</span>
+          </div>
+        );
+      }
+      if (modelPreview.error || !modelPreview.url) {
+        return (
+          <div className="flex flex-col items-center justify-center gap-3 text-[#9ca3af] p-8">
+            <PreviewHeroIcon path={current.path} isDir={false} size={72} extension={ext} />
+            <span className="text-[12px]">{modelPreview.error || '3D preview unavailable'}</span>
+          </div>
+        );
+      }
+      return (
+        <div className="relative w-full h-full min-h-0">
+          <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500"><Icons8Icon id="loading" size={24} spin /></div>}>
+            <GpuModelViewport src={modelPreview.url} title={current.entity.name} badge={modelPreview.badge} />
+          </Suspense>
+        </div>
+      );
+    }
+    if (isFont && virtualUrl) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-8 text-[#e8e8e8]">
+          <style>{`@font-face{font-family:'${fontFamilyName}';src:url('${virtualUrl}');font-display:swap;}`}</style>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-white/45">Font preview</div>
+          <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[42px] leading-tight text-center max-w-[90%]">
+            The quick brown fox jumps over the lazy dog
+          </div>
+          <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[22px] text-white/70 text-center">
+            0123456789 · ABCDEFGHIJKLMNOPQRSTUVWXYZ
+          </div>
+          <div className="text-[12px] text-white/40">{current.entity.name}</div>
+        </div>
+      );
+    }
     if (contentLoading) {
       return (
         <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
@@ -384,10 +451,10 @@ export default function BndzQuickPreview({ open, items, index, onClose, onIndexC
               onPointerCancel={() => { dragRef.current = null; }}
             >
               <div className="bndz-quick-preview-toolbar-cluster">
-                <button type="button" className="bndz-quick-preview-nav" disabled={!hasPrev} onClick={() => onIndexChange(index - 1)} title="Previous (←)">
+                <button type="button" className="bndz-quick-preview-nav" disabled={!hasPrev} onClick={() => onIndexChange(safeIndex - 1)} title="Previous (←)">
                   <Icons8Icon id="chevron_left" size={15} />
                 </button>
-                <button type="button" className="bndz-quick-preview-nav" disabled={!hasNext} onClick={() => onIndexChange(index + 1)} title="Next (→)">
+                <button type="button" className="bndz-quick-preview-nav" disabled={!hasNext} onClick={() => onIndexChange(safeIndex + 1)} title="Next (→)">
                   <Icons8Icon id="chevron_right" size={15} />
                 </button>
                 {items.length > 1 && (

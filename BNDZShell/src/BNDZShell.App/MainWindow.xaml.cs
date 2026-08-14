@@ -43,7 +43,16 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Title = "BNDZ";
+        Title = PluginWindowBoot.IsPluginWindow
+            ? (string.IsNullOrWhiteSpace(PluginWindowBoot.Title) ? "BNDZ Plugin" : PluginWindowBoot.Title!)
+            : "BNDZ";
+        if (PluginWindowBoot.IsPluginWindow)
+        {
+            ChromeHost.PluginWindowId = PluginWindowBoot.PluginId;
+            ChromeHost.PluginStickyId = PluginWindowBoot.StickyId;
+            ChromeHost.PluginWindowTitle = PluginWindowBoot.Title;
+            try { NativeList.Visibility = Visibility.Collapsed; } catch { /* ignore */ }
+        }
         ConfigureAppWindow();
         TrySetWindowIcon();
         InstallWindowSubclass();
@@ -122,22 +131,26 @@ public sealed partial class MainWindow : Window
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
 
-            var (w, h) = ResolveDefaultWindowSize(windowId);
+            var (w, h) = PluginWindowBoot.IsPluginWindow
+                ? (980, 720)
+                : ResolveDefaultWindowSize(windowId);
             _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
             if (_appWindow.Presenter is OverlappedPresenter overlapped)
             {
-                overlapped.PreferredMinimumWidth = MinWindowWidth;
-                overlapped.PreferredMinimumHeight = MinWindowHeight;
+                overlapped.PreferredMinimumWidth = PluginWindowBoot.IsPluginWindow ? 480 : MinWindowWidth;
+                overlapped.PreferredMinimumHeight = PluginWindowBoot.IsPluginWindow ? 360 : MinWindowHeight;
             }
 
             // WinUIEx: persist placement across launches (falls back silently if unavailable).
-            // v54 bumps PersistenceId so a prior 2560×1440 restore does not stick forever.
+            // Plugin pop-outs use a separate PersistenceId so they do not inherit the main FM size.
             try
             {
                 var mgr = WinUIEx.WindowManager.Get(this);
-                mgr.MinWidth = MinWindowWidth;
-                mgr.MinHeight = MinWindowHeight;
-                mgr.PersistenceId = "BNDZShell.MainWindow.v54";
+                mgr.MinWidth = PluginWindowBoot.IsPluginWindow ? 480 : MinWindowWidth;
+                mgr.MinHeight = PluginWindowBoot.IsPluginWindow ? 360 : MinWindowHeight;
+                mgr.PersistenceId = PluginWindowBoot.IsPluginWindow
+                    ? "BNDZShell.PluginPopout.v1"
+                    : "BNDZShell.MainWindow.v54";
             }
             catch (Exception winUiEx)
             {
@@ -167,9 +180,15 @@ public sealed partial class MainWindow : Window
             tb.InactiveBackgroundColor = Colors.Transparent;
 
             // Caption X / Alt+F4 / taskbar close → same Ask/Tray/Quit flow as File→Exit.
+            // Plugin pop-outs are slim tear-offs — close immediately (no FM quit dialog).
             _appWindow.Closing += (_, args) =>
             {
-                if (_closeConfirmed) return;
+                if (_closeConfirmed || PluginWindowBoot.IsPluginWindow)
+                {
+                    if (PluginWindowBoot.IsPluginWindow)
+                        _closeConfirmed = true;
+                    return;
+                }
                 args.Cancel = true;
                 try
                 {

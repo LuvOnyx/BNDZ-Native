@@ -1,7 +1,10 @@
 // Copyright (c) BNDZ — FilesMerge hosted React pane (architecture #3).
 // Files Community portions remain MIT (see LICENSE-MIT).
 
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
 using BNDZ.Services;
 using BNDZShell.Bndz;
@@ -55,6 +58,11 @@ public sealed partial class CraftPaneHost : UserControl
 		get => (string?)GetValue(PluginIdProperty);
 		set => SetValue(PluginIdProperty, value);
 	}
+
+	/// <summary>When set, navigates to slim PluginPopoutShell (?pluginWindow=) instead of full BNDZUI.</summary>
+	public string? PluginWindowId { get; set; }
+	public string? PluginStickyId { get; set; }
+	public string? PluginWindowTitle { get; set; }
 
 	public CraftPaneHost()
 	{
@@ -376,6 +384,21 @@ public sealed partial class CraftPaneHost : UserControl
 		if (!_initialized || PaneWebView.CoreWebView2 is null)
 			return;
 
+		// Slim second-process plugin pop-out — never boot the full FM face.
+		if (!string.IsNullOrWhiteSpace(PluginWindowId))
+		{
+			var popQs = $"nativeShell=1&pluginWindow={Uri.EscapeDataString(PluginWindowId)}";
+			if (!string.IsNullOrWhiteSpace(PluginStickyId))
+				popQs += $"&stickyId={Uri.EscapeDataString(PluginStickyId)}";
+			if (!string.IsNullOrWhiteSpace(PluginWindowTitle))
+				popQs += $"&title={Uri.EscapeDataString(PluginWindowTitle)}";
+			_navigatedPane = "plugin-window";
+			_documentReady = false;
+			PaneWebView.CoreWebView2.Navigate($"http://bndz.local/index.html?{popQs}");
+			PaneStatusHint.Visibility = Visibility.Collapsed;
+			return;
+		}
+
 		var pane = string.IsNullOrWhiteSpace(Pane) ? "plugins" : Pane.Trim().ToLowerInvariant();
 
 		// Full classic BNDZUI browser face for BNDZShell (native list overlay in workspace slot).
@@ -678,20 +701,44 @@ public sealed partial class CraftPaneHost : UserControl
 	internal static string? ResolveUiAssetsRoot()
 	{
 		var baseDir = AppContext.BaseDirectory;
-		var candidates = new[]
+		var candidates = new List<string>
 		{
 			System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, "Assets", "ui")),
 			System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, "bndz-host", "Assets", "ui")),
 			System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, "BNDZAssets", "ui")),
-			System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "BNDZBackend", "Assets", "ui")),
 			System.IO.Path.GetFullPath(System.IO.Path.Combine(Environment.CurrentDirectory, "BNDZBackend", "Assets", "ui")),
+			System.IO.Path.GetFullPath(System.IO.Path.Combine(Environment.CurrentDirectory, "Assets", "ui")),
 		};
-		foreach (var c in candidates)
+
+		// Walk up from the exe looking for the repo's live Vite output so a fresh
+		// `npm run build` is visible without requiring a locked shell rebuild.
+		try
 		{
-			if (System.IO.Directory.Exists(c) && System.IO.File.Exists(System.IO.Path.Combine(c, "index.html")))
-				return c;
+			var dir = new DirectoryInfo(baseDir);
+			for (var i = 0; i < 10 && dir is not null; i++, dir = dir.Parent)
+			{
+				candidates.Add(System.IO.Path.Combine(dir.FullName, "BNDZBackend", "Assets", "ui"));
+				candidates.Add(System.IO.Path.Combine(dir.FullName, "Assets", "ui"));
+			}
 		}
-		return null;
+		catch { /* ignore */ }
+
+		string? best = null;
+		DateTime bestStamp = DateTime.MinValue;
+		foreach (var c in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+		{
+			var index = System.IO.Path.Combine(c, "index.html");
+			if (!System.IO.File.Exists(index)) continue;
+			DateTime stamp;
+			try { stamp = System.IO.File.GetLastWriteTimeUtc(index); }
+			catch { continue; }
+			if (best is null || stamp > bestStamp)
+			{
+				best = c;
+				bestStamp = stamp;
+			}
+		}
+		return best;
 	}
 }
 

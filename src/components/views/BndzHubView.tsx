@@ -78,7 +78,7 @@ const WORKSPACES = [
   {
     path: BNDZ_AUTOMATION,
     icon: 'zap_ui',
-    accent: '#fbbf24',
+    accent: '#34d399',
     title: 'Automation',
     desc: 'Visual pipelines for watch, filter, copy, and rsync deploy blocks',
   },
@@ -120,11 +120,15 @@ export default function BndzHubView({ onNavigate, onRefresh, onOpenMeshDrop, onO
             accent={v.accent}
             badge={v.path === BNDZ_CANVAS
               ? (pinCount ? `${pinCount} pins` : 'Board')
-              : (blockCount ? `${blockCount} blocks` : 'Pipeline')}
-            badgeVariant="gold"
+              : v.path === BNDZ_AUTOMATION
+                ? (blockCount ? `${blockCount} blocks` : 'Pipeline')
+                : 'Scrub'}
+            badgeVariant={v.path === BNDZ_CANVAS ? 'gold' : v.path === BNDZ_AUTOMATION ? 'green' : 'new'}
             features={v.path === BNDZ_CANVAS
               ? ['Pins', 'Snapshots', 'Relations']
-              : ['Triggers', 'Filters', 'Actions']}
+              : v.path === BNDZ_AUTOMATION
+                ? ['Triggers', 'Filters', 'Actions']
+                : ['Adds', 'Removes', 'Modifies']}
             onClick={() => onNavigate(v.path)}
           />
         ))}

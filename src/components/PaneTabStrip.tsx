@@ -22,6 +22,7 @@ import { tabAccentStyle } from '../lib/tabColors';
 import type { TabState } from './tabTypes';
 import { findingTabLabel, isFindingTab } from '../lib/findingTab';
 import { normalizePanePath } from '../lib/pathUtils';
+import { isBndzAutomationPath, isBndzCanvasPath } from '../lib/bndzVirtualViews';
 
 /** Keep reorder on the tab row — only X follows the pointer; kill Y/scale hard. */
 const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
@@ -216,7 +217,12 @@ function SortablePaneTab({
         makeSelectedTabBold && isActive ? 'font-bold' : 'font-semibold'
       } ${isDragging ? 'opacity-60 bndz-tab-item--dragging' : ''} ${
         isFileDropHover ? 'bndz-tab-item--file-drop' : ''
-      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''}`}
+      } ${tab.locked ? 'ring-1 ring-inset ring-amber-500/50 bg-[#1a1810]' : ''} ${
+        isBndzCanvasPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--spatial' : ''
+      } ${
+        isBndzAutomationPath(tab.path) ? 'bndz-tab-item--workspace bndz-tab-item--automation' : ''
+      }`}
+      data-workspace-tab={isBndzCanvasPath(tab.path) ? 'spatial' : isBndzAutomationPath(tab.path) ? 'automation' : undefined}
       {...attributes}
       {...listeners}
       role="tab"
@@ -418,10 +424,11 @@ export default function PaneTabStrip(props: PaneTabStripProps) {
           {tabs.map((tab, idx) => {
             const isActive = idx === activeTabIndex;
             const name = isFindingTab(tab) ? findingTabLabel(tab) : getPaneTabLabel(tab.path);
+            const isWorkspaceTool = isBndzCanvasPath(tab.path) || isBndzAutomationPath(tab.path);
             const showXClose =
               showXCloseButtonsOnTabs !== 'None'
-              && tabs.length > 1
-              && (showXCloseButtonsOnTabs === 'All tabs' || isActive);
+              && (tabs.length > 1 || isWorkspaceTool)
+              && (showXCloseButtonsOnTabs === 'All tabs' || isActive || isWorkspaceTool);
             const pathKey = normalizePanePath(tab.path);
             const customWidth = tabCustomWidths?.[pathKey] ?? tabCustomWidths?.[tab.path];
 

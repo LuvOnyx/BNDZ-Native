@@ -208,6 +208,12 @@ export const IPC = {
         } else if (data.type === 'GLOBAL_HOTKEY') {
           const id = data.payload?.id ?? '';
           window.dispatchEvent(new CustomEvent('bndz-global-hotkey', { detail: { id } }));
+        } else if (data.type === 'BNDZ_QUICK_LOOK_OPEN') {
+          const paths = Array.isArray(data.payload?.paths) ? data.payload.paths.filter((p: unknown) => typeof p === 'string' && p) : [];
+          const items = Array.isArray(data.payload?.items) ? data.payload.items : null;
+          window.dispatchEvent(new CustomEvent('bndz-quick-look-open', { detail: { paths, items } }));
+        } else if (data.type === 'BNDZ_QUICK_LOOK_CLOSE') {
+          window.dispatchEvent(new CustomEvent('bndz-quick-look-close'));
         } else if (data.type === 'CLOSE_REQUEST') {
           const source = data.payload?.source;
           this._closeRequestListeners.forEach(cb => cb({ source }));
@@ -2442,6 +2448,25 @@ export const IPC = {
       );
     }
     return Promise.resolve({ error: 'Not native' });
+  },
+
+  /** Resolve a WebGL-ready preview path for 3D / RAGE assets (.ydr/.ybn → cached OBJ). */
+  getModelPreview(path: string): Promise<{
+    path?: string;
+    format?: string;
+    kind?: string;
+    vertices?: number;
+    triangles?: number;
+    converted?: boolean;
+    error?: string;
+  }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_modelPreview`;
+      return _nativeCall(
+        'GET_MODEL_PREVIEW', 'MODEL_PREVIEW_RESULT', id, { path }, 120000
+      );
+    }
+    return Promise.resolve({ error: 'Not native', path });
   },
 
   getIconLibraries(): Promise<any[]> {

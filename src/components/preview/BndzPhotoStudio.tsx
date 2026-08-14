@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { toVirtualStreamUrl, toWindowsPath } from '../../lib/pathUtils';
 import { isImageExt } from '../../lib/mediaTypes';
+import { useEditorIframeKeyBridge, type EditorKeyPayload } from '../../lib/editorIframeKeys';
 
 type Props = {
   path: string;
@@ -38,6 +39,11 @@ function dataUrlToBase64(dataUrl: string): string {
   return i >= 0 ? dataUrl.slice(i + 1) : dataUrl;
 }
 
+/**
+ * Host for the full Photoshop-clone UI (public/editors/bndz-photo-studio.html).
+ * Exact PS chrome lives in that editor; React hosts load/save + IPC.
+ * Keyboard shortcuts stay inside the iframe (do not leak to the FM).
+ */
 export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -49,6 +55,13 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
   const [busy, setBusy] = useState(false);
   const [frameReady, setFrameReady] = useState(false);
   const [imagePayload, setImagePayload] = useState<{ url: string; name: string } | null>(null);
+  const [studioTheme, setStudioTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return localStorage.getItem('bndz-photo-studio-theme') === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
 
   const revokeBlob = useCallback(() => {
     if (blobUrlRef.current) {
@@ -63,6 +76,19 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     win.postMessage({ source: 'bndz-host', ...msg }, '*');
   }, []);
 
+  const postKey = useCallback(
+    (payload: EditorKeyPayload) => postToStudio(payload),
+    [postToStudio],
+  );
+
+  useEditorIframeKeyBridge({
+    rootSelector: '.bndz-photo-studio',
+    iframeRef,
+    postKey,
+    forceActive: true,
+    passEscape: true,
+  });
+
   const requestExport = useCallback((mode: SaveMode, dest?: string | null, kind: 'png' | 'jpeg' = 'png') => {
     saveModeRef.current = mode;
     saveDestRef.current = dest ?? null;
@@ -76,7 +102,6 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     revokeBlob();
     try {
       const { IPC } = await import('../../lib/ipcBridge');
-      // Prefer blob for the sandboxed studio iframe — bndz-stream often fails inside iframes.
       let src = '';
       if (IPC.isNative) {
         const result = await IPC.getMediaBlob(toWindowsPath(path));
@@ -110,18 +135,9 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
 
   useEffect(() => {
     if (!frameReady || !imagePayload) return;
-    postToStudio({
-      type: 'openImage',
-      url: imagePayload.url,
-      name: imagePayload.name,
-    });
-    // Re-send in case the first message races the studio bootstrap.
+    postToStudio({ type: 'openImage', url: imagePayload.url, name: imagePayload.name });
     const t = window.setTimeout(() => {
-      postToStudio({
-        type: 'openImage',
-        url: imagePayload.url,
-        name: imagePayload.name,
-      });
+      postToStudio({ type: 'openImage', url: imagePayload.url, name: imagePayload.name });
     }, 180);
     return () => window.clearTimeout(t);
   }, [frameReady, imagePayload, postToStudio]);
@@ -180,6 +196,18 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     return () => window.removeEventListener('message', onMessage);
   }, [onRequestClose, onSaved, path]);
 
+  useEffect(() => {
+    if (frameReady) {
+      const t = window.setTimeout(() => {
+        try {
+          iframeRef.current?.focus({ preventScroll: true });
+          iframeRef.current?.contentWindow?.focus?.();
+        } catch { /* ignore */ }
+      }, 120);
+      return () => window.clearTimeout(t);
+    }
+  }, [frameReady]);
+
   const onSave = () => requestExport('sibling');
   const onSaveOverwrite = () => {
     if (!window.confirm('Overwrite the original file with your edits?')) return;
@@ -192,6 +220,8 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     if (!picked) return;
     requestExport('pick', picked);
   };
+
+  const displayName = title || path.split(/[/\\]/).pop() || 'image';
 
   if (loading) {
     return (
@@ -207,21 +237,73 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
       <div className="bndz-photo-studio bndz-photo-studio--status">
         <Icons8Icon id="warning" size={28} className="opacity-70" />
         <p>{error}</p>
+        {onRequestClose && (
+          <button type="button" className="bndz-lens-chip" onClick={onRequestClose}>Close</button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="bndz-photo-studio">
+    <div className="bndz-photo-studio" tabIndex={-1}>
       <div className="bndz-photo-studio-hostbar">
-        <button type="button" className="bndz-lens-chip" onClick={onSave} disabled={busy}>Save copy</button>
-        <button type="button" className="bndz-lens-chip" onClick={onSaveOverwrite} disabled={busy}>Overwrite</button>
-        <button type="button" className="bndz-lens-chip" onClick={() => void onSaveAs()} disabled={busy}>Save As…</button>
+        <div className="bndz-photo-studio-brand">
+          <Icons8Icon id="paint" size={15} />
+          <div>
+            <strong>Photo Studio</strong>
+            <span title={displayName}>{displayName}</span>
+          </div>
+        </div>
+        <div className="bndz-photo-studio-host-actions">
+          <button
+            type="button"
+            className="bndz-lens-chip"
+            title="Toggle Photo Studio dark / light UI"
+            disabled={busy}
+            onClick={() => {
+              const next = studioTheme === 'dark' ? 'light' : 'dark';
+              setStudioTheme(next);
+              try { localStorage.setItem('bndz-photo-studio-theme', next); } catch { /* ignore */ }
+              postToStudio({ type: 'setTheme', theme: next });
+            }}
+          >
+            {studioTheme === 'dark' ? 'Light UI' : 'Dark UI'}
+          </button>
+          <button
+            type="button"
+            className="bndz-lens-chip"
+            title="Undo (Ctrl+Z)"
+            disabled={busy}
+            onClick={() => postToStudio({ type: 'keydown', key: 'z', code: 'KeyZ', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false })}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            className="bndz-lens-chip"
+            title="Redo (Ctrl+Shift+Z)"
+            disabled={busy}
+            onClick={() => postToStudio({ type: 'keydown', key: 'z', code: 'KeyZ', ctrlKey: true, metaKey: false, shiftKey: true, altKey: false })}
+          >
+            Redo
+          </button>
+          <button type="button" className="bndz-lens-chip bndz-lens-chip--accent" onClick={onSave} disabled={busy}>Save PNG</button>
+          <button type="button" className="bndz-lens-chip" onClick={() => requestExport('sibling', null, 'jpeg')} disabled={busy}>Save JPG</button>
+          <button type="button" className="bndz-lens-chip" onClick={onSaveOverwrite} disabled={busy}>Overwrite</button>
+          <button type="button" className="bndz-lens-chip" onClick={() => void onSaveAs()} disabled={busy}>Save As…</button>
+          {onRequestClose && (
+            <button type="button" className="bndz-lens-chip" onClick={onRequestClose}>Close</button>
+          )}
+        </div>
+        <div className="bndz-photo-studio-host-hint" title="Keys stay inside the studio while it is open">
+          Del · B E G · [ ] · Ctrl+Z/S
+        </div>
       </div>
       <iframe
         ref={iframeRef}
         className="bndz-photo-studio-frame"
         title="BNDZ Photo Studio"
+        tabIndex={0}
         src={(() => {
           const base = import.meta.env.BASE_URL || '/';
           const prefix = base.endsWith('/') ? base : `${base}/`;
@@ -229,7 +311,13 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         })()}
         sandbox="allow-scripts allow-same-origin allow-downloads allow-modals"
         onLoad={() => {
-          setTimeout(() => postToStudio({ type: 'ping' }), 40);
+          setTimeout(() => {
+            postToStudio({ type: 'ping' });
+            postToStudio({ type: 'setTheme', theme: studioTheme });
+          }, 40);
+          try {
+            iframeRef.current?.focus({ preventScroll: true });
+          } catch { /* ignore */ }
         }}
       />
       {(status || busy) && (

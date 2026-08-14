@@ -559,9 +559,9 @@ export default function BndzHomeView({
               title="Automation"
               desc="Visual file pipelines with watch, filter, copy, move, and built-in rsync deploy blocks."
               icon="zap_ui"
-              accent="#fbbf24"
+              accent="#34d399"
               badge="Pipeline"
-              badgeVariant="gold"
+              badgeVariant="green"
               features={['Visual editor', 'Remote deploy', 'Auto-save']}
               onClick={() => onNavigate(BNDZ_AUTOMATION)}
               className="is-automation"

@@ -210,6 +210,8 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         elevateNodesOnSelect={false}
         deleteKeyCode={['Delete', 'Backspace']}
         selectNodesOnDrag={false}
+        selectionOnDrag
+        multiSelectionKeyCode={['Meta', 'Control']}
         selectionMode={SelectionMode.Partial}
         panOnDrag={[1]}
         panOnScroll={panOnScroll}
@@ -223,14 +225,14 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         defaultEdgeOptions={{
           type: 'smoothstep',
           animated: true,
-          style: { stroke: '#7eb8e8', strokeWidth: 2.25, filter: 'drop-shadow(0 0 4px rgba(126,184,232,0.4))' },
+          style: { stroke: '#34d399', strokeWidth: 2.25, filter: 'drop-shadow(0 0 4px rgba(52,211,153,0.35))' },
         }}
-        connectionLineStyle={{ stroke: '#9ad4ff', strokeWidth: 2, strokeDasharray: '6 4' }}
+        connectionLineStyle={{ stroke: '#6ee7b7', strokeWidth: 2, strokeDasharray: '6 4' }}
         className="bndz-automation-flow"
         proOptions={{ hideAttribution: true }}
       >
         <AutomationViewportRestore viewport={savedViewport} />
-        <Background gap={24} size={1} color="rgba(56,189,248,0.06)" />
+        <Background gap={24} size={1} color="rgba(52,211,153,0.07)" />
         <Controls className="bndz-flow-controls" showInteractive={false} />
         {nodes.length > 6 && (
           <MiniMap
@@ -242,7 +244,7 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
           />
         )}
         <Panel position="bottom-center" className="bndz-flow-hint-panel">
-          Ctrl+scroll zoom · Ctrl+C/V blocks · right-click actions
+          Drag empty canvas to marquee · middle-drag pan · Ctrl+scroll zoom · Ctrl+C/V blocks
         </Panel>
         {nodes.length === 0 && (
           <Panel position="top-center" className="bndz-automation-empty-panel">

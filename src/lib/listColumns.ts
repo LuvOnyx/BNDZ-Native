@@ -25,7 +25,7 @@ export const LIST_COLUMN_DEFS: ListColumnDef[] = [
   // Fixed pixel widths so column resize actually sticks (flex-fill fought live resize).
   { id: 'name', label: 'Name', widthClass: 'shrink-0', widthPx: 280, sortable: true },
   { id: 'type', label: 'Type', widthClass: 'shrink-0', widthPx: 100, sortable: true },
-  { id: 'size', label: 'Size', widthClass: 'shrink-0', widthPx: 90, align: 'right', sortable: true },
+  { id: 'size', label: 'Size', widthClass: 'shrink-0', widthPx: 128, align: 'right', sortable: true },
   { id: 'modified', label: 'Modified', widthClass: 'shrink-0', widthPx: 150, sortable: true },
   { id: 'created', label: 'Created', widthClass: 'shrink-0', widthPx: 150, sortable: true },
   { id: 'attributes', label: 'Attributes', widthClass: 'shrink-0', widthPx: 100 },

@@ -154,6 +154,7 @@ function FileListRow(props: FileListRowProps) {
     scheduleQuickActionsBar,
     setToastMessage,
     suppressRowClickRef,
+    suppressNativeDblUntilRef,
     listGestureRef,
     listClickDeferTimerRef,
     contextMenuBlockRef,
@@ -361,6 +362,11 @@ function FileListRow(props: FileListRowProps) {
         handleEntityClicked(e, entity.id);
       }}
       onDoubleClick={() => {
+        // Gesture pointerup already opened this item — native dblclick would hit the
+        // *new* row under the cursor after navigate (folder+1) or ShellExecute twice.
+        if (performance.now() < (suppressNativeDblUntilRef.current || 0)) {
+          return;
+        }
         if (listClickDeferTimerRef.current) {
           clearTimeout(listClickDeferTimerRef.current);
           listClickDeferTimerRef.current = null;

@@ -45,7 +45,7 @@ import {
   type SlowClickStamp,
 } from '../lib/slowDoubleClickRename';
 
-const ROW_HEIGHT = 26;
+const ROW_HEIGHT = 28;
 const VIRTUAL_THRESHOLD = 32;
 const TREE_STATE_STORAGE_KEY = 'bndz.navTree.expanded';
 
@@ -203,7 +203,7 @@ function TreeRow({
     && row.path
     ? evaluateColorFilter({ name: row.label, path: row.path, type: 'directory' }, config.colorFilters, config)
     : null;
-  const indentPx = row.depth * 16 + 8;
+  const indentPx = row.depth * 18 + 10;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -256,6 +256,7 @@ function TreeRow({
       style={{ paddingLeft: `${indentPx}px`, ...(treeColorFilter?.inlineStyle && !isSelected ? treeColorFilter.inlineStyle : {}) }}
       data-nav-path={row.path || undefined}
       data-tree-key={row.treeKey || undefined}
+      data-depth={row.depth}
       onPointerDown={canDragFile ? (e) => {
         if (e.button !== 0) return;
         onFilePointerDown?.(row, e);
@@ -878,7 +879,7 @@ export function VirtualizedNavTree({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 6,
+    overscan: 8,
     enabled: useVirtual,
   });
 

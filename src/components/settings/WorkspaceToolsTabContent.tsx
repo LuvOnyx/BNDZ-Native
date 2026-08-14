@@ -732,9 +732,9 @@ export default function WorkspaceToolsTabContent({
                     title="Automation pipelines"
                     desc="Visual file pipelines: watch, filter, branch, copy/move, and deploy — armed watchers restore at boot."
                     icon="zap_ui"
-                    accent="#5b9fd4"
+                    accent="#34d399"
                     badge="Circuit"
-                    badgeVariant="new"
+                    badgeVariant="green"
                     features={['30 blocks', 'Live watch', 'Schedules', 'Run history']}
                     onClick={() => window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: BNDZ_AUTOMATION } }))}
                   />

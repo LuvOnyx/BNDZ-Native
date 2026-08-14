@@ -108,6 +108,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   audioPreview: false,
   audioPreviewBlowUp: false,
   audioVideoPreview: 'Play once',
+  osWideQuickLook: true,
   autoCompleteFilter: false,
   autoCompleteRecentlyUsedItems: false,
   autoCreateAnyMissingFolders: false,
@@ -625,7 +626,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   withBorder: false,
   wrapAroundList: false,
   zoomToFill: false,
-  zoomToFit: false,
+  zoomToFit: true,
   recentFiles: [] as string[],
   findSearchHistory: [] as string[],
 };

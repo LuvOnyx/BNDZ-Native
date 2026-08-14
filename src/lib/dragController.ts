@@ -3,15 +3,18 @@
  * double-clicks, marquee selection, and enforces movement threshold.
  */
 
-/** Movement before a list drag can arm — Explorer-like (~SM_CXDRAG). */
-const DRAG_THRESHOLD_PX = 6;
-const DOUBLE_CLICK_GUARD_MS = 280;
 /**
- * Hold after threshold before drag arms. Keep near-zero so drag feels Explorer-instant;
- * click-vs-drag is already separated by movement threshold.
+ * Movement before a list drag can arm — slightly above SM_CXDRAG so a jittery
+ * first click of a double-click does not hijack into fluid-drag.
  */
-const DEFAULT_DRAG_DELAY_MS = 0;
-const SELECTED_DRAG_DELAY_MS = 0;
+const DRAG_THRESHOLD_PX = 10;
+const DOUBLE_CLICK_GUARD_MS = 320;
+/**
+ * Hold after threshold before drag arms. Explorer-like DragDetect needs both
+ * distance and a brief settle so double-click navigation wins over drag.
+ */
+const DEFAULT_DRAG_DELAY_MS = 140;
+const SELECTED_DRAG_DELAY_MS = 110;
 /** Legacy defer slot — row onClick handles clicks directly (0 = instant). */
 export const LIST_CLICK_DEFER_MS = 0;
 
@@ -27,6 +30,8 @@ type DragSession = {
   delayMs: number;
   ready: boolean;
   timer: ReturnType<typeof setTimeout> | null;
+  /** Consecutive move samples past threshold (filters single-sample noise). */
+  thresholdHits: number;
 };
 
 let marqueeActive = false;
@@ -120,6 +125,7 @@ export function beginDragSession(
     delayMs,
     ready: delayMs <= 0,
     timer: null,
+    thresholdHits: 0,
   };
   if (delayMs > 0) {
     session.timer = setTimeout(() => {
@@ -133,8 +139,14 @@ export function trackDragPointer(clientX: number, clientY: number): boolean {
   const dx = Math.abs(clientX - session.startX);
   const dy = Math.abs(clientY - session.startY);
   if (dx > DRAG_THRESHOLD_PX || dy > DRAG_THRESHOLD_PX) {
-    session.moved = true;
-    dragThresholdMet = true;
+    session.thresholdHits += 1;
+    // Require two consecutive samples past threshold to ignore single-sample jitter.
+    if (session.thresholdHits >= 2) {
+      session.moved = true;
+      dragThresholdMet = true;
+    }
+  } else {
+    session.thresholdHits = 0;
   }
   return session.moved;
 }

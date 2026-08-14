@@ -253,12 +253,17 @@ public sealed class InboundVolumeService : IDisposable
                 var meta = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
                 if (meta is null) continue;
 
+                // Listing must stay snappy — top-level files only (no nested walks).
                 long size = 0;
-                foreach (var f in Directory.EnumerateFiles(dir))
+                try
                 {
-                    if (System.IO.Path.GetFileName(f) == "meta.json") continue;
-                    try { size += new FileInfo(f).Length; } catch { }
+                    foreach (var f in new DirectoryInfo(dir).EnumerateFiles())
+                    {
+                        if (f.Name.Equals("meta.json", StringComparison.OrdinalIgnoreCase)) continue;
+                        size += f.Length;
+                    }
                 }
+                catch { /* size stays 0 */ }
 
                 entries.Add(new InboundEntry
                 {

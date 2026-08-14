@@ -23,6 +23,7 @@ using BNDZ.Services.Mesh;
 using BNDZ.Services.MeshDrop;
 using BNDZ.Services.GhostLink;
 using BNDZ.Services.RamStaging;
+using BNDZ.Services.OsQuickLook;
 using BNDZ.Utilities;
 using Microsoft.Web.WebView2.Core;
 
@@ -49,6 +50,8 @@ namespace BNDZ.Services
         private readonly FolderSyncService _folderSyncService = new();
         private readonly SettingsManager _settingsManager;
         private readonly GlobalHotkeyService _globalHotkeys;
+        private OsQuickLookHookService? _osQuickLook;
+        private volatile bool _osQuickLookOpen;
         private readonly NativeShellService _nativeShellService = new();
         private readonly ShellContextMenuService _shellContextMenuService = new();
         private readonly ArchiveService _archiveService = new();
@@ -328,6 +331,7 @@ namespace BNDZ.Services
                 FileOperationPreferences.ApplyFromJson(bootSettings);
                 ApplyFileOperationPreferences();
                 ApplyGlobalHotkeysFromSettingsJson(bootSettings);
+                ApplyOsQuickLookFromSettingsJson(bootSettings);
                 BndzMediaDiskCache.Instance.ApplySettingsJson(bootSettings);
                 _actionLogService.LoadPersistedIfEnabled();
                 _fileTransferQueue.LoadPersistedHistory();
@@ -970,6 +974,8 @@ namespace BNDZ.Services
             _automationWatcher.Dispose();
             _automationScheduler.Dispose();
             try { _ramStagingService?.Dispose(); } catch { /* best effort flush */ }
+            try { _osQuickLook?.Dispose(); } catch { /* ignore */ }
+            try { _globalHotkeys.Dispose(); } catch { /* ignore */ }
             _trayService?.Dispose();
             // headless
         }
@@ -2568,6 +2574,10 @@ namespace BNDZ.Services
                         try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
                         try { WarmKnownFolderGlyphs(); } catch { }
                     });
+                }
+                else if (type == "BNDZ_QUICK_LOOK_CLOSED")
+                {
+                    _osQuickLookOpen = false;
                 }
                 else if (type == "EXECUTE_BATCH_RENAME")
                 {
@@ -6161,6 +6171,42 @@ namespace BNDZ.Services
                         PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                     });
                 }
+                else if (type == "GET_MODEL_PREVIEW")
+                {
+                    var payload = root.GetProperty("payload");
+                    string rawPath = payload.GetProperty("path").GetString() ?? "";
+                    string path = MeshPath.IsMeshPath(rawPath) ? rawPath : NormalizeFsPath(rawPath);
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        object resultPayload;
+                        try
+                        {
+                            if (MeshPath.IsMeshPath(path))
+                                path = _meshOrchestrator.HydrateToCacheAsync(path).GetAwaiter().GetResult();
+                            var ext = Path.GetExtension(path)?.TrimStart('.').ToLowerInvariant() ?? "";
+                            if (RageModelPreviewService.NeedsHostConversion(ext))
+                            {
+                                var (ok, previewPath, format, kind, verts, tris, error) = RageModelPreviewService.TryGetPreviewObj(path);
+                                resultPayload = ok
+                                    ? new { path = previewPath, format, kind, vertices = verts, triangles = tris, converted = true }
+                                    : new { error = error ?? "RAGE preview failed", kind = ext };
+                            }
+                            else
+                            {
+                                resultPayload = File.Exists(path)
+                                    ? new { path, format = ext, kind = ext, converted = false }
+                                    : new { error = "File not found", kind = ext };
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            resultPayload = new { error = ex.Message };
+                        }
+                        var response = new { type = "MODEL_PREVIEW_RESULT", id = idProp, payload = resultPayload };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response)));
+                    });
+                }
                 else if (type == "GET_MEDIA_BLOB")
                 {
                     var payload = root.GetProperty("payload");
@@ -6864,6 +6910,7 @@ namespace BNDZ.Services
                         FileOperationPreferences.ApplyFromJson(jsonString);
                         ApplyFileOperationPreferences();
                         ApplyGlobalHotkeysFromSettingsJson(jsonString);
+                        ApplyOsQuickLookFromSettingsJson(jsonString);
                         BndzMediaDiskCache.Instance.ApplySettingsJson(jsonString);
                     }
                     catch (Exception ex)
@@ -6889,6 +6936,7 @@ namespace BNDZ.Services
                             BndzMediaDiskCache.Instance.ApplySettingsJson(settingsJson);
                         ApplyFileOperationPreferences();
                         ApplyGlobalHotkeysFromSettingsJson(settingsJson == "null" ? null : settingsJson);
+                        ApplyOsQuickLookFromSettingsJson(settingsJson == "null" ? null : settingsJson);
                         
                         var responseJson = "{\"type\":\"LOAD_SETTINGS_RESULT\",\"id\":\"" + idProp + "\",\"payload\":" + settingsJson + "}";
                         PostToUi(() => {
@@ -7835,9 +7883,9 @@ namespace BNDZ.Services
                             "portal-capture" => BndzNamespaceService.Instance.ResolvePortalView("capture", safeLimit),
                             _ => [],
                         };
-                        // Skip tag sidecar enrich for media/audio — serialize-per-row + sidecar lookup
-                        // adds latency with no user-visible tags on the photo grid first paint.
-                        object itemsPayload = view is "media" or "audio"
+                        // Skip tag sidecar enrich for media/audio and synthetic smart views —
+                        // serialize-per-row adds latency with no user-visible tags on first paint.
+                        object itemsPayload = view is "media" or "audio" or "problems" or "inbound"
                             ? rawItems
                             : BndzTagSidecarStore.EnrichDirResults(rawItems, _tagSidecarStore);
                         var response = new { type = "VIRTUAL_VIEW_CONTENTS_RESULT", id = idProp, payload = new { items = itemsPayload } };
@@ -9240,6 +9288,107 @@ namespace BNDZ.Services
             {
                 _globalHotkeys.ApplyFromSettings("Alt+Space", "Ctrl+Shift+P", "Ctrl+Shift+F");
             }
+        }
+
+        private void ApplyOsQuickLookFromSettingsJson(string? json)
+        {
+            var enabled = true;
+            try
+            {
+                using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) || json == "null" ? "{}" : json);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("osWideQuickLook", out var el))
+                {
+                    if (el.ValueKind == JsonValueKind.False) enabled = false;
+                    else if (el.ValueKind == JsonValueKind.True) enabled = true;
+                }
+                else if (root.TryGetProperty("enableOsWideQuickLook", out var el2))
+                {
+                    if (el2.ValueKind == JsonValueKind.False) enabled = false;
+                }
+            }
+            catch { enabled = true; }
+
+            try
+            {
+                if (_osQuickLook == null)
+                {
+                    _osQuickLook = new OsQuickLookHookService(Dispatcher);
+                    _osQuickLook.ToggleRequested += OnOsQuickLookToggle;
+                    _osQuickLook.CloseRequested += OnOsQuickLookClose;
+                    _osQuickLook.Start();
+                }
+                _osQuickLook.Enabled = enabled;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OsQuickLook] init: {ex.Message}");
+            }
+        }
+
+        private void OnOsQuickLookToggle()
+        {
+            PostToUi(() =>
+            {
+                try
+                {
+                    if (_osQuickLookOpen)
+                    {
+                        _osQuickLookOpen = false;
+                        DeliverIpcJson(JsonSerializer.Serialize(new
+                        {
+                            type = "BNDZ_QUICK_LOOK_CLOSE",
+                            payload = new { },
+                        }));
+                        return;
+                    }
+
+                    var paths = ForegroundShellSelectionService.GetSelectedPaths();
+                    if (paths.Count == 0) return;
+
+                    var items = new List<object>(paths.Count);
+                    foreach (var p in paths)
+                    {
+                        var isDir = Directory.Exists(p);
+                        items.Add(new
+                        {
+                            path = p,
+                            name = Path.GetFileName(p.TrimEnd('\\', '/')) is { Length: > 0 } n ? n : p,
+                            isDirectory = isDir,
+                        });
+                    }
+
+                    ShowAndActivate();
+                    _osQuickLookOpen = true;
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "BNDZ_QUICK_LOOK_OPEN",
+                        payload = new { paths, items },
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[OsQuickLook] toggle: {ex.Message}");
+                }
+            });
+        }
+
+        private void OnOsQuickLookClose()
+        {
+            PostToUi(() =>
+            {
+                try
+                {
+                    if (!_osQuickLookOpen) return;
+                    _osQuickLookOpen = false;
+                    DeliverIpcJson(JsonSerializer.Serialize(new
+                    {
+                        type = "BNDZ_QUICK_LOOK_CLOSE",
+                        payload = new { },
+                    }));
+                }
+                catch { }
+            });
         }
 
         /// <summary>

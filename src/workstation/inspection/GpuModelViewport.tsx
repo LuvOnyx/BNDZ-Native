@@ -5,10 +5,14 @@ import { Center, Environment, Html, OrbitControls, useGLTF } from '@react-three/
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
+import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 import { getDisplayDpr } from '../../lib/displayDpr';
 import BndzErrorBoundary from '../../components/BndzErrorBoundary';
 
-type ModelSceneProps = { url: string; kind: 'gltf' | 'obj' | 'stl' };
+type ModelKind = 'gltf' | 'obj' | 'stl' | 'fbx' | 'dae' | 'ply';
+type ModelSceneProps = { url: string; kind: ModelKind };
 
 function prepareMaterials(root: THREE.Object3D) {
   root.traverse(obj => {
@@ -23,6 +27,17 @@ function prepareMaterials(root: THREE.Object3D) {
   });
 }
 
+function ensureStandardMaterials(root: THREE.Object3D, color = '#c8ccd4') {
+  root.traverse(child => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if (!mesh.material || (mesh.material as THREE.Material).type === 'MeshBasicMaterial') {
+      mesh.material = new THREE.MeshStandardMaterial({ color, metalness: 0.15, roughness: 0.55 });
+    }
+  });
+  prepareMaterials(root);
+}
+
 function GltfScene({ url }: { url: string }) {
   const { scene } = useGLTF(url);
   useEffect(() => { prepareMaterials(scene); }, [scene]);
@@ -35,16 +50,7 @@ function GltfScene({ url }: { url: string }) {
 
 function ObjScene({ url }: { url: string }) {
   const obj = useLoader(OBJLoader, url);
-  useEffect(() => {
-    obj.traverse(child => {
-      const mesh = child as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      if (!mesh.material || (mesh.material as THREE.Material).type === 'MeshBasicMaterial') {
-        mesh.material = new THREE.MeshStandardMaterial({ color: '#c8ccd4', metalness: 0.15, roughness: 0.55 });
-      }
-    });
-    prepareMaterials(obj);
-  }, [obj]);
+  useEffect(() => { ensureStandardMaterials(obj); }, [obj]);
   return (
     <Center>
       <primitive object={obj} />
@@ -66,25 +72,66 @@ function StlScene({ url }: { url: string }) {
   );
 }
 
+function FbxScene({ url }: { url: string }) {
+  const fbx = useLoader(FBXLoader, url);
+  useEffect(() => { ensureStandardMaterials(fbx, '#b7c0cc'); }, [fbx]);
+  return (
+    <Center>
+      <primitive object={fbx} />
+    </Center>
+  );
+}
+
+function DaeScene({ url }: { url: string }) {
+  const collada = useLoader(ColladaLoader, url);
+  useEffect(() => { ensureStandardMaterials(collada.scene, '#b7c0cc'); }, [collada]);
+  return (
+    <Center>
+      <primitive object={collada.scene} />
+    </Center>
+  );
+}
+
+function PlyScene({ url }: { url: string }) {
+  const geometry = useLoader(PLYLoader, url);
+  useEffect(() => {
+    geometry.computeVertexNormals();
+  }, [geometry]);
+  return (
+    <Center>
+      <mesh geometry={geometry}>
+        <meshStandardMaterial color="#9aa3b2" metalness={0.18} roughness={0.5} side={THREE.DoubleSide} />
+      </mesh>
+    </Center>
+  );
+}
+
 function ModelScene({ url, kind }: ModelSceneProps) {
   if (kind === 'obj') return <ObjScene url={url} />;
   if (kind === 'stl') return <StlScene url={url} />;
+  if (kind === 'fbx') return <FbxScene url={url} />;
+  if (kind === 'dae') return <DaeScene url={url} />;
+  if (kind === 'ply') return <PlyScene url={url} />;
   return <GltfScene url={url} />;
 }
 
-function detectKind(src: string): ModelSceneProps['kind'] {
+function detectKind(src: string): ModelKind {
   const path = src.split('?')[0].toLowerCase();
   if (path.endsWith('.obj') || path.includes('.obj')) return 'obj';
   if (path.endsWith('.stl') || path.includes('.stl')) return 'stl';
+  if (path.endsWith('.fbx') || path.includes('.fbx')) return 'fbx';
+  if (path.endsWith('.dae') || path.includes('.dae')) return 'dae';
+  if (path.endsWith('.ply') || path.includes('.ply')) return 'ply';
   return 'gltf';
 }
 
 type GpuModelViewportProps = {
   src: string;
   title?: string;
+  badge?: string;
 };
 
-export default function GpuModelViewport({ src, title }: GpuModelViewportProps) {
+export default function GpuModelViewport({ src, title, badge }: GpuModelViewportProps) {
   const [failed, setFailed] = useState(false);
   const [canvasKey, setCanvasKey] = useState(0);
   const kind = useMemo(() => detectKind(src), [src]);
@@ -149,7 +196,7 @@ export default function GpuModelViewport({ src, title }: GpuModelViewportProps) 
         </Canvas>
       </BndzErrorBoundary>
       <div className="absolute left-2 bottom-2 text-[10px] text-white/45 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-        Drag to orbit · scroll to zoom · {kind.toUpperCase()}
+        Drag to orbit · scroll to zoom · {(badge || kind).toUpperCase()}
       </div>
       {title ? <span className="sr-only">{title}</span> : null}
     </div>

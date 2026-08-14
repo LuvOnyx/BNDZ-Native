@@ -17,6 +17,8 @@ TestResults/
 
 # Flow Launcher build output (source is vendored under external/)
 external/Flow.Launcher/Output/
+# QL-Win/QuickLook reference clone (patterns extracted into BNDZBackend OsQuickLook)
+external/QuickLook/
 # Physics-Toast reference extract (UX port lives in src/lib/physicsToast/)
 external/physics-toast-ref/
 
@@ -82,3 +84,5 @@ installer/output/
 *.msi
 *.zip
 !installer/*.iss
+
+external/CodeWalker/

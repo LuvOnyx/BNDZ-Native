@@ -134,6 +134,11 @@
     <AdditionalFiles Include="NativeMethods.txt" />
   </ItemGroup>
 
+  <!-- Optional RAGE (.ydr/.ybn/…) mesh preview via CodeWalker.Core (cloned under external/). -->
+  <ItemGroup Condition="Exists('..\external\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj')">
+    <ProjectReference Include="..\external\CodeWalker\CodeWalker.Core\CodeWalker.Core.csproj" />
+  </ItemGroup>
+
   <!--
     LLamaSharp ships AVX variants with identical filenames. The .NET
     publisher otherwise flattens them and fails with NETSDK1152. Preserve the

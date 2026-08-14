@@ -259,7 +259,17 @@ export default function AudioWaveformEditor({ path, title }: Props) {
       const snap = audioPlaybackSession.getSnapshot();
       const keepPlaying = snap.playing && audioPlaybackSession.samePath(path);
       const t = snap.currentTime;
-      try { ws?.destroy(); } catch { /* */ }
+      // Detach WaveSurfer from the shared <audio> without pausing/clearing src.
+      // destroy() on an external media element can stall Space Quick Look handoff.
+      try {
+        const media = audioPlaybackSession.getMediaElement();
+        const wasPaused = media.paused;
+        try { ws?.unAll?.(); } catch { /* */ }
+        try { ws?.destroy(); } catch { /* */ }
+        if (keepPlaying && wasPaused) {
+          /* media may have been paused by destroy — restore below */
+        }
+      } catch { /* */ }
       wsRef.current = null;
       regionsRef.current = null;
       if (keepPlaying) {
@@ -281,25 +291,37 @@ export default function AudioWaveformEditor({ path, title }: Props) {
   useEffect(() => {
     const root = editorRef.current;
     if (!root) return;
+
+    const zoomTimeline = (deltaY: number) => {
+      const ws = wsRef.current;
+      if (!ws || !ready) return;
+      const dur = ws.getDuration() || 1;
+      const el = containerRef.current;
+      const fit = el ? Math.max(1, Math.floor(el.clientWidth / dur)) : 1;
+      const opts = (ws as unknown as { options?: { minPxPerSec?: number } }).options;
+      const cur = opts?.minPxPerSec || fit;
+      const next = Math.max(fit, Math.min(640, cur * (deltaY > 0 ? 0.82 : 1.22)));
+      try {
+        ws.zoom(next);
+        if (opts) opts.minPxPerSec = next;
+      } catch { /* */ }
+    };
+
+    const zoomVertical = (deltaY: number) => {
+      const dir = deltaY > 0 ? -0.1 : 0.1;
+      setVZoom(z => Math.max(0.55, Math.min(2.8, +(z + dir).toFixed(2))));
+    };
+
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.altKey) return;
+      // Producer desk: Shift+wheel = timeline zoom, Ctrl+Shift+wheel = amplitude zoom.
+      // Also keep Ctrl+wheel (vertical) and Alt+wheel (timeline) as aliases.
+      const timeline = (e.shiftKey && !e.ctrlKey && !e.metaKey) || e.altKey;
+      const vertical = (e.shiftKey && (e.ctrlKey || e.metaKey)) || (e.ctrlKey && !e.shiftKey);
+      if (!timeline && !vertical) return;
       e.preventDefault();
       e.stopPropagation();
-      if (e.ctrlKey) {
-        const dir = e.deltaY > 0 ? -0.08 : 0.08;
-        setVZoom(z => Math.max(0.55, Math.min(2.4, +(z + dir).toFixed(2))));
-        return;
-      }
-      if (e.altKey) {
-        const ws = wsRef.current;
-        if (!ws || !ready) return;
-        const dur = ws.getDuration() || 1;
-        const el = containerRef.current;
-        const fit = el ? Math.max(1, Math.floor(el.clientWidth / dur)) : 1;
-        const cur = (ws as unknown as { options?: { minPxPerSec?: number } }).options?.minPxPerSec || fit;
-        const next = Math.max(fit, Math.min(480, cur * (e.deltaY > 0 ? 0.85 : 1.18)));
-        try { ws.zoom(next); } catch { /* */ }
-      }
+      if (timeline) zoomTimeline(e.deltaY);
+      else zoomVertical(e.deltaY);
     };
     root.addEventListener('wheel', onWheel, { capture: true, passive: false });
     return () => root.removeEventListener('wheel', onWheel, { capture: true });
@@ -400,7 +422,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
           <div className="bndz-wave-editor-title truncate">{displayTitle}</div>
           <div className="bndz-wave-editor-sub">
             {analysis?.artist ? `${analysis.artist} · ` : ''}
-            Ctrl+wheel vertical · Alt+wheel timeline · shared playback
+            Shift+wheel timeline · Ctrl+Shift+wheel amplitude · shared playback
           </div>
         </div>
         <div className="bndz-wave-editor-tools">

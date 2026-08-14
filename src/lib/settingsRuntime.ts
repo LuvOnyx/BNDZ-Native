@@ -680,15 +680,40 @@ export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean 
   const formats = config.previewFormats || [];
 
   const categoryMap: Record<string, string[]> = {
-    'Text Files': ['txt', 'ini', 'bat', 'log', 'md', 'csv', 'cfg', 'json', 'xml', 'html', 'css', 'js', 'ts', 'tsx', 'jsx', 'py', 'cpp', 'c', 'h', 'cs', 'yaml', 'yml', 'toml', 'sh', 'ps1', 'rs', 'go', 'java', 'kt', 'sql', 'lua', 'rb', 'php', 'vue', 'svelte'],
-    'Image Files': ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'avif', 'heic', 'heif', 'psd', 'xcf', 'raw', 'cr2', 'nef', 'dng', 'exr', 'apng', 'jfif'],
-    'Audio Files': ['mp3', 'wav', 'ogg', 'oga', 'flac', 'aac', 'm4a', 'wma', 'opus', 'aiff', 'mid', 'midi', 'ape', 'wv', 'ac3', 'dts', 'caf'],
-    'Video Files': ['mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'm4v', 'mpg', 'mpeg', '3gp', 'ts', 'm2ts', 'flv', 'ogv', 'mts'],
-    'Document Files': ['pdf', 'docx', 'xlsx', 'odt', 'doc', 'xls', 'ppt', 'pptx', 'rtf', 'epub', 'mobi', 'azw', 'cbz', 'cbr'],
-    'Archive Files': ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'jar', 'torrent', 'zst', 'lz', 'arj'],
-    'Web Files': ['htm', 'html', 'svg', 'url', 'xml', 'mhtml', 'xhtml', 'rss', 'atom'],
+    'Text Files': [
+      'txt', 'ini', 'bat', 'cmd', 'log', 'md', 'markdown', 'mdx', 'csv', 'tsv', 'cfg', 'conf', 'config',
+      'json', 'jsonl', 'xml', 'html', 'htm', 'css', 'scss', 'less', 'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs',
+      'py', 'cpp', 'cxx', 'cc', 'c', 'h', 'hpp', 'cs', 'yaml', 'yml', 'toml', 'sh', 'ps1', 'psd1', 'psm1',
+      'rs', 'go', 'java', 'kt', 'sql', 'lua', 'rb', 'php', 'vue', 'svelte', 'swift', 'dart', 'r', 'diff', 'patch',
+    ],
+    'Image Files': [
+      'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'svgz', 'ico', 'icon', 'cur', 'ani',
+      'tif', 'tiff', 'avif', 'heic', 'heif', 'psd', 'psb', 'xcf', 'raw', 'arw', 'cr2', 'cr3', 'nef', 'nrw',
+      'dng', 'orf', 'raf', 'rw2', 'pef', 'srw', 'x3f', 'exr', 'hdr', 'apng', 'jfif', 'jxl', 'dds', 'tga',
+      'pcx', 'jp2', 'j2k', 'emf', 'wmf', 'qoi', 'icns',
+    ],
+    'Audio Files': [
+      'mp3', 'wav', 'ogg', 'oga', 'flac', 'aac', 'm4a', 'wma', 'opus', 'aiff', 'aif', 'mid', 'midi',
+      'ape', 'wv', 'mpc', 'ra', 'ac3', 'dts', 'caf', 'mka',
+    ],
+    'Video Files': [
+      'mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'm4v', 'mpg', 'mpeg', '3gp', 'ts', 'm2ts',
+      'flv', 'f4v', 'vob', 'ogv', 'divx', 'asf', 'rm', 'rmvb', 'mts',
+    ],
+    'Document Files': [
+      'pdf', 'docx', 'docm', 'xlsx', 'xlsm', 'odt', 'ods', 'odp', 'doc', 'xls', 'ppt', 'pptx',
+      'rtf', 'epub', 'mobi', 'azw', 'cbz', 'cbr', 'vsd', 'vsdx',
+    ],
+    'Archive Files': [
+      'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'jar', 'war', 'ear',
+      'torrent', 'zst', 'lz', 'arj', 'nupkg', 'vsix', 'apk', 'cbz', 'cbr',
+    ],
+    'Web Files': ['htm', 'html', 'svg', 'url', 'xml', 'mhtml', 'xhtml', 'rss', 'atom', 'mht'],
     'Font Files': ['ttf', 'otf', 'fon', 'woff', 'woff2', 'eot', 'ttc', 'pfm', 'pfb'],
-    '3D Model Files': ['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds'],
+    '3D Model Files': [
+      'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds', 'blend',
+      'ydr', 'ybn', 'ydd', 'yft', 'ycd', 'ytd', 'ymap', 'ytyp',
+    ],
   };
 
   for (const cat of categories) {
@@ -697,7 +722,13 @@ export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean 
     if (exts?.includes(e)) return true;
   }
 
-  return formats.some(f => f.c && f.n.toLowerCase().includes(`*.${e}`));
+  if (formats.some(f => f.c && f.n.toLowerCase().includes(`*.${e}`))) return true;
+
+  // Legacy configs may omit "3D Model Files" — still preview known model types by default.
+  const has3dCat = categories.some(c => c.n === '3D Model Files');
+  if (!has3dCat && categoryMap['3D Model Files']?.includes(e)) return true;
+
+  return false;
 }
 
 const COLOR_CSS_MAP: [string, string][] = [

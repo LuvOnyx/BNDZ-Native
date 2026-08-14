@@ -10,7 +10,8 @@ type Props = {
 
 /** Horizontal instrument rail — soft squircles, not pill chrome. */
 export default function ContextToolRail({ tools, onTool }: Props) {
-  if (tools.length === 0) {
+  const list = tools || [];
+  if (list.length === 0) {
     return (
       <div className="bndz-command-deck-empty">
         No tools for this selection
@@ -21,7 +22,7 @@ export default function ContextToolRail({ tools, onTool }: Props) {
   return (
     <div className="bndz-command-deck-rail" role="toolbar" aria-label="Selection tools">
       <AnimatePresence mode="popLayout">
-        {tools.map((tool, index) => (
+        {list.map((tool, index) => (
           <motion.button
             key={tool.id}
             type="button"

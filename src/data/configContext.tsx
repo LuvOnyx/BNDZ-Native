@@ -273,6 +273,56 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         }
         merged.uiFontFamilyMigrationVersion = 1;
     }
+    // Corrupted toolbarProfiles (flat array / null) must not blow up chrome `.map`.
+    if (!Array.isArray(merged.toolbarProfiles) || !merged.toolbarProfiles.every((p: unknown) => Array.isArray(p))) {
+        merged.toolbarProfiles = [
+            [
+                { id: 'nav_back' }, { id: 'nav_forward' }, { id: 'nav_up' },
+                { id: 'separator' },
+                { id: 'go_home' },
+                { id: 'spacer' },
+                { id: 'cut' }, { id: 'copy' }, { id: 'paste' }, { id: 'delete' },
+                { id: 'separator' },
+                { id: 'undo' }, { id: 'redo' },
+                { id: 'spacer' },
+                { id: 'view_details' },
+                { id: 'separator' },
+                { id: 'refresh' },
+                { id: 'spacer' },
+                { id: 'config' }, { id: 'extension_hub' }, { id: 'wrench' },
+            ],
+        ];
+    }
+    if (!Array.isArray(merged.previewCategories)) {
+        merged.previewCategories = [];
+    }
+    if (!Array.isArray(merged.previewFormats)) {
+        merged.previewFormats = [];
+    }
+    if (!Array.isArray(merged.colorFilters)) {
+        merged.colorFilters = [];
+    }
+    if (!Array.isArray(merged.visualFilters)) {
+        merged.visualFilters = [];
+    }
+    if (!Array.isArray(merged.installedPlugins)) {
+        merged.installedPlugins = ['properties', 'find', 'filters'];
+    }
+    if (!Array.isArray(merged.bottomPluginTabOrder)) {
+        merged.bottomPluginTabOrder = [];
+    }
+    if (!Array.isArray(merged.customUserCommands)) {
+        merged.customUserCommands = [];
+    }
+    if (!Array.isArray(merged.customEventActions)) {
+        merged.customEventActions = [];
+    }
+    if (!Array.isArray(merged.customColumns)) {
+        merged.customColumns = [];
+    }
+    if (merged.permanentVariables == null || typeof merged.permanentVariables !== 'object' || Array.isArray(merged.permanentVariables)) {
+        merged.permanentVariables = {};
+    }
     return merged;
 }
 
@@ -358,6 +408,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
         {n:"Audio Files", d:"flac, mp3, ogg, wav ...", c:true},
         {n:"Video Files", d:"avi, mp4, mpg, wmv ...", c:true},
         {n:"Archive Files", d:"zip, rar, 7z, tar, gz, torrent ...", c:true},
+        {n:"3D Model Files", d:"glb, obj, stl, ydr, ybn, fbx ...", c:true},
         {n:"Preview as Thumbnail", d:"afphoto, slddrw, webp ...", c:true},
         {n:"User-Defined Preview Handlers", d:"", c:true}
     ],

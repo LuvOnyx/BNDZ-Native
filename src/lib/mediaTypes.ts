@@ -11,17 +11,50 @@ export const VIDEO_EXTENSIONS = new Set([
 ]);
 
 export const IMAGE_EXTENSIONS = new Set([
-  'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tif', 'tiff', 'avif', 'heic', 'heif',
-  'psd', 'xcf', 'raw', 'cr2', 'nef', 'dng', 'exr', 'hdr', 'apng', 'jfif',
+  'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'svgz', 'webp', 'ico', 'icon', 'cur', 'ani',
+  'tif', 'tiff', 'avif', 'heic', 'heif', 'jfif', 'jxl', 'jxr', 'wdp',
+  'psd', 'psb', 'xcf', 'raw', 'arw', 'cr2', 'cr3', 'crw', 'nef', 'nrw', 'dng', 'orf', 'raf',
+  'rw2', 'pef', 'srw', 'x3f', 'exr', 'hdr', 'apng', 'dds', 'tga', 'pcx', 'pbm', 'pgm', 'ppm', 'pnm',
+  'jp2', 'j2k', 'jpf', 'jpx', 'emf', 'wmf', 'qoi', 'icns',
 ]);
 
 /** 3D mesh / scene formats — previewed via WebGL (GLB/GLTF primary). */
 export const MODEL_EXTENSIONS = new Set([
   'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds', 'blend',
+  // Rockstar RAGE / GTA V · FiveM loose assets (host converts → OBJ for WebGL)
+  'ydr', 'ybn', 'ydd', 'yft', 'ycd', 'ytd', 'ymap', 'ytyp',
+]);
+
+/** Formats that Three.js can load directly from a URL. */
+export const GPU_NATIVE_MODEL_EXTENSIONS = new Set([
+  'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply',
+]);
+
+/** RAGE assets that need host-side mesh extraction before WebGL. */
+export const RAGE_CONVERT_MODEL_EXTENSIONS = new Set([
+  'ydr', 'ybn', 'ydd', 'yft',
 ]);
 
 export function isModelExt(ext: string): boolean {
   return MODEL_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
+}
+
+export function isGpuNativeModelExt(ext: string): boolean {
+  return GPU_NATIVE_MODEL_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
+}
+
+export function isRageConvertModelExt(ext: string): boolean {
+  return RAGE_CONVERT_MODEL_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
+}
+
+/** Executables / installers — ShellExecute only; never Quick Look or heavy metadata. */
+export const SHELL_ACTIVATE_EXTENSIONS = new Set([
+  'exe', 'msi', 'msp', 'com', 'scr', 'bat', 'cmd', 'ps1', 'cpl', 'msc',
+  'application', 'gadget', 'hta', 'dll', 'sys', 'drv', 'ocx',
+]);
+
+export function isShellActivateExt(ext: string): boolean {
+  return SHELL_ACTIVATE_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
 }
 
 export function isAudioExt(ext: string): boolean {

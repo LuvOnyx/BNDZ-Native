@@ -191,12 +191,24 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     if (!isAudio || !filePath) return;
 
     let cancelled = false;
+
+    // Panel waveform / prior Quick Look already owns this path — bind UI only.
+    // Re-fetching a blob here freezes the main thread and can stall Space pop-out.
+    if (audioPlaybackSession.samePath(filePath)) {
+      const snap = audioPlaybackSession.getSnapshot();
+      if (snap.resolvedSrc) {
+        loadedPathRef.current = filePath;
+        syncFromSession();
+        return () => { cancelled = true; };
+      }
+    }
+
     const pathUnchanged = loadedPathRef.current && sameMediaPath(loadedPathRef.current, filePath)
       && audioPlaybackSession.samePath(filePath);
 
     if (pathUnchanged) {
       syncFromSession();
-      return;
+      return () => { cancelled = true; };
     }
 
     triedBlobRef.current = false;
@@ -227,7 +239,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     const init = async () => {
       const isNative = !!(window as any).chrome?.webview;
       let nextSrc = src;
-      if (isNative) {
+      if (isNative || preferBlob) {
         triedBlobRef.current = true;
         const blobSrc = await loadBlob();
         if (cancelled) return;
@@ -235,9 +247,8 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
       }
       if (cancelled) return;
       audioPlaybackSession.clearError();
-      const reloaded = audioPlaybackSession.load(filePath, nextSrc, {
-        force: nextSrc.startsWith('blob:'),
-      });
+      // Never force-reload when session already has this path — Space pop-out must be seamless.
+      const reloaded = audioPlaybackSession.load(filePath, nextSrc, { force: false });
       loadedPathRef.current = filePath;
       syncFromSession();
       if (reloaded && autoplay) audioPlaybackSession.play();

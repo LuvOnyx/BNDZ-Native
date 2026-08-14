@@ -32,6 +32,20 @@ const defFiles = {
   ComparePluginDef: 'ComparePlugin.tsx',
   MeshPluginDef: 'MeshPlugin.tsx',
   GhostLinkPluginDef: 'GhostLinkPlugin.tsx',
+  RamStagingPluginDef: 'RamStagingPlugin.tsx',
+  ProjectSandboxPluginDef: 'ProjectSandboxPlugin.tsx',
+  LibraryHealthPluginDef: 'LibraryHealthPlugin.tsx',
+  CapacitySolverPluginDef: 'CapacitySolverPlugin.tsx',
+  InboundVolumePluginDef: 'InboundVolumePlugin.tsx',
+  BranchingTimePluginDef: 'BranchingTimePlugin.tsx',
+  DropMagnetPluginDef: 'DropMagnetPlugin.tsx',
+  CaptureInboxPluginDef: 'CaptureInboxPlugin.tsx',
+  RealityCheckPluginDef: 'RealityCheckPlugin.tsx',
+  TranscodeRackPluginDef: 'TranscodeRackPlugin.tsx',
+  SemanticDeskPluginDef: 'SemanticDeskPlugin.tsx',
+  PolicyPackPluginDef: 'PolicyPackPlugin.tsx',
+  ZkVaultPluginDef: 'ZkVaultPlugin.tsx',
+  DesignBoardPluginDef: 'DesignBoardPlugin.tsx',
 };
 
 function readDefId(defName) {
@@ -74,6 +88,20 @@ const componentPaths = {
   ComparePlugin: 'ComparePlugin.tsx',
   MeshPlugin: 'MeshPlugin.tsx',
   GhostLinkPlugin: 'GhostLinkPlugin.tsx',
+  RamStagingPlugin: 'RamStagingPlugin.tsx',
+  ProjectSandboxPlugin: 'ProjectSandboxPlugin.tsx',
+  LibraryHealthPlugin: 'LibraryHealthPlugin.tsx',
+  CapacitySolverPlugin: 'CapacitySolverPlugin.tsx',
+  InboundVolumePlugin: 'InboundVolumePlugin.tsx',
+  BranchingTimePlugin: 'BranchingTimePlugin.tsx',
+  DropMagnetPlugin: 'DropMagnetPlugin.tsx',
+  CaptureInboxPlugin: 'CaptureInboxPlugin.tsx',
+  RealityCheckPlugin: 'RealityCheckPlugin.tsx',
+  TranscodeRackPlugin: 'TranscodeRackPlugin.tsx',
+  SemanticDeskPlugin: 'SemanticDeskPlugin.tsx',
+  PolicyPackPlugin: 'PolicyPackPlugin.tsx',
+  ZkVaultPlugin: 'ZkVaultPlugin.tsx',
+  DesignBoardPlugin: 'DesignBoardPlugin.tsx',
 };
 
 for (const comp of components) {

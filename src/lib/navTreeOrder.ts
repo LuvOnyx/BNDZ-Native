@@ -1,13 +1,15 @@
 import type { NavTreeSourceNode } from './navTreeModel';
 
-/** Default root-level navigation tree order */
+/** Default root-level navigation tree order — Workspace Tools stays at the bottom. */
 export const NAV_TREE_ORDER_DEFAULT = [
   'home',
   'libraries',
   'this-pc',
   'linux',
   'network',
+  'smart-views',
   'recycle-bin',
+  'workspace-tools',
 ] as const;
 
 export interface NavTreeBuildNode extends NavTreeSourceNode {
@@ -22,10 +24,18 @@ export function migrateNavTreeOrder(saved: string[] | undefined): string[] {
     let key = k;
     if (k.startsWith('cloud:')) key = 'cloud-drives';
     if (k === 'gallery') key = 'libraries';
+    if (k === 'spatial-canvas' || k === 'automation') key = 'workspace-tools';
     if (!out.includes(key)) out.push(key);
   }
-  const deprecated = new Set(['rapid-access', 'cloud-drives']);
+  const deprecated = new Set(['rapid-access', 'cloud-drives', 'spatial-canvas', 'automation']);
   const filtered = out.filter(k => !deprecated.has(k));
+  // Exactly one Workspace Tools entry — keep the last occurrence (bottom preference).
+  const wtIdx = filtered.lastIndexOf('workspace-tools');
+  if (wtIdx >= 0) {
+    for (let i = filtered.length - 1; i >= 0; i--) {
+      if (filtered[i] === 'workspace-tools' && i !== wtIdx) filtered.splice(i, 1);
+    }
+  }
   for (const k of NAV_TREE_ORDER_DEFAULT) {
     if (!filtered.includes(k)) filtered.push(k);
   }

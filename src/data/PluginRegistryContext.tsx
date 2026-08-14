@@ -27,6 +27,7 @@ import CaptureInboxPlugin, { CaptureInboxPluginDef } from '../components/plugins
 import RealityCheckPlugin, { RealityCheckPluginDef } from '../components/plugins/RealityCheckPlugin';
 import TranscodeRackPlugin, { TranscodeRackPluginDef } from '../components/plugins/TranscodeRackPlugin';
 import SemanticDeskPlugin, { SemanticDeskPluginDef } from '../components/plugins/SemanticDeskPlugin';
+import DesignBoardPlugin, { DesignBoardPluginDef } from '../components/plugins/DesignBoardPlugin';
 import { useAppConfig } from './configContext';
 
 /** Stale Part B sibling IDs remapped into real FM homes. */
@@ -286,6 +287,13 @@ const ALL_PLUGINS: PluginManifest[] = [
         isNative: true,
         targetPanel: 'bottom',
         component: ZkVaultPlugin,
+    },
+    {
+        ...DesignBoardPluginDef,
+        isInstalled: false,
+        isNative: true,
+        targetPanel: 'bottom',
+        component: DesignBoardPlugin,
     },
 ];
 

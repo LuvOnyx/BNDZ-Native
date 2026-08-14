@@ -52,13 +52,21 @@ namespace BNDZ.Services
                         && ini.TryGetValue("OuterWorkspace", out var ow) && double.TryParse(ow, out var workspace)
                         && ini.TryGetValue("OuterPreview", out var op) && double.TryParse(op, out var preview))
                     {
-                        if (preview < 28) preview = 40;
-                        if (workspace < 30) workspace = 46;
+                        // Never invent widths — keep the user's saved split and rebalance to 100.
+                        // Canonical default is sidebar 10 / workspace 77 / preview 13.
+                        sidebar = Math.Clamp(sidebar, 8, 22);
+                        preview = Math.Clamp(preview, 10, 40);
+                        workspace = 100.0 - sidebar - preview;
+                        if (workspace < 35)
+                        {
+                            workspace = 35;
+                            preview = Math.Max(10, 100.0 - sidebar - workspace);
+                        }
                         writer.WritePropertyName("workspaceLayoutOuter");
                         writer.WriteStartObject();
-                        writer.WriteNumber("sidebar", sidebar);
-                        writer.WriteNumber("workspace", workspace);
-                        writer.WriteNumber("preview", preview);
+                        writer.WriteNumber("sidebar", Math.Round(sidebar, 1));
+                        writer.WriteNumber("workspace", Math.Round(workspace, 1));
+                        writer.WriteNumber("preview", Math.Round(preview, 1));
                         writer.WriteEndObject();
                         wroteOuter = true;
                     }
@@ -66,12 +74,18 @@ namespace BNDZ.Services
                     if (ini.TryGetValue("InnerMain", out var im) && double.TryParse(im, out var main)
                         && ini.TryGetValue("InnerBottom", out var ib) && double.TryParse(ib, out var bottom))
                     {
-                        if (bottom < 28) bottom = 42;
-                        if (main < 45) main = 58;
+                        // Keep saved dock height; only rebalance so main+bottom = 100.
+                        bottom = Math.Clamp(bottom, 5, 92);
+                        main = 100.0 - bottom;
+                        if (main < 8)
+                        {
+                            main = 8;
+                            bottom = 92;
+                        }
                         writer.WritePropertyName("workspaceLayoutInner");
                         writer.WriteStartObject();
-                        writer.WriteNumber("main", main);
-                        writer.WriteNumber("bottom", bottom);
+                        writer.WriteNumber("main", Math.Round(main, 1));
+                        writer.WriteNumber("bottom", Math.Round(bottom, 1));
                         writer.WriteEndObject();
                         wroteInner = true;
                     }

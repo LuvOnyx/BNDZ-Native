@@ -25,12 +25,13 @@ import MarkdownPreviewPanel from './MarkdownPreviewPanel';
 import HtmlPreviewPanel from './HtmlPreviewPanel';
 const DocxPreviewPanel = lazy(() => import('./DocxPreviewPanel'));
 const GpuModelViewport = lazy(() => import('../workstation/inspection/GpuModelViewport'));
-import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt } from '../lib/textFileTypes';
+import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt, isFontExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
 import { isArchiveExt, isTorrentExt } from '../lib/archiveTypes';
-import { isAudioExt, isVideoExt, isImageExt, isModelExt } from '../lib/mediaTypes';
+import { isAudioExt, isVideoExt, isImageExt, isModelExt, isGpuNativeModelExt, isRageConvertModelExt, isShellActivateExt } from '../lib/mediaTypes';
+import { useModelPreviewSource } from '../lib/useModelPreviewSource';
 import { isQueuedIpcResult } from '../lib/transferIpc';
 import { listCatalogs, type CatalogEntry } from '../lib/catalog';
 import { curatedPreviewFacts } from './preview/PreviewMetadataStrip';
@@ -160,6 +161,11 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         });
         import('../lib/extendedMetadataCache').then(({ getExtendedMetadataCached }) => {
            const winPath = toWindowsPath(path);
+           const fileExt = String((entity as any)?.extension || '').toLowerCase().replace(/^\./, '');
+           if (isShellActivateExt(fileExt)) {
+             if (active) setExtendedDetails({});
+             return;
+           }
 
            if (IPC.isNative) {
                void getExtendedMetadataCached(winPath, { priority: 950 }).then(entry => {
@@ -251,6 +257,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const ext = !isDir ? (entity as any)?.extension?.toLowerCase() || '' : '';
   const isImage = isImageExt(ext);
   const isModel = isModelExt(ext);
+  const isFont = isFontExt(ext);
   const isSvg = ext === 'svg';
   const isAudio = isAudioExt(ext);
   const isVideo = isVideoExt(ext);
@@ -265,6 +272,10 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const isArchive = isArchiveExt(ext);
   const isTorrent = isTorrentExt(ext);
   const isDrive = !!(entity as any)?.driveInfo;
+  const modelPreview = useModelPreviewSource(isModel && path ? path : null, ext);
+  const fontFamilyName = isFont && path
+    ? `bndz-preview-font-${ext}-${(entity?.name || 'f').replace(/[^a-zA-Z0-9]/g, '')}`
+    : '';
   
   // Use local-stream prefix so C# WebResourceRequested can intercept and stream local files securely
   // For web fallback, use the Express backend route
@@ -382,7 +393,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
      if (!path || isDir || !previewAllowed || isArchive || isTorrent) return;
      if (isHtml && htmlView === 'render') return;
-     if (isDocx || isPdf) return;
+     if (isDocx || isPdf || isModel || isFont || isImage || isAudio || isVideo) return;
 
      const delayMs = previewDelayMs || 0;
      let cancelled = false;
@@ -640,6 +651,33 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isSvg && previewAllowed) {
+          const inspectMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
+          const wantGpuInspect = inspectMode !== 'passthrough'
+            && config.gpuInspection !== false
+            && probeWebGL();
+          // Loupe / Luma need the GPU inspection stack (rasterize via img texture).
+          if (wantGpuInspect) {
+            const src = virtualUrl || svgPreviewUrl || '';
+            if (!src) {
+              return (
+                <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
+                  <div className="text-xs text-gray-500 animate-pulse">Loading SVG…</div>
+                </div>
+              );
+            }
+            return (
+              <div className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
+                <InspectionViewportRouter
+                  src={src}
+                  alt={entity.name}
+                  filePath={path}
+                  onOpenFloating={onOpenFloatingPreview}
+                  gpuEnabled
+                  shaderMode={inspectMode}
+                />
+              </div>
+            );
+          }
           const src = svgPreviewUrl;
           if (!src) {
             return (
@@ -661,26 +699,66 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
       }
 
-      if (isModel && previewAllowed && virtualUrl) {
+      if (isFont && previewAllowed && virtualUrl) {
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-5 p-5 text-[color:var(--preview-text,#e8e8e8)] bndz-preview-stage">
+            <style>{`@font-face{font-family:'${fontFamilyName}';src:url('${virtualUrl}');font-display:swap;}`}</style>
+            <div className="text-[10px] uppercase tracking-[0.16em] opacity-45">Font preview</div>
+            <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[28px] leading-snug text-center max-w-full">
+              The quick brown fox jumps over the lazy dog
+            </div>
+            <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[16px] opacity-70 text-center">
+              0123456789 · ABCDEFGHIJKLMNOPQRSTUVWXYZ
+            </div>
+            <div className="text-[11px] opacity-40 truncate max-w-full">{entity.name}</div>
+          </div>
+        );
+      }
+
+      if (isModel && previewAllowed) {
         const webGlReady = probeWebGL();
-        const gpuFamily = ext === 'glb' || ext === 'gltf' || ext === 'obj' || ext === 'stl';
-        if (!webGlReady || !gpuFamily) {
+        const canShow = webGlReady && (isGpuNativeModelExt(ext) || isRageConvertModelExt(ext));
+        if (!webGlReady) {
           return (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
               <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
-              <p>
-                {!webGlReady
-                  ? 'WebGL is unavailable — enable GPU acceleration to preview 3D models.'
-                  : `Inline GPU preview supports GLB/GLTF/OBJ/STL. ${ext.toUpperCase()} can be opened externally.`}
-              </p>
+              <p>WebGL is unavailable — enable GPU acceleration to preview 3D models.</p>
+            </div>
+          );
+        }
+        if (!canShow) {
+          return (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+              <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
+              <p>{ext.toUpperCase()} is recognized as a 3D/RAGE asset. Open externally for full tooling.</p>
+            </div>
+          );
+        }
+        if (modelPreview.loading) {
+          return (
+            <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 animate-pulse bndz-preview-stage">
+              Preparing {ext.toUpperCase()} mesh…
+            </div>
+          );
+        }
+        if (modelPreview.error || !modelPreview.url) {
+          return (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+              <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
+              <p>{modelPreview.error || '3D preview unavailable'}</p>
             </div>
           );
         }
         return (
           <div className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
             <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport…</div>}>
-              <GpuModelViewport src={virtualUrl} title={entity.name} />
+              <GpuModelViewport src={modelPreview.url} title={entity.name} badge={modelPreview.badge} />
             </Suspense>
+            {(modelPreview.vertices || modelPreview.triangles) ? (
+              <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
+                {modelPreview.vertices?.toLocaleString()} verts · {modelPreview.triangles?.toLocaleString()} tris
+              </div>
+            ) : null}
           </div>
         );
       }

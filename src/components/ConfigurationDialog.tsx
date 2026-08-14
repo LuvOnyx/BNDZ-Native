@@ -76,6 +76,31 @@ const SectionHeader = ({ title }: { title: string }) => (
 
 const ActionBtn = SettingsActionBtn;
 
+/** Config tabs stay mounted while hidden — never let missing arrays crash chrome. */
+function sanitizeDialogConfig(cfg: Record<string, any> | null | undefined) {
+  const c = { ...(cfg || {}) };
+  const arr = <T,>(v: T[] | undefined | null, fallback: T[] = []): T[] =>
+    Array.isArray(v) ? v : fallback;
+  c.previewCategories = arr(c.previewCategories);
+  c.previewFormats = arr(c.previewFormats);
+  c.colorFilters = arr(c.colorFilters);
+  c.visualFilters = arr(c.visualFilters);
+  c.installedPlugins = arr(c.installedPlugins, ['properties', 'find', 'filters']);
+  c.bottomPluginTabOrder = arr(c.bottomPluginTabOrder);
+  c.customUserCommands = arr(c.customUserCommands);
+  c.customEventActions = arr(c.customEventActions);
+  c.customColumns = arr(c.customColumns);
+  c.hiddenRapidAccess = arr(c.hiddenRapidAccess);
+  c.pinnedFavorites = arr(c.pinnedFavorites);
+  c.toolbarProfiles = Array.isArray(c.toolbarProfiles) && c.toolbarProfiles.every((p: unknown) => Array.isArray(p))
+    ? c.toolbarProfiles
+    : [[{ id: 'config' }]];
+  if (c.permanentVariables == null || typeof c.permanentVariables !== 'object' || Array.isArray(c.permanentVariables)) {
+    c.permanentVariables = {};
+  }
+  return c;
+}
+
 /** Friendlier nav labels — TabsTrigger value stays the canonical tab id for Jump-to-Setting. */
 const TAB_NAV_LABELS: Record<string, string> = {
   'Keyboard Shortcuts': 'Keyboard & Mouse',
@@ -92,7 +117,7 @@ const TAB_NAV_LABELS: Record<string, string> = {
 
 export default function ConfigurationDialog({ onClose, initialTab }: { onClose: () => void; initialTab?: string }) {
   const { config: globalConfig, updateConfig: updateGlobalConfig } = useAppConfig();
-  const [localConfig, setLocalConfig] = useState(globalConfig);
+  const [localConfig, setLocalConfig] = useState(() => sanitizeDialogConfig(globalConfig));
   const [hasChanges, setHasChanges] = useState(false);
   const [applyFeedback, setApplyFeedback] = useState<'idle' | 'applied'>('idle');
   const [shellStatus, setShellStatus] = useState<string | null>(null);
@@ -101,7 +126,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
   const [selectedPreviewFormatIdx, setSelectedPreviewFormatIdx] = useState(0);
   const [fieldPicker, setFieldPicker] = useState<null | 'standard' | 'extra' | 'hoverTypes' | 'hoverContexts' | 'treeListItems'>(null);
   const updateLocalConfig = (updates: any) => {
-    setLocalConfig(prev => ({ ...prev, ...updates }));
+    setLocalConfig(prev => sanitizeDialogConfig({ ...prev, ...updates }));
     setHasChanges(true);
     setApplyFeedback('idle');
   };
@@ -1988,6 +2013,20 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
               
               <div className="flex gap-[42px] mb-4 mt-[10px] ml-2">
+                  <span className="text-[12px] text-[#e0e0e0] w-[140px]">OS-wide Quick Look:</span>
+                  <div className="flex flex-col gap-2.5">
+                     <Checkbox
+                       label={<span className="font-semibold">Spacebar preview outside BNDZ</span>}
+                       checked={localConfig.osWideQuickLook !== false}
+                       onChange={e => updateLocalConfig({ osWideQuickLook: e.target.checked })}
+                     />
+                     <p className="text-[11px] text-[#888] max-w-[420px] leading-snug">
+                        Select a file on the Desktop or in File Explorer and press Space to open BNDZ’s floating viewer (QuickLook-style). Esc closes. Hold Space ~¾s then release to peek-close.
+                     </p>
+                  </div>
+              </div>
+
+              <div className="flex gap-[42px] mb-4 mt-[10px] ml-2">
                   <span className="text-[12px] text-[#e0e0e0] w-[140px]">Audio/Video preview:</span>
                   <div className="flex flex-col gap-2.5">
                      <select className="bg-[#1e1e1e] border border-[#666] text-[#e0e0e0] text-[12px] px-2 py-[2px] rounded-sm w-[350px] outline-none" value={localConfig.audioVideoPreview || "Play once"} onChange={e => updateLocalConfig({audioVideoPreview: e.target.value})}>
@@ -2184,15 +2223,16 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               
               <div className="flex gap-4">
                  <div className="border border-[#555] bg-[#0c0c0c] w-[350px] h-[150px] overflow-y-auto p-[2px] styled-scrollbar">
-                    {localConfig.previewCategories.map((c, i) => (
+                    {(localConfig.previewCategories || []).map((c, i) => (
                        <div key={i} className={`flex text-[12px] items-center px-1 py-[2px] hover:bg-[#333] ${i===0 ? 'bg-[#0078D7] text-white' : 'text-[#e0e0e0]'}`}>
-                           <input type="checkbox" checked={c.c} onChange={(e) => {
-                             const newArr = [...localConfig.previewCategories];
-                             newArr[i].c = e.target.checked;
+                           <input type="checkbox" checked={!!c?.c} onChange={(e) => {
+                             const newArr = [...(localConfig.previewCategories || [])];
+                             if (!newArr[i]) return;
+                             newArr[i] = { ...newArr[i], c: e.target.checked };
                              updateLocalConfig({ previewCategories: newArr });
                            }} className="mr-2" />
-                           <span className="w-[180px] truncate">{c.n}</span>
-                           <span className="text-[#aaa] truncate flex-1">{c.d}</span>
+                           <span className="w-[180px] truncate">{c?.n}</span>
+                           <span className="text-[#aaa] truncate flex-1">{c?.d}</span>
                        </div>
                     ))}
                  </div>
@@ -2204,19 +2244,20 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               </div>
               
               <div className="border border-[#555] bg-[#0c0c0c] flex-1 overflow-y-auto mb-4 p-[2px] styled-scrollbar">
-                 {localConfig.previewFormats.map((c, i) => (
+                 {(localConfig.previewFormats || []).map((c, i) => (
                     <div
                       key={i}
                       className={`flex text-[12px] items-center gap-2 px-1 py-[2px] hover:bg-[#333] text-[#e0e0e0] cursor-pointer ${i === selectedPreviewFormatIdx ? 'bg-[#094771]/35 ring-1 ring-[#0078d4]/40' : ''}`}
                       onClick={() => setSelectedPreviewFormatIdx(i)}
                     >
                         <span className={`w-4 text-right text-[#888]`}>{i + 1}</span>
-                        <input type="checkbox" checked={c.c} onChange={(e) => {
-                             const newArr = [...localConfig.previewFormats];
-                             newArr[i].c = e.target.checked;
+                        <input type="checkbox" checked={!!c?.c} onChange={(e) => {
+                             const newArr = [...(localConfig.previewFormats || [])];
+                             if (!newArr[i]) return;
+                             newArr[i] = { ...newArr[i], c: e.target.checked };
                              updateLocalConfig({ previewFormats: newArr });
                            }} />
-                        <span>{c.n}</span>
+                        <span>{c?.n}</span>
                     </div>
                  ))}
               </div>
@@ -3011,7 +3052,7 @@ export default function ConfigurationDialog({ onClose, initialTab }: { onClose: 
               
               <div className="flex gap-4 flex-1 overflow-hidden min-h-[300px]">
                   <div className="flex-1 border border-[#444] bg-[#111] overflow-y-auto w-full p-2 text-[13px] font-mono leading-tight space-y-[2px]">
-                    {localConfig.colorFilters.map((row, i) => (
+                    {(localConfig.colorFilters || []).map((row, i) => (
                        <div
                          key={row.i}
                          className={`flex gap-2 items-center cursor-pointer rounded px-1 ${i === selectedColorFilterIdx ? 'bg-[#094771]/40 ring-1 ring-[#0078d4]/50' : 'hover:bg-[#222]'}`}
