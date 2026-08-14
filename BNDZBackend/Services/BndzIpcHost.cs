@@ -2301,7 +2301,8 @@ namespace BNDZ.Services
                     "--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
                     "--enable-features=CanvasOopRasterization " +
                     "--disable-features=CalculateNativeWinOcclusion " +
-                    "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist",
+                    "--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist " +
+                    "--unsafely-treat-insecure-origin-as-secure=http://bndz.local,https://bndz.local",
                 customSchemeRegistrations: new List<CoreWebView2CustomSchemeRegistration> { streamScheme, mediaScheme });
 
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -6391,19 +6392,70 @@ namespace BNDZ.Services
                             }
                             else
                             {
+                                // Kill zombie / leftover pop-outs for this plugin before spawn so
+                                // End Task leftovers do not leave a locked blank window.
+                                try
+                                {
+                                    var needle = $"--plugin-window \"{pluginId}\"";
+                                    var needleBare = $"--plugin-window={pluginId}";
+                                    foreach (var p in System.Diagnostics.Process.GetProcesses())
+                                    {
+                                        try
+                                        {
+                                            var name = p.ProcessName;
+                                            if (!name.Equals("BNDZShell", StringComparison.OrdinalIgnoreCase)
+                                                && !name.Equals("BNDZ", StringComparison.OrdinalIgnoreCase))
+                                                continue;
+                                            if (p.Id == Environment.ProcessId) continue;
+                                            string? cmd = null;
+                                            try
+                                            {
+                                                using var q = new System.Management.ManagementObjectSearcher(
+                                                    $"SELECT CommandLine FROM Win32_Process WHERE ProcessId={p.Id}");
+                                                foreach (System.Management.ManagementObject mo in q.Get())
+                                                {
+                                                    cmd = mo["CommandLine"]?.ToString();
+                                                    break;
+                                                }
+                                            }
+                                            catch { /* WMI optional */ }
+                                            if (string.IsNullOrEmpty(cmd)) continue;
+                                            if (cmd.IndexOf(needle, StringComparison.OrdinalIgnoreCase) < 0
+                                                && cmd.IndexOf(needleBare, StringComparison.OrdinalIgnoreCase) < 0
+                                                && cmd.IndexOf($"--plugin-window {pluginId}", StringComparison.OrdinalIgnoreCase) < 0)
+                                                continue;
+                                            try { p.Kill(entireProcessTree: true); } catch { try { p.Kill(); } catch { /* ignore */ } }
+                                        }
+                                        catch { /* ignore */ }
+                                        finally { try { p.Dispose(); } catch { /* ignore */ } }
+                                    }
+                                    System.Threading.Thread.Sleep(250);
+                                }
+                                catch { /* non-fatal */ }
+
                                 var args = $"--plugin-window \"{pluginId.Replace("\"", "\\\"")}\"";
                                 if (!string.IsNullOrWhiteSpace(stickyId))
                                     args += $" --sticky-id \"{stickyId.Replace("\"", "\\\"")}\"";
                                 if (!string.IsNullOrWhiteSpace(title))
                                     args += $" --plugin-title \"{title.Replace("\"", "\\\"")}\"";
-                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                var psi = new System.Diagnostics.ProcessStartInfo
                                 {
-                                    FileName = exe,
+                                    FileName = exe!,
                                     Arguments = args,
                                     WorkingDirectory = Path.GetDirectoryName(exe) ?? "",
-                                    UseShellExecute = true,
-                                });
-                                ok = true;
+                                    UseShellExecute = false,
+                                };
+                                System.Diagnostics.Process? proc = null;
+                                try { proc = System.Diagnostics.Process.Start(psi); }
+                                catch
+                                {
+                                    psi.UseShellExecute = true;
+                                    proc = System.Diagnostics.Process.Start(psi);
+                                }
+                                if (proc is null)
+                                    error = "Failed to start plugin window process.";
+                                else
+                                    ok = true;
                             }
                         }
                     }

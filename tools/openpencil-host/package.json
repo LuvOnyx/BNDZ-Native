@@ -1,0 +1,21 @@
+{
+  "name": "bndz-openpencil-host",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@open-pencil/core": "0.14.0",
+    "@open-pencil/scene-graph": "0.14.0",
+    "@open-pencil/vue": "0.14.0",
+    "canvaskit-wasm": "^0.39.1",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7"
+  }
+}

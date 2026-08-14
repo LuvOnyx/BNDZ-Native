@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "node scripts/audit-bndzui.mjs && node scripts/audit-view-imports.mjs && node scripts/prebuild-icons.mjs && node scripts/copy-legal-docs.mjs && node scripts/copy-monaco-assets.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build:openpencil": "npm run build --prefix tools/openpencil-host",
+    "sync:studio-engines": "powershell -ExecutionPolicy Bypass -File scripts/sync-studio-engines.ps1",
+    "build": "node scripts/audit-bndzui.mjs && node scripts/audit-view-imports.mjs && node scripts/prebuild-icons.mjs && node scripts/copy-legal-docs.mjs && node scripts/copy-monaco-assets.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && powershell -ExecutionPolicy Bypass -File scripts/sync-studio-engines.ps1",
     "build:backend": "dotnet build BNDZBackend/BNDZ.csproj -c Release -p:EnableWindowsTargeting=true",
     "dev:backend": "dotnet run --project BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true",
     "verify": "npm run lint && npm run test:unit && npm run build && npm run build:backend",

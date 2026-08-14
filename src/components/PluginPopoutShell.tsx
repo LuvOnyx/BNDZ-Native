@@ -16,10 +16,14 @@ type Props = {
 export default function PluginPopoutShell({ initial }: Props) {
   const { pluginRegistry } = usePluginRegistry();
   const [boot, setBoot] = useState<PluginWindowBoot>(initial);
+  const [readyTick, setReadyTick] = useState(0);
 
   useEffect(() => {
     IPC.init();
     IPC.notifyUiReady();
+    // Registry hydrates from config async — re-render once so pop-out doesn't flash "unavailable".
+    const t = window.setTimeout(() => setReadyTick((n) => n + 1), 80);
+    const t2 = window.setTimeout(() => setReadyTick((n) => n + 1), 400);
 
     const onMsg = (e: MessageEvent) => {
       try {
@@ -35,13 +39,17 @@ export default function PluginPopoutShell({ initial }: Props) {
       } catch { /* ignore */ }
     };
     (window as any).chrome?.webview?.addEventListener('message', onMsg);
-    return () => (window as any).chrome?.webview?.removeEventListener('message', onMsg);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(t2);
+      (window as any).chrome?.webview?.removeEventListener('message', onMsg);
+    };
   }, []);
 
   const stickyMode = isStickyPluginMode(boot);
   const plugin = useMemo(
     () => pluginRegistry.find((p: { id: string }) => p.id === boot.pluginId),
-    [pluginRegistry, boot.pluginId],
+    [pluginRegistry, boot.pluginId, readyTick],
   );
 
   const title = boot.title
@@ -71,9 +79,9 @@ export default function PluginPopoutShell({ initial }: Props) {
     })()
   ) : (
     <div className="bndz-plugin-popout-missing flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 px-6 text-center">
-      <p className="text-sm font-semibold text-gray-200">Plugin unavailable</p>
+      <p className="text-sm font-semibold text-gray-200">Loading plugin…</p>
       <p className="text-[12px] max-w-sm">
-        “{boot.pluginId}” is not installed in this session. Install it from Extension Hub in the main window, then pop out again.
+        “{boot.pluginId}” — if this stays blank, install the plugin in Extension Hub in the main window, then pop out again.
       </p>
     </div>
   );

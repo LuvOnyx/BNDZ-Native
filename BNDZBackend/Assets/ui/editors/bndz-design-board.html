@@ -203,6 +203,15 @@
 
     /* ---------- Workspace / canvas ---------- */
     #workspace { position: relative; min-width: 0; background: var(--canvas); overflow: hidden; }
+    #engine-frame {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      border: 0; z-index: 2; background: #1e1e1e;
+    }
+    #workspace.engine-off #engine-frame { display: none; }
+    #workspace.engine-on #c,
+    #workspace.engine-on #grid,
+    #workspace.engine-on .upper-canvas,
+    #workspace.engine-on .canvas-container { opacity: 0; pointer-events: none; }
     #grid { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
     .canvas-container { position: absolute !important; inset: 0; z-index: 1; }
 
@@ -246,6 +255,11 @@
     }
     .field select { cursor: pointer; }
     .field select option { background: var(--panel-2); }
+    .color-target-on {
+      outline: 2px solid #0d99ff;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 3px rgba(13,153,255,.22);
+    }
     .swatch-btn {
       width: 24px; height: 24px; border-radius: 6px; cursor: pointer; flex-shrink: 0;
       box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18); position: relative; overflow: hidden;
@@ -650,7 +664,8 @@
     </aside>
 
     <!-- CENTER -->
-    <div id="workspace">
+    <div id="workspace" class="engine-on">
+      <iframe id="engine-frame" title="OpenPencil design engine" src="engines/openpencil/index.html" allow="clipboard-read; clipboard-write"></iframe>
       <canvas id="grid"></canvas>
       <canvas id="c"></canvas>
       <canvas id="ruler-h"></canvas>
@@ -704,8 +719,8 @@
       </div>
 
       <div class="section" id="sec-variables"><div class="sec-title">Variables</div><div id="var-list" class="var-list"></div><div class="op-grid"><button type="button" class="op-btn" id="btn-add-var"><span>Add color</span></button></div></div>
-      <div class="section" id="sec-prototype">
-        <div class="section-title">Prototype</div>
+      <div class="section section-collapsed" id="sec-prototype" hidden>
+        <div class="section-title">Prototype <span style="opacity:.45;font-weight:500">(experimental)</span></div>
         <div class="op-grid" style="grid-template-columns:repeat(3,1fr)">
           <button type="button" class="op-btn" id="btn-proto-link"><span>Link</span></button>
           <button type="button" class="op-btn" id="btn-proto-run"><span>Run</span></button>
@@ -894,13 +909,13 @@
         <div class="section-title">Stroke</div>
         <div class="row-flex">
           <div class="swatch-btn" id="stroke-sw"></div>
-          <input id="stroke-hex" class="field hexinput" type="text" value="1E1E1E" style="padding:6px 8px" />
-          <input id="stroke-picker" type="color" value="#1E1E1E" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute" />
+          <input id="stroke-hex" class="field hexinput" type="text" value="FFFFFF" style="padding:6px 8px" />
+          <input id="stroke-picker" type="color" value="#FFFFFF" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute" />
         </div>
         <div class="row-flex">
           <label style="color:var(--muted-2);font-size:10px;min-width:52px">Width</label>
-          <input id="stroke-w" class="range" type="range" min="0" max="40" step="0.5" value="1" />
-          <input id="stroke-w-n" class="mini field" type="number" min="0" max="40" step="0.5" value="1" style="padding:4px 6px" />
+          <input id="stroke-w" class="range" type="range" min="0" max="40" step="0.5" value="2" />
+          <input id="stroke-w-n" class="mini field" type="number" min="0" max="40" step="0.5" value="2" style="padding:4px 6px" />
         </div>
         <div class="row-flex" style="margin-top:8px">
           <span class="field-label">Ends</span>
@@ -1150,6 +1165,31 @@
 
   /* ---------------- Canvas ---------------- */
   const workspace = $('#workspace');
+  const USE_OPENPENCIL = !/engine=fabric/i.test(location.search || '');
+  const engineFrame = $('#engine-frame');
+  function postEngine(msg) {
+    if (!USE_OPENPENCIL || !engineFrame?.contentWindow) return;
+    try { engineFrame.contentWindow.postMessage({ source: 'bndz-host', ...msg }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('message', (ev) => {
+    const d = ev.data;
+    if (!d || d.source !== 'bndz-openpencil') return;
+    if (d.type === 'ready') {
+      workspace.classList.add('engine-on');
+      workspace.classList.remove('engine-off');
+      toast('OpenPencil engine ready — Pen/Line/shapes are live', 'ok');
+      postEngine({ type: 'setTool', tool: state.tool });
+      postEngine({ type: 'setStyle', stroke: state.stroke, fill: state.fill, strokeWidth: state.strokeWidth });
+    }
+    if (d.type === 'exported' && d.dataUrl) {
+      const a = document.createElement('a');
+      a.href = d.dataUrl; a.download = 'bndz-design-board.png'; a.click();
+    }
+  });
+  if (!USE_OPENPENCIL) {
+    workspace.classList.remove('engine-on');
+    workspace.classList.add('engine-off');
+  }
   const gridCanvas = $('#grid');
   const canvas = new fabric.Canvas('c', {
     selection: true,
@@ -1184,7 +1224,8 @@
     fillKind: 'solid',
     gradStops: [{ offset: 0, color: '#D9D9D9' }, { offset: 1, color: '#4A5568' }],
     gradActive: 0,
-    stroke: '#1E1E1E', strokeWidth: 1,
+    stroke: '#FFFFFF', strokeWidth: 2,
+    colorTarget: 'fill', // 'fill' | 'stroke' — swatches / eyedropper land here
     strokeCap: 'round', strokeJoin: 'round', dash: 'solid',
     recent: [],
     gridOn: true,
@@ -1270,12 +1311,16 @@
   }
 
   const SWATCHES = ['#1E1E1E', '#FFFFFF', '#F24822', '#FFA629', '#FFCD29', '#14AE5C', '#0D99FF', '#9747FF', '#EC4899', '#B0B0B0', '#757575', '#000000'];
+  function applySwatch(c) {
+    if (state.colorTarget === 'stroke') setStroke(c, true);
+    else setFill(c, null, true);
+  }
   (function buildSwatches() {
     const strip = $('#swatch-strip');
     SWATCHES.forEach((c) => {
       const d = document.createElement('div');
-      d.className = 'sw'; d.style.background = c; d.title = c;
-      d.addEventListener('click', () => setFill(c, null, true));
+      d.className = 'sw'; d.style.background = c; d.title = c + ' (applies to active fill/stroke)';
+      d.addEventListener('click', () => applySwatch(c));
       strip.appendChild(d);
     });
   })();
@@ -1286,7 +1331,7 @@
     state.recent.forEach((c) => {
       const d = document.createElement('div');
       d.className = 'sw'; d.style.background = c; d.title = c;
-      d.addEventListener('click', () => setFill(c, null, true));
+      d.addEventListener('click', () => applySwatch(c));
       strip.appendChild(d);
     });
   }
@@ -1316,6 +1361,7 @@
       if (state.fillKind === 'solid') applyProp('fill', rgba(hex, state.fillAlpha), true);
       else applyFillToSelection(true);
     }
+    postEngine({ type: 'setStyle', fill: hex, stroke: state.stroke, strokeWidth: state.strokeWidth });
   }
 
   function setFillKind(kind) {
@@ -1451,6 +1497,27 @@
     const ge = $('#grad-editor'); if (ge) ge.classList.toggle('open', state.fillKind !== 'solid');
     if (state.fillKind !== 'solid') renderGradEditor();
   }
+  function syncBrushFromState() {
+    if (!canvas.isDrawingMode) return;
+    const brush = canvas.freeDrawingBrush;
+    if (!brush) return;
+    if (state.tool === 'eraser') {
+      brush.color = 'rgba(0,0,0,1)';
+      brush.width = Math.max(6, state.strokeWidth * 3);
+    } else {
+      brush.color = state.stroke;
+      brush.width = Math.max(1, state.strokeWidth);
+    }
+  }
+  function setColorTarget(which) {
+    state.colorTarget = which === 'stroke' ? 'stroke' : 'fill';
+    const fsw = $('#fill-sw'), ssw = $('#stroke-sw');
+    if (fsw) fsw.classList.toggle('color-target-on', state.colorTarget === 'fill');
+    if (ssw) ssw.classList.toggle('color-target-on', state.colorTarget === 'stroke');
+    const fillSec = $('#sec-fill'), strokeSec = $('#sec-stroke');
+    if (fillSec) fillSec.classList.toggle('color-target-on', state.colorTarget === 'fill');
+    if (strokeSec) strokeSec.classList.toggle('color-target-on', state.colorTarget === 'stroke');
+  }
   function setStroke(hex, applyToSel) {
     hex = normHex(hex) || state.stroke;
     state.stroke = hex;
@@ -1458,7 +1525,17 @@
     $('#stroke-picker').value = hex;
     $('#stroke-sw').style.background = hex;
     pushRecent(hex);
+    syncBrushFromState();
+    if (drawingObj && (drawKind === 'line' || drawKind === 'arrow')) {
+      drawingObj.set('stroke', hex);
+      canvas.requestRenderAll();
+    }
+    if (penTemp) {
+      penTemp.set('stroke', hex);
+      canvas.requestRenderAll();
+    }
     if (applyToSel) applyProp('stroke', hex, true);
+    postEngine({ type: 'setStyle', stroke: hex, fill: state.fill, strokeWidth: state.strokeWidth });
   }
   function swapFillStroke() {
     const f = state.fill, fa = state.fillAlpha, s = state.stroke;
@@ -1472,7 +1549,7 @@
     if (window.EyeDropper) {
       try {
         const res = await new window.EyeDropper().open();
-        if (res && res.sRGBHex) { setFill(res.sRGBHex, 1, true); toast('Sampled ' + res.sRGBHex.toUpperCase(), 'ok'); }
+        if (res && res.sRGBHex) { applySwatch(res.sRGBHex); toast('Sampled ' + res.sRGBHex.toUpperCase(), 'ok'); }
         return;
       } catch (err) { return; /* user cancelled */ }
     }
@@ -1484,7 +1561,7 @@
       const x = Math.round(e.clientX - rect.left), y = Math.round(e.clientY - rect.top);
       const px = canvas.getContext().getImageData(x, y, 1, 1).data;
       const hex = '#' + [px[0], px[1], px[2]].map((n) => n.toString(16).padStart(2, '0')).join('').toUpperCase();
-      setFill(hex, 1, true); toast('Sampled ' + hex, 'ok');
+      applySwatch(hex); toast('Sampled ' + hex, 'ok');
       canvas.off('mouse:down', handler);
     };
     canvas.on('mouse:down', handler);
@@ -1643,24 +1720,31 @@
 
   /* ---------------- Tools ---------------- */
   function setTool(tool) {
-    if (penTemp && tool !== 'pen') finishPen();
+    if (tool !== 'pen' && penPoints.length) finishPen(false);
     if (tool !== 'select') clearPathEdit();
+    clearLineEndpoints();
     state.tool = tool;
     $$('.tool-btn').forEach((b) => b.classList.toggle('active', b.dataset.tool === tool));
+    const strokeTools = { line: 1, arrow: 1, pen: 1, pencil: 1, eraser: 1 };
+    const fillTools = { rect: 1, ellipse: 1, polygon: 1, star: 1, frame: 1, text: 1 };
+    if (strokeTools[tool]) setColorTarget('stroke');
+    else if (fillTools[tool]) setColorTarget('fill');
     const drawing = tool === 'pencil' || tool === 'eraser';
     canvas.isDrawingMode = drawing;
     canvas.selection = tool === 'select';
-    canvas.skipTargetFind = tool !== 'select';
+    canvas.skipTargetFind = tool !== 'select' && tool !== 'pen';
     canvas.defaultCursor = (tool === 'hand') ? 'grab' : (tool === 'select' ? 'default' : (tool === 'text' ? 'text' : 'crosshair'));
-    if (tool !== 'select') { canvas.discardActiveObject(); canvas.requestRenderAll(); }
+    if (tool !== 'select' && tool !== 'pen') { canvas.discardActiveObject(); canvas.requestRenderAll(); }
     if (drawing) {
       const brush = new fabric.PencilBrush(canvas);
-      brush.width = tool === 'eraser' ? Math.max(6, state.strokeWidth * 3) : Math.max(1, state.strokeWidth);
-      if (tool === 'eraser') { brush.color = 'rgba(0,0,0,1)'; }
-      else { brush.color = state.stroke; }
       canvas.freeDrawingBrush = brush;
+      syncBrushFromState();
     }
     updateStatus();
+    postEngine({ type: 'setTool', tool });
+    if (tool === 'pen') toast('Pen · OpenPencil nodes + bend handles · Enter finish · Esc cancel', 'ok');
+    if (tool === 'line') toast('Line · OpenPencil LINE tool · Shift snaps', 'ok');
+    if (tool === 'pencil') toast('Pencil · mapped to Pen freehand in OpenPencil', 'ok');
   }
 
   const TOOL_LABEL = { select: 'Move', hand: 'Hand', frame: 'Frame', rect: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', polygon: 'Polygon', star: 'Star', text: 'Text', pen: 'Pen', pencil: 'Pencil', eraser: 'Eraser', comment: 'Comment', image: 'Image' };
@@ -1701,7 +1785,7 @@
   }
   function newRect(x, y) { return new fabric.Rect(Object.assign({ left: x, top: y, width: 1, height: 1, fill: rgba(state.fill, state.fillAlpha), stroke: state.stroke, strokeWidth: state.strokeWidth, rx: 0, ry: 0, strokeUniform: true }, strokeExtras())); }
   function newEllipse(x, y) { return new fabric.Ellipse(Object.assign({ left: x, top: y, rx: 1, ry: 1, fill: rgba(state.fill, state.fillAlpha), stroke: state.stroke, strokeWidth: state.strokeWidth, strokeUniform: true }, strokeExtras())); }
-  function newLine(x, y) { return new fabric.Line([x, y, x, y], Object.assign({ stroke: state.stroke === '#00000000' ? '#1E1E1E' : state.stroke, strokeWidth: Math.max(1, state.strokeWidth), strokeUniform: true }, strokeExtras())); }
+  function newLine(x, y) { return new fabric.Line([x, y, x, y], Object.assign({ stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1, state.strokeWidth), strokeUniform: true, fill: '', perPixelTargetFind: true, isBoardLine: true }, strokeExtras())); }
   function newFrame(x, y) { return new fabric.Rect({ left: x, top: y, width: 1, height: 1, fill: '#FFFFFF', stroke: '#2c313a', strokeWidth: 1, isFrame: true, frameClip: true, strokeUniform: true, shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.35)', blur: 26, offsetX: 0, offsetY: 12 }) }); }
 
   function polygonPts(sides, r) {
@@ -1718,7 +1802,7 @@
 
   function makeArrow(x1, y1, x2, y2) {
     const sw = Math.max(1.5, state.strokeWidth);
-    const col = state.stroke === '#00000000' ? '#1E1E1E' : state.stroke;
+    const col = state.stroke || '#FFFFFF';
     const line = new fabric.Line([x1, y1, x2, y2], { stroke: col, strokeWidth: sw, strokeLineCap: state.strokeCap, strokeDashArray: dashArrayFor(state.dash, sw) });
     const ang = Math.atan2(y2 - y1, x2 - x1);
     const head = Math.max(12, sw * 3.4);
@@ -1826,51 +1910,110 @@
     reader.readAsDataURL(file);
   }
 
-  /* ---------------- Pen tool + bend / edit points ---------------- */
+  /* ---------------- Pen tool (Figma-style node chaining) + line endpoints ---------------- */
+  let lineEnds = null; // { line, h1, h2 }
+  function clearLineEndpoints() {
+    if (!lineEnds) return;
+    [lineEnds.h1, lineEnds.h2].forEach((h) => { try { canvas.remove(h); } catch (e) {} });
+    lineEnds = null;
+  }
+  function attachLineEndpoints(line) {
+    clearLineEndpoints();
+    if (!line || line.type !== 'line') return;
+    const mk = (x, y, which) => {
+      const h = new fabric.Circle({
+        left: x, top: y, originX: 'center', originY: 'center', radius: 5,
+        fill: '#fff', stroke: '#0d99ff', strokeWidth: 2, hasControls: false, hasBorders: false,
+        isGuide: true, excludeFromExport: true, __lineEnd: which, hoverCursor: 'crosshair',
+      });
+      h.on('moving', () => {
+        if (which === 1) line.set({ x1: h.left, y1: h.top });
+        else line.set({ x2: h.left, y2: h.top });
+        line.setCoords();
+        canvas.requestRenderAll();
+      });
+      h.on('modified', () => pushHistory());
+      canvas.add(h); canvas.bringToFront(h);
+      return h;
+    };
+    lineEnds = { line, h1: mk(line.x1, line.y1, 1), h2: mk(line.x2, line.y2, 2) };
+    canvas.requestRenderAll();
+  }
   function clearPen() {
     if (penTemp) { canvas.remove(penTemp); penTemp = null; }
     penAnchors.forEach((a) => canvas.remove(a)); penAnchors = [];
     penHandles.forEach((a) => canvas.remove(a)); penHandles = [];
     penPoints = []; canvas.requestRenderAll();
   }
+  function pathDataFromPts(pts, closed) {
+    if (!pts.length) return '';
+    let d = 'M ' + pts[0].x + ' ' + pts[0].y;
+    for (let i = 1; i < pts.length; i++) {
+      const prev = pts[i - 1], pt = pts[i];
+      const c1x = prev.outX != null ? prev.outX : prev.x;
+      const c1y = prev.outY != null ? prev.outY : prev.y;
+      const c2x = pt.inX != null ? pt.inX : pt.x;
+      const c2y = pt.inY != null ? pt.inY : pt.y;
+      const bent = (prev.outX != null || pt.inX != null);
+      if (bent) d += ' C ' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + pt.x + ' ' + pt.y;
+      else if (pt.cx != null && pt.cy != null) d += ' Q ' + pt.cx + ' ' + pt.cy + ' ' + pt.x + ' ' + pt.y;
+      else d += ' L ' + pt.x + ' ' + pt.y;
+    }
+    if (closed) d += ' Z';
+    return d;
+  }
   function drawPenTemp(cursor) {
     if (penTemp) { canvas.remove(penTemp); penTemp = null; }
     if (penPoints.length < 1) return;
-    let d = 'M ' + penPoints[0].x + ' ' + penPoints[0].y;
-    for (let i = 1; i < penPoints.length; i++) {
-      const pt = penPoints[i];
-      if (pt.cx != null && pt.cy != null) d += ' Q ' + pt.cx + ' ' + pt.cy + ' ' + pt.x + ' ' + pt.y;
-      else d += ' L ' + pt.x + ' ' + pt.y;
-    }
-    if (cursor) d += ' L ' + cursor.x + ' ' + cursor.y;
-    penTemp = new fabric.Path(d, { stroke: state.stroke, strokeWidth: Math.max(1.5, state.strokeWidth), fill: '', selectable: false, evented: false, objectCaching: false, strokeUniform: true, isGuide: true });
+    const pts = penPoints.slice();
+    if (cursor) pts.push({ x: cursor.x, y: cursor.y });
+    const d = pathDataFromPts(pts, false);
+    penTemp = new fabric.Path(d, {
+      stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1.5, state.strokeWidth),
+      fill: '', selectable: false, evented: false, objectCaching: false, strokeUniform: true, isGuide: true,
+    });
     canvas.add(penTemp); canvas.requestRenderAll();
   }
   function penClick(p, e) {
-    const pt = { x: p.x, y: p.y };
-    // Close path by clicking near first point
+    // Close by clicking near first node
     if (penPoints.length >= 2) {
       const first = penPoints[0];
-      if (Math.hypot(p.x - first.x, p.y - first.y) < 10 / canvas.getZoom()) {
+      if (Math.hypot(p.x - first.x, p.y - first.y) < 12 / canvas.getZoom()) {
         finishPen(true);
         return;
       }
     }
+    const pt = { x: p.x, y: p.y, inX: null, inY: null, outX: null, outY: null };
     penPoints.push(pt);
-    const a = new fabric.Circle({ left: p.x, top: p.y, originX: 'center', originY: 'center', radius: 4, fill: '#fff', stroke: '#0d99ff', strokeWidth: 1.5, selectable: false, evented: false, isGuide: true });
+    const a = new fabric.Circle({
+      left: p.x, top: p.y, originX: 'center', originY: 'center', radius: 4.5,
+      fill: '#fff', stroke: '#0d99ff', strokeWidth: 1.5, selectable: false, evented: false, isGuide: true,
+    });
     penAnchors.push(a); canvas.add(a);
-    drawPenTemp(p);
-    // Drag after click = simple quadratic handle (Figma-ish)
-    if (e && e.type === 'mousedown') {
+    drawPenTemp(null);
+    // Drag after click = pull bezier handles while keeping the node fixed (Figma)
+    if (e && (e.type === 'mousedown' || e.type === 'pointerdown')) {
+      const origin = { x: p.x, y: p.y };
       const dragToCurve = (opt) => {
         const q = canvas.getPointer(opt.e);
-        const last = penPoints[penPoints.length - 1];
-        const prev = penPoints[penPoints.length - 2];
-        if (!prev) return;
-        last.cx = (prev.x + q.x) / 2;
-        last.cy = (prev.y + q.y) / 2;
-        last.x = q.x; last.y = q.y;
-        a.set({ left: q.x, top: q.y });
+        const dx = q.x - origin.x, dy = q.y - origin.y;
+        if (Math.hypot(dx, dy) < 2 / canvas.getZoom()) return;
+        pt.outX = origin.x + dx; pt.outY = origin.y + dy;
+        pt.inX = origin.x - dx; pt.inY = origin.y - dy;
+        // guide handle dots
+        penHandles.forEach((h) => canvas.remove(h)); penHandles = [];
+        const mkH = (x, y) => {
+          const h = new fabric.Circle({
+            left: x, top: y, originX: 'center', originY: 'center', radius: 3,
+            fill: '#0d99ff', stroke: '#fff', strokeWidth: 1, selectable: false, evented: false, isGuide: true,
+          });
+          penHandles.push(h); canvas.add(h);
+        };
+        mkH(pt.outX, pt.outY); mkH(pt.inX, pt.inY);
+        const handleLine = new fabric.Line([pt.inX, pt.inY, pt.outX, pt.outY], {
+          stroke: 'rgba(13,153,255,.7)', strokeWidth: 1, selectable: false, evented: false, isGuide: true,
+        });
+        penHandles.push(handleLine); canvas.add(handleLine);
         drawPenTemp(q);
       };
       const up = () => { canvas.off('mouse:move', dragToCurve); canvas.off('mouse:up', up); };
@@ -1878,24 +2021,16 @@
       canvas.on('mouse:up', up);
     }
   }
-  function pathDataFromPts(pts, closed) {
-    if (!pts.length) return '';
-    let d = 'M ' + pts[0].x + ' ' + pts[0].y;
-    for (let i = 1; i < pts.length; i++) {
-      const pt = pts[i];
-      if (pt.cx != null && pt.cy != null) d += ' Q ' + pt.cx + ' ' + pt.cy + ' ' + pt.x + ' ' + pt.y;
-      else d += ' L ' + pt.x + ' ' + pt.y;
-    }
-    if (closed) d += ' Z';
-    return d;
-  }
   function finishPen(closed) {
     if (penPoints.length >= 2) {
-      const pts = penPoints.map((p) => ({ x: p.x, y: p.y, cx: p.cx, cy: p.cy }));
+      const pts = penPoints.map((p) => ({
+        x: p.x, y: p.y, cx: p.cx, cy: p.cy,
+        inX: p.inX, inY: p.inY, outX: p.outX, outY: p.outY,
+      }));
       const d = pathDataFromPts(pts, !!closed);
       const path = new fabric.Path(d, {
         fill: closed ? rgba(state.fill, state.fillAlpha) : '',
-        stroke: state.stroke, strokeWidth: Math.max(1.5, state.strokeWidth),
+        stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1.5, state.strokeWidth),
         strokeUniform: true, strokeLineJoin: 'round', strokeLineCap: 'round',
         pathEditPts: pts, pathClosed: !!closed, objectCaching: false,
       });
@@ -2179,6 +2314,15 @@
     canvas.requestRenderAll();
   });
 
+  canvas.on('selection:created', (opt) => {
+    const a = opt.selected && opt.selected[0];
+    if (a && a.isBoardLine) attachLineEndpoints(a); else clearLineEndpoints();
+  });
+  canvas.on('selection:updated', (opt) => {
+    const a = opt.selected && opt.selected[0];
+    if (a && a.isBoardLine) attachLineEndpoints(a); else clearLineEndpoints();
+  });
+  canvas.on('selection:cleared', () => clearLineEndpoints());
   canvas.on('mouse:up', (opt) => {
     if (isPanning) { isPanning = false; canvas.selection = state.tool === 'select'; canvas.setCursor(state.tool === 'hand' || spacePan ? 'grab' : 'default'); }
     if (drawingObj) {
@@ -2199,6 +2343,12 @@
         ? (Math.hypot((obj.x2 - obj.x1), (obj.y2 - obj.y1)) < 3)
         : (obj.getScaledWidth() < 3 && obj.getScaledHeight() < 3);
       if (tooSmall) { canvas.remove(obj); canvas.requestRenderAll(); setTool('select'); return; }
+      if (kind === 'line') {
+        finalizeNew(obj, 'line');
+        attachLineEndpoints(obj);
+        setTool('select');
+        return;
+      }
       if (kind === 'arrow') {
         canvas.remove(obj);
         const arr = makeArrow(obj.x1, obj.y1, obj.x2, obj.y2);
@@ -2223,7 +2373,14 @@
     const p = e.path;
     if (!p) return;
     if (state.tool === 'eraser') { p.set({ globalCompositeOperation: 'destination-out' }); }
-    else { p.set({ stroke: state.stroke }); }
+    else {
+      p.set({
+        stroke: state.stroke || '#FFFFFF',
+        strokeWidth: Math.max(1, state.strokeWidth),
+        strokeLineCap: state.strokeCap,
+        strokeLineJoin: state.strokeJoin,
+      });
+    }
     p.name = autoName('path'); p.id = uid();
     updateLayers(); pushHistory();
   });
@@ -2760,14 +2917,18 @@
 
   /* ---------------- Inspector inputs ---------------- */
   $('#fill-picker').addEventListener('input', (e) => setFill(e.target.value, null, true));
-  $('#fill-sw').addEventListener('click', () => $('#fill-picker').click());
+  $('#fill-sw').addEventListener('click', () => { setColorTarget('fill'); $('#fill-picker').click(); });
   $('#fill-hex').addEventListener('change', (e) => { const h = normHex(e.target.value); if (h) setFill(h, null, true); else e.target.value = state.fill.replace('#', ''); });
   $('#fill-alpha').addEventListener('input', (e) => { state.fillAlpha = (+e.target.value) / 100; $('#fill-alpha-n').textContent = e.target.value + '%'; setFill(state.fill, state.fillAlpha, true); });
   $('#stroke-picker').addEventListener('input', (e) => setStroke(e.target.value, true));
-  $('#stroke-sw').addEventListener('click', () => $('#stroke-picker').click());
+  $('#stroke-sw').addEventListener('click', () => { setColorTarget('stroke'); $('#stroke-picker').click(); });
   $('#stroke-hex').addEventListener('change', (e) => { const h = normHex(e.target.value); if (h) setStroke(h, true); else e.target.value = state.stroke.replace('#', ''); });
-  $('#stroke-w').addEventListener('input', (e) => { state.strokeWidth = +e.target.value; $('#stroke-w-n').value = e.target.value; applyProp('strokeWidth', +e.target.value, true); });
-  $('#stroke-w-n').addEventListener('change', (e) => { state.strokeWidth = +e.target.value; $('#stroke-w').value = e.target.value; applyProp('strokeWidth', +e.target.value); });
+  // Seed swatch chips from defaults (white stroke on dark board)
+  setFill(state.fill, state.fillAlpha, false);
+  setStroke(state.stroke, false);
+  setColorTarget('fill');
+  $('#stroke-w').addEventListener('input', (e) => { state.strokeWidth = +e.target.value; $('#stroke-w-n').value = e.target.value; applyProp('strokeWidth', +e.target.value, true); syncBrushFromState(); if (drawingObj) { drawingObj.set('strokeWidth', +e.target.value); canvas.requestRenderAll(); } });
+  $('#stroke-w-n').addEventListener('change', (e) => { state.strokeWidth = +e.target.value; $('#stroke-w').value = e.target.value; applyProp('strokeWidth', +e.target.value); syncBrushFromState(); });
 
   $('#p-x').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (a) { a.set('left', +e.target.value); a.setCoords(); canvas.requestRenderAll(); pushHistory(); } });
   $('#p-y').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (a) { a.set('top', +e.target.value); a.setCoords(); canvas.requestRenderAll(); pushHistory(); } });
@@ -2915,6 +3076,11 @@
     if (key === '[') { e.preventDefault(); arrange('back'); return; }
 
     const toolKeys = { v: 'select', h: 'hand', f: 'frame', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', t: 'text', e: 'eraser', c: 'comment' };
+    /* pen finish keys */
+    if (state.tool === 'pen' && penPoints.length) {
+      if (e.key === 'Enter') { e.preventDefault(); finishPen(false); return; }
+      if (e.key === 'Escape') { e.preventDefault(); clearPen(); return; }
+    }
     if (lower === 'p') { setTool(e.shiftKey ? 'pencil' : 'pen'); return; }
     if (toolKeys[lower]) { setTool(toolKeys[lower]); return; }
   }
@@ -2932,6 +3098,11 @@ window.addEventListener('keydown', onKeyDown);
     const d = ev && ev.data;
     if (!d || d.source !== 'bndz-host') return;
     if (d.type === 'action') {
+      if (USE_OPENPENCIL && workspace.classList.contains('engine-on')) {
+        if (d.action === 'undo') { postEngine({ type: 'undo' }); return; }
+        if (d.action === 'redo') { postEngine({ type: 'redo' }); return; }
+        if (d.action === 'exportPng' || d.action === 'exportSvg') { postEngine({ type: 'exportPng' }); return; }
+      }
       if (d.action === 'undo') undo();
       else if (d.action === 'redo') redo();
       else if (d.action === 'exportPng') exportFile('png', { scale: 2, scope: 'auto' });
@@ -2940,6 +3111,13 @@ window.addEventListener('keydown', onKeyDown);
       return;
     }
     if (d.type === 'keydown' || d.type === 'keyup') {
+      if (USE_OPENPENCIL && workspace.classList.contains('engine-on')) {
+        postEngine({
+          type: d.type,
+          key: d.key || '', code: d.code || '',
+          ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, shiftKey: !!d.shiftKey, altKey: !!d.altKey,
+        });
+      }
       const syn = {
         key: d.key || '', code: d.code || '',
         ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, shiftKey: !!d.shiftKey, altKey: !!d.altKey,

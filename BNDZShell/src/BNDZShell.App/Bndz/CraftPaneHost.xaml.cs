@@ -262,7 +262,8 @@ public sealed partial class CraftPaneHost : UserControl
 					"--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
 					"--enable-features=CanvasOopRasterization " +
 					"--disable-features=CalculateNativeWinOcclusion " +
-					"--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist",
+					"--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist " +
+					"--unsafely-treat-insecure-origin-as-secure=http://bndz.local,https://bndz.local",
 			};
 			options.CustomSchemeRegistrations.Add(streamScheme);
 

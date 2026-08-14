@@ -40,10 +40,21 @@ function dataUrlToBase64(dataUrl: string): string {
 }
 
 /**
- * Host for the full Photoshop-clone UI (public/editors/bndz-photo-studio.html).
- * Exact PS chrome lives in that editor; React hosts load/save + IPC.
- * Keyboard shortcuts stay inside the iframe (do not leak to the FM).
+ * Host for Photo Studio: BNDZ host bar + OpenShop raster engine
+ * (public/editors/engines/openshop/). Legacy fabric studio remains at
+ * editors/bndz-photo-studio.html?engine=legacy. Keys stay in the iframe.
  */
+
+function photoStudioSrc(): string {
+  const base = import.meta.env.BASE_URL || '/';
+  const prefix = base.endsWith('/') ? base : `${base}/`;
+  try {
+    if (typeof window !== 'undefined' && /engine=legacy/i.test(window.location.search || '')) {
+      return `${prefix}editors/bndz-photo-studio.html`;
+    }
+  } catch { /* ignore */ }
+  return `${prefix}editors/engines/openshop/index.html`;
+}
 export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -76,6 +87,12 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     win.postMessage({ source: 'bndz-host', ...msg }, '*');
   }, []);
 
+  const postOpenShop = useCallback((msg: Record<string, unknown>) => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ version: 1, ...msg }, '*');
+  }, []);
+
   const postKey = useCallback(
     (payload: EditorKeyPayload) => postToStudio(payload),
     [postToStudio],
@@ -92,8 +109,11 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
   const requestExport = useCallback((mode: SaveMode, dest?: string | null, kind: 'png' | 'jpeg' = 'png') => {
     saveModeRef.current = mode;
     saveDestRef.current = dest ?? null;
+    // OpenShop embed export
+    postOpenShop({ type: 'openshop:export', id: `ex_${Date.now()}`, format: kind === 'jpeg' ? 'jpeg' : 'png' });
+    // Legacy photo-studio fallback
     postToStudio({ type: 'requestExport', kind });
-  }, [postToStudio]);
+  }, [postOpenShop, postToStudio]);
 
   const loadImage = useCallback(async () => {
     setLoading(true);
@@ -133,68 +153,133 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     return () => revokeBlob();
   }, [loadImage, revokeBlob]);
 
+  const persistExport = useCallback(async (opts: { dataUrl?: string; blob?: Blob; ext: string }) => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      let dataUrl = opts.dataUrl;
+      if (!dataUrl && opts.blob) {
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(reader.error || new Error('read failed'));
+          reader.readAsDataURL(opts.blob!);
+        });
+      }
+      if (!dataUrl) {
+        setStatus('Export failed — empty image');
+        return;
+      }
+      const ext = opts.ext === 'jpg' || opts.ext === 'jpeg' ? 'jpg' : opts.ext === 'webp' ? 'webp' : 'png';
+      const mode = saveModeRef.current;
+      let dest = saveDestRef.current;
+      if (!dest) {
+        if (mode === 'overwrite') dest = toWindowsPath(path);
+        else dest = editedPathFor(path, ext);
+      }
+      const base64 = dataUrlToBase64(dataUrl);
+      const { IPC } = await import('../../lib/ipcBridge');
+      const ok = await IPC.writeBinaryFile(dest, base64);
+      if (!ok) throw new Error('Could not write file');
+      setStatus(`Saved ${dest.split(/[/\\]/).pop()}`);
+      onSaved?.(dest);
+    } catch (err: unknown) {
+      setStatus(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setBusy(false);
+      saveModeRef.current = 'sibling';
+      saveDestRef.current = null;
+    }
+  }, [onSaved, path]);
+
+  const openInEngine = useCallback(async (payload: { url: string; name: string }) => {
+    try {
+      const res = await fetch(payload.url);
+      const blob = await res.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error || new Error('read failed'));
+        reader.readAsDataURL(blob);
+      });
+      postOpenShop({
+        type: 'openshop:open',
+        id: `open_${Date.now()}`,
+        document: { dataUrl, name: payload.name },
+      });
+    } catch {
+      postToStudio({ type: 'openImage', url: payload.url, name: payload.name });
+    }
+  }, [postOpenShop, postToStudio]);
+
   useEffect(() => {
     if (!frameReady || !imagePayload) return;
+    void openInEngine(imagePayload);
+    // Legacy fallback (no-op on OpenShop)
     postToStudio({ type: 'openImage', url: imagePayload.url, name: imagePayload.name });
-    const t = window.setTimeout(() => {
-      postToStudio({ type: 'openImage', url: imagePayload.url, name: imagePayload.name });
-    }, 180);
-    return () => window.clearTimeout(t);
-  }, [frameReady, imagePayload, postToStudio]);
+  }, [frameReady, imagePayload, openInEngine, postToStudio]);
 
   useEffect(() => {
     const onMessage = (ev: MessageEvent) => {
-      const data = ev.data as StudioMsg | null;
-      if (!data || data.source !== 'bndz-photo-studio') return;
-      switch (data.type) {
+      const data = ev.data as any;
+      if (!data || typeof data !== 'object') return;
+
+      if (typeof data.type === 'string' && data.type.startsWith('openshop:')) {
+        if (data.type === 'openshop:ready') {
+          // Bind host first; then mark frame ready so open runs after hello.
+          postOpenShop({ type: 'openshop:hello', id: `hi_${Date.now()}`, version: 1 });
+          if (data.capabilities) {
+            setFrameReady(true);
+            setStatus('OpenShop engine ready');
+          } else {
+            // Unbound announce — hello reply will bring capabilities; arm soon anyway.
+            window.setTimeout(() => setFrameReady(true), 60);
+          }
+          return;
+        }
+        if (data.type === 'openshop:opened' || data.type === 'openshop:configured') {
+          setStatus(imagePayload?.name ? `Editing ${imagePayload.name}` : 'Image loaded');
+          return;
+        }
+        if (data.type === 'openshop:exported') {
+          const format = String(data.format || 'png').toLowerCase();
+          const ext = format === 'jpeg' || format === 'jpg' ? 'jpg' : format === 'webp' ? 'webp' : 'png';
+          void persistExport({ blob: data.blob as Blob | undefined, ext });
+          return;
+        }
+        if (data.type === 'openshop:error') {
+          setStatus(data.message || 'OpenShop error');
+          return;
+        }
+        return;
+      }
+
+      if (data.source !== 'bndz-photo-studio') return;
+      const legacy = data as StudioMsg;
+      switch (legacy.type) {
         case 'ready':
           setFrameReady(true);
           break;
         case 'opened':
-          setStatus(data.name ? `Editing ${data.name}` : 'Image loaded');
+          setStatus(legacy.name ? `Editing ${legacy.name}` : 'Image loaded');
           break;
         case 'error':
-          setError(data.message || 'Studio error');
+          setError(legacy.message || 'Studio error');
           break;
         case 'requestClose':
           onRequestClose?.();
           break;
         case 'export':
-          void (async () => {
-            if (!data.dataUrl) {
-              setStatus('Export failed — empty image');
-              return;
-            }
-            setBusy(true);
-            setStatus(null);
-            try {
-              const ext = data.ext === 'jpg' || data.ext === 'jpeg' ? 'jpg' : data.ext === 'webp' ? 'webp' : 'png';
-              const mode = saveModeRef.current;
-              let dest = saveDestRef.current;
-              if (!dest) {
-                if (mode === 'overwrite') dest = toWindowsPath(path);
-                else dest = editedPathFor(path, ext);
-              }
-              const base64 = dataUrlToBase64(data.dataUrl);
-              const { IPC } = await import('../../lib/ipcBridge');
-              const ok = await IPC.writeBinaryFile(dest, base64);
-              if (!ok) throw new Error('Could not write file');
-              setStatus(`Saved ${dest.split(/[/\\]/).pop()}`);
-              onSaved?.(dest);
-            } catch (err: unknown) {
-              setStatus(err instanceof Error ? err.message : 'Save failed');
-            } finally {
-              setBusy(false);
-              saveModeRef.current = 'sibling';
-              saveDestRef.current = null;
-            }
-          })();
+          void persistExport({
+            dataUrl: legacy.dataUrl,
+            ext: legacy.ext === 'jpg' || legacy.ext === 'jpeg' ? 'jpg' : legacy.ext === 'webp' ? 'webp' : 'png',
+          });
           break;
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [onRequestClose, onSaved, path]);
+  }, [imagePayload, onRequestClose, persistExport, postOpenShop]);
 
   useEffect(() => {
     if (frameReady) {
@@ -304,14 +389,12 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         className="bndz-photo-studio-frame"
         title="BNDZ Photo Studio"
         tabIndex={0}
-        src={(() => {
-          const base = import.meta.env.BASE_URL || '/';
-          const prefix = base.endsWith('/') ? base : `${base}/`;
-          return `${prefix}editors/bndz-photo-studio.html`;
-        })()}
-        sandbox="allow-scripts allow-same-origin allow-downloads allow-modals"
+        src={photoStudioSrc()}
+        sandbox="allow-scripts allow-same-origin allow-downloads allow-modals allow-forms"
         onLoad={() => {
           setTimeout(() => {
+            // OpenShop bind + legacy ping
+            postOpenShop({ type: 'openshop:hello', id: `hi_${Date.now()}`, version: 1 });
             postToStudio({ type: 'ping' });
             postToStudio({ type: 'setTheme', theme: studioTheme });
           }, 40);

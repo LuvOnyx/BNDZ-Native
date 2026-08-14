@@ -379,9 +379,17 @@ export default function BottomPluginPanel(props: any & {
                   title="Pop out plugin into a separate window"
                   onClick={() => {
                     const name = activePlugin?.name;
-                    void import('../lib/ipcBridge').then(({ IPC }) =>
-                      IPC.openPluginWindow(activeTab, { title: name }),
-                    );
+                    void import('../lib/ipcBridge').then(async ({ IPC }) => {
+                      const r = await IPC.openPluginWindow(activeTab, { title: name });
+                      if (!r?.ok) {
+                        const { pushToast } = await import('./ToastHost');
+                        pushToast({
+                          kind: 'error',
+                          title: 'Pop-out failed',
+                          message: r?.error || 'Could not open plugin window',
+                        });
+                      }
+                    });
                   }}
                 >
                   <Icons8Icon id="external_link" size={12} />

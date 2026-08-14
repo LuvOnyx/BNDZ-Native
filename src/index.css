@@ -1140,6 +1140,31 @@
     height: 100%;
     border-radius: 0;
   }
+  .bndz-design-board.is-popout {
+    position: relative;
+    inset: auto;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    border-radius: 0;
+  }
+  .bndz-design-board-popout-root {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .bndz-plugin-popout-surface {
+    min-height: 0;
+  }
+  .bndz-plugin-popout-surface .bndz-design-board,
+  .bndz-plugin-popout-surface .bndz-design-board-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+  }
 
   .bndz-design-board-overlay {
     position: fixed;

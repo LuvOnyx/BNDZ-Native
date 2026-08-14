@@ -9,7 +9,7 @@ export const DesignBoardPluginDef = {
   name: 'Design Board',
   icon: 'layers_ui',
   description:
-    'ProDesign / Figma-clone canvas (Fabric) — full chrome, pages, inspector, working colors & tools inside BNDZ.',
+    'ProDesign / Figma chrome with OpenPencil vector engine — real pen nodes, bends, shapes under the existing board face.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -20,15 +20,25 @@ function editorSrc(): string {
   return `${prefix}editors/bndz-design-board.html`;
 }
 
+type Props = {
+  /** Full-bleed second-process / pop-out face — skip dock chrome. */
+  popout?: boolean;
+  immersive?: boolean;
+  isPluginTabActive?: boolean;
+  selectedItems?: unknown[];
+  selectedPaths?: string[];
+  currentPath?: string;
+};
+
 /**
  * Host for the Figma/ProDesign UI (public/editors/bndz-design-board.html).
- * Exact chrome + Fabric canvas + keybinds live in that editor; React hosts expand/dock + key trap.
+ * Chrome stays; OpenPencil fills the workspace. React hosts expand/dock + key trap.
  */
-export default function DesignBoardPlugin() {
+export default function DesignBoardPlugin({ popout = false }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!!popout);
   const [boardKey, setBoardKey] = useState(0);
-  const [keysArmed, setKeysArmed] = useState(false);
+  const [keysArmed, setKeysArmed] = useState(!!popout);
   const [status, setStatus] = useState<string | null>(null);
 
   const postToBoard = useCallback((msg: Record<string, unknown>) => {
@@ -46,8 +56,8 @@ export default function DesignBoardPlugin() {
     rootSelector: '.bndz-design-board',
     iframeRef,
     postKey,
-    forceActive: expanded || keysArmed,
-    passEscape: true,
+    forceActive: popout || expanded || keysArmed,
+    passEscape: !popout,
   });
 
   const newBoard = useCallback(() => {
@@ -58,7 +68,6 @@ export default function DesignBoardPlugin() {
 
   const sendAction = useCallback((action: string) => {
     postToBoard({ type: 'action', action });
-    // Also synthesize common keys for boards that only listen to keydown.
     if (action === 'undo') {
       postKey({ type: 'keydown', key: 'z', code: 'KeyZ', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false });
     } else if (action === 'exportPng') {
@@ -67,6 +76,7 @@ export default function DesignBoardPlugin() {
   }, [postKey, postToBoard]);
 
   useEffect(() => {
+    if (popout) return;
     const arm = (e: PointerEvent) => {
       const root = document.querySelector('.bndz-design-board');
       if (root && e.target instanceof Node && root.contains(e.target)) {
@@ -77,10 +87,10 @@ export default function DesignBoardPlugin() {
     };
     window.addEventListener('pointerdown', arm, true);
     return () => window.removeEventListener('pointerdown', arm, true);
-  }, []);
+  }, [popout]);
 
   useEffect(() => {
-    if (!expanded) return;
+    if (popout || !expanded) return;
     const onEsc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.preventDefault();
@@ -90,10 +100,10 @@ export default function DesignBoardPlugin() {
     };
     window.addEventListener('keydown', onEsc, true);
     return () => window.removeEventListener('keydown', onEsc, true);
-  }, [expanded]);
+  }, [expanded, popout]);
 
   useEffect(() => {
-    if (!expanded && !keysArmed) return;
+    if (!popout && !expanded && !keysArmed) return;
     const t = window.setTimeout(() => {
       try {
         iframeRef.current?.focus({ preventScroll: true });
@@ -101,7 +111,7 @@ export default function DesignBoardPlugin() {
       } catch { /* ignore */ }
     }, 100);
     return () => window.clearTimeout(t);
-  }, [expanded, boardKey, keysArmed]);
+  }, [expanded, boardKey, keysArmed, popout]);
 
   useEffect(() => {
     if (!status) return;
@@ -110,13 +120,13 @@ export default function DesignBoardPlugin() {
   }, [status]);
 
   const board = (
-    <div className={`bndz-design-board bndz-design-board--exact${expanded ? ' is-expanded' : ''}`}>
+    <div className={`bndz-design-board bndz-design-board--exact${expanded || popout ? ' is-expanded' : ''}${popout ? ' is-popout' : ''}`}>
       <header className="bndz-design-board-hostbar">
         <div className="bndz-design-board-brand">
           <Icons8Icon id="layers_ui" size={16} />
           <div>
             <strong>Design Board</strong>
-            <span>ProDesign · Del V R O T · Esc docks</span>
+            <span>{popout ? 'Pop-out · stroke tools use Stroke color' : 'ProDesign · Del V R O T · Esc docks'}</span>
           </div>
         </div>
         <div className="bndz-design-board-actions">
@@ -128,9 +138,11 @@ export default function DesignBoardPlugin() {
           </PluginToolbarButton>
           <PluginToolbarButton onClick={() => sendAction('exportPng')}>Export</PluginToolbarButton>
           <PluginToolbarButton onClick={newBoard}>New</PluginToolbarButton>
-          <PluginToolbarButton onClick={() => setExpanded((v) => !v)}>
-            {expanded ? 'Dock' : 'Expand'}
-          </PluginToolbarButton>
+          {!popout && (
+            <PluginToolbarButton onClick={() => setExpanded((v) => !v)}>
+              {expanded ? 'Dock' : 'Expand'}
+            </PluginToolbarButton>
+          )}
         </div>
       </header>
       <iframe
@@ -151,6 +163,14 @@ export default function DesignBoardPlugin() {
     </div>
   );
 
+  if (popout) {
+    return (
+      <div className="bndz-design-board-popout-root h-full min-h-0 flex flex-col overflow-hidden">
+        {board}
+      </div>
+    );
+  }
+
   if (expanded) {
     return (
       <div className="bndz-design-board-overlay" role="dialog" aria-label="Design Board">
@@ -164,7 +184,7 @@ export default function DesignBoardPlugin() {
       title="Design Board"
       icon="layers_ui"
       iconColor="#0d99ff"
-      subtitle="Figma-clone · colors, tools, context menus"
+      subtitle="Figma chrome · OpenPencil engine · pen nodes"
       variant="embedded"
       toolbar={(
         <>
