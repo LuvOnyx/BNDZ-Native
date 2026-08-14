@@ -11,16 +11,16 @@ export type InnerPanelId = (typeof INNER_PANEL_IDS)[number];
  * Bump when default layout changes or persisted layouts need repair.
  * Compared to `config.workspaceLayoutVersion` in BNDZUI upgrade effect.
  */
-export const WORKSPACE_LAYOUT_VERSION = 61;
+export const WORKSPACE_LAYOUT_VERSION = 62;
 
 /**
  * Canonical outer split (user-confirmed):
- * sidebar/tree 12% / workspace 72% / preview 16% (preview wider than tree).
+ * sidebar/tree 12% / workspace 70% / preview 18% (preview wider than tree; +2% vs v61).
  */
 export const DEFAULT_OUTER_LAYOUT: Layout = {
     sidebar: 12,
-    workspace: 72,
-    preview: 16,
+    workspace: 70,
+    preview: 18,
 };
 
 /** File list | preview split inside the workspace top row (above bottom plugins). */
@@ -405,7 +405,7 @@ export function migrateLayoutV41(
 }
 
 /**
- * v45 / v61+: apply current DEFAULT_OUTER_LAYOUT (sidebar 12 / workspace 72 / preview 16).
+ * v45 / v61+: apply current DEFAULT_OUTER_LAYOUT (sidebar 12 / workspace 70 / preview 18).
  * Always snaps to the canonical split so skinny preview / fat tree cannot stick.
  */
 export function migrateLayoutV45(

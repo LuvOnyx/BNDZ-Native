@@ -469,6 +469,15 @@ html.os-native-popovers #context-menu[popover]{position-area:block-end span-inli
 .tool-group>.tool-btn.active::before{border-bottom-color:var(--accent);border-right-color:var(--accent)}
 .tool-flyout{display:none;position:fixed;background:var(--bg-depth-1);border:1px solid var(--border);border-radius:10px;padding:4px;box-shadow:0 12px 36px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.03) inset;z-index:9999;min-width:36px;backdrop-filter:blur(12px)}
 .tool-flyout.show{display:flex;flex-direction:column;gap:2px}
+.tool-flyout:not(.show){display:none!important;visibility:hidden!important;pointer-events:none!important}
+#toolbar .audit-tool-flyout:not(.show){display:none!important;visibility:hidden!important;pointer-events:none!important}
+.bndz-ptg-collapse{position:absolute;right:8px;top:5px;z-index:6;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:var(--text-muted);cursor:pointer;font-size:12px;line-height:1;display:grid;place-items:center}
+.bndz-ptg-collapse:hover{background:var(--bg-depth-3);color:var(--text-primary)}
+.panel-tab-group{position:relative}
+.panel-tab-group.is-collapsed>.panel-tabs,
+.panel-tab-group.is-collapsed>.panel-tab-content{display:none!important}
+.panel-tab-group.is-collapsed{flex:0 0 auto!important;min-height:30px;max-height:30px;overflow:hidden;border-bottom:1px solid var(--border)}
+.panel-tab-group.is-collapsed::after{content:attr(data-bndz-title);position:absolute;left:12px;top:8px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);pointer-events:none}
 .tool-flyout .tool-btn{width:32px;height:32px}
 .tool-flyout .tool-btn svg{width:16px;height:16px}
 .tool-flyout .tool-btn[data-tip]::after{left:calc(100% + 6px)}
@@ -33755,6 +33764,33 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     if (status) status.remove();
     root.dataset.osBoot = 'ready';
+    // BNDZ: right panels start open and are user-collapsible; kill stray tool flyouts.
+    try {
+        document.querySelectorAll('.tool-flyout.show').forEach((el) => el.classList.remove('show'));
+        const titles = ['Layers', 'Color', 'History'];
+        document.querySelectorAll('#panels .panel-tab-group').forEach((g, i) => {
+            if (g.querySelector('.bndz-ptg-collapse')) return;
+            g.dataset.bndzTitle = titles[i] || ('Panel ' + (i + 1));
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bndz-ptg-collapse';
+            btn.title = 'Collapse / expand panel';
+            btn.setAttribute('aria-label', 'Collapse panel');
+            const key = 'bndz-os-ptg-' + i;
+            const collapsed = localStorage.getItem(key) === '0';
+            if (collapsed) g.classList.add('is-collapsed');
+            btn.textContent = collapsed ? '▸' : '▾';
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                g.classList.toggle('is-collapsed');
+                const now = g.classList.contains('is-collapsed');
+                localStorage.setItem(key, now ? '0' : '1');
+                btn.textContent = now ? '▸' : '▾';
+            });
+            g.prepend(btn);
+        });
+    } catch (err) { console.warn('BNDZ panel collapse init failed', err); }
 });
 </script>
 </body>

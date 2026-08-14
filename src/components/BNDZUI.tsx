@@ -11840,11 +11840,11 @@ export default function BNDZUI() {
         openPreviewWithTab('media');
         break;
       case 'histogram':
-        updateConfig({ inspectionShaderMode: 'histogram' });
+        updateConfig({ inspectionShaderMode: 'histogram', gpuInspection: true });
         openPreviewWithTab('preview');
         break;
       case 'loupe':
-        updateConfig({ inspectionShaderMode: 'loupe' });
+        updateConfig({ inspectionShaderMode: 'loupe', gpuInspection: true });
         openPreviewWithTab('preview');
         break;
       case 'quick-look':

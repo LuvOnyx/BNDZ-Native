@@ -773,12 +773,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           const fallbackSrc = thumbData || undefined;
           return (
             <div
-              className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}
-              style={{
-                ...(config.compressionPreviewBgColor
-                  ? { background: `#${String(config.compressionPreviewBgColor).replace(/^#/, '')}` }
-                  : {}),
-              }}
+              className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-media-frame--flush bndz-preview-border-${mediaBorderType}`}
             >
               <InspectionViewportRouter
                   src={primarySrc}
@@ -1054,12 +1049,15 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   ];
 
   const shaderMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
-  const gpuInspectionOn = config.gpuInspection !== false && probeWebGL();
   const inspectionModes: { id: InspectionShaderMode; label: string }[] = [
     { id: 'passthrough', label: 'Standard' },
     { id: 'histogram', label: 'Luma inspect' },
     { id: 'loupe', label: 'Loupe' },
   ];
+
+  const setInspectionMode = (mode: InspectionShaderMode) => {
+    updateConfig({ inspectionShaderMode: mode, gpuInspection: true });
+  };
 
   return (
     <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 overflow-hidden">
@@ -1102,14 +1100,25 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               }}
             />
           )}
-          {isImage && gpuInspectionOn && activeTab === 'preview' && (
-            <div className="bndz-inspection-mode-bar shrink-0">
+          {isImage && activeTab === 'preview' && (
+            <div className="bndz-inspection-mode-bar shrink-0" role="tablist" aria-label="Preview inspection mode">
               {inspectionModes.map(mode => (
                 <button
                   key={mode.id}
                   type="button"
+                  role="tab"
+                  aria-selected={shaderMode === mode.id}
                   title={`${mode.label} view`}
-                  onClick={() => updateConfig({ inspectionShaderMode: mode.id })}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setInspectionMode(mode.id);
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setInspectionMode(mode.id);
+                  }}
                   className={`bndz-inspection-mode-btn${shaderMode === mode.id ? ' is-active' : ''}`}
                 >
                   {mode.label}
@@ -1119,7 +1128,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           )}
           <AnimatePresence mode="wait">
              <motion.div 
-                key={`${path || entity.id}-${activeTab}-${isDir ? 'dir' : ext || 'file'}`}
+                key={`${path || entity.id}-${activeTab}-${shaderMode}-${isDir ? 'dir' : ext || 'file'}`}
                 initial={{ opacity: 0, y: animDuration > 0 ? 10 : 0 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}

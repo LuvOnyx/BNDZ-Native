@@ -184,7 +184,7 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
       title="Design Board"
       icon="layers_ui"
       iconColor="#0d99ff"
-      subtitle="Figma chrome · OpenPencil engine · pen nodes"
+      subtitle="Figma chrome · Fabric tools (OpenPencil via ?engine=openpencil)"
       variant="embedded"
       toolbar={(
         <>

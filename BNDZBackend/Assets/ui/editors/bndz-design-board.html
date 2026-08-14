@@ -664,7 +664,7 @@
     </aside>
 
     <!-- CENTER -->
-    <div id="workspace" class="engine-on">
+    <div id="workspace" class="engine-off">
       <iframe id="engine-frame" title="OpenPencil design engine" src="engines/openpencil/index.html" allow="clipboard-read; clipboard-write"></iframe>
       <canvas id="grid"></canvas>
       <canvas id="c"></canvas>
@@ -1165,7 +1165,7 @@
 
   /* ---------------- Canvas ---------------- */
   const workspace = $('#workspace');
-  const USE_OPENPENCIL = !/engine=fabric/i.test(location.search || '');
+  const USE_OPENPENCIL = /engine=openpencil/i.test(location.search || '');
   const engineFrame = $('#engine-frame');
   function postEngine(msg) {
     if (!USE_OPENPENCIL || !engineFrame?.contentWindow) return;
@@ -1175,6 +1175,7 @@
     const d = ev.data;
     if (!d || d.source !== 'bndz-openpencil') return;
     if (d.type === 'ready') {
+      workspace.dataset.engineReady = '1';
       workspace.classList.add('engine-on');
       workspace.classList.remove('engine-off');
       toast('OpenPencil engine ready — Pen/Line/shapes are live', 'ok');
@@ -1186,9 +1187,21 @@
       a.href = d.dataUrl; a.download = 'bndz-design-board.png'; a.click();
     }
   });
+  // Default = Fabric (working Figma tools). Opt-in OpenPencil via ?engine=openpencil
+  // until interaction audits pass — never leave a dead opaque iframe over the canvas.
   if (!USE_OPENPENCIL) {
     workspace.classList.remove('engine-on');
     workspace.classList.add('engine-off');
+  } else {
+    workspace.classList.add('engine-on');
+    workspace.classList.remove('engine-off');
+    window.setTimeout(() => {
+      if (workspace.classList.contains('engine-on') && workspace.dataset.engineReady !== '1') {
+        workspace.classList.remove('engine-on');
+        workspace.classList.add('engine-off');
+        toast('OpenPencil failed to start — using Fabric tools', 'warn');
+      }
+    }, 5000);
   }
   const gridCanvas = $('#grid');
   const canvas = new fabric.Canvas('c', {
