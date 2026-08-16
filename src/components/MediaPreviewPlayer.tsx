@@ -225,10 +225,8 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
           if (!cancelled) setLoadError(result.error || 'Could not load media file.');
           return null;
         }
-        const binary = atob(result.base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: result.mime });
+        // Avoid per-byte main-thread loops — decode via data URL fetch.
+        const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
         return URL.createObjectURL(blob);
       } catch (err: any) {
         if (!cancelled) setLoadError(err?.message || 'Media load failed.');
@@ -237,9 +235,9 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
     };
 
     const init = async () => {
-      const isNative = !!(window as any).chrome?.webview;
       let nextSrc = src;
-      if (isNative || preferBlob) {
+      // Prefer bndz-stream / local-stream for seeking; blob only when explicitly requested.
+      if (preferBlob) {
         triedBlobRef.current = true;
         const blobSrc = await loadBlob();
         if (cancelled) return;
@@ -295,10 +293,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
         const winPath = toWindowsPath(filePath);
         const result = await IPC.getMediaBlob(winPath);
         if (result.base64 && result.mime) {
-          const binary = atob(result.base64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const blob = new Blob([bytes], { type: result.mime });
+          const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
           const url = URL.createObjectURL(blob);
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = url;
@@ -351,10 +346,7 @@ const MediaPreviewPlayer = forwardRef<MediaPreviewPlayerHandle, MediaPreviewPlay
       const { IPC } = await import('../lib/ipcBridge');
       const result = await IPC.getMediaBlob(toWindowsPath(filePath));
       if (result.base64 && result.mime) {
-        const binary = atob(result.base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: result.mime });
+        const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
         const url = URL.createObjectURL(blob);
         if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = url;

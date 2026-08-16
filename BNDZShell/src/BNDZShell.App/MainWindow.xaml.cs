@@ -161,14 +161,7 @@ public sealed partial class MainWindow : Window
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ClampWindowToWorkArea);
 
             ExtendsContentIntoTitleBar = true;
-            try
-            {
-                SystemBackdrop = new MicaBackdrop();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[BNDZShell] mica: {ex.Message}");
-            }
+            ApplySystemBackdropFromSettings();
             var tb = _appWindow.TitleBar;
             tb.ButtonBackgroundColor = Colors.Transparent;
             tb.ButtonInactiveBackgroundColor = Colors.Transparent;
@@ -417,6 +410,22 @@ public sealed partial class MainWindow : Window
         catch { /* best effort */ }
     }
 
+    private void ApplySystemBackdropFromSettings()
+    {
+        BndzSystemBackdrop.Apply(this, BndzShellChromeSettings.MicaBackdrop, BndzShellChromeSettings.BackdropKind);
+        try
+        {
+            // When backdrop is off, keep an opaque root so WebView doesn't flash through.
+            if (RootGrid is not null)
+            {
+                RootGrid.Background = BndzShellChromeSettings.MicaBackdrop
+                    ? new SolidColorBrush(Colors.Transparent)
+                    : new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x0C, 0x0F, 0x14));
+            }
+        }
+        catch { /* ignore */ }
+    }
+
     private void ChromeHost_PaneMessage(object? sender, JsonElement root)
     {
         if (!root.TryGetProperty("type", out var typeEl)) return;
@@ -440,8 +449,161 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (type is "SET_SYSTEM_BACKDROP")
+        {
+            HandleSetSystemBackdrop(root);
+            return;
+        }
+
+        if (type is "SHOW_APP_NOTIFICATION")
+        {
+            HandleShowAppNotification(root);
+            return;
+        }
+
+        if (type is "OPEN_FILE_DIALOG" or "SAVE_FILE_DIALOG" or "OPEN_FOLDER_DIALOG")
+        {
+            _ = HandleWinRtDialogAsync(root, type);
+            return;
+        }
+
+        if (type is "PRINT_DOCUMENT" or "PRINT_UI")
+        {
+            _ = HandlePrintAsync(root, type);
+            return;
+        }
+
         if (type is "BNDZ_NATIVE_LIST_BOUNDS" or "BNDZ_PANE_NAVIGATE" or "BNDZ_REQUEST_DIR_LISTING")
             return;
+    }
+
+    private void HandleSetSystemBackdrop(JsonElement root)
+    {
+        try
+        {
+            if (!root.TryGetProperty("payload", out var payload)) return;
+            var enabled = !payload.TryGetProperty("enabled", out var en) || en.ValueKind != JsonValueKind.False;
+            var kind = payload.TryGetProperty("kind", out var k) ? k.GetString() : null;
+            var nativeToasts = payload.TryGetProperty("nativeActionCenterToasts", out var nt)
+                ? nt.ValueKind != JsonValueKind.False
+                : (bool?)null;
+            BndzShellChromeSettings.Save(enabled, kind, nativeToasts);
+            ApplySystemBackdropFromSettings();
+            ChromeHost.SetBackdropChrome(enabled);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] SET_SYSTEM_BACKDROP: {ex.Message}");
+        }
+    }
+
+    private void HandleShowAppNotification(JsonElement root)
+    {
+        try
+        {
+            if (!root.TryGetProperty("payload", out var payload)) return;
+            var title = payload.TryGetProperty("title", out var t) ? t.GetString() : "BNDZ";
+            var message = payload.TryGetProperty("message", out var m) ? m.GetString() : null;
+            var tag = payload.TryGetProperty("tag", out var g) ? g.GetString() : null;
+            BndzAppNotifications.TryShow(title ?? "BNDZ", message ?? "", tag);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] SHOW_APP_NOTIFICATION: {ex.Message}");
+        }
+    }
+
+    private async Task HandleWinRtDialogAsync(JsonElement root, string? type)
+    {
+        var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+        JsonElement payload = default;
+        _ = root.TryGetProperty("payload", out payload);
+
+        try
+        {
+            if (type == "OPEN_FILE_DIALOG")
+            {
+                var filter = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("filter", out var f)
+                    ? f.GetString()
+                    : null;
+                var files = await BndzWinRtDialogs.PickOpenFilesAsync(_hwnd, filter, multiselect: true).ConfigureAwait(true);
+                ChromeHost.PostHostMessage(new { type = "OPEN_FILE_DIALOG_RESULT", id, payload = files });
+                return;
+            }
+
+            if (type == "SAVE_FILE_DIALOG")
+            {
+                var filter = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("filter", out var f)
+                    ? f.GetString()
+                    : null;
+                var defaultPath = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("defaultPath", out var d)
+                    ? d.GetString()
+                    : null;
+                var selected = await BndzWinRtDialogs.PickSaveFileAsync(_hwnd, defaultPath, filter).ConfigureAwait(true);
+                ChromeHost.PostHostMessage(new { type = "SAVE_FILE_DIALOG_RESULT", id, payload = selected });
+                return;
+            }
+
+            if (type == "OPEN_FOLDER_DIALOG")
+            {
+                var description = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("description", out var desc)
+                    ? desc.GetString()
+                    : null;
+                var folder = await BndzWinRtDialogs.PickFolderAsync(_hwnd, description).ConfigureAwait(true);
+                ChromeHost.PostHostMessage(new
+                {
+                    type = "OPEN_FOLDER_DIALOG_RESULT",
+                    id,
+                    payload = string.IsNullOrWhiteSpace(folder) ? "" : folder,
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] WinRT dialog: {ex.Message}");
+            if (type == "OPEN_FILE_DIALOG")
+                ChromeHost.PostHostMessage(new { type = "OPEN_FILE_DIALOG_RESULT", id, payload = Array.Empty<string>() });
+            else if (type == "SAVE_FILE_DIALOG")
+                ChromeHost.PostHostMessage(new { type = "SAVE_FILE_DIALOG_RESULT", id, payload = (string?)null });
+            else
+                ChromeHost.PostHostMessage(new { type = "OPEN_FOLDER_DIALOG_RESULT", id, payload = "" });
+        }
+    }
+
+    private async Task HandlePrintAsync(JsonElement root, string? type)
+    {
+        var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+        try
+        {
+            bool ok;
+            if (type == "PRINT_DOCUMENT"
+                && root.TryGetProperty("payload", out var payload)
+                && payload.TryGetProperty("path", out var pathEl))
+            {
+                ok = await BndzWinRtPrint.PrintPathAsync(_hwnd, pathEl.GetString()).ConfigureAwait(true);
+            }
+            else
+            {
+                ok = await BndzWinRtPrint.ShowPrintUiAsync(_hwnd).ConfigureAwait(true);
+            }
+
+            ChromeHost.PostHostMessage(new
+            {
+                type = "PRINT_RESULT",
+                id,
+                payload = new { ok },
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BNDZShell] print: {ex.Message}");
+            ChromeHost.PostHostMessage(new
+            {
+                type = "PRINT_RESULT",
+                id,
+                payload = new { ok = false, error = ex.Message },
+            });
+        }
     }
 
     private void HandleWindowChrome(JsonElement root)

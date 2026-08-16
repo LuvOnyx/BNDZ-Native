@@ -47,12 +47,12 @@ function FitCamera({
     if (size.width < 16 || size.height < 16) return;
 
     const fitZoom = Math.min(size.width / planeW, size.height / planeH) * 0.92;
-    if (!Number.isFinite(fitZoom) || fitZoom < 1) return;
+    if (!Number.isFinite(fitZoom) || fitZoom <= 0) return;
 
-    baseZoomRef.current = fitZoom;
+    baseZoomRef.current = Math.max(0.05, fitZoom);
     const ortho = camera as THREE.OrthographicCamera;
     ortho.position.set(0, 0, 2);
-    ortho.zoom = fitZoom;
+    ortho.zoom = baseZoomRef.current;
     ortho.updateProjectionMatrix();
     invalidate();
   }, [texture, size.width, size.height, camera, invalidate, baseZoomRef, planeHalfRef]);
@@ -106,6 +106,21 @@ function InspectionPlane({
     material.uniforms.uResolution.value.set(size.width, size.height);
     invalidate();
   }, [material, texture, size.width, size.height, invalidate]);
+
+  // Drive loupe magnification from ortho zoom mul so wheel/pinch actually changes the lens.
+  useEffect(() => {
+    if (shaderMode !== 'loupe') return;
+    let raf = 0;
+    const tick = () => {
+      const mul = Math.max(0.25, (baseZoomRef.current > 0
+        ? ((camera as THREE.OrthographicCamera).zoom / baseZoomRef.current)
+        : 1));
+      material.uniforms.uZoom.value = 2.2 + mul * 2.4;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [shaderMode, material, camera, baseZoomRef]);
 
   const img = texture.image as { width?: number; height?: number } | undefined;
   const iw = Math.max(1, img?.width || 1);
@@ -172,10 +187,8 @@ async function resolveTextureSrc(src: string, filePath?: string | null): Promise
     if (!IPC.isNative) return src;
     const result = await IPC.getMediaBlob(toWindowsPath(filePath));
     if (!result.base64 || !result.mime) return src;
-    const binary = atob(result.base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return URL.createObjectURL(new Blob([bytes], { type: result.mime }));
+    const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
+    return URL.createObjectURL(blob);
   } catch {
     return src;
   }
@@ -225,7 +238,7 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
         blobUrlRef.current = null;
       }
     };
-  }, [src, filePath, shaderMode]);
+  }, [src, filePath]);
 
   if (!src || failed || !textureSrc) {
     return (
@@ -240,7 +253,7 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
       <BndzErrorBoundary
         isolate
         label="GPU inspection"
-        resetKey={`${textureSrc}:${shaderMode}`}
+        resetKey={`${textureSrc}`}
         onError={() => setFailed(true)}
         fallback={<div className="w-full h-full flex items-center justify-center text-xs text-gray-500">GPU preview unavailable</div>}
       >
@@ -255,6 +268,8 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
             antialias: false,
             stencil: false,
             depth: false,
+            alpha: true,
+            premultipliedAlpha: false,
             failIfMajorPerformanceCaveat: false,
             preserveDrawingBuffer: false,
           }}
@@ -275,7 +290,7 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
           }}
           onError={() => setFailed(true)}
         >
-          <color attach="background" args={['#0a0a0c']} />
+          <color attach="background" args={['#00000000']} />
           <Suspense fallback={null}>
             <InspectionPlane
               src={textureSrc}

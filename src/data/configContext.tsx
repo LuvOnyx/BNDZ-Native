@@ -146,6 +146,9 @@ const defaultStructuredConfig: Partial<AppConfig> = {
     tooltipMutedColor: '#9ca3af',
     tooltipCornerRadius: 16,
     whenHoveringOverTheFilename: false,
+    micaBackdrop: true,
+    systemBackdropKind: 'mica',
+    nativeActionCenterToasts: true,
 };
 
 function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConfig {

@@ -7,9 +7,10 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using BNDZ.Services;
-using BNDZShell.Bndz;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 
 namespace BNDZShell.Bndz;
@@ -166,9 +167,19 @@ public sealed partial class CraftPaneHost : UserControl
 			core.Settings.AreDefaultContextMenusEnabled = false;
 			core.Settings.IsStatusBarEnabled = false;
 			core.Settings.AreBrowserAcceleratorKeysEnabled = false;
+			core.Settings.IsSwipeNavigationEnabled = false;
+			core.Settings.IsZoomControlEnabled = false;
+			core.Settings.IsGeneralAutofillEnabled = false;
+			core.Settings.IsPasswordAutosaveEnabled = false;
 			// Let WinUI ExtendsContentIntoTitleBar caption buttons receive clicks over WebView2.
 			try { core.Settings.IsNonClientRegionSupportEnabled = true; }
 			catch (Exception ncEx) { Debug.WriteLine($"[CraftPaneHost] IsNonClientRegionSupportEnabled: {ncEx.Message}"); }
+			try
+			{
+				PaneWebView.DefaultBackgroundColor = Microsoft.UI.Colors.Transparent;
+				SetBackdropChrome(BndzShellChromeSettings.MicaBackdrop);
+			}
+			catch (Exception bgEx) { Debug.WriteLine($"[CraftPaneHost] transparent bg: {bgEx.Message}"); }
 			// Opt-in only — Debugger.IsAttached previously enabled DevTools on every pane host.
 			core.Settings.AreDevToolsEnabled =
 				string.Equals(Environment.GetEnvironmentVariable("BNDZ_DEVTOOLS"), "1", StringComparison.Ordinal);
@@ -256,13 +267,15 @@ public sealed partial class CraftPaneHost : UserControl
 			streamScheme.AllowedOrigins.Add("http://bndz.local");
 			streamScheme.AllowedOrigins.Add("https://bndz.local");
 
+			// Native-feel compositor: D3D11 GPU path + zero-copy. Drag regions via
+			// IsNonClientRegionSupportEnabled only (not legacy msWebView2EnableDraggableRegions).
 			var options = new CoreWebView2EnvironmentOptions
 			{
 				AdditionalBrowserArguments =
 					"--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
-					"--enable-features=CanvasOopRasterization " +
-					"--disable-features=CalculateNativeWinOcclusion " +
-					"--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist " +
+					"--use-angle=d3d11 --enable-features=CanvasOopRasterization " +
+					"--disable-features=CalculateNativeWinOcclusion,msExperimentalScrolling " +
+					"--ignore-gpu-blocklist " +
 					"--unsafely-treat-insecure-origin-as-secure=http://bndz.local,https://bndz.local",
 			};
 			options.CustomSchemeRegistrations.Add(streamScheme);
@@ -528,6 +541,29 @@ public sealed partial class CraftPaneHost : UserControl
 		PostHostMessageRaw(JsonSerializer.Serialize(payload));
 	}
 
+	/// <summary>
+	/// Toggle host/WebView opacity so Mica can show through chrome without a solid slab.
+	/// </summary>
+	public void SetBackdropChrome(bool micaEnabled)
+	{
+		try
+		{
+			if (PaneRoot is not null)
+			{
+				PaneRoot.Background = micaEnabled
+					? new SolidColorBrush(Colors.Transparent)
+					: new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x0C, 0x0F, 0x14));
+			}
+			PaneWebView.DefaultBackgroundColor = micaEnabled
+				? Colors.Transparent
+				: ColorHelper.FromArgb(0xFF, 0x0C, 0x0F, 0x14);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] SetBackdropChrome: {ex.Message}");
+		}
+	}
+
 	public void PostHostMessageRaw(string json)
 	{
 		if (json.Contains("\"BNDZ_DIR_LISTING\"", StringComparison.Ordinal))
@@ -592,7 +628,11 @@ public sealed partial class CraftPaneHost : UserControl
 				requestId = idEl.GetString();
 			var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
 			requestType = type;
-			if (type is "BNDZ_PANE_TOOL" or "BNDZ_PANE_NAVIGATE" or "BNDZ_PANE_SWITCH" or "BNDZ_REQUEST_DIR_LISTING" or "BNDZ_NATIVE_LIST_BOUNDS" or "WINDOW_CHROME" or "GET_WINDOW_STATE")
+			if (type is "BNDZ_PANE_TOOL" or "BNDZ_PANE_NAVIGATE" or "BNDZ_PANE_SWITCH" or "BNDZ_REQUEST_DIR_LISTING" or "BNDZ_NATIVE_LIST_BOUNDS"
+				or "WINDOW_CHROME" or "GET_WINDOW_STATE"
+				or "SET_SYSTEM_BACKDROP" or "SHOW_APP_NOTIFICATION"
+				or "OPEN_FILE_DIALOG" or "SAVE_FILE_DIALOG" or "OPEN_FOLDER_DIALOG"
+				or "PRINT_DOCUMENT" or "PRINT_UI")
 			{
 				PaneMessage?.Invoke(this, root.Clone());
 				return;

@@ -763,4 +763,9 @@ export const SETTINGS_VALUE_PATCHES: Record<string, string | number | boolean> =
   appearanceChromePalette: 'cool',
   appearanceGridSelection: 'subtle',
   visualStyleTabs: 'Soft Modern',
+  /** WinUI SystemBackdrop (Mica / Acrylic) — default on for native shell feel */
+  micaBackdrop: true,
+  systemBackdropKind: 'mica',
+  /** Mirror pushToast({ native: true }) into Windows Notification Center */
+  nativeActionCenterToasts: true,
 };

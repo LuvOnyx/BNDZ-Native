@@ -9,7 +9,7 @@ export const DesignBoardPluginDef = {
   name: 'Design Board',
   icon: 'layers_ui',
   description:
-    'ProDesign / Figma chrome with OpenPencil vector engine — real pen nodes, bends, shapes under the existing board face.',
+    'ProDesign / Figma chrome with Fabric canvas — stable pen, shapes, and layers. OpenPencil vector engine: ?engine=openpencil.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -32,7 +32,7 @@ type Props = {
 
 /**
  * Host for the Figma/ProDesign UI (public/editors/bndz-design-board.html).
- * Chrome stays; OpenPencil fills the workspace. React hosts expand/dock + key trap.
+ * Chrome stays; Fabric canvas is default. OpenPencil opt-in via ?engine=openpencil.
  */
 export default function DesignBoardPlugin({ popout = false }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -119,6 +119,22 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
     return () => window.clearTimeout(t);
   }, [status]);
 
+  useEffect(() => {
+    const onMsg = (ev: MessageEvent) => {
+      const d = ev.data;
+      if (!d || d.source !== 'bndz-openpencil') return;
+      if (d.type === 'ready') {
+        setStatus(d.degraded ? 'OpenPencil failed — Fabric fallback' : 'OpenPencil live');
+      } else if (d.type === 'error' && d.message) {
+        setStatus(String(d.message));
+      } else if (d.type === 'toolChanged' && d.tool) {
+        setStatus(`Tool · ${String(d.tool)}`);
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
   const board = (
     <div className={`bndz-design-board bndz-design-board--exact${expanded || popout ? ' is-expanded' : ''}${popout ? ' is-popout' : ''}`}>
       <header className="bndz-design-board-hostbar">
@@ -184,7 +200,7 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
       title="Design Board"
       icon="layers_ui"
       iconColor="#0d99ff"
-      subtitle="Figma chrome · Fabric tools (OpenPencil via ?engine=openpencil)"
+      subtitle="Figma chrome · Fabric canvas (OpenPencil: ?engine=openpencil)"
       variant="embedded"
       toolbar={(
         <>

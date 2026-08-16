@@ -7,8 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWinUI>true</UseWinUI>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <Platforms>x64</Platforms>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- x64 + ARM64 side-by-side for modern Windows devices -->
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>BNDZShell</AssemblyName>
     <!-- Unpackaged self-contained: double-click BNDZShell.exe works (no MSIX register required). -->
@@ -21,6 +22,28 @@
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <!-- BNDZCore may carry a WebView2.Core.dll copy; WinUI package also brings one — allow publish. -->
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+    <!-- Prefer Segoe UI Variable / Fluent type ramp in generated XAML. -->
+    <WinUISDKReferences>true</WinUISDKReferences>
+  </PropertyGroup>
+
+  <!-- ReadyToRun + PGO: native-feeling startup without full Native AOT (blocked by WPF headless core). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRunComposite>true</PublishReadyToRunComposite>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <DebuggerSupport>false</DebuggerSupport>
+  </PropertyGroup>
+
+  <!--
+    Native AOT: enable with -p:EnableNativeAot=true once BNDZCore is free of WPF/WinForms.
+    Today the embedded backend ProjectReference is not AOT-safe; R2R is the production path.
+  -->
+  <PropertyGroup Condition="'$(EnableNativeAot)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,7 +63,6 @@
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" />
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" />
     <PackageReference Include="WinUIEx" />
-    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" />
   </ItemGroup>
 
   <ItemGroup>

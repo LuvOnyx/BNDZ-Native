@@ -12,19 +12,21 @@ interface MenubarPortalMenuProps {
 export function MenubarPortalMenu({ open, anchorEl, minWidth = 200, children }: MenubarPortalMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
-    if (!open || !anchorEl) return;
+    if (!open || !anchorEl) {
+      setReady(false);
+      return;
+    }
     const rect = anchorEl.getBoundingClientRect();
     const pad = 8;
     let left = rect.left;
     let top = rect.bottom;
-    setPos({ top, left });
 
-    // Measure once after paint — avoid re-clamping on every children identity change.
-    const id = requestAnimationFrame(() => {
-      const menu = menuRef.current;
-      if (!menu) return;
+    // Measure synchronously (pre-paint) so the first clickable frame is already clamped.
+    const menu = menuRef.current;
+    if (menu) {
       const m = menu.getBoundingClientRect();
       if (left + m.width > window.innerWidth - pad) {
         left = Math.max(pad, window.innerWidth - m.width - pad);
@@ -34,10 +36,10 @@ export function MenubarPortalMenu({ open, anchorEl, minWidth = 200, children }: 
       }
       if (left < pad) left = pad;
       if (top < pad) top = pad;
-      setPos({ top, left });
-    });
-    return () => cancelAnimationFrame(id);
-  }, [open, anchorEl]);
+    }
+    setPos({ top, left });
+    setReady(true);
+  }, [open, anchorEl, children]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -46,14 +48,18 @@ export function MenubarPortalMenu({ open, anchorEl, minWidth = 200, children }: 
       ref={menuRef}
       data-bndz-menubar-menu
       data-open="true"
+      data-ready={ready ? '1' : '0'}
       className="fixed z-[500] bndz-menubar-menu bndz-context-menu bndz-scrollbar"
       style={{
-        top: pos.top,
-        left: pos.left,
+        top: ready ? pos.top : -10000,
+        left: ready ? pos.left : -10000,
         minWidth,
         maxHeight: 'calc(100vh - 16px)',
         overflowY: 'auto',
         overflowX: 'visible',
+        opacity: ready ? 1 : 0,
+        transform: ready ? 'translateY(0) scale(1)' : 'translateY(-4px) scale(0.98)',
+        transition: 'opacity 90ms ease-out, transform 90ms ease-out',
       }}
       onMouseDown={e => e.stopPropagation()}
     >

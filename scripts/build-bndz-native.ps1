@@ -130,7 +130,9 @@ function Sync-UiAssetsToShellOutput {
     }
     $outs = @(
         (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\x64\Debug"),
-        (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\x64\Release")
+        (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\x64\Release"),
+        (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\ARM64\Debug"),
+        (Join-Path $root "BNDZShell\src\BNDZShell.App\bin\ARM64\Release")
     )
     foreach ($base in $outs) {
         if (-not (Test-Path $base)) { continue }
@@ -151,9 +153,18 @@ Write-Host "==> BNDZBackend (services + embedded host)" -ForegroundColor Cyan
 dotnet build BNDZBackend/BNDZ.csproj -c Debug -p:EnableWindowsTargeting=true
 if ($LASTEXITCODE -ne 0) { throw "BNDZBackend build failed" }
 
-Write-Host "==> BNDZShell WinUI (native list + craft islands)" -ForegroundColor Cyan
+Write-Host "==> BNDZShell WinUI x64" -ForegroundColor Cyan
 dotnet build BNDZShell/src/BNDZShell.App/BNDZShell.App.csproj -c Debug -p:Platform=x64
-if ($LASTEXITCODE -ne 0) { throw "BNDZShell build failed" }
+if ($LASTEXITCODE -ne 0) { throw "BNDZShell x64 build failed" }
+
+# ARM64 binary alongside x64 (skip quietly if toolchain unavailable on this machine).
+Write-Host "==> BNDZShell WinUI ARM64" -ForegroundColor Cyan
+dotnet build BNDZShell/src/BNDZShell.App/BNDZShell.App.csproj -c Debug -p:Platform=ARM64
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ARM64 build skipped/failed (install ARM64 VS workload to enable)." -ForegroundColor DarkYellow
+} else {
+    Write-Host "  ARM64 ok" -ForegroundColor DarkGreen
+}
 
 # MSBuild may have been blocked from refreshing Content — sync again after shell build.
 Write-Host "==> Re-sync UI after shell build" -ForegroundColor Cyan
@@ -163,4 +174,5 @@ Write-Host ""
 Write-Host "Ready - launch either:" -ForegroundColor Green
 Write-Host "  scripts\run-bndz-native.cmd"
 Write-Host "  or double-click BNDZShell.exe under bin\x64\Debug\net*-windows*\"
+Write-Host "  ARM64: bin\ARM64\Debug\net*-windows*\ (when built)"
 Write-Host "(Unpackaged self-contained WinAppSDK - MSIX register no longer required.)"

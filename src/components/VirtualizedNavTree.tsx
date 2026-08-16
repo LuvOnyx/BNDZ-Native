@@ -135,6 +135,7 @@ async function loadDirectoryChildren(
 function TreeRow({
   row,
   config,
+  treeRt,
   currentPath,
   onToggle,
   onNavigate,
@@ -165,6 +166,7 @@ function TreeRow({
 }: {
   row: FlatNavRow;
   config: AppConfig;
+  treeRt: ReturnType<typeof buildSettingsRuntime>['tree'];
   currentPath?: string;
   onToggle: (row: FlatNavRow) => void;
   onNavigate: (path: string) => void;
@@ -195,7 +197,6 @@ function TreeRow({
 }) {
   const isSelected = row.selected || (row.path && panePathsEqual(currentPath, row.path));
   const isRenaming = inlineRename?.entityId === 'TREE' && inlineRename?.path === row.path;
-  const treeRt = buildSettingsRuntime(config).tree;
   const expandOnSingleClick = !!config?.expandTreeNodesOnSingleClick
     && !(treeRt.lockState || !!config.lockTreeState);
   const treeColorFilter = (treeRt.applyColorFilters
@@ -408,6 +409,61 @@ function TreeRow({
     </>
   );
 }
+
+function areTreeRowPropsEqual(
+  prev: {
+    row: FlatNavRow;
+    currentPath?: string;
+    isDragging?: boolean;
+    dropBefore?: boolean;
+    dropAfter?: boolean;
+    fileDropTarget?: string | null;
+    inlineRename: VirtualizedNavTreeProps['inlineRename'];
+    showIndexBadges?: boolean;
+    treeRt: ReturnType<typeof buildSettingsRuntime>['tree'];
+    config: AppConfig;
+  },
+  next: {
+    row: FlatNavRow;
+    currentPath?: string;
+    isDragging?: boolean;
+    dropBefore?: boolean;
+    dropAfter?: boolean;
+    fileDropTarget?: string | null;
+    inlineRename: VirtualizedNavTreeProps['inlineRename'];
+    showIndexBadges?: boolean;
+    treeRt: ReturnType<typeof buildSettingsRuntime>['tree'];
+    config: AppConfig;
+  },
+): boolean {
+  return (
+    prev.row.id === next.row.id
+    && prev.row.treeKey === next.row.treeKey
+    && prev.row.label === next.row.label
+    && prev.row.path === next.row.path
+    && prev.row.depth === next.row.depth
+    && prev.row.expanded === next.row.expanded
+    && prev.row.hasChildren === next.row.hasChildren
+    && prev.row.selected === next.row.selected
+    && prev.row.isPlaceholder === next.row.isPlaceholder
+    && prev.currentPath === next.currentPath
+    && prev.isDragging === next.isDragging
+    && prev.dropBefore === next.dropBefore
+    && prev.dropAfter === next.dropAfter
+    && prev.fileDropTarget === next.fileDropTarget
+    && prev.inlineRename?.path === next.inlineRename?.path
+    && prev.inlineRename?.entityId === next.inlineRename?.entityId
+    && prev.showIndexBadges === next.showIndexBadges
+    && prev.treeRt === next.treeRt
+    && prev.config.colorFilters === next.config.colorFilters
+    && prev.config.expandTreeNodesOnSingleClick === next.config.expandTreeNodesOnSingleClick
+    && prev.config.lockTreeState === next.config.lockTreeState
+    && prev.config.applyColorFiltersToTheTree === next.config.applyColorFiltersToTheTree
+    && prev.config.enableColorFilters === next.config.enableColorFilters
+  );
+}
+
+const TreeRowMemo = React.memo(TreeRow, areTreeRowPropsEqual);
 
 export function VirtualizedNavTree({
   nodes,
@@ -910,13 +966,19 @@ export function VirtualizedNavTree({
   }, [currentPath, flatRows, config.scrollSelectedFolderToTheTop, config.scrollSubfoldersIntoView, useVirtual, virtualizer]);
 
   const renderRow = (row: FlatNavRow, isVirtualRow = false) => {
-    const treeTipContent = showTreeTips && !row.isPlaceholder ? buildTreeTooltipContent(row, config) : null;
-    const tipHandlers = bindFloatingTooltipHandlers(treeTipContent, config, { context: 'tree', surface: 'filename' });
+    const tipHandlers = showTreeTips && !row.isPlaceholder
+      ? bindFloatingTooltipHandlers(null, config, {
+          context: 'tree',
+          surface: 'filename',
+          resolveContent: () => buildTreeTooltipContent(row, config),
+        })
+      : undefined;
     return (
-    <TreeRow
+    <TreeRowMemo
       key={row.id}
       row={row}
       config={config}
+      treeRt={rt.tree}
       currentPath={currentPath}
       onToggle={handleToggle}
       onNavigate={onNavigate}

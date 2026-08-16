@@ -24,7 +24,7 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
   const syncedFit = useRef(0);
 
   const clampPan = () => {
-    const z = Math.max(1, baseZoomRef.current * zoomMul.current);
+    const z = Math.max(0.05, baseZoomRef.current * zoomMul.current);
     const half = planeHalfRef.current;
     const viewW = size.width / z;
     const viewH = size.height / z;
@@ -45,9 +45,9 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
       },
       onDrag: ({ movement: [mx, my], pinching, dragging, event }) => {
         if (pinching || !dragging) return;
-        if (baseZoomRef.current < 1) return;
+        if (baseZoomRef.current <= 0) return;
         event?.preventDefault();
-        const z = Math.max(1, baseZoomRef.current * zoomMul.current);
+        const z = Math.max(0.05, baseZoomRef.current * zoomMul.current);
         // 1 screen pixel = 1/zoom world units in R3F pixel frustum.
         pan.current.x = dragOrigin.current.panX - mx / z;
         pan.current.y = dragOrigin.current.panY + my / z;
@@ -55,7 +55,7 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
         invalidate();
       },
       onWheel: ({ delta: [, dy], event }) => {
-        if (baseZoomRef.current < 1) return;
+        if (baseZoomRef.current <= 0) return;
         event.preventDefault();
         const factor = dy > 0 ? 0.9 : 1.1;
         zoomMul.current = Math.max(0.25, Math.min(16, zoomMul.current * factor));
@@ -64,7 +64,7 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
         invalidate();
       },
       onPinch: ({ offset: [s] }) => {
-        if (baseZoomRef.current < 1) return;
+        if (baseZoomRef.current <= 0) return;
         zoomMul.current = Math.max(0.25, Math.min(16, s));
         clampPan();
         onZoomChange?.(zoomMul.current);
@@ -76,11 +76,11 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
 
   useFrame(() => {
     const fit = baseZoomRef.current;
-    if (fit < 1) return;
+    if (fit <= 0) return;
 
     // Sync once when FitCamera publishes a real fit zoom (not on every resize).
     if (syncedFit.current !== fit && Math.abs(syncedFit.current - fit) > 0.5) {
-      const first = syncedFit.current < 1;
+      const first = syncedFit.current <= 0;
       syncedFit.current = fit;
       if (first) {
         zoomMul.current = 1;

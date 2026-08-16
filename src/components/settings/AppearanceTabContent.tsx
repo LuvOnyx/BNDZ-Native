@@ -175,6 +175,45 @@ export default function AppearanceTabContent({ localConfig, updateLocalConfig }:
       </SettingsSection>
 
       <SettingsSection title="Surfaces & chrome">
+        <label className="flex items-start gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-[#0078d4] mt-0.5"
+            checked={localConfig.micaBackdrop !== false}
+            onChange={e => patch({ micaBackdrop: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90 leading-snug">
+            Mica / Fluent backdrop
+            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+              On (default): Windows Mica material behind the shell chrome. Off: solid native fill.
+            </span>
+          </span>
+        </label>
+        <VariantSelect<'mica' | 'micaAlt' | 'acrylic'>
+          label="Backdrop material"
+          description="Fluent system backdrop when Mica is enabled"
+          value={(localConfig.systemBackdropKind as 'mica' | 'micaAlt' | 'acrylic') || 'mica'}
+          options={[
+            { id: 'mica', label: 'Mica', hint: 'Standard Windows 11 material' },
+            { id: 'micaAlt', label: 'Mica Alt', hint: 'BaseAlt — stronger tint' },
+            { id: 'acrylic', label: 'Acrylic', hint: 'Desktop Acrylic / Fluent blur' },
+          ]}
+          onChange={v => patch({ systemBackdropKind: v, micaBackdrop: true })}
+        />
+        <label className="flex items-start gap-2 py-2 border-b border-white/[0.06] cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-[#0078d4] mt-0.5"
+            checked={localConfig.nativeActionCenterToasts !== false}
+            onChange={e => patch({ nativeActionCenterToasts: e.target.checked })}
+          />
+          <span className="text-[12px] text-white/90 leading-snug">
+            Windows Notification Center toasts
+            <span className="block text-[10px] text-white/40 mt-0.5 font-normal">
+              Mirror important alerts into Action Center via AppNotificationBuilder (in-app toasts stay).
+            </span>
+          </span>
+        </label>
         <VariantSelect<ChromePalette>
           label="Workspace palette"
           description="Base background family (escapes brown/black slop)"

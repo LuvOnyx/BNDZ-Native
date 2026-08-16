@@ -46,9 +46,22 @@
     #top-bar {
       height: 46px; flex-shrink: 0; display: flex; align-items: center;
       justify-content: space-between; padding: 0 12px; gap: 10px;
-      background: linear-gradient(180deg, #23252b, #1c1e23);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.045), transparent 55%),
+        linear-gradient(180deg, #262830, #1a1c21);
       border-bottom: 1px solid var(--line); z-index: 60;
+      box-shadow: 0 8px 24px rgba(0,0,0,.22);
     }
+    #angle-hud {
+      position: absolute; z-index: 40; pointer-events: none;
+      padding: 5px 10px; border-radius: 10px; font: 650 11px/1 ui-monospace, monospace;
+      color: #eaf4ff; letter-spacing: .02em;
+      background: linear-gradient(165deg, rgba(26,168,255,.28), rgba(12,18,28,.92));
+      border: 1px solid rgba(13,153,255,.45);
+      box-shadow: 0 10px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
+      opacity: 0; transform: translateY(4px); transition: opacity .12s ease, transform .12s ease;
+    }
+    #angle-hud.show { opacity: 1; transform: none; }
     .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .brand-mark {
       width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
@@ -66,8 +79,10 @@
     .menu.open > .menu-label, .menu > .menu-label:hover { background: var(--hover); color: #fff; }
     .dropdown {
       display: none; position: absolute; top: calc(100% + 5px); left: 0; min-width: 230px;
-      background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 12px;
-      box-shadow: var(--shadow); padding: 6px; z-index: 200;
+      background: linear-gradient(165deg, color-mix(in srgb, var(--panel-2) 92%, transparent), var(--panel-3));
+      border: 1px solid var(--line-strong); border-radius: 14px;
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.05); padding: 6px; z-index: 200;
+      backdrop-filter: blur(14px);
     }
     .menu.open > .dropdown { display: block; }
     .dropdown button {
@@ -78,13 +93,6 @@
     .dropdown button:hover { background: var(--accent); color: #fff; }
     .kbd { opacity: 0.65; font-size: 10px; font-family: ui-monospace, monospace; }
     .divider { height: 1px; background: var(--line); margin: 5px 6px; }
-    .presence-bar { display: flex; align-items: center; gap: 6px; margin-right: 8px; }
-    .presence-chip {
-      display: flex; align-items: center; gap: 5px; padding: 3px 8px 3px 4px;
-      border-radius: 999px; background: rgba(255,255,255,.04); border: 1px solid var(--line);
-      font-size: 10px; color: var(--muted);
-    }
-    .presence-chip i { width: 18px; height: 18px; border-radius: 50%; display: block; }
     .constraint-seg { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; }
     .constraint-seg button {
       border: 1px solid var(--line); background: #22252b; color: var(--muted); border-radius: 7px;
@@ -159,14 +167,83 @@
     .btn-accent:hover { background: linear-gradient(135deg, #33b5ff, #0d80e6); }
 
     /* ---------- Layout ---------- */
-    #main { flex: 1; min-height: 0; display: grid; grid-template-columns: 244px 1fr 264px; }
+    #main { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px 1fr minmax(268px, 300px); }
     .sidebar {
       background: var(--panel); border-right: 1px solid var(--line);
       display: flex; flex-direction: column; min-height: 0; z-index: 30;
     }
-    #right-sidebar { border-right: 0; border-left: 1px solid var(--line); overflow-y: auto; }
-    .section { padding: 12px; border-bottom: 1px solid var(--line); }
+    #right-sidebar {
+      border-right: 0; border-left: 1px solid var(--line); overflow-y: auto;
+      background: linear-gradient(180deg, rgba(255,255,255,.02), transparent 40%), var(--panel);
+    }
+    .section {
+      padding: 12px 14px; border-bottom: 1px solid var(--line);
+      margin: 8px 8px 0; border: 1px solid var(--line); border-radius: 12px;
+      background: linear-gradient(165deg, rgba(255,255,255,.03), transparent 50%), var(--panel-2);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
     .section.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; border-bottom: 0; }
+    .section.bndz-empty-hide { display: none !important; }
+    .section.bndz-line-secondary { opacity: .72; }
+    .section.bndz-line-secondary .fill-kind-seg,
+    .section.bndz-line-secondary #grad-editor,
+    .section.bndz-line-secondary #swatch-strip,
+    .section.bndz-line-secondary .recent-strip,
+    .section.bndz-line-secondary .section-title[style] { display: none !important; }
+    #right-sidebar[data-sel="line"] #sec-align { order: 1; }
+    #right-sidebar[data-sel="line"] #sec-stroke { order: 2; }
+    #right-sidebar[data-sel="line"] #sec-transform { order: 3; }
+    #right-sidebar[data-sel="line"] #sec-effects { order: 4; }
+    #right-sidebar[data-sel="line"] #sec-arrange { order: 5; }
+    #right-sidebar[data-sel="line"] #sec-fill { order: 8; }
+    #right-sidebar[data-sel="line"] #sec-export { order: 9; }
+    #right-sidebar[data-sel="line"] #sec-variables,
+    #right-sidebar[data-sel="line"] #sec-components,
+    #right-sidebar[data-sel="line"] #sec-styles { display: none !important; }
+    #line-metrics { display: none; gap: 6px; margin-top: 8px; }
+    #right-sidebar[data-sel="line"] #line-metrics { display: grid; grid-template-columns: 1fr 1fr; }
+    #right-sidebar[data-sel="line"] .corner-only { display: none !important; }
+    #sec-stroke.stroke-priority {
+      box-shadow: 0 0 0 1px rgba(13,153,255,.35), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .section-title, .sec-title {
+      font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--muted); font-weight: 650; margin-bottom: 8px;
+    }
+    .empty-inspector {
+      margin: 16px 12px; padding: 28px 16px; text-align: center;
+      border-radius: 14px; border: 1px dashed var(--line-strong);
+      background: rgba(0,0,0,.18); color: var(--muted); font-size: 12px; line-height: 1.45;
+    }
+    .empty-inspector .big { font-size: 28px; opacity: .55; margin-bottom: 8px; }
+    .btn-accent { border-radius: 10px; }
+    .zoom-pill {
+      border-radius: 10px; padding: 6px 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), transparent), rgba(0,0,0,.28);
+    }
+    #tool-rail .tool.on, #tool-rail button.active {
+      box-shadow: 0 0 0 1px rgba(13,153,255,.45), inset 0 0 0 1px rgba(13,153,255,.2);
+    }
+    .path-node-selected { stroke: #ff2bd6 !important; fill: #fff !important; }
+    /* Inspector order: Align → Transform → Fill → Stroke → Effects → … → Export last */
+    #right-sidebar { display: flex; flex-direction: column; }
+    #right-sidebar #inspector-empty { order: 0; }
+    #right-sidebar #sec-align { order: 1; }
+    #right-sidebar #sec-transform { order: 2; }
+    #right-sidebar #sec-fill { order: 3; }
+    #right-sidebar #sec-stroke { order: 4; }
+    #right-sidebar #sec-effects { order: 5; }
+    #right-sidebar #sec-text { order: 6; }
+    #right-sidebar #sec-image-fill { order: 7; }
+    #right-sidebar #sec-autolayout { order: 8; }
+    #right-sidebar #sec-boolean { order: 9; }
+    #right-sidebar #sec-components { order: 10; }
+    #right-sidebar #sec-variables { order: 11; }
+    #right-sidebar #sec-styles { order: 12; }
+    #right-sidebar #sec-constraints { order: 13; }
+    #right-sidebar #sec-arrange { order: 14; }
+    #right-sidebar #sec-prototype { order: 15; }
+    #right-sidebar #sec-export { order: 20; margin-bottom: 12px; }
     .section-title {
       display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px;
       font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted-2); font-weight: 600;
@@ -182,12 +259,15 @@
     #layers-list { flex: 1; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
     .row-item {
       display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px;
-      color: #c3cad4; cursor: pointer; position: relative;
+      color: #c3cad4; cursor: grab; position: relative;
     }
+    .row-item.dragging { opacity: 0.45; cursor: grabbing; }
+    .row-item.drag-over { box-shadow: inset 0 2px 0 0 var(--accent); }
     .row-item:hover { background: var(--panel-2); }
     .row-item.active { background: var(--accent-soft); color: #cfe8ff; }
     .row-item.active .rname { color: #fff; }
     .row-item .ico { width: 15px; text-align: center; opacity: 0.75; font-size: 12px; flex-shrink: 0; }
+    .row-item .nest-pad { flex-shrink: 0; width: 0; }
     .rname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
     .rname[contenteditable="true"] { outline: 1px solid var(--accent); border-radius: 4px; padding: 0 3px; background: #000; }
     .row-item.dim .rname, .row-item.dim .ico { opacity: 0.4; }
@@ -203,32 +283,48 @@
 
     /* ---------- Workspace / canvas ---------- */
     #workspace { position: relative; min-width: 0; background: var(--canvas); overflow: hidden; }
-    #engine-frame {
+    #engine-host, #engine-frame {
       position: absolute; inset: 0; width: 100%; height: 100%;
-      border: 0; z-index: 2; background: #1e1e1e;
+      border: 0; z-index: 2; background: #1e1e1e; pointer-events: auto;
     }
-    #workspace.engine-off #engine-frame { display: none; }
+    #workspace.engine-off #engine-host,
+    #workspace.engine-off #engine-frame { display: none; pointer-events: none; }
     #workspace.engine-on #c,
     #workspace.engine-on #grid,
     #workspace.engine-on .upper-canvas,
-    #workspace.engine-on .canvas-container { opacity: 0; pointer-events: none; }
+    #workspace.engine-on .canvas-container,
+    #workspace.engine-on #ruler-h,
+    #workspace.engine-on #ruler-v,
+    #workspace.engine-on #ruler-corner { display: none !important; pointer-events: none !important; }
+    #workspace.engine-on #tool-rail,
+    #workspace.engine-on #status-strip,
+    #workspace.engine-on #zoom-menu { z-index: 30; pointer-events: auto; }
     #grid { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
     .canvas-container { position: absolute !important; inset: 0; z-index: 1; }
 
     #tool-rail {
       position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
-      display: flex; align-items: center; gap: 3px; padding: 7px 8px;
-      background: rgba(30,32,38,0.82); border: 1px solid var(--line-strong);
-      border-radius: 15px; box-shadow: var(--shadow); backdrop-filter: blur(18px) saturate(1.4);
+      display: flex; align-items: center; gap: 3px; padding: 8px 10px;
+      background:
+        linear-gradient(165deg, rgba(255,255,255,.06), transparent 45%),
+        rgba(22,24,30,0.9);
+      border: 1px solid var(--line-strong);
+      border-radius: 16px;
+      box-shadow: 0 18px 42px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.07);
+      backdrop-filter: blur(18px) saturate(1.4);
       z-index: 25;
     }
     .tool-btn {
-      width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent;
+      width: 36px; height: 36px; border-radius: 11px; border: 0; background: transparent;
       color: #aeb6c1; cursor: pointer; display: grid; place-items: center; position: relative;
+      transition: background .12s ease, color .12s ease, transform .12s ease;
     }
     .tool-btn svg { width: 18px; height: 18px; }
-    .tool-btn:hover { background: var(--hover); color: #fff; }
-    .tool-btn.active { background: linear-gradient(180deg, #1aa8ff, #0b74d6); color: #fff; box-shadow: 0 5px 14px rgba(13,153,255,0.4); }
+    .tool-btn:hover { background: var(--hover); color: #fff; transform: translateY(-1px); }
+    .tool-btn.active {
+      background: linear-gradient(180deg, #1aa8ff, #0b74d6); color: #fff;
+      box-shadow: 0 6px 16px rgba(13,153,255,0.42), inset 0 1px 0 rgba(255,255,255,.25);
+    }
     .tool-btn[data-tip]::after {
       content: attr(data-tip); position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
       background: #0c0d10; color: #fff; padding: 5px 9px; border-radius: 7px; font-size: 10.5px; white-space: nowrap;
@@ -249,7 +345,11 @@
       background: var(--panel-2); border: 1px solid transparent; border-radius: 7px;
     }
     .field:focus-within { border-color: var(--accent); background: #1a1c21; }
-    .field label { color: var(--muted-2); font-size: 10px; min-width: 12px; font-weight: 600; }
+    .field label { color: #aeb8c6; font-size: 10px; min-width: 14px; font-weight: 650; }
+    .section-title, .sec-title {
+      font-size: 10px; letter-spacing: .07em; text-transform: uppercase;
+      color: #9aa6b6; font-weight: 700; margin-bottom: 8px;
+    }
     .field input, .field select {
       width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #fff; font-size: 11.5px;
     }
@@ -261,8 +361,10 @@
       box-shadow: 0 0 0 3px rgba(13,153,255,.22);
     }
     .swatch-btn {
-      width: 24px; height: 24px; border-radius: 6px; cursor: pointer; flex-shrink: 0;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18); position: relative; overflow: hidden;
+      width: 28px; height: 28px; border-radius: 8px; cursor: pointer; flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,.22);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.25);
+      position: relative; overflow: hidden;
     }
     .swatch-btn::before {
       content:''; position:absolute; inset:0; z-index:-1;
@@ -282,11 +384,12 @@
     .recent-strip .sw { width: 18px; height: 18px; aspect-ratio: auto; }
     .align-row { display: flex; gap: 3px; }
     .align-btn {
-      flex: 1; border: 0; background: var(--panel-2); color: var(--muted); border-radius: 6px;
-      padding: 7px 0; cursor: pointer; display: grid; place-items: center;
+      flex: 1; border: 1px solid var(--line-strong); background: #252830; color: #d5dde8;
+      border-radius: 8px; padding: 8px 0; cursor: pointer; display: grid; place-items: center;
+      transition: background .12s ease, color .12s ease, border-color .12s ease;
     }
-    .align-btn:hover { background: var(--hover); color: #fff; }
-    .align-btn svg { width: 14px; height: 14px; }
+    .align-btn:hover { background: var(--hover); color: #fff; border-color: rgba(13,153,255,.55); }
+    .align-btn svg { width: 15px; height: 15px; stroke: currentColor; }
     .arrange-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     .arrange-grid .btn { text-align: center; justify-content: center; display: flex; }
     .subrow { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
@@ -532,6 +635,87 @@
 .grad-stop.active{box-shadow:0 0 0 2px var(--accent),0 0 0 1px rgba(0,0,0,.55),0 2px 8px rgba(13,153,255,.45);transform:scale(1.08);}
 .grad-stop-tools{display:flex;gap:5px;align-items:center;margin-top:6px;}
 .grad-stop-tools .mini{width:56px;}
+.effects-stack{display:flex;flex-direction:column;gap:6px;margin-top:2px;}
+.effect-row{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted);padding:7px 8px;border-radius:10px;cursor:pointer;border:1px solid transparent;position:relative;transition:background .12s,border-color .12s,color .12s;}
+.effect-row:hover{background:var(--hover);color:#e8ecf2;border-color:var(--line);}
+.effect-row.is-open{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:#dcefff;}
+.effect-row .fx-label{flex:1;font-weight:600;letter-spacing:.01em;}
+.effect-row .fx-chev{opacity:.45;font-size:10px;color:var(--muted-2);}
+.effect-row.is-open .fx-chev{opacity:.9;color:var(--accent);}
+.fx-pop{
+  display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:80;width:min(240px,92%);
+  padding:10px;border-radius:12px;border:1px solid var(--line-strong);
+  background:linear-gradient(180deg,#262830,#1b1d23);box-shadow:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(120,180,255,.08);
+  max-height:min(320px,50vh);overflow-y:auto;
+}
+.effect-row.is-open .fx-pop{display:block;}
+.effect-row.is-open.fx-pop-up .fx-pop{top:auto;bottom:calc(100% + 4px);}
+#inspector{overflow-x:hidden;overflow-y:auto;}
+.effects-stack{overflow:visible;}
+.effect-row{overflow:visible;}
+.fx-pop .fx-pop-title{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2);margin-bottom:8px;}
+.fx-pop .prop-grid{gap:6px;}
+.fx-pop .row-flex{margin-top:8px;}
+
+/* Pro craft controls — replace bare native sliders / color wells */
+input.range,input[type="range"]{
+  -webkit-appearance:none;appearance:none;height:6px;border-radius:999px;border:0;outline:none;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 70%,#1a1c22),#2a2e38);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.45);
+}
+input.range::-webkit-slider-thumb,input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff,#8fd0ff 45%,#0d99ff 100%);
+  border:2px solid #0a1a28;box-shadow:0 0 0 3px rgba(13,153,255,.28),0 4px 10px rgba(0,0,0,.45);
+  cursor:grab;
+}
+input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;border:2px solid #0a1a28;
+  background:radial-gradient(circle at 35% 30%,#fff,#8fd0ff 45%,#0d99ff 100%);
+  box-shadow:0 0 0 3px rgba(13,153,255,.28);cursor:grab;
+}
+.swatch-btn{
+  width:36px;height:28px;border-radius:9px;border:1px solid var(--line-strong);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 2px 8px rgba(0,0,0,.35);
+  cursor:pointer;position:relative;overflow:hidden;
+  background-image:linear-gradient(45deg,#2a2c32 25%,transparent 25%),linear-gradient(-45deg,#2a2c32 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#2a2c32 75%),linear-gradient(-45deg,transparent 75%,#2a2c32 75%);
+  background-size:8px 8px;background-position:0 0,0 4px,4px -4px,-4px 0;
+}
+.swatch-btn::after{content:'';position:absolute;inset:0;background:inherit;border-radius:inherit;}
+.swatch-btn.color-target-on{box-shadow:0 0 0 2px var(--accent),inset 0 0 0 1px rgba(255,255,255,.08),0 2px 10px rgba(13,153,255,.35);}
+.btn,#fx-glass,.op-btn{
+  border-radius:9px!important;border:1px solid var(--line-strong)!important;
+  background:linear-gradient(180deg,#2a2d36,#1e2026)!important;color:#e8ecf2!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 6px rgba(0,0,0,.25)!important;
+  font-weight:650!important;letter-spacing:.01em;
+}
+.btn:hover,#fx-glass:hover,.op-btn:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--line-strong))!important;background:linear-gradient(180deg,#323640,#22252c)!important;}
+.toggle{width:34px;height:20px;border-radius:999px;border:1px solid var(--line-strong);background:#15171c;position:relative;cursor:pointer;flex:0 0 auto;transition:background .15s,border-color .15s;}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#8b93a3;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .15s,background .15s;}
+.toggle.on{background:linear-gradient(90deg,#0b74d6,#1aa8ff);border-color:#0d99ff;}
+.toggle.on::after{transform:translateX(14px);background:#fff;}
+
+.bndz-color-pop{
+  position:fixed;z-index:1400;width:220px;padding:10px;border-radius:14px;
+  background:linear-gradient(180deg,#262a33,#171920);border:1px solid var(--line-strong);
+  box-shadow:0 18px 48px rgba(0,0,0,.55),0 0 0 1px rgba(120,180,255,.08);
+  display:flex;flex-direction:column;gap:8px;
+}
+.bndz-color-pop[hidden]{display:none!important}
+.bndz-cp-sv{position:relative;height:120px;border-radius:10px;border:1px solid var(--line);cursor:crosshair;
+  background:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,var(--bndz-cp-hue,#0d99ff));}
+.bndz-cp-knob{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);pointer-events:none}
+.bndz-cp-hue,.bndz-cp-alpha{-webkit-appearance:none;appearance:none;width:100%;height:10px;border-radius:999px;border:0;outline:none}
+.bndz-cp-hue{background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}
+.bndz-cp-alpha{background:linear-gradient(90deg,transparent,var(--bndz-cp-hue,#0d99ff))}
+.bndz-cp-hue::-webkit-slider-thumb,.bndz-cp-alpha::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid #222;cursor:grab}
+.bndz-cp-row{display:flex;gap:6px;align-items:center}
+.bndz-cp-row input{flex:1;border-radius:8px;border:1px solid var(--line-strong);background:#12141a;color:#fff;padding:6px 8px;font:12px/1.2 ui-monospace,monospace}
+.bndz-cp-row button{border-radius:8px;border:1px solid var(--line-strong);background:#22262f;color:#e8ecf2;padding:6px 10px;cursor:pointer;font-weight:650}
+.field input[type="number"],.field input[type="text"],.hexinput,.mini.field{
+  border-radius:8px!important;border:1px solid var(--line-strong)!important;
+  background:#14161b!important;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)!important;
+}
 
 /* ---------- Proto / export modals ---------- */
 #proto-banner{gap:10px;align-items:center;min-width:280px;}
@@ -619,7 +803,9 @@
             <div class="divider"></div>
             <button data-action="outlineStroke"><span>Outline Stroke</span></button>
             <button data-action="flatten"><span>Flatten</span></button>
+            <button data-action="convertLineToPath"><span>Convert Line → Path</span></button>
             <button data-action="editPath"><span>Edit Path Points</span><span class="kbd">Enter</span></button>
+            <button data-action="bendNode"><span>Toggle Corner / Smooth</span><span class="kbd">Ctrl+\\</span></button>
           </div>
         </div>
         <div class="menu">
@@ -639,7 +825,6 @@
     </div>
     <div id="doc-title">Untitled — Design Board</div>
     <div class="top-actions">
-      <div class="presence-bar" id="presence-bar" aria-hidden="true"></div>
       <span class="pill zoom-pill" id="zoom-label" data-action="zoomReset">100%</span>
       <button class="btn btn-accent" data-action="openExport">Export</button>
     </div>
@@ -665,13 +850,14 @@
 
     <!-- CENTER -->
     <div id="workspace" class="engine-off">
-      <iframe id="engine-frame" title="OpenPencil design engine" src="engines/openpencil/index.html" allow="clipboard-read; clipboard-write"></iframe>
+      <div id="engine-host" title="OpenPencil design engine (opt-in)"></div>
       <canvas id="grid"></canvas>
       <canvas id="c"></canvas>
       <canvas id="ruler-h"></canvas>
       <canvas id="ruler-v"></canvas>
       <div id="ruler-corner"></div>
       <div id="tool-rail"></div>
+      <div id="angle-hud" aria-hidden="true"></div>
       <div id="status-strip">
         <div id="status-zoom" title="Zoom">
           <span class="zbtn" data-zoom="out">−</span>
@@ -794,9 +980,13 @@
           <div class="field"><label>W</label><input id="p-w" type="number" step="1" /></div>
           <div class="field"><label>H</label><input id="p-h" type="number" step="1" /></div>
           <div class="field"><label>∠</label><input id="p-r" type="number" step="1" /></div>
-          <div class="field"><label>⌀</label><input id="p-radius" type="number" step="1" min="0" title="Uniform corner radius" /></div>
+          <div class="field corner-only"><label>⌀</label><input id="p-radius" type="number" step="1" min="0" title="Uniform corner radius" /></div>
         </div>
-        <div class="corner-grid" id="corner-radii">
+        <div class="prop-grid" id="line-metrics">
+          <div class="field"><label>Len</label><input id="p-line-len" type="number" step="1" min="0" title="Line length" /></div>
+          <div class="field"><label>Ang</label><input id="p-line-ang" type="number" step="1" title="Line angle degrees" /></div>
+        </div>
+        <div class="corner-grid corner-only" id="corner-radii">
           <div class="field"><label>TL</label><input id="p-r-tl" type="number" step="1" min="0" value="0" /></div>
           <div class="field"><label>TR</label><input id="p-r-tr" type="number" step="1" min="0" value="0" /></div>
           <div class="field"><label>BL</label><input id="p-r-bl" type="number" step="1" min="0" value="0" /></div>
@@ -889,6 +1079,15 @@
             <input id="grad-stop-off" class="mini field" type="number" min="0" max="100" value="0" title="Stop %" />
             <span style="color:var(--muted-2);font-size:10px">%</span>
           </div>
+          <div class="prop-grid" style="margin-top:8px">
+            <div class="field"><label>Angle</label><input id="grad-angle" type="number" min="0" max="360" value="0" title="Linear angle" /></div>
+            <div class="field"><label>FX</label><input id="grad-fx" type="number" min="0" max="100" value="50" title="Radial focal X %" /></div>
+            <div class="field"><label>FY</label><input id="grad-fy" type="number" min="0" max="100" value="50" title="Radial focal Y %" /></div>
+          </div>
+          <div class="fill-kind-seg" id="grad-target-seg" style="margin-top:8px">
+            <button type="button" data-gradtarget="fill" class="on">Fill</button>
+            <button type="button" data-gradtarget="stroke">Stroke</button>
+          </div>
         </div>
         <div class="swatch-strip" id="swatch-strip"></div>
         <div class="section-title" style="margin:12px 0 4px">Recent</div>
@@ -977,7 +1176,91 @@
 
       <div class="section" id="sec-effects">
         <div class="section-title">Effects</div>
-        <div class="subrow" style="margin-top:0">
+        <div id="effects-stack" class="effects-stack">
+          <div class="effect-row" data-fx="dropShadow">
+            <button type="button" class="toggle" id="fx-drop" title="Drop shadow"></button>
+            <span class="fx-label">Drop shadow</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="dropShadow">
+              <div class="fx-pop-title">Drop shadow</div>
+              <div class="prop-grid">
+                <div class="field"><label>Blur</label><input class="fx-p-blur" type="number" min="0" max="80" value="18" /></div>
+                <div class="field"><label>X</label><input class="fx-p-ox" type="number" value="0" /></div>
+                <div class="field"><label>Y</label><input class="fx-p-oy" type="number" value="8" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="35" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#000000" title="Color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
+          <div class="effect-row" data-fx="innerShadow">
+            <button type="button" class="toggle" id="fx-inner" title="Inner shadow"></button>
+            <span class="fx-label">Inner shadow</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="innerShadow">
+              <div class="fx-pop-title">Inner shadow</div>
+              <div class="prop-grid">
+                <div class="field"><label>Blur</label><input class="fx-p-blur" type="number" min="0" max="80" value="12" /></div>
+                <div class="field"><label>X</label><input class="fx-p-ox" type="number" value="0" /></div>
+                <div class="field"><label>Y</label><input class="fx-p-oy" type="number" value="4" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="40" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#000000" title="Color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
+          <div class="effect-row" data-fx="outerGlow">
+            <button type="button" class="toggle" id="fx-glow" title="Outer glow"></button>
+            <span class="fx-label">Outer glow</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="outerGlow">
+              <div class="fx-pop-title">Outer glow</div>
+              <div class="prop-grid">
+                <div class="field"><label>Blur</label><input class="fx-p-blur" type="number" min="0" max="80" value="22" /></div>
+                <div class="field"><label>X</label><input class="fx-p-ox" type="number" value="0" /></div>
+                <div class="field"><label>Y</label><input class="fx-p-oy" type="number" value="0" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="55" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#ffffff" title="Color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
+          <div class="effect-row" data-fx="innerGlow">
+            <button type="button" class="toggle" id="fx-iglow" title="Inner glow"></button>
+            <span class="fx-label">Inner glow</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="innerGlow">
+              <div class="fx-pop-title">Inner glow</div>
+              <div class="prop-grid">
+                <div class="field"><label>Blur</label><input class="fx-p-blur" type="number" min="0" max="80" value="14" /></div>
+                <div class="field"><label>X</label><input class="fx-p-ox" type="number" value="0" /></div>
+                <div class="field"><label>Y</label><input class="fx-p-oy" type="number" value="0" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="40" /></div>
+              </div>
+              <div class="row-flex"><input class="fx-p-color" type="color" value="#ffffff" title="Color" style="width:36px;height:28px;border:0;background:transparent;cursor:pointer" /></div>
+            </div>
+          </div>
+          <div class="effect-row" data-fx="layerBlur">
+            <button type="button" class="toggle" id="fx-blur" title="Layer blur"></button>
+            <span class="fx-label">Layer blur</span>
+            <span class="fx-chev">▾</span>
+            <div class="fx-pop" data-fx-pop="layerBlur">
+              <div class="fx-pop-title">Layer blur</div>
+              <div class="prop-grid">
+                <div class="field"><label>Blur</label><input class="fx-p-blur" type="number" min="0" max="80" value="8" /></div>
+                <div class="field"><label>Op%</label><input class="fx-p-op" type="number" min="0" max="100" value="15" /></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="prop-grid" id="fx-params" style="display:none;margin-top:8px">
+          <div class="field"><label>Blur</label><input id="fx-blur-n" type="number" min="0" max="80" value="18" /></div>
+          <div class="field"><label>X</label><input id="fx-ox" type="number" value="0" /></div>
+          <div class="field"><label>Y</label><input id="fx-oy" type="number" value="8" /></div>
+          <div class="field"><label>Op%</label><input id="fx-op" type="number" min="0" max="100" value="35" /></div>
+        </div>
+        <div class="row-flex" style="margin-top:8px;gap:6px">
+          <input id="fx-color" type="color" value="#000000" title="Effect color" style="display:none" />
+          <button type="button" class="btn" id="fx-glass" style="flex:1;padding:6px 10px;font-size:10px">Glass preset</button>
+        </div>
+        <div class="subrow" style="margin-top:8px;display:none">
           <span style="color:var(--muted)">Drop shadow</span>
           <button class="toggle" id="shadow-toggle"></button>
         </div>
@@ -997,6 +1280,18 @@
     </aside>
   </div>
 
+  <!-- In-app color popover (replaces native OS picker as primary) -->
+  <div id="bndz-color-pop" class="bndz-color-pop" hidden>
+    <div class="bndz-cp-sv" id="bndz-cp-sv"><div class="bndz-cp-knob" id="bndz-cp-svk"></div></div>
+    <input type="range" id="bndz-cp-hue" class="bndz-cp-hue" min="0" max="360" value="210" />
+    <input type="range" id="bndz-cp-alpha" class="bndz-cp-alpha" min="0" max="100" value="100" />
+    <div class="bndz-cp-row">
+      <input id="bndz-cp-hex" type="text" maxlength="7" value="#D9D9D9" />
+      <button type="button" id="bndz-cp-native" title="System picker">...</button>
+      <button type="button" id="bndz-cp-apply">Apply</button>
+    </div>
+  </div>
+
   <!-- Context menu -->
   <div id="context-menu">
     <button class="ctx-item" data-action="copy"><span>Copy</span><span class="kbd">Ctrl+C</span></button>
@@ -1006,6 +1301,8 @@
     <button class="ctx-item" data-action="copyPng"><span>Copy as PNG</span></button>
     <div class="ctx-divider"></div>
     <button class="ctx-item" data-action="outlineStroke"><span>Outline Stroke</span></button>
+    <button class="ctx-item" data-action="convertLineToPath"><span>Convert Line → Path</span></button>
+    <button class="ctx-item" data-action="editPath"><span>Edit Path Points</span></button>
     <div class="divider"></div>
     <button class="ctx-item" data-action="group"><span>Group</span><span class="kbd">Ctrl+G</span></button>
     <button class="ctx-item" data-action="ungroup"><span>Ungroup</span><span class="kbd">Ctrl+Shift+G</span></button>
@@ -1165,30 +1462,81 @@
 
   /* ---------------- Canvas ---------------- */
   const workspace = $('#workspace');
+  // Fabric is the stable default. OpenPencil is opt-in via ?engine=openpencil.
   const USE_OPENPENCIL = /engine=openpencil/i.test(location.search || '');
-  const engineFrame = $('#engine-frame');
-  function postEngine(msg) {
-    if (!USE_OPENPENCIL || !engineFrame?.contentWindow) return;
-    try { engineFrame.contentWindow.postMessage({ source: 'bndz-host', ...msg }, '*'); } catch (e) { /* ignore */ }
+  const engineHost = $('#engine-host');
+  const engineQueue = [];
+  let engineInlineReady = false;
+
+  function engineLive() {
+    return USE_OPENPENCIL && workspace.classList.contains('engine-on') && workspace.dataset.engineReady === '1';
   }
-  window.addEventListener('message', (ev) => {
-    const d = ev.data;
+  function flushEngineQueue() {
+    if (!engineLive()) return;
+    while (engineQueue.length) {
+      const msg = engineQueue.shift();
+      postEngine(msg, true);
+    }
+  }
+  function handleEngineEvent(d) {
     if (!d || d.source !== 'bndz-openpencil') return;
     if (d.type === 'ready') {
-      workspace.dataset.engineReady = '1';
+      workspace.dataset.engineReady = d.degraded ? '0' : '1';
+      if (d.degraded) {
+        workspace.classList.remove('engine-on');
+        workspace.classList.add('engine-off');
+        toast('OpenPencil canvas failed — falling back to Fabric', 'warn');
+        return;
+      }
       workspace.classList.add('engine-on');
       workspace.classList.remove('engine-off');
-      toast('OpenPencil engine ready — Pen/Line/shapes are live', 'ok');
+      engineInlineReady = true;
+      toast('OpenPencil live — Pen / Line / shapes under Figma chrome', 'ok');
+      flushEngineQueue();
       postEngine({ type: 'setTool', tool: state.tool });
       postEngine({ type: 'setStyle', stroke: state.stroke, fill: state.fill, strokeWidth: state.strokeWidth });
     }
+    if (d.type === 'error' && d.message) toast(String(d.message), 'warn');
     if (d.type === 'exported' && d.dataUrl) {
       const a = document.createElement('a');
       a.href = d.dataUrl; a.download = 'bndz-design-board.png'; a.click();
     }
-  });
-  // Default = Fabric (working Figma tools). Opt-in OpenPencil via ?engine=openpencil
-  // until interaction audits pass — never leave a dead opaque iframe over the canvas.
+  }
+  function postEngine(msg, fromQueue) {
+    if (!USE_OPENPENCIL) return;
+    const payload = { source: 'bndz-host', ...msg };
+    const inline = window.__BNDZ_OP_ENGINE__;
+    if (inline && typeof inline.handle === 'function') {
+      if (!engineInlineReady && !fromQueue && msg.type !== 'getState') {
+        engineQueue.push(msg);
+        return;
+      }
+      try { inline.handle(payload); } catch (e) { /* ignore */ }
+      return;
+    }
+    if (!engineInlineReady && !fromQueue && msg.type !== 'getState') {
+      engineQueue.push(msg);
+      return;
+    }
+  }
+  window.addEventListener('bndz-openpencil', (ev) => handleEngineEvent(ev.detail || {}));
+  function bootEngineInline() {
+    if (!USE_OPENPENCIL || !engineHost) return;
+    window.__bndzDesignBoardOnEngine = handleEngineEvent;
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.textContent = [
+      "import { mountBndzOpenPencil } from './engines/openpencil/embed.js';",
+      "mountBndzOpenPencil(document.getElementById('engine-host'), {",
+      "  onEvent(d) { window.__bndzDesignBoardOnEngine?.(d); },",
+      "}).catch(err => {",
+      "  console.error('[design-board] OpenPencil boot failed', err);",
+      "  const ws = document.getElementById('workspace');",
+      "  if (ws) { ws.classList.remove('engine-on'); ws.classList.add('engine-off'); ws.dataset.engineReady = '0'; }",
+      "});",
+    ].join('\n');
+    document.body.appendChild(s);
+  }
   if (!USE_OPENPENCIL) {
     workspace.classList.remove('engine-on');
     workspace.classList.add('engine-off');
@@ -1199,9 +1547,9 @@
       if (workspace.classList.contains('engine-on') && workspace.dataset.engineReady !== '1') {
         workspace.classList.remove('engine-on');
         workspace.classList.add('engine-off');
-        toast('OpenPencil failed to start — using Fabric tools', 'warn');
+        toast('OpenPencil timed out — Fabric fallback (reload to retry engine)', 'warn');
       }
-    }, 5000);
+    }, 20000);
   }
   const gridCanvas = $('#grid');
   const canvas = new fabric.Canvas('c', {
@@ -1228,7 +1576,8 @@
     'rTL', 'rTR', 'rBR', 'rBL', 'imageFillMode', 'placeBoxW', 'placeBoxH', 'placeBoxLeft', 'placeBoxTop',
     'commentThread', 'commentResolved', 'protoTo', 'protoPageId', 'protoTrigger', 'protoTransition',
     'isComponent', 'componentId', 'isInstance', 'instanceMasterJson', 'overrideSnapshot',
-    'pathEditPts', 'pathClosed', 'textTruncate', 'otLiga', 'otTnum', 'otSmcp', 'textFull'];
+    'pathEditPts', 'pathClosed', 'textTruncate', 'otLiga', 'otTnum', 'otSmcp', 'textFull',
+    'bndzEffects', 'gradAngle', 'gradFocalX', 'gradFocalY', 'isBootFrame', 'isBoardLine'];
 
   /* ---------------- State ---------------- */
   const state = {
@@ -1237,6 +1586,9 @@
     fillKind: 'solid',
     gradStops: [{ offset: 0, color: '#D9D9D9' }, { offset: 1, color: '#4A5568' }],
     gradActive: 0,
+    gradAngle: 0,
+    gradFocalX: 0.5,
+    gradFocalY: 0.5,
     stroke: '#FFFFFF', strokeWidth: 2,
     colorTarget: 'fill', // 'fill' | 'stroke' — swatches / eyedropper land here
     strokeCap: 'round', strokeJoin: 'round', dash: 'solid',
@@ -1246,7 +1598,11 @@
     rulersOn: false,
     protoTrigger: 'click',
     protoTransition: 'instant',
+    altHeld: false,
   };
+  const DRAW_STICKY = { line: 1, arrow: 1, rect: 1, ellipse: 1, polygon: 1, star: 1, pen: 1, pencil: 1 };
+  let hoverNodePreview = null; // temporary endpoint/mid guides
+  let nodeEditHint = '';
   const DASH_MAP = { solid: null, dashed: [8, 5], dotted: [1.5, 4] };
   function dashArrayFor(kind, w) {
     if (kind === 'dashed') return [Math.max(4, w * 3), Math.max(3, w * 2)];
@@ -1404,32 +1760,245 @@
     if (stops.length < 2) {
       stops.push({ offset: 0, color: state.fill }, { offset: 1, color: '#000000' });
     }
+    const angle = ((state.gradAngle || 0) % 360) * Math.PI / 180;
+    const fx = Math.max(0, Math.min(1, state.gradFocalX != null ? state.gradFocalX : 0.5));
+    const fy = Math.max(0, Math.min(1, state.gradFocalY != null ? state.gradFocalY : 0.5));
     if (state.fillKind === 'radial') {
       const r = Math.max(w, h) / 2;
+      const cx = w * fx, cy = h * fy;
       return new fabric.Gradient({
         type: 'radial',
         gradientUnits: 'pixels',
-        coords: { x1: w / 2, y1: h / 2, r1: 0, x2: w / 2, y2: h / 2, r2: r },
+        coords: { x1: cx, y1: cy, r1: 0, x2: cx, y2: cy, r2: r },
         colorStops: stops,
       });
     }
+    // Linear from center along angle
+    const cx = w / 2, cy = h / 2;
+    const len = Math.max(w, h) / 2;
+    const dx = Math.cos(angle) * len, dy = Math.sin(angle) * len;
     return new fabric.Gradient({
       type: 'linear',
       gradientUnits: 'pixels',
-      coords: { x1: 0, y1: 0, x2: w, y2: 0 },
+      coords: { x1: cx - dx, y1: cy - dy, x2: cx + dx, y2: cy + dy },
       colorStops: stops,
+      bndzAngle: state.gradAngle || 0,
+      bndzFocalX: fx,
+      bndzFocalY: fy,
     });
   }
 
   function applyFillToSelection(soon) {
-    const objs = canvas.getActiveObjects().filter((o) => !o.isGuide && o.fill !== undefined);
+    const target = state.colorTarget === 'stroke' ? 'stroke' : 'fill';
+    const objs = canvas.getActiveObjects().filter((o) => !o.isGuide && (target === 'fill' ? o.fill !== undefined : o.stroke !== undefined));
     if (!objs.length) return;
     objs.forEach((o) => {
-      if (state.fillKind === 'solid') o.set('fill', rgba(state.fill, state.fillAlpha));
-      else o.set('fill', buildGradientForObject(o));
+      if (state.fillKind === 'solid') {
+        if (target === 'stroke') o.set('stroke', state.stroke);
+        else o.set('fill', rgba(state.fill, state.fillAlpha));
+      } else {
+        const g = buildGradientForObject(o);
+        o.set(target, g);
+        o.gradAngle = state.gradAngle;
+        o.gradFocalX = state.gradFocalX;
+        o.gradFocalY = state.gradFocalY;
+      }
     });
     canvas.requestRenderAll();
     soon ? pushHistorySoon() : pushHistory();
+  }
+
+  function defaultFx(type) {
+    return {
+      type,
+      enabled: true,
+      color: '#000000',
+      blur: type.indexOf('Glow') >= 0 ? 22 : 18,
+      offsetX: type === 'dropShadow' ? 0 : 0,
+      offsetY: type === 'dropShadow' ? 8 : 0,
+      opacity: type.indexOf('Glow') >= 0 ? 0.55 : 0.35,
+    };
+  }
+  function getBndzEffects(o) {
+    if (!o) return [];
+    if (!Array.isArray(o.bndzEffects)) o.bndzEffects = [];
+    return o.bndzEffects;
+  }
+  function applyEffectsToObject(o) {
+    if (!o) return;
+    const list = getBndzEffects(o).filter((f) => f && f.enabled);
+    // Fabric supports one shadow — compose strongest drop/glow into shadow; approximate others
+    const drop = list.find((f) => f.type === 'dropShadow');
+    const glow = list.find((f) => f.type === 'outerGlow');
+    const blur = list.find((f) => f.type === 'layerBlur');
+    const inner = list.find((f) => f.type === 'innerShadow' || f.type === 'innerGlow');
+    if (drop || glow || blur) {
+      const src = drop || glow || blur;
+      const op = src.opacity != null ? src.opacity : 0.35;
+      const hex = src.color || '#000000';
+      const rgbaC = hex.length === 7
+        ? 'rgba(' + parseInt(hex.slice(1, 3), 16) + ',' + parseInt(hex.slice(3, 5), 16) + ',' + parseInt(hex.slice(5, 7), 16) + ',' + op + ')'
+        : hex;
+      o.set('shadow', new fabric.Shadow({
+        color: rgbaC,
+        blur: (src.blur || 18) + (blur && drop ? (blur.blur || 0) * 0.35 : 0),
+        offsetX: drop ? (drop.offsetX || 0) : 0,
+        offsetY: drop ? (drop.offsetY || 0) : 0,
+        affectStroke: !!glow,
+      }));
+    } else {
+      o.set('shadow', null);
+    }
+    // Inner glow/shadow approximated via stroke highlight — never lose the real stroke permanently
+    if (inner) {
+      const op = inner.opacity != null ? inner.opacity : 0.4;
+      o._bndzInnerFx = true;
+      if (o._bndzPrevStroke === undefined) o._bndzPrevStroke = o.stroke;
+      if (o._bndzPrevStrokeWidth === undefined) o._bndzPrevStrokeWidth = o.strokeWidth;
+      if (inner.type === 'innerGlow') {
+        o.set('stroke', inner.color || '#ffffff');
+        o.set('strokeWidth', Math.max(o.strokeWidth || 1, 1.5));
+      }
+    } else if (o._bndzInnerFx) {
+      o._bndzInnerFx = false;
+      if (o._bndzPrevStroke !== undefined) o.set('stroke', o._bndzPrevStroke);
+      if (o._bndzPrevStrokeWidth !== undefined) o.set('strokeWidth', o._bndzPrevStrokeWidth);
+      delete o._bndzPrevStroke;
+      delete o._bndzPrevStrokeWidth;
+    }
+    o.dirty = true;
+  }
+  function toggleEffect(type) {
+    const a = canvas.getActiveObject();
+    if (!a) return toast('Select an object');
+    const list = getBndzEffects(a);
+    const idx = list.findIndex((f) => f.type === type);
+    const row = document.querySelector('#effects-stack .effect-row[data-fx="' + type + '"]');
+    if (idx >= 0) {
+      list[idx].enabled = !list[idx].enabled;
+      if (list[idx].enabled && row) {
+        // Seed enabled effect from its popover
+        const b = row.querySelector('.fx-p-blur'); if (b) list[idx].blur = +b.value || list[idx].blur;
+        const ox = row.querySelector('.fx-p-ox'); if (ox) list[idx].offsetX = +ox.value || 0;
+        const oy = row.querySelector('.fx-p-oy'); if (oy) list[idx].offsetY = +oy.value || 0;
+        const op = row.querySelector('.fx-p-op'); if (op) list[idx].opacity = (+op.value || 35) / 100;
+        const c = row.querySelector('.fx-p-color'); if (c) list[idx].color = c.value;
+      }
+    } else {
+      const fx = defaultFx(type);
+      if (row) {
+        const b = row.querySelector('.fx-p-blur'); if (b) fx.blur = +b.value || fx.blur;
+        const ox = row.querySelector('.fx-p-ox'); if (ox) fx.offsetX = +ox.value || 0;
+        const oy = row.querySelector('.fx-p-oy'); if (oy) fx.offsetY = +oy.value || 0;
+        const op = row.querySelector('.fx-p-op'); if (op) fx.opacity = (+op.value || 35) / 100;
+        const c = row.querySelector('.fx-p-color'); if (c) fx.color = c.value;
+      }
+      list.push(fx);
+    }
+    a.bndzEffects = list;
+    applyEffectsToObject(a);
+    syncEffectsInspector();
+    canvas.requestRenderAll();
+    pushHistory();
+  }
+  function syncEffectsInspector() {
+    const a = canvas.getActiveObject();
+    const list = a ? getBndzEffects(a) : [];
+    const has = (t) => list.some((f) => f.type === t && f.enabled);
+    const map = { 'fx-drop': 'dropShadow', 'fx-inner': 'innerShadow', 'fx-glow': 'outerGlow', 'fx-iglow': 'innerGlow', 'fx-blur': 'layerBlur' };
+    Object.keys(map).forEach((id) => {
+      const el = $('#' + id);
+      if (el) el.classList.toggle('on', has(map[id]));
+    });
+    const st = $('#shadow-toggle');
+    if (st) st.classList.toggle('on', has('dropShadow') || !!(a && a.shadow));
+    // Mirror each effect's params into its popover controls
+    $$('#effects-stack .effect-row').forEach((row) => {
+      const type = row.dataset.fx;
+      const fx = list.find((f) => f.type === type) || defaultFx(type);
+      const blur = row.querySelector('.fx-p-blur');
+      const ox = row.querySelector('.fx-p-ox');
+      const oy = row.querySelector('.fx-p-oy');
+      const op = row.querySelector('.fx-p-op');
+      const c = row.querySelector('.fx-p-color');
+      if (blur) blur.value = fx.blur || 18;
+      if (ox) ox.value = fx.offsetX || 0;
+      if (oy) oy.value = fx.offsetY || 0;
+      if (op) op.value = Math.round((fx.opacity != null ? fx.opacity : 0.35) * 100);
+      if (c && fx.color && fx.color.length === 7) c.value = fx.color;
+    });
+    const primary = list.find((f) => f.enabled) || list[0];
+    if (primary) {
+      const b = $('#fx-blur-n'); if (b) b.value = primary.blur || 18;
+      const ox = $('#fx-ox'); if (ox) ox.value = primary.offsetX || 0;
+      const oy = $('#fx-oy'); if (oy) oy.value = primary.offsetY || 0;
+      const op = $('#fx-op'); if (op) op.value = Math.round((primary.opacity != null ? primary.opacity : 0.35) * 100);
+      const c = $('#fx-color'); if (c && primary.color) c.value = primary.color.length === 7 ? primary.color : '#000000';
+    }
+  }
+  function updateEffectParamsForType(type) {
+    const a = canvas.getActiveObject();
+    if (!a || !type) return;
+    const list = getBndzEffects(a);
+    let fx = list.find((f) => f.type === type);
+    if (!fx) {
+      fx = defaultFx(type);
+      fx.enabled = false;
+      list.push(fx);
+      a.bndzEffects = list;
+    }
+    const row = document.querySelector('#effects-stack .effect-row[data-fx="' + type + '"]');
+    if (!row) return;
+    const b = row.querySelector('.fx-p-blur'); if (b) fx.blur = +b.value || 0;
+    const ox = row.querySelector('.fx-p-ox'); if (ox) fx.offsetX = +ox.value || 0;
+    const oy = row.querySelector('.fx-p-oy'); if (oy) fx.offsetY = +oy.value || 0;
+    const op = row.querySelector('.fx-p-op'); if (op) fx.opacity = (+op.value || 0) / 100;
+    const c = row.querySelector('.fx-p-color'); if (c) fx.color = c.value;
+    if (fx.enabled) {
+      applyEffectsToObject(a);
+      canvas.requestRenderAll();
+      pushHistorySoon();
+    }
+  }
+  function updateActiveEffectParams() {
+    const open = document.querySelector('#effects-stack .effect-row.is-open');
+    if (open && open.dataset.fx) {
+      updateEffectParamsForType(open.dataset.fx);
+      return;
+    }
+    const a = canvas.getActiveObject();
+    if (!a) return;
+    const list = getBndzEffects(a);
+    const active = list.find((f) => f.enabled) || list[list.length - 1];
+    if (!active) return;
+    const b = $('#fx-blur-n'); if (b) active.blur = +b.value || 0;
+    const ox = $('#fx-ox'); if (ox) active.offsetX = +ox.value || 0;
+    const oy = $('#fx-oy'); if (oy) active.offsetY = +oy.value || 0;
+    const op = $('#fx-op'); if (op) active.opacity = (+op.value || 0) / 100;
+    const c = $('#fx-color'); if (c) active.color = c.value;
+    applyEffectsToObject(a);
+    canvas.requestRenderAll();
+    pushHistorySoon();
+  }
+  function applyGlassPreset() {
+    const a = canvas.getActiveObject();
+    if (!a) return toast('Select an object');
+    a.set({
+      fill: 'rgba(255,255,255,0.14)',
+      stroke: 'rgba(255,255,255,0.42)',
+      strokeWidth: Math.max(1, a.strokeWidth || 1),
+      opacity: 1,
+    });
+    a.bndzEffects = [
+      { type: 'dropShadow', enabled: true, color: '#000000', blur: 28, offsetX: 0, offsetY: 10, opacity: 0.28 },
+      { type: 'outerGlow', enabled: true, color: '#ffffff', blur: 16, offsetX: 0, offsetY: 0, opacity: 0.22 },
+      { type: 'layerBlur', enabled: true, color: '#ffffff', blur: 8, offsetX: 0, offsetY: 0, opacity: 0.15 },
+    ];
+    applyEffectsToObject(a);
+    syncEffectsInspector();
+    canvas.requestRenderAll();
+    pushHistory();
+    toast('Glass preset applied');
   }
 
   function renderGradEditor() {
@@ -1733,21 +2302,41 @@
 
   /* ---------------- Tools ---------------- */
   function setTool(tool) {
-    if (tool !== 'pen' && penPoints.length) finishPen(false);
+    if (tool !== 'pen' && penPoints.length) {
+      finishPen(false, { enterEdit: tool === 'select' });
+    }
     if (tool !== 'select') clearPathEdit();
     clearLineEndpoints();
+    clearHoverNodes();
+    nodeEditHint = '';
     state.tool = tool;
     $$('.tool-btn').forEach((b) => b.classList.toggle('active', b.dataset.tool === tool));
     const strokeTools = { line: 1, arrow: 1, pen: 1, pencil: 1, eraser: 1 };
     const fillTools = { rect: 1, ellipse: 1, polygon: 1, star: 1, frame: 1, text: 1 };
     if (strokeTools[tool]) setColorTarget('stroke');
     else if (fillTools[tool]) setColorTarget('fill');
+    // OpenPencil owns tools only when the engine is actually live — never dead-zone Fabric.
+    if (engineLive()) {
+      canvas.isDrawingMode = false;
+      canvas.selection = false;
+      canvas.skipTargetFind = true;
+      canvas.discardActiveObject();
+      canvas.requestRenderAll();
+      updateStatus();
+      postEngine({ type: 'setTool', tool });
+      postEngine({ type: 'setStyle', stroke: state.stroke, fill: state.fill, strokeWidth: state.strokeWidth });
+      if (tool === 'pen') toast('Pen · OpenPencil vector pen', 'ok');
+      if (tool === 'line') toast('Line · OpenPencil LINE', 'ok');
+      if (tool === 'pencil') toast('Pencil · OpenPencil Pen freehand', 'ok');
+      return;
+    }
     const drawing = tool === 'pencil' || tool === 'eraser';
     canvas.isDrawingMode = drawing;
     canvas.selection = tool === 'select';
-    canvas.skipTargetFind = tool !== 'select' && tool !== 'pen';
+    // Pen/line/shape draw tools must not steal clicks into object selection
+    canvas.skipTargetFind = tool !== 'select';
     canvas.defaultCursor = (tool === 'hand') ? 'grab' : (tool === 'select' ? 'default' : (tool === 'text' ? 'text' : 'crosshair'));
-    if (tool !== 'select' && tool !== 'pen') { canvas.discardActiveObject(); canvas.requestRenderAll(); }
+    if (tool !== 'select') { canvas.discardActiveObject(); canvas.requestRenderAll(); }
     if (drawing) {
       const brush = new fabric.PencilBrush(canvas);
       canvas.freeDrawingBrush = brush;
@@ -1755,20 +2344,33 @@
     }
     updateStatus();
     postEngine({ type: 'setTool', tool });
-    if (tool === 'pen') toast('Pen · OpenPencil nodes + bend handles · Enter finish · Esc cancel', 'ok');
-    if (tool === 'line') toast('Line · OpenPencil LINE tool · Shift snaps', 'ok');
-    if (tool === 'pencil') toast('Pencil · mapped to Pen freehand in OpenPencil', 'ok');
+    if (tool === 'pen') toast('Pen · sharp corners · Alt-drag to curve · Enter finish · Esc cancel', 'ok');
+    if (tool === 'line') toast('Line · Shift snaps', 'ok');
+    if (tool === 'pencil') toast('Pencil · freehand', 'ok');
   }
 
   const TOOL_LABEL = { select: 'Move', hand: 'Hand', frame: 'Frame', rect: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', polygon: 'Polygon', star: 'Star', text: 'Text', pen: 'Pen', pencil: 'Pencil', eraser: 'Eraser', comment: 'Comment', image: 'Image' };
   function updateStatus() {
     const t = $('#status-tool'); if (t) t.textContent = TOOL_LABEL[state.tool] || state.tool;
     const s = $('#status-sel'); if (!s) return;
+    if (nodeEditHint) {
+      s.textContent = nodeEditHint;
+      return;
+    }
     const objs = canvas.getActiveObjects().filter((o) => !o.isGuide);
     if (!objs.length) { s.innerHTML = 'Nothing selected'; return; }
     if (objs.length === 1) {
       const a = objs[0];
-      s.innerHTML = '<b>' + (a.name || a.type) + '</b> · ' + Math.round(a.getScaledWidth()) + '×' + Math.round(a.getScaledHeight());
+      if (a.type === 'line' || a.isBoardLine) {
+        const pts = (typeof getLineAbsPoints === 'function') ? getLineAbsPoints(a) : null;
+        const x1 = pts ? pts.p1.x : a.x1, y1 = pts ? pts.p1.y : a.y1;
+        const x2 = pts ? pts.p2.x : a.x2, y2 = pts ? pts.p2.y : a.y2;
+        const len = Math.round(Math.hypot(x2 - x1, y2 - y1));
+        const ang = Math.round((((Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI) + 360) % 360);
+        s.innerHTML = '<b>' + (a.name || 'Line') + '</b> · ' + len + 'px · ' + ang + '°';
+      } else {
+        s.innerHTML = '<b>' + (a.name || a.type) + '</b> · ' + Math.round(a.getScaledWidth()) + '×' + Math.round(a.getScaledHeight());
+      }
     } else {
       s.innerHTML = '<b>' + objs.length + '</b> selected';
     }
@@ -1798,7 +2400,21 @@
   }
   function newRect(x, y) { return new fabric.Rect(Object.assign({ left: x, top: y, width: 1, height: 1, fill: rgba(state.fill, state.fillAlpha), stroke: state.stroke, strokeWidth: state.strokeWidth, rx: 0, ry: 0, strokeUniform: true }, strokeExtras())); }
   function newEllipse(x, y) { return new fabric.Ellipse(Object.assign({ left: x, top: y, rx: 1, ry: 1, fill: rgba(state.fill, state.fillAlpha), stroke: state.stroke, strokeWidth: state.strokeWidth, strokeUniform: true }, strokeExtras())); }
-  function newLine(x, y) { return new fabric.Line([x, y, x, y], Object.assign({ stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1, state.strokeWidth), strokeUniform: true, fill: '', perPixelTargetFind: true, isBoardLine: true }, strokeExtras())); }
+  function newLine(x, y) {
+    return new fabric.Line([x, y, x, y], Object.assign({
+      stroke: state.stroke || '#FFFFFF',
+      strokeWidth: Math.max(1, state.strokeWidth),
+      strokeUniform: true,
+      fill: '',
+      perPixelTargetFind: true,
+      isBoardLine: true,
+      hasControls: false,
+      hasBorders: false,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockRotation: true,
+    }, strokeExtras()));
+  }
   function newFrame(x, y) { return new fabric.Rect({ left: x, top: y, width: 1, height: 1, fill: '#FFFFFF', stroke: '#2c313a', strokeWidth: 1, isFrame: true, frameClip: true, strokeUniform: true, shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.35)', blur: 26, offsetX: 0, offsetY: 12 }) }); }
 
   function polygonPts(sides, r) {
@@ -1925,6 +2541,57 @@
 
   /* ---------------- Pen tool (Figma-style node chaining) + line endpoints ---------------- */
   let lineEnds = null; // { line, h1, h2 }
+  const angleHud = $('#angle-hud');
+  function showAngleHud(sx, sy, ex, ey, clientX, clientY) {
+    if (!angleHud) return;
+    const deg = Math.round((((Math.atan2(ey - sy, ex - sx) * 180) / Math.PI) + 360) % 360);
+    const len = Math.round(Math.hypot(ex - sx, ey - sy));
+    angleHud.textContent = deg + '° · ' + len + 'px';
+    const wr = workspace.getBoundingClientRect();
+    angleHud.style.left = Math.max(8, Math.min(wr.width - 120, (clientX - wr.left) + 14)) + 'px';
+    angleHud.style.top = Math.max(8, Math.min(wr.height - 36, (clientY - wr.top) + 14)) + 'px';
+    angleHud.classList.add('show');
+  }
+  function hideAngleHud() {
+    angleHud?.classList.remove('show');
+  }
+  function snapLineAngle(sx, sy, ex, ey) {
+    const a = Math.atan2(ey - sy, ex - sx);
+    const snap = Math.round(a / (Math.PI / 4)) * (Math.PI / 4);
+    const len = Math.hypot(ex - sx, ey - sy);
+    return { x: sx + Math.cos(snap) * len, y: sy + Math.sin(snap) * len, deg: Math.round((((snap * 180) / Math.PI) + 360) % 360) };
+  }
+  /** Fabric Line: x1/y1/x2/y2 are NOT live canvas coords after move. Resolve via transform matrix. */
+  function getLineAbsPoints(line) {
+    if (!line || line.type !== 'line') return null;
+    try {
+      if (typeof line.calcLinePoints === 'function' && fabric.util && typeof fabric.util.transformPoint === 'function') {
+        const p = line.calcLinePoints();
+        const m = line.calcTransformMatrix();
+        return {
+          p1: fabric.util.transformPoint({ x: p.x1, y: p.y1 }, m),
+          p2: fabric.util.transformPoint({ x: p.x2, y: p.y2 }, m),
+        };
+      }
+    } catch (err) { /* fall through */ }
+    return { p1: { x: line.x1, y: line.y1 }, p2: { x: line.x2, y: line.y2 } };
+  }
+  function setLineAbsPoints(line, p1, p2) {
+    line.set({
+      x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+      scaleX: 1, scaleY: 1, angle: 0, skewX: 0, skewY: 0,
+    });
+    line.setCoords();
+  }
+  function syncLineEndpointHandles() {
+    if (!lineEnds || !lineEnds.line) return;
+    const pts = getLineAbsPoints(lineEnds.line);
+    if (!pts) return;
+    lineEnds.h1.set({ left: pts.p1.x, top: pts.p1.y });
+    lineEnds.h2.set({ left: pts.p2.x, top: pts.p2.y });
+    lineEnds.h1.setCoords();
+    lineEnds.h2.setCoords();
+  }
   function clearLineEndpoints() {
     if (!lineEnds) return;
     [lineEnds.h1, lineEnds.h2].forEach((h) => { try { canvas.remove(h); } catch (e) {} });
@@ -1933,24 +2600,137 @@
   function attachLineEndpoints(line) {
     clearLineEndpoints();
     if (!line || line.type !== 'line') return;
+    // Normalize stale x1..y2 after body-drags into absolute endpoints, then re-bake.
+    const live = getLineAbsPoints(line);
+    if (live) setLineAbsPoints(line, live.p1, live.p2);
+    line.set({
+      isBoardLine: true,
+      hasControls: false,
+      hasBorders: false,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockRotation: true,
+    });
+    const pts = getLineAbsPoints(line) || { p1: { x: line.x1, y: line.y1 }, p2: { x: line.x2, y: line.y2 } };
     const mk = (x, y, which) => {
       const h = new fabric.Circle({
-        left: x, top: y, originX: 'center', originY: 'center', radius: 5,
+        left: x, top: y, originX: 'center', originY: 'center', radius: 8,
         fill: '#fff', stroke: '#0d99ff', strokeWidth: 2, hasControls: false, hasBorders: false,
-        isGuide: true, excludeFromExport: true, __lineEnd: which, hoverCursor: 'crosshair',
+        isGuide: true, excludeFromExport: true, __lineEnd: which, hoverCursor: 'crosshair', padding: 12,
+        // Keep line selected while dragging endpoints — Fabric would otherwise
+        // select the circle and selection:updated would clear lineEnds mid-drag.
+        selectable: true, evented: true, objectCaching: false,
       });
-      h.on('moving', () => {
-        if (which === 1) line.set({ x1: h.left, y1: h.top });
-        else line.set({ x2: h.left, y2: h.top });
-        line.setCoords();
+      h.on('moving', (opt) => {
+        if (!lineEnds) return;
+        const cur = getLineAbsPoints(line);
+        if (!cur) return;
+        let nx = h.left, ny = h.top;
+        const ax = which === 1 ? cur.p2.x : cur.p1.x;
+        const ay = which === 1 ? cur.p2.y : cur.p1.y;
+        if (opt?.e?.shiftKey) {
+          const sn = snapLineAngle(ax, ay, nx, ny);
+          nx = sn.x; ny = sn.y;
+          h.set({ left: nx, top: ny });
+          showAngleHud(ax, ay, nx, ny, opt.e.clientX, opt.e.clientY);
+        } else {
+          hideAngleHud();
+        }
+        const mag = magneticSnapPoint(nx, ny, line);
+        if (mag && !opt?.e?.shiftKey) { nx = mag.x; ny = mag.y; h.set({ left: nx, top: ny }); }
+        if (which === 1) setLineAbsPoints(line, { x: nx, y: ny }, cur.p2);
+        else setLineAbsPoints(line, cur.p1, { x: nx, y: ny });
+        // Keep opposite handle locked to the live opposite endpoint
+        if (which === 1) {
+          lineEnds.h2.set({ left: cur.p2.x, top: cur.p2.y });
+          lineEnds.h2.setCoords();
+        } else {
+          lineEnds.h1.set({ left: cur.p1.x, top: cur.p1.y });
+          lineEnds.h1.setCoords();
+        }
         canvas.requestRenderAll();
+        syncLineMetrics(line);
       });
-      h.on('modified', () => pushHistory());
+      h.on('mouseup', () => {
+        hideAngleHud();
+        try { canvas.setActiveObject(line); } catch (e) {}
+      });
+      h.on('modified', () => {
+        hideAngleHud();
+        try { canvas.setActiveObject(line); } catch (e) {}
+        pushHistory();
+        syncInspector();
+      });
       canvas.add(h); canvas.bringToFront(h);
       return h;
     };
-    lineEnds = { line, h1: mk(line.x1, line.y1, 1), h2: mk(line.x2, line.y2, 2) };
+    lineEnds = { line, h1: mk(pts.p1.x, pts.p1.y, 1), h2: mk(pts.p2.x, pts.p2.y, 2) };
     canvas.requestRenderAll();
+  }
+  function syncLineMetrics(line) {
+    if (!line || line.type !== 'line') return;
+    const pts = getLineAbsPoints(line);
+    if (!pts) return;
+    const len = Math.hypot(pts.p2.x - pts.p1.x, pts.p2.y - pts.p1.y);
+    const ang = (((Math.atan2(pts.p2.y - pts.p1.y, pts.p2.x - pts.p1.x) * 180) / Math.PI) + 360) % 360;
+    const lenEl = $('#p-line-len');
+    const angEl = $('#p-line-ang');
+    if (lenEl) lenEl.value = String(Math.round(len));
+    if (angEl) angEl.value = String(Math.round(ang));
+  }
+  function applyLineMetricsFromInputs() {
+    const line = canvas.getActiveObject();
+    if (!line || line.type !== 'line') return;
+    const pts = getLineAbsPoints(line);
+    if (!pts) return;
+    const lenEl = $('#p-line-len');
+    const angEl = $('#p-line-ang');
+    const curLen = Math.hypot(pts.p2.x - pts.p1.x, pts.p2.y - pts.p1.y);
+    const len = Math.max(1, +(lenEl && lenEl.value) || curLen);
+    const ang = ((((+(angEl && angEl.value) || 0) % 360) + 360) % 360) * Math.PI / 180;
+    const cx = (pts.p1.x + pts.p2.x) / 2;
+    const cy = (pts.p1.y + pts.p2.y) / 2;
+    const hx = Math.cos(ang) * len / 2;
+    const hy = Math.sin(ang) * len / 2;
+    setLineAbsPoints(line, { x: cx - hx, y: cy - hy }, { x: cx + hx, y: cy + hy });
+    attachLineEndpoints(line);
+    canvas.requestRenderAll();
+    pushHistory();
+  }
+  function convertLineToPath(target) {
+    const line = target || canvas.getActiveObject();
+    if (!line || line.type !== 'line') return toast('Select a line');
+    const abs = getLineAbsPoints(line);
+    if (!abs) return toast('Invalid line');
+    const pts = [
+      { x: abs.p1.x, y: abs.p1.y },
+      { x: abs.p2.x, y: abs.p2.y },
+    ];
+    const d = pathDataFromPts(pts, false);
+    const path = new fabric.Path(d, {
+      fill: '',
+      stroke: line.stroke || '#FFFFFF',
+      strokeWidth: line.strokeWidth || 1.5,
+      strokeUniform: true,
+      strokeLineJoin: line.strokeLineJoin || 'round',
+      strokeLineCap: line.strokeLineCap || 'round',
+      strokeDashArray: line.strokeDashArray || null,
+      opacity: line.opacity == null ? 1 : line.opacity,
+      pathEditPts: pts.map((p) => ({ ...p })),
+      pathClosed: false,
+      objectCaching: false,
+      name: (line.name || 'Line') + ' path',
+      id: uid(),
+    });
+    clearLineEndpoints();
+    const idx = canvas.getObjects().indexOf(line);
+    canvas.remove(line);
+    if (idx >= 0) canvas.insertAt(path, idx, false); else canvas.add(path);
+    canvas.setActiveObject(path);
+    enterPathEdit(path);
+    updateLayers(); syncInspector(); pushHistory();
+    toast('Line converted — edit nodes');
+    return path;
   }
   function clearPen() {
     if (penTemp) { canvas.remove(penTemp); penTemp = null; }
@@ -1958,19 +2738,152 @@
     penHandles.forEach((a) => canvas.remove(a)); penHandles = [];
     penPoints = []; canvas.requestRenderAll();
   }
+  function clonePathPt(p) {
+    return {
+      x: p.x, y: p.y,
+      inX: p.inX, inY: p.inY, outX: p.outX, outY: p.outY,
+      nodeType: p.nodeType || ((p.inX != null || p.outX != null) ? 'smooth' : 'corner'),
+    };
+  }
+  function clonePathPts(pts) {
+    return (pts || []).map(clonePathPt);
+  }
+  /** Migrate legacy quadratic cx/cy into cubic in/out (canonical Figma-style model). */
+  function normalizePathPtsCubic(pts) {
+    const out = clonePathPts(pts);
+    for (let i = 1; i < out.length; i++) {
+      const prev = out[i - 1], pt = out[i];
+      if (pt.cx != null && pt.cy != null && pt.inX == null && prev.outX == null) {
+        // Q(c, end) ≈ C(prev + 2/3(c-prev), end + 2/3(c-end), end)
+        prev.outX = prev.x + (2 / 3) * (pt.cx - prev.x);
+        prev.outY = prev.y + (2 / 3) * (pt.cy - prev.y);
+        pt.inX = pt.x + (2 / 3) * (pt.cx - pt.x);
+        pt.inY = pt.y + (2 / 3) * (pt.cy - pt.y);
+        prev.nodeType = 'smooth';
+        pt.nodeType = 'smooth';
+      }
+      delete pt.cx; delete pt.cy;
+    }
+    if (out[0]) { delete out[0].cx; delete out[0].cy; }
+    return out;
+  }
+  function translatePathPts(pts, dx, dy) {
+    if (!dx && !dy) return pts;
+    (pts || []).forEach((p) => {
+      p.x += dx; p.y += dy;
+      if (p.inX != null) p.inX += dx;
+      if (p.inY != null) p.inY += dy;
+      if (p.outX != null) p.outX += dx;
+      if (p.outY != null) p.outY += dy;
+    });
+    return pts;
+  }
+  function pathHasNonIdentityTransform(path) {
+    if (!path) return false;
+    const sx = path.scaleX == null ? 1 : path.scaleX;
+    const sy = path.scaleY == null ? 1 : path.scaleY;
+    const ang = path.angle || 0;
+    return Math.abs(sx - 1) > 1e-4 || Math.abs(sy - 1) > 1e-4 || Math.abs(ang) > 1e-3;
+  }
+  /**
+   * Bake scale/rotate into world-space pathEditPts and recreate path at identity transform
+   * so node handles always sit on the visible stroke.
+   */
+  function bakePathWorldGeometry(path) {
+    if (!path || path.type !== 'path') return path;
+    let pts = path.pathEditPts;
+    if (!pts || !pts.length) {
+      pts = derivePathEditPtsFromCmds(path);
+    } else if (pathHasNonIdentityTransform(path)) {
+      const mtx = path.calcTransformMatrix();
+      const offset = path.pathOffset || { x: 0, y: 0 };
+      // pathEditPts are already world-space when scale=1; when scaled via bbox, Fabric
+      // scales the path cmds but leaves pathEditPts at pre-scale world coords — re-derive.
+      pts = derivePathEditPtsFromCmds(path);
+    } else {
+      pts = normalizePathPtsCubic(pts);
+    }
+    pts = normalizePathPtsCubic(pts);
+    if (pts.length < 2) {
+      path.pathEditPts = pts;
+      return path;
+    }
+    const d = pathDataFromPts(pts, !!path.pathClosed);
+    const props = {
+      fill: path.fill, stroke: path.stroke, strokeWidth: path.strokeWidth,
+      strokeUniform: true, strokeLineJoin: path.strokeLineJoin || 'round', strokeLineCap: path.strokeLineCap || 'round',
+      opacity: path.opacity, shadow: path.shadow, angle: 0, scaleX: 1, scaleY: 1,
+      pathEditPts: clonePathPts(pts), pathClosed: !!path.pathClosed, objectCaching: false,
+      bndzEffects: path.bndzEffects, name: path.name, id: path.id,
+      selectable: true, evented: true, locked: path.locked, hidden: path.hidden, visible: path.visible,
+    };
+    const idx = canvas.getObjects().indexOf(path);
+    const wasActive = canvas.getActiveObjects().includes(path);
+    canvas.remove(path);
+    const neu = new fabric.Path(d, props);
+    if (idx >= 0) canvas.insertAt(neu, idx, false); else canvas.add(neu);
+    if (wasActive) canvas.setActiveObject(neu);
+    if (pathEdit && pathEdit.path === path) {
+      pathEdit.path = neu;
+      pathEdit.pts = clonePathPts(neu.pathEditPts);
+    }
+    return neu;
+  }
+  function derivePathEditPtsFromCmds(path) {
+    const pts = [];
+    const cmds = path.path || [];
+    const offset = path.pathOffset || { x: 0, y: 0 };
+    const mtx = path.calcTransformMatrix();
+    const toWorld = (lx, ly) => {
+      const pt = fabric.util.transformPoint(new fabric.Point(lx - offset.x, ly - offset.y), mtx);
+      return { x: pt.x, y: pt.y };
+    };
+    cmds.forEach((cmd) => {
+      const op = cmd[0];
+      if (op === 'M' || op === 'L') {
+        const w = toWorld(cmd[1], cmd[2]);
+        pts.push({ x: w.x, y: w.y, inX: null, inY: null, outX: null, outY: null, nodeType: 'corner' });
+      } else if (op === 'Q') {
+        const c = toWorld(cmd[1], cmd[2]);
+        const w = toWorld(cmd[3], cmd[4]);
+        const last = pts[pts.length - 1];
+        if (last) {
+          last.outX = last.x + (2 / 3) * (c.x - last.x);
+          last.outY = last.y + (2 / 3) * (c.y - last.y);
+          last.nodeType = 'smooth';
+        }
+        pts.push({
+          x: w.x, y: w.y,
+          inX: w.x + (2 / 3) * (c.x - w.x), inY: w.y + (2 / 3) * (c.y - w.y),
+          outX: null, outY: null, nodeType: 'smooth',
+        });
+      } else if (op === 'C') {
+        const c1 = toWorld(cmd[1], cmd[2]);
+        const c2 = toWorld(cmd[3], cmd[4]);
+        const w = toWorld(cmd[5], cmd[6]);
+        const last = pts[pts.length - 1];
+        if (last) { last.outX = c1.x; last.outY = c1.y; last.nodeType = 'smooth'; }
+        pts.push({ x: w.x, y: w.y, inX: c2.x, inY: c2.y, outX: null, outY: null, nodeType: 'smooth' });
+      }
+    });
+    return pts;
+  }
   function pathDataFromPts(pts, closed) {
     if (!pts.length) return '';
-    let d = 'M ' + pts[0].x + ' ' + pts[0].y;
-    for (let i = 1; i < pts.length; i++) {
-      const prev = pts[i - 1], pt = pts[i];
-      const c1x = prev.outX != null ? prev.outX : prev.x;
-      const c1y = prev.outY != null ? prev.outY : prev.y;
-      const c2x = pt.inX != null ? pt.inX : pt.x;
-      const c2y = pt.inY != null ? pt.inY : pt.y;
+    const norm = normalizePathPtsCubic(pts);
+    let d = 'M ' + norm[0].x + ' ' + norm[0].y;
+    for (let i = 1; i < norm.length; i++) {
+      const prev = norm[i - 1], pt = norm[i];
       const bent = (prev.outX != null || pt.inX != null);
-      if (bent) d += ' C ' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + pt.x + ' ' + pt.y;
-      else if (pt.cx != null && pt.cy != null) d += ' Q ' + pt.cx + ' ' + pt.cy + ' ' + pt.x + ' ' + pt.y;
-      else d += ' L ' + pt.x + ' ' + pt.y;
+      if (bent) {
+        const c1x = prev.outX != null ? prev.outX : prev.x;
+        const c1y = prev.outY != null ? prev.outY : prev.y;
+        const c2x = pt.inX != null ? pt.inX : pt.x;
+        const c2y = pt.inY != null ? pt.inY : pt.y;
+        d += ' C ' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + pt.x + ' ' + pt.y;
+      } else {
+        d += ' L ' + pt.x + ' ' + pt.y;
+      }
     }
     if (closed) d += ' Z';
     return d;
@@ -1992,11 +2905,12 @@
     if (penPoints.length >= 2) {
       const first = penPoints[0];
       if (Math.hypot(p.x - first.x, p.y - first.y) < 12 / canvas.getZoom()) {
-        finishPen(true);
+        finishPen(true, { enterEdit: true });
         return;
       }
     }
-    const pt = { x: p.x, y: p.y, inX: null, inY: null, outX: null, outY: null };
+    // Default = sharp corner (letters like B). Curves ONLY when holding Alt and dragging past threshold.
+    const pt = { x: p.x, y: p.y, inX: null, inY: null, outX: null, outY: null, nodeType: 'corner' };
     penPoints.push(pt);
     const a = new fabric.Circle({
       left: p.x, top: p.y, originX: 'center', originY: 'center', radius: 4.5,
@@ -2004,16 +2918,30 @@
     });
     penAnchors.push(a); canvas.add(a);
     drawPenTemp(null);
-    // Drag after click = pull bezier handles while keeping the node fixed (Figma)
     if (e && (e.type === 'mousedown' || e.type === 'pointerdown')) {
       const origin = { x: p.x, y: p.y };
+      const wantCurve = !!(e.altKey || e.metaKey);
+      const bendThresh = Math.max(6 / canvas.getZoom(), Math.min(28 / canvas.getZoom(), 14 / canvas.getZoom()));
+      const clearCurve = () => {
+        pt.outX = pt.outY = pt.inX = pt.inY = null;
+        pt.nodeType = 'corner';
+        penHandles.forEach((h) => canvas.remove(h)); penHandles = [];
+      };
       const dragToCurve = (opt) => {
+        if (!wantCurve && !(opt.e && (opt.e.altKey || opt.e.metaKey))) {
+          if (pt.nodeType === 'smooth') { clearCurve(); drawPenTemp(canvas.getPointer(opt.e)); }
+          return;
+        }
         const q = canvas.getPointer(opt.e);
         const dx = q.x - origin.x, dy = q.y - origin.y;
-        if (Math.hypot(dx, dy) < 2 / canvas.getZoom()) return;
+        const dist = Math.hypot(dx, dy);
+        if (dist < bendThresh) {
+          if (pt.nodeType === 'smooth') { clearCurve(); drawPenTemp(q); }
+          return;
+        }
         pt.outX = origin.x + dx; pt.outY = origin.y + dy;
         pt.inX = origin.x - dx; pt.inY = origin.y - dy;
-        // guide handle dots
+        pt.nodeType = 'smooth';
         penHandles.forEach((h) => canvas.remove(h)); penHandles = [];
         const mkH = (x, y) => {
           const h = new fabric.Circle({
@@ -2034,24 +2962,32 @@
       canvas.on('mouse:up', up);
     }
   }
-  function finishPen(closed) {
+  function finishPen(closed, opts) {
+    opts = opts || {};
     if (penPoints.length >= 2) {
-      const pts = penPoints.map((p) => ({
-        x: p.x, y: p.y, cx: p.cx, cy: p.cy,
-        inX: p.inX, inY: p.inY, outX: p.outX, outY: p.outY,
-      }));
+      const pts = normalizePathPtsCubic(penPoints);
       const d = pathDataFromPts(pts, !!closed);
       const path = new fabric.Path(d, {
         fill: closed ? rgba(state.fill, state.fillAlpha) : '',
         stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1.5, state.strokeWidth),
         strokeUniform: true, strokeLineJoin: 'round', strokeLineCap: 'round',
-        pathEditPts: pts, pathClosed: !!closed, objectCaching: false,
+        pathEditPts: clonePathPts(pts), pathClosed: !!closed, objectCaching: false,
       });
       clearPen();
       canvas.add(path);
       finalizeNew(path, 'path');
-      setTool('select');
-    } else { clearPen(); }
+      // Only enter node edit when explicitly requested (RMB / Enter / close-to-start) —
+      // sticky pen placement must not litter the canvas with orphan handles.
+      if (opts.enterEdit === true) {
+        enterPathEdit(path);
+        nodeEditHint = 'Editing path · ' + pts.length + ' nodes';
+        updateStatus();
+      }
+      if (opts.switchSelect) setTool('select');
+      return path;
+    }
+    clearPen();
+    return null;
   }
 
   function clearPathEdit() {
@@ -2060,16 +2996,29 @@
     pathEdit = null;
     canvas.requestRenderAll();
   }
+  let pathEditRaf = 0;
   function rebuildPathFromEdit(keepHandles) {
     if (!pathEdit || !pathEdit.path) return;
+    if (pathEditRaf) cancelAnimationFrame(pathEditRaf);
+    pathEditRaf = requestAnimationFrame(() => {
+      pathEditRaf = 0;
+      _rebuildPathFromEditNow(keepHandles);
+    });
+  }
+  function _rebuildPathFromEditNow(keepHandles) {
+    if (!pathEdit || !pathEdit.path) return;
     const path = pathEdit.path;
-    const pts = pathEdit.pts;
+    const pts = normalizePathPtsCubic(pathEdit.pts);
+    pathEdit.pts = pts;
     const d = pathDataFromPts(pts, !!path.pathClosed);
+    // ALWAYS recreate from absolute world pts. In-place path.set(absolute cmds) leaves
+    // stale left/top/pathOffset and is the root cause of floating nodes after edits/moves.
     const props = {
       fill: path.fill, stroke: path.stroke, strokeWidth: path.strokeWidth,
-      strokeUniform: true, strokeLineJoin: 'round', strokeLineCap: 'round',
-      pathEditPts: pts.map((p) => ({ x: p.x, y: p.y, cx: p.cx, cy: p.cy })),
-      pathClosed: !!path.pathClosed, objectCaching: false,
+      strokeUniform: true, strokeLineJoin: path.strokeLineJoin || 'round', strokeLineCap: path.strokeLineCap || 'round',
+      opacity: path.opacity, shadow: path.shadow, angle: 0, scaleX: 1, scaleY: 1,
+      pathEditPts: clonePathPts(pts),
+      pathClosed: !!path.pathClosed, objectCaching: false, bndzEffects: path.bndzEffects,
       name: path.name, id: path.id, selectable: true, evented: true,
     };
     const idx = canvas.getObjects().indexOf(path);
@@ -2077,7 +3026,7 @@
     const neu = new fabric.Path(d, props);
     if (idx >= 0) canvas.insertAt(neu, idx, false); else canvas.add(neu);
     pathEdit.path = neu;
-    path.pathEditPts = props.pathEditPts;
+    pathEdit.pts = clonePathPts(neu.pathEditPts);
     if (!keepHandles) {
       canvas.setActiveObject(neu);
       syncPathEditHandles();
@@ -2090,34 +3039,92 @@
     if (!pathEdit) return;
     (pathEdit.handles || []).forEach((h) => canvas.remove(h));
     pathEdit.handles = [];
+    pathEdit.pts = normalizePathPtsCubic(pathEdit.pts);
     pathEdit.pts.forEach((pt, i) => {
+      const selected = pathEdit.activeNode === i;
+      const isSmooth = pt.nodeType === 'smooth' || pt.inX != null || pt.outX != null;
       const h = new fabric.Circle({
-        left: pt.x, top: pt.y, originX: 'center', originY: 'center', radius: 5,
-        fill: '#fff', stroke: '#0d99ff', strokeWidth: 2, hasControls: false, hasBorders: false,
-        isGuide: true, excludeFromExport: true, __pathHandle: i, hoverCursor: 'move',
+        left: pt.x, top: pt.y, originX: 'center', originY: 'center', radius: selected ? 8.5 : 7.5,
+        fill: isSmooth ? '#e8f6ff' : '#fff', stroke: selected ? '#ff2bd6' : '#0d99ff', strokeWidth: 2,
+        hasControls: false, hasBorders: false,
+        isGuide: true, excludeFromExport: true, __pathHandle: i,
+        hoverCursor: state.altHeld ? 'not-allowed' : 'move',
+        padding: 12,
+      });
+      h.on('mousedown', (opt) => {
+        pathEdit.activeNode = i;
+        if (opt.e && opt.e.altKey) {
+          deletePathNodeAt(i);
+        }
       });
       h.on('moving', () => {
-        pathEdit.pts[i].x = h.left; pathEdit.pts[i].y = h.top;
+        let nx = h.left, ny = h.top;
+        const snap = magneticSnapPoint(nx, ny, pathEdit.path);
+        if (snap) { nx = snap.x; ny = snap.y; h.set({ left: nx, top: ny }); }
+        const dx = nx - pathEdit.pts[i].x, dy = ny - pathEdit.pts[i].y;
+        pathEdit.pts[i].x = nx; pathEdit.pts[i].y = ny;
+        if (pathEdit.pts[i].inX != null) { pathEdit.pts[i].inX += dx; pathEdit.pts[i].inY += dy; }
+        if (pathEdit.pts[i].outX != null) { pathEdit.pts[i].outX += dx; pathEdit.pts[i].outY += dy; }
+        pathEdit.activeNode = i;
         rebuildPathFromEdit(true);
       });
       h.on('mouseup', () => { syncPathEditHandles(); pushHistory(); });
       h.on('modified', () => { syncPathEditHandles(); pushHistory(); });
       pathEdit.handles.push(h);
       canvas.add(h);
-      if (pt.cx != null && pt.cy != null) {
+      // Cubic control handles (in / out)
+      const addCtrl = (kind, x, y) => {
+        if (x == null || y == null) return;
         const c = new fabric.Circle({
-          left: pt.cx, top: pt.cy, originX: 'center', originY: 'center', radius: 4,
-          fill: '#0d99ff', stroke: '#fff', strokeWidth: 1, hasControls: false, hasBorders: false,
-          isGuide: true, excludeFromExport: true, __pathCtrl: i, hoverCursor: 'crosshair',
+          left: x, top: y, originX: 'center', originY: 'center', radius: 5.5,
+          fill: '#0d99ff', stroke: '#fff', strokeWidth: 1.5, hasControls: false, hasBorders: false,
+          isGuide: true, excludeFromExport: true, __pathCtrl: i, __pathCtrlKind: kind,
+          hoverCursor: 'crosshair', padding: 10,
+        });
+        const line = new fabric.Line([pt.x, pt.y, x, y], {
+          stroke: 'rgba(13,153,255,.55)', strokeWidth: 1, selectable: false, evented: false,
+          isGuide: true, excludeFromExport: true,
         });
         c.on('moving', () => {
-          pathEdit.pts[i].cx = c.left; pathEdit.pts[i].cy = c.top;
+          if (kind === 'in') { pathEdit.pts[i].inX = c.left; pathEdit.pts[i].inY = c.top; }
+          else { pathEdit.pts[i].outX = c.left; pathEdit.pts[i].outY = c.top; }
+          pathEdit.pts[i].nodeType = 'smooth';
+          pathEdit.activeNode = i;
           rebuildPathFromEdit(true);
         });
         c.on('mouseup', () => { syncPathEditHandles(); pushHistory(); });
-        c.on('modified', () => { syncPathEditHandles(); pushHistory(); });
-        pathEdit.handles.push(c);
-        canvas.add(c);
+        pathEdit.handles.push(line); pathEdit.handles.push(c);
+        canvas.add(line); canvas.add(c);
+      };
+      if (selected || isSmooth) {
+        addCtrl('in', pt.inX, pt.inY);
+        addCtrl('out', pt.outX, pt.outY);
+      }
+      // Mid-segment bend → cubic in/out (not quadratic cx/cy)
+      if (i >= 1) {
+        const prev = pathEdit.pts[i - 1];
+        const mx = (prev.outX != null && pt.inX != null)
+          ? (prev.outX + pt.inX) / 2
+          : (prev.x + pt.x) / 2;
+        const my = (prev.outY != null && pt.inY != null)
+          ? (prev.outY + pt.inY) / 2
+          : (prev.y + pt.y) / 2;
+        const mid = new fabric.Circle({
+          left: mx, top: my, originX: 'center', originY: 'center', radius: 6,
+          fill: 'rgba(13,153,255,.45)', stroke: '#0d99ff', strokeWidth: 1.5,
+          hasControls: false, hasBorders: false, isGuide: true, excludeFromExport: true,
+          __pathMid: i, hoverCursor: 'ns-resize', padding: 10,
+        });
+        mid.on('moving', () => {
+          prev.outX = mid.left; prev.outY = mid.top; prev.nodeType = 'smooth';
+          pt.inX = mid.left; pt.inY = mid.top; pt.nodeType = 'smooth';
+          pathEdit.activeNode = i;
+          rebuildPathFromEdit(true);
+        });
+        mid.on('mouseup', () => { syncPathEditHandles(); pushHistory(); });
+        mid.on('modified', () => { syncPathEditHandles(); pushHistory(); });
+        pathEdit.handles.push(mid);
+        canvas.add(mid);
       }
     });
     canvas.requestRenderAll();
@@ -2125,46 +3132,292 @@
   function enterPathEdit(path) {
     if (!path || path.type !== 'path') return;
     clearPathEdit();
-    let pts = path.pathEditPts;
-    if (!pts || !pts.length) {
-      // Derive corner points from fabric path commands (M/L/Q)
-      pts = [];
-      const cmds = path.path || [];
-      cmds.forEach((cmd) => {
-        const op = cmd[0];
-        if (op === 'M' || op === 'L') pts.push({ x: cmd[1], y: cmd[2] });
-        else if (op === 'Q') pts.push({ cx: cmd[1], cy: cmd[2], x: cmd[3], y: cmd[4] });
-        else if (op === 'C') pts.push({ cx: cmd[3], cy: cmd[4], x: cmd[5], y: cmd[6] });
-      });
-      // Offset by path position
-      const offset = path.pathOffset || { x: 0, y: 0 };
-      pts = pts.map((p) => ({
-        x: p.x - offset.x + (path.left || 0),
-        y: p.y - offset.y + (path.top || 0),
-        cx: p.cx != null ? p.cx - offset.x + (path.left || 0) : undefined,
-        cy: p.cy != null ? p.cy - offset.y + (path.top || 0) : undefined,
-      }));
-      path.pathEditPts = pts;
+    // Always bake non-identity transforms / re-derive so nodes glue to the visible stroke.
+    if (!path.pathEditPts || !path.pathEditPts.length || pathHasNonIdentityTransform(path)) {
+      path = bakePathWorldGeometry(path);
+    } else {
+      path.pathEditPts = normalizePathPtsCubic(path.pathEditPts);
+      path = bakePathWorldGeometry(path);
     }
-    pathEdit = { path, pts: pts.map((p) => ({ x: p.x, y: p.y, cx: p.cx, cy: p.cy })), handles: [] };
+    const pts = clonePathPts(path.pathEditPts || []);
+    pathEdit = { path, pts, handles: [] };
     canvas.discardActiveObject();
     syncPathEditHandles();
-    toast('Edit points — drag handles · Esc exit');
+    toast('Edit points — drag nodes · Alt-click delete · Esc exit');
   }
   function bendSelectedPoint() {
     const a = canvas.getActiveObject();
-    if (a && a.type === 'path') { enterPathEdit(a); return; }
-    if (pathEdit && pathEdit.pts.length > 1) {
-      // Convert last corner segment to a simple curve
-      const i = pathEdit.pts.length - 1;
-      const prev = pathEdit.pts[i - 1], cur = pathEdit.pts[i];
-      if (cur.cx == null) {
-        cur.cx = (prev.x + cur.x) / 2;
-        cur.cy = (prev.y + cur.y) / 2 - 40;
-        rebuildPathFromEdit();
-        toast('Bent to curve');
+    if (a && a.type === 'path' && !pathEdit) { enterPathEdit(a); return; }
+    if (!pathEdit || pathEdit.pts.length < 2) return;
+    let i = pathEdit.activeNode;
+    if (i == null || i < 1 || i >= pathEdit.pts.length) i = pathEdit.pts.length - 1;
+    const prev = pathEdit.pts[i - 1];
+    const cur = pathEdit.pts[i];
+    if (!prev || !cur) return;
+    const isSmooth = cur.inX != null || prev.outX != null;
+    if (!isSmooth) {
+      const mx = (prev.x + cur.x) / 2;
+      const my = (prev.y + cur.y) / 2 - Math.max(24, Math.abs(cur.y - prev.y) * 0.35);
+      prev.outX = mx; prev.outY = my; prev.nodeType = 'smooth';
+      cur.inX = mx; cur.inY = my; cur.nodeType = 'smooth';
+      rebuildPathFromEdit();
+      toast('Corner → smooth curve');
+    } else {
+      prev.outX = prev.outY = null; prev.nodeType = 'corner';
+      cur.inX = cur.inY = null; cur.nodeType = 'corner';
+      delete cur.cx; delete cur.cy;
+      rebuildPathFromEdit();
+      toast('Curve → corner');
+    }
+  }
+
+  /* ---------------- Magnetic nodes / hover / Alt-delete (Pro) ---------------- */
+  function screenSnapPx(px) {
+    return (px || 14) / Math.max(0.05, canvas.getZoom());
+  }
+  function clearHoverNodes() {
+    if (!hoverNodePreview) return;
+    (hoverNodePreview.handles || []).forEach((h) => { try { canvas.remove(h); } catch (e) {} });
+    hoverNodePreview = null;
+  }
+  function magneticSnapPoint(x, y, excludeObj) {
+    const thr = screenSnapPx(14);
+    let best = null, bestD = thr;
+    canvas.getObjects().forEach((o) => {
+      if (!o || o.isGuide || o === excludeObj || o.locked || o.isBootFrame) return;
+      const pts = [];
+      if (o.type === 'line' || o.isBoardLine) {
+        const abs = getLineAbsPoints(o);
+        if (abs) { pts.push(abs.p1, abs.p2); }
+      } else if (o.type === 'path' && o.pathEditPts && o.pathEditPts.length) {
+        o.pathEditPts.forEach((p) => pts.push({ x: p.x, y: p.y }));
+      }
+      pts.forEach((p) => {
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < bestD) { bestD = d; best = p; }
+      });
+    });
+    return best;
+  }
+  function showHoverNodesFor(obj) {
+    clearHoverNodes();
+    if (!obj || obj.isGuide || obj.isBootFrame) return;
+    const handles = [];
+    const mk = (x, y, meta) => {
+      const h = new fabric.Circle({
+        left: x, top: y, originX: 'center', originY: 'center',
+        radius: meta.mid ? 5.5 : 7.5,
+        fill: meta.mid ? 'rgba(13,153,255,.55)' : '#fff',
+        stroke: '#0d99ff', strokeWidth: 2,
+        hasControls: false, hasBorders: false, selectable: true, evented: true,
+        isGuide: true, excludeFromExport: true, __hoverNode: meta,
+        hoverCursor: state.altHeld ? 'not-allowed' : (meta.endpoint ? 'copy' : 'crosshair'),
+        padding: 10,
+      });
+      // Invisible larger hit pad
+      h.set({ perPixelTargetFind: false });
+      h.on('mousedown', (opt) => {
+        if (opt.e && opt.e.altKey) {
+          tryAltDeleteHoverMeta(obj, meta);
+          return;
+        }
+        if ((state.tool === 'pen' || state.tool === 'line') && meta.endpoint) {
+          continueFromHoverNode(h);
+          return;
+        }
+        if (obj.type === 'line' || obj.isBoardLine) {
+          canvas.setActiveObject(obj);
+          attachLineEndpoints(obj);
+        } else if (obj.type === 'path') {
+          enterPathEdit(obj);
+          if (meta.idx != null) pathEdit.activeNode = meta.idx;
+        }
+      });
+      canvas.add(h); canvas.bringToFront(h);
+      handles.push(h);
+    };
+    if (obj.type === 'line' || obj.isBoardLine) {
+      const abs = getLineAbsPoints(obj);
+      if (!abs) return;
+      mk(abs.p1.x, abs.p1.y, { endpoint: true, which: 1, idx: 0 });
+      mk(abs.p2.x, abs.p2.y, { endpoint: true, which: 2, idx: 1 });
+      mk((abs.p1.x + abs.p2.x) / 2, (abs.p1.y + abs.p2.y) / 2, { mid: true, seg: 0 });
+    } else if (obj.type === 'path') {
+      let pts = obj.pathEditPts;
+      if (!pts || !pts.length) return;
+      pts.forEach((p, i) => mk(p.x, p.y, { endpoint: i === 0 || i === pts.length - 1, idx: i }));
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        const mx = b.cx != null ? b.cx : (a.x + b.x) / 2;
+        const my = b.cy != null ? b.cy : (a.y + b.y) / 2;
+        mk(mx, my, { mid: true, seg: i });
+      }
+    } else return;
+    hoverNodePreview = { target: obj, handles };
+    canvas.requestRenderAll();
+  }
+  function updateHoverNodePreview(opt) {
+    if (spacePan || isPanning || drawingObj || penPoints.length) {
+      if (!(spacePan || isPanning)) { /* keep while panning */ }
+      else return;
+    }
+    if (drawingObj || (penPoints.length && state.tool === 'pen')) {
+      clearHoverNodes();
+      return;
+    }
+    const toolOk = state.tool === 'line' || state.tool === 'pen' || state.tool === 'select';
+    if (!toolOk || pathEdit) {
+      if (!pathEdit) clearHoverNodes();
+      return;
+    }
+    const t = opt.target;
+    if (t && (t.__hoverNode || t.__pathHandle != null || t.__lineEnd || t.__pathMid != null)) return;
+    let hit = t;
+    if (!hit || hit.isGuide || hit.isBootFrame || hit.locked) {
+      // Find line/path under pointer skipping locked boot frame
+      const p = canvas.getPointer(opt.e);
+      hit = null;
+      const list = canvas.getObjects().slice().reverse();
+      for (let i = 0; i < list.length; i++) {
+        const o = list[i];
+        if (!o || o.isGuide || o.isBootFrame || o.locked || o.visible === false) continue;
+        if (o.type !== 'line' && !o.isBoardLine && o.type !== 'path') continue;
+        if (objectHitAt(o, p)) { hit = o; break; }
       }
     }
+    if (hit && (hit.type === 'line' || hit.isBoardLine || hit.type === 'path')) {
+      if (!hoverNodePreview || hoverNodePreview.target !== hit) showHoverNodesFor(hit);
+      nodeEditHint = state.altHeld ? 'Alt · delete node' : 'Hover nodes · drag to edit';
+      updateStatus();
+    } else {
+      clearHoverNodes();
+      if (nodeEditHint) { nodeEditHint = ''; updateStatus(); }
+    }
+  }
+  function continueFromHoverNode(handle) {
+    const meta = handle && handle.__hoverNode;
+    const obj = hoverNodePreview && hoverNodePreview.target;
+    if (!meta || !obj) return;
+    if (obj.type === 'path' && !obj.pathClosed && meta.endpoint) {
+      const pts = (obj.pathEditPts || []).map((p) => ({ ...p }));
+      if (!pts.length) return;
+      // Resume from that endpoint: if first, reverse so we append
+      if (meta.idx === 0) pts.reverse();
+      clearHoverNodes();
+      canvas.remove(obj);
+      clearPathEdit();
+      penPoints = pts.map((p) => ({
+        x: p.x, y: p.y, cx: p.cx, cy: p.cy, inX: p.inX, inY: p.inY, outX: p.outX, outY: p.outY,
+      }));
+      penAnchors = [];
+      penPoints.forEach((pt) => {
+        const a = new fabric.Circle({
+          left: pt.x, top: pt.y, originX: 'center', originY: 'center', radius: 4.5,
+          fill: '#fff', stroke: '#0d99ff', strokeWidth: 1.5, selectable: false, evented: false, isGuide: true,
+        });
+        penAnchors.push(a); canvas.add(a);
+      });
+      setTool('pen');
+      drawPenTemp(null);
+      nodeEditHint = 'Continue from endpoint';
+      updateStatus();
+      toast('Continuing path');
+      return;
+    }
+    if ((obj.type === 'line' || obj.isBoardLine) && meta.endpoint) {
+      const abs = getLineAbsPoints(obj);
+      if (!abs) return;
+      const from = meta.which === 1 ? abs.p1 : abs.p2;
+      clearHoverNodes();
+      setTool('line');
+      drawStart = { x: from.x, y: from.y };
+      drawKind = 'line';
+      drawingObj = newLine(from.x, from.y);
+      canvas.add(drawingObj);
+      toast('Continue from node');
+    }
+  }
+  function tryContinuePathAt(p) {
+    const thr = screenSnapPx(14);
+    const objs = canvas.getObjects();
+    for (let i = objs.length - 1; i >= 0; i--) {
+      const o = objs[i];
+      if (!o || o.type !== 'path' || o.pathClosed || o.isGuide) continue;
+      const pts = o.pathEditPts;
+      if (!pts || pts.length < 2) continue;
+      const candidates = [
+        { ep: pts[0], idx: 0 },
+        { ep: pts[pts.length - 1], idx: pts.length - 1 },
+      ];
+      for (let c = 0; c < candidates.length; c++) {
+        const { ep, idx } = candidates[c];
+        if (Math.hypot(ep.x - p.x, ep.y - p.y) <= thr) {
+          hoverNodePreview = { target: o, handles: [] };
+          continueFromHoverNode({ __hoverNode: { endpoint: true, idx } });
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  function tryAltDeleteHoverMeta(obj, meta) {
+    if (!obj || !meta) return false;
+    if (obj.type === 'line' || obj.isBoardLine) {
+      clearHoverNodes(); clearLineEndpoints();
+      canvas.remove(obj);
+      canvas.discardActiveObject();
+      pushHistory(); updateLayers(); syncInspector();
+      toast('Line deleted');
+      return true;
+    }
+    if (obj.type === 'path') {
+      if (!pathEdit || pathEdit.path !== obj) enterPathEdit(obj);
+      if (meta.idx != null) deletePathNodeAt(meta.idx);
+      return true;
+    }
+    return false;
+  }
+  function deletePathNodeAt(idx) {
+    if (!pathEdit || !pathEdit.pts) return;
+    if (pathEdit.pts.length <= 2) {
+      const path = pathEdit.path;
+      clearPathEdit();
+      if (path) canvas.remove(path);
+      pushHistory(); updateLayers(); syncInspector();
+      toast('Path deleted');
+      return;
+    }
+    pathEdit.pts.splice(idx, 1);
+    pathEdit.activeNode = Math.max(0, idx - 1);
+    rebuildPathFromEdit();
+    pushHistory();
+    nodeEditHint = 'Editing path · ' + pathEdit.pts.length + ' nodes';
+    updateStatus();
+    toast('Node deleted');
+  }
+  function tryAltDeleteNode(opt) {
+    if (!opt || !opt.e || !opt.e.altKey) return false;
+    const t = opt.target;
+    if (t && t.__pathHandle != null && pathEdit) {
+      deletePathNodeAt(t.__pathHandle);
+      return true;
+    }
+    if (t && t.__lineEnd != null) {
+      const victim = (lineEnds && lineEnds.line)
+        || (canvas.getActiveObject() && canvas.getActiveObject().type === 'line' ? canvas.getActiveObject() : null);
+      if (victim) {
+        clearLineEndpoints();
+        canvas.remove(victim);
+        canvas.discardActiveObject();
+        pushHistory(); updateLayers(); syncInspector();
+        toast('Line deleted');
+        return true;
+      }
+    }
+    if (t && t.__hoverNode) {
+      return tryAltDeleteHoverMeta(hoverNodePreview && hoverNodePreview.target, t.__hoverNode);
+    }
+    return false;
   }
 
   /* ---------------- Deep select (Ctrl/Cmd click through groups) ---------------- */
@@ -2179,7 +3432,7 @@
     const list = (objects || canvas.getObjects()).slice().reverse();
     for (let i = 0; i < list.length; i++) {
       const o = list[i];
-      if (o.isGuide || o.hidden || o.visible === false || o.locked) continue;
+      if (o.isGuide || o.hidden || o.visible === false || o.locked || o.isBootFrame) continue;
       if (!objectHitAt(o, pointer)) continue;
       if ((o.type === 'group' || o._objects) && o._objects && o._objects.length) {
         const nested = findDeepestAt(pointer, o._objects, o);
@@ -2222,10 +3475,24 @@
     return true;
   }
 
+  let suppressNextContextMenu = false;
   /* ---------------- Mouse interactions ---------------- */
   canvas.on('mouse:down', (opt) => {
+    // OpenPencil owns pointer input while engine-on — Fabric canvas is inert.
+    if (engineLive()) return;
     const e = opt.e;
-    if (e.button === 2) return;
+
+    // Pen RMB: commit in-progress stroke into path-edit (not cancel)
+    if (e.button === 2) {
+      e.preventDefault();
+      if (state.tool === 'pen' && penPoints.length >= 2) {
+        suppressNextContextMenu = true;
+        finishPen(false, { enterEdit: true });
+        toast('Path committed — drag nodes · Alt deletes · Esc exits');
+        return;
+      }
+      return;
+    }
     pasteAnchor = canvas.getPointer(e);
 
     if (protoMode) {
@@ -2239,22 +3506,42 @@
       return;
     }
 
+    // Alt-delete node (path edit or hover preview)
+    if (e.altKey && tryAltDeleteNode(opt)) return;
+
     // Deep select through groups
-    if (state.tool === 'select' && (e.ctrlKey || e.metaKey) && !opt.target?.__pathHandle && !opt.target?.__pathCtrl) {
+    if (state.tool === 'select' && (e.ctrlKey || e.metaKey) && !opt.target?.__pathHandle && !opt.target?.__pathCtrl && !opt.target?.__hoverNode) {
       e.preventDefault();
       deepSelectAtEvent(e);
       return;
     }
 
-    // Path edit handles absorb events
-    if (opt.target && (opt.target.__pathHandle != null || opt.target.__pathCtrl != null)) return;
+    // Path / hover / mid handles absorb events
+    if (opt.target && (opt.target.__pathHandle != null || opt.target.__pathCtrl != null || opt.target.__pathMid != null || opt.target.__hoverNode)) {
+      if (opt.target.__hoverNode && (state.tool === 'pen' || state.tool === 'line')) {
+        continueFromHoverNode(opt.target);
+      }
+      return;
+    }
 
     const p = canvas.getPointer(e);
-    if (state.tool === 'pen') { penClick(p, e); return; }
+    if (state.tool === 'pen') {
+      // Continue open path when clicking near an endpoint
+      if (tryContinuePathAt(p)) return;
+      if (pathEdit) clearPathEdit();
+      clearHoverNodes();
+      penClick(p, e);
+      return;
+    }
     if (state.tool === 'text') { placeText(p.x, p.y); return; }
     if (state.tool === 'comment') { placeComment(p.x, p.y); return; }
     if (state.tool === 'select' || state.tool === 'pencil' || state.tool === 'eraser') {
       if (state.tool === 'select' && opt.target && opt.target.isComment) openCommentPanel(opt.target);
+      // Move tool: enter path edit on path body click when already hovered
+      if (state.tool === 'select' && opt.target && opt.target.type === 'path' && !opt.target.isGuide && hoverNodePreview && hoverNodePreview.target === opt.target) {
+        enterPathEdit(opt.target);
+        return;
+      }
       return;
     }
 
@@ -2271,6 +3558,7 @@
   });
 
   canvas.on('mouse:move', (opt) => {
+    if (engineLive()) return;
     const e = opt.e;
     if (isPanning && typeof isPanning === 'object') {
       const dx = e.clientX - isPanning.x, dy = e.clientY - isPanning.y;
@@ -2280,6 +3568,11 @@
       return;
     }
     if (state.tool === 'pen' && penPoints.length) { drawPenTemp(canvas.getPointer(e)); return; }
+    updateHoverNodePreview(opt);
+    if (state.altHeld) {
+      const t = opt.target;
+      if (t && (t.__pathHandle != null || t.__hoverNode || t.__lineEnd)) canvas.setCursor('not-allowed');
+    }
     if (!drawStart || !drawingObj) return;
     const p = canvas.getPointer(e);
     const shift = e.shiftKey, alt = e.altKey;
@@ -2307,11 +3600,11 @@
     } else if (drawKind === 'line' || drawKind === 'arrow') {
       let sx = drawStart.x, sy = drawStart.y, ex = p.x, ey = p.y;
       if (shift) {
-        // Snap to 0 / 45 / 90 degree increments (multiples of 45°)
-        const a = Math.atan2(ey - sy, ex - sx);
-        const snap = Math.round(a / (Math.PI / 4)) * (Math.PI / 4);
-        const len = Math.hypot(ex - sx, ey - sy);
-        ex = sx + Math.cos(snap) * len; ey = sy + Math.sin(snap) * len;
+        const sn = snapLineAngle(sx, sy, ex, ey);
+        ex = sn.x; ey = sn.y;
+        showAngleHud(sx, sy, ex, ey, e.clientX, e.clientY);
+      } else {
+        hideAngleHud();
       }
       if (alt) {
         // grow from center: keep drawStart as midpoint
@@ -2327,16 +3620,24 @@
     canvas.requestRenderAll();
   });
 
-  canvas.on('selection:created', (opt) => {
-    const a = opt.selected && opt.selected[0];
-    if (a && a.isBoardLine) attachLineEndpoints(a); else clearLineEndpoints();
+  function syncLineEndpointSelection(opt) {
+    const a = (opt && opt.selected && opt.selected[0]) || canvas.getActiveObject();
+    if (a && (a.__lineEnd != null || a.__pathHandle != null || a.__pathCtrl != null || a.__pathMid != null || a.__hoverNode)) {
+      return; // editing our own node chrome — do not tear down handles
+    }
+    if (a && (a.isBoardLine || a.type === 'line')) attachLineEndpoints(a);
+    else clearLineEndpoints();
+  }
+  canvas.on('selection:created', syncLineEndpointSelection);
+  canvas.on('selection:updated', syncLineEndpointSelection);
+  canvas.on('selection:cleared', () => {
+    // Don't clear if path/line edit handles still own the interaction
+    const a = canvas.getActiveObject();
+    if (a && (a.__lineEnd != null || a.__pathHandle != null)) return;
+    clearLineEndpoints();
   });
-  canvas.on('selection:updated', (opt) => {
-    const a = opt.selected && opt.selected[0];
-    if (a && a.isBoardLine) attachLineEndpoints(a); else clearLineEndpoints();
-  });
-  canvas.on('selection:cleared', () => clearLineEndpoints());
   canvas.on('mouse:up', (opt) => {
+    hideAngleHud();
     if (isPanning) { isPanning = false; canvas.selection = state.tool === 'select'; canvas.setCursor(state.tool === 'hand' || spacePan ? 'grab' : 'default'); }
     if (drawingObj) {
       const obj = drawingObj, kind = drawKind;
@@ -2355,11 +3656,11 @@
       const tooSmall = (kind === 'line' || kind === 'arrow')
         ? (Math.hypot((obj.x2 - obj.x1), (obj.y2 - obj.y1)) < 3)
         : (obj.getScaledWidth() < 3 && obj.getScaledHeight() < 3);
-      if (tooSmall) { canvas.remove(obj); canvas.requestRenderAll(); setTool('select'); return; }
+      if (tooSmall) { canvas.remove(obj); canvas.requestRenderAll(); return; }
       if (kind === 'line') {
         finalizeNew(obj, 'line');
         attachLineEndpoints(obj);
-        setTool('select');
+        // Sticky line tool — stay armed for rapid placement
         return;
       }
       if (kind === 'arrow') {
@@ -2370,12 +3671,23 @@
       } else {
         finalizeNew(obj, kind);
       }
-      setTool('select');
+      // Sticky draw tools stay armed; image already returned above
+      if (!DRAW_STICKY[kind]) setTool('select');
+    }
+  });
+  // Finalize/discard in-flight draw if pointer is released outside the canvas
+  window.addEventListener('pointerup', () => {
+    if (!drawingObj) return;
+    try {
+      canvas.fire('mouse:up', { e: { button: 0 } });
+    } catch (err) {
+      try { canvas.remove(drawingObj); } catch (e2) {}
+      drawingObj = null; drawStart = null; drawKind = null;
     }
   });
 
   canvas.on('mouse:dblclick', (opt) => {
-    if (state.tool === 'pen' && penPoints.length) { finishPen(); return; }
+    if (state.tool === 'pen' && penPoints.length) { finishPen(false, { enterEdit: true }); return; }
     const t = opt.target;
     if (t && t.type === 'path' && !t.isGuide) { enterPathEdit(t); return; }
     if (t && t.isComment) { openCommentPanel(t); return; }
@@ -2404,11 +3716,70 @@
     if (activeComment) closeCommentPanel();
     syncInspector(); updateLayers(); updateStatus();
   });
-  canvas.on('object:modified', () => { syncInspector(); updateLayers(); updateStatus(); pushHistory(); });
-  canvas.on('object:moving', () => { syncInspectorLight(); updateStatus(); });
-  canvas.on('object:scaling', () => { syncInspectorLight(); updateStatus(); });
+  canvas.on('object:moving', (opt) => {
+    const t = opt && opt.target;
+    if (!t || t.isGuide) return;
+    // Snap first so node glue uses the FINAL left/top (duplicate snap handler used to fight this).
+    if (state.snapOn) {
+      t.set({ left: snapVal(t.left || 0), top: snapVal(t.top || 0) });
+      t.setCoords();
+    }
+    // pathEditPts are world-space — translate by post-snap delta so handles stay on the stroke.
+    if (t.type === 'path' && Array.isArray(t.pathEditPts) && t.pathEditPts.length) {
+      if (t.__bndzLastLeft == null) { t.__bndzLastLeft = t.left; t.__bndzLastTop = t.top; }
+      const dx = (t.left || 0) - t.__bndzLastLeft;
+      const dy = (t.top || 0) - t.__bndzLastTop;
+      if (dx || dy) {
+        translatePathPts(t.pathEditPts, dx, dy);
+        if (pathEdit && pathEdit.path === t) {
+          pathEdit.pts = clonePathPts(t.pathEditPts);
+          syncPathEditHandles();
+        }
+      }
+      t.__bndzLastLeft = t.left;
+      t.__bndzLastTop = t.top;
+    }
+    if (lineEnds && lineEnds.line === t) {
+      syncLineEndpointHandles();
+      syncLineMetrics(t);
+    }
+    syncInspectorLight(); updateStatus();
+  });
+  canvas.on('object:scaling', (opt) => {
+    syncInspectorLight(); updateStatus();
+  });
   canvas.on('object:rotating', syncInspectorLight);
+  canvas.on('object:modified', (opt) => {
+    const t = opt && opt.target;
+    if (t) {
+      delete t.__bndzLastLeft;
+      delete t.__bndzLastTop;
+      if (t.type === 'path') {
+        const baked = bakePathWorldGeometry(t);
+        if (pathEdit && (pathEdit.path === t || pathEdit.path === baked)) {
+          pathEdit.path = baked;
+          pathEdit.pts = clonePathPts(baked.pathEditPts || []);
+          syncPathEditHandles();
+        }
+      }
+    }
+    syncInspector(); updateLayers(); updateStatus(); pushHistory();
+  });
   canvas.on('text:editing:exited', () => { updateLayers(); pushHistory(); });
+  canvas.on('selection:created', (opt) => {
+    const a = (opt.selected && opt.selected[0]) || canvas.getActiveObject();
+    if (a && !a.isGuide) {
+      a.__bndzLastLeft = a.left;
+      a.__bndzLastTop = a.top;
+    }
+  });
+  canvas.on('selection:updated', (opt) => {
+    const a = (opt.selected && opt.selected[0]) || canvas.getActiveObject();
+    if (a && !a.isGuide) {
+      a.__bndzLastLeft = a.left;
+      a.__bndzLastTop = a.top;
+    }
+  });
 
   /* ---------------- Wheel (zoom + pan) ---------------- */
   workspace.addEventListener('wheel', (e) => {
@@ -2434,8 +3805,21 @@
   function syncInspector() {
     const a = canvas.getActiveObject();
     const isSel = a && a.type === 'activeSelection';
-    $('#inspector-empty').classList.toggle('hidden', !!a);
+    const empty = !a;
+    const isLine = !!(a && (a.type === 'line' || a.isBoardLine));
+    const right = $('#right-sidebar');
+    if (right) right.dataset.sel = empty ? '' : (isLine ? 'line' : (a.type || 'obj'));
+    $('#inspector-empty').classList.toggle('hidden', !empty);
+    // True empty: hide document chrome sections that only confuse with no selection
+    ['sec-align', 'sec-variables', 'sec-components', 'sec-styles', 'sec-fill', 'sec-stroke', 'sec-export'].forEach((id) => {
+      const el = $('#' + id);
+      if (el) el.classList.toggle('bndz-empty-hide', empty);
+    });
     ['sec-transform', 'sec-effects', 'sec-arrange'].forEach((id) => $('#' + id).classList.toggle('hidden', !a));
+    const fillSec = $('#sec-fill');
+    const strokeSec = $('#sec-stroke');
+    if (fillSec) fillSec.classList.toggle('bndz-line-secondary', isLine);
+    if (strokeSec) strokeSec.classList.toggle('stroke-priority', isLine);
     if (!a) {
       $('#sec-text').classList.add('hidden');
       const secImgEmpty = $('#sec-image-fill'); if (secImgEmpty) secImgEmpty.classList.add('hidden');
@@ -2449,6 +3833,19 @@
     $('#p-r').value = Math.round(a.angle || 0);
     $('#p-radius').value = Math.round(a.rx || a.rTL || 0);
     $('#p-radius').parentElement.style.opacity = (a.type === 'rect') ? 1 : 0.4;
+    if (isLine) {
+      a.set({ hasControls: false, hasBorders: false, lockScalingX: true, lockScalingY: true, lockRotation: true });
+      syncLineMetrics(a);
+      setColorTarget('stroke');
+      fillSec?.classList.add('collapsed');
+      strokeSec?.classList.remove('collapsed');
+      // Keep Stroke in view — Fill used to bury it for lines.
+      requestAnimationFrame(() => {
+        strokeSec?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+      });
+    } else {
+      fillSec?.classList.remove('collapsed');
+    }
     const cr = $('#corner-radii');
     if (cr) {
       cr.style.opacity = (a.type === 'rect') ? 1 : 0.35;
@@ -2488,7 +3885,11 @@
     }
     if (typeof a.strokeWidth === 'number') { $('#stroke-w').value = a.strokeWidth; $('#stroke-w-n').value = a.strokeWidth; }
 
-    $('#shadow-toggle').classList.toggle('on', !!a.shadow);
+    $('#shadow-toggle').classList.toggle('on', !!a.shadow || (Array.isArray(a.bndzEffects) && a.bndzEffects.some((f) => f.enabled && f.type === 'dropShadow')));
+    if (typeof syncEffectsInspector === 'function') syncEffectsInspector();
+    const ga = $('#grad-angle'); if (ga && a.gradAngle != null) ga.value = a.gradAngle;
+    const gfx = $('#grad-fx'); if (gfx && a.gradFocalX != null) gfx.value = Math.round(a.gradFocalX * 100);
+    const gfy = $('#grad-fy'); if (gfy && a.gradFocalY != null) gfy.value = Math.round(a.gradFocalY * 100);
 
     const textish = a.type === 'i-text' || a.type === 'text' || a.type === 'textbox';
     $('#sec-text').classList.toggle('hidden', !textish);
@@ -2535,28 +3936,75 @@
     if (t === 'group') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>';
     return ICONS.rect;
   }
+  function layerNestDepth(o) {
+    let d = 0;
+    let p = o && o.group;
+    while (p) { d += 1; p = p.group; }
+    if (o && o.isFrame) d = Math.max(0, d);
+    return Math.min(d, 6);
+  }
   function updateLayers() {
     const list = $('#layers-list');
     const objs = canvas.getObjects().filter((o) => !o.isGuide);
     $('#layer-count').textContent = objs.length;
     list.innerHTML = '';
     const activeSet = canvas.getActiveObjects();
-    objs.slice().reverse().forEach((o) => {
+    const ordered = objs.slice().reverse();
+    ordered.forEach((o, visualIdx) => {
+      const canvasIdx = objs.indexOf(o);
       const row = document.createElement('div');
       row.className = 'row-item' + (activeSet.includes(o) ? ' active' : '') + (o.hidden ? ' dim' : '');
+      row.draggable = true;
+      row.dataset.canvasIdx = String(canvasIdx);
+      row.dataset.visualIdx = String(visualIdx);
+      const nest = document.createElement('span');
+      nest.className = 'nest-pad';
+      nest.style.width = (layerNestDepth(o) * 12) + 'px';
       const ico = document.createElement('span'); ico.className = 'ico'; ico.innerHTML = layerIcon(o);
       const nm = document.createElement('span'); nm.className = 'rname'; nm.textContent = o.name || o.type;
       const eye = document.createElement('button'); eye.className = 'layer-toggle' + (o.hidden ? '' : ' on');
       eye.innerHTML = o.hidden ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4l16 16M9.5 9.7A3 3 0 0014 14m4.3-1C17 15.5 14.7 17 12 17c-4 0-7-3.5-8-5 .6-1 1.8-2.5 3.6-3.6"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>';
       const lock = document.createElement('button'); lock.className = 'layer-toggle' + (o.locked ? ' locked' : '');
       lock.innerHTML = o.locked ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 017.5-2"/></svg>';
-      row.appendChild(ico); row.appendChild(nm); row.appendChild(eye); row.appendChild(lock);
+      row.appendChild(nest); row.appendChild(ico); row.appendChild(nm); row.appendChild(eye); row.appendChild(lock);
       row.addEventListener('click', (ev) => { if (ev.target.closest('.layer-toggle')) return; selectObject(o); });
       row.addEventListener('dblclick', (ev) => { if (ev.target.closest('.layer-toggle')) return; startRename(nm, o); });
       eye.addEventListener('click', (ev) => { ev.stopPropagation(); toggleHide(o); });
       lock.addEventListener('click', (ev) => { ev.stopPropagation(); toggleLock(o); });
+      row.addEventListener('dragstart', (ev) => {
+        row.classList.add('dragging');
+        ev.dataTransfer.setData('text/bndz-layer', String(canvasIdx));
+        ev.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        $$('#layers-list .row-item').forEach((r) => r.classList.remove('drag-over'));
+      });
+      row.addEventListener('dragover', (ev) => {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        $$('#layers-list .row-item').forEach((r) => r.classList.remove('drag-over'));
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        const fromIdx = +ev.dataTransfer.getData('text/bndz-layer');
+        const toIdx = +row.dataset.canvasIdx;
+        if (!Number.isFinite(fromIdx) || !Number.isFinite(toIdx) || fromIdx === toIdx) return;
+        reorderLayer(fromIdx, toIdx);
+      });
       list.appendChild(row);
     });
+  }
+  function reorderLayer(fromIdx, toIdx) {
+    const objs = canvas.getObjects().filter((o) => !o.isGuide);
+    const moving = objs[fromIdx];
+    const target = objs[toIdx];
+    if (!moving || !target) return;
+    canvas.moveTo(moving, canvas.getObjects().indexOf(target));
+    canvas.requestRenderAll();
+    updateLayers();
+    pushHistory();
   }
   function selectObject(o) {
     if (o.locked || o.hidden) { updateLayers(); toast(o.locked ? 'Layer locked' : 'Layer hidden'); return; }
@@ -2879,21 +4327,53 @@
   /* ---------------- Actions map ---------------- */
   const actions = {
     new: newFile, import: () => $('#import-input').click(),
-    exportPng: () => exportFile('png', { scale: 2, scope: 'auto' }),
-    exportSvg: () => exportFile('svg', { scale: 1, scope: 'auto' }),
+    undo: () => {
+      if (engineLive()) { postEngine({ type: 'undo' }); return; }
+      undo();
+    },
+    redo: () => {
+      if (engineLive()) { postEngine({ type: 'redo' }); return; }
+      redo();
+    },
+    exportPng: () => {
+      if (engineLive()) { postEngine({ type: 'exportPng' }); return; }
+      exportFile('png', { scale: 2, scope: 'auto' });
+    },
+    exportSvg: () => {
+      if (engineLive()) { postEngine({ type: 'exportPng' }); return; }
+      exportFile('svg', { scale: 1, scope: 'auto' });
+    },
     openExport: openExportModal,
-    undo, redo, copy: copySel, paste: pasteSel, duplicate: duplicateSel, delete: deleteSelected,
+    copy: copySel, paste: pasteSel, duplicate: duplicateSel, delete: deleteSelected,
     selectAll, copyPng: copyAsPng,
     group: groupSel, ungroup: ungroupSel,
     front: () => arrange('front'), forward: () => arrange('forward'), backward: () => arrange('backward'), back: () => arrange('back'),
     lock: lockSel, hide: hideSel, flipH: () => flip('h'), flipV: () => flip('v'), rename: renameSel,
     outlineStroke, flatten: flattenSel,
+    convertLineToPath: () => convertLineToPath(),
+    bendNode: () => bendSelectedPoint(),
     editPath: () => {
       const a = canvas.getActiveObject();
+      if (a && a.type === 'line') { convertLineToPath(a); return; }
       if (a && a.type === 'path') enterPathEdit(a);
-      else toast('Select a path');
+      else toast('Select a path or line');
     },
-    zoomIn: () => zoomBy(1.2), zoomOut: () => zoomBy(0.8), zoomReset: resetZoom, zoomFit,
+    zoomIn: () => {
+      if (engineLive()) { postEngine({ type: 'zoomIn' }); return; }
+      zoomBy(1.2);
+    },
+    zoomOut: () => {
+      if (engineLive()) { postEngine({ type: 'zoomOut' }); return; }
+      zoomBy(0.8);
+    },
+    zoomReset: () => {
+      if (engineLive()) { postEngine({ type: 'zoomFit' }); return; }
+      resetZoom();
+    },
+    zoomFit: () => {
+      if (engineLive()) { postEngine({ type: 'zoomFit' }); return; }
+      zoomFit();
+    },
     toggleGrid: () => { state.gridOn = !state.gridOn; renderGrid(); toast('Grid ' + (state.gridOn ? 'on' : 'off')); },
     toggleSnap: () => { state.snapOn = !state.snapOn; toast('Snap ' + (state.snapOn ? 'on' : 'off')); },
     toggleRulers,
@@ -2929,25 +4409,138 @@
   document.addEventListener('click', closeMenus);
 
   /* ---------------- Inspector inputs ---------------- */
+  (function wireColorPopover() {
+    const pop = $('#bndz-color-pop');
+    if (!pop) return;
+    const sv = $('#bndz-cp-sv'), knob = $('#bndz-cp-svk');
+    const hueEl = $('#bndz-cp-hue'), alphaEl = $('#bndz-cp-alpha'), hexEl = $('#bndz-cp-hex');
+    let target = 'fill';
+    let hsv = { h: 210, s: 0.2, v: 0.85 };
+    function hsvToHex(h, s, v) {
+      const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+      let r=0,g=0,b=0;
+      if (h < 60) { r=c; g=x; }
+      else if (h < 120) { r=x; g=c; }
+      else if (h < 180) { g=c; b=x; }
+      else if (h < 240) { g=x; b=c; }
+      else if (h < 300) { r=x; b=c; }
+      else { r=c; b=x; }
+      const to = (n) => Math.round((n + m) * 255).toString(16).padStart(2, '0');
+      return ('#' + to(r) + to(g) + to(b)).toUpperCase();
+    }
+    function hexToHsv(hex) {
+      hex = normHex(hex) || '#D9D9D9';
+      const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+      const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+      let h = 0;
+      if (d) {
+        if (max === r) h = ((g - b) / d) % 6;
+        else if (max === g) h = (b - r) / d + 2;
+        else h = (r - g) / d + 4;
+        h *= 60; if (h < 0) h += 360;
+      }
+      const s = max === 0 ? 0 : d / max;
+      return { h, s, v: max };
+    }
+    function syncUi() {
+      const hex = hsvToHex(hsv.h, hsv.s, hsv.v);
+      sv.style.setProperty('--bndz-cp-hue', hsvToHex(hsv.h, 1, 1));
+      knob.style.left = (hsv.s * 100) + '%';
+      knob.style.top = ((1 - hsv.v) * 100) + '%';
+      hueEl.value = Math.round(hsv.h);
+      hexEl.value = hex;
+      pop.style.setProperty('--bndz-cp-hue', hex);
+    }
+    function applyLive() {
+      const hex = hsvToHex(hsv.h, hsv.s, hsv.v);
+      const a = (+alphaEl.value) / 100;
+      if (target === 'stroke') setStroke(hex, true);
+      else setFill(hex, a, true);
+    }
+    function openPop(which, anchor) {
+      target = which;
+      setColorTarget(which);
+      const cur = which === 'stroke' ? state.stroke : state.fill;
+      hsv = hexToHsv(cur);
+      alphaEl.value = Math.round((which === 'stroke' ? 1 : state.fillAlpha) * 100);
+      syncUi();
+      const r = anchor.getBoundingClientRect();
+      pop.hidden = false;
+      pop.style.left = Math.min(window.innerWidth - 240, Math.max(8, r.left)) + 'px';
+      pop.style.top = Math.min(window.innerHeight - 240, r.bottom + 6) + 'px';
+    }
+    function closePop() { pop.hidden = true; }
+    sv.addEventListener('pointerdown', (e) => {
+      const move = (ev) => {
+        const r = sv.getBoundingClientRect();
+        hsv.s = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+        hsv.v = Math.max(0, Math.min(1, 1 - (ev.clientY - r.top) / r.height));
+        syncUi(); applyLive();
+      };
+      move(e);
+      const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    });
+    hueEl.addEventListener('input', () => { hsv.h = +hueEl.value; syncUi(); applyLive(); });
+    alphaEl.addEventListener('input', () => applyLive());
+    hexEl.addEventListener('change', () => {
+      const h = normHex(hexEl.value); if (!h) return;
+      hsv = hexToHsv(h); syncUi(); applyLive();
+    });
+    $('#bndz-cp-apply').addEventListener('click', () => { applyLive(); closePop(); });
+    $('#bndz-cp-native').addEventListener('click', () => {
+      closePop();
+      if (target === 'stroke') $('#stroke-picker').click();
+      else $('#fill-picker').click();
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!pop.hidden && !e.target.closest('#bndz-color-pop') && !e.target.closest('#fill-sw') && !e.target.closest('#stroke-sw')) closePop();
+    });
+    $('#fill-sw').addEventListener('click', (e) => { e.preventDefault(); openPop('fill', $('#fill-sw')); });
+    $('#stroke-sw').addEventListener('click', (e) => { e.preventDefault(); openPop('stroke', $('#stroke-sw')); });
+  })();
   $('#fill-picker').addEventListener('input', (e) => setFill(e.target.value, null, true));
-  $('#fill-sw').addEventListener('click', () => { setColorTarget('fill'); $('#fill-picker').click(); });
   $('#fill-hex').addEventListener('change', (e) => { const h = normHex(e.target.value); if (h) setFill(h, null, true); else e.target.value = state.fill.replace('#', ''); });
   $('#fill-alpha').addEventListener('input', (e) => { state.fillAlpha = (+e.target.value) / 100; $('#fill-alpha-n').textContent = e.target.value + '%'; setFill(state.fill, state.fillAlpha, true); });
   $('#stroke-picker').addEventListener('input', (e) => setStroke(e.target.value, true));
-  $('#stroke-sw').addEventListener('click', () => { setColorTarget('stroke'); $('#stroke-picker').click(); });
   $('#stroke-hex').addEventListener('change', (e) => { const h = normHex(e.target.value); if (h) setStroke(h, true); else e.target.value = state.stroke.replace('#', ''); });
   // Seed swatch chips from defaults (white stroke on dark board)
   setFill(state.fill, state.fillAlpha, false);
   setStroke(state.stroke, false);
   setColorTarget('fill');
-  $('#stroke-w').addEventListener('input', (e) => { state.strokeWidth = +e.target.value; $('#stroke-w-n').value = e.target.value; applyProp('strokeWidth', +e.target.value, true); syncBrushFromState(); if (drawingObj) { drawingObj.set('strokeWidth', +e.target.value); canvas.requestRenderAll(); } });
-  $('#stroke-w-n').addEventListener('change', (e) => { state.strokeWidth = +e.target.value; $('#stroke-w').value = e.target.value; applyProp('strokeWidth', +e.target.value); syncBrushFromState(); });
+  $('#stroke-w').addEventListener('input', (e) => {
+    state.strokeWidth = +e.target.value; $('#stroke-w-n').value = e.target.value;
+    applyProp('strokeWidth', +e.target.value, true); syncBrushFromState();
+    if (drawingObj) { drawingObj.set('strokeWidth', +e.target.value); canvas.requestRenderAll(); }
+    postEngine({ type: 'setStyle', stroke: state.stroke, fill: state.fill, strokeWidth: state.strokeWidth });
+  });
+  $('#stroke-w-n').addEventListener('change', (e) => {
+    state.strokeWidth = +e.target.value; $('#stroke-w').value = e.target.value;
+    applyProp('strokeWidth', +e.target.value); syncBrushFromState();
+    postEngine({ type: 'setStyle', stroke: state.stroke, fill: state.fill, strokeWidth: state.strokeWidth });
+  });
 
   $('#p-x').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (a) { a.set('left', +e.target.value); a.setCoords(); canvas.requestRenderAll(); pushHistory(); } });
   $('#p-y').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (a) { a.set('top', +e.target.value); a.setCoords(); canvas.requestRenderAll(); pushHistory(); } });
   $('#p-r').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (a) { a.rotate(+e.target.value); canvas.requestRenderAll(); pushHistory(); } });
-  $('#p-w').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (!a) return; const w = +e.target.value; if (a.type === 'rect' || a.type === 'image') a.set('scaleX', w / a.width); else a.set('scaleX', w / a.width); a.setCoords(); canvas.requestRenderAll(); pushHistory(); syncInspectorLight(); });
-  $('#p-h').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (!a) return; const h = +e.target.value; a.set('scaleY', h / a.height); a.setCoords(); canvas.requestRenderAll(); pushHistory(); syncInspectorLight(); });
+  const _pll = $('#p-line-len'); if (_pll) _pll.addEventListener('change', applyLineMetricsFromInputs);
+  const _pla = $('#p-line-ang'); if (_pla) _pla.addEventListener('change', applyLineMetricsFromInputs);
+  $('#p-w').addEventListener('change', (e) => {
+    const a = canvas.getActiveObject(); if (!a) return;
+    const w = +e.target.value; if (!(w > 0)) return;
+    a.set('scaleX', w / Math.max(1e-6, a.width || 1));
+    a.setCoords();
+    if (a.type === 'path') bakePathWorldGeometry(a);
+    canvas.requestRenderAll(); pushHistory(); syncInspectorLight(); updateLayers();
+  });
+  $('#p-h').addEventListener('change', (e) => {
+    const a = canvas.getActiveObject(); if (!a) return;
+    const h = +e.target.value; if (!(h > 0)) return;
+    a.set('scaleY', h / Math.max(1e-6, a.height || 1));
+    a.setCoords();
+    if (a.type === 'path') bakePathWorldGeometry(a);
+    canvas.requestRenderAll(); pushHistory(); syncInspectorLight(); updateLayers();
+  });
   $('#p-radius').addEventListener('change', (e) => {
     const a = canvas.getActiveObject(); if (!a || a.type !== 'rect') return;
     const v = +e.target.value;
@@ -2977,12 +4570,53 @@
   $('#p-opacity').addEventListener('input', (e) => { $('#p-opacity-n').value = e.target.value; applyProp('opacity', (+e.target.value) / 100, true); });
   $('#p-opacity-n').addEventListener('change', (e) => { $('#p-opacity').value = e.target.value; applyProp('opacity', (+e.target.value) / 100); });
 
-  $('#shadow-toggle').addEventListener('click', () => {
-    const a = canvas.getActiveObject(); if (!a) return;
-    const on = !a.shadow;
-    applyProp('shadow', on ? new fabric.Shadow({ color: 'rgba(0,0,0,0.35)', blur: 18, offsetX: 0, offsetY: 8 }) : null);
-    $('#shadow-toggle').classList.toggle('on', on);
+  $('#shadow-toggle').addEventListener('click', () => toggleEffect('dropShadow'));
+  const _fxMap = { 'fx-drop': 'dropShadow', 'fx-inner': 'innerShadow', 'fx-glow': 'outerGlow', 'fx-iglow': 'innerGlow', 'fx-blur': 'layerBlur' };
+  Object.keys(_fxMap).forEach((id) => {
+    const el = $('#' + id);
+    if (el) el.addEventListener('click', (e) => { e.stopPropagation(); toggleEffect(_fxMap[id]); });
   });
+  $$('#effects-stack .effect-row').forEach((row) => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.toggle') || e.target.closest('.fx-pop')) return;
+      const wasOpen = row.classList.contains('is-open');
+      $$('#effects-stack .effect-row').forEach((r) => { r.classList.remove('is-open'); r.classList.remove('fx-pop-up'); });
+      if (!wasOpen) {
+        row.classList.add('is-open');
+        const rect = row.getBoundingClientRect();
+        if (rect.bottom + 220 > window.innerHeight) row.classList.add('fx-pop-up');
+      }
+    });
+    row.querySelectorAll('.fx-p-blur,.fx-p-ox,.fx-p-oy,.fx-p-op,.fx-p-color').forEach((inp) => {
+      inp.addEventListener('change', () => updateEffectParamsForType(row.dataset.fx));
+      inp.addEventListener('input', () => updateEffectParamsForType(row.dataset.fx));
+    });
+  });
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('#effects-stack')) {
+      $$('#effects-stack .effect-row').forEach((r) => r.classList.remove('is-open'));
+    }
+  });
+  ['fx-blur-n', 'fx-ox', 'fx-oy', 'fx-op', 'fx-color'].forEach((id) => {
+    const el = $('#' + id);
+    if (el) el.addEventListener('change', updateActiveEffectParams);
+  });
+  const _glass = $('#fx-glass'); if (_glass) _glass.addEventListener('click', applyGlassPreset);
+  ['grad-angle', 'grad-fx', 'grad-fy'].forEach((id) => {
+    const el = $('#' + id);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      if (id === 'grad-angle') state.gradAngle = +el.value || 0;
+      if (id === 'grad-fx') state.gradFocalX = (+el.value || 50) / 100;
+      if (id === 'grad-fy') state.gradFocalY = (+el.value || 50) / 100;
+      if (state.fillKind !== 'solid') applyFillToSelection(true);
+    });
+  });
+  $$('#grad-target-seg [data-gradtarget]').forEach((b) => b.addEventListener('click', () => {
+    state.colorTarget = b.dataset.gradtarget === 'stroke' ? 'stroke' : 'fill';
+    $$('#grad-target-seg [data-gradtarget]').forEach((x) => x.classList.toggle('on', x === b));
+    if (state.fillKind !== 'solid') applyFillToSelection(true);
+  }));
   $('#text-font').addEventListener('change', (e) => applyProp('fontFamily', e.target.value));
   $('#text-size').addEventListener('change', (e) => applyProp('fontSize', +e.target.value));
   $$('[data-textalign]').forEach((b) => b.addEventListener('click', () => applyProp('textAlign', b.dataset.textalign)));
@@ -3000,6 +4634,16 @@
   /* ---------------- Context menu ---------------- */
   const cmenu = $('#context-menu');
   workspace.addEventListener('contextmenu', (e) => {
+    // Pen RMB commits path — suppress menu for that gesture (state already cleared)
+    if (suppressNextContextMenu) {
+      suppressNextContextMenu = false;
+      e.preventDefault();
+      return;
+    }
+    if (state.tool === 'pen' && penPoints.length >= 2) {
+      e.preventDefault();
+      return;
+    }
     e.preventDefault();
     const p = canvas.getPointer(e);
     const target = canvas.findTarget(e, false);
@@ -3033,6 +4677,20 @@
   }
   function onKeyDown(e) {
     if (isTyping(e)) return;
+    // When OpenPencil owns the canvas, forward editing keys into the engine iframe.
+    if (engineLive()) {
+      const forwardKeys = ['Delete', 'Backspace', 'Enter', 'Escape', 'Tab'];
+      const toolKeys = { v: 1, h: 1, f: 1, r: 1, o: 1, l: 1, a: 1, t: 1, e: 1, c: 1, p: 1 };
+      const keyLower = (e.key || '').toLowerCase();
+      if (forwardKeys.includes(e.key) || toolKeys[keyLower]
+        || ((e.ctrlKey || e.metaKey) && ['z', 'y', 'd', 'g', 'a', '0', '=', '+', '-', 's'].includes(keyLower))) {
+        postEngine({
+          type: 'keydown',
+          key: e.key || '', code: e.code || '',
+          ctrlKey: !!e.ctrlKey, metaKey: !!e.metaKey, shiftKey: !!e.shiftKey, altKey: !!e.altKey,
+        });
+      }
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === '1') { e.preventDefault(); zoomFitSelection(); return; }
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
       const objs = canvas.getActiveObjects();
@@ -3044,29 +4702,47 @@
         objs.forEach(o => {
           const nx = snapVal((o.left || 0) + dx), ny = snapVal((o.top || 0) + dy);
           o.set({ left: nx, top: ny }); o.setCoords();
+          if (o.type === 'path' && Array.isArray(o.pathEditPts)) {
+            translatePathPts(o.pathEditPts, dx, dy);
+            if (pathEdit && pathEdit.path === o) {
+              pathEdit.pts = clonePathPts(o.pathEditPts);
+              syncPathEditHandles();
+            }
+          }
+          if (lineEnds && lineEnds.line === o) {
+            syncLineEndpointHandles();
+            syncLineMetrics(o);
+          }
         });
         canvas.requestRenderAll(); pushHistory(); updateStatus(); syncInspectorLight();
         return;
       }
     }
     const key = e.key, lower = key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+    if (key === 'Alt') { state.altHeld = true; }
 
     if (key === ' ' && !spacePan) { e.preventDefault(); spacePan = true; canvas.setCursor('grab'); return; }
     if (key === 'Escape') {
       e.preventDefault();
       if ($('#export-modal') && $('#export-modal').classList.contains('open')) { closeExportModal(); return; }
       if ($('#proto-link-modal') && $('#proto-link-modal').classList.contains('open')) { closeProtoLinkModal(); return; }
-      if (pathEdit) { clearPathEdit(); return; }
+      // Escape ladder: path-edit → unfinished pen → deselect
+      if (pathEdit) { clearPathEdit(); nodeEditHint = ''; updateStatus(); return; }
       if (protoMode) { exitProtoMode(); return; }
       if (state.tool === 'pen' && penPoints.length) { clearPen(); return; }
+      clearHoverNodes();
       closeCommentPanel();
       cmenu.style.display = 'none'; canvas.discardActiveObject(); canvas.requestRenderAll(); syncInspector(); updateLayers(); return;
     }
     if (key === 'Enter') {
-      if (state.tool === 'pen' && penPoints.length) { e.preventDefault(); finishPen(); return; }
+      if (state.tool === 'pen' && penPoints.length) { e.preventDefault(); finishPen(false, { enterEdit: true }); return; }
       const a = canvas.getActiveObject();
+      if (a && a.type === 'line') { e.preventDefault(); convertLineToPath(a); return; }
       if (a && a.type === 'path') { e.preventDefault(); enterPathEdit(a); return; }
       if (a && a.protoTo && e.shiftKey) { e.preventDefault(); runProtoFrom(a); return; }
+    }
+    if ((e.ctrlKey || e.metaKey) && (key === '\\' || e.code === 'Backslash')) {
+      e.preventDefault(); bendSelectedPoint(); return;
     }
     if (key === 'Delete' || key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
 
@@ -3091,7 +4767,7 @@
     const toolKeys = { v: 'select', h: 'hand', f: 'frame', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', t: 'text', e: 'eraser', c: 'comment' };
     /* pen finish keys */
     if (state.tool === 'pen' && penPoints.length) {
-      if (e.key === 'Enter') { e.preventDefault(); finishPen(false); return; }
+      if (e.key === 'Enter') { e.preventDefault(); finishPen(false, { enterEdit: true }); return; }
       if (e.key === 'Escape') { e.preventDefault(); clearPen(); return; }
     }
     if (lower === 'p') { setTool(e.shiftKey ? 'pencil' : 'pen'); return; }
@@ -3099,6 +4775,10 @@
   }
   function onKeyUp(e) {
     if (e.key === ' ') { spacePan = false; isPanning = false; canvas.selection = state.tool === 'select'; canvas.setCursor(state.tool === 'hand' ? 'grab' : (state.tool === 'select' ? 'default' : 'crosshair')); }
+    if (e.key === 'Alt') {
+      state.altHeld = false;
+      if (pathEdit) syncPathEditHandles();
+    }
   }
   
   const _eye = document.getElementById('eyedropper-btn'); if (_eye) _eye.addEventListener('click', () => eyedrop());
@@ -3111,7 +4791,7 @@ window.addEventListener('keydown', onKeyDown);
     const d = ev && ev.data;
     if (!d || d.source !== 'bndz-host') return;
     if (d.type === 'action') {
-      if (USE_OPENPENCIL && workspace.classList.contains('engine-on')) {
+      if (engineLive()) {
         if (d.action === 'undo') { postEngine({ type: 'undo' }); return; }
         if (d.action === 'redo') { postEngine({ type: 'redo' }); return; }
         if (d.action === 'exportPng' || d.action === 'exportSvg') { postEngine({ type: 'exportPng' }); return; }
@@ -3124,7 +4804,7 @@ window.addEventListener('keydown', onKeyDown);
       return;
     }
     if (d.type === 'keydown' || d.type === 'keyup') {
-      if (USE_OPENPENCIL && workspace.classList.contains('engine-on')) {
+      if (engineLive()) {
         postEngine({
           type: d.type,
           key: d.key || '', code: d.code || '',
@@ -3465,15 +5145,7 @@ window.addEventListener('keydown', onKeyDown);
       eh.querySelectorAll('[data-estyle]').forEach((b) => b.addEventListener('click', () => applyEffectStyle(b.dataset.estyle)));
     }
   }
-  function renderPresenceBar() {
-    const bar = $('#presence-bar'); if (!bar) return;
-    const peers = [
-      { name: 'You', color: '#0d99ff' },
-      { name: 'Alex', color: '#14ae5c' },
-      { name: 'Sam', color: '#9747ff' },
-    ];
-    bar.innerHTML = peers.map((p) => `<span class="presence-chip"><i style="background:${p.color}"></i>${p.name}</span>`).join('');
-  }
+  function renderPresenceBar() { /* removed fake multiplayer chips */ }
   function setConstraint(axis, val) {
     const a = canvas.getActiveObject(); if (!a || a.type === 'activeSelection') return toast('Select one object');
     a.constraints = a.constraints || { h: 'left', v: 'top' };
@@ -3984,6 +5656,40 @@ function booleanOp(mode) {
   const _bpr=$('#btn-proto-run'); if(_bpr)_bpr.addEventListener('click', runProto);
   const _bpclear=$('#btn-proto-clear'); if(_bpclear)_bpclear.addEventListener('click', clearProtoLink);
   renderVarPanel();renderStylePanel();renderPresenceBar();
+  (function wireCollapsibleSections() {
+    const ids = ['sec-align', 'sec-transform', 'sec-fill', 'sec-stroke', 'sec-effects', 'sec-text', 'sec-image-fill', 'sec-autolayout', 'sec-boolean', 'sec-components', 'sec-variables', 'sec-styles', 'sec-constraints', 'sec-arrange', 'sec-prototype', 'sec-export'];
+    ids.forEach((id) => {
+      const sec = document.getElementById(id);
+      if (!sec) return;
+      let title = sec.querySelector(':scope > .section-title, :scope > .sec-title');
+      if (!title) return;
+      if (!title.classList.contains('section-title')) title.classList.add('section-title');
+      title.classList.add('collapsible');
+      if (!title.querySelector('.tt') && !title.querySelector('.chev')) {
+        const label = title.childNodes.length ? null : title.textContent;
+        if (label != null) title.textContent = '';
+        const tt = document.createElement('span');
+        tt.className = 'tt';
+        if (label != null) tt.textContent = label;
+        else {
+          while (title.firstChild) tt.appendChild(title.firstChild);
+        }
+        title.appendChild(tt);
+      }
+      if (!title.querySelector('.chev')) {
+        const chev = document.createElement('span');
+        chev.className = 'chev';
+        chev.textContent = '▾';
+        title.appendChild(chev);
+      }
+      if (title.dataset.bndzCollapseBound === '1') return;
+      title.dataset.bndzCollapseBound = '1';
+      title.addEventListener('click', (e) => {
+        if (e.target.closest('button, input, .toggle, .title-actions, .icon-btn')) return;
+        sec.classList.toggle('collapsed');
+      });
+    });
+  })();
 
   $$('#fill-kind-seg [data-fillkind]').forEach((b) => b.addEventListener('click', () => setFillKind(b.dataset.fillkind)));
   const _gas = $('#grad-add-stop'); if (_gas) _gas.addEventListener('click', () => addGradStop(0.5));
@@ -4241,11 +5947,6 @@ function booleanOp(mode) {
     }
   };
 
-  canvas.on('object:moving', (opt) => {
-    const o = opt.target; if (!o || !state.snapOn || o.isGuide) return;
-    o.set({ left: snapVal(o.left || 0), top: snapVal(o.top || 0) });
-    o.setCoords();
-  });
   canvas.on('object:scaling', (opt) => {
     const t = opt && opt.target;
     if (t && t.isFrame) {
@@ -4254,6 +5955,13 @@ function booleanOp(mode) {
   });
   canvas.on('object:modified', (opt) => {
     const t = opt && opt.target;
+    if (t && t.type === 'line') {
+      const pts = getLineAbsPoints(t);
+      if (pts) {
+        setLineAbsPoints(t, pts.p1, pts.p2);
+        if (lineEnds && lineEnds.line === t) syncLineEndpointHandles();
+      }
+    }
     if (t && t.isFrame && t._prevSize) {
       const nw = t.width * (t.scaleX || 1), nh = t.height * (t.scaleY || 1);
       applyConstraintsOnParentResize(t, t._prevSize.w, t._prevSize.h);
@@ -4276,14 +5984,50 @@ function booleanOp(mode) {
     resetZoom();
 
     const frame = newFrame(0, 0);
-    frame.set({ width: 800, height: 600, left: 0, top: 0 });
+    frame.set({
+      width: 800, height: 600, left: 0, top: 0,
+      locked: true, selectable: false, evented: false,
+      lockMovementX: true, lockMovementY: true,
+      lockScalingX: true, lockScalingY: true, lockRotation: true,
+      hasControls: false, hasBorders: false,
+      isBootFrame: true, hoverCursor: 'default',
+    });
     frame.name = autoName('frame'); frame.id = uid();
     canvas.add(frame);
-    canvas.setActiveObject(frame);
+    canvas.discardActiveObject();
     zoomFit();
     updateLayers(); syncInspector(); pushHistory(); updateZoomLabel();
     setTool('select');
-    toast('Design Board ready');
+    toast('Design Board ready — artboard locked');
+    if (USE_OPENPENCIL) bootEngineInline();
+
+    // Verification / host hooks (read-only ops + intentional test helpers)
+    window.__BNDZ_DB__ = {
+      getTool: () => state.tool,
+      getCanvas: () => canvas,
+      getState: () => state,
+      setTool,
+      attachLineEndpoints,
+      tryAltDeleteNode,
+      deletePathNodeAt,
+      showHoverNodesFor,
+      clearPathEdit,
+      clearHoverNodes,
+      enterPathEdit,
+      penClick,
+      finishPen,
+      clearPen,
+      injectPenPoints(pts) {
+        penPoints = (pts || []).map((p) => ({
+          x: p.x, y: p.y, cx: p.cx, cy: p.cy, inX: p.inX, inY: p.inY, outX: p.outX, outY: p.outY,
+          nodeType: p.nodeType || 'corner',
+        }));
+      },
+      getPathEdit: () => pathEdit,
+      getLineEnds: () => lineEnds,
+      getPenPoints: () => penPoints.slice(),
+      getSuppressCtx: () => suppressNextContextMenu,
+    };
   }
   boot();
 })();

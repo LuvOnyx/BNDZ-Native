@@ -2754,6 +2754,46 @@ export const IPC = {
     }
   },
 
+  /** Native WinRT PrintManager / shell print verb for a file path. */
+  printDocument(path?: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.isNative) {
+      const id = `${Date.now()}_print`;
+      if (path && String(path).trim()) {
+        return _nativeCall<{ ok: boolean; error?: string }>(
+          'PRINT_DOCUMENT',
+          'PRINT_RESULT',
+          id,
+          { path },
+          60000,
+        ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+      }
+      return _nativeCall<{ ok: boolean; error?: string }>(
+        'PRINT_UI',
+        'PRINT_RESULT',
+        id,
+        {},
+        60000,
+      ).catch(err => ({ ok: false, error: String(err?.message || err) }));
+    }
+    try {
+      window.print();
+      return Promise.resolve({ ok: true });
+    } catch (err: any) {
+      return Promise.resolve({ ok: false, error: String(err?.message || err) });
+    }
+  },
+
+  /** Drop a toast into Windows Notification Center (AppNotificationBuilder). */
+  showAppNotification(title: string, message: string, tag?: string): void {
+    if (!this.isNative) return;
+    try {
+      (window as any).chrome.webview.postMessage({
+        type: 'SHOW_APP_NOTIFICATION',
+        payload: { title, message, tag },
+      });
+    } catch { /* ignore */ }
+  },
+
   getWindowState(): Promise<{ maximized?: boolean }> {
     if (this.isNative) {
       const id = `${Date.now()}_winState`;

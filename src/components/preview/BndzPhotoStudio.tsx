@@ -60,6 +60,8 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
   const blobUrlRef = useRef<string | null>(null);
   const saveModeRef = useRef<SaveMode>('sibling');
   const saveDestRef = useRef<string | null>(null);
+  const helloSentRef = useRef(false);
+  const embedBoundRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -92,6 +94,20 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     if (!win) return;
     win.postMessage({ version: 1, ...msg }, '*');
   }, []);
+
+  const bindOpenShop = useCallback(() => {
+    if (helloSentRef.current) return;
+    helloSentRef.current = true;
+    postOpenShop({ type: 'openshop:hello', id: `hi_${Date.now()}` });
+  }, [postOpenShop]);
+
+  const configureOpenShop = useCallback(() => {
+    postOpenShop({
+      type: 'openshop:configure',
+      id: `cfg_${Date.now()}`,
+      overrides: { open: true, save: true },
+    });
+  }, [postOpenShop]);
 
   const postKey = useCallback(
     (payload: EditorKeyPayload) => postToStudio(payload),
@@ -226,25 +242,32 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
 
       if (typeof data.type === 'string' && data.type.startsWith('openshop:')) {
         if (data.type === 'openshop:ready') {
-          // Bind host first; then mark frame ready so open runs after hello.
-          postOpenShop({ type: 'openshop:hello', id: `hi_${Date.now()}`, version: 1 });
-          if (data.capabilities) {
-            setFrameReady(true);
-            setStatus('OpenShop engine ready');
-          } else {
-            // Unbound announce — hello reply will bring capabilities; arm soon anyway.
-            window.setTimeout(() => setFrameReady(true), 60);
+          if (!data.capabilities) {
+            bindOpenShop();
+            return;
           }
+          embedBoundRef.current = true;
+          configureOpenShop();
+          window.setTimeout(() => setFrameReady((ready) => ready || true), 3000);
           return;
         }
-        if (data.type === 'openshop:opened' || data.type === 'openshop:configured') {
+        if (data.type === 'openshop:configured') {
+          setFrameReady(true);
+          setStatus('OpenShop engine ready');
+          return;
+        }
+        if (data.type === 'openshop:opened') {
           setStatus(imagePayload?.name ? `Editing ${imagePayload.name}` : 'Image loaded');
           return;
         }
         if (data.type === 'openshop:exported') {
           const format = String(data.format || 'png').toLowerCase();
           const ext = format === 'jpeg' || format === 'jpg' ? 'jpg' : format === 'webp' ? 'webp' : 'png';
-          void persistExport({ blob: data.blob as Blob | undefined, ext });
+          void persistExport({
+            blob: data.blob as Blob | undefined,
+            dataUrl: typeof data.dataUrl === 'string' ? data.dataUrl : undefined,
+            ext,
+          });
           return;
         }
         if (data.type === 'openshop:error') {
@@ -279,7 +302,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [imagePayload, onRequestClose, persistExport, postOpenShop]);
+  }, [bindOpenShop, configureOpenShop, imagePayload, onRequestClose, persistExport]);
 
   useEffect(() => {
     if (frameReady) {
@@ -359,7 +382,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
             className="bndz-lens-chip"
             title="Undo (Ctrl+Z)"
             disabled={busy}
-            onClick={() => postToStudio({ type: 'keydown', key: 'z', code: 'KeyZ', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false })}
+            onClick={() => postOpenShop({ type: 'openshop:undo', id: `un_${Date.now()}`, version: 1 })}
           >
             Undo
           </button>
@@ -368,7 +391,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
             className="bndz-lens-chip"
             title="Redo (Ctrl+Shift+Z)"
             disabled={busy}
-            onClick={() => postToStudio({ type: 'keydown', key: 'z', code: 'KeyZ', ctrlKey: true, metaKey: false, shiftKey: true, altKey: false })}
+            onClick={() => postOpenShop({ type: 'openshop:redo', id: `re_${Date.now()}`, version: 1 })}
           >
             Redo
           </button>
@@ -384,6 +407,15 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
           Del · B E G · [ ] · Ctrl+Z/S
         </div>
       </div>
+      <div
+        className="bndz-photo-studio-stage"
+        onPointerDown={() => {
+          try {
+            iframeRef.current?.focus({ preventScroll: true });
+            iframeRef.current?.contentWindow?.focus?.();
+          } catch { /* ignore */ }
+        }}
+      >
       <iframe
         ref={iframeRef}
         className="bndz-photo-studio-frame"
@@ -392,10 +424,11 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         src={photoStudioSrc()}
         sandbox="allow-scripts allow-same-origin allow-downloads allow-modals allow-forms"
         onLoad={() => {
+          helloSentRef.current = false;
+          embedBoundRef.current = false;
+          setFrameReady(false);
           setTimeout(() => {
-            // OpenShop bind + legacy ping
-            postOpenShop({ type: 'openshop:hello', id: `hi_${Date.now()}`, version: 1 });
-            postToStudio({ type: 'ping' });
+            bindOpenShop();
             postToStudio({ type: 'setTheme', theme: studioTheme });
           }, 40);
           try {
@@ -403,6 +436,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
           } catch { /* ignore */ }
         }}
       />
+      </div>
       {(status || busy) && (
         <div className={`bndz-photo-studio-toast${status?.toLowerCase().includes('fail') ? ' is-error' : ''}`}>
           {busy ? 'Saving…' : status}

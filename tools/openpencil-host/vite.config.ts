@@ -5,6 +5,11 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   base: './',
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+    'process.env': '{}',
+    global: 'globalThis',
+  },
   plugins: [
     {
       name: 'stub-openpencil-fig-worker',

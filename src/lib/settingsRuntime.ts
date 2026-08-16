@@ -1139,10 +1139,35 @@ export function applySettingsRuntime(config: AppConfig): void {
 
   applyAppearanceVariants(config, root);
   applyListStyleDataset(config, root);
+  applyNativeShellBackdrop(config, root);
 
   import('./shellIntegrationRuntime').then(({ scheduleBackendSettings }) => {
     scheduleBackendSettings(config);
   });
+}
+
+function applyNativeShellBackdrop(config: AppConfig, root: HTMLElement): void {
+  const mica = config.micaBackdrop !== false;
+  const kind = (config.systemBackdropKind as string) || 'mica';
+  root.dataset.micaBackdrop = mica ? '1' : '0';
+  root.dataset.systemBackdropKind = kind;
+  root.classList.toggle('bndz-mica-backdrop', mica);
+
+  try {
+    const chrome = (window as any)?.chrome?.webview;
+    if (chrome?.postMessage) {
+      chrome.postMessage({
+        type: 'SET_SYSTEM_BACKDROP',
+        payload: {
+          enabled: mica,
+          kind,
+          nativeActionCenterToasts: config.nativeActionCenterToasts !== false,
+        },
+      });
+    }
+  } catch {
+    /* web / non-shell */
+  }
 }
 
 export function applyBackendSettings(config: AppConfig): void {

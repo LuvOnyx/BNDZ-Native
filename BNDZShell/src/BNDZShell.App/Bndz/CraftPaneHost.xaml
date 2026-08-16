@@ -8,15 +8,16 @@
     d:DesignHeight="280"
     d:DesignWidth="800">
 
-    <Grid Background="#0C0F14">
+    <Grid x:Name="PaneRoot" Background="Transparent">
         <WebView2
             x:Name="PaneWebView"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
-            DefaultBackgroundColor="#0C0F14"
+            DefaultBackgroundColor="Transparent"
             Loaded="PaneWebView_Loaded" />
         <TextBlock
             x:Name="PaneStatusHint"
+            Style="{StaticResource BndzBodyTextBlockStyle}"
             Margin="16"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"

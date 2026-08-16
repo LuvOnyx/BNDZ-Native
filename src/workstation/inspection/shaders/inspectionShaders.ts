@@ -34,11 +34,16 @@ uniform float uZoom;
 varying vec2 vUv;
 void main() {
   vec2 d = vUv - uMouse;
-  vec2 uv = uMouse + d / max(uZoom, 1.0);
-  if (length(d) > 0.18) {
-    gl_FragColor = texture2D(uMap, vUv) * 0.35;
-  } else {
-    gl_FragColor = texture2D(uMap, uv);
-  }
+  float r = 0.22;
+  float edge = 0.02;
+  float inside = 1.0 - smoothstep(r - edge, r + edge, length(d));
+  vec2 uv = clamp(uMouse + d / max(uZoom, 1.0), 0.0, 1.0);
+  vec4 base = texture2D(uMap, vUv);
+  vec4 mag = texture2D(uMap, uv);
+  // Keep base readable outside the lens (no crushed dark card)
+  gl_FragColor = mix(base, mag, inside);
+  // Soft lens rim
+  float rim = smoothstep(r - edge * 2.0, r, length(d)) * (1.0 - smoothstep(r, r + edge * 2.5, length(d)));
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.75, 0.88, 1.0), rim * 0.35);
 }
 `;

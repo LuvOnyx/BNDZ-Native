@@ -90,6 +90,21 @@ export default function ToastHost() {
         if (d.id) return prev.map(t => t.id === d.id ? { ...t, ...item } : t);
         return [...prev.slice(-4), item];
       });
+      if (item.native || item.kind === 'error' || item.kind === 'warning') {
+        try {
+          const chrome = (window as any)?.chrome?.webview;
+          chrome?.postMessage?.({
+            type: 'SHOW_APP_NOTIFICATION',
+            payload: {
+              title: item.title,
+              message: item.message,
+              tag: item.id,
+            },
+          });
+        } catch {
+          /* non-shell */
+        }
+      }
     };
     const onDismissEvt = (e: Event) => {
       const id = (e as CustomEvent<{ id: string }>).detail?.id;

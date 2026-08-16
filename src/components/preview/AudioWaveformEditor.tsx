@@ -42,10 +42,51 @@ const REGION = 'rgba(255, 255, 255, 0.22)';
 async function blobUrlFromIpc(winPath: string): Promise<string | null> {
   const result = await IPC.getMediaBlob(winPath);
   if (!result.base64 || !result.mime) return null;
-  const binary = atob(result.base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return URL.createObjectURL(new Blob([bytes], { type: result.mime }));
+  const blob = await (await fetch(`data:${result.mime};base64,${result.base64}`)).blob();
+  return URL.createObjectURL(blob);
+}
+
+type PeakCacheEntry = { peaks: number[][]; duration: number };
+const peakCache = new Map<string, PeakCacheEntry>();
+const peakInflight = new Map<string, Promise<PeakCacheEntry | null>>();
+
+async function decodePeaksCached(pathKey: string, blobUrl: string, signal: { cancelled: boolean }): Promise<PeakCacheEntry | null> {
+  const hit = peakCache.get(pathKey);
+  if (hit) return hit;
+  const existing = peakInflight.get(pathKey);
+  if (existing) return existing;
+
+  const job = (async () => {
+    try {
+      const ab = await (await fetch(blobUrl)).arrayBuffer();
+      if (signal.cancelled) return null;
+      // OfflineAudioContext avoids main-thread AudioContext suspend races when switching tracks.
+      const probe = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(ab.slice(0));
+      if (signal.cancelled) return null;
+      const peaks: number[][] = [];
+      const chans = Math.min(2, probe.numberOfChannels);
+      for (let ch = 0; ch < chans; ch++) {
+        peaks.push(channelPeaks(probe.getChannelData(ch)));
+        // Yield so UI stays responsive when hopping songs quickly.
+        await new Promise<void>((r) => setTimeout(r, 0));
+        if (signal.cancelled) return null;
+      }
+      const entry = { peaks, duration: probe.duration };
+      peakCache.set(pathKey, entry);
+      // Bound memory — keep recent tracks only.
+      if (peakCache.size > 12) {
+        const first = peakCache.keys().next().value;
+        if (first) peakCache.delete(first);
+      }
+      return entry;
+    } catch {
+      return null;
+    } finally {
+      peakInflight.delete(pathKey);
+    }
+  })();
+  peakInflight.set(pathKey, job);
+  return job;
 }
 
 /** Downsample channel data so WaveSurfer gets drawable peaks without megabyte arrays. */
@@ -137,11 +178,13 @@ export default function AudioWaveformEditor({ path, title }: Props) {
     const el = containerRef.current;
     if (!el || !path) return;
     let cancelled = false;
+    const cancelToken = { cancelled: false };
     let ws: WaveSurfer | null = null;
 
     const setup = async () => {
       el.replaceChildren();
       setStatus(null);
+      setReady(false);
 
       // Resolve ONE live blob — never bndz-stream for peaks (fetch/decode fails silently).
       let blobUrl = '';
@@ -157,7 +200,8 @@ export default function AudioWaveformEditor({ path, title }: Props) {
             return;
           }
           blobUrl = created;
-          audioPlaybackSession.load(path, blobUrl, { force: true });
+          // Only force when path actually changed — avoids decoder thrash mid-switch.
+          audioPlaybackSession.load(path, blobUrl, { force: !audioPlaybackSession.samePath(path) });
         } catch (e) {
           if (!cancelled) setStatus(e instanceof Error ? e.message : 'Waveform load failed');
           return;
@@ -166,34 +210,14 @@ export default function AudioWaveformEditor({ path, title }: Props) {
 
       if (cancelled || !blobUrl) return;
 
-      // Decode peaks ourselves — WaveSurfer `media`-only does not draw bars.
-      let peaks: number[][] = [];
-      let peakDuration = 0;
-      try {
-        const ab = await (await fetch(blobUrl)).arrayBuffer();
-        if (cancelled) return;
-        const ctx = new AudioContext();
-        try {
-          const audioBuffer = await ctx.decodeAudioData(ab.slice(0));
-          peakDuration = audioBuffer.duration;
-          const chans = Math.min(2, audioBuffer.numberOfChannels);
-          for (let ch = 0; ch < chans; ch++) {
-            peaks.push(channelPeaks(audioBuffer.getChannelData(ch)));
-          }
-        } finally {
-          void ctx.close();
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setStatus(e instanceof Error ? e.message : 'Could not decode waveform peaks');
-        }
+      const pathKey = toWindowsPath(path).toLowerCase();
+      const decoded = await decodePeaksCached(pathKey, blobUrl, cancelToken);
+      if (cancelled || !decoded?.peaks?.length || !(decoded.duration > 0)) {
+        if (!cancelled) setStatus(decoded ? 'Waveform decode produced no peaks' : 'Could not decode waveform peaks');
         return;
       }
-
-      if (cancelled || !peaks.length || !(peakDuration > 0)) {
-        setStatus('Waveform decode produced no peaks');
-        return;
-      }
+      const peaks = decoded.peaks;
+      const peakDuration = decoded.duration;
 
       const media = audioPlaybackSession.getMediaElement();
       const regions = RegionsPlugin.create();
@@ -256,6 +280,7 @@ export default function AudioWaveformEditor({ path, title }: Props) {
 
     return () => {
       cancelled = true;
+      cancelToken.cancelled = true;
       const snap = audioPlaybackSession.getSnapshot();
       const keepPlaying = snap.playing && audioPlaybackSession.samePath(path);
       const t = snap.currentTime;

@@ -369,9 +369,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       ? Number(mediaAv.playOnlyTheFirstSecondsValue) || 0
       : 0,
     keepPlayingWhenHidden: !!(mediaAv.keepPlayingWhenInfoPanelIsHidden || mediaAv.playAlsoWhenInfoPanelIsHidden),
-    // Video/audio seeking needs byte-range on bndz-stream — prefer stream for video.
-    // Audio stays blob-first (typically smaller; avoids codec edge cases).
-    preferBlob: isAudio || ((previewRt.preferBlob || !nativePreviewHandling) && !isVideo),
+    // Video/audio seeking needs byte-range on bndz-stream — prefer stream for both.
+    preferBlob: (previewRt.preferBlob || !nativePreviewHandling) && !isVideo && !isAudio,
     onOpenFloating: onOpenFloatingPreview,
     skipIntroMs: config.skipVideoPreview && isVideo
       ? Math.max(0, Number(mediaAv.skipVideoPreviewValue) || 0)
@@ -942,7 +941,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       return (
          <div className={`w-full h-full flex flex-col items-center justify-center p-6 relative bndz-preview-stage ${showThumb ? 'pattern-checkerboard' : ''}`}>
              <div className="absolute inset-0 " />
-             <div className="bndz-glass-panel px-8 py-6 flex flex-col items-center gap-4 max-w-[min(92%,560px)] border border-white/[0.06]">
+             <div className="px-8 py-6 flex flex-col items-center gap-4 max-w-[min(92%,560px)] bg-transparent border-0 shadow-none">
                  {path && isDir && !isDrive && !(entity as any)?.isVirtual ? (
                     <img
                       src={launcherIconUrl('ui_preview_folder') || '/Ui/preview-Big%20Folder.svg'}
@@ -1128,7 +1127,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           )}
           <AnimatePresence mode="wait">
              <motion.div 
-                key={`${path || entity.id}-${activeTab}-${shaderMode}-${isDir ? 'dir' : ext || 'file'}`}
+                key={`${path || entity.id}-${activeTab}-${isDir ? 'dir' : ext || 'file'}`}
                 initial={{ opacity: 0, y: animDuration > 0 ? 10 : 0 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}

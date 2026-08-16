@@ -1,3 +1,4 @@
+using BNDZShell.Bndz;
 using Microsoft.UI.Xaml;
 
 namespace BNDZShell;
@@ -13,6 +14,8 @@ public partial class App : Application
 	public App()
 	{
 		InitializeComponent();
+		BndzShellChromeSettings.Load();
+		BndzAppNotifications.EnsureRegistered();
 		UnhandledException += (_, e) =>
 		{
 			System.Diagnostics.Debug.WriteLine($"[BNDZShell] Unhandled: {e.Exception}");
