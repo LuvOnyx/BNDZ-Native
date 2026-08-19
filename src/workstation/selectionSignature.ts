@@ -1,8 +1,8 @@
 import { isArchiveExt } from '../lib/archiveTypes';
-import { isAudioExt, isImageExt, isVideoExt } from '../lib/mediaTypes';
+import { isAudioExt, isImageExt, isModelExt, isVideoExt } from '../lib/mediaTypes';
 import { isCodeExt } from '../lib/textFileTypes';
 
-export type MediaKind = 'image' | 'video' | 'audio' | 'archive' | 'code' | 'folder' | 'generic';
+export type MediaKind = 'image' | 'video' | 'audio' | 'archive' | 'code' | 'folder' | 'model' | 'generic';
 
 export type SelectionSignature =
   | { kind: 'empty' }
@@ -27,6 +27,7 @@ export function classifyMedia(path: string, typeHint?: string): MediaKind {
   if (t === 'directory' || t === 'folder') return 'folder';
   const ext = extFromPath(path);
   if (isImageExt(ext)) return 'image';
+  if (isModelExt(ext)) return 'model';
   if (isVideoExt(ext)) return 'video';
   if (isAudioExt(ext)) return 'audio';
   if (isArchiveExt(ext)) return 'archive';
@@ -68,5 +69,6 @@ export function signatureLayoutVariant(sig: SelectionSignature): 'collapsed' | '
   if (sig.kind === 'multi') return 'fan';
   if (sig.media === 'audio' || sig.media === 'video') return 'wide';
   if (sig.media === 'image') return 'wide';
+  if (sig.media === 'model') return 'wide';
   return 'compact';
 }

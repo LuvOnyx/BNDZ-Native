@@ -6223,6 +6223,15 @@ export default function BNDZUI() {
     menubarOpenedByHoverRef.current = false;
     setOpenMenuId(prev => (prev === menuId ? null : menuId));
   };
+  /** Open on pointerdown — WebView2 often eats the subsequent click on first press. */
+  const armMenubarMenu = (menuId: string) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    toggleMenubarMenu(menuId)(e);
+  };
+  const swallowMenubarClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
   const menuAct = (fn: () => void) => runMenubarAction(() => { fn(); closeMenu(); });
 
   /** Prefer live list cache over the empty virtual FS tree — toolbar/menubar/hotkeys must use this. */
@@ -11840,11 +11849,11 @@ export default function BNDZUI() {
         openPreviewWithTab('media');
         break;
       case 'histogram':
-        updateConfig({ inspectionShaderMode: 'histogram', gpuInspection: true });
+        updateConfig({ inspectionShaderMode: 'histogram' });
         openPreviewWithTab('preview');
         break;
       case 'loupe':
-        updateConfig({ inspectionShaderMode: 'loupe', gpuInspection: true });
+        updateConfig({ inspectionShaderMode: 'loupe' });
         openPreviewWithTab('preview');
         break;
       case 'quick-look':
@@ -12057,7 +12066,7 @@ export default function BNDZUI() {
             <span className="text-[12px] font-bold tracking-widest text-gray-200 uppercase hidden sm:inline">BNDZ</span>
          </div>
          <div
-           className="flex items-center flex-1 px-1 min-w-0 overflow-x-auto overflow-y-visible scrollbar-hidden"
+           className="flex items-center shrink-0 px-1 min-w-0 overflow-x-auto overflow-y-visible scrollbar-hidden"
            onMouseMove={(e) => {
              if (!openMenuId) return;
              const el = (e.target as HTMLElement).closest('[data-menu-trigger]');
@@ -12075,7 +12084,7 @@ export default function BNDZUI() {
                  role="menuitem"
                  aria-label="File menu"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'File' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('File')}
+                 onPointerDown={armMenubarMenu('File')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >File</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'File'} anchorEl={menubarAnchors.current['File']} minWidth={260}>
@@ -12362,7 +12371,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Edit"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Edit' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Edit')}
+                 onPointerDown={armMenubarMenu('Edit')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Edit</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Edit'} anchorEl={menubarAnchors.current['Edit']} minWidth={240}>
@@ -12594,7 +12603,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="View"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'View' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('View')}
+                 onPointerDown={armMenubarMenu('View')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >View</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'View'} anchorEl={menubarAnchors.current['View']} minWidth={200}>
@@ -12646,7 +12655,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Go"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Go' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Go')}
+                 onPointerDown={armMenubarMenu('Go')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Go</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Go'} anchorEl={menubarAnchors.current['Go']} minWidth={260}>
@@ -12793,7 +12802,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tools"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tools' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Tools')}
+                 onPointerDown={armMenubarMenu('Tools')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Tools</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tools'} anchorEl={menubarAnchors.current['Tools']} minWidth={260}>
@@ -12897,7 +12906,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Favorites"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Favorites' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Favorites')}
+                 onPointerDown={armMenubarMenu('Favorites')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Rapid access</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Favorites'} anchorEl={menubarAnchors.current['Favorites']} minWidth={260}>
@@ -12968,7 +12977,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tags"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tags' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Tags')}
+                 onPointerDown={armMenubarMenu('Tags')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Tags</div>
              {config.fileTaggingFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tags'} anchorEl={menubarAnchors.current['Tags']} minWidth={240}>
@@ -13079,7 +13088,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="User"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'User' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('User')}
+                 onPointerDown={armMenubarMenu('User')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >User</div>
              {config.userDefinedCommands !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'User'} anchorEl={menubarAnchors.current['User']} minWidth={200}>
@@ -13098,7 +13107,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Scripting"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Scripting' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Scripting')}
+                 onPointerDown={armMenubarMenu('Scripting')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Scripting</div>
              {config.scripting !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Scripting'} anchorEl={menubarAnchors.current['Scripting']} minWidth={200}>
@@ -13122,7 +13131,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Panes"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Panes' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Panes')}
+                 onPointerDown={armMenubarMenu('Panes')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Panes</div>
              {config.dualPaneFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Panes'} anchorEl={menubarAnchors.current['Panes']} minWidth={200}>
@@ -13139,7 +13148,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Tabsets"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Tabsets' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Tabsets')}
+                 onPointerDown={armMenubarMenu('Tabsets')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Tabsets</div>
              {config.tabsets !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Tabsets'} anchorEl={menubarAnchors.current['Tabsets']} minWidth={200}>
@@ -13156,7 +13165,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Window"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Window' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Window')}
+                 onPointerDown={armMenubarMenu('Window')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Window</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Window'} anchorEl={menubarAnchors.current['Window']} minWidth={200}>
@@ -13202,7 +13211,7 @@ export default function BNDZUI() {
                  data-menu-trigger
                  data-menu-id="Help"
                  className={`px-2.5 py-1 cursor-pointer bndz-menubar-trigger ${openMenuId === 'Help' ? 'bndz-menubar-trigger-active' : 'hover:bg-white/[0.06]'}`}
-                 onPointerDown={(e) => { e.stopPropagation(); }} onMouseDown={(e) => { e.stopPropagation(); }} onClick={toggleMenubarMenu('Help')}
+                 onPointerDown={armMenubarMenu('Help')} onMouseDown={(e) => { e.stopPropagation(); }} onClick={swallowMenubarClick}
              >Help</div>
              {config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Help'} anchorEl={menubarAnchors.current['Help']} minWidth={220}>

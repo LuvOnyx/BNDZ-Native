@@ -228,7 +228,7 @@ export default function CaptureInboxPlugin({
         <PluginEmptyState
           icon="clipboard_ui"
           title="No captures yet"
-          message="Copy a screenshot or image, then click Capture — or enable watching for automatic saves with OCR-suggested names."
+          message="Copy a screenshot, then click Capture — watching is off until you enable it, and only new clipboard images are saved."
         />
       ) : (
         <div className="flex flex-col gap-1.5">

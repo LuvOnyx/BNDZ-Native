@@ -22,6 +22,7 @@ type SceneProps = {
  * R3F orthographic camera: left/right = ±width/2 (pixel units).
  * Visible world width = size.width / zoom → fit zoom = size.width / planeW.
  * NEVER floor to a tiny constant — that makes the plane a speck and pan flies away.
+ * baseZoomRef stays 0 until a real fit is published (OrthoCameraController waits).
  */
 function FitCamera({
   texture,
@@ -33,6 +34,7 @@ function FitCamera({
   planeHalfRef: React.MutableRefObject<{ x: number; y: number }>;
 }) {
   const { camera, size, invalidate } = useThree();
+  const lastFitKey = useRef('');
 
   useEffect(() => {
     const img = texture.image as { width?: number; height?: number } | undefined;
@@ -43,16 +45,26 @@ function FitCamera({
     const planeH = (ih / maxDim) * 2;
     planeHalfRef.current = { x: planeW / 2, y: planeH / 2 };
 
-    // Wait for a real viewport — fitting at 0×0 stamps zoom≈0.2 and shrinks to a dot.
+    // Wait for a real viewport — fitting at 0×0 stamps zoom≈0 and shrinks to a dot.
     if (size.width < 16 || size.height < 16) return;
 
     const fitZoom = Math.min(size.width / planeW, size.height / planeH) * 0.92;
-    if (!Number.isFinite(fitZoom) || fitZoom <= 0) return;
+    if (!Number.isFinite(fitZoom) || fitZoom < 1) return;
 
-    baseZoomRef.current = Math.max(0.05, fitZoom);
+    const key = `${Math.round(size.width)}x${Math.round(size.height)}:${iw}x${ih}`;
+    const first = !lastFitKey.current;
+    // Ignore sub-pixel resize chatter; still refit when the stage actually changes.
+    if (!first && key === lastFitKey.current) return;
+    if (!first && Math.abs(baseZoomRef.current - fitZoom) < 0.75 && lastFitKey.current) {
+      // Tiny layout jitter — keep user zoom/pan; only refresh half extents above.
+      return;
+    }
+    lastFitKey.current = key;
+
+    baseZoomRef.current = fitZoom;
     const ortho = camera as THREE.OrthographicCamera;
     ortho.position.set(0, 0, 2);
-    ortho.zoom = baseZoomRef.current;
+    ortho.zoom = fitZoom;
     ortho.updateProjectionMatrix();
     invalidate();
   }, [texture, size.width, size.height, camera, invalidate, baseZoomRef, planeHalfRef]);
@@ -179,6 +191,7 @@ type Props = {
  */
 async function resolveTextureSrc(src: string, filePath?: string | null): Promise<string> {
   if (!src) return '';
+  if (typeof src !== 'string') return '';
   if (src.startsWith('blob:') || src.startsWith('data:')) return src;
   const needsBlob = /^bndz-stream:/i.test(src) || src.includes('/local-stream/');
   if (!needsBlob || !filePath) return src;
@@ -200,9 +213,9 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
   const [canvasKey, setCanvasKey] = useState(0);
   const [textureSrc, setTextureSrc] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const baseZoomRef = useRef(1);
+  const baseZoomRef = useRef(0);
   const planeHalfRef = useRef({ x: 1, y: 1 });
-  const fitZoomAtStart = useRef(1);
+  const fitZoomAtStart = useRef(0);
   const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -212,8 +225,8 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    baseZoomRef.current = 1;
-    fitZoomAtStart.current = 1;
+    baseZoomRef.current = 0;
+    fitZoomAtStart.current = 0;
     setZoomPct(100);
     setTextureSrc(null);
     setCanvasKey(k => k + 1);
@@ -238,7 +251,7 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
         blobUrlRef.current = null;
       }
     };
-  }, [src, filePath]);
+  }, [src, filePath, shaderMode]);
 
   if (!src || failed || !textureSrc) {
     return (
@@ -299,7 +312,7 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
               baseZoomRef={baseZoomRef}
               planeHalfRef={planeHalfRef}
               onZoomChange={mul => {
-                if (fitZoomAtStart.current <= 1 && baseZoomRef.current > 1) {
+                if (fitZoomAtStart.current <= 0 && baseZoomRef.current > 1) {
                   fitZoomAtStart.current = baseZoomRef.current;
                 }
                 const base = fitZoomAtStart.current > 1 ? fitZoomAtStart.current : baseZoomRef.current;

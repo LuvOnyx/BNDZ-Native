@@ -111,6 +111,13 @@ public static class BndzEmbeddedBackendHost
             }
             try
             {
+                // Headless shell has no App.xaml — bootstrap STA for clipboard / native menus.
+                try { BndzUiDispatcher.EnsureStarted(); }
+                catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] UI dispatcher: {ex.Message}"); }
+
+                try { ExternalDropHelper.SweepStaleDropTemps(); }
+                catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] drop temp sweep: {ex.Message}"); }
+
                 var collection = new ServiceCollection();
                 collection.AddSingleton<FileManagementService>();
                 collection.AddSingleton<LocalAiService>();
@@ -177,6 +184,15 @@ public static class BndzEmbeddedBackendHost
         EnsureStarted();
         try { _host?.SetHostTrayActions(hideToTray, restoreFromTray); }
         catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostTrayActions: {ex.Message}"); }
+#endif
+    }
+
+    public static void SetOpenPluginWindowAction(Func<string, string?, string?, bool> openAction)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetOpenPluginWindowAction(openAction); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetOpenPluginWindowAction: {ex.Message}"); }
 #endif
     }
 

@@ -3,6 +3,11 @@ import { Icons8Icon } from '../Icons8Icon';
 import { toVirtualStreamUrl, toWindowsPath } from '../../lib/pathUtils';
 import { isImageExt } from '../../lib/mediaTypes';
 import { useEditorIframeKeyBridge, type EditorKeyPayload } from '../../lib/editorIframeKeys';
+import {
+  filesToStudioDropImages,
+  hitIsStudioSurface,
+  pathsToStudioDropImages,
+} from '../../lib/studioDropBridge';
 
 type Props = {
   path: string;
@@ -30,7 +35,15 @@ type SaveMode = 'sibling' | 'overwrite' | 'pick';
 function editedPathFor(sourcePath: string, ext: string): string {
   const win = toWindowsPath(sourcePath);
   const stem = win.replace(/\.[^.]+$/, '');
-  const outExt = ext === 'jpg' || ext === 'jpeg' ? 'jpg' : ext === 'webp' ? 'webp' : 'png';
+  const outExt = ext === 'jpg' || ext === 'jpeg'
+    ? 'jpg'
+    : ext === 'webp'
+      ? 'webp'
+      : ext === 'svg'
+        ? 'svg'
+        : ext === 'ico'
+          ? 'ico'
+          : 'png';
   return `${stem}_edited.${outExt}`;
 }
 
@@ -55,6 +68,29 @@ function photoStudioSrc(): string {
   } catch { /* ignore */ }
   return `${prefix}editors/engines/openshop/index.html`;
 }
+
+async function collectInstalledFontFamilies(): Promise<string[]> {
+  const names = new Set<string>();
+  try {
+    const { IPC } = await import('../../lib/ipcBridge');
+    if (IPC.isNative) {
+      const host = await IPC.getInstalledFonts();
+      for (const n of host) names.add(n);
+    }
+  } catch { /* ignore */ }
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+async function pushSystemFonts(frame: HTMLIFrameElement | null) {
+  const win = frame?.contentWindow;
+  if (!win) return;
+  const families = await collectInstalledFontFamilies();
+  if (!families.length) return;
+  try {
+    win.postMessage({ type: 'bndz-system-fonts', families }, '*');
+  } catch { /* ignore */ }
+}
+
 export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -186,7 +222,15 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         setStatus('Export failed — empty image');
         return;
       }
-      const ext = opts.ext === 'jpg' || opts.ext === 'jpeg' ? 'jpg' : opts.ext === 'webp' ? 'webp' : 'png';
+      const ext = opts.ext === 'jpg' || opts.ext === 'jpeg'
+        ? 'jpg'
+        : opts.ext === 'webp'
+          ? 'webp'
+          : opts.ext === 'svg'
+            ? 'svg'
+            : opts.ext === 'ico'
+              ? 'ico'
+              : 'png';
       const mode = saveModeRef.current;
       let dest = saveDestRef.current;
       if (!dest) {
@@ -228,6 +272,52 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     }
   }, [postOpenShop, postToStudio]);
 
+  const placeDropImages = useCallback(async (paths?: string[], files?: File[]) => {
+    const fromFiles = files?.length ? await filesToStudioDropImages(files) : [];
+    const fromPaths = !fromFiles.length && paths?.length ? await pathsToStudioDropImages(paths) : [];
+    const images = fromFiles.length ? fromFiles : fromPaths;
+    if (!images.length) {
+      setStatus('Drop an image (PNG, JPG, WEBP, SVG, ICO…)');
+      return;
+    }
+    postOpenShop({
+      type: 'openshop:place',
+      id: `place_${Date.now()}`,
+      documents: images,
+    });
+    setStatus(`Placed ${images.length} image${images.length === 1 ? '' : 's'}`);
+  }, [postOpenShop]);
+
+  useEffect(() => {
+    const onExternalDrop = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const paths = detail.paths as string[] | undefined;
+      if (!paths?.length) return;
+      const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : null;
+      const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : null;
+      if (clientX != null && clientY != null) {
+        if (!hitIsStudioSurface(clientX, clientY, ['.bndz-photo-studio', '[data-studio-drop-surface="photo-studio"]'])) return;
+      }
+      void placeDropImages(paths);
+    };
+    window.addEventListener('bndz-external-drop', onExternalDrop);
+    return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
+  }, [placeDropImages]);
+
+  const onHostDragOver = useCallback((e: React.DragEvent) => {
+    const types = e.dataTransfer?.types;
+    if (!types || (![...types].includes('Files') && !e.dataTransfer.files?.length)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const onHostDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void placeDropImages(undefined, [...(e.dataTransfer?.files || [])]);
+  }, [placeDropImages]);
+
   useEffect(() => {
     if (!frameReady || !imagePayload) return;
     void openInEngine(imagePayload);
@@ -239,6 +329,13 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
     const onMessage = (ev: MessageEvent) => {
       const data = ev.data as any;
       if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'bndz-request-system-fonts') {
+        if (ev.source === iframeRef.current?.contentWindow) {
+          void pushSystemFonts(iframeRef.current);
+        }
+        return;
+      }
 
       if (typeof data.type === 'string' && data.type.startsWith('openshop:')) {
         if (data.type === 'openshop:ready') {
@@ -254,6 +351,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         if (data.type === 'openshop:configured') {
           setFrameReady(true);
           setStatus('OpenShop engine ready');
+          void pushSystemFonts(iframeRef.current);
           return;
         }
         if (data.type === 'openshop:opened') {
@@ -262,11 +360,25 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         }
         if (data.type === 'openshop:exported') {
           const format = String(data.format || 'png').toLowerCase();
-          const ext = format === 'jpeg' || format === 'jpg' ? 'jpg' : format === 'webp' ? 'webp' : 'png';
+          const ext = format === 'jpeg' || format === 'jpg' ? 'jpg' : format === 'webp' ? 'webp' : format === 'svg' ? 'svg' : 'png';
           void persistExport({
             blob: data.blob as Blob | undefined,
             dataUrl: typeof data.dataUrl === 'string' ? data.dataUrl : undefined,
             ext,
+          });
+          return;
+        }
+        if (data.type === 'openshop:save-requested') {
+          const filename = typeof data.filename === 'string' ? data.filename : 'export.png';
+          const extMatch = filename.match(/\.([a-z0-9]+)$/i);
+          const ext = (extMatch?.[1] || 'png').toLowerCase();
+          const normalized = ext === 'jpeg' ? 'jpg' : ext;
+          void persistExport({
+            blob: data.blob as Blob | undefined,
+            dataUrl: typeof data.dataUrl === 'string' ? data.dataUrl : undefined,
+            ext: normalized === 'jpg' || normalized === 'webp' || normalized === 'svg' || normalized === 'png' || normalized === 'ico'
+              ? normalized
+              : 'png',
           });
           return;
         }
@@ -353,59 +465,21 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
   }
 
   return (
-    <div className="bndz-photo-studio" tabIndex={-1}>
-      <div className="bndz-photo-studio-hostbar">
-        <div className="bndz-photo-studio-brand">
-          <Icons8Icon id="paint" size={15} />
-          <div>
-            <strong>Photo Studio</strong>
-            <span title={displayName}>{displayName}</span>
-          </div>
-        </div>
-        <div className="bndz-photo-studio-host-actions">
-          <button
-            type="button"
-            className="bndz-lens-chip"
-            title="Toggle Photo Studio dark / light UI"
-            disabled={busy}
-            onClick={() => {
-              const next = studioTheme === 'dark' ? 'light' : 'dark';
-              setStudioTheme(next);
-              try { localStorage.setItem('bndz-photo-studio-theme', next); } catch { /* ignore */ }
-              postToStudio({ type: 'setTheme', theme: next });
-            }}
-          >
-            {studioTheme === 'dark' ? 'Light UI' : 'Dark UI'}
-          </button>
-          <button
-            type="button"
-            className="bndz-lens-chip"
-            title="Undo (Ctrl+Z)"
-            disabled={busy}
-            onClick={() => postOpenShop({ type: 'openshop:undo', id: `un_${Date.now()}`, version: 1 })}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            className="bndz-lens-chip"
-            title="Redo (Ctrl+Shift+Z)"
-            disabled={busy}
-            onClick={() => postOpenShop({ type: 'openshop:redo', id: `re_${Date.now()}`, version: 1 })}
-          >
-            Redo
-          </button>
-          <button type="button" className="bndz-lens-chip bndz-lens-chip--accent" onClick={onSave} disabled={busy}>Save PNG</button>
-          <button type="button" className="bndz-lens-chip" onClick={() => requestExport('sibling', null, 'jpeg')} disabled={busy}>Save JPG</button>
-          <button type="button" className="bndz-lens-chip" onClick={onSaveOverwrite} disabled={busy}>Overwrite</button>
-          <button type="button" className="bndz-lens-chip" onClick={() => void onSaveAs()} disabled={busy}>Save As…</button>
-          {onRequestClose && (
-            <button type="button" className="bndz-lens-chip" onClick={onRequestClose}>Close</button>
-          )}
-        </div>
-        <div className="bndz-photo-studio-host-hint" title="Keys stay inside the studio while it is open">
-          Del · B E G · [ ] · Ctrl+Z/S
-        </div>
+    <div
+      className="bndz-photo-studio bndz-photo-studio--no-hostbar"
+      tabIndex={-1}
+      data-studio-drop-surface="photo-studio"
+      onDragEnter={onHostDragOver}
+      onDragOver={onHostDragOver}
+      onDrop={onHostDrop}
+    >      <div className="bndz-photo-studio-float-actions" role="toolbar" aria-label="Save actions">
+        <button type="button" className="bndz-lens-chip bndz-lens-chip--accent" onClick={onSave} disabled={busy} title="Save PNG beside original">Save PNG</button>
+        <button type="button" className="bndz-lens-chip" onClick={() => requestExport('sibling', null, 'jpeg')} disabled={busy} title="Save JPG beside original">Save JPG</button>
+        <button type="button" className="bndz-lens-chip" onClick={onSaveOverwrite} disabled={busy} title="Overwrite original">Overwrite</button>
+        <button type="button" className="bndz-lens-chip" onClick={() => void onSaveAs()} disabled={busy} title="Save As…">Save As…</button>
+        {onRequestClose && (
+          <button type="button" className="bndz-lens-chip" onClick={onRequestClose} title="Close studio">Close</button>
+        )}
       </div>
       <div
         className="bndz-photo-studio-stage"

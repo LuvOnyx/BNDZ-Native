@@ -72,6 +72,7 @@
   <ItemGroup>
     <Content Include="Assets\*.png" />
     <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\BNDZBackend\Assets\BNDZ.ico" Link="Assets\BNDZ.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Square44x44Logo.scale-*.png" />
     <Content Include="..\..\..\BNDZBackend\Assets\ui\**\*">
       <Link>Assets\ui\%(RecursiveDir)%(Filename)%(Extension)</Link>

@@ -56,8 +56,8 @@ export default function PluginPopoutShell({ initial }: Props) {
     || (stickyMode ? (plugin?.name || 'Sticky') : (plugin?.name || boot.pluginId));
 
   useEffect(() => {
-    document.title = `BNDZ · ${title}`;
-  }, [title]);
+    document.title = stickyMode ? (title || 'Sticky') : `BNDZ · ${title}`;
+  }, [title, stickyMode]);
 
   const body = stickyMode ? (
     <StickyWidgetEditor stickyId={boot.stickyId} />
@@ -87,8 +87,8 @@ export default function PluginPopoutShell({ initial }: Props) {
   );
 
   return (
-    <div className="bndz-plugin-popout-shell h-screen w-screen flex flex-col overflow-hidden bg-[#0c0c10]">
-      <WindowTitleBar title={`BNDZ · ${title}`} />
+    <div className={`bndz-plugin-popout-shell h-screen w-screen flex flex-col overflow-hidden ${stickyMode ? 'bndz-plugin-popout-shell--sticky' : 'bg-[#0c0c10]'}`}>
+      {!stickyMode && <WindowTitleBar title={`BNDZ · ${title}`} />}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {body}
       </div>

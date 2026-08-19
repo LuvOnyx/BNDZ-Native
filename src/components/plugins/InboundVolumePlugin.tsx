@@ -113,17 +113,21 @@ export default function InboundVolumePlugin({
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // Poll watcher state periodically to keep indicator accurate
+  // Poll watcher state lightly — never list the whole inbox on an interval (disk thrash).
   useEffect(() => {
     if (watchPollRef.current) clearInterval(watchPollRef.current);
     watchPollRef.current = setInterval(async () => {
       try {
         const root = await IPC.inboundGetRoot();
-        setWatching(!!root.watching);
+        const next = !!root.watching;
+        setWatching((prev) => {
+          if (prev !== next && next) void refresh();
+          return next;
+        });
       } catch { /* silent */ }
-    }, 5000);
+    }, watching ? 8000 : 15000);
     return () => { if (watchPollRef.current) clearInterval(watchPollRef.current); };
-  }, []);
+  }, [watching, refresh]);
 
   const captureNow = async () => {
     setBusy(true);
@@ -149,7 +153,7 @@ export default function InboundVolumePlugin({
       } else {
         await IPC.inboundStartWatching();
         setWatching(true);
-        pushToast({ kind: 'success', title: 'Watcher started', message: 'Auto-capturing clipboard changes.' });
+        pushToast({ kind: 'success', title: 'Watcher started', message: 'New file drops and images only — not the current clipboard, and not every Ctrl+C.' });
       }
     } catch (e) {
       pushToast({ kind: 'error', title: 'Watch toggle failed', message: String(e) });
@@ -307,7 +311,7 @@ export default function InboundVolumePlugin({
                   </div>
                   <div className="text-sm font-semibold text-white mb-1">Inbox empty</div>
                   <p className="text-xs text-gray-500 text-center max-w-xs leading-relaxed mb-4">
-                    Copy files, images, or text to your clipboard, then press <strong className="text-gray-300">Capture now</strong> to stage them here. Enable <strong className="text-gray-300">Watch</strong> to auto-catch clipboard changes.
+                    Copy files, images, or text, then press <strong className="text-gray-300">Capture now</strong>. Watch is off until you enable it — it only saves new file drops and screenshots, not every text copy.
                   </p>
                   <div className="flex gap-2">
                     <PluginToolbarButton icon="download_ui" onClick={() => void captureNow()} disabled={busy}>
@@ -437,7 +441,7 @@ export default function InboundVolumePlugin({
                 <PluginSectionTitle icon="data_information">How Inbound Volume works</PluginSectionTitle>
                 <ul className="mt-3 space-y-1.5 text-xs text-gray-400 leading-relaxed list-disc list-inside">
                   <li><strong className="text-gray-300">Capture now</strong> — grabs the current clipboard (files, images, or text) into the inbound staging area.</li>
-                  <li><strong className="text-gray-300">Watch mode</strong> — continuously monitors the clipboard and auto-captures new content.</li>
+                  <li><strong className="text-gray-300">Watch mode</strong> — opt-in. Saves new file drops and images only after you click Watch (never auto-starts, never rewrites the same screenshot).</li>
                   <li><strong className="text-gray-300">Copy in</strong> — copies captured content from staging into your active folder via the native host.</li>
                 </ul>
               </PluginCard>

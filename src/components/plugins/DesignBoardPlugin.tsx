@@ -1,8 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Icons8Icon } from '../Icons8Icon';
 import PluginPanelShell from './PluginPanelShell';
 import { PluginToolbarButton } from './PluginPanelPrimitives';
 import { useEditorIframeKeyBridge, type EditorKeyPayload } from '../../lib/editorIframeKeys';
+import {
+  filesToStudioDropImages,
+  hitIsStudioSurface,
+  pathsToStudioDropImages,
+} from '../../lib/studioDropBridge';
 
 export const DesignBoardPluginDef = {
   id: 'design-board',
@@ -52,6 +56,18 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
     [postToBoard],
   );
 
+  const placeDropImages = useCallback(async (paths?: string[], files?: File[]) => {
+    const fromFiles = files?.length ? await filesToStudioDropImages(files) : [];
+    const fromPaths = !fromFiles.length && paths?.length ? await pathsToStudioDropImages(paths) : [];
+    const images = fromFiles.length ? fromFiles : fromPaths;
+    if (!images.length) {
+      setStatus('Drop an image (PNG, JPG, WEBP, SVG, ICO…)');
+      return;
+    }
+    postToBoard({ type: 'placeImages', images });
+    setStatus(`Placed ${images.length} image${images.length === 1 ? '' : 's'}`);
+  }, [postToBoard]);
+
   useEditorIframeKeyBridge({
     rootSelector: '.bndz-design-board',
     iframeRef,
@@ -61,19 +77,10 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
   });
 
   const newBoard = useCallback(() => {
-    if (!window.confirm('Start a fresh board? Unsaved canvas state will clear.')) return;
-    setBoardKey((k) => k + 1);
+    // Prefer in-place reset — full iframe reload was blanking before Fabric boot finished.
+    postToBoard({ type: 'action', action: 'new' });
     setStatus('Fresh board');
-  }, []);
-
-  const sendAction = useCallback((action: string) => {
-    postToBoard({ type: 'action', action });
-    if (action === 'undo') {
-      postKey({ type: 'keydown', key: 'z', code: 'KeyZ', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false });
-    } else if (action === 'exportPng') {
-      postToBoard({ type: 'action', action: 'exportPng' });
-    }
-  }, [postKey, postToBoard]);
+  }, [postToBoard]);
 
   useEffect(() => {
     if (popout) return;
@@ -135,32 +142,48 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
     return () => window.removeEventListener('message', onMsg);
   }, []);
 
+  // Host OLE drops (WebView2 IDropTarget steals Chromium HTML5 DnD).
+  useEffect(() => {
+    const onExternalDrop = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      const paths = detail.paths as string[] | undefined;
+      if (!paths?.length) return;
+      const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : null;
+      const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : null;
+      if (clientX != null && clientY != null) {
+        if (!hitIsStudioSurface(clientX, clientY, ['.bndz-design-board', '.bndz-design-board-overlay'])) return;
+      }
+      void placeDropImages(paths);
+    };
+    window.addEventListener('bndz-external-drop', onExternalDrop);
+    return () => window.removeEventListener('bndz-external-drop', onExternalDrop);
+  }, [placeDropImages]);
+
+  const onHostDragOver = useCallback((e: React.DragEvent) => {
+    const types = e.dataTransfer?.types;
+    if (!types || (![...types].includes('Files') && !e.dataTransfer.files?.length)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const onHostDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = [...(e.dataTransfer?.files || [])];
+    void placeDropImages(undefined, files);
+  }, [placeDropImages]);
+
   const board = (
-    <div className={`bndz-design-board bndz-design-board--exact${expanded || popout ? ' is-expanded' : ''}${popout ? ' is-popout' : ''}`}>
-      <header className="bndz-design-board-hostbar">
-        <div className="bndz-design-board-brand">
-          <Icons8Icon id="layers_ui" size={16} />
-          <div>
-            <strong>Design Board</strong>
-            <span>{popout ? 'Pop-out · stroke tools use Stroke color' : 'ProDesign · Del V R O T · Esc docks'}</span>
-          </div>
-        </div>
-        <div className="bndz-design-board-actions">
-          <PluginToolbarButton onClick={() => sendAction('undo')}>Undo</PluginToolbarButton>
-          <PluginToolbarButton
-            onClick={() => postKey({ type: 'keydown', key: 'z', code: 'KeyZ', ctrlKey: true, metaKey: false, shiftKey: true, altKey: false })}
-          >
-            Redo
-          </PluginToolbarButton>
-          <PluginToolbarButton onClick={() => sendAction('exportPng')}>Export</PluginToolbarButton>
-          <PluginToolbarButton onClick={newBoard}>New</PluginToolbarButton>
-          {!popout && (
-            <PluginToolbarButton onClick={() => setExpanded((v) => !v)}>
-              {expanded ? 'Dock' : 'Expand'}
-            </PluginToolbarButton>
-          )}
-        </div>
-      </header>
+    <div
+      className={`bndz-design-board bndz-design-board--exact bndz-design-board--no-hostbar${expanded || popout ? ' is-expanded' : ''}${popout ? ' is-popout' : ''}`}
+      data-studio-drop-surface="design-board"
+      onDragEnter={onHostDragOver}
+      onDragOver={onHostDragOver}
+      onDrop={onHostDrop}
+    >
+      {/* No host Expand/New board chrome — duplicates stole clicks from iframe menus.
+          Expand via double-click title / View menu postMessage; dock strip removed. */}
       <iframe
         key={boardKey}
         ref={iframeRef}
@@ -191,6 +214,14 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
     return (
       <div className="bndz-design-board-overlay" role="dialog" aria-label="Design Board">
         {board}
+        <button
+          type="button"
+          className="bndz-design-board-dock-fab"
+          onClick={() => setExpanded(false)}
+          title="Dock Design Board"
+        >
+          Dock
+        </button>
       </div>
     );
   }
@@ -200,13 +231,13 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
       title="Design Board"
       icon="layers_ui"
       iconColor="#0d99ff"
-      subtitle="Figma chrome · Fabric canvas (OpenPencil: ?engine=openpencil)"
+      subtitle="Infinite canvas"
       variant="embedded"
-      toolbar={(
-        <>
-          <PluginToolbarButton onClick={() => setExpanded(true)}>Expand</PluginToolbarButton>
-          <PluginToolbarButton onClick={newBoard}>New board</PluginToolbarButton>
-        </>
+      footer={(
+        <div className="bndz-design-board-host-actions" style={{ border: 'none', padding: 0, background: 'transparent', width: '100%' }}>
+          <PluginToolbarButton onClick={() => setExpanded(true)} title="Expand Design Board to fill workspace">Expand</PluginToolbarButton>
+          <PluginToolbarButton onClick={newBoard} title="Start a fresh board">New board</PluginToolbarButton>
+        </div>
       )}
     >
       {board}

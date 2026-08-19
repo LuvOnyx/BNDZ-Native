@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { useAppConfig } from '../data/configContext';
 import { FSEntity } from '../types';
 import { toWindowsPath, toVirtualStreamUrl, encodeLocalStreamPath, formatFsDate, joinPanePath, normalizePanePath, isRecycleBinPath } from '../lib/pathUtils';
@@ -15,7 +15,6 @@ import MediaPreviewPlayer from './MediaPreviewPlayer';
 import TextPreviewEditor from './TextPreviewEditor';
 const MonacoMicroEditor = lazy(() => import('./preview/MonacoMicroEditor'));
 const AudioWaveformEditor = lazy(() => import('./preview/AudioWaveformEditor'));
-import ImageZoomPreview from './ImageZoomPreview';
 import SvgVectorPreview from './SvgVectorPreview';
 import InspectionViewportRouter from '../workstation/inspection/InspectionViewportRouter';
 import type { InspectionShaderMode } from '../workstation/inspection/InspectionViewportRouter';
@@ -80,6 +79,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
   const [extendedDetails, setExtendedDetails] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<PreviewTab>('preview');
+  const configInspectMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
+  const [inspectMode, setInspectMode] = useState<InspectionShaderMode>(configInspectMode);
+  useEffect(() => { setInspectMode(configInspectMode); }, [configInspectMode]);
 
   useEffect(() => {
     const onPreviewTab = (e: Event) => {
@@ -624,11 +626,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           return <ArchivePreviewPanel path={path} format={ext} onExtract={extractArchive} />;
       }
       if (isAudio && audioVideoEnabled && path) {
-        return (
-          <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform…</div>}>
-            <AudioWaveformEditor path={path} title={entity.name} />
-          </Suspense>
-        );
+        // Waveform stays mounted in the preview shell so Workspace tab switches
+        // do not re-decode peaks.
+        return null;
       }
 
       if (isVideo && audioVideoEnabled) {
@@ -650,12 +650,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isSvg && previewAllowed) {
-          const inspectMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
-          const wantGpuInspect = inspectMode !== 'passthrough'
-            && config.gpuInspection !== false
-            && probeWebGL();
-          // Loupe / Luma need the GPU inspection stack (rasterize via img texture).
-          if (wantGpuInspect) {
+          const wantInspect = inspectMode !== 'passthrough';
+          // SVG is still 2D — Loupe/Luma tint/magnify the rasterized image.
+          if (wantInspect) {
             const src = virtualUrl || svgPreviewUrl || '';
             if (!src) {
               return (
@@ -665,13 +662,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               );
             }
             return (
-              <div className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
+              <div className={`relative w-full h-full min-h-0 flex-1 bndz-preview-media-frame bndz-preview-border-${mediaBorderType}`}>
                 <InspectionViewportRouter
                   src={src}
                   alt={entity.name}
                   filePath={path}
                   onOpenFloating={onOpenFloatingPreview}
-                  gpuEnabled
                   shaderMode={inspectMode}
                 />
               </div>
@@ -715,6 +711,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isModel && previewAllowed) {
+        // 3D / RAGE (.ydr/.ybn/…) — dedicated Orbit viewport only.
+        // Loupe / Luma inspection modes are image-only and never wrap this path.
         const webGlReady = probeWebGL();
         const canShow = webGlReady && (isGpuNativeModelExt(ext) || isRageConvertModelExt(ext));
         if (!webGlReady) {
@@ -753,6 +751,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading 3D viewport…</div>}>
               <GpuModelViewport src={modelPreview.url} title={entity.name} badge={modelPreview.badge} />
             </Suspense>
+            <div className="pointer-events-none absolute left-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] text-white/80">
+              3D orbit · drag to rotate
+            </div>
             {(modelPreview.vertices || modelPreview.triangles) ? (
               <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/80">
                 {modelPreview.vertices?.toLocaleString()} verts · {modelPreview.triangles?.toLocaleString()} tris
@@ -763,6 +764,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       }
 
       if (isImage && previewAllowed) {
+          // Loupe / Luma apply here only (2D photos). Never used for 3D meshes.
           // Always prefer full-res stream for the panel — CAS thumbs are interim/fallback only.
           // Preferring thumbs as primary made zoom look soft/pixelated.
           const thumbData = thumbnailNative
@@ -772,7 +774,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           const fallbackSrc = thumbData || undefined;
           return (
             <div
-              className={`relative w-full h-full min-h-0 bndz-preview-media-frame bndz-preview-media-frame--flush bndz-preview-border-${mediaBorderType}`}
+              className={`relative w-full h-full min-h-0 flex-1 bndz-preview-media-frame bndz-preview-media-frame--flush bndz-preview-border-${mediaBorderType}`}
             >
               <InspectionViewportRouter
                   src={primarySrc}
@@ -780,8 +782,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   fallbackSrc={fallbackSrc}
                   filePath={path}
                   onOpenFloating={onOpenFloatingPreview}
-                  gpuEnabled={config.gpuInspection !== false && probeWebGL()}
-                  shaderMode={(config.inspectionShaderMode as InspectionShaderMode) || 'passthrough'}
+                  shaderMode={inspectMode}
               />
               {showPreviewCaption && (
                 <div
@@ -1047,16 +1048,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
     { id: 'details', label: 'Details', show: true },
   ];
 
-  const shaderMode = (config.inspectionShaderMode as InspectionShaderMode) || 'passthrough';
   const inspectionModes: { id: InspectionShaderMode; label: string }[] = [
     { id: 'passthrough', label: 'Standard' },
     { id: 'histogram', label: 'Luma inspect' },
     { id: 'loupe', label: 'Loupe' },
   ];
 
-  const setInspectionMode = (mode: InspectionShaderMode) => {
-    updateConfig({ inspectionShaderMode: mode, gpuInspection: true });
-  };
+  const setInspectionMode = useCallback((mode: InspectionShaderMode) => {
+    setInspectMode(mode);
+    // Persist mode without forcing a full settings-runtime/shell sync storm on every click.
+    updateConfig({ inspectionShaderMode: mode });
+  }, [updateConfig]);
 
   return (
     <div className="bndz-preview-panel w-full h-full flex flex-col shrink-0 z-10 overflow-hidden">
@@ -1080,7 +1082,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
        </div>
        
        <div className={`bndz-preview-content flex-1 relative flex flex-col min-h-0 ${
-         isArchive || isTorrent || (isAudio && activeTab === 'media')
+         isArchive || isTorrent || (isAudio && (activeTab === 'media' || activeTab === 'preview'))
+           || ((isImage || isSvg) && activeTab === 'preview')
            ? 'overflow-hidden overscroll-contain'
            : 'overflow-y-auto bndz-scrollbar'
        }`}>
@@ -1106,7 +1109,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   key={mode.id}
                   type="button"
                   role="tab"
-                  aria-selected={shaderMode === mode.id}
+                  data-mode={mode.id}
+                  aria-selected={inspectMode === mode.id}
                   title={`${mode.label} view`}
                   onPointerDown={(e) => {
                     e.preventDefault();
@@ -1118,13 +1122,24 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     e.stopPropagation();
                     setInspectionMode(mode.id);
                   }}
-                  className={`bndz-inspection-mode-btn${shaderMode === mode.id ? ' is-active' : ''}`}
+                  className={`bndz-inspection-mode-btn${inspectMode === mode.id ? ' is-active' : ''}`}
                 >
                   {mode.label}
                 </button>
               ))}
             </div>
           )}
+          {isAudio && audioVideoEnabled && path && (
+            <div
+              className={`flex-1 min-h-0 flex flex-col ${activeTab === 'preview' ? '' : 'hidden'}`}
+              aria-hidden={activeTab !== 'preview'}
+            >
+              <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading waveform…</div>}>
+                <AudioWaveformEditor path={path} title={entity.name} />
+              </Suspense>
+            </div>
+          )}
+          {!(isAudio && activeTab === 'preview') && (
           <AnimatePresence mode="wait">
              <motion.div 
                 key={`${path || entity.id}-${activeTab}-${isDir ? 'dir' : ext || 'file'}`}
@@ -1132,10 +1147,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}
                 transition={{ duration: animDuration, ease: "easeOut" }}
-                className={`flex flex-col flex-1 ${isArchive || isTorrent ? 'min-h-0 h-full' : ''}`}
+                className={`flex flex-col flex-1 min-h-0 ${
+                  isArchive || isTorrent || ((isImage || isSvg) && activeTab === 'preview') ? 'h-full' : ''
+                }`}
              >
-                {(activeTab === 'preview' || activeTab === 'media') && (
-                <div className={`bndz-preview-stage w-full relative group flex flex-col min-h-0 flex-1 ${
+                {(activeTab === 'preview' || activeTab === 'media') && !(isAudio && activeTab === 'preview') && (
+                <div className={`bndz-preview-stage w-full relative group flex flex-col min-h-0 flex-1 min-h-[160px] ${
                   isArchive || isTorrent
                     ? 'border-0'
                     : 'border-b border-white/[0.06]'
@@ -1316,6 +1333,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 )}
              </motion.div>
           </AnimatePresence>
+          )}
        </div>
        {(selectionPaths?.length ?? 0) > 1 && (
          <SelectionFilmstrip

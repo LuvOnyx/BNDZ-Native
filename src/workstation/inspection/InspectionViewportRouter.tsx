@@ -1,7 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import ImageZoomPreview from '../../components/ImageZoomPreview';
-import GpuInspectionViewport from './GpuInspectionViewport';
-import { probeWebGL } from '../webglProbe';
 
 export type InspectionShaderMode = 'passthrough' | 'histogram' | 'loupe';
 
@@ -15,6 +13,10 @@ type Props = {
   shaderMode?: InspectionShaderMode;
 };
 
+/**
+ * Loupe / Luma / Standard share one ImageZoomPreview (same pan+zoom).
+ * 3D meshes (.glb, .ydr, …) use GpuModelViewport in the main preview — never this router.
+ */
 export default function InspectionViewportRouter({
   src,
   alt,
@@ -24,49 +26,25 @@ export default function InspectionViewportRouter({
   gpuEnabled = true,
   shaderMode = 'passthrough',
 }: Props) {
-  const [gpuFailed, setGpuFailed] = useState(false);
-  useEffect(() => {
-    setGpuFailed(false);
-  }, [src, filePath, shaderMode]);
+  // GPU shader path retired — 2D ImageZoomPreview owns Standard / Luma / Loupe.
+  void gpuEnabled;
 
-  const wantsGpuShader = shaderMode === 'histogram' || shaderMode === 'loupe';
-  const useGpu = !gpuFailed
-    && gpuEnabled !== false
-    && probeWebGL()
-    && !!src
-    && wantsGpuShader;
-
-  if (!useGpu) {
-    return (
-      <div className="relative w-full h-full min-h-0 flex flex-col">
-        <ImageZoomPreview
-          src={src}
-          alt={alt}
-          fallbackSrc={fallbackSrc}
-          filePath={filePath}
-          onOpenFloating={onOpenFloating}
-        />
-      </div>
-    );
-  }
+  const wantsLens = shaderMode === 'histogram' || shaderMode === 'loupe';
 
   return (
-    <div className="relative w-full h-full flex flex-col min-h-0">
-      <GpuInspectionViewport
+    <div className="relative w-full h-full min-h-0 flex-1 flex flex-col">
+      <ImageZoomPreview
         src={src}
         alt={alt}
+        fallbackSrc={fallbackSrc}
         filePath={filePath}
-        shaderMode={shaderMode}
-        onFailed={() => setGpuFailed(true)}
+        onOpenFloating={onOpenFloating}
+        inspectionMode={shaderMode}
       />
-      {onOpenFloating && (
-        <button
-          type="button"
-          className="absolute top-2 right-2 z-10 text-[10px] px-2 py-1 rounded bg-black/50 text-white/80 hover:bg-black/70"
-          onClick={onOpenFloating}
-        >
-          Quick Look
-        </button>
+      {wantsLens && (
+        <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-md bg-black/70 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-cyan-100">
+          {shaderMode === 'loupe' ? 'Loupe' : 'Luma inspect'}
+        </div>
       )}
     </div>
   );

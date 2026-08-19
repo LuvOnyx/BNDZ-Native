@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -30,6 +31,11 @@ public class ShellIntegrationService
     private const uint ShcnfIdList = 0x0000;
 
     private const string MissingSentinel = "__BNDZ_MISSING__";
+
+    /// <summary>
+    /// Native WinUI host close. When null, classic WPF uses Application.Current.Shutdown.
+    /// </summary>
+    public Action? ExitHost { get; set; }
 
     private static readonly (string ShellKey, string[] Verbs)[] DefaultFmShellClasses =
     [
@@ -678,7 +684,18 @@ public class ShellIntegrationService
                 UseShellExecute = true
             });
 
-            System.Windows.Application.Current.Shutdown();
+            try
+            {
+                if (ExitHost != null)
+                    ExitHost();
+                else
+                    System.Windows.Application.Current?.Dispatcher.BeginInvoke(
+                        () => System.Windows.Application.Current?.Shutdown());
+            }
+            catch
+            {
+                Environment.Exit(0);
+            }
             return new ShellIntegrationResult { Success = true, Message = "Restarting with administrator rights." };
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)

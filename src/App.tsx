@@ -28,6 +28,12 @@ import BndzErrorBoundary from './components/BndzErrorBoundary';
 const PLUGIN_BOOT = readPluginWindowBootFromUrl();
 const PANE_BOOT = readPaneBootFromUrl();
 const FILES_HOST = isFilesHostBoot();
+if (PLUGIN_BOOT && (PLUGIN_BOOT.stickyId || PLUGIN_BOOT.pluginId === 'sticky-note')) {
+  try {
+    document.documentElement.dataset.bndzStickyWidget = '1';
+    document.documentElement.dataset.bndzShell = 'native-host';
+  } catch { /* ignore */ }
+}
 const CRAFT_ISLAND =
   PANE_BOOT?.pane === 'chrome' || PANE_BOOT?.pane === 'sidebar' ? PANE_BOOT.pane : null;
 applyNativeShellDocumentMark();

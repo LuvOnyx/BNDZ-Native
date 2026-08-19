@@ -916,7 +916,7 @@ export default function WorkspaceToolsTabContent({
                   </div>
                   <div className="mt-2">
                     <Checkbox
-                      label="GPU inspection shaders (luma inspect / loupe in preview)"
+                      label="Image inspection tools (Luma / Loupe on photos — not 3D models)"
                       checked={localConfig.gpuInspection !== false}
                       onChange={e => updateLocalConfig({ gpuInspection: e.target.checked })}
                     />
@@ -930,10 +930,13 @@ export default function WorkspaceToolsTabContent({
                         inspectionShaderMode: e.target.value as 'passthrough' | 'histogram' | 'loupe',
                       })}
                     >
-                      <option value="passthrough">Standard (ImageZoom)</option>
-                      <option value="histogram">Luma inspect</option>
-                      <option value="loupe">Loupe magnifier</option>
+                      <option value="passthrough">Standard (photos)</option>
+                      <option value="histogram">Luma inspect (2D heat map)</option>
+                      <option value="loupe">Loupe magnifier (2D)</option>
                     </select>
+                    <p className="mt-1.5 text-[10px] text-white/40 leading-snug">
+                      3D meshes (GLB, OBJ, FiveM .ydr/.ybn, …) always use the main preview orbit viewport — Loupe/Luma never apply.
+                    </p>
                   </div>
                 </SettingsSection>
               </div>

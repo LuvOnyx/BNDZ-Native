@@ -246,23 +246,34 @@ const AutomationFlowPane = React.memo(function AutomationFlowPane({
         <Panel position="bottom-center" className="bndz-flow-hint-panel">
           Drag empty canvas to marquee · middle-drag pan · Ctrl+scroll zoom · Ctrl+C/V blocks
         </Panel>
-        {nodes.length === 0 && (
-          <Panel position="top-center" className="bndz-automation-empty-panel">
-            <div className="bndz-automation-empty">
-              <h3>Start with a recipe</h3>
-              <p>Pick an everyday job — then edit the folder paths and press Run.</p>
-              <div className="bndz-automation-empty-grid">
-                {AUTOMATION_RECIPES.filter(r => r.group === 'everyday').map(r => (
-                  <button key={r.id} type="button" className="bndz-automation-empty-card" onClick={() => loadRecipe(r.id)}>
-                    <strong>{r.label}</strong>
-                    <span>{r.blurb}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Panel>
-        )}
       </ReactFlow>
+      {nodes.length === 0 && (
+        <div className="bndz-automation-empty-overlay">
+          <div className="bndz-automation-empty nodrag nopan nowheel">
+            <h3>Start with a recipe</h3>
+            <p>Pick an everyday job — then edit the folder paths and press Run.</p>
+            <div className="bndz-automation-empty-grid">
+              {AUTOMATION_RECIPES.filter(r => r.group === 'everyday').map(r => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className="bndz-automation-empty-card nodrag nopan nowheel"
+                  onPointerDown={e => {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    loadRecipe(r.id);
+                  }}
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+                >
+                  <strong>{r.label}</strong>
+                  <span>{r.blurb}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
@@ -742,6 +753,8 @@ export default function BndzAutomationView() {
     setGraphName(g.name);
     setArmed(!!g.armed);
     const { nodes: n, edges: e } = graphToFlow(g);
+    nodesRef.current = n;
+    edgesRef.current = e;
     setNodes(n);
     setEdges(e);
     const vp = g.viewport ?? defaultAutomationViewport();
@@ -1268,19 +1281,15 @@ export default function BndzAutomationView() {
     const recipe = AUTOMATION_RECIPES.find(r => r.id === recipeId);
     if (!recipe) return;
     const g = recipeToGraph(recipe, pipelineId);
-    const { nodes: n, edges: e } = graphToFlow(g);
-    setNodes(n);
-    setEdges(e);
-    nodesRef.current = n;
-    edgesRef.current = e;
-    setGraphName(g.name);
+    g.armed = false;
+    loadGraphIntoEditor(g);
     setSelectedNodeId(null);
     setStatus(`${g.name} ready — edit folder paths then Arm / Run`);
     scheduleSave();
     requestAnimationFrame(() => {
       rfInstanceRef.current?.fitView({ padding: 0.18, duration: 280, maxZoom: 1.25 });
     });
-  }, [pipelineId, setNodes, setEdges, scheduleSave]);
+  }, [pipelineId, loadGraphIntoEditor, scheduleSave]);
 
   const loadTemplate = useCallback((template: 'deploy' | 'backup') => {
     loadRecipe(template === 'deploy' ? 'deploy-rsync' : 'archive-backup');

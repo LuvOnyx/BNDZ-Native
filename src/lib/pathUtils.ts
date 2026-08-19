@@ -9,7 +9,8 @@ export function isRecycleBinPath(path: string | null | undefined): boolean {
 
 /** Canonical virtual pane path: `/C:`, `/C:/Users/foo`, never `drive-/C:` or `C:/foo` without leading slash */
 export function normalizePanePath(path: string | null | undefined): string {
-  if (!path || path === '/') return path || '/';
+  if (path == null || path === '/') return path || '/';
+  if (typeof path !== 'string') return '/';
   let p = path.replace(/\\/g, '/');
   if (p.startsWith('drive-')) p = '/' + p.slice(6);
   if (/^[A-Za-z]:/.test(p) && !p.startsWith('/')) p = '/' + p;

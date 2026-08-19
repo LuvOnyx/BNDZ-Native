@@ -212,7 +212,7 @@ html[data-bndz-embed="1"] .bndz-ptg-collapse{display:none!important;}
   box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 25%,transparent),0 6px 16px rgba(0,0,0,.35)!important;
 }
 
-/* Pro tool-options bar */
+/* Pro tool-options bar — must sit above rulers/canvas (Gradient bar was buried). */
 #tool-options{
   height:auto!important;min-height:44px!important;max-height:92px!important;
   padding:6px 10px!important;gap:10px!important;flex-wrap:wrap!important;
@@ -220,7 +220,18 @@ html[data-bndz-embed="1"] .bndz-ptg-collapse{display:none!important;}
   border-bottom:1px solid color-mix(in srgb,var(--border) 90%,transparent)!important;
   box-shadow:inset 0 -1px 0 rgba(255,255,255,.03)!important;
   align-items:center!important;overflow-x:auto!important;overflow-y:hidden!important;
+  z-index:250!important;pointer-events:auto!important;isolation:isolate!important;
+  top:calc(var(--topbar-h) + 8px)!important;
 }
+.ruler-h,.ruler-v{z-index:40!important;pointer-events:none!important}
+body.rulers-on .ruler-h{top:calc(var(--topbar-h) + 60px)!important}
+body.rulers-on .ruler-v{top:calc(var(--topbar-h) + 80px)!important}
+body.rulers-on #canvas-area{top:calc(var(--topbar-h) + 80px)!important;z-index:10!important}
+#canvas-area{z-index:10!important;top:calc(var(--topbar-h) + 60px)!important}
+#toolbar{z-index:260!important}
+#panels,#panel-rail{z-index:55!important}
+#topbar{z-index:300!important;pointer-events:auto!important;isolation:isolate!important}
+#topbar .menu-bar,#topbar .menu-item{pointer-events:auto!important;position:relative;z-index:2}
 #tool-options .opt-group{
   align-items:center!important;gap:8px!important;flex-wrap:wrap!important;row-gap:6px!important;
 }
@@ -480,6 +491,15 @@ input[type="color"].bndz-hidden-native{position:absolute!important;opacity:0!imp
 .layer-item:hover .layer-fx,.layer-item.active .layer-fx{opacity:1}
 .bndz-layers-fx-bar{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
 .bndz-layers-fx-bar .btn{flex:1;font-size:10px;padding:6px 8px;border-radius:8px}
+
+/* Preferences / modals — Mica-like glass */
+.modal-overlay{backdrop-filter:blur(18px) saturate(1.2)!important;background:rgba(8,12,20,.55)!important}
+.modal-overlay .modal{
+  border-radius:16px!important;border:1px solid rgba(255,255,255,.12)!important;
+  background:linear-gradient(165deg,rgba(36,42,56,.88),rgba(18,22,32,.92))!important;
+  box-shadow:0 24px 64px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08)!important;
+  backdrop-filter:blur(28px) saturate(1.35)!important;
+}
 `;
     document.head.appendChild(style);
   }
@@ -921,12 +941,228 @@ input[type="color"].bndz-hidden-native{position:absolute!important;opacity:0!imp
     };
   }
 
+  function installHsvPopover(OS) {
+    if (!window.BndzHsvPopover?.mount) return;
+    const fg = document.getElementById('fg-color');
+    const bg = document.getElementById('bg-color');
+    if (fg) fg.dataset.bndzColorTarget = 'fg';
+    if (bg) bg.dataset.bndzColorTarget = 'bg';
+    // Real DOM ids (Layer Style / Text FX) — previous map used typos and never bound.
+    const targetById = {
+      'fg-color': 'fg', 'bg-color': 'bg',
+      'shape-fill': 'fg', 'shape-stroke': 'stroke',
+      'pen-stroke': 'fg', 'text-color': 'fg',
+      'grad-from': 'fg', 'grad-to': 'bg', 'grad-mid': 'local',
+      'poly-fill': 'fg', 'poly-stroke': 'stroke',
+      'star-fill': 'fg', 'pattern-color': 'fg',
+      'grad-from-chip': 'fg',
+      'ls-ds-color': 'local', 'ls-og-color': 'local', 'ls-st-color': 'local',
+      'tfx-color': 'local', 'tfx-stroke-color': 'local',
+      'wm-color': 'local',
+      'gm-c1': 'local', 'gm-c2': 'local', 'gm-c3': 'local',
+      'adj-pf-color': 'local', 'adj-rc-src': 'local', 'adj-rc-tgt': 'local',
+      'fd-shadow': 'local', 'fd-high': 'local',
+      'ct-color': 'local', 'es-matte': 'local',
+      'text-decoration-color': 'local',
+    };
+    Object.entries(targetById).forEach(([id, target]) => {
+      const el = document.getElementById(id);
+      if (el) el.dataset.bndzColorTarget = target;
+    });
+    window.__BNDZ_HSV_POP__ = window.BndzHsvPopover.mount({
+      targetById,
+      getColor: (target) => {
+        if (target === 'stroke') return OS.state.shapeStroke || OS.state.fgColor;
+        if (target === 'bg') return OS.state.bgColor;
+        return OS.state.fgColor;
+      },
+      setColor: (hex, _a, target, el) => {
+        if (target === 'stroke') {
+          if (typeof OS.setShapeStroke === 'function') OS.setShapeStroke(hex);
+          else OS.setFgColor(hex);
+        } else if (target === 'bg') OS.setBgColor(hex);
+        else if (target === 'fg') OS.setFgColor(hex);
+        // local: popover already wrote el.value + dispatched change
+        else if (el && typeof OS.previewLayerStyle === 'function' && String(el.id || '').startsWith('ls-')) {
+          try { OS.previewLayerStyle(); } catch { /* ignore */ }
+        }
+      },
+      getAlpha: () => 1,
+      openNative: (target, el) => {
+        if (el && el.type === 'color') { el.click(); return; }
+        const id = target === 'bg' ? 'bg-picker' : (target === 'stroke' ? 'shape-stroke' : 'fg-picker');
+        document.getElementById(id)?.click();
+      },
+    });
+  }
+
+  function installPanelDock(OS) {
+    const panels = document.getElementById('panels');
+    if (!panels || panels.dataset.bndzDock === '1') return;
+    panels.dataset.bndzDock = '1';
+    const DOCKS = ['right', 'left', 'bottom'];
+    let dragGroup = null;
+    let dragOrigin = null;
+    let zonesShown = false;
+
+    let zones = document.getElementById('bndz-dock-zones');
+    if (!zones) {
+      zones = document.createElement('div');
+      zones.id = 'bndz-dock-zones';
+      zones.innerHTML = DOCKS.map((d) => `<div class="bndz-dock-zone" data-dock="${d}">${d}</div>`).join('');
+      document.body.appendChild(zones);
+      const zcss = document.createElement('style');
+      zcss.textContent = `#bndz-dock-zones{display:none;position:fixed;inset:0;z-index:13000;pointer-events:none}
+#bndz-dock-zones.show{display:block;pointer-events:none}
+.bndz-dock-zone{position:absolute;pointer-events:none;display:grid;place-items:center;font:700 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#dce9ff;background:rgba(13,153,255,.18);border:1px dashed rgba(13,153,255,.55);transition:background .12s,border-color .12s}
+.bndz-dock-zone.hot{background:rgba(13,153,255,.38);border-color:#7ec8ff;color:#fff}
+.bndz-dock-zone[data-dock="left"]{left:0;top:12%;bottom:12%;width:72px}
+.bndz-dock-zone[data-dock="right"]{right:0;top:12%;bottom:12%;width:72px}
+.bndz-dock-zone[data-dock="bottom"]{left:20%;right:20%;bottom:48px;height:56px}
+.bndz-dock-dragging{opacity:.85;outline:1px solid rgba(13,153,255,.5)}
+#panels.bndz-dock-left{right:auto!important;left:var(--toolbar-w)!important;border-left:0!important;border-right:1px solid var(--border)!important}
+#canvas-area.bndz-dock-left,#tool-options.bndz-dock-left,#bottom-tabs.bndz-dock-left{left:calc(var(--toolbar-w) + var(--panel-width))!important;right:var(--rail-w)!important}
+#panels.bndz-dock-bottom{top:auto!important;left:var(--toolbar-w)!important;right:var(--rail-w)!important;bottom:var(--statusbar-h)!important;width:auto!important;height:min(42vh,360px)!important;flex-direction:row!important;border-left:0!important;border-top:1px solid var(--border)!important}
+#canvas-area.bndz-dock-bottom{bottom:calc(var(--statusbar-h) + var(--bottom-tabs-h) + min(42vh,360px))!important;right:var(--rail-w)!important}`;
+      document.head.appendChild(zcss);
+    }
+
+    function applyDock(dock, { silent = false } = {}) {
+      const canvas = document.getElementById('canvas-area');
+      const toolOpts = document.getElementById('tool-options');
+      const tabs = document.getElementById('bottom-tabs');
+      [panels, canvas, toolOpts, tabs].forEach((el) => {
+        el?.classList.remove('bndz-dock-left', 'bndz-dock-bottom', 'bndz-dock-right');
+      });
+      const cls = dock === 'left' ? 'bndz-dock-left' : dock === 'bottom' ? 'bndz-dock-bottom' : 'bndz-dock-right';
+      [panels, canvas, toolOpts, tabs].forEach((el) => el?.classList.add(cls));
+      try {
+        OS._prefs = OS._prefs || {};
+        OS._prefs.panelDock = dock;
+        try { localStorage.setItem('os_panel_dock', dock); } catch { /* ignore */ }
+        OS._persistPreferences?.();
+      } catch { /* ignore */ }
+      OS._syncCanvasLayoutForPanelRail?.();
+      OS.resizeCanvas?.();
+      if (!silent) OS.toast?.('Panels docked ' + dock, 'info');
+    }
+
+    function hitDockAt(clientX, clientY) {
+      // Geometry hit-test — zones use pointer-events:none and are hidden on
+      // pointerup, so elementFromPoint never sees them.
+      let best = null;
+      zones.querySelectorAll('.bndz-dock-zone').forEach((z) => {
+        const r = z.getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+          best = z.dataset.dock || null;
+        }
+      });
+      return best;
+    }
+
+    function persistPanelOrder() {
+      try {
+        const order = [...panels.querySelectorAll('.panel-tab-group')].map((g, i) => g.dataset.bndzTitle || String(i));
+        localStorage.setItem('os_panel_order', JSON.stringify(order));
+        OS._prefs = OS._prefs || {};
+        OS._prefs.panelOrder = order;
+      } catch { /* ignore */ }
+    }
+
+    function endDrag(e) {
+      if (!dragGroup) return;
+      const moved = dragOrigin && Math.hypot(e.clientX - dragOrigin.x, e.clientY - dragOrigin.y) > 8;
+      const dock = (moved && zonesShown) ? hitDockAt(e.clientX, e.clientY) : null;
+      zones.classList.remove('show');
+      zones.querySelectorAll('.bndz-dock-zone').forEach((z) => z.classList.remove('hot'));
+      dragGroup.classList.remove('bndz-dock-dragging');
+      if (dock) applyDock(dock);
+      persistPanelOrder();
+      dragGroup = null;
+      dragOrigin = null;
+      zonesShown = false;
+    }
+
+    panels.querySelectorAll('.panel-tab-group').forEach((group) => {
+      const header = group.querySelector('.panel-tabs') || group.firstElementChild;
+      if (!header || header.dataset.bndzDockBound === '1') return;
+      header.dataset.bndzDockBound = '1';
+      header.style.cursor = 'grab';
+      header.title = ((header.title || '') + ' · Drag to reorder / dock left·right·bottom').trim();
+      header.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || e.target.closest('button,input,select,a')) return;
+        dragGroup = group;
+        dragOrigin = { x: e.clientX, y: e.clientY };
+        zonesShown = false;
+        header.style.cursor = 'grabbing';
+        group.classList.add('bndz-dock-dragging');
+        // Do NOT setPointerCapture — it blocks zone hit-testing on drop.
+      });
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!dragGroup) return;
+      if (!zonesShown && dragOrigin && Math.hypot(e.clientX - dragOrigin.x, e.clientY - dragOrigin.y) > 8) {
+        zones.classList.add('show');
+        zonesShown = true;
+      }
+      // Reorder within panel stack
+      const over = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.panel-tab-group');
+      if (over && over !== dragGroup && panels.contains(over)) {
+        const rect = over.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) panels.insertBefore(dragGroup, over);
+        else panels.insertBefore(dragGroup, over.nextSibling);
+      }
+      if (zonesShown) {
+        zones.querySelectorAll('.bndz-dock-zone').forEach((z) => {
+          const r = z.getBoundingClientRect();
+          const hot = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+          z.classList.toggle('hot', hot);
+        });
+      }
+    });
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+
+    function restorePanelOrder() {
+      try {
+        const raw = localStorage.getItem('os_panel_order');
+        if (!raw) return;
+        const order = JSON.parse(raw);
+        if (!Array.isArray(order) || !order.length) return;
+        const groups = [...panels.querySelectorAll('.panel-tab-group')];
+        order.forEach((title) => {
+          const g = groups.find((el) => el.dataset.bndzTitle === title);
+          if (g) panels.appendChild(g);
+        });
+      } catch { /* ignore */ }
+    }
+
+    // Prefer localStorage — OS._prefs.panelDock defaults to 'right' before init restores prefs.
+    function restoreDockSide() {
+      try {
+        const ls = localStorage.getItem('os_panel_dock');
+        const fromPrefs = OS._prefs?.panelDock;
+        const saved = (ls && DOCKS.includes(ls)) ? ls
+          : (fromPrefs && DOCKS.includes(fromPrefs) ? fromPrefs : null);
+        if (saved) applyDock(saved, { silent: true });
+      } catch { /* ignore */ }
+    }
+
+    OS._bndzApplyPanelDock = applyDock;
+    OS._bndzRestorePanelDock = () => { restorePanelOrder(); restoreDockSide(); };
+    // Dock side can restore now; panel *order* waits until bndzTitle labels are stamped after init.
+    restoreDockSide();
+  }
+
   function install(OS) {
     if (!OS || OS.__bndzChromeInstalled) return;
     OS.__bndzChromeInstalled = true;
     injectCraftCss();
     installZoomFixes(OS);
     installColorWheel(OS);
+    installHsvPopover(OS);
+    installPanelDock(OS);
     skipServiceWorkerInEmbed(OS);
     restoreInspectorPanels();
 

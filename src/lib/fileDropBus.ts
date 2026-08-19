@@ -299,10 +299,21 @@ export function resolveAndCommitDrop(opts: ResolveAndCommitDropOpts): boolean {
     return true;
   }
 
-  // Icon Studio — only when drop point is over icon studio chrome
+  // Icon Studio / Design Board / Photo Studio — defer OLE to plugin handlers
   if (ctx.bottomPluginTab === 'icon-studio') {
     const hit = document.elementFromPoint(clientX, clientY);
     if (hit?.closest('[data-icon-studio]') || hit?.closest('.icon-studio')) {
+      return false;
+    }
+  }
+  {
+    const hit = document.elementFromPoint(clientX, clientY);
+    if (
+      hit?.closest('.bndz-design-board')
+      || hit?.closest('.bndz-design-board-overlay')
+      || hit?.closest('.bndz-photo-studio')
+      || hit?.closest('[data-studio-drop-surface]')
+    ) {
       return false;
     }
   }
@@ -446,11 +457,18 @@ export async function commitExternalOleDrop(opts: ResolveAndCommitDropOpts): Pro
 
   if (resolveAndCommitDrop(opts)) return true;
 
-  // Defer to Icon Studio plugin when drop is over its surface.
-  if (busContext.bottomPluginTab === 'icon-studio') {
+  // Defer to studio plugins when drop is over their surface (OLE steals HTML5 DnD).
+  {
     const { clientX, clientY } = resolveDropCoords(opts, 'externalOle');
     const hit = document.elementFromPoint(clientX, clientY);
-    if (hit?.closest('[data-icon-studio]') || hit?.closest('.icon-studio')) {
+    if (
+      hit?.closest('[data-icon-studio]')
+      || hit?.closest('.icon-studio')
+      || hit?.closest('.bndz-design-board')
+      || hit?.closest('.bndz-design-board-overlay')
+      || hit?.closest('.bndz-photo-studio')
+      || hit?.closest('[data-studio-drop-surface]')
+    ) {
       return false;
     }
   }

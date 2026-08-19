@@ -47,7 +47,12 @@ public sealed class CaptureInboxService : IDisposable
     private Thread? _watchThread;
     private volatile bool _watching;
     private volatile bool _disposed;
-    private string? _lastClipHash;
+    private uint _lastClipSeq;
+    private int _burstCount;
+    private DateTime _burstWindowUtc = DateTime.MinValue;
+    private const int MaxStoredCaptures = 48;
+    private const int BurstMax = 6;
+    private static readonly TimeSpan BurstWindow = TimeSpan.FromSeconds(12);
     private string _captureFolder;
 
     private CaptureInboxService()
@@ -198,8 +203,77 @@ public sealed class CaptureInboxService : IDisposable
         return Directory.EnumerateFiles(_captureFolder, "*.capture.json").Count();
     }
 
+    /// <summary>
+    /// Keep newest N captures. If massively bloated, rename the folder away in O(1).
+    /// </summary>
+    public int CapStoredCaptures(int maxKeep = MaxStoredCaptures)
+    {
+        int removed = 0;
+        if (!Directory.Exists(_captureFolder) || maxKeep < 1) return removed;
+
+        int count = 0;
+        try
+        {
+            foreach (var _ in Directory.EnumerateFiles(_captureFolder, "*.capture.json"))
+            {
+                count++;
+                if (count > maxKeep * 3) break;
+            }
+        }
+        catch { return removed; }
+
+        if (count > maxKeep * 3)
+        {
+            try
+            {
+                var nuke = _captureFolder + ".nuke-" + Guid.NewGuid().ToString("N")[..8];
+                Directory.Move(_captureFolder, nuke);
+                Directory.CreateDirectory(_captureFolder);
+                _ = Task.Run(() =>
+                {
+                    try { Directory.Delete(nuke, true); }
+                    catch (Exception ex) { Debug.WriteLine($"[CaptureInbox] Nuke delete: {ex.Message}"); }
+                });
+                return Math.Max(0, count - maxKeep);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CaptureInbox] Nuke rename failed: {ex.Message}");
+            }
+        }
+
+        FileInfo[] metas;
+        try { metas = new DirectoryInfo(_captureFolder).GetFiles("*.capture.json"); }
+        catch { return removed; }
+
+        Array.Sort(metas, (a, b) => b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc));
+        for (var i = maxKeep; i < metas.Length; i++)
+        {
+            try
+            {
+                var json = File.ReadAllText(metas[i].FullName);
+                var meta = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+                var png = meta is not null && meta.TryGetValue("fullPath", out var fpEl)
+                    ? fpEl.GetString()
+                    : null;
+                if (!string.IsNullOrWhiteSpace(png) && File.Exists(png)
+                    && png.StartsWith(_captureFolder, StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(png); } catch { }
+                }
+                metas[i].Delete();
+                removed++;
+            }
+            catch { }
+        }
+        return removed;
+    }
+
     private void WatchLoop()
     {
+        try { _lastClipSeq = NativeClipboard.GetSequenceNumber(); }
+        catch { _lastClipSeq = 0; }
+
         while (_watching && !_disposed)
         {
             try
@@ -210,26 +284,37 @@ public sealed class CaptureInboxService : IDisposable
             {
                 Debug.WriteLine($"[CaptureInbox] Watch: {ex.Message}");
             }
-            Thread.Sleep(900);
+            Thread.Sleep(1500);
         }
     }
 
     private void CaptureIfChanged()
     {
-        if (!WpfClipboard.ContainsImage()) return;
-
-        string? hash = null;
-        try
+        var seq = NativeClipboard.GetSequenceNumber();
+        if (seq == 0 || seq == _lastClipSeq) return;
+        if (!WpfClipboard.ContainsImage())
         {
-            var img = WpfClipboard.GetImage();
-            if (img is not null)
-                hash = $"image:{img.PixelWidth}x{img.PixelHeight}:{img.GetHashCode()}";
+            _lastClipSeq = seq;
+            return;
         }
-        catch { return; }
-
-        if (hash is null || hash == _lastClipHash) return;
-        _lastClipHash = hash;
+        _lastClipSeq = seq;
+        if (!AllowWatchCapture()) return;
         CaptureClipboardCore();
+    }
+
+    private bool AllowWatchCapture()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _burstWindowUtc > BurstWindow)
+        {
+            _burstWindowUtc = now;
+            _burstCount = 0;
+        }
+        _burstCount++;
+        if (_burstCount <= BurstMax) return true;
+        Debug.WriteLine("[CaptureInbox] Burst cap hit — stopping watcher to protect disk I/O.");
+        StopWatching();
+        return false;
     }
 
     private CaptureInboxEntry? CaptureClipboardCore()

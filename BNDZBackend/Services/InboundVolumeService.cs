@@ -33,7 +33,12 @@ public sealed class InboundVolumeService : IDisposable
     private Thread? _watchThread;
     private volatile bool _watching;
     private volatile bool _disposed;
-    private string? _lastClipHash;
+    private uint _lastClipSeq;
+    private int _burstCount;
+    private DateTime _burstWindowUtc = DateTime.MinValue;
+    private const int MaxStoredEntries = 48;
+    private const int BurstMax = 6;
+    private static readonly TimeSpan BurstWindow = TimeSpan.FromSeconds(12);
 
     private InboundVolumeService()
     {
@@ -76,6 +81,11 @@ public sealed class InboundVolumeService : IDisposable
 
     private void WatchLoop()
     {
+        // Baseline the current clipboard so enabling Watch does not dump whatever
+        // screenshot is already sitting there — only *new* copies are saved.
+        try { _lastClipSeq = NativeClipboard.GetSequenceNumber(); }
+        catch { _lastClipSeq = 0; }
+
         while (_watching && !_disposed)
         {
             try
@@ -86,37 +96,50 @@ public sealed class InboundVolumeService : IDisposable
             {
                 Debug.WriteLine($"[InboundClip] Watch error: {ex.Message}");
             }
-            Thread.Sleep(800);
+            Thread.Sleep(1500);
         }
     }
 
     private void CaptureIfChanged()
     {
-        string? hash = null;
+        var seq = NativeClipboard.GetSequenceNumber();
+        if (seq == 0 || seq == _lastClipSeq) return;
+        _lastClipSeq = seq;
+        if (!AllowWatchCapture()) return;
 
-        if (WpfClipboard.ContainsFileDropList())
+        // Watch mode: files + images only. Text on every Ctrl+C would flood disk;
+        // explicit Capture now still saves text via CaptureClipboardCore.
+        try
         {
-            var files = WpfClipboard.GetFileDropList();
-            if (files is { Count: > 0 })
-                hash = "files:" + string.Join("|", files.Cast<string>().OrderBy(s => s, StringComparer.OrdinalIgnoreCase));
+            if (WpfClipboard.ContainsFileDropList())
+            {
+                CaptureFileDropList();
+                return;
+            }
+            if (WpfClipboard.ContainsImage())
+            {
+                CaptureImage();
+            }
         }
-        else if (WpfClipboard.ContainsImage())
+        catch (Exception ex)
         {
-            var img = WpfClipboard.GetImage();
-            if (img is not null)
-                hash = $"image:{img.PixelWidth}x{img.PixelHeight}:{img.GetHashCode()}";
+            Debug.WriteLine($"[InboundClip] Watch capture: {ex.Message}");
         }
-        else if (WpfClipboard.ContainsText())
-        {
-            var text = WpfClipboard.GetText();
-            if (!string.IsNullOrEmpty(text))
-                hash = "text:" + (text.Length > 256 ? text[..256] : text).GetHashCode().ToString();
-        }
+    }
 
-        if (hash is null || hash == _lastClipHash) return;
-        _lastClipHash = hash;
-
-        CaptureClipboardCore();
+    private bool AllowWatchCapture()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _burstWindowUtc > BurstWindow)
+        {
+            _burstWindowUtc = now;
+            _burstCount = 0;
+        }
+        _burstCount++;
+        if (_burstCount <= BurstMax) return true;
+        Debug.WriteLine("[InboundClip] Burst cap hit — stopping watcher to protect disk I/O.");
+        StopWatching();
+        return false;
     }
 
     public string? CaptureClipboardNow()
@@ -238,10 +261,26 @@ public sealed class InboundVolumeService : IDisposable
         return id;
     }
 
-    public List<InboundEntry> ListEntries()
+    public List<InboundEntry> ListEntries(int limit = 80)
     {
         var entries = new List<InboundEntry>();
         if (!Directory.Exists(_rootPath)) return entries;
+
+        // Soft guard — if the inbox is bloated again, nuke before listing.
+        int dirCount = 0;
+        try
+        {
+            foreach (var _ in Directory.EnumerateDirectories(_rootPath))
+            {
+                dirCount++;
+                if (dirCount > MaxStoredEntries * 3)
+                {
+                    try { CapStoredEntries(MaxStoredEntries); } catch { }
+                    break;
+                }
+            }
+        }
+        catch { /* listing still attempted below */ }
 
         foreach (var dir in Directory.EnumerateDirectories(_rootPath))
         {
@@ -276,15 +315,20 @@ public sealed class InboundVolumeService : IDisposable
                 });
             }
             catch { }
+
+            // Bound work even before sort when the folder is large but under the nuke threshold.
+            if (entries.Count >= Math.Max(limit * 4, MaxStoredEntries)) break;
         }
 
-        return entries.OrderByDescending(e => e.CreatedUtc).ToList();
+        return entries
+            .OrderByDescending(e => e.CreatedUtc)
+            .Take(Math.Max(1, limit))
+            .ToList();
     }
 
     public List<string> GetEntryPaths(string id)
     {
-        var dir = System.IO.Path.Combine(_rootPath, id);
-        if (!Directory.Exists(dir)) return new List<string>();
+        if (!TryResolveEntryDir(id, out var dir)) return new List<string>();
         return Directory.EnumerateFiles(dir)
             .Where(f => System.IO.Path.GetFileName(f) != "meta.json")
             .ToList();
@@ -292,12 +336,7 @@ public sealed class InboundVolumeService : IDisposable
 
     public bool DeleteEntry(string id)
     {
-        if (string.IsNullOrWhiteSpace(id)) return false;
-        var dir = System.IO.Path.Combine(_rootPath, id);
-        if (!Directory.Exists(dir)) return false;
-
-        if (!dir.StartsWith(_rootPath, StringComparison.OrdinalIgnoreCase))
-            return false;
+        if (!TryResolveEntryDir(id, out var dir)) return false;
 
         try
         {
@@ -322,12 +361,8 @@ public sealed class InboundVolumeService : IDisposable
         if (!Directory.Exists(destNorm))
             return new InboundCopyResult { Ok = false, Error = $"Destination does not exist: {destNorm}" };
 
-        var entryDir = System.IO.Path.Combine(_rootPath, entryId);
-        if (!Directory.Exists(entryDir))
+        if (!TryResolveEntryDir(entryId, out var entryDir))
             return new InboundCopyResult { Ok = false, Error = "Entry not found — it may have been deleted." };
-
-        if (!entryDir.StartsWith(_rootPath, StringComparison.OrdinalIgnoreCase))
-            return new InboundCopyResult { Ok = false, Error = "Invalid entry path." };
 
         var copied = new List<string>();
         var failed = new List<string>();
@@ -425,12 +460,119 @@ public sealed class InboundVolumeService : IDisposable
         return purged;
     }
 
+    /// <summary>
+    /// Keep only the newest N inbound folders. If the folder is massively bloated
+    /// (legacy GetHashCode watch bug wrote ~1 PNG/poll), rename the whole tree away
+    /// in O(1) and delete in the background — never enumerate/delete 10k+ dirs on the
+    /// hot path (that freezes the machine / WebView).
+    /// </summary>
+    public int CapStoredEntries(int maxKeep = MaxStoredEntries)
+    {
+        int removed = 0;
+        if (!Directory.Exists(_rootPath) || maxKeep < 1) return removed;
+
+        int count = 0;
+        try
+        {
+            foreach (var _ in Directory.EnumerateDirectories(_rootPath))
+            {
+                count++;
+                // Early-out once we know this is spam-level bloat.
+                if (count > maxKeep * 3) break;
+            }
+        }
+        catch { return removed; }
+
+        if (count > maxKeep * 3)
+        {
+            try
+            {
+                var nuke = _rootPath + ".nuke-" + Guid.NewGuid().ToString("N")[..8];
+                Directory.Move(_rootPath, nuke);
+                Directory.CreateDirectory(_rootPath);
+                _ = Task.Run(() =>
+                {
+                    try { Directory.Delete(nuke, true); }
+                    catch (Exception ex) { Debug.WriteLine($"[InboundClip] Nuke delete: {ex.Message}"); }
+                });
+                return Math.Max(0, count - maxKeep);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[InboundClip] Nuke rename failed: {ex.Message}");
+            }
+        }
+
+        DirectoryInfo[] dirs;
+        try { dirs = new DirectoryInfo(_rootPath).GetDirectories(); }
+        catch { return removed; }
+
+        Array.Sort(dirs, (a, b) => b.CreationTimeUtc.CompareTo(a.CreationTimeUtc));
+        for (var i = maxKeep; i < dirs.Length; i++)
+        {
+            try
+            {
+                if (!dirs[i].FullName.StartsWith(Path.GetFullPath(_rootPath), StringComparison.OrdinalIgnoreCase)) continue;
+                dirs[i].Delete(true);
+                removed++;
+            }
+            catch { }
+        }
+        return removed;
+    }
+
     private static string NewEntryId() =>
         $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..8]}";
 
+    /// <summary>
+    /// Resolve an inbound entry folder under _rootPath. Rejects traversal ids (.., separators, rooted paths).
+    /// </summary>
+    private bool TryResolveEntryDir(string? id, out string fullDir)
+    {
+        fullDir = "";
+        if (string.IsNullOrWhiteSpace(id)) return false;
+        // Entry ids are stamped tokens only — never accept path separators or relative segments.
+        if (id.IndexOfAny(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) >= 0) return false;
+        if (id.Contains("..", StringComparison.Ordinal)) return false;
+        if (id.Trim() != id) return false;
+
+        string candidate;
+        try
+        {
+            candidate = Path.GetFullPath(Path.Combine(_rootPath, id));
+        }
+        catch
+        {
+            return false;
+        }
+
+        var rootFull = Path.GetFullPath(_rootPath);
+        if (!rootFull.EndsWith(Path.DirectorySeparatorChar) && !rootFull.EndsWith(Path.AltDirectorySeparatorChar))
+            rootFull += Path.DirectorySeparatorChar;
+
+        if (!candidate.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(candidate.TrimEnd('\\', '/'), rootFull.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!Directory.Exists(candidate)) return false;
+        fullDir = candidate;
+        return true;
+    }
+
     private string EnsureEntryDir(string id)
     {
-        var dir = System.IO.Path.Combine(_rootPath, id);
+        if (string.IsNullOrWhiteSpace(id)
+            || id.IndexOfAny(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) >= 0
+            || id.Contains("..", StringComparison.Ordinal))
+            throw new ArgumentException("Invalid inbound entry id.", nameof(id));
+
+        var dir = Path.GetFullPath(Path.Combine(_rootPath, id));
+        var rootFull = Path.GetFullPath(_rootPath);
+        if (!rootFull.EndsWith(Path.DirectorySeparatorChar))
+            rootFull += Path.DirectorySeparatorChar;
+        if (!dir.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Inbound entry escaped root.");
+
         Directory.CreateDirectory(dir);
         return dir;
     }

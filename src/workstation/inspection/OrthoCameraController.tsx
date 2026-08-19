@@ -15,6 +15,7 @@ type Props = {
  * Screen pixels → world: delta / ortho.zoom.
  * Clamp so the plane cannot be thrown out of view.
  * Does not reset on resize — FitCamera owns base zoom.
+ * Waits for baseZoomRef > 0 (real fit) before applying — avoids speck-at-zoom=1.
  */
 export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoomChange }: Props) {
   const { camera, gl, invalidate, size } = useThree();
@@ -24,7 +25,9 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
   const syncedFit = useRef(0);
 
   const clampPan = () => {
-    const z = Math.max(0.05, baseZoomRef.current * zoomMul.current);
+    const fit = baseZoomRef.current;
+    if (!(fit > 0)) return;
+    const z = Math.max(fit * 0.25, fit * zoomMul.current);
     const half = planeHalfRef.current;
     const viewW = size.width / z;
     const viewH = size.height / z;
@@ -45,9 +48,9 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
       },
       onDrag: ({ movement: [mx, my], pinching, dragging, event }) => {
         if (pinching || !dragging) return;
-        if (baseZoomRef.current <= 0) return;
+        if (!(baseZoomRef.current > 0)) return;
         event?.preventDefault();
-        const z = Math.max(0.05, baseZoomRef.current * zoomMul.current);
+        const z = Math.max(baseZoomRef.current * 0.25, baseZoomRef.current * zoomMul.current);
         // 1 screen pixel = 1/zoom world units in R3F pixel frustum.
         pan.current.x = dragOrigin.current.panX - mx / z;
         pan.current.y = dragOrigin.current.panY + my / z;
@@ -55,16 +58,17 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
         invalidate();
       },
       onWheel: ({ delta: [, dy], event }) => {
-        if (baseZoomRef.current <= 0) return;
+        if (!(baseZoomRef.current > 0)) return;
         event.preventDefault();
         const factor = dy > 0 ? 0.9 : 1.1;
+        // Floor at 0.25× fit — never shrink to an irrecoverable speck.
         zoomMul.current = Math.max(0.25, Math.min(16, zoomMul.current * factor));
         clampPan();
         onZoomChange?.(zoomMul.current);
         invalidate();
       },
       onPinch: ({ offset: [s] }) => {
-        if (baseZoomRef.current <= 0) return;
+        if (!(baseZoomRef.current > 0)) return;
         zoomMul.current = Math.max(0.25, Math.min(16, s));
         clampPan();
         onZoomChange?.(zoomMul.current);
@@ -76,7 +80,7 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
 
   useFrame(() => {
     const fit = baseZoomRef.current;
-    if (fit <= 0) return;
+    if (!(fit > 0)) return;
 
     // Sync once when FitCamera publishes a real fit zoom (not on every resize).
     if (syncedFit.current !== fit && Math.abs(syncedFit.current - fit) > 0.5) {
@@ -92,7 +96,7 @@ export default function OrthoCameraController({ baseZoomRef, planeHalfRef, onZoo
     clampPan();
     const ortho = camera as THREE.OrthographicCamera;
     ortho.position.set(pan.current.x, pan.current.y, 2);
-    ortho.zoom = fit * zoomMul.current;
+    ortho.zoom = Math.max(fit * 0.25, fit * zoomMul.current);
     ortho.updateProjectionMatrix();
   });
 

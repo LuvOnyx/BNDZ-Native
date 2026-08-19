@@ -139,7 +139,16 @@ export default function StickyWidgetEditor({ stickyId }: Props) {
       <div className="bndz-sticky-widget-paper">
         <div className="bndz-sticky-widget-tape" aria-hidden />
         <div className="bndz-sticky-widget-fold" aria-hidden />
-        <header className="bndz-sticky-widget-meta">
+        <header
+          className="bndz-sticky-widget-meta"
+          onPointerDown={e => {
+            if (e.button !== 0) return;
+            const t = e.target as HTMLElement;
+            if (t.closest('button, textarea, input')) return;
+            e.preventDefault();
+            IPC.windowChrome('drag');
+          }}
+        >
           <span className="bndz-sticky-widget-pin" title={title}>
             <Icons8Icon id="notepad" size={12} />
             {title}
@@ -157,6 +166,14 @@ export default function StickyWidgetEditor({ stickyId }: Props) {
           <span className={`bndz-sticky-widget-save ${savedFlash ? 'is-flash' : ''}`}>
             {savedFlash ? 'Saved' : 'Auto-save'}
           </span>
+          <button
+            type="button"
+            className="bndz-sticky-widget-close"
+            title="Close sticky"
+            onClick={() => IPC.windowChrome('close')}
+          >
+            ×
+          </button>
         </header>
         <textarea
           ref={taRef}

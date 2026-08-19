@@ -184,6 +184,23 @@ export function nativeCall<T>(
   payload?: unknown,
   timeoutMs = 15000,
 ): Promise<T> {
+  const idempotent = type === 'GET_BNDZ_META' || type === 'GET_SYSTEM_FONTS' || type === 'GET_WINDOW_STATE';
+  if (idempotent) {
+    return nativeCallOnce<T>(type, responseType, payload, timeoutMs).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes('IPC timeout')) throw err;
+      return nativeCallOnce<T>(type, responseType, payload, Math.min(timeoutMs + 8000, 45_000));
+    });
+  }
+  return nativeCallOnce<T>(type, responseType, payload, timeoutMs);
+}
+
+function nativeCallOnce<T>(
+  type: string,
+  responseType: string,
+  payload: unknown | undefined,
+  timeoutMs: number,
+): Promise<T> {
   ensureGlobalListener();
   const webview = (window as any).chrome?.webview;
   if (!webview) return Promise.reject(new Error('Not in native host'));

@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BNDZ Design Board</title>
   <script src="./vendor/fabric.min.js"></script>
+  <script src="./vendor/bndz-hsv-popover.js"></script>
+  <script src="./vendor/bndz-freehand-math.js"></script>
+  <script src="./vendor/bndz-png-ico.js"></script>
   <style>
     :root {
       --bg: #16171a;
@@ -49,8 +52,18 @@
       background:
         linear-gradient(180deg, rgba(255,255,255,.045), transparent 55%),
         linear-gradient(180deg, #262830, #1a1c21);
-      border-bottom: 1px solid var(--line); z-index: 60;
+      border-bottom: 1px solid var(--line); z-index: 200;
       box-shadow: 0 8px 24px rgba(0,0,0,.22);
+      position: relative;
+      pointer-events: auto;
+      isolation: isolate;
+    }
+    #top-bar .menus, #top-bar .menu, #top-bar .brand, #top-bar .top-actions {
+      pointer-events: auto; position: relative; z-index: 5;
+    }
+    #top-bar #doc-title {
+      position: relative; z-index: 1;
+      pointer-events: none; /* never steal File/Edit/Object/View hits */
     }
     #angle-hud {
       position: absolute; z-index: 40; pointer-events: none;
@@ -62,19 +75,22 @@
       opacity: 0; transform: translateY(4px); transition: opacity .12s ease, transform .12s ease;
     }
     #angle-hud.show { opacity: 1; transform: none; }
-    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 0 auto; z-index: 6; }
     .brand-mark {
       width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
       background: linear-gradient(145deg, #2bb2ff, #0a6fd6);
       box-shadow: 0 6px 16px rgba(13,153,255,0.4), inset 0 1px 0 rgba(255,255,255,0.35);
       font-weight: 800; font-size: 14px; color: #fff;
+      flex-shrink: 0;
     }
     .brand strong { display: block; font-size: 12px; letter-spacing: 0.01em; }
     .brand small { display: block; color: var(--muted); font-size: 10px; }
-    .menus { display: flex; align-items: center; gap: 1px; margin-left: 10px; }
-    .menu { position: relative; }
+    .menus { display: flex; align-items: center; gap: 1px; margin-left: 10px; flex-shrink: 0; }
+    .menu { position: relative; z-index: 6; }
     .menu > .menu-label {
-      padding: 6px 10px; border-radius: 7px; cursor: default; color: #cfd4dd; font-size: 12px;
+      padding: 8px 12px; border-radius: 7px; cursor: pointer; color: #cfd4dd; font-size: 12px;
+      position: relative; z-index: 7; display: flex; align-items: center; min-height: 30px;
+      user-select: none; -webkit-user-select: none;
     }
     .menu.open > .menu-label, .menu > .menu-label:hover { background: var(--hover); color: #fff; }
     .dropdown {
@@ -167,7 +183,87 @@
     .btn-accent:hover { background: linear-gradient(135deg, #33b5ff, #0d80e6); }
 
     /* ---------- Layout ---------- */
-    #main { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px 1fr minmax(268px, 300px); }
+    #main { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--left-sidebar-w, 220px) 1fr var(--right-sidebar-w, minmax(268px, 300px)); }
+    #main.panels-hidden { --left-sidebar-w: 0px; --right-sidebar-w: 0px; }
+    #main.panels-hidden #left-sidebar,
+    #main.panels-hidden #right-sidebar { display: none; }
+    #main.panels-hidden.dock-bottom-inspector #right-sidebar,
+    #main.panels-hidden.dock-left-inspector #right-sidebar { display: none !important; }
+    #main.dock-left-inspector { grid-template-columns: var(--right-sidebar-w, minmax(268px, 300px)) 1fr var(--left-sidebar-w, 220px); }
+    #main.dock-left-inspector #right-sidebar { order: -1; }
+    #main.dock-bottom-inspector { grid-template-columns: var(--left-sidebar-w, 220px) 1fr; grid-template-rows: 1fr var(--bottom-panel-h, 220px); }
+    #main.dock-bottom-inspector #right-sidebar {
+      grid-column: 1 / -1; grid-row: 2; max-height: var(--bottom-panel-h, 220px);
+      flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
+    }
+    .bndz-dock-zones{display:none;position:fixed;inset:0;z-index:13000;pointer-events:none}
+    .bndz-dock-zones.show{display:block}
+    .bndz-dock-zone{position:absolute;pointer-events:auto;display:grid;place-items:center;font:700 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#dce9ff;background:rgba(13,153,255,.18);border:1px dashed rgba(13,153,255,.55)}
+    .bndz-dock-zone[data-dock="left"]{left:0;top:12%;bottom:12%;width:72px}
+    .bndz-dock-zone[data-dock="right"]{right:0;top:12%;bottom:12%;width:72px}
+    .bndz-dock-zone[data-dock="bottom"]{left:20%;right:20%;bottom:48px;height:56px}
+    .bndz-dock-zone.hot{background:rgba(13,153,255,.38);border-color:#7ec8ff;color:#fff}
+    #main.dock-bottom-inspector #right-sidebar{display:flex}
+    .bndz-inspector-dockbar{
+      display:flex;align-items:center;gap:8px;padding:8px 10px;margin:0 0 8px;
+      border-radius:10px;cursor:grab;user-select:none;
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.18));
+      border:1px solid rgba(255,255,255,.1);font:700 10px/1 system-ui;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--muted-2);
+    }
+    .bndz-inspector-dockbar:active{cursor:grabbing}
+    .bndz-dock-grip{opacity:.55;letter-spacing:-2px}
+    .bndz-inspector-dockbar .icon-btn{margin-left:auto}
+    #main.dock-bottom-inspector #right-sidebar .section{min-width:220px;flex:0 0 auto}
+    .row-item .layer-drag-handle{cursor:grab;color:var(--muted-2);padding:0 2px;flex-shrink:0;opacity:.7;font-size:11px;user-select:none}
+    .row-item .layer-drag-handle:active{cursor:grabbing}
+    .row-item{cursor:default}
+    #settings-modal{
+      display:none;position:fixed;inset:0;z-index:12000;align-items:center;justify-content:center;
+      background:rgba(8,10,14,.45);backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
+    }
+    #settings-modal.open{display:flex}
+    #settings-modal .db-modal{
+      width:min(420px,92vw);border-radius:16px;padding:16px 18px;
+      background:linear-gradient(180deg,rgba(38,42,52,.92),rgba(20,22,28,.94));
+      border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 60px rgba(0,0,0,.55);
+    }
+    #layer-ctx{
+      display:none;position:fixed;z-index:12500;min-width:200px;padding:6px;
+      border-radius:12px;background:linear-gradient(180deg,rgba(38,42,52,.97),rgba(22,24,30,.97));
+      border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 48px rgba(0,0,0,.55);
+      backdrop-filter:blur(16px) saturate(1.2);
+    }
+    #layer-ctx.open{display:block}
+    #layer-ctx button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;border:0;background:transparent;color:#e8ecf2;padding:8px 10px;border-radius:8px;cursor:pointer;font:12px/1.2 system-ui;text-align:left}
+    #layer-ctx button:hover{background:rgba(13,153,255,.18)}
+    #layer-ctx .kbd{opacity:.45;font:10px/1 ui-monospace,monospace}
+    #layer-ctx .layer-ctx-sep{height:1px;margin:4px 6px;background:rgba(255,255,255,.08)}
+    #right-sidebar[data-sel="tool-stroke"] #sec-stroke { order: 2; }
+    #right-sidebar[data-sel="tool-stroke"] #sec-fill { order: 8; }
+    #right-sidebar[data-sel="tool-fill"] #sec-fill { order: 2; }
+    #app-prompt-modal{
+      display:none;position:fixed;inset:0;z-index:12600;align-items:center;justify-content:center;
+      background:rgba(8,10,14,.45);backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
+    }
+    #app-prompt-modal.open{display:flex}
+    #app-prompt-modal .db-modal{
+      width:min(400px,92vw);border-radius:16px;padding:16px 18px;
+      background:linear-gradient(180deg,rgba(38,42,52,.94),rgba(20,22,28,.96));
+      border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 60px rgba(0,0,0,.55);
+    }
+    #app-prompt-modal label{display:block;font:650 11px/1.2 system-ui;letter-spacing:.06em;text-transform:uppercase;color:#9aa6b6;margin-bottom:8px}
+    #app-prompt-modal input{
+      width:100%;box-sizing:border-box;border-radius:10px;border:1px solid rgba(255,255,255,.14);
+      background:#12141a;color:#e8ecf2;padding:10px 12px;font:13px/1.3 system-ui;outline:none;
+    }
+    #app-prompt-modal input:focus{border-color:rgba(13,153,255,.7)}
+    #app-prompt-modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+    #app-prompt-modal button{
+      border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#22262f;color:#e8ecf2;
+      padding:8px 14px;cursor:pointer;font:650 12px/1 system-ui;
+    }
+    #app-prompt-modal button.primary{background:linear-gradient(135deg,#1aa8ff,#0b74d6);border-color:transparent;color:#fff}
     .sidebar {
       background: var(--panel); border-right: 1px solid var(--line);
       display: flex; flex-direction: column; min-height: 0; z-index: 30;
@@ -816,6 +912,9 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
             <button data-action="zoomReset"><span>Zoom to 100%</span><span class="kbd">Ctrl+0</span></button>
             <button data-action="zoomFit"><span>Zoom to Fit</span><span class="kbd">Shift+1</span></button>
             <div class="divider"></div>
+            <button data-action="togglePanels"><span>Hide / Show Panels</span><span class="kbd">Tab</span></button>
+            <button data-action="openSettings"><span>Settings…</span><span class="kbd">Ctrl+,</span></button>
+            <div class="divider"></div>
             <button data-action="toggleGrid"><span>Pixel Grid</span></button>
             <button data-action="toggleSnap"><span>Snap to Grid</span></button>
             <button data-action="toggleRulers"><span>Rulers & Guides</span></button>
@@ -869,8 +968,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         <div id="status-spacer"></div>
         <div class="stat" id="status-sel">Nothing selected</div>
       </div>
-      <input type="file" id="import-input" class="hidden" accept="image/*" />
-      <input type="file" id="replace-input" class="hidden" accept="image/*" />
+      <input type="file" id="import-input" class="hidden" accept="image/*,.svg,.ico,.webp,.gif,.bmp,.avif" />
+      <input type="file" id="replace-input" class="hidden" accept="image/*,.svg,.ico,.webp,.gif,.bmp,.avif" />
     </div>
     <div id="zoom-menu">
       <button data-zoomset="0.5"><span>50%</span></button>
@@ -882,6 +981,11 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
     <!-- RIGHT -->
     <aside class="sidebar" id="right-sidebar">
+      <div class="bndz-inspector-dockbar" id="inspector-dockbar" title="Drag to dock inspector left / right / bottom">
+        <span class="bndz-dock-grip" aria-hidden="true">⋮⋮</span>
+        <span>Inspector</span>
+        <button type="button" class="icon-btn" id="btn-toggle-panels" title="Hide panels (Tab)">▣</button>
+      </div>
       <div id="inspector-empty" class="empty-inspector">
         <div class="big">◇</div>
         Select an object to edit its<br/>properties, or set defaults below.
@@ -1116,6 +1220,11 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
           <input id="stroke-w" class="range" type="range" min="0" max="40" step="0.5" value="2" />
           <input id="stroke-w-n" class="mini field" type="number" min="0" max="40" step="0.5" value="2" style="padding:4px 6px" />
         </div>
+        <div class="row-flex" title="Freehand smoothing — UI 0 still applies 8% floor">
+          <label style="color:var(--muted-2);font-size:10px;min-width:52px">Smooth</label>
+          <input id="stroke-smooth" class="range" type="range" min="0" max="100" step="1" value="8" />
+          <input id="stroke-smooth-n" class="mini field" type="number" min="0" max="100" step="1" value="8" style="padding:4px 6px" />
+        </div>
         <div class="row-flex" style="margin-top:8px">
           <span class="field-label">Ends</span>
           <div class="seg" id="cap-seg" title="Line cap">
@@ -1331,7 +1440,13 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       <div class="sub">PNG scale presets · SVG fidelity · selection or page</div>
       <div class="mrow">
         <label>Format
-          <select id="ex-fmt"><option value="png">PNG</option><option value="svg">SVG</option></select>
+          <select id="ex-fmt">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPG</option>
+            <option value="webp">WebP</option>
+            <option value="svg">SVG</option>
+            <option value="ico">ICO</option>
+          </select>
         </label>
         <label>Scale
           <select id="ex-scale"><option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option><option value="0.5">0.5×</option></select>
@@ -1405,6 +1520,43 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     toast._t = setTimeout(() => el.classList.remove('show'), 1500);
   }
 
+  /** In-app prompt — never use window.prompt() (WebView2 can hang if dialogs are blocked). */
+  function appPrompt(message, defaultValue = '') {
+    return new Promise((resolve) => {
+      let m = document.getElementById('app-prompt-modal');
+      if (!m) {
+        m = document.createElement('div');
+        m.id = 'app-prompt-modal';
+        m.innerHTML = '<div class="db-modal" role="dialog" aria-modal="true">'
+          + '<label></label><input type="text" spellcheck="false" />'
+          + '<div class="row"><button type="button" class="cancel">Cancel</button>'
+          + '<button type="button" class="primary">OK</button></div></div>';
+        document.body.appendChild(m);
+      }
+      const label = m.querySelector('label');
+      const input = m.querySelector('input');
+      const ok = m.querySelector('button.primary');
+      const cancel = m.querySelector('button.cancel');
+      label.textContent = String(message || 'Enter a value');
+      input.value = defaultValue == null ? '' : String(defaultValue);
+      const finish = (val) => {
+        m.classList.remove('open');
+        ok.onclick = null;
+        cancel.onclick = null;
+        input.onkeydown = null;
+        resolve(val);
+      };
+      ok.onclick = () => finish(input.value);
+      cancel.onclick = () => finish(null);
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(input.value); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(null); }
+      };
+      m.classList.add('open');
+      setTimeout(() => { try { input.focus(); input.select(); } catch { /* ignore */ } }, 20);
+    });
+  }
+
   /* ---------------- Icons ---------------- */
   const ICONS = {
     select: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 8-6 1.5L11 19 5 3z"/></svg>',
@@ -1427,7 +1579,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   /* ---------------- Tool rail ---------------- */
   const TOOLS = [
     { t: 'select', tip: 'Move  (V)' },
-    { t: 'hand', tip: 'Hand  (H)' },
+    { t: 'hand', tip: 'Hand / Pan  (H) — hold Space to temp-pan' },
     { sep: 1 },
     { t: 'frame', tip: 'Frame  (F)' },
     { t: 'rect', tip: 'Rectangle  (R)' },
@@ -1438,11 +1590,11 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     { t: 'star', tip: 'Star' },
     { t: 'text', tip: 'Text  (T)' },
     { sep: 1 },
-    { t: 'pen', tip: 'Pen  (P)' },
-    { t: 'pencil', tip: 'Pencil  (Shift+P)' },
+    { t: 'pen', tip: 'Pen  (P) — open paths stay unfilled' },
+    { t: 'pencil', tip: 'Pencil / freehand  (Shift+P)' },
     { t: 'eraser', tip: 'Eraser  (E)' },
     { t: 'comment', tip: 'Comment  (C)' },
-    { t: 'image', tip: 'Place image  (I)  — drag to size' },
+    { t: 'image', tip: 'Place image  (I)  — drag to size or drop files' },
   ];
   const rail = $('#tool-rail');
   TOOLS.forEach((cfg) => {
@@ -1451,14 +1603,44 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     b.className = 'tool-btn';
     b.dataset.tool = cfg.t;
     b.dataset.tip = cfg.tip;
+    b.title = cfg.tip;
+    b.setAttribute('aria-label', cfg.tip);
     b.innerHTML = ICONS[cfg.t] || '';
     b.addEventListener('click', () => { if (cfg.act === 'import') { $('#import-input').click(); } else { setTool(cfg.t); } });
     rail.appendChild(b);
   });
   const chip = document.createElement('div');
-  chip.id = 'color-chip'; chip.title = 'Fill color';
-  chip.addEventListener('click', () => $('#fill-picker').click());
+  chip.id = 'color-chip';
+  chip.title = 'Active color (stroke for Pen/Line · fill for shapes) — click to edit · Shift+click swaps target';
+  chip.setAttribute('data-tip', 'Active color');
+  chip.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.shiftKey) {
+      setColorTarget(state.colorTarget === 'stroke' ? 'fill' : 'stroke');
+      syncRailColorChip();
+      toast(state.colorTarget === 'stroke' ? 'Editing stroke' : 'Editing fill', 'ok');
+      return;
+    }
+    const which = state.colorTarget === 'stroke' ? 'stroke' : 'fill';
+    if (window.__BNDZ_DB_COLOR_POP__?.open) window.__BNDZ_DB_COLOR_POP__.open(which, chip);
+    else if (which === 'stroke') $('#stroke-sw')?.click();
+    else $('#fill-sw')?.click();
+  });
   rail.appendChild(chip);
+
+  function syncRailColorChip() {
+    const el = $('#color-chip');
+    if (!el) return;
+    const strokeMode = state.colorTarget === 'stroke';
+    const hex = strokeMode ? (state.stroke || '#FFFFFF') : (state.fill || '#D9D9D9');
+    el.style.background = hex;
+    el.dataset.target = strokeMode ? 'stroke' : 'fill';
+    // HSV popover resolveTarget reads this — must track pen/line stroke vs shape fill.
+    el.dataset.bndzColorTarget = strokeMode ? 'stroke' : 'fg';
+    el.dataset.bndzAllowShift = '1';
+    el.title = (strokeMode ? 'Stroke ' : 'Fill ') + hex + ' — click to edit · Shift+click swaps';
+  }
 
   /* ---------------- Canvas ---------------- */
   const workspace = $('#workspace');
@@ -1590,6 +1772,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     gradFocalX: 0.5,
     gradFocalY: 0.5,
     stroke: '#FFFFFF', strokeWidth: 2,
+    strokeSmoothUi: 8, // UI 0→8% effective floor
     colorTarget: 'fill', // 'fill' | 'stroke' — swatches / eyedropper land here
     strokeCap: 'round', strokeJoin: 'round', dash: 'solid',
     recent: [],
@@ -1724,8 +1907,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     $('#fill-alpha').value = Math.round(state.fillAlpha * 100);
     $('#fill-alpha-n').textContent = Math.round(state.fillAlpha * 100) + '%';
     $('#fill-sw').style.background = rgba(hex, state.fillAlpha);
-    chip.style.background = rgba(hex, state.fillAlpha);
     pushRecent(hex);
+    syncRailColorChip();
     if (applyToSel) {
       if (state.fillKind === 'solid') applyProp('fill', rgba(hex, state.fillAlpha), true);
       else applyFillToSelection(true);
@@ -2020,10 +2203,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         e.preventDefault(); e.stopPropagation();
         state.gradActive = i;
         const pc = parseColor(s.color);
-        state.fill = pc.hex; state.fillAlpha = pc.alpha;
-        $('#fill-hex').value = pc.hex.replace('#', '');
-        $('#fill-picker').value = pc.hex;
-        $('#fill-sw').style.background = s.color;
+        setFill(pc.hex, pc.alpha, false);
         const off = $('#grad-stop-off'); if (off) off.value = Math.round(s.offset * 100);
         renderGradEditor();
         const onMove = (ev) => {
@@ -2090,6 +2270,10 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       brush.color = state.stroke;
       brush.width = Math.max(1, state.strokeWidth);
     }
+    const smoothUi = state.strokeSmoothUi != null ? state.strokeSmoothUi : 8;
+    const eff = Math.max(0.08, Math.min(1, smoothUi / 100));
+    const dec = window.BndzFreehandMath?.suggestedDecimate?.(eff);
+    brush.decimate = Number.isFinite(dec) ? dec : Math.max(0.05, 0.22 - eff * 0.14);
   }
   function setColorTarget(which) {
     state.colorTarget = which === 'stroke' ? 'stroke' : 'fill';
@@ -2099,6 +2283,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     const fillSec = $('#sec-fill'), strokeSec = $('#sec-stroke');
     if (fillSec) fillSec.classList.toggle('color-target-on', state.colorTarget === 'fill');
     if (strokeSec) strokeSec.classList.toggle('color-target-on', state.colorTarget === 'stroke');
+    syncRailColorChip();
   }
   function setStroke(hex, applyToSel) {
     hex = normHex(hex) || state.stroke;
@@ -2108,6 +2293,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     $('#stroke-sw').style.background = hex;
     pushRecent(hex);
     syncBrushFromState();
+    syncRailColorChip();
     if (drawingObj && (drawKind === 'line' || drawKind === 'arrow')) {
       drawingObj.set('stroke', hex);
       canvas.requestRenderAll();
@@ -2116,6 +2302,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       penTemp.set('stroke', hex);
       canvas.requestRenderAll();
     }
+    syncPenGuideColors?.();
     if (applyToSel) applyProp('stroke', hex, true);
     postEngine({ type: 'setStyle', stroke: hex, fill: state.fill, strokeWidth: state.strokeWidth });
   }
@@ -2315,6 +2502,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     const fillTools = { rect: 1, ellipse: 1, polygon: 1, star: 1, frame: 1, text: 1 };
     if (strokeTools[tool]) setColorTarget('stroke');
     else if (fillTools[tool]) setColorTarget('fill');
+    syncRailColorChip();
+    syncInspector();
     // OpenPencil owns tools only when the engine is actually live — never dead-zone Fabric.
     if (engineLive()) {
       canvas.isDrawingMode = false;
@@ -2353,12 +2542,27 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   function updateStatus() {
     const t = $('#status-tool'); if (t) t.textContent = TOOL_LABEL[state.tool] || state.tool;
     const s = $('#status-sel'); if (!s) return;
+    if (state.tool === 'pen' && penPoints.length) {
+      const hex = state.stroke || '#FFFFFF';
+      s.innerHTML = '<b>Pen</b> · ' + penPoints.length + ' pt' + (penPoints.length === 1 ? '' : 's')
+        + ' · stroke <span style="color:' + hex + '">' + hex + '</span>'
+        + (penPoints.length >= 2 ? ' · Enter / dbl-click finish' : ' · click more points');
+      return;
+    }
     if (nodeEditHint) {
       s.textContent = nodeEditHint;
       return;
     }
     const objs = canvas.getActiveObjects().filter((o) => !o.isGuide);
-    if (!objs.length) { s.innerHTML = 'Nothing selected'; return; }
+    if (!objs.length) {
+      if (/^(pen|line|arrow|pencil)$/.test(state.tool)) {
+        s.innerHTML = '<b>' + (TOOL_LABEL[state.tool] || state.tool) + '</b> armed · stroke '
+          + (state.stroke || '#FFFFFF');
+        return;
+      }
+      s.innerHTML = 'Nothing selected';
+      return;
+    }
     if (objs.length === 1) {
       const a = objs[0];
       if (a.type === 'line' || a.isBoardLine) {
@@ -2387,7 +2591,31 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (canvas.getObjects().indexOf(obj) === -1) canvas.add(obj);
     if (!obj.name) obj.name = autoName(kind);
     if (!obj.id) obj.id = uid();
-    if (select !== false) canvas.setActiveObject(obj);
+    // Apply current fill kind (solid / linear / radial) to newly drawn shapes
+    if (state.fillKind !== 'solid' && kind !== 'line' && kind !== 'arrow' && kind !== 'path' && kind !== 'image' && kind !== 'comment') {
+      try {
+        const g = buildGradientForObject(obj);
+        if (g) obj.set('fill', g);
+      } catch { /* keep solid fill */ }
+    }
+    // Images / placed art lock by default so the board isn't accidentally dragged.
+    if (kind === 'image') {
+      obj.set({
+        locked: true,
+        selectable: false,
+        evented: false,
+        lockMovementX: true,
+        lockMovementY: true,
+        lockScalingX: true,
+        lockScalingY: true,
+        lockRotation: true,
+        hasControls: false,
+      });
+      toast('Image locked — unlock in Layers to move');
+      if (select !== false) canvas.discardActiveObject();
+    } else if (select !== false) {
+      canvas.setActiveObject(obj);
+    }
     canvas.requestRenderAll();
     updateLayers(); syncInspector(); pushHistory();
   }
@@ -2504,7 +2732,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     img.setCoords();
   }
 
-  function placeImageFile(file) {
+  function placeImageFile(file, atPoint) {
     const reader = new FileReader();
     reader.onload = (f) => {
       fabric.Image.fromURL(f.target.result, (img) => {
@@ -2522,6 +2750,11 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
           img.placeBoxLeft = box.left; img.placeBoxTop = box.top;
           mode = 'fill';
           applyImageFillMode(img, mode);
+        } else if (atPoint && Number.isFinite(atPoint.x) && Number.isFinite(atPoint.y)) {
+          img.scaleToWidth(Math.min(520, img.width || 520));
+          img.set({ left: atPoint.x - img.getScaledWidth() / 2, top: atPoint.y - img.getScaledHeight() / 2 });
+          img.placeBoxW = img.getScaledWidth(); img.placeBoxH = img.getScaledHeight();
+          img.placeBoxLeft = img.left; img.placeBoxTop = img.top;
         } else {
           const vpt = canvas.viewportTransform;
           const cx = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
@@ -2894,11 +3127,32 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     const pts = penPoints.slice();
     if (cursor) pts.push({ x: cursor.x, y: cursor.y });
     const d = pathDataFromPts(pts, false);
+    const col = state.stroke || '#FFFFFF';
+    const sw = Math.max(1.5, state.strokeWidth);
     penTemp = new fabric.Path(d, {
-      stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1.5, state.strokeWidth),
+      stroke: col, strokeWidth: sw,
       fill: '', selectable: false, evented: false, objectCaching: false, strokeUniform: true, isGuide: true,
+      strokeLineCap: 'round', strokeLineJoin: 'round',
     });
-    canvas.add(penTemp); canvas.requestRenderAll();
+    canvas.add(penTemp);
+    // Keep anchors above the preview stroke.
+    penAnchors.forEach((a) => canvas.bringToFront(a));
+    penHandles.forEach((h) => canvas.bringToFront(h));
+    canvas.requestRenderAll();
+    updateStatus();
+  }
+  function syncPenGuideColors() {
+    const col = state.stroke || '#FFFFFF';
+    penAnchors.forEach((a, i) => {
+      a.set({
+        fill: col,
+        stroke: i === 0 && penPoints.length >= 2 ? '#ffffff' : 'rgba(255,255,255,.92)',
+        strokeWidth: i === 0 && penPoints.length >= 2 ? 2 : 1.25,
+        radius: i === 0 && penPoints.length >= 2 ? 5.5 : 3.75,
+      });
+    });
+    if (penTemp) penTemp.set({ stroke: col, strokeWidth: Math.max(1.5, state.strokeWidth) });
+    canvas.requestRenderAll();
   }
   function penClick(p, e) {
     // Close by clicking near first node
@@ -2912,12 +3166,16 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     // Default = sharp corner (letters like B). Curves ONLY when holding Alt and dragging past threshold.
     const pt = { x: p.x, y: p.y, inX: null, inY: null, outX: null, outY: null, nodeType: 'corner' };
     penPoints.push(pt);
+    const col = state.stroke || '#FFFFFF';
     const a = new fabric.Circle({
-      left: p.x, top: p.y, originX: 'center', originY: 'center', radius: 4.5,
-      fill: '#fff', stroke: '#0d99ff', strokeWidth: 1.5, selectable: false, evented: false, isGuide: true,
+      left: p.x, top: p.y, originX: 'center', originY: 'center', radius: 3.75,
+      fill: col, stroke: 'rgba(255,255,255,.92)', strokeWidth: 1.25,
+      selectable: false, evented: false, isGuide: true, isPenAnchor: true,
     });
     penAnchors.push(a); canvas.add(a);
+    syncPenGuideColors();
     drawPenTemp(null);
+    if (penPoints.length === 2) toast('Stroke preview live · Enter or double-click to commit', 'ok');
     if (e && (e.type === 'mousedown' || e.type === 'pointerdown')) {
       const origin = { x: p.x, y: p.y };
       const wantCurve = !!(e.altKey || e.metaKey);
@@ -2946,13 +3204,13 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         const mkH = (x, y) => {
           const h = new fabric.Circle({
             left: x, top: y, originX: 'center', originY: 'center', radius: 3,
-            fill: '#0d99ff', stroke: '#fff', strokeWidth: 1, selectable: false, evented: false, isGuide: true,
+            fill: col, stroke: '#fff', strokeWidth: 1, selectable: false, evented: false, isGuide: true,
           });
           penHandles.push(h); canvas.add(h);
         };
         mkH(pt.outX, pt.outY); mkH(pt.inX, pt.inY);
         const handleLine = new fabric.Line([pt.inX, pt.inY, pt.outX, pt.outY], {
-          stroke: 'rgba(13,153,255,.7)', strokeWidth: 1, selectable: false, evented: false, isGuide: true,
+          stroke: col, strokeWidth: 1, opacity: 0.75, selectable: false, evented: false, isGuide: true,
         });
         penHandles.push(handleLine); canvas.add(handleLine);
         drawPenTemp(q);
@@ -2968,7 +3226,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       const pts = normalizePathPtsCubic(penPoints);
       const d = pathDataFromPts(pts, !!closed);
       const path = new fabric.Path(d, {
-        fill: closed ? rgba(state.fill, state.fillAlpha) : '',
+        // Pen never auto-fills — fill optionally after via Fill inspector
+        fill: '',
         stroke: state.stroke || '#FFFFFF', strokeWidth: Math.max(1.5, state.strokeWidth),
         strokeUniform: true, strokeLineJoin: 'round', strokeLineCap: 'round',
         pathEditPts: clonePathPts(pts), pathClosed: !!closed, objectCaching: false,
@@ -2992,9 +3251,16 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
   function clearPathEdit() {
     if (!pathEdit) return;
+    const p = pathEdit.path;
+    if (p && p._bndzPrevControls) {
+      p.set(p._bndzPrevControls);
+      delete p._bndzPrevControls;
+    }
     (pathEdit.handles || []).forEach((h) => canvas.remove(h));
     pathEdit = null;
     canvas.requestRenderAll();
+    syncInspector();
+    updateLayers();
   }
   let pathEditRaf = 0;
   function rebuildPathFromEdit(keepHandles) {
@@ -3020,6 +3286,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       pathEditPts: clonePathPts(pts),
       pathClosed: !!path.pathClosed, objectCaching: false, bndzEffects: path.bndzEffects,
       name: path.name, id: path.id, selectable: true, evented: true,
+      // Stay in path-edit chrome across rebuilds (never re-enable Fabric box handles mid-edit).
+      hasControls: false, hasBorders: true,
     };
     const idx = canvas.getObjects().indexOf(path);
     canvas.remove(path);
@@ -3027,8 +3295,10 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (idx >= 0) canvas.insertAt(neu, idx, false); else canvas.add(neu);
     pathEdit.path = neu;
     pathEdit.pts = clonePathPts(neu.pathEditPts);
+    neu._bndzPrevControls = path._bndzPrevControls || { hasControls: true, hasBorders: true, selectable: true };
+    // Always keep the live path as the active object so inspector/delete/color stay correct.
+    canvas.setActiveObject(neu);
     if (!keepHandles) {
-      canvas.setActiveObject(neu);
       syncPathEditHandles();
     } else {
       (pathEdit.handles || []).forEach((h) => canvas.bringToFront(h));
@@ -3068,8 +3338,20 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         pathEdit.activeNode = i;
         rebuildPathFromEdit(true);
       });
-      h.on('mouseup', () => { syncPathEditHandles(); pushHistory(); });
-      h.on('modified', () => { syncPathEditHandles(); pushHistory(); });
+      h.on('mouseup', () => {
+        if (pathEdit?.path) canvas.setActiveObject(pathEdit.path);
+        syncPathEditHandles();
+        syncInspector();
+        updateLayers();
+        pushHistory();
+      });
+      h.on('modified', () => {
+        if (pathEdit?.path) canvas.setActiveObject(pathEdit.path);
+        syncPathEditHandles();
+        syncInspector();
+        updateLayers();
+        pushHistory();
+      });
       pathEdit.handles.push(h);
       canvas.add(h);
       // Cubic control handles (in / out)
@@ -3092,7 +3374,13 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
           pathEdit.activeNode = i;
           rebuildPathFromEdit(true);
         });
-        c.on('mouseup', () => { syncPathEditHandles(); pushHistory(); });
+        c.on('mouseup', () => {
+          if (pathEdit?.path) canvas.setActiveObject(pathEdit.path);
+          syncPathEditHandles();
+          syncInspector();
+          updateLayers();
+          pushHistory();
+        });
         pathEdit.handles.push(line); pathEdit.handles.push(c);
         canvas.add(line); canvas.add(c);
       };
@@ -3121,8 +3409,20 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
           pathEdit.activeNode = i;
           rebuildPathFromEdit(true);
         });
-        mid.on('mouseup', () => { syncPathEditHandles(); pushHistory(); });
-        mid.on('modified', () => { syncPathEditHandles(); pushHistory(); });
+        mid.on('mouseup', () => {
+          if (pathEdit?.path) canvas.setActiveObject(pathEdit.path);
+          syncPathEditHandles();
+          syncInspector();
+          updateLayers();
+          pushHistory();
+        });
+        mid.on('modified', () => {
+          if (pathEdit?.path) canvas.setActiveObject(pathEdit.path);
+          syncPathEditHandles();
+          syncInspector();
+          updateLayers();
+          pushHistory();
+        });
         pathEdit.handles.push(mid);
         canvas.add(mid);
       }
@@ -3141,8 +3441,17 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     }
     const pts = clonePathPts(path.pathEditPts || []);
     pathEdit = { path, pts, handles: [] };
-    canvas.discardActiveObject();
+    // Keep the path selected so Layers + inspector stay in sync (discard left stale layer highlight).
+    path._bndzPrevControls = {
+      hasControls: path.hasControls,
+      hasBorders: path.hasBorders,
+      selectable: path.selectable,
+    };
+    path.set({ hasControls: false, hasBorders: true, selectable: true });
+    canvas.setActiveObject(path);
     syncPathEditHandles();
+    syncInspector();
+    updateLayers();
     toast('Edit points — drag nodes · Alt-click delete · Esc exit');
   }
   function bendSelectedPoint() {
@@ -3694,12 +4003,22 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   });
   canvas.on('mouse:wheel', () => {}); // reserved
 
+  function densifyAndSmoothPath(pathObj) {
+    const amount = Math.max(0.08, Math.min(1, (state.strokeSmoothUi != null ? state.strokeSmoothUi : 8) / 100));
+    if (window.BndzFreehandMath?.smoothFabricPath) {
+      return window.BndzFreehandMath.smoothFabricPath(pathObj, amount, fabric, { fill: '' });
+    }
+    return pathObj;
+  }
+
   canvas.on('path:created', (e) => {
     const p = e.path;
     if (!p) return;
     if (state.tool === 'eraser') { p.set({ globalCompositeOperation: 'destination-out' }); }
     else {
+      densifyAndSmoothPath(p);
       p.set({
+        fill: '',
         stroke: state.stroke || '#FFFFFF',
         strokeWidth: Math.max(1, state.strokeWidth),
         strokeLineCap: state.strokeCap,
@@ -3807,22 +4126,56 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     const isSel = a && a.type === 'activeSelection';
     const empty = !a;
     const isLine = !!(a && (a.type === 'line' || a.isBoardLine));
+    const strokeTool = /^(pen|pencil|line|arrow|eraser)$/.test(state.tool);
+    const fillTool = /^(rect|ellipse|polygon|star|frame|text)$/.test(state.tool);
+    const showDefaults = empty && (strokeTool || fillTool || state.tool === 'select');
     const right = $('#right-sidebar');
-    if (right) right.dataset.sel = empty ? '' : (isLine ? 'line' : (a.type || 'obj'));
-    $('#inspector-empty').classList.toggle('hidden', !empty);
-    // True empty: hide document chrome sections that only confuse with no selection
-    ['sec-align', 'sec-variables', 'sec-components', 'sec-styles', 'sec-fill', 'sec-stroke', 'sec-export'].forEach((id) => {
+    if (right) {
+      right.dataset.sel = empty
+        ? (strokeTool ? 'tool-stroke' : (fillTool ? 'tool-fill' : ''))
+        : (isLine ? 'line' : (a.type || 'obj'));
+    }
+    // Empty message only when truly idle (no selection AND no drawing tool defaults).
+    $('#inspector-empty').classList.toggle('hidden', !empty || showDefaults);
+    const emptyMsg = $('#inspector-empty');
+    if (emptyMsg && showDefaults) {
+      emptyMsg.classList.add('hidden');
+    }
+    // Show fill/stroke defaults while a draw tool is armed (even with nothing selected).
+    ['sec-align', 'sec-variables', 'sec-components', 'sec-styles', 'sec-export'].forEach((id) => {
       const el = $('#' + id);
       if (el) el.classList.toggle('bndz-empty-hide', empty);
+    });
+    ['sec-fill', 'sec-stroke'].forEach((id) => {
+      const el = $('#' + id);
+      if (!el) return;
+      const hide = empty && !showDefaults;
+      el.classList.toggle('bndz-empty-hide', hide);
+      if (showDefaults && empty) el.classList.remove('hidden');
     });
     ['sec-transform', 'sec-effects', 'sec-arrange'].forEach((id) => $('#' + id).classList.toggle('hidden', !a));
     const fillSec = $('#sec-fill');
     const strokeSec = $('#sec-stroke');
-    if (fillSec) fillSec.classList.toggle('bndz-line-secondary', isLine);
-    if (strokeSec) strokeSec.classList.toggle('stroke-priority', isLine);
-    if (!a) {
+    if (fillSec) fillSec.classList.toggle('bndz-line-secondary', isLine || strokeTool);
+    if (strokeSec) strokeSec.classList.toggle('stroke-priority', isLine || strokeTool);
+    if (empty) {
       $('#sec-text').classList.add('hidden');
       const secImgEmpty = $('#sec-image-fill'); if (secImgEmpty) secImgEmpty.classList.add('hidden');
+      if (showDefaults) {
+        // Populate swatches from document defaults so users see what the next stroke/fill will be.
+        $('#fill-sw').style.background = state.fill || '#D9D9D9';
+        $('#stroke-sw').style.background = state.stroke || '#FFFFFF';
+        $('#fill-hex') && ($('#fill-hex').value = String(state.fill || '#D9D9D9').replace('#', ''));
+        $('#stroke-hex') && ($('#stroke-hex').value = String(state.stroke || '#FFFFFF').replace('#', ''));
+        if (strokeTool) {
+          setColorTarget('stroke');
+          fillSec?.classList.add('collapsed');
+          strokeSec?.classList.remove('collapsed');
+        } else if (fillTool) {
+          setColorTarget('fill');
+          fillSec?.classList.remove('collapsed');
+        }
+      }
       syncProtoInspector(null);
       syncComponentHint(null);
       return;
@@ -3874,7 +4227,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         state.fill = pc.hex; state.fillAlpha = pc.alpha;
         $('#fill-hex').value = pc.hex.replace('#', ''); $('#fill-picker').value = pc.hex;
         $('#fill-alpha').value = Math.round(pc.alpha * 100); $('#fill-alpha-n').textContent = Math.round(pc.alpha * 100) + '%';
-        $('#fill-sw').style.background = rgba(pc.hex, pc.alpha); chip.style.background = rgba(pc.hex, pc.alpha);
+        $('#fill-sw').style.background = rgba(pc.hex, pc.alpha);
       } else if (state.gradStops[state.gradActive]) {
         $('#fill-sw').style.background = state.gradStops[state.gradActive].color;
       }
@@ -3883,6 +4236,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       const ps = parseColor(a.stroke); state.stroke = ps.hex;
       $('#stroke-hex').value = ps.hex.replace('#', ''); $('#stroke-picker').value = ps.hex; $('#stroke-sw').style.background = ps.hex;
     }
+    syncRailColorChip();
     if (typeof a.strokeWidth === 'number') { $('#stroke-w').value = a.strokeWidth; $('#stroke-w-n').value = a.strokeWidth; }
 
     $('#shadow-toggle').classList.toggle('on', !!a.shadow || (Array.isArray(a.bndzEffects) && a.bndzEffects.some((f) => f.enabled && f.type === 'dropShadow')));
@@ -3954,29 +4308,37 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       const canvasIdx = objs.indexOf(o);
       const row = document.createElement('div');
       row.className = 'row-item' + (activeSet.includes(o) ? ' active' : '') + (o.hidden ? ' dim' : '');
-      row.draggable = true;
+      row.draggable = false;
       row.dataset.canvasIdx = String(canvasIdx);
       row.dataset.visualIdx = String(visualIdx);
+      const handle = document.createElement('span');
+      handle.className = 'layer-drag-handle';
+      handle.title = 'Drag to reorder';
+      handle.textContent = '☰';
+      handle.draggable = true;
       const nest = document.createElement('span');
       nest.className = 'nest-pad';
       nest.style.width = (layerNestDepth(o) * 12) + 'px';
-      const ico = document.createElement('span'); ico.className = 'ico'; ico.innerHTML = layerIcon(o);
+      const ico = document.createElement('span'); ico.className = 'ico'; ico.innerHTML = layerIcon(o); ico.title = o.type || 'layer';
       const nm = document.createElement('span'); nm.className = 'rname'; nm.textContent = o.name || o.type;
       const eye = document.createElement('button'); eye.className = 'layer-toggle' + (o.hidden ? '' : ' on');
+      eye.title = o.hidden ? 'Show layer' : 'Hide layer';
       eye.innerHTML = o.hidden ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4l16 16M9.5 9.7A3 3 0 0014 14m4.3-1C17 15.5 14.7 17 12 17c-4 0-7-3.5-8-5 .6-1 1.8-2.5 3.6-3.6"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>';
       const lock = document.createElement('button'); lock.className = 'layer-toggle' + (o.locked ? ' locked' : '');
+      lock.title = o.locked ? 'Unlock layer' : 'Lock layer';
       lock.innerHTML = o.locked ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 017.5-2"/></svg>';
-      row.appendChild(nest); row.appendChild(ico); row.appendChild(nm); row.appendChild(eye); row.appendChild(lock);
-      row.addEventListener('click', (ev) => { if (ev.target.closest('.layer-toggle')) return; selectObject(o); });
-      row.addEventListener('dblclick', (ev) => { if (ev.target.closest('.layer-toggle')) return; startRename(nm, o); });
+      row.appendChild(handle); row.appendChild(nest); row.appendChild(ico); row.appendChild(nm); row.appendChild(eye); row.appendChild(lock);
+      row.addEventListener('click', (ev) => { if (ev.target.closest('.layer-toggle, .layer-drag-handle')) return; selectObject(o); });
+      row.addEventListener('dblclick', (ev) => { if (ev.target.closest('.layer-toggle, .layer-drag-handle')) return; startRename(nm, o); });
+      row.addEventListener('contextmenu', (ev) => showLayerContextMenu(ev, o, canvasIdx));
       eye.addEventListener('click', (ev) => { ev.stopPropagation(); toggleHide(o); });
       lock.addEventListener('click', (ev) => { ev.stopPropagation(); toggleLock(o); });
-      row.addEventListener('dragstart', (ev) => {
+      handle.addEventListener('dragstart', (ev) => {
         row.classList.add('dragging');
         ev.dataTransfer.setData('text/bndz-layer', String(canvasIdx));
         ev.dataTransfer.effectAllowed = 'move';
       });
-      row.addEventListener('dragend', () => {
+      handle.addEventListener('dragend', () => {
         row.classList.remove('dragging');
         $$('#layers-list .row-item').forEach((r) => r.classList.remove('drag-over'));
       });
@@ -3995,6 +4357,59 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       });
       list.appendChild(row);
     });
+    requestAnimationFrame(() => {
+      list.querySelector('.row-item.active')?.scrollIntoView?.({ block: 'nearest' });
+    });
+  }
+  function showLayerContextMenu(ev, obj, canvasIdx) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    selectObject(obj);
+    let menu = $('#layer-ctx');
+    if (!menu) {
+      menu = document.createElement('div');
+      menu.id = 'layer-ctx';
+      document.body.appendChild(menu);
+      document.addEventListener('pointerdown', (e) => {
+        if (!menu.contains(e.target)) menu.classList.remove('open');
+      }, true);
+    }
+    const actions = [
+      { label: 'Duplicate', kbd: '⌘D', fn: () => { duplicateSel(); } },
+      { label: 'Delete', kbd: '⌫', fn: () => { deleteSelected(); } },
+      { sep: true },
+      { label: obj.locked ? 'Unlock' : 'Lock', fn: () => toggleLock(obj) },
+      { label: obj.hidden ? 'Show' : 'Hide', fn: () => toggleHide(obj) },
+      { sep: true },
+      { label: 'Bring to Front', fn: () => { canvas.bringToFront(obj); canvas.requestRenderAll(); updateLayers(); pushHistory(); } },
+      { label: 'Bring Forward', fn: () => { canvas.bringForward(obj); canvas.requestRenderAll(); updateLayers(); pushHistory(); } },
+      { label: 'Send Backward', fn: () => { canvas.sendBackwards(obj); canvas.requestRenderAll(); updateLayers(); pushHistory(); } },
+      { label: 'Send to Back', fn: () => { canvas.sendToBack(obj); canvas.requestRenderAll(); updateLayers(); pushHistory(); } },
+      { sep: true },
+      { label: obj.type === 'path' ? 'Edit Path' : 'Rename', fn: () => {
+        if (obj.type === 'path') { enterPathEdit(obj); return; }
+        const active = $('#layers-list .row-item.active .rname');
+        if (active) startRename(active, obj);
+      } },
+      { label: 'Copy as PNG', fn: () => { void copyAsPng(); } },
+    ];
+    menu.innerHTML = '';
+    actions.forEach((a) => {
+      if (a.sep) {
+        const d = document.createElement('div');
+        d.className = 'layer-ctx-sep';
+        menu.appendChild(d);
+        return;
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = `<span>${a.label}</span>${a.kbd ? `<span class="kbd">${a.kbd}</span>` : ''}`;
+      b.addEventListener('click', () => { a.fn(); menu.classList.remove('open'); });
+      menu.appendChild(b);
+    });
+    menu.style.left = Math.min(window.innerWidth - 220, ev.clientX) + 'px';
+    menu.style.top = Math.min(window.innerHeight - 320, ev.clientY) + 'px';
+    menu.classList.add('open');
   }
   function reorderLayer(fromIdx, toIdx) {
     const objs = canvas.getObjects().filter((o) => !o.isGuide);
@@ -4124,9 +4539,9 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     objs.forEach((o) => o.set(axis === 'h' ? 'flipX' : 'flipY', !(axis === 'h' ? o.flipX : o.flipY)));
     canvas.requestRenderAll(); pushHistory();
   }
-  function renameSel() {
+  async function renameSel() {
     const a = canvas.getActiveObject(); if (!a || a.type === 'activeSelection') return;
-    const n = prompt('Rename layer', a.name || a.type);
+    const n = await appPrompt('Rename layer', a.name || a.type);
     if (n != null) { a.name = n.trim() || a.name; updateLayers(); pushHistory(); }
   }
   function selectAll() {
@@ -4220,7 +4635,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     opts = opts || {};
     const scale = opts.scale != null ? +opts.scale : 2;
     const scope = opts.scope || 'auto';
-    fmt = fmt || opts.fmt || 'png';
+    fmt = (fmt || opts.fmt || 'png').toLowerCase();
     const prev = canvas.getActiveObject();
     canvas.discardActiveObject(); canvas.renderAll();
     const bounds = getExportBounds(scope);
@@ -4230,24 +4645,22 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       return toast('Nothing selected to export');
     }
     let url;
-    if (fmt === 'png') {
-      url = canvas.toDataURL({
-        format: 'png', quality: 1, multiplier: scale,
-        left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height,
-      });
-    } else {
-      // Higher-fidelity SVG: hide guides, crop via viewBox rewrite
+    const rasterOpts = {
+      format: fmt === 'jpg' || fmt === 'jpeg' ? 'jpeg' : (fmt === 'webp' ? 'webp' : 'png'),
+      quality: fmt === 'png' ? 1 : 0.92,
+      multiplier: scale,
+      left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height,
+    };
+    if (fmt === 'svg') {
       const guides = canvas.getObjects().filter((o) => o.isGuide || o.excludeFromExport);
       guides.forEach((g) => { g._exPrevVis = g.visible; g.visible = false; });
       let svg = canvas.toSVG();
       guides.forEach((g) => { g.visible = g._exPrevVis !== false; delete g._exPrevVis; });
-      // Inject geometricPrecision + crop viewBox to selection/page bounds
       svg = svg.replace(
         /<svg([^>]*)>/,
         (m, attrs) => {
           let a = attrs;
           if (a.indexOf('shape-rendering') < 0) a += ' shape-rendering="geometricPrecision" text-rendering="geometricPrecision"';
-          // Replace or add viewBox
           if (/viewBox=/.test(a)) a = a.replace(/viewBox="[^"]*"/, 'viewBox="' + bounds.left + ' ' + bounds.top + ' ' + bounds.width + ' ' + bounds.height + '"');
           else a += ' viewBox="' + bounds.left + ' ' + bounds.top + ' ' + bounds.width + ' ' + bounds.height + '"';
           a = a.replace(/\swidth="[^"]*"/, ' width="' + bounds.width + '"');
@@ -4258,19 +4671,212 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         }
       );
       url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    } else if (fmt === 'ico') {
+      const pngUrl = canvas.toDataURL({
+        ...rasterOpts,
+        format: 'png',
+        multiplier: Math.max(scale, 256 / Math.max(bounds.width, bounds.height, 1)),
+      });
+      if (prev) canvas.setActiveObject(prev);
+      canvas.requestRenderAll();
+      closeExportModal();
+      if (window.BndzPngIco?.downloadIcoFromPngDataUrl) {
+        window.BndzPngIco.downloadIcoFromPngDataUrl(
+          pngUrl,
+          'design-' + (bounds.selection ? 'sel-' : 'page-') + Date.now() + '.ico'
+        ).then(() => toast('Exported ICO @ ' + scale + '× (' + (bounds.selection ? 'selection' : 'page') + ')'))
+          .catch((err) => toast(err?.message || 'ICO export failed'));
+      } else {
+        toast('ICO encoder unavailable');
+      }
+      return;
+    } else {
+      url = canvas.toDataURL(rasterOpts);
     }
+    const ext = fmt === 'jpeg' ? 'jpg' : fmt;
     const link = document.createElement('a');
-    link.download = 'design-' + (bounds.selection ? 'sel-' : 'page-') + Date.now() + (fmt === 'svg' ? '.svg' : '.png');
+    link.download = 'design-' + (bounds.selection ? 'sel-' : 'page-') + Date.now() + '.' + ext;
     link.href = url; link.click();
     if (prev) canvas.setActiveObject(prev);
     canvas.requestRenderAll();
     closeExportModal();
-    toast('Exported ' + fmt.toUpperCase() + ' @ ' + scale + '× (' + (bounds.selection ? 'selection' : 'page') + ')');
+    toast('Exported ' + String(ext).toUpperCase() + ' @ ' + scale + '× (' + (bounds.selection ? 'selection' : 'page') + ')');
   }
   function newFile() {
-    if (!confirm('Clear the current page? This cannot be undone.')) return;
-    canvas.clear(); canvas.backgroundColor = 'transparent';
-    updateLayers(); syncInspector(); pushHistory(); toast('New file');
+    canvas.discardActiveObject();
+    canvas.clear();
+    canvas.backgroundColor = 'transparent';
+    history = [];
+    historyIdx = -1;
+    pages = [{ id: 1, name: 'Page 1', data: null }];
+    currentPageId = 1;
+    penPoints = [];
+    penAnchors = [];
+    penHandles = [];
+    pathEdit = null;
+    clipboard = null;
+    const frame = newFrame(0, 0);
+    frame.set({
+      width: 800, height: 600, left: 0, top: 0,
+      locked: true, selectable: false, evented: false,
+      lockMovementX: true, lockMovementY: true,
+      lockScalingX: true, lockScalingY: true, lockRotation: true,
+      hasControls: false, hasBorders: false,
+      isBootFrame: true, hoverCursor: 'default',
+    });
+    frame.name = autoName('frame');
+    frame.id = uid();
+    canvas.add(frame);
+    canvas.discardActiveObject();
+    resizeCanvas();
+    zoomFit();
+    renderPages();
+    updateLayers();
+    syncInspector();
+    pushHistory();
+    setTool('select');
+    toast('New file — artboard ready');
+  }
+
+  function togglePanels() {
+    const main = $('#main');
+    if (!main) return;
+    main.classList.toggle('panels-hidden');
+    const hidden = main.classList.contains('panels-hidden');
+    try { localStorage.setItem('bndz-db-panels-hidden', hidden ? '1' : '0'); } catch { /* ignore */ }
+    requestAnimationFrame(() => { resizeCanvas(); toast(hidden ? 'Panels hidden' : 'Panels shown'); });
+  }
+
+  function openSettings() {
+    let m = $('#settings-modal');
+    if (!m) {
+      m = document.createElement('div');
+      m.id = 'settings-modal';
+      m.innerHTML = `<div class="db-modal" role="dialog" aria-label="Settings">
+        <h3>Design Board Settings</h3>
+        <div class="sub">Mica-style glass · local defaults</div>
+        <div class="mrow"><label>Grid size <input id="set-grid" type="number" min="4" max="64" value="${state.gridSize || 8}" /></label></div>
+        <div class="mrow"><label>Default stroke <input id="set-stroke-w" type="number" min="0" max="40" value="${state.strokeWidth || 1}" /></label></div>
+        <div class="mrow"><label>Freehand smooth % <input id="set-smooth" type="number" min="0" max="100" value="${state.strokeSmoothUi != null ? state.strokeSmoothUi : 8}" /></label></div>
+        <div class="mrow"><label><input id="set-snap" type="checkbox" ${state.snapOn ? 'checked' : ''}/> Snap to grid</label></div>
+        <div class="mactions">
+          <button type="button" class="btn" id="set-cancel">Close</button>
+          <button type="button" class="btn btn-accent" id="set-save">Save</button>
+        </div>
+      </div>`;
+      document.body.appendChild(m);
+      m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('open'); });
+      m.querySelector('#set-cancel').addEventListener('click', () => m.classList.remove('open'));
+      m.querySelector('#set-save').addEventListener('click', () => {
+        state.gridSize = +m.querySelector('#set-grid').value || 8;
+        state.strokeWidth = +m.querySelector('#set-stroke-w').value || 1;
+        state.strokeSmoothUi = Math.max(0, Math.min(100, +m.querySelector('#set-smooth').value || 0));
+        state.snapOn = !!m.querySelector('#set-snap').checked;
+        try {
+          localStorage.setItem('bndz-db-settings', JSON.stringify({
+            gridSize: state.gridSize, strokeWidth: state.strokeWidth,
+            strokeSmoothUi: state.strokeSmoothUi, snapOn: state.snapOn,
+          }));
+        } catch { /* ignore */ }
+        if (typeof syncBrushFromState === 'function') syncBrushFromState();
+        renderGrid();
+        m.classList.remove('open');
+        toast('Settings saved');
+      });
+    }
+    m.classList.add('open');
+  }
+
+  function installDesignBoardDock() {
+    const right = $('#right-sidebar');
+    const main = $('#main');
+    if (!right || !main || right.dataset.bndzDock === '1') return;
+    right.dataset.bndzDock = '1';
+    let zones = document.getElementById('bndz-dock-zones');
+    if (!zones) {
+      zones = document.createElement('div');
+      zones.id = 'bndz-dock-zones';
+      zones.className = 'bndz-dock-zones';
+      zones.innerHTML = ['left', 'right', 'bottom'].map((d) => `<div class="bndz-dock-zone" data-dock="${d}">${d}</div>`).join('');
+      document.body.appendChild(zones);
+    }
+    const bar = $('#inspector-dockbar');
+    if (!bar) return;
+    let dragging = false;
+    let origin = null;
+    let zonesShown = false;
+
+    function applyDock(dock) {
+      main.classList.remove('dock-left-inspector', 'dock-bottom-inspector');
+      if (dock === 'left') main.classList.add('dock-left-inspector');
+      else if (dock === 'bottom') main.classList.add('dock-bottom-inspector');
+      try { localStorage.setItem('bndz-db-panel-dock', dock); } catch { /* ignore */ }
+      requestAnimationFrame(resizeCanvas);
+      toast('Inspector docked ' + dock);
+    }
+
+    bar.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target.closest('button,input,select,a')) return;
+      dragging = true;
+      origin = { x: e.clientX, y: e.clientY };
+      zonesShown = false;
+      bar.style.cursor = 'grabbing';
+      // No setPointerCapture — zones must remain hittable via elementFromPoint
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!dragging || !origin) return;
+      if (!zonesShown && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > 8) {
+        zones.classList.add('show');
+        zonesShown = true;
+      }
+      if (zonesShown) {
+        zones.querySelectorAll('.bndz-dock-zone').forEach((z) => {
+          const r = z.getBoundingClientRect();
+          const hot = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+          z.classList.toggle('hot', hot);
+        });
+      }
+    });
+    function hitDockAt(clientX, clientY) {
+      let best = null;
+      zones.querySelectorAll('.bndz-dock-zone').forEach((z) => {
+        const r = z.getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+          best = z.dataset.dock || null;
+        }
+      });
+      return best;
+    }
+
+    window.addEventListener('pointerup', (e) => {
+      if (!dragging) return;
+      dragging = false;
+      bar.style.cursor = 'grab';
+      const moved = origin && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > 8;
+      const dock = (moved && zonesShown) ? hitDockAt(e.clientX, e.clientY) : null;
+      zones.classList.remove('show');
+      zones.querySelectorAll('.bndz-dock-zone').forEach((z) => z.classList.remove('hot'));
+      origin = null;
+      zonesShown = false;
+      if (dock) applyDock(dock);
+    });
+
+    const toggleBtn = $('#btn-toggle-panels');
+    if (toggleBtn) toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePanels(); });
+
+    try {
+      const dock = localStorage.getItem('bndz-db-panel-dock') || 'right';
+      if (dock === 'left') main.classList.add('dock-left-inspector');
+      else if (dock === 'bottom') main.classList.add('dock-bottom-inspector');
+      if (localStorage.getItem('bndz-db-panels-hidden') === '1') main.classList.add('panels-hidden');
+      const saved = JSON.parse(localStorage.getItem('bndz-db-settings') || 'null');
+      if (saved) {
+        if (saved.gridSize != null) state.gridSize = saved.gridSize;
+        if (saved.strokeWidth != null) state.strokeWidth = saved.strokeWidth;
+        if (saved.strokeSmoothUi != null) state.strokeSmoothUi = saved.strokeSmoothUi;
+        if (saved.snapOn != null) state.snapOn = saved.snapOn;
+      }
+    } catch { /* ignore */ }
   }
 
   /* ---------------- Pages ---------------- */
@@ -4293,8 +4899,70 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
         nm.addEventListener('blur', commit, { once: true });
         nm.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); nm.blur(); } });
       });
+      row.addEventListener('contextmenu', (ev) => showPageContextMenu(ev, p));
       list.appendChild(row);
     });
+  }
+  function showPageContextMenu(ev, page) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    let menu = $('#page-ctx');
+    if (!menu) {
+      menu = document.createElement('div');
+      menu.id = 'page-ctx';
+      menu.style.cssText = 'position:fixed;z-index:12000;min-width:200px;padding:6px;border-radius:12px;background:linear-gradient(165deg,#2a2e38,#1a1c22);border:1px solid rgba(255,255,255,.12);box-shadow:0 16px 40px rgba(0,0,0,.5);display:none';
+      document.body.appendChild(menu);
+      document.addEventListener('pointerdown', (e) => {
+        if (!menu.contains(e.target)) menu.style.display = 'none';
+      }, true);
+    }
+    const actions = [
+      { label: 'Switch to Page', fn: () => switchPage(page.id) },
+      { label: 'Rename', fn: () => {
+        switchPage(page.id);
+        const nm = [...$$('#pages-list .row-item')].find((r) => r.classList.contains('active'))?.querySelector('.rname');
+        if (nm) { nm.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); }
+      } },
+      { sep: true },
+      { label: 'Duplicate Page', fn: () => {
+        persistCurrentPage();
+        const id = Date.now();
+        const src = pages.find((p) => p.id === page.id);
+        pages.push({ id, name: (src?.name || 'Page') + ' Copy', data: src?.data || null });
+        switchPage(id);
+        toast('Page duplicated', 'ok');
+      } },
+      { label: 'Add Page', fn: () => addPage() },
+      { sep: true },
+      { label: 'Delete Page', fn: () => {
+        if (pages.length <= 1) { toast('Need at least one page', 'warn'); return; }
+        if (page.id === currentPageId) deletePage();
+        else {
+          const idx = pages.findIndex((p) => p.id === page.id);
+          if (idx >= 0) { pages.splice(idx, 1); renderPages(); toast('Page deleted'); }
+        }
+      } },
+    ];
+    menu.innerHTML = '';
+    actions.forEach((a) => {
+      if (a.sep) {
+        const d = document.createElement('div');
+        d.style.cssText = 'height:1px;margin:4px 6px;background:rgba(255,255,255,.08)';
+        menu.appendChild(d);
+        return;
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = a.label;
+      b.style.cssText = 'display:block;width:100%;text-align:left;border:0;background:transparent;color:#e8ecf2;padding:8px 10px;border-radius:8px;cursor:pointer;font:12px/1.2 system-ui';
+      b.addEventListener('mouseenter', () => { b.style.background = 'rgba(13,153,255,.18)'; });
+      b.addEventListener('mouseleave', () => { b.style.background = 'transparent'; });
+      b.addEventListener('click', () => { a.fn(); menu.style.display = 'none'; });
+      menu.appendChild(b);
+    });
+    menu.style.left = Math.min(window.innerWidth - 220, ev.clientX) + 'px';
+    menu.style.top = Math.min(window.innerHeight - 240, ev.clientY) + 'px';
+    menu.style.display = 'block';
   }
   function switchPage(id) {
     if (id === currentPageId) return;
@@ -4344,6 +5012,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       exportFile('svg', { scale: 1, scope: 'auto' });
     },
     openExport: openExportModal,
+    togglePanels,
+    openSettings,
     copy: copySel, paste: pasteSel, duplicate: duplicateSel, delete: deleteSelected,
     selectAll, copyPng: copyAsPng,
     group: groupSel, ungroup: ungroupSel,
@@ -4399,105 +5069,82 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   /* ---------------- Top-bar menus ---------------- */
   function closeMenus() { $$('.menu').forEach((m) => m.classList.remove('open')); }
   $$('#menus .menu').forEach((m) => {
-    m.querySelector('.menu-label').addEventListener('click', (e) => {
+    const label = m.querySelector('.menu-label');
+    if (!label) return;
+    const toggle = (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      const open = m.classList.contains('open'); closeMenus();
+      const open = m.classList.contains('open');
+      closeMenus();
       if (!open) m.classList.add('open');
-    });
+    };
+    // pointerdown is more reliable than click when host chrome races the iframe.
+    label.addEventListener('pointerdown', toggle);
+    label.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
     m.addEventListener('mouseenter', () => { if ($$('.menu.open').length) { closeMenus(); m.classList.add('open'); } });
   });
-  document.addEventListener('click', closeMenus);
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest?.('#menus .menu')) return;
+    closeMenus();
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest?.('#menus .menu')) return;
+    closeMenus();
+  });
 
-  /* ---------------- Inspector inputs ---------------- */
+  /* ---------------- Inspector inputs — shared HSV popover ---------------- */
   (function wireColorPopover() {
-    const pop = $('#bndz-color-pop');
-    if (!pop) return;
-    const sv = $('#bndz-cp-sv'), knob = $('#bndz-cp-svk');
-    const hueEl = $('#bndz-cp-hue'), alphaEl = $('#bndz-cp-alpha'), hexEl = $('#bndz-cp-hex');
-    let target = 'fill';
-    let hsv = { h: 210, s: 0.2, v: 0.85 };
-    function hsvToHex(h, s, v) {
-      const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
-      let r=0,g=0,b=0;
-      if (h < 60) { r=c; g=x; }
-      else if (h < 120) { r=x; g=c; }
-      else if (h < 180) { g=c; b=x; }
-      else if (h < 240) { g=x; b=c; }
-      else if (h < 300) { r=x; b=c; }
-      else { r=c; b=x; }
-      const to = (n) => Math.round((n + m) * 255).toString(16).padStart(2, '0');
-      return ('#' + to(r) + to(g) + to(b)).toUpperCase();
-    }
-    function hexToHsv(hex) {
-      hex = normHex(hex) || '#D9D9D9';
-      const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
-      const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
-      let h = 0;
-      if (d) {
-        if (max === r) h = ((g - b) / d) % 6;
-        else if (max === g) h = (b - r) / d + 2;
-        else h = (r - g) / d + 4;
-        h *= 60; if (h < 0) h += 360;
-      }
-      const s = max === 0 ? 0 : d / max;
-      return { h, s, v: max };
-    }
-    function syncUi() {
-      const hex = hsvToHex(hsv.h, hsv.s, hsv.v);
-      sv.style.setProperty('--bndz-cp-hue', hsvToHex(hsv.h, 1, 1));
-      knob.style.left = (hsv.s * 100) + '%';
-      knob.style.top = ((1 - hsv.v) * 100) + '%';
-      hueEl.value = Math.round(hsv.h);
-      hexEl.value = hex;
-      pop.style.setProperty('--bndz-cp-hue', hex);
-    }
-    function applyLive() {
-      const hex = hsvToHex(hsv.h, hsv.s, hsv.v);
-      const a = (+alphaEl.value) / 100;
-      if (target === 'stroke') setStroke(hex, true);
-      else setFill(hex, a, true);
-    }
-    function openPop(which, anchor) {
-      target = which;
-      setColorTarget(which);
-      const cur = which === 'stroke' ? state.stroke : state.fill;
-      hsv = hexToHsv(cur);
-      alphaEl.value = Math.round((which === 'stroke' ? 1 : state.fillAlpha) * 100);
-      syncUi();
-      const r = anchor.getBoundingClientRect();
-      pop.hidden = false;
-      pop.style.left = Math.min(window.innerWidth - 240, Math.max(8, r.left)) + 'px';
-      pop.style.top = Math.min(window.innerHeight - 240, r.bottom + 6) + 'px';
-    }
-    function closePop() { pop.hidden = true; }
-    sv.addEventListener('pointerdown', (e) => {
-      const move = (ev) => {
-        const r = sv.getBoundingClientRect();
-        hsv.s = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
-        hsv.v = Math.max(0, Math.min(1, 1 - (ev.clientY - r.top) / r.height));
-        syncUi(); applyLive();
-      };
-      move(e);
-      const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const H = window.BndzHsvPopover;
+    if (!H?.mount) return;
+    const api = H.mount({
+      getColor: (t) => {
+        if (t === 'stroke' || t === 'bg') return state.stroke || '#FFFFFF';
+        return state.fill || '#D9D9D9';
+      },
+      getAlpha: (t) => (t === 'stroke' || t === 'bg' ? 1 : state.fillAlpha),
+      setColor: (hex, alpha, target, el) => {
+        if (target === 'stroke' || target === 'bg') {
+          setColorTarget('stroke');
+          setStroke(hex, true);
+          return;
+        }
+        if (target === 'local' && el) {
+          if (el.classList?.contains('fx-p-color') || el.id === 'fx-color' || el.type === 'color') {
+            el.value = hex;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return;
+          }
+          if (el.classList?.contains('grad-stop')) {
+            setColorTarget('fill');
+            setFill(hex, alpha, true);
+            return;
+          }
+        }
+        setColorTarget('fill');
+        setFill(hex, alpha, true);
+      },
+      openNative: (target) => {
+        if (target === 'stroke' || target === 'bg') $('#stroke-picker')?.click();
+        else $('#fill-picker')?.click();
+      },
+      targetById: {
+        'fill-sw': 'fg',
+        'stroke-sw': 'stroke',
+        // color-chip uses data-bndz-color-target (synced in syncRailColorChip)
+        'fill-picker': 'fg',
+        'stroke-picker': 'stroke',
+      },
     });
-    hueEl.addEventListener('input', () => { hsv.h = +hueEl.value; syncUi(); applyLive(); });
-    alphaEl.addEventListener('input', () => applyLive());
-    hexEl.addEventListener('change', () => {
-      const h = normHex(hexEl.value); if (!h) return;
-      hsv = hexToHsv(h); syncUi(); applyLive();
-    });
-    $('#bndz-cp-apply').addEventListener('click', () => { applyLive(); closePop(); });
-    $('#bndz-cp-native').addEventListener('click', () => {
-      closePop();
-      if (target === 'stroke') $('#stroke-picker').click();
-      else $('#fill-picker').click();
-    });
-    document.addEventListener('pointerdown', (e) => {
-      if (!pop.hidden && !e.target.closest('#bndz-color-pop') && !e.target.closest('#fill-sw') && !e.target.closest('#stroke-sw')) closePop();
-    });
-    $('#fill-sw').addEventListener('click', (e) => { e.preventDefault(); openPop('fill', $('#fill-sw')); });
-    $('#stroke-sw').addEventListener('click', (e) => { e.preventDefault(); openPop('stroke', $('#stroke-sw')); });
+    // Keep legacy open('fill'|'stroke'|'fx', anchor) for rail chip / fx rows.
+    window.__BNDZ_DB_COLOR_POP__ = {
+      open: (which, anchor) => {
+        if (which === 'fx') api.open('local', anchor);
+        else if (which === 'stroke') { setColorTarget('stroke'); api.open('stroke', anchor || $('#stroke-sw')); }
+        else { setColorTarget('fill'); api.open('fg', anchor || $('#fill-sw')); }
+      },
+      close: api.close,
+    };
   })();
   $('#fill-picker').addEventListener('input', (e) => setFill(e.target.value, null, true));
   $('#fill-hex').addEventListener('change', (e) => { const h = normHex(e.target.value); if (h) setFill(h, null, true); else e.target.value = state.fill.replace('#', ''); });
@@ -4519,6 +5166,16 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     applyProp('strokeWidth', +e.target.value); syncBrushFromState();
     postEngine({ type: 'setStyle', stroke: state.stroke, fill: state.fill, strokeWidth: state.strokeWidth });
   });
+  function setStrokeSmoothUi(v) {
+    const n = Math.max(0, Math.min(100, +v || 0));
+    state.strokeSmoothUi = n;
+    const a = $('#stroke-smooth'), b = $('#stroke-smooth-n');
+    if (a) a.value = String(n);
+    if (b) b.value = String(n);
+    syncBrushFromState();
+  }
+  $('#stroke-smooth')?.addEventListener('input', (e) => setStrokeSmoothUi(e.target.value));
+  $('#stroke-smooth-n')?.addEventListener('change', (e) => setStrokeSmoothUi(e.target.value));
 
   $('#p-x').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (a) { a.set('left', +e.target.value); a.setCoords(); canvas.requestRenderAll(); pushHistory(); } });
   $('#p-y').addEventListener('change', (e) => { const a = canvas.getActiveObject(); if (a) { a.set('top', +e.target.value); a.setCoords(); canvas.requestRenderAll(); pushHistory(); } });
@@ -4631,6 +5288,55 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
   $('#import-input').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) placeImageFile(f); e.target.value = ''; });
 
+  // Desktop / Explorer drag-drop import onto canvas (document-level so Fabric upper-canvas can't swallow it)
+  const acceptDbDrop = (e) => {
+    const types = e.dataTransfer?.types;
+    if (!types || (![...types].includes('Files') && !e.dataTransfer.files?.length)) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    return true;
+  };
+  ['dragenter', 'dragover'].forEach((ev) => {
+    workspace.addEventListener(ev, (e) => { acceptDbDrop(e); });
+    document.addEventListener(ev, (e) => { acceptDbDrop(e); }, true);
+  });
+  const onDbFileDrop = (e) => {
+    if (!acceptDbDrop(e) && !(e.dataTransfer?.files?.length)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const files = [...(e.dataTransfer?.files || [])];
+    const images = files.filter((f) => /\.(png|jpe?g|webp|gif|svg|avif|bmp|ico)$/i.test(f.name) || (f.type || '').startsWith('image/'));
+    if (!images.length) {
+      if (files[0]) toast('Drop an image (PNG, JPG, WEBP, SVG, ICO…)');
+      return;
+    }
+    let ptr = { x: canvas.getWidth() / 2, y: canvas.getHeight() / 2 };
+    try { ptr = canvas.getPointer(e); } catch { /* center fallback */ }
+    images.slice(0, 8).forEach((img, i) => {
+      placeImageFile(img, { x: ptr.x + i * 24, y: ptr.y + i * 24 });
+    });
+    if (images.length > 8) toast('Placed 8 images · extras ignored');
+    else toast('Placed ' + images.length + ' image' + (images.length === 1 ? '' : 's'));
+  };
+  workspace.addEventListener('drop', onDbFileDrop);
+  document.addEventListener('drop', onDbFileDrop, true);
+
+  // OS clipboard image paste (screenshots / Explorer copy)
+  document.addEventListener('paste', (e) => {
+    const items = [...(e.clipboardData?.items || [])];
+    const imgItem = items.find((it) => it.type && it.type.startsWith('image/'));
+    if (!imgItem) return;
+    const file = imgItem.getAsFile();
+    if (!file) return;
+    e.preventDefault();
+    const vpt = canvas.viewportTransform;
+    const cx = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
+    const cy = (canvas.getHeight() / 2 - vpt[5]) / vpt[0];
+    placeImageFile(file, { x: cx, y: cy });
+    toast('Pasted image from clipboard');
+  });
+
   /* ---------------- Context menu ---------------- */
   const cmenu = $('#context-menu');
   workspace.addEventListener('contextmenu', (e) => {
@@ -4646,6 +5352,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     }
     e.preventDefault();
     const p = canvas.getPointer(e);
+    pasteAnchor = p;
     const target = canvas.findTarget(e, false);
     if (target && !canvas.getActiveObjects().includes(target) && target.selectable !== false) {
       canvas.setActiveObject(target); canvas.requestRenderAll(); syncInspector(); updateLayers();
@@ -4722,6 +5429,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (key === 'Alt') { state.altHeld = true; }
 
     if (key === ' ' && !spacePan) { e.preventDefault(); spacePan = true; canvas.setCursor('grab'); return; }
+    if (key === 'Tab') { e.preventDefault(); togglePanels(); return; }
     if (key === 'Escape') {
       e.preventDefault();
       if ($('#export-modal') && $('#export-modal').classList.contains('open')) { closeExportModal(); return; }
@@ -4755,6 +5463,7 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       if (lower === 'a') { e.preventDefault(); selectAll(); return; }
       if (lower === 'g') { e.preventDefault(); e.shiftKey ? ungroupSel() : groupSel(); return; }
       if (mod && e.shiftKey && lower === 'e') { e.preventDefault(); openExportModal(); return; }
+      if (lower === ',') { e.preventDefault(); openSettings(); return; }
       if (key === '-' || key === '_') { e.preventDefault(); zoomBy(0.8); return; }
       if (key === '0') { e.preventDefault(); resetZoom(); return; }
       return;
@@ -4787,16 +5496,52 @@ window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
 
   /* ---------------- Host bridge ---------------- */
+  function placeImageFromUrl(url, name, atPoint) {
+    if (!url) return;
+    fabric.Image.fromURL(url, (img) => {
+      if (!img) { toast('Could not place ' + (name || 'image')); return; }
+      const pt = atPoint && Number.isFinite(atPoint.x) ? atPoint : null;
+      if (pt) {
+        img.scaleToWidth(Math.min(520, img.width || 520));
+        img.set({ left: pt.x - img.getScaledWidth() / 2, top: pt.y - img.getScaledHeight() / 2 });
+      } else {
+        const vpt = canvas.viewportTransform;
+        const cx = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
+        const cy = (canvas.getHeight() / 2 - vpt[5]) / vpt[0];
+        img.scaleToWidth(Math.min(520, img.width || 520));
+        img.set({ left: cx - img.getScaledWidth() / 2, top: cy - img.getScaledHeight() / 2 });
+      }
+      img.placeBoxW = img.getScaledWidth(); img.placeBoxH = img.getScaledHeight();
+      img.placeBoxLeft = img.left; img.placeBoxTop = img.top;
+      img.imageFillMode = 'fit';
+      if (name) img.name = String(name).replace(/\.[^.]+$/, '') || name;
+      canvas.add(img);
+      finalizeNew(img, 'image');
+    }, { crossOrigin: 'anonymous' });
+  }
+
   window.addEventListener('message', (ev) => {
     const d = ev && ev.data;
     if (!d || d.source !== 'bndz-host') return;
+    if (d.type === 'placeImages' || d.type === 'dropImages') {
+      const items = Array.isArray(d.images) ? d.images : [];
+      if (!items.length) { toast('Drop an image (PNG, JPG, WEBP, SVG, ICO…)'); return; }
+      items.slice(0, 8).forEach((item, i) => {
+        const url = item && (item.dataUrl || item.url);
+        if (!url) return;
+        placeImageFromUrl(url, item.name || ('image-' + (i + 1)), item.atPoint || null);
+      });
+      toast('Placed ' + Math.min(items.length, 8) + ' image' + (items.length === 1 ? '' : 's'));
+      return;
+    }
     if (d.type === 'action') {
       if (engineLive()) {
         if (d.action === 'undo') { postEngine({ type: 'undo' }); return; }
         if (d.action === 'redo') { postEngine({ type: 'redo' }); return; }
         if (d.action === 'exportPng' || d.action === 'exportSvg') { postEngine({ type: 'exportPng' }); return; }
       }
-      if (d.action === 'undo') undo();
+      if (d.action === 'new') newFile();
+      else if (d.action === 'undo') undo();
       else if (d.action === 'redo') redo();
       else if (d.action === 'exportPng') exportFile('png', { scale: 2, scope: 'auto' });
       else if (d.action === 'exportSvg') exportFile('svg', { scale: 1, scope: 'auto' });
@@ -4890,10 +5635,10 @@ window.addEventListener('keydown', onKeyDown);
   function componentProps() {
     return HIST_PROPS.concat(['objects']);
   }
-  function createComponentFromSelection() {
+  async function createComponentFromSelection() {
     const objs = canvas.getActiveObjects().filter((o) => !o.isGuide);
     if (!objs.length) return toast('Select objects to componentize');
-    const name = prompt('Component name', 'Component ' + (componentLibrary.length + 1));
+    const name = await appPrompt('Component name', 'Component ' + (componentLibrary.length + 1));
     if (!name) return;
     const bound = canvas.getActiveObject();
     const json = bound.toObject ? bound.toObject(componentProps()) : null;
@@ -4993,12 +5738,12 @@ window.addEventListener('keydown', onKeyDown);
       syncComponentHint(neo);
     });
   }
-  function swapInstance() {
+  async function swapInstance() {
     const a = canvas.getActiveObject();
     if (!a || (!a.isInstance && !a.componentId)) return toast('Select an instance');
     if (!componentLibrary.length) return toast('No components in library');
-    const list = componentLibrary.map((c, i) => (i + 1) + '. ' + c.name).join('\n');
-    const pick = prompt('Swap to component #\n' + list, '1');
+    const list = componentLibrary.map((c, i) => (i + 1) + '. ' + c.name).join(' · ');
+    const pick = await appPrompt('Swap to component # — ' + list, '1');
     if (!pick) return;
     const idx = Math.max(0, parseInt(pick, 10) - 1);
     const c = componentLibrary[idx];
@@ -5062,10 +5807,10 @@ window.addEventListener('keydown', onKeyDown);
       localStorage.setItem('bndz-db-effect-styles', JSON.stringify(effectStyles));
     } catch (e) {}
   }
-  function addColorStyleFromSelection() {
+  async function addColorStyleFromSelection() {
     const o = canvas.getActiveObject(); if (!o) return toast('Select an object');
     const fill = typeof o.fill === 'string' ? parseColor(o.fill).hex : (state.fill || '#D9D9D9');
-    const name = prompt('Style name', 'Primary / ' + fill);
+    const name = await appPrompt('Style name', 'Primary / ' + fill);
     if (!name) return;
     colorStyles.push({ name: name.trim(), hex: fill });
     saveStyles(); renderStylePanel();
@@ -5076,10 +5821,10 @@ window.addEventListener('keydown', onKeyDown);
     setFill(st.hex, 1, true);
     toast('Applied ' + st.name);
   }
-  function addTextStyleFromSelection() {
+  async function addTextStyleFromSelection() {
     const o = canvas.getActiveObject();
     if (!o || !(o.type === 'i-text' || o.type === 'text' || o.type === 'textbox')) return toast('Select text');
-    const name = prompt('Text style name', (o.fontFamily || 'Inter') + ' / ' + Math.round(o.fontSize || 32));
+    const name = await appPrompt('Text style name', (o.fontFamily || 'Inter') + ' / ' + Math.round(o.fontSize || 32));
     if (!name) return;
     textStyles.push({
       name: name.trim(),
@@ -5105,11 +5850,11 @@ window.addEventListener('keydown', onKeyDown);
     }));
     canvas.requestRenderAll(); pushHistory(); syncInspector(); toast('Applied ' + st.name);
   }
-  function addEffectStyleFromSelection() {
+  async function addEffectStyleFromSelection() {
     const o = canvas.getActiveObject(); if (!o) return toast('Select an object');
     const sh = o.shadow;
     if (!sh) return toast('Enable drop shadow first');
-    const name = prompt('Effect style name', 'Shadow / soft');
+    const name = await appPrompt('Effect style name', 'Shadow / soft');
     if (!name) return;
     effectStyles.push({
       name: name.trim(),
@@ -5260,13 +6005,13 @@ window.addEventListener('keydown', onKeyDown);
     markProtoHotspots(false);
     toast('Exited prototype');
   }
-  function openProtoLinkModal() {
+  async function openProtoLinkModal() {
     const a = canvas.getActiveObject();
     if (!a || a.type === 'activeSelection') return toast('Select a hotspot object');
     const m = $('#proto-link-modal');
     if (!m) {
       const pageNames = pages.map((p) => p.name).join(', ');
-      const target = prompt('Prototype → frame/object name, id, or page (' + pageNames + ')', a.protoTo || 'Frame 1');
+      const target = await appPrompt('Prototype → frame/object name, id, or page (' + pageNames + ')', a.protoTo || 'Frame 1');
       if (!target) return;
       a.protoTo = target.trim();
       const page = pages.find((p) => p.name.toLowerCase() === a.protoTo.toLowerCase());
@@ -5651,7 +6396,7 @@ function booleanOp(mode) {
   const _alw=$('#al-wrap'); if(_alw)_alw.addEventListener('change',()=>{const a=canvas.getActiveObject();if(!a||!a.isFrame)return;a.alWrap=!!_alw.checked;if(a.autoLayout)reflowAutoLayout(a);pushHistory();});
   const _alh=$('#al-hug'); if(_alh)_alh.addEventListener('click',()=>setAutoLayoutSizing('hug'));
   const _alf=$('#al-fill'); if(_alf)_alf.addEventListener('click',()=>setAutoLayoutSizing('fill'));
-  const _bav=$('#btn-add-var'); if(_bav)_bav.addEventListener('click',()=>{const n=prompt('Variable name','accent');if(!n)return;const hex=state.fill||state.stroke||'#4c8bf5';setColorVar(n.trim(), hex);});
+  const _bav=$('#btn-add-var'); if(_bav)_bav.addEventListener('click',()=>{void appPrompt('Variable name','accent').then((n)=>{if(!n)return;const hex=state.fill||state.stroke||'#4c8bf5';setColorVar(n.trim(), hex);});});
   const _bpl=$('#btn-proto-link'); if(_bpl)_bpl.addEventListener('click', addProtoLink);
   const _bpr=$('#btn-proto-run'); if(_bpr)_bpr.addEventListener('click', runProto);
   const _bpclear=$('#btn-proto-clear'); if(_bpclear)_bpclear.addEventListener('click', clearProtoLink);
@@ -5825,7 +6570,7 @@ function booleanOp(mode) {
   $$('#c-h-seg [data-ch]').forEach((b) => b.addEventListener('click', () => setConstraint('h', b.dataset.ch)));
   $$('#c-v-seg [data-cv]').forEach((b) => b.addEventListener('click', () => setConstraint('v', b.dataset.cv)));
   const _bas = $('#btn-add-style'); if (_bas) _bas.addEventListener('click', addColorStyleFromSelection);
-  const _bap = $('#btn-apply-style'); if (_bap) _bap.addEventListener('click', () => { const n = prompt('Style name to apply'); if (n) applyColorStyle(n.trim()); });
+  const _bap = $('#btn-apply-style'); if (_bap) _bap.addEventListener('click', () => { void appPrompt('Style name to apply').then((n) => { if (n) applyColorStyle(n.trim()); }); });
   const _bats = $('#btn-add-text-style'); if (_bats) _bats.addEventListener('click', addTextStyleFromSelection);
   const _baes = $('#btn-add-effect-style'); if (_baes) _baes.addEventListener('click', addEffectStyleFromSelection);
   const _cpClose = $('#cp-close'); if (_cpClose) _cpClose.addEventListener('click', closeCommentPanel);
@@ -5997,8 +6742,10 @@ function booleanOp(mode) {
     canvas.discardActiveObject();
     zoomFit();
     updateLayers(); syncInspector(); pushHistory(); updateZoomLabel();
+    syncRailColorChip();
     setTool('select');
     toast('Design Board ready — artboard locked');
+    installDesignBoardDock();
     if (USE_OPENPENCIL) bootEngineInline();
 
     // Verification / host hooks (read-only ops + intentional test helpers)
@@ -6006,6 +6753,8 @@ function booleanOp(mode) {
       getTool: () => state.tool,
       getCanvas: () => canvas,
       getState: () => state,
+      placeImageFile,
+      placeImageFromUrl,
       setTool,
       attachLineEndpoints,
       tryAltDeleteNode,
@@ -6017,11 +6766,26 @@ function booleanOp(mode) {
       penClick,
       finishPen,
       clearPen,
+      setStroke,
+      setFill,
+      syncRailColorChip,
       injectPenPoints(pts) {
+        clearPen();
         penPoints = (pts || []).map((p) => ({
           x: p.x, y: p.y, cx: p.cx, cy: p.cy, inX: p.inX, inY: p.inY, outX: p.outX, outY: p.outY,
           nodeType: p.nodeType || 'corner',
         }));
+        const col = state.stroke || '#FFFFFF';
+        penPoints.forEach((pt) => {
+          const a = new fabric.Circle({
+            left: pt.x, top: pt.y, originX: 'center', originY: 'center', radius: 3.75,
+            fill: col, stroke: 'rgba(255,255,255,.92)', strokeWidth: 1.25,
+            selectable: false, evented: false, isGuide: true, isPenAnchor: true,
+          });
+          penAnchors.push(a); canvas.add(a);
+        });
+        syncPenGuideColors();
+        drawPenTemp(null);
       },
       getPathEdit: () => pathEdit,
       getLineEnds: () => lineEnds,

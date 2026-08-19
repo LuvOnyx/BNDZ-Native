@@ -907,9 +907,11 @@ body.fullscreen #canvas-area{left:0;top:0;right:0;bottom:0}
 .close-handle{fill:transparent;stroke:var(--accent);stroke-width:2;pointer-events:none;opacity:0;transition:opacity var(--dur-fast) var(--ease-out)}
 .close-handle.visible{opacity:.85}
 .close-handle.armed{fill:var(--accent);opacity:1}
-.pen-point{fill:var(--accent);cursor:move;pointer-events:all}
-.pen-control{fill:none;stroke:var(--accent);stroke-width:1;stroke-dasharray:3 2}
-.pen-path-preview{fill:none;stroke:var(--accent);stroke-width:2}
+.pen-point{fill:var(--pen-preview-stroke, var(--accent));cursor:move;pointer-events:all}
+.pen-control{fill:none;stroke:var(--pen-preview-stroke, var(--accent));stroke-width:1;stroke-dasharray:3 2}
+.pen-path-preview{fill:none;stroke:var(--pen-preview-stroke, #ffffff);stroke-width:var(--pen-preview-width, 2px)}
+.pen-anchors .pen-anchor{fill:var(--pen-preview-stroke, #fff);stroke:#fff;stroke-width:1.5;pointer-events:none}
+.pen-anchors .pen-anchor.is-first{stroke:var(--accent);stroke-width:2}
 
 /* === LAYER DRAG === */
 .layer-item.dragging{opacity:.4;background:var(--accent-dim)}
@@ -1058,9 +1060,9 @@ body.fullscreen #canvas-area{left:0;top:0;right:0;bottom:0}
 .dropzone-sub{font-size:13px;color:var(--text-muted)}
 
 /* === ANNOTATION / STICKY NOTES === */
- .sticky-note{position:absolute;min-width:120px;min-height:80px;padding:8px;border-radius:6px;font-size:11px;color:var(--note-text);box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:move;z-index:100;resize:both;overflow:auto;font-family:'DM Sans',sans-serif;line-height:1.4}
-.sticky-note .sticky-close{position:absolute;top:2px;right:5px;cursor:pointer;font-size:14px;opacity:.5;transition:opacity .15s;background:none;border:0;color:inherit;line-height:1;padding:2px 4px}
-.sticky-note .sticky-close:hover{opacity:1}
+ .sticky-note{position:absolute;min-width:120px;min-height:80px;padding:8px;border-radius:6px;font-size:11px;color:var(--note-text);box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:move;z-index:5;resize:both;overflow:auto;font-family:'DM Sans',sans-serif;line-height:1.4;pointer-events:auto}
+.sticky-note .sticky-close{position:absolute;top:2px;right:5px;cursor:pointer;font-size:16px;opacity:.7;transition:opacity .15s;background:rgba(0,0,0,.12);border:0;color:inherit;line-height:1;padding:4px 7px;border-radius:6px;z-index:2}
+.sticky-note .sticky-close:hover{opacity:1;background:rgba(0,0,0,.22)}
 .sticky-note textarea{width:100%;height:calc(100% - 14px);border:none;background:transparent;color:inherit;font:inherit;resize:none;outline:none}
 
 /* === SMART GUIDES === */
@@ -1672,19 +1674,29 @@ body.fullscreen #toast-container{bottom:24px}
 .offline-state{
   appearance:none;
   border:0;
-  padding:4px 6px;
+  padding:4px 8px;
   border-radius:6px;
   background:transparent;
-  font:inherit;
+  font:700 italic 10px/1.1 'Segoe UI',system-ui,sans-serif;
+  letter-spacing:.06em;
+  text-transform:uppercase;
   cursor:pointer;
+  color:#c29a4a;
 }
-.offline-state:hover,.offline-state:focus-visible{background:rgba(255,255,255,.055);outline:none}
-.offline-state[data-state="preparing"]{color:var(--accent)}
-.offline-state[data-state="preparing"] i{background:var(--accent);box-shadow:0 0 10px color-mix(in srgb, var(--accent-hover) 55%, transparent);animation:recBlink 1s ease-in-out infinite}
-.offline-state[data-state="limited"]{color:var(--warning)}
-.offline-state[data-state="limited"] i{background:var(--warning);box-shadow:0 0 10px color-mix(in srgb, var(--warning) 50%, transparent)}
-.offline-state[data-state="update"]{color:color-mix(in srgb, var(--accent-hover) 70%, var(--text-primary))}
-.offline-state[data-state="update"] i{background:var(--accent-hover);box-shadow:0 0 11px color-mix(in srgb, var(--accent-hover) 65%, transparent);animation:recBlink 1s ease-in-out infinite}
+.offline-state i{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:#c29a4a;margin-right:6px;vertical-align:middle;
+  box-shadow:0 0 8px rgba(194,154,74,.45);
+}
+.offline-state:hover,.offline-state:focus-visible{background:rgba(194,154,74,.08);outline:none}
+.offline-state[data-state="preparing"]{color:#d4b06a}
+.offline-state[data-state="preparing"] i{background:#d4b06a;box-shadow:0 0 10px rgba(212,176,106,.55);animation:recBlink 1s ease-in-out infinite}
+.offline-state[data-state="limited"]{color:#c29a4a}
+.offline-state[data-state="limited"] i{background:#c29a4a;box-shadow:0 0 10px rgba(194,154,74,.5)}
+.offline-state[data-state="update"]{color:#e0b85c}
+.offline-state[data-state="update"] i{background:#e0b85c;box-shadow:0 0 11px rgba(224,184,92,.6);animation:recBlink 1s ease-in-out infinite}
+.offline-state[data-state="ready"]{color:#c29a4a}
+.offline-state[data-state="ready"] i{background:#c29a4a}
 .offline-manager{width:min(560px,100%)}
 .offline-manager-intro,.offline-manager-note{font-size:12px;line-height:1.55;color:var(--text-secondary);margin:0 0 14px}
 .offline-manager .offline-details{margin:0 0 16px}
@@ -2374,26 +2386,36 @@ body{
   border-color:color-mix(in srgb,var(--border-active) 66%,transparent);
   border-radius:10px;
   box-shadow:0 14px 32px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.035);
+  /* Must sit ABOVE rulers (45) and canvas — Gradient/options were painting under the ruler. */
+  z-index:80!important;
+  pointer-events:auto!important;
 }
 /* Measured desktop framing from the approved studio reference: options first,
    then the horizontal scale, with the vertical scale forming the canvas edge. */
 .ruler-h{
   left:calc(var(--toolbar-w) + 20px);
-  top:calc(var(--topbar-h) + 54px);
+  top:calc(var(--topbar-h) + 58px);
   background:linear-gradient(180deg,var(--bg-depth-2),var(--bg-depth-1));
   border-color:color-mix(in srgb,var(--border-active) 58%,transparent);
   border-radius:6px 6px 0 0;
+  z-index:30!important;
 }
 .ruler-v{
-  top:calc(var(--topbar-h) + 74px);
+  top:calc(var(--topbar-h) + 78px);
   bottom:calc(var(--statusbar-h) + var(--bottom-tabs-h));
   background:linear-gradient(90deg,var(--bg-depth-2),var(--bg-depth-1));
   border-color:color-mix(in srgb,var(--border-active) 58%,transparent);
   border-radius:6px 0 0 6px;
+  z-index:30!important;
 }
 body.rulers-on #tool-options{top:calc(var(--topbar-h) + 10px)}
-body.rulers-on #canvas-area{top:calc(var(--topbar-h) + 74px);left:calc(var(--toolbar-w) + 20px)}
-body.rulers-on .ruler-v{top:calc(var(--topbar-h) + 74px)}
+body.rulers-on #canvas-area{top:calc(var(--topbar-h) + 78px);left:calc(var(--toolbar-w) + 20px);z-index:10!important}
+body.rulers-on .ruler-v{top:calc(var(--topbar-h) + 78px)}
+#canvas-area{z-index:10!important}
+#toolbar{z-index:85!important}
+#panels,#panel-rail{z-index:55!important}
+#topbar{z-index:120!important;position:relative;pointer-events:auto!important}
+#topbar .menu-bar,#topbar .menu-item,#topbar .menu-label{pointer-events:auto!important;position:relative;z-index:2}
 #tool-options-reset{
   border-radius:7px;
   color:var(--text-secondary);
@@ -3235,6 +3257,61 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
     --border-active:var(--accent);
   }
   .btn,.tool-btn,.panel-tab{border-width:1px;border-style:solid}
+}
+
+/* FINAL chrome stack — Gradient/options must never paint under ruler or canvas.
+   Earlier redesign rules fought each other (options z 40 vs ruler 45; canvas top
+   overlapping the floating options strip). This block wins by source order. */
+#tool-options{
+  position:absolute!important;
+  z-index:250!important;
+  isolation:isolate!important;
+  pointer-events:auto!important;
+  top:calc(var(--topbar-h) + 8px)!important;
+  left:calc(var(--toolbar-w) + 8px)!important;
+  right:calc(var(--panel-width) + var(--rail-w) + 8px)!important;
+  min-height:44px!important;
+  height:auto!important;
+  max-height:96px!important;
+}
+.ruler-h{
+  z-index:40!important;
+  top:calc(var(--topbar-h) + 60px)!important;
+  left:calc(var(--toolbar-w) + 20px)!important;
+  right:calc(var(--panel-width) + var(--rail-w))!important;
+  pointer-events:none!important;
+}
+.ruler-v{
+  z-index:40!important;
+  top:calc(var(--topbar-h) + 80px)!important;
+  pointer-events:none!important;
+}
+#canvas-area{
+  z-index:10!important;
+  top:calc(var(--topbar-h) + 60px)!important;
+}
+body.rulers-on #tool-options{top:calc(var(--topbar-h) + 8px)!important}
+body.rulers-on .ruler-h{top:calc(var(--topbar-h) + 60px)!important}
+body.rulers-on .ruler-v{top:calc(var(--topbar-h) + 80px)!important}
+body.rulers-on #canvas-area{
+  top:calc(var(--topbar-h) + 80px)!important;
+  left:calc(var(--toolbar-w) + 20px)!important;
+  z-index:10!important;
+}
+#blank-workspace{z-index:2!important}
+#topbar{
+  z-index:300!important;
+  position:relative!important;
+  pointer-events:auto!important;
+  isolation:isolate!important;
+}
+#topbar .menu-bar,
+#topbar .menu-item{
+  pointer-events:auto!important;
+  position:relative;
+  z-index:2;
+}
+#toolbar{z-index:260!important}
 </style>
 </head>
 <body>
@@ -3633,6 +3710,9 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
         <span class="opt-val" id="brush-pressure-status" title="Pressure changes are enabled after a pen stroke reports varying pressure">Stylus: ready</span>
         <label title="Use pen tilt to rotate and flatten brush stamps"><input type="checkbox" id="brush-tilt" data-os-change="change-047"> Tilt dynamics</label>
         <span class="opt-val" id="brush-tilt-status" title="Tilt is enabled after a pen reports tilt data">Tilt: off</span>
+        <label title="Stroke smoothing (UI 0 = 8% floor)">Smooth</label>
+        <input type="range" id="stroke-smooth" min="0" max="100" value="8" data-os-input="input-stroke-smooth" title="Minimum effective smoothing is 8%">
+        <span class="opt-val" id="stroke-smooth-val">8%</span>
     </div>
     <div class="opt-group" id="opt-spray" style="display:none">
         <label>Density</label>
@@ -3641,8 +3721,8 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
         <input type="range" id="spray-width" min="5" max="150" value="30" data-os-input="input-004">
     </div>
     <div class="opt-group" id="opt-shape" style="display:none">
-        <label>Fill</label><input type="color" id="shape-fill" value="#6c8cff" data-os-change="change-002">
-        <label>Stroke</label><input type="color" id="shape-stroke" value="#ffffff" data-os-change="change-003">
+        <label>Fill</label><input type="color" id="shape-fill" value="#ffffff" data-os-change="change-002" title="Fill uses foreground color">
+        <label>Stroke</label><input type="color" id="shape-stroke" value="#ffffff" data-os-change="change-003" title="Stroke tracks foreground (edit to unlock)">
         <label>Width</label><input type="number" id="shape-stroke-w" value="2" min="0" max="50" data-os-change="change-004">
         <label><input type="checkbox" id="shape-filled" checked data-os-change="change-005"> Filled</label>
         <label>Dash</label><select id="shape-dash" data-os-change="change-006" style="font-size:11px">
@@ -3679,8 +3759,8 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
         <label>Preset</label>
         <select id="gradient-preset" data-os-change="change-044"><option value="">Custom</option></select>
         <label>From</label>
-        <span class="bndz-color-chip" id="grad-from-chip" style="display:inline-flex;width:24px;height:22px;border-radius:5px;border:1px solid var(--border);background:#6c8cff;cursor:pointer"></span>
-        <input type="color" id="grad-from" value="#6c8cff" data-os-change="change-012" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none">
+        <span class="bndz-color-chip" id="grad-from-chip" style="display:inline-flex;width:24px;height:22px;border-radius:5px;border:1px solid var(--border);background:#ffffff;cursor:pointer"></span>
+        <input type="color" id="grad-from" value="#ffffff" data-os-change="change-012" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none">
         <label>To</label>
         <span class="bndz-color-chip" id="grad-to-chip" style="display:inline-flex;width:24px;height:22px;border-radius:5px;border:1px solid var(--border);background:#000000;cursor:pointer"></span>
         <input type="color" id="grad-to" value="#000000" data-os-change="change-013" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none">
@@ -3703,7 +3783,7 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
             <option value="grid">Grid</option><option value="diagonal">Diagonal</option><option value="crosshatch">Crosshatch</option>
         </select>
         <label>Scale</label><input type="range" id="pattern-scale" min="5" max="80" value="20" data-os-input="input-005">
-        <label>Color</label><input type="color" id="pattern-color" value="#6c8cff" data-os-change="change-016">
+        <label>Color</label><input type="color" id="pattern-color" value="#ffffff" data-os-change="change-016">
     </div>
     <div class="opt-group" id="opt-clone" style="display:none">
         <label>Size</label>
@@ -3740,24 +3820,24 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
         <button class="btn" style="padding:3px 10px;font-size:11px" data-os-click="click-149">Cancel</button>
     </div>
     <div class="opt-group" id="opt-marquee" style="display:none"><label>Mode</label><div class="selection-mode-group" role="group" aria-label="Selection mode"><button type="button" class="btn selection-mode active" data-combine="replace" aria-pressed="true">New</button><button type="button" class="btn selection-mode" data-combine="add" aria-pressed="false">Add</button><button type="button" class="btn selection-mode" data-combine="subtract" aria-pressed="false">Subtract</button><button type="button" class="btn selection-mode" data-combine="intersect" aria-pressed="false">Intersect</button></div><span style="color:var(--text-muted);font-size:11px">Or hold Shift to add, Alt to subtract.</span></div>
-    <div class="opt-group" id="opt-lasso" style="display:none"><span style="color:var(--text-muted);font-size:11px">Click to add points. Double-click to close selection.</span></div>
+    <div class="opt-group" id="opt-lasso" style="display:none"><span style="color:var(--text-muted);font-size:11px" id="opt-lasso-hint">Drag to draw free lasso. Release to close. Polygonal: click points; double-click or click start to close.</span></div>
     <div class="opt-group" id="opt-ai-segment" style="display:none"><span style="color:var(--text-muted);font-size:11px">Segment Select</span><span style="color:var(--accent);font-size:11px;margin-left:8px">Panoptic model loads on demand</span></div>
     <div class="opt-group" id="opt-pen" style="display:none">
-        <span style="color:var(--text-muted);font-size:11px">Click to add anchor points. Double-click to finish path.</span>
+        <span style="color:var(--text-muted);font-size:11px">Click anchors · preview uses FG stroke · double-click / Enter to finish</span>
         <label>Stroke</label><input type="color" id="pen-stroke" value="#ffffff" data-os-change="change-020">
         <label>Width</label><input type="number" id="pen-width" value="2" min="1" max="20" style="width:45px" data-os-change="change-021">
         <label><input type="checkbox" id="pen-filled" data-os-change="change-022"> Fill</label>
     </div>
     <div class="opt-group" id="opt-polygon" style="display:none">
         <label>Sides</label><input type="number" id="poly-sides" value="5" min="3" max="20" style="width:45px" data-os-change="change-023">
-        <label>Fill</label><input type="color" id="poly-fill" value="#6c8cff" data-os-change="change-002">
-        <label>Stroke</label><input type="color" id="poly-stroke" value="#ffffff" data-os-change="change-003">
+        <label>Fill</label><input type="color" id="poly-fill" value="#ffffff" data-os-change="change-002">
+        <label>Stroke</label><input type="color" id="poly-stroke" value="#000000" data-os-change="change-003">
         <label><input type="checkbox" id="poly-filled" checked data-os-change="change-005"> Filled</label>
     </div>
     <div class="opt-group" id="opt-star" style="display:none">
         <label>Points</label><input type="number" id="star-points" value="5" min="3" max="20" style="width:45px" data-os-change="change-024">
         <label>Inner R</label><input type="range" id="star-inner" min="10" max="90" value="40" data-os-input="input-008">
-        <label>Fill</label><input type="color" id="star-fill" value="#6c8cff" data-os-change="change-002">
+        <label>Fill</label><input type="color" id="star-fill" value="#ffffff" data-os-change="change-002">
         <label><input type="checkbox" id="star-filled" checked data-os-change="change-005"> Filled</label>
     </div>
     <div class="opt-group" id="opt-healing" style="display:none">
@@ -3789,6 +3869,7 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
     <div class="opt-group" id="opt-select" style="display:none">
         <span class="select-mode-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l7.1 17 2.5-7.4 7.4-2.5z"/><path d="m13 13 6 6"/></svg>Move</span>
         <label class="select-toggle"><input type="checkbox" id="select-auto" checked data-os-change="change-045"> Auto-select</label>
+<span style="color:var(--text-muted);font-size:10px;margin-left:6px">Alt/Shift+drag = marquee without moving</span>
         <label class="select-toggle"><input type="checkbox" id="select-transform" checked data-os-change="change-046"> Show transform controls</label>
         <span class="select-divider" aria-hidden="true"></span>
         <div class="select-align" role="group" aria-label="Align selected objects">
@@ -3828,7 +3909,7 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
     </div>
     <div id="guides-container"></div>
     <div id="lasso-overlay" class="lasso-overlay" style="display:none"><svg><polygon class="lasso-path" points=""/><circle class="close-handle" id="lasso-close-handle" r="6" cx="-99" cy="-99"/></svg></div>
-    <div id="pen-overlay" class="pen-overlay" style="display:none"><svg><path class="pen-path-preview" d=""/><circle class="close-handle" id="pen-close-handle" r="6" cx="-99" cy="-99"/></svg></div>
+    <div id="pen-overlay" class="pen-overlay" style="display:none"><svg><path class="pen-path-preview" d=""/><g class="pen-anchors"></g><circle class="close-handle" id="pen-close-handle" r="6" cx="-99" cy="-99"/></svg></div>
     <div id="measure-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:98;display:none"></div>
     <div id="selection-overlay" class="selection-rect" style="display:none"></div>
     <div id="crop-container" class="crop-overlay" style="display:none"></div>
@@ -3957,8 +4038,7 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
                 <div class="adj-row"><label>Hue</label><input type="range" id="adj-hue" min="-180" max="180" value="0" data-os-input="input-019"><span class="adj-val" id="adj-hue-val">0</span></div>
                 <div class="adj-row"><label>Blur</label><input type="range" id="adj-blur" min="0" max="100" value="0" data-os-input="input-019"><span class="adj-val" id="adj-blur-val">0</span></div>
                  <div class="adj-btns">
-                     <button class="btn btn-primary" data-os-click="click-162">Apply</button>
-                     <button class="btn" data-os-click="click-163">Reset</button>
+                     <button class="btn" data-os-click="click-163" title="Reset adjustments to zero">Reset</button>
                  </div>
                  <div style="height:1px;background:var(--border);margin:10px 0"></div>
                  <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-bottom:6px">Non-destructive layers</div>
@@ -4012,7 +4092,7 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
                 <details class="style-section">
                     <summary>Outer Glow</summary>
                     <div class="layer-style-row"><label>Size</label><input type="range" id="ls-og-size" min="0" max="40" value="0" data-os-input="input-021"></div>
-                    <div class="layer-style-row"><label>Color</label><input type="color" id="ls-og-color" value="#6c8cff" data-os-change="change-031"></div>
+                    <div class="layer-style-row"><label>Color</label><input type="color" id="ls-og-color" value="#ffeb3b" data-os-change="change-031"></div>
                 </details>
                 <details class="style-section">
                     <summary>Stroke</summary>
@@ -4179,8 +4259,8 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
     <div class="dropzone-text">Drop files here</div>
     <div class="dropzone-sub">PNG, JPEG, WebP, SVG, GIF, PDF, RAW, PSD, .openshop</div>
 </div>
-<!-- ===== ANNOTATION CONTAINER ===== -->
-<div id="sticky-container" style="position:absolute;inset:0;pointer-events:none;z-index:99"></div>
+<!-- ===== ANNOTATION CONTAINER (reparented under #canvas-area on boot) ===== -->
+<div id="sticky-container" style="position:absolute;inset:0;pointer-events:none;z-index:920;overflow:hidden"></div>
 <!-- ===== LIQUIFY ===== -->
 <div id="liquify-overlay">
     <div id="liquify-topbar">
@@ -4248,7 +4328,11 @@ html[data-os-workspace="mobile"][data-os-bottom-tab="timeline"] body:not(.fullsc
 <input type="file" id="psd-input" accept=".psd" style="display:none" data-os-change="change-035">
 <input type="file" id="project-input" accept=".openshop,.json,application/vnd.openshop+json,application/json" style="display:none" data-os-change="change-036">
 
+<script src="../../vendor/bndz-hsv-popover.js"></script>
+<script src="../../vendor/bndz-freehand-math.js"></script>
+<script src="../../vendor/bndz-png-ico.js"></script>
 <script src="bndz-studio-chrome.js"></script>
+<script src="bndz-stub-tools.js"></script>
 <script>
 // ================================================================
 //  OpenShop v0.30.0 — Core Engine (Phase 10: Pro Toolbar)
@@ -4508,16 +4592,16 @@ const OS_EVENT_HANDLERS = Object.freeze({
     }),
     change: Object.freeze({
         "change-001": function(event) { OS.setBrushPreset(this.value) },
-        "change-002": function(event) { OS.state.shapeFill=this.value },
-        "change-003": function(event) { OS.state.shapeStroke=this.value },
+        "change-002": function(event) { OS.setFgColor(this.value) },
+        "change-003": function(event) { OS.setShapeStroke ? OS.setShapeStroke(this.value) : OS.setBgColor(this.value) },
         "change-004": function(event) { OS.state.shapeStrokeWidth=+this.value },
         "change-005": function(event) { OS.state.shapeFilled=this.checked },
         "change-006": function(event) { OS.state.shapeDash=this.value },
-        "change-007": function(event) { OS.state.textFont=this.value },
-        "change-008": function(event) { OS.state.textSize=+this.value },
-        "change-009": function(event) { OS.state.textColor=this.value },
-        "change-010": function(event) { OS.state.textBold=this.checked },
-        "change-011": function(event) { OS.state.textItalic=this.checked },
+        "change-007": function(event) { OS.applyTextInspector({ fontFamily: this.value }) },
+        "change-008": function(event) { OS.applyTextInspector({ fontSize: +this.value }) },
+        "change-009": function(event) { OS.setFgColor(this.value); OS.applyTextInspector({ fill: this.value }) },
+        "change-010": function(event) { OS.applyTextInspector({ bold: this.checked }) },
+        "change-011": function(event) { OS.applyTextInspector({ italic: this.checked }) },
         "change-012": function(event) { OS.state.gradFrom=this.value },
         "change-013": function(event) { OS.state.gradTo=this.value },
         "change-014": function(event) { OS.state.gradType=this.value },
@@ -4526,7 +4610,7 @@ const OS_EVENT_HANDLERS = Object.freeze({
         "change-017": function(event) { OS.state.wandContiguous=this.checked },
         "change-018": function(event) { OS.setCropRatio(this.value) },
         "change-019": function(event) { OS.setCropSize() },
-        "change-020": function(event) { OS.state.penStroke=this.value },
+        "change-020": function(event) { OS.setFgColor(this.value) },
         "change-021": function(event) { OS.state.penWidth=+this.value },
         "change-022": function(event) { OS.state.penFilled=this.checked },
         "change-023": function(event) { OS.state.polySides=+this.value },
@@ -4589,7 +4673,8 @@ const OS_EVENT_HANDLERS = Object.freeze({
         "input-028": function(event) { this.nextElementSibling.textContent=this.value },
         "input-029": function(event) { this.nextElementSibling.textContent=this.value+'px' },
         "input-030": function(event) { this.nextElementSibling.textContent=(this.value/100).toFixed(1)+'EV' },
-        "input-031": function(event) { this.nextElementSibling.textContent=(this.value/100).toFixed(2) }
+        "input-031": function(event) { this.nextElementSibling.textContent=(this.value/100).toFixed(2) },
+        "input-stroke-smooth": function(event) { OS.setStrokeSmoothingUi(this.value) }
     }),
     keydown: Object.freeze({
         "keydown-001": function(event) { OS.cmdKeyDown(event) }
@@ -6176,6 +6261,7 @@ const OS = {
     guides: [],
     _lassoPoints: [],
     _lassoMode: 'free',
+    _freeLassoActive: false,
     _magneticLassoActive: false,
     _magneticLassoSnapshot: null,
     _magneticLassoLastPoint: null,
@@ -6219,11 +6305,11 @@ const OS = {
     }),
     _preferenceKnownKeys: Object.freeze([
         'version', 'defaultW', 'defaultH', 'gridSize', 'snapTolerance', 'maxHistory',
-        'stackNewObjects', 'vectorStrokes', 'rulersVisible', 'pixelZoomSnap', 'toolOptions', 'panelSizes', 'accent'
+        'stackNewObjects', 'vectorStrokes', 'rulersVisible', 'pixelZoomSnap', 'toolOptions', 'panelSizes', 'accent', 'panelDock'
     ]),
     _lastPreferenceMigrationReport: null,
     _preferenceExtras: {},
-    _prefs: { gridSize: 20, historyStates: 120, defaultW: 1920, defaultH: 1080, theme: 'dark', snapTolerance: 5, maxHistory: 120, stackNewObjects: false, vectorStrokes: false, rulersVisible: true, pixelZoomSnap: false, accent: null, toolOptions: {}, panelSizes: [] },
+    _prefs: { gridSize: 20, historyStates: 120, defaultW: 1920, defaultH: 1080, theme: 'dark', snapTolerance: 5, maxHistory: 120, stackNewObjects: false, vectorStrokes: false, rulersVisible: true, pixelZoomSnap: false, accent: null, toolOptions: {}, panelSizes: [], panelDock: 'right' },
     _canvasCeilingStorageKey: 'openshop.canvas-ceiling.v1',
     _canvasCeilingProbeVersion: 1,
     _canvasCeiling: null,
@@ -6286,15 +6372,16 @@ const OS = {
         tool: 'select', fgColor: '#ffffff', bgColor: '#000000',
         autoSelect: true, showTransformControls: true,
         brushSize: 8, brushOpacity: 100, brushPreset: 'round',
-        shapeFill: '#6c8cff', shapeStroke: '#ffffff', shapeStrokeWidth: 2, shapeFilled: true,
+        // shapeFill/stroke stay mirrors of FG/BG — never orphan defaults (was hardcoded blue #6c8cff)
+        shapeFill: '#ffffff', shapeStroke: '#ffffff', shapeStrokeWidth: 2, shapeFilled: true,
         textFont: 'DM Sans', textSize: 24, textColor: '#ffffff', textDirection: 'ltr', textBold: false, textItalic: false,
     textUnderline: false, textOverline: false, textLinethrough: false,
     textDecorationColor: '#ffffff', textDecorationThickness: 100,
-        gradFrom: '#6c8cff', gradTo: '#000000', gradType: 'linear', gradientPreset: '',
-        patternType: 'checkerboard', patternScale: 20, patternColor: '#6c8cff',
+        gradFrom: '#ffffff', gradTo: '#000000', gradType: 'linear', gradientPreset: '',
+        patternType: 'checkerboard', patternScale: 20, patternColor: '#ffffff',
         cloneSize: 20, sprayDensity: 30, sprayWidth: 30, healingSize: 15,
         wandTolerance: 32, wandContiguous: true,
-        penStroke: '#ffffff', penWidth: 2, penFilled: false,
+        penStroke: '#ffffff', penWidth: 2, penFilled: false, strokeSmoothing: 0.08,
         polySides: 5, starPoints: 5, starInner: 40, shapeDash: '',
         dodgeSize: 20, dodgeExposure: 30, dodgeRange: 'midtones',
         burnSize: 20, burnExposure: 30, burnRange: 'midtones',
@@ -6804,6 +6891,38 @@ const OS = {
             // that request one render at the end instead.
             renderOnAddRemove: false,
         });
+        fabric.Object.prototype.set({
+            transparentCorners: false,
+            cornerColor: '#ffffff',
+            cornerStrokeColor: '#6c8cff',
+            borderColor: '#6c8cff',
+            cornerSize: 11,
+            cornerStyle: 'circle',
+            borderScaleFactor: 1.35,
+            padding: 2,
+            hasRotatingPoint: true,
+            lockUniScaling: false,
+            centeredRotation: true,
+            objectCaching: true,
+        });
+        if (fabric.Textbox?.prototype) {
+            fabric.Textbox.prototype.set({
+                hasControls: true,
+                hasBorders: true,
+                lockRotation: false,
+                lockScalingX: false,
+                lockScalingY: false,
+            });
+        }
+        if (fabric.IText?.prototype) {
+            fabric.IText.prototype.set({
+                hasControls: true,
+                hasBorders: true,
+                lockRotation: false,
+                lockScalingX: false,
+                lockScalingY: false,
+            });
+        }
         this.canvas.on('before:render', () => this._beginZoomSampling());
         this.canvas.on('after:render', () => this._endZoomSampling());
         this._ensureCanvasCeiling();
@@ -6811,8 +6930,17 @@ const OS = {
         this._rendererReadyPromise = this._initializeRenderer();
         this._initInputCapabilityObservers();
         this.canvas.on('mouse:move', e => this.onMouseMove(e));
+        this.canvas.on('mouse:down:before', e => this.onMouseDownBefore?.(e));
         this.canvas.on('mouse:down', e => this.onMouseDown(e));
         this.canvas.on('mouse:up', e => this.onMouseUp(e));
+        this._setupFontListLazyLoad?.();
+        window.addEventListener('message', (ev) => {
+            const data = ev.data;
+            if (!data || typeof data !== 'object') return;
+            if (data.type === 'bndz-system-fonts' && Array.isArray(data.families)) {
+                this._mergeFontList(data.families);
+            }
+        });
         this.canvas.on('object:modified', event => {
             const object = event.target;
             const command = object && object.type !== 'activeSelection'
@@ -6830,9 +6958,9 @@ const OS = {
             this.saveHistory('Object Modified', { command });
             this.drawRulers();
         });
-        this.canvas.on('selection:created', () => { this.updateStatus(); this._syncTextRangeControls(); });
+        this.canvas.on('selection:created', () => { this._syncLayersFromCanvasSelection(); this.updateStatus(); this._syncTextRangeControls(); this._syncActiveTransformControls?.(); });
         this.canvas.on('selection:cleared', () => { this.exitGradientStops(); this.updateStatus(); this._syncTextRangeControls(); });
-        this.canvas.on('selection:updated', () => { this.exitGradientStops(); this._syncTextDirectionControl(); this._syncTextRangeControls(); });
+        this.canvas.on('selection:updated', () => { this._syncLayersFromCanvasSelection(); this.exitGradientStops(); this._syncTextDirectionControl(); this._syncTextRangeControls(); this._syncActiveTransformControls?.(); });
         this.canvas.on('text:selection:changed', () => this._syncTextRangeControls());
         this.canvas.on('text:changed', () => this._syncTextRangeControls());
         this.canvas.on('mouse:wheel', opt => this.onMouseWheel(opt));
@@ -6856,11 +6984,17 @@ const OS = {
                 e.path.globalCompositeOperation = 'destination-out';
                 e.path.stroke = 'rgba(0,0,0,1)';
             }
+            if (this.state.tool === 'freeform-pen' || this.state.tool === 'pen') {
+                e.path.set({ fill: 'transparent', stroke: this._activePenStroke?.() || this.state.fgColor || this.state.penStroke, strokeWidth: this.state.penWidth || 2 });
+                this._smoothFabricPath?.(e.path);
+            } else if (this.state.tool === 'pencil' || this.state.tool === 'brush') {
+                this._smoothFabricPath?.(e.path);
+            }
             this.layers[this.activeLayerIdx].objects.push(e.path);
             (async () => {
                 const mirrors = this._symmetryMode !== 'off' ? await this._mirrorPath(e.path) : [];
-                if (this._prefs?.vectorStrokes) {
-                    this.saveHistory('Draw'); this.updateLayersPanel();
+                if (this._prefs?.vectorStrokes || this.state.tool === 'freeform-pen') {
+                    this.saveHistory(this.state.tool === 'freeform-pen' ? 'Freeform Pen' : 'Draw'); this.updateLayersPanel();
                     return;
                 }
                 // Composite into the layer instead of leaving a draggable path.
@@ -6896,8 +7030,26 @@ const OS = {
         document.getElementById('attach-text-path')?.addEventListener('click', () => { this.attachSelectedTextToPath(); });
         document.getElementById('edit-text-path')?.addEventListener('click', () => { this.editSelectedTextOnPath(); });
         const ca = document.getElementById('canvas-area');
-        ca.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
-        ca.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); this.handleDrop(e); });
+        const acceptDesktopDrop = (e) => {
+            const types = e.dataTransfer?.types;
+            if (!types || (![...types].includes('Files') && !e.dataTransfer.files?.length)) return false;
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            return true;
+        };
+        ['dragenter', 'dragover'].forEach((evName) => {
+            ca.addEventListener(evName, (e) => { acceptDesktopDrop(e); });
+            document.addEventListener(evName, (e) => { acceptDesktopDrop(e); }, true);
+        });
+        const onDesktopDrop = (e) => {
+            if (!acceptDesktopDrop(e) && !(e.dataTransfer?.files?.length)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleDrop(e);
+        };
+        ca.addEventListener('drop', onDesktopDrop);
+        document.addEventListener('drop', onDesktopDrop, true);
         document.getElementById('compute-cancel')?.addEventListener('click', () => this.cancelActiveCompute());
         this._initTouchGestures(ca);
         // Snap to grid
@@ -7281,6 +7433,8 @@ const OS = {
         w = Math.round(Number(w));
         h = Math.round(Number(h));
         this._blankWorkspace = false;
+        this._clearStickyNotes?.();
+        this._ensureStickyHost?.();
         if (resetProject) {
             const previousLineage = [this._documentId, ...(this._documentIdAliases || [])].filter(Boolean);
             const previousRecoveryFilename = this._activeRecoverySourceFilename;
@@ -7504,7 +7658,7 @@ const OS = {
     _validateImageFile(file) {
         const type = String(file?.type || '').toLowerCase();
         const name = String(file?.name || '').toLowerCase();
-        const knownExtension = /\.(?:png|apng|jpe?g|webp|gif|avif|jxl|heic|heif|bmp|svg)$/i.test(name);
+        const knownExtension = /\.(?:png|apng|jpe?g|webp|gif|avif|jxl|heic|heif|bmp|svg|ico)$/i.test(name);
         if (!file || (!type.startsWith('image/') && !knownExtension)) throw new Error('Unsupported image file');
         if (file.size > this._importLimits.maxImageBytes) throw new Error('Image file exceeds 100 MB limit');
     },
@@ -9283,19 +9437,38 @@ const OS = {
             this._lastImportExif = this._imageMetadata.exif;
             this._lastImportColorProfile = colorProfile ? normalizedProfile : null;
             this._setPersistenceState('dirty');
-            img.set({ left:0, top:0, selectable:true, name:this._safeText(name, 120) });
-            this.canvas.add(img); this.layers[this.activeLayerIdx].objects.push(img);
+            // Lock the opened raster by default so Move/marquee don't drag the whole plate.
+            img.set({
+                left:0, top:0,
+                selectable:false, evented:false,
+                lockMovementX:true, lockMovementY:true,
+                lockScalingX:true, lockScalingY:true, lockRotation:true,
+                name:this._safeText(name, 120),
+            });
+            this.canvas.add(img);
+            const layer = this.layers[this.activeLayerIdx];
+            if (layer) {
+                layer.objects.push(img);
+                layer.locked = true;
+                layer.name = this._safeText(String(name || '').replace(/\.[^.]+$/, ''), 48) || layer.name || 'Layer 1';
+            }
             this.zoomFit(); this.saveHistory('Open Image', { pixelEdit:true, dirtyRects:this._historyDirtyRectsForImage(img) }); this.updateLayersPanel();
             this.trackRecentFile(this._docName, img.width, img.height);
-            this.toast(`Opened: ${this._safeText(name, 80)}`, 'success');
+            this.toast(`Opened: ${this._safeText(name, 80)} (locked — unlock in Layers to move)`, 'success');
             return true;
         }
         if (width > this.canvasW) img.scaleToWidth(this.canvasW * 0.8);
         const normalizedAnimation = this._normalizePlacedAnimation(animationAttachment);
         if (normalizedAnimation) img.set({ _openShopAnimation:normalizedAnimation });
         img.set({ left:50, top:50, selectable:true, name:this._safeText(name, 120) });
-        if (this.layers[this.activeLayerIdx]?.kind === 'adjustment') this._addObjectAsLayer(img, name);
-        else { this.canvas.add(img); this.layers[this.activeLayerIdx].objects.push(img); }
+        if (this.layers[this.activeLayerIdx]?.locked) {
+            // Never silently stack into a locked layer — spawn a fresh unlocked plate.
+            this._addObjectAsLayer(img, name);
+        } else if (this.layers[this.activeLayerIdx]?.kind === 'adjustment') {
+            this._addObjectAsLayer(img, name);
+        } else {
+            this.canvas.add(img); this.layers[this.activeLayerIdx].objects.push(img);
+        }
         const actionMode = historyMode || mode;
         const action = actionMode === 'paste' ? 'Paste Image' : actionMode === 'place' ? 'Place Image' : 'Drop Image';
         this.canvas.setActiveObject(img); this.saveHistory(action, { pixelEdit:true, dirtyRects:this._historyDirtyRectsForImage(img) }); this.updateLayersPanel();
@@ -10681,11 +10854,28 @@ const OS = {
         e.target.value='';
     },
     handleDrop(e) {
-        const files = e.dataTransfer.files;
-        const file = files[0];
-        if (!file) return;
-        if (files.length > 1) this.toast(`Opening ${file.name}; ${files.length - 1} other file(s) ignored`, 'info');
-        return this._handleFileLoad(file, 'drop');
+        const files = [...(e.dataTransfer?.files || [])];
+        if (!files.length) return;
+        const images = files.filter((f) =>
+            /\.(png|apng|jpe?g|webp|gif|avif|jxl|heic|heif|bmp|svg|ico)$/i.test(f.name || '')
+            || String(f.type || '').startsWith('image/')
+        );
+        if (!images.length) {
+            this.toast('Drop an image (PNG, JPG, WEBP, SVG, ICO…)', 'info');
+            return;
+        }
+        // Place first as primary open/drop; extras as additional imports
+        const first = images[0];
+        const rest = images.slice(1, 8);
+        const run = async () => {
+            await this._handleFileLoad(first, 'drop');
+            for (const f of rest) {
+                try { await this._handleFileLoad(f, 'place'); }
+                catch (err) { this.toast(err?.message || 'Could not place ' + f.name, 'error'); }
+            }
+            if (images.length > 8) this.toast('Placed 8 images · extras ignored', 'info');
+        };
+        return run();
     },
     _exportFileName(format) {
         const base = (this._docName || 'openshop-export').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -11503,6 +11693,40 @@ const OS = {
         if (format === 'svg') return this._exportSVG(options);
         if (format === 'avif') return this._exportAVIF(options);
         if (format === 'ora') return this._exportORA(options);
+        if (format === 'ico') {
+            const scale = Math.max(1, 256 / Math.max(1, this.canvasW || 256, this.canvasH || 256));
+            const captured = this._captureExportRaster({
+                format: 'png',
+                quality: 1,
+                scale,
+                transparent: true,
+                matte: '#ffffff'
+            });
+            if (!captured?.dataUrl) {
+                this.toast('ICO export failed', 'error');
+                return;
+            }
+            const finish = async () => {
+                try {
+                    const blob = await window.BndzPngIco?.dataUrlPngToIcoBlob?.(captured.dataUrl);
+                    if (!blob) throw new Error('ICO encoder missing');
+                    const filename = this._exportFileName('ico');
+                    if (this._isEmbed && this._postEmbed) {
+                        this._postEmbed({ type: 'openshop:save-requested', filename, blob });
+                        this.toast('ICO ready', 'info');
+                        return;
+                    }
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = filename; a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 2000);
+                    this.toast('Exported ICO', 'info');
+                } catch (err) {
+                    this.toast(err?.message || 'ICO export failed', 'error');
+                }
+            };
+            return finish();
+        }
         try {
             const captured = this._captureExportRaster({
                 format,
@@ -14034,6 +14258,31 @@ self.onmessage = function(event) {
         if (Number.isInteger(mapped)) return mapped;
         return this.layers.findIndex(layer => layer.objects?.includes(object));
     },
+    _syncLayersFromCanvasSelection() {
+        const active = this.canvas?.getActiveObject?.();
+        if (!active) return;
+        const objs = active.type === 'activeSelection'
+            ? (active.getObjects?.() || active._objects || [])
+            : [active];
+        const ids = [];
+        let firstIdx = -1;
+        objs.forEach((o) => {
+            const idx = this._getObjectLayerIndex(o);
+            if (idx < 0) return;
+            if (firstIdx < 0) firstIdx = idx;
+            const id = this.layers[idx]?.id;
+            if (id && !ids.includes(id)) ids.push(id);
+        });
+        if (firstIdx < 0) return;
+        this.activeLayerIdx = firstIdx;
+        this._selectedLayerIds = ids;
+        this.updateLayersPanel?.();
+        requestAnimationFrame(() => {
+            const visual = document.getElementById('layers-list-visual') || document.getElementById('layers-list');
+            const row = visual?.querySelector?.(`.layer-item.active, .layer-item.multi-selected`);
+            row?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        });
+    },
     _isLayerEditable(layerOrIndex = this.activeLayerIdx) {
         const layer = typeof layerOrIndex === 'number' ? this.layers[layerOrIndex] : layerOrIndex;
         const groupState = this._getPSDGroupState(layer);
@@ -14048,9 +14297,33 @@ self.onmessage = function(event) {
         return index >= 0 && this._isLayerEditable(index);
     },
     _guardActiveLayerEdit() {
-        const layer = this.layers[this.activeLayerIdx];
+        return this._ensureEditableTargetLayer({ silent: true });
+    },
+    _ensureEditableTargetLayer({ silent = false } = {}) {
+        if (this._blankWorkspace || !Array.isArray(this.layers) || !this.layers.length) {
+            const fallbackW = Math.max(640, Math.min(4096, Math.round(Number(this.canvasW) || 1920)));
+            const fallbackH = Math.max(480, Math.min(4096, Math.round(Number(this.canvasH) || 1080)));
+            if (!this.createNewDocument(fallbackW, fallbackH, { resetProject: true })) {
+                if (!silent) this.toast('Create a document first (File → New)', 'error');
+                return false;
+            }
+            if (!silent) this.toast('Created a new document', 'info');
+            return true;
+        }
+        let layer = this.layers[this.activeLayerIdx];
+        if (!layer || layer.kind === 'group' || layer.locked || layer.visible === false) {
+            try {
+                this.addLayer({ name: `Layer ${this.layers.length + 1}` });
+            } catch {
+                if (!silent) this.toast('Could not create a paint layer', 'error');
+                return false;
+            }
+            return true;
+        }
         if (this._isLayerEditable(layer)) return true;
-        this.toast(layer?.locked ? 'Unlock the active layer to edit it' : 'Show the active layer to edit it', 'error');
+        if (!silent) {
+            this.toast(layer?.locked ? 'Unlock the active layer to edit it' : 'Show the active layer to edit it', 'error');
+        }
         return false;
     },
     _guardObjectEdit(object) {
@@ -14103,6 +14376,7 @@ self.onmessage = function(event) {
         this._rebuildLayerOwnership();
         const tool = this.state.tool;
         const selectMode = tool === 'select';
+        const textMode = tool === 'text';
         const fillMode = tool === 'fill';
         const readTargetMode = tool === 'eyedropper';
         this.canvas.selection = selectMode;
@@ -14121,12 +14395,20 @@ self.onmessage = function(event) {
             if (layer) {
                 const baseOpacity = this._ensureObjectBaseOpacity(object, layer);
                 object.opacity = Math.max(0, Math.min(1, baseOpacity * Math.max(0, Math.min(1, Number(layer.opacity ?? 100) / 100)) * groupState.opacity));
-                object.globalCompositeOperation = layer.blend || 'source-over';
+                const layerBlend = layer.blend || 'source-over';
+                object.globalCompositeOperation = layerBlend;
+                object.objectCaching = layerBlend === 'source-over';
             }
-            object.selectable = selectMode && editable;
-            object.evented = (selectMode && editable) || (fillMode && editable) || (readTargetMode && visible);
+            object.selectable = (selectMode && editable) || (textMode && editable);
+            object.evented = (selectMode && editable) || (textMode && editable) || (fillMode && editable) || (readTargetMode && visible);
             object.hasControls = this.state.showTransformControls !== false;
             object.hasBorders = this.state.showTransformControls !== false;
+            if (object.selectable || object.evented) {
+                object.lockRotation = false;
+                object.lockScalingX = false;
+                object.lockScalingY = false;
+                object.hasRotatingPoint = true;
+            }
         });
         if (this._drawingLayerTools.has(tool)) this.canvas.isDrawingMode = this._isLayerEditable();
         let activeObjects = this.canvas.getActiveObjects?.() || [this.canvas.getActiveObject?.()].filter(Boolean);
@@ -14145,7 +14427,8 @@ self.onmessage = function(event) {
                 }
             }
             const selected = new Set(activeObjects);
-            this.canvas.selection = false;
+            // Keep native rubber-band marquee enabled — only narrow which objects respond to clicks.
+            this.canvas.selection = true;
             this.canvas.getObjects().forEach(object => {
                 if (object.name === '__boundary__' || object.excludeFromExport || object._wandOverlay) return;
                 object.selectable = object.selectable && selected.has(object);
@@ -14751,15 +15034,22 @@ self.onmessage = function(event) {
         return true;
     },
     setLayerBlend(mode) {
+        const allowed = new Set(['source-over','multiply','screen','overlay','darken','lighten','color-dodge','color-burn','hard-light','soft-light','difference','exclusion','hue','saturation','color','luminosity']);
+        const blend = allowed.has(String(mode || '')) ? String(mode) : 'source-over';
         const l = this.layers[this.activeLayerIdx];
-        if (!l || l.blend === mode) return;
-        l.blend = mode;
-        l.objects.forEach(o => { if (o.name !== '__boundary__') o.globalCompositeOperation = mode; });
+        if (!l || l.blend === blend) return;
+        l.blend = blend;
+        l.objects.forEach(o => {
+            if (o.name === '__boundary__') return;
+            o.globalCompositeOperation = blend;
+            o.objectCaching = blend === 'source-over';
+            o.dirty = true;
+        });
         this._applyLayerInteractionState({ render:false });
-        this.canvas.renderAll();
-        this.saveHistory('Blend: '+mode, {
+        this.canvas.requestRenderAll();
+        this.saveHistory('Blend: '+blend, {
             pixelEdit:false,
-            command:this._makeCommand('layer.blend.set', { layerId:this._ensureLayerId(l), blend:mode })
+            command:this._makeCommand('layer.blend.set', { layerId:this._ensureLayerId(l), blend })
         });
         return true;
     },
@@ -15030,6 +15320,12 @@ self.onmessage = function(event) {
                 this.selectLayer(i, { extend:event.shiftKey, toggle:event.ctrlKey || event.metaKey });
                 // Focus the a11y listbox so Delete/Backspace hits layer delete, not canvas swallow.
                 try { list.focus({ preventScroll:true }); } catch { try { list.focus(); } catch { /* ignore */ } }
+            });
+            d.addEventListener('contextmenu', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.selectLayer(i, { extend:false, toggle:false });
+                this._showLayerListContextMenu?.(event, i);
             });
             this.initLayerDrag(d, i);
             list.appendChild(option);
@@ -15631,6 +15927,7 @@ self.onmessage = function(event) {
         // Only hide the lasso drawing overlay (not the marching-ants result):
         if (['lasso','lasso-polygonal','lasso-magnetic'].includes(prevTool) && !['lasso','lasso-polygonal','lasso-magnetic'].includes(tool)) {
             // Lasso was active — if no selection was finalized, clear its points
+            this._freeLassoActive = false;
             if (!this._selectionBounds) {
                 document.getElementById('lasso-overlay').style.display='none';
                 this._lassoPoints = [];
@@ -15650,12 +15947,26 @@ self.onmessage = function(event) {
                 c.selection=true; c.defaultCursor='default'; c.hoverCursor='move';
                 c.forEachObject(o => { if(o.name!=='__boundary__'){o.selectable=true;o.evented=true;} });
                 document.getElementById('opt-select').style.display='flex'; break;
-            case 'brush': case 'pencil':
+            case 'brush': case 'pencil': case 'freeform-pen':
                 c.isDrawingMode=true; c.freeDrawingBrush = new fabric.PencilBrush(c);
                 c.freeDrawingBrush.color = this.state.fgColor;
-                c.freeDrawingBrush.width = tool==='pencil'?1:this.state.brushSize;
-                this.setBrushPreset(this.state.brushPreset);
-                document.getElementById('opt-brush').style.display='flex'; break;
+                c.freeDrawingBrush.width = tool==='pencil'?1:(tool==='freeform-pen'?Math.max(1,this.state.penWidth||2):this.state.brushSize);
+                // Lower decimate = more points (less hexagon when drawing circles fast)
+                {
+                    const amount = this._effectiveStrokeSmoothing?.() ?? 0.08;
+                    const dec = window.BndzFreehandMath?.suggestedDecimate?.(amount);
+                    c.freeDrawingBrush.decimate = tool === 'freeform-pen' || tool === 'pencil'
+                        ? (Number.isFinite(dec) ? dec : 0.08)
+                        : 0.4;
+                }
+                this.setBrushPreset?.(this.state.brushPreset);
+                {
+                    const brushOpt = document.getElementById('opt-brush');
+                    const penOpt = document.getElementById('opt-pen');
+                    if (brushOpt) brushOpt.style.display = tool === 'freeform-pen' ? 'none' : 'flex';
+                    if (penOpt) penOpt.style.display = tool === 'freeform-pen' ? 'flex' : 'none';
+                }
+                break;
             case 'eraser':
                 c.isDrawingMode=true; c.freeDrawingBrush = new fabric.PencilBrush(c);
                 c.freeDrawingBrush.color = 'rgba(0,0,0,1)'; c.freeDrawingBrush.width = this.state.brushSize;
@@ -15669,8 +15980,18 @@ self.onmessage = function(event) {
                 this._bindPointerStreamBrush(c.freeDrawingBrush);
                 document.getElementById('opt-spray').style.display='flex'; break;
             case 'clone': c.defaultCursor='crosshair'; document.getElementById('opt-clone').style.display='flex'; break;
+            case 'pattern-stamp': c.defaultCursor='crosshair'; document.getElementById('opt-clone').style.display='flex'; document.getElementById('opt-pattern').style.display='flex'; break;
+            case 'history-brush': case 'art-history-brush': c.defaultCursor='crosshair'; document.getElementById('opt-clone').style.display='flex'; break;
             case 'healing': c.defaultCursor='crosshair'; document.getElementById('opt-healing').style.display='flex'; break;
             case 'spot-healing': c.defaultCursor='crosshair'; document.getElementById('opt-healing').style.display='flex'; break;
+            case 'patch': case 'content-aware-move': case 'red-eye': c.defaultCursor='crosshair'; document.getElementById('opt-healing').style.display='flex'; break;
+            case 'blur': case 'sharpen': c.defaultCursor='crosshair'; document.getElementById('opt-clone').style.display='flex'; break;
+            case 'background-eraser':
+                c.isDrawingMode=false; c.defaultCursor='crosshair';
+                document.getElementById('opt-brush').style.display='flex';
+                document.getElementById('opt-wand').style.display='flex';
+                break;
+            case 'magic-eraser': c.defaultCursor='crosshair'; document.getElementById('opt-wand').style.display='flex'; break;
             case 'dodge': c.defaultCursor='crosshair'; document.getElementById('opt-dodge').style.display='flex'; break;
             case 'burn': c.defaultCursor='crosshair'; document.getElementById('opt-burn').style.display='flex'; break;
             case 'sponge': c.defaultCursor='crosshair'; document.getElementById('opt-sponge').style.display='flex'; break;
@@ -15679,27 +16000,57 @@ self.onmessage = function(event) {
                 document.getElementById('opt-shape').style.display='flex'; break;
             case 'polygon': document.getElementById('opt-polygon').style.display='flex'; break;
             case 'star': document.getElementById('opt-star').style.display='flex'; break;
-            case 'pen': document.getElementById('opt-pen').style.display='flex'; document.getElementById('pen-overlay').style.display='block'; c.defaultCursor='crosshair'; break;
+            case 'pen':
+                document.getElementById('opt-pen').style.display='flex';
+                document.getElementById('pen-overlay').style.display='block';
+                c.defaultCursor='crosshair';
+                this._penSyncPreviewStyle();
+                break;
             case 'add-anchor': case 'delete-anchor': case 'convert-point':
                 document.getElementById('opt-pen').style.display='flex';
                 c.defaultCursor='crosshair';
                 c.forEachObject(o => { if(o.name!=='__boundary__' && (o.type==='path'||o.type==='rect'||o.type==='circle'||o.type==='ellipse'||o.type==='polygon'||o.type==='triangle'||o.type==='line')){o.selectable=false;o.evented=true;} });
                 break;
             case 'text': c.defaultCursor='text'; document.getElementById('opt-text').style.display='flex'; break;
+            case 'vertical-text': case 'horizontal-text-mask': case 'vertical-text-mask':
+                c.defaultCursor='text'; document.getElementById('opt-text').style.display='flex'; break;
+            case 'color-sampler': c.defaultCursor='crosshair'; c.hoverCursor='crosshair';
+                c.forEachObject(o => { if(o.name!=='__boundary__'){o.selectable=false;o.evented=true;} }); break;
+            case 'rotate-view':
+                c.selection=false; c.discardActiveObject(); c.defaultCursor='grab'; c.hoverCursor='grab';
+                c.forEachObject(o => { o.selectable=false; o.evented=false; });
+                break;
             case 'gradient': document.getElementById('opt-gradient').style.display='flex'; break;
             case 'pattern': document.getElementById('opt-pattern').style.display='flex'; break;
             case 'fill': c.forEachObject(o => { if(o.name!=='__boundary__'){o.selectable=false;o.evented=true;} }); break;
             case 'eyedropper': c.defaultCursor='crosshair'; c.hoverCursor='crosshair';
                 c.forEachObject(o => { if(o.name!=='__boundary__'){o.selectable=false;o.evented=true;} }); break;
-            case 'pan': c.defaultCursor='grab'; break;
+            case 'pan':
+                c.selection = false;
+                c.discardActiveObject();
+                c.defaultCursor = 'grab';
+                c.hoverCursor = 'grab';
+                c.forEachObject(o => { o.selectable = false; o.evented = false; });
+                break;
             case 'zoom': c.defaultCursor='zoom-in'; break;
-            case 'marquee-rect': case 'marquee-ellipse': document.getElementById('opt-marquee').style.display='flex'; break;
+            case 'marquee-rect': case 'marquee-ellipse': case 'marquee-row': case 'marquee-column':
+                document.getElementById('opt-marquee').style.display='flex'; break;
             case 'magic-wand': document.getElementById('opt-wand').style.display='flex'; break;
             case 'ai-segment': c.defaultCursor='crosshair'; c.hoverCursor='crosshair'; document.getElementById('opt-ai-segment').style.display='flex'; break;
             case 'lasso': case 'lasso-polygonal': case 'lasso-magnetic':
                 document.getElementById('opt-lasso').style.display='flex';
                 document.getElementById('lasso-overlay').style.display='block';
                 this._lassoMode = tool === 'lasso-magnetic' ? 'magnetic' : tool === 'lasso-polygonal' ? 'polygonal' : 'free';
+                {
+                    const hint = document.getElementById('opt-lasso-hint');
+                    if (hint) {
+                        hint.textContent = tool === 'lasso-magnetic'
+                            ? 'Drag along edges — magnetic snap follows contrast. Release to close.'
+                            : tool === 'lasso-polygonal'
+                              ? 'Click to add points. Double-click or click the start point to close.'
+                              : 'Drag to draw free lasso. Release to close selection.';
+                    }
+                }
                 // If there's no existing lasso selection, reset points for new lasso
                 if (!this._selectionBounds) {
                     this._lassoPoints=[];
@@ -15714,6 +16065,11 @@ self.onmessage = function(event) {
             case 'note': c.defaultCursor='crosshair'; c.hoverCursor='crosshair'; break;
         case 'crop': document.getElementById('opt-crop').style.display='flex'; this._initCrop(); break;
             case 'perspective-crop': document.getElementById('opt-crop').style.display='flex'; this._initPerspectiveCrop(); break;
+            case 'slice': case 'slice-select':
+                document.getElementById('opt-crop').style.display='flex';
+                c.defaultCursor='crosshair';
+                this._drawSliceOverlay?.();
+                break;
             default:
                 this.state.tool = prevTool;
                 return this._refuseUnimplementedTool(tool);
@@ -16196,6 +16552,24 @@ self.onmessage = function(event) {
     },
 
     // ====================== MOUSE ======================
+    onMouseDownBefore(opt) {
+        // Arm before Fabric hit-tests so Alt/Shift marquee isn't eaten by a full-bleed image.
+        if (this.state.tool === 'text') {
+            this.canvas.skipTargetFind = false;
+            return;
+        }
+        if (this.state.tool !== 'select') {
+            this.canvas.skipTargetFind = false;
+            return;
+        }
+        const wantMarquee = !!(opt?.e?.altKey || opt?.e?.shiftKey);
+        this.canvas.skipTargetFind = wantMarquee;
+        this._selectMarqueeGesture = wantMarquee;
+        if (wantMarquee) {
+            this.canvas.selection = true;
+            this.canvas.discardActiveObject?.();
+        }
+    },
     onMouseDown(opt) {
         const ptr = this.canvas.getScenePoint(opt.e), tool = this.state.tool;
         this._beginPressureStroke(opt.e);
@@ -16205,7 +16579,7 @@ self.onmessage = function(event) {
         if (tool==='pan' || this._tempPanning) { this.state.isPanning=true; this.state.panStart={x:opt.e.clientX,y:opt.e.clientY}; this.canvas.defaultCursor='grabbing'; return; }
         if (tool==='zoom') { opt.e.altKey?this.zoomOut():this.zoomIn(); return; }
         if (tool==='perspective-crop') return;
-        if (this._activeLayerWriteTools.has(tool) && !this._guardActiveLayerEdit()) return;
+        if (this._activeLayerWriteTools.has(tool) && !this._ensureEditableTargetLayer()) return;
         if (tool==='marquee-rect'||tool==='marquee-ellipse') {
             // Clear any previous selection (wand overlay, old bounds)
             this.canvas.getObjects().filter(o=>o._wandOverlay).forEach(o=>this.canvas.remove(o));
@@ -16225,7 +16599,8 @@ self.onmessage = function(event) {
             document.getElementById('selection-overlay').style.display='none';
             this.aiSegmentSelectAt(ptr); return;
         }
-        if (tool==='lasso' || tool==='lasso-polygonal') { this._lassoClick(opt.e); return; }
+        if (tool==='lasso') { this._freeLassoStart(opt.e); return; }
+        if (tool==='lasso-polygonal') { this._lassoClick(opt.e); return; }
         if (tool==='lasso-magnetic') { this._magneticLassoStart(ptr, opt.e); return; }
         if (tool==='quick-selection') { this._quickSelectionStart(ptr, opt.e); return; }
         if (tool==='pen') { this._penClick(ptr, opt.e); return; }
@@ -16233,6 +16608,8 @@ self.onmessage = function(event) {
             this._pathAnchorToolClick(ptr, tool, opt.e); return;
         }
         if (tool==='note') { this.addStickyNote(opt.e); return; }
+        // select tool: marquee via Alt/Shift is armed in onMouseDownBefore — let Fabric continue.
+        if (tool==='select') return;
         if (['dodge','burn','sponge','smudge'].includes(tool)) { this._retouchStart(tool, ptr, opt.e); return; }
         if (tool==='healing' || tool==='spot-healing') { this._healStart(ptr, opt.e); return; }
         if (tool==='path-selection' || tool==='direct-selection') { this._pathSelectionClick(ptr, tool); return; }
@@ -16240,9 +16617,31 @@ self.onmessage = function(event) {
         if (tool==='clone'&&opt.e.altKey) { this._cloneSource={x:ptr.x,y:ptr.y}; this._cloneOffset=null; this.toast(this._t('Clone source set'),'info'); return; }
         if (tool==='clone'&&this._cloneSource) { this._cloneStart(ptr, opt.e); return; }
         if (tool==='text') {
-            const text = this._applyDirectionToObject(new fabric.IText('Type here', { left:ptr.x, top:ptr.y, fontFamily:this.state.textFont, fontSize:this.state.textSize, fill:this.state.textColor, editable:true, fontWeight:this.state.textBold?'bold':'normal', fontStyle:this.state.textItalic?'italic':'normal', ...this._textDecorationProps() }));
-            this._addObjectAsLayer(text, this._objectLayerName(text, 'Text'));
-            this.canvas.setActiveObject(text); text.enterEditing(); this.saveHistory('Add Text'); this.updateLayersPanel(); return;
+            let hit = opt.target && opt.target.name !== '__boundary__' ? opt.target : null;
+            if (!hit && this.canvas.findTarget) {
+                hit = this.canvas.findTarget(opt.e, false);
+                if (hit && (hit.name === '__boundary__' || hit.excludeFromExport)) hit = null;
+            }
+            if (hit && this._isTextObject(hit)) {
+                this.canvas.setActiveObject(hit);
+                this.canvas.skipTargetFind = false;
+                if (!hit.isEditing) hit.enterEditing?.();
+                hit.selectAll?.();
+                this.updateLayersPanel?.();
+                return;
+            }
+            this._textBoxStart = { x: ptr.x, y: ptr.y, sx: opt.e.offsetX, sy: opt.e.offsetY };
+            const el = document.getElementById('selection-overlay');
+            if (el) {
+                el.style.display = 'block';
+                el.style.left = opt.e.offsetX + 'px';
+                el.style.top = opt.e.offsetY + 'px';
+                el.style.width = '0';
+                el.style.height = '0';
+                el.style.borderRadius = '2px';
+            }
+            this.state.isDrawing = true;
+            return;
         }
         if (tool==='fill') {
             const t=opt.target;
@@ -16277,7 +16676,7 @@ self.onmessage = function(event) {
         if (tool==='gradient'||tool==='pattern') { this.state.isDrawing=true; this._shapeStart={x:ptr.x,y:ptr.y}; return; }
         if (['line','rect','rounded-rect','circle','triangle','arrow','polygon','star','custom-shape'].includes(tool)) {
             this.state.isDrawing=true; this._shapeStart={x:ptr.x,y:ptr.y};
-            const fill=this.state.shapeFilled?this.state.shapeFill:'transparent', sk=this.state.shapeStroke, sw=this.state.shapeStrokeWidth;
+            const fill=this._activeShapeFill(), sk=this._activeShapeStroke(), sw=this.state.shapeStrokeWidth;
             const dashArr = this.state.shapeDash ? this.state.shapeDash.split(',').map(Number) : null;
             const dashOpts = dashArr ? {strokeDashArray: dashArr} : {};
             switch(tool) {
@@ -16313,20 +16712,45 @@ self.onmessage = function(event) {
             this._updateCloseHandle('lasso-close-handle', this._lassoPoints, { x:opt.e.offsetX, y:opt.e.offsetY }, 3);
         } else if (this.state.tool === 'pen') {
             const vpt = this.canvas.viewportTransform;
-            this._updateCloseHandle('pen-close-handle', this._penPoints,
-                { x:ptr.x * vpt[0] + vpt[4], y:ptr.y * vpt[3] + vpt[5] }, 2);
+            const sx = ptr.x * vpt[0] + vpt[4], sy = ptr.y * vpt[3] + vpt[5];
+            this._updateCloseHandle('pen-close-handle', this._penPoints, { x: sx, y: sy }, 2);
+            // Rubber-band last segment toward cursor — must use pen stroke color, never accent.
+            if (this._penPoints.length >= 1) {
+                const svg = document.querySelector('#pen-overlay svg path');
+                if (svg) {
+                    this._penSyncPreviewStyle();
+                    const pts = this._penPoints.concat([{
+                        x: ptr.x, y: ptr.y, sx, sy,
+                        inX: null, inY: null, outX: null, outY: null,
+                        inSX: null, inSY: null, outSX: null, outSY: null,
+                    }]);
+                    svg.setAttribute('d', this._penScreenPathData(pts));
+                }
+            }
         }
         const ic=document.getElementById('info-cursor'); if(ic) ic.textContent=`${Math.round(ptr.x)}, ${Math.round(ptr.y)}`;
         if(this.state.isPanning&&this.state.panStart) {
             const dx=opt.e.clientX-this.state.panStart.x, dy=opt.e.clientY-this.state.panStart.y;
             const vpt=this.canvas.viewportTransform.slice(); vpt[4]+=dx; vpt[5]+=dy;
-            this.canvas.setViewportTransform(vpt); this.state.panStart={x:opt.e.clientX,y:opt.e.clientY}; this.drawGrid(); this.drawRulers(); return;
+            this.canvas.setViewportTransform(vpt); this.state.panStart={x:opt.e.clientX,y:opt.e.clientY}; this.drawGrid(); this.drawRulers(); this._syncStickyNotesToViewport?.(); return;
         }
+        if (this.state.tool === 'lasso' && this._freeLassoActive) this._freeLassoMove(opt.e);
         if (this.state.tool === 'lasso-magnetic' && this._magneticLassoActive) this._magneticLassoMove(ptr, opt.e);
         if (this.state.tool === 'quick-selection' && this._quickSelectionActive && (opt.e.buttons & 1)) this._quickSelectionStroke(ptr);
         if(this.state.isDrawing&&this._marqueeStart) {
             const el=document.getElementById('selection-overlay'), sx=this._marqueeStart.x, sy=this._marqueeStart.y, cx=opt.e.offsetX, cy=opt.e.offsetY;
             el.style.left=Math.min(sx,cx)+'px'; el.style.top=Math.min(sy,cy)+'px'; el.style.width=Math.abs(cx-sx)+'px'; el.style.height=Math.abs(cy-sy)+'px'; return;
+        }
+        if (this.state.isDrawing && this._textBoxStart) {
+            const el = document.getElementById('selection-overlay');
+            const sx = this._textBoxStart.sx, sy = this._textBoxStart.sy, cx = opt.e.offsetX, cy = opt.e.offsetY;
+            if (el) {
+                el.style.left = Math.min(sx, cx) + 'px';
+                el.style.top = Math.min(sy, cy) + 'px';
+                el.style.width = Math.abs(cx - sx) + 'px';
+                el.style.height = Math.abs(cy - sy) + 'px';
+            }
+            return;
         }
         if(this.state.tool==='clone'&&this._cloneOC&&(opt.e.buttons&1)) { this._cloneStroke(ptr); }
         if(['dodge','burn','sponge','smudge'].includes(this.state.tool)&&(opt.e.buttons&1)) { this._retouchStroke(this.state.tool, ptr); }
@@ -16346,6 +16770,41 @@ self.onmessage = function(event) {
     },
     onMouseUp(opt) {
         this._endPressureStroke(opt.e);
+        if (this._textBoxStart) {
+            const ptr = this.canvas.getScenePoint(opt.e);
+            const start = this._textBoxStart;
+            this._textBoxStart = null;
+            this.state.isDrawing = false;
+            const el = document.getElementById('selection-overlay');
+            if (el) el.style.display = 'none';
+            const x = Math.min(start.x, ptr.x);
+            const y = Math.min(start.y, ptr.y);
+            const w = Math.max(Math.abs(ptr.x - start.x), 48);
+            const h = Math.max(Math.abs(ptr.y - start.y), 32);
+            const box = this._applyDirectionToObject(new fabric.Textbox('Type here', {
+                left: x,
+                top: y,
+                width: w,
+                fontFamily: this.state.textFont,
+                fontSize: this.state.textSize,
+                fill: this.state.textColor,
+                editable: true,
+                fontWeight: this.state.textBold ? 'bold' : 'normal',
+                fontStyle: this.state.textItalic ? 'italic' : 'normal',
+                ...this._textDecorationProps(),
+            }));
+            if (h > this.state.textSize * 1.4) box.set('height', h);
+            this._addObjectAsLayer(box, this._objectLayerName(box, 'Text'));
+            this.canvas.setActiveObject(box);
+            box.enterEditing?.();
+            this.saveHistory('Add Text');
+            this.updateLayersPanel();
+            return;
+        }
+        if (this._selectMarqueeGesture) {
+            this.canvas.skipTargetFind = false;
+            this._selectMarqueeGesture = false;
+        }
         if(this.state.isPanning){
             this.state.isPanning=false;
             this._updateMinimapViewport?.();
@@ -16355,6 +16814,7 @@ self.onmessage = function(event) {
             else { this.canvas.defaultCursor='crosshair'; }
             return;
         }
+        if (this._freeLassoActive) { this._freeLassoFinish(opt.e); return; }
         if (this._quickSelectionActive) { this._quickSelectionFinish(); return; }
         if (this._magneticLassoActive) { this._magneticLassoFinish(); return; }
         if(this._marqueeStart){
@@ -16423,7 +16883,7 @@ self.onmessage = function(event) {
             } else if (this._tempShape._polyPlaceholder) {
                 const cx=this._tempShape.left, cy=this._tempShape.top, r=this._tempShape.radius||50;
                 const sides=this._tempShape._polySides||5;
-                const fill=this.state.shapeFilled?this.state.shapeFill:'transparent', sk=this.state.shapeStroke, sw=this.state.shapeStrokeWidth;
+                const fill=this._activeShapeFill(), sk=this._activeShapeStroke(), sw=this.state.shapeStrokeWidth;
                 const pts=[]; for(let i=0;i<sides;i++){const a=2*Math.PI*i/sides-Math.PI/2;pts.push({x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)});}
                 this.canvas.remove(this._tempShape);
                 const poly=new fabric.Polygon(pts,{fill,stroke:sk,strokeWidth:sw,selectable:true});
@@ -16431,7 +16891,7 @@ self.onmessage = function(event) {
             } else if (this._tempShape._starPlaceholder) {
                 const cx=this._tempShape.left, cy=this._tempShape.top, r=this._tempShape.radius||50;
                 const pts_count=this.state.starPoints||5, innerR=r*(this.state.starInner||40)/100;
-                const fill=this.state.shapeFilled?this.state.shapeFill:'transparent', sk=this.state.shapeStroke, sw=this.state.shapeStrokeWidth;
+                const fill=this._activeShapeFill(), sk=this._activeShapeStroke(), sw=this.state.shapeStrokeWidth;
                 const pts=[]; for(let i=0;i<pts_count*2;i++){const a=Math.PI*i/pts_count-Math.PI/2;const rad=i%2===0?r:innerR;pts.push({x:cx+rad*Math.cos(a),y:cy+rad*Math.sin(a)});}
                 this.canvas.remove(this._tempShape);
                 const star=new fabric.Polygon(pts,{fill,stroke:sk,strokeWidth:sw,selectable:true});
@@ -16441,7 +16901,7 @@ self.onmessage = function(event) {
                 const x = Math.min(s.x, end.x), y = Math.min(s.y, end.y), w = Math.abs(end.x - s.x), h = Math.abs(end.y - s.y);
                 this.canvas.remove(this._tempShape);
                 if (w > 2 && h > 2) {
-                    const fill=this.state.shapeFilled?this.state.shapeFill:'transparent', sk=this.state.shapeStroke, sw=this.state.shapeStrokeWidth;
+                    const fill=this._activeShapeFill(), sk=this._activeShapeStroke(), sw=this.state.shapeStrokeWidth;
                     const path = new fabric.Path(`M ${w * .5} ${h} C ${w * .42} ${h * .84} 0 ${h * .62} 0 ${h * .28} C 0 ${h * .04} ${w * .3} 0 ${w * .5} ${h * .2} C ${w * .7} 0 ${w} ${h * .04} ${w} ${h * .28} C ${w} ${h * .62} ${w * .58} ${h * .84} ${w * .5} ${h} Z`, {
                         left:x + w / 2, top:y + h / 2, originX:'center', originY:'center', fill, stroke:sk, strokeWidth:sw, selectable:true
                     });
@@ -17958,8 +18418,6 @@ self.onmessage = function(event) {
             document.getElementById('adj-blur-val').textContent=values.blur;
             const active=this.canvas.getActiveObject();
             if(!active||active.type!=='image') {
-                // Bound to `input` on five sliders, so one drag used to emit a
-                // stream of identical toasts. Say it once per interaction.
                 if (!this._adjustTargetWarned) {
                     this._adjustTargetWarned = true;
                     this.toast('Select an image to adjust', 'info');
@@ -17968,28 +18426,30 @@ self.onmessage = function(event) {
             }
             this._adjustTargetWarned = false;
             this._applyImageAdjustmentsRaw(active, values, { preview:true });
-        }, 80);
+            clearTimeout(this._adjCommitDebounce);
+            this._adjCommitDebounce = setTimeout(() => {
+                if (!this._guardObjectEdit(active)) return;
+                this._applyImageAdjustmentsRaw(active, values);
+                this.saveHistory('Adjustments', {
+                    pixelEdit:true,
+                    dirtyRects:this._historyDirtyRectsForImage(active),
+                    command:this._makeCommand('image.adjust', { objectId:this._ensureObjectId(active), ...values })
+                });
+            }, 420);
+        }, 50);
     },
     applyAdjustments() {
-        clearTimeout(this._adjDebounce);
-        const active = this.canvas.getActiveObject();
-        if (!active || active.type !== 'image' || !this._guardObjectEdit(active)) {
-            this.toast('Select an editable image to adjust', 'info');
-            return false;
-        }
-        const values = this._readAdjustmentValues();
-        this._applyImageAdjustmentsRaw(active, values);
-        this.saveHistory('Adjustments Applied', {
-            pixelEdit:true,
-            dirtyRects:this._historyDirtyRectsForImage(active),
-            command:this._makeCommand('image.adjust', { objectId:this._ensureObjectId(active), ...values })
-        });
-        this.toast(this._t('Adjustments applied'), 'success');
-        return true;
+        // Kept for API/menu compatibility — liveAdjust already commits.
+        return this.liveAdjust(), true;
     },
     resetAdjustments() {
         ['adj-bright','adj-contrast','adj-sat','adj-hue','adj-blur'].forEach(id => { document.getElementById(id).value=0; document.getElementById(id+'-val').textContent='0'; });
-        return this.applyAdjustments();
+        const active = this.canvas.getActiveObject();
+        if (active?.type === 'image') {
+            this._applyImageAdjustmentsRaw(active, this._readAdjustmentValues());
+            this.saveHistory('Adjustments Reset');
+        }
+        return true;
     },
 
     // ====================== FILTERS ======================
@@ -18213,6 +18673,9 @@ self.onmessage = function(event) {
     },
     async applyFilterDirect(name) {
         const active=this.canvas.getActiveObject();
+        if (active && this._isTextObject(active)) {
+            return this._applyTextAppearanceFilter(name);
+        }
         if(!active||active.type!=='image') { this.toast(this._t('Select an image first'),'info'); return false; }
         const photonSpec = this._getDirectPhotonFilter(name);
         if (photonSpec) return this._applyImageDataFilterDirect(name, photonSpec);
@@ -18251,15 +18714,7 @@ self.onmessage = function(event) {
     pasteObj() { this._pasteSelection(); },
 
     // ====================== HISTORY ======================
-    _unimplementedToolStates: Object.freeze([
-        'marquee-row', 'marquee-column',
-        'slice', 'slice-select', 'color-sampler', 'patch',
-        'content-aware-move', 'red-eye', 'pattern-stamp', 'history-brush', 'art-history-brush',
-        'background-eraser', 'magic-eraser', 'blur', 'sharpen', 'freeform-pen',
-        'vertical-text', 'horizontal-text-mask',
-        'vertical-text-mask',
-        'rotate-view'
-    ]),
+    _unimplementedToolStates: Object.freeze([]),
     _toolExtensionStates: Object.freeze(['brush', 'pencil', 'spray', 'ai-segment']),
     _refuseUnimplementedTool(tool) {
         const definition = this._toolCatalog().find(entry => entry.toolState === tool);
@@ -19904,6 +20359,7 @@ self.onmessage = function(event) {
         this.drawRulers();
         this._drawPixelGrid?.();
         this._updateMinimapViewport?.();
+        this._syncStickyNotesToViewport?.();
         this.canvas?.requestRenderAll?.();
         return this.zoom;
     },
@@ -20134,15 +20590,184 @@ self.onmessage = function(event) {
         const { L, C, H } = this._hexToOklch(hex);
         el.textContent = `oklch(${L}% ${C} ${H})`;
     },
-    setFgColor(hex) {
-        this.state.fgColor=hex; document.getElementById('fg-color').style.background=hex;
-        document.getElementById('fg-picker').value=hex; document.getElementById('fg-hex').textContent=hex.toUpperCase();
-        this._updateOklchDisplay(hex);
-        this._syncSwatchGridSelection?.(hex);
-        if(this.canvas.freeDrawingBrush&&this.state.tool!=='eraser'){this.canvas.freeDrawingBrush.color=this.state.brushOpacity<100?this._hexToRgba(hex,this.state.brushOpacity):hex;}
+    _normHexColor(hex) {
+        if (!hex || typeof hex !== 'string') return null;
+        let h = hex.trim();
+        if (h.startsWith('rgb')) {
+            const m = h.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+            if (!m) return null;
+            h = '#' + [m[1], m[2], m[3]].map((n) => (+n).toString(16).padStart(2, '0')).join('');
+        }
+        if (h[0] !== '#') h = '#' + h;
+        if (/^#[0-9a-fA-F]{3}$/.test(h)) h = '#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+        if (!/^#[0-9a-fA-F]{6}$/.test(h)) return null;
+        return h.toLowerCase();
     },
-    setBgColor(hex) { this.state.bgColor=hex; document.getElementById('bg-color').style.background=hex; document.getElementById('bg-picker').value=hex; document.getElementById('bg-hex').textContent=hex.toUpperCase(); },
-    swapColors() { const fg=this.state.fgColor,bg=this.state.bgColor; this.setFgColor(bg); this.setBgColor(fg); },
+    _hexToHsb(hex) {
+        const n = this._normHexColor(hex);
+        if (!n) return { h: 0, s: 0, b: 100 };
+        const r = parseInt(n.slice(1, 3), 16) / 255;
+        const g = parseInt(n.slice(3, 5), 16) / 255;
+        const bl = parseInt(n.slice(5, 7), 16) / 255;
+        const max = Math.max(r, g, bl), min = Math.min(r, g, bl), d = max - min;
+        let h = 0;
+        if (d) {
+            if (max === r) h = ((g - bl) / d) % 6;
+            else if (max === g) h = (bl - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h *= 60; if (h < 0) h += 360;
+        }
+        const s = max === 0 ? 0 : (d / max) * 100;
+        return { h, s, b: max * 100 };
+    },
+    _syncHsbFromFg(hex, { moveCursor = true } = {}) {
+        const hsb = this._hexToHsb(hex);
+        const hh = document.getElementById('hsb-h');
+        const ss = document.getElementById('hsb-s');
+        const bb = document.getElementById('hsb-b');
+        if (hh) hh.value = Math.round(hsb.h);
+        if (ss) ss.value = Math.round(hsb.s);
+        if (bb) bb.value = Math.round(hsb.b);
+        const hv = document.getElementById('hsb-h-val');
+        const sv = document.getElementById('hsb-s-val');
+        const bv = document.getElementById('hsb-b-val');
+        if (hv) hv.textContent = Math.round(hsb.h);
+        if (sv) sv.textContent = Math.round(hsb.s);
+        if (bv) bv.textContent = Math.round(hsb.b);
+        if (moveCursor) {
+            const cur = document.getElementById('cw-cursor');
+            if (cur) {
+                const ang = (hsb.h * Math.PI) / 180;
+                const rad = (hsb.s / 100) * 58;
+                cur.style.left = (60 + Math.cos(ang) * rad) + 'px';
+                cur.style.top = (60 + Math.sin(ang) * rad) + 'px';
+            }
+        }
+    },
+    _syncToolColorInputs() {
+        const fg = this.state.fgColor, bg = this.state.bgColor;
+        const sk = this.state.shapeStroke || fg;
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; };
+        setVal('shape-fill', fg);
+        setVal('shape-stroke', sk);
+        setVal('pen-stroke', this.state.penStroke || fg);
+        setVal('text-color', fg);
+        setVal('grad-from', fg);
+        setVal('grad-to', bg);
+        setVal('pattern-color', fg);
+        setVal('poly-fill', fg);
+        setVal('poly-stroke', sk);
+        setVal('star-fill', fg);
+        const chip = document.getElementById('grad-from-chip');
+        if (chip) chip.style.background = fg;
+    },
+    setFgColor(hex, opts = {}) {
+        const n = this._normHexColor(hex) || this.state.fgColor || '#ffffff';
+        this.state.fgColor = n;
+        this.state.shapeFill = n;
+        this.state.penStroke = n;
+        this.state.textColor = n;
+        this.state.gradFrom = n;
+        this.state.patternColor = n;
+        // Stroke tracks FG until the user unlocks via the stroke picker.
+        if (this._strokeTracksFg !== false) this.state.shapeStroke = n;
+        const fgBox = document.getElementById('fg-color');
+        if (fgBox) fgBox.style.background = n;
+        const fgPicker = document.getElementById('fg-picker');
+        if (fgPicker) fgPicker.value = n;
+        const fgHex = document.getElementById('fg-hex');
+        if (fgHex) fgHex.textContent = n.toUpperCase();
+        this._updateOklchDisplay(n);
+        this._syncSwatchGridSelection?.(n);
+        if (!opts.skipHsb) this._syncHsbFromFg(n);
+        this._syncToolColorInputs();
+        if (this.canvas?.freeDrawingBrush && this.state.tool !== 'eraser') {
+            this.canvas.freeDrawingBrush.color = this.state.brushOpacity < 100 ? this._hexToRgba(n, this.state.brushOpacity) : n;
+        }
+        if (this.state.tool === 'pen' || this.state.tool === 'freeform-pen') this._penSyncPreviewStyle();
+        const texts = this._activeTextObjects?.() || [];
+        if (texts.length) {
+            texts.forEach(t => t.set('fill', n));
+            this.canvas?.requestRenderAll?.();
+        }
+    },
+    setBgColor(hex, opts = {}) {
+        const n = this._normHexColor(hex) || this.state.bgColor || '#000000';
+        this.state.bgColor = n;
+        this.state.gradTo = n;
+        // BG is the swap partner / secondary — does not steal shape stroke (FG-driven).
+        const bgBox = document.getElementById('bg-color');
+        if (bgBox) bgBox.style.background = n;
+        const bgPicker = document.getElementById('bg-picker');
+        if (bgPicker) bgPicker.value = n;
+        const bgHex = document.getElementById('bg-hex');
+        if (bgHex) bgHex.textContent = n.toUpperCase();
+        this._syncToolColorInputs();
+    },
+    setShapeStroke(hex, opts = {}) {
+        const n = this._normHexColor(hex) || this.state.shapeStroke || this.state.fgColor || '#ffffff';
+        this.state.shapeStroke = n;
+        if (!opts.keepTracking) this._strokeTracksFg = false;
+        this._syncToolColorInputs();
+        if (this.state.tool === 'pen' || this.state.tool === 'freeform-pen' || this.state.tool === 'line' || this.state.tool === 'arrow') {
+            this.state.penStroke = n;
+            this._penSyncPreviewStyle?.();
+        }
+    },
+    swapColors() {
+        const fg = this.state.fgColor, bg = this.state.bgColor;
+        this._strokeTracksFg = true;
+        this.setFgColor(bg);
+        this.setBgColor(fg);
+    },
+    _activePenStroke() {
+        return this.state.penStroke || this.state.fgColor || '#ffffff';
+    },
+    _penSyncPreviewStyle() {
+        const overlay = document.getElementById('pen-overlay');
+        const svg = overlay?.querySelector?.('svg path.pen-path-preview') || document.querySelector('#pen-overlay svg path');
+        const stroke = this._activePenStroke();
+        const width = Math.max(1, Number(this.state.penWidth) || 2);
+        if (overlay) {
+            overlay.style.setProperty('--pen-preview-stroke', stroke);
+            overlay.style.setProperty('--pen-preview-width', width + 'px');
+        }
+        if (svg) {
+            svg.setAttribute('stroke', stroke);
+            svg.setAttribute('stroke-width', String(width));
+            svg.style.stroke = stroke;
+            svg.style.strokeWidth = width + 'px';
+        }
+        this._penRenderAnchors?.();
+    },
+    _activeShapeFill() { return this.state.shapeFilled ? (this.state.fgColor || this.state.shapeFill) : 'transparent'; },
+    _activeShapeStroke() {
+        // Unified: stroke always comes from shapeStroke, which tracks FG by default.
+        return this.state.shapeStroke || this.state.fgColor || this.state.penStroke || '#ffffff';
+    },
+    _effectiveStrokeSmoothing() {
+        const ui = Number(this.state.strokeSmoothingUi);
+        const raw = Number.isFinite(ui) ? ui / 100 : Number(this.state.strokeSmoothing) || 0;
+        return Math.max(0.08, Math.min(1, raw || 0));
+    },
+    setStrokeSmoothingUi(v) {
+        const n = Math.max(0, Math.min(100, +v || 0));
+        this.state.strokeSmoothingUi = n;
+        this.state.strokeSmoothing = Math.max(0.08, n / 100);
+        const el = document.getElementById('stroke-smooth-val');
+        if (el) el.textContent = `${n}% (${Math.round(this.state.strokeSmoothing * 100)}% eff)`;
+        if (this.canvas?.freeDrawingBrush) {
+            const dec = window.BndzFreehandMath?.suggestedDecimate?.(this.state.strokeSmoothing);
+            this.canvas.freeDrawingBrush.decimate = Number.isFinite(dec) ? dec : Math.max(0.05, 0.22 - this.state.strokeSmoothing * 0.14);
+        }
+    },
+    _smoothFabricPath(path) {
+        const amount = this._effectiveStrokeSmoothing();
+        if (window.BndzFreehandMath?.smoothFabricPath) {
+            return window.BndzFreehandMath.smoothFabricPath(path, amount, fabric, { fill: 'transparent' });
+        }
+        return path;
+    },
     _initSwatchGrid(grid, label) {
         if (!grid) return;
         grid.setAttribute('role', 'grid');
@@ -21330,10 +21955,45 @@ self.onmessage = function(event) {
         const nodes = ids.map(id => document.getElementById(id)).filter(Boolean);
         if (!nodes.length) return false;
         const hidden = nodes[0].style.display === 'none';
-        nodes.forEach(node => { node.style.display = hidden ? '' : 'none'; });
-        if (this.session?.panels) this.session.panels.visible = hidden;
-        this._announceAccessibility(hidden ? 'Panels shown' : 'Panels hidden');
+        const show = hidden;
+        nodes.forEach(node => { node.style.display = show ? '' : 'none'; });
+        const rail = document.getElementById('bndz-panel-rail');
+        if (rail) rail.style.display = show ? '' : 'none';
+        const root = document.documentElement;
+        if (show) {
+            root.style.removeProperty('--panel-width');
+            root.style.removeProperty('--rail-w');
+            root.style.removeProperty('--toolbar-w');
+            root.classList.remove('bndz-panels-collapsed');
+        } else {
+            root.style.setProperty('--panel-width', '0px');
+            root.style.setProperty('--rail-w', '0px');
+            root.style.setProperty('--toolbar-w', '0px');
+            root.classList.add('bndz-panels-collapsed');
+        }
+        if (this.session?.panels) this.session.panels.visible = show;
+        requestAnimationFrame(() => {
+            this.resizeCanvas?.();
+            this.drawRulers?.();
+            this.drawGrid?.();
+        });
+        this._announceAccessibility(show ? 'Panels shown' : 'Panels hidden');
         return true;
+    },
+    _syncCanvasLayoutForPanelRail() {
+        const groups = [...document.querySelectorAll('#panels > .panel-tab-group')];
+        const anyVisible = groups.some((g) => !g.classList.contains('is-rail-hidden') && getComputedStyle(g).display !== 'none');
+        const panels = document.getElementById('panels');
+        const railOnly = panels && !anyVisible && panels.style.display !== 'none';
+        const root = document.documentElement;
+        if (railOnly) {
+            root.style.setProperty('--panel-width', '0px');
+            root.classList.add('bndz-panels-content-collapsed');
+        } else if (!root.classList.contains('bndz-panels-collapsed')) {
+            root.style.removeProperty('--panel-width');
+            root.classList.remove('bndz-panels-content-collapsed');
+        }
+        requestAnimationFrame(() => this.resizeCanvas?.());
     },
     _panelMinHeight: 80,
     _initPanelSplitters() {
@@ -21648,6 +22308,24 @@ self.onmessage = function(event) {
                 case 'openshop:open': {
                     await this._applyEmbedDocument(data.document || data);
                     this._postEmbed({ type:'openshop:opened', id });
+                    return;
+                }
+                case 'openshop:place': {
+                    const docs = Array.isArray(data.documents)
+                        ? data.documents
+                        : [data.document || data].filter(Boolean);
+                    let placed = 0;
+                    for (const doc of docs.slice(0, 8)) {
+                        const dataUrl = doc && (doc.dataUrl || doc.url);
+                        if (!dataUrl) continue;
+                        const name = this._safeText(doc.name || 'drop.png', 120);
+                        const res = await fetch(dataUrl);
+                        const blob = await res.blob();
+                        const file = new File([blob], name, { type: blob.type || 'image/png' });
+                        await this._handleFileLoad(file, placed === 0 && !this.canvas?.getObjects?.()?.length ? 'drop' : 'place');
+                        placed += 1;
+                    }
+                    this._postEmbed({ type:'openshop:placed', id, count: placed });
                     return;
                 }
                 case 'openshop:undo': {
@@ -23625,6 +24303,47 @@ self.onmessage = async function(event) {
         handle.classList.toggle('armed', armed);
         return armed;
     },
+    _freeLassoStart(evt) {
+        this._freeLassoActive = true;
+        this._lassoPoints = [`${evt.offsetX},${evt.offsetY}`];
+        const svg = document.querySelector('#lasso-overlay svg polygon');
+        if (svg) svg.setAttribute('points', this._lassoPoints.join(' '));
+        this._updateCloseHandle('lasso-close-handle', this._lassoPoints, null, 3);
+        return true;
+    },
+    _freeLassoMove(evt) {
+        if (!this._freeLassoActive) return;
+        const x = evt.offsetX, y = evt.offsetY;
+        const last = this._lassoPoints[this._lassoPoints.length - 1];
+        if (last) {
+            const [lx, ly] = last.split(',').map(Number);
+            if (Math.hypot(x - lx, y - ly) < 2) return;
+        }
+        this._lassoPoints.push(`${x},${y}`);
+        const svg = document.querySelector('#lasso-overlay svg polygon');
+        if (svg) svg.setAttribute('points', this._lassoPoints.join(' '));
+        this._updateCloseHandle('lasso-close-handle', this._lassoPoints, { x, y }, 3);
+    },
+    _freeLassoFinish(evt) {
+        const active = this._freeLassoActive;
+        this._freeLassoActive = false;
+        if (!active) return false;
+        if (evt && this._lassoPoints.length >= 1) {
+            const x = evt.offsetX, y = evt.offsetY;
+            const last = this._lassoPoints[this._lassoPoints.length - 1];
+            const [lx, ly] = (last || '0,0').split(',').map(Number);
+            if (Math.hypot(x - lx, y - ly) >= 2) this._lassoPoints.push(`${x},${y}`);
+        }
+        if (this._lassoPoints.length < 3) {
+            this._lassoPoints = [];
+            const svg = document.querySelector('#lasso-overlay svg polygon');
+            if (svg) svg.setAttribute('points', '');
+            this._updateCloseHandle('lasso-close-handle', [], null, 3);
+            return false;
+        }
+        this._lassoDoubleClick();
+        return true;
+    },
     _lassoClick(evt) {
         const x = evt.offsetX, y = evt.offsetY;
         if (evt.detail >= 2 && this._lassoPoints.length >= 3) {
@@ -24522,6 +25241,107 @@ self.onmessage = async function(event) {
             return active.getObjects().filter(object => this._isTextObject(object));
         }
         return this._isTextObject(active) ? [active] : [];
+    },
+    applyTextInspector(opts = {}) {
+        if (opts.fontFamily != null) this.state.textFont = String(opts.fontFamily);
+        if (opts.fontSize != null && Number.isFinite(+opts.fontSize)) this.state.textSize = Math.max(4, +opts.fontSize);
+        if (opts.fill != null) {
+            this.state.textColor = opts.fill;
+            this.state.fgColor = opts.fill;
+        }
+        if (opts.bold != null) this.state.textBold = Boolean(opts.bold);
+        if (opts.italic != null) this.state.textItalic = Boolean(opts.italic);
+        const targets = this._activeTextObjects();
+        if (!targets.length) return true;
+        const patch = {};
+        if (opts.fontFamily != null) patch.fontFamily = this.state.textFont;
+        if (opts.fontSize != null) patch.fontSize = this.state.textSize;
+        if (opts.fill != null) patch.fill = this.state.textColor;
+        if (opts.bold != null) patch.fontWeight = this.state.textBold ? 'bold' : 'normal';
+        if (opts.italic != null) patch.fontStyle = this.state.textItalic ? 'italic' : 'normal';
+        if (!Object.keys(patch).length) return true;
+        targets.forEach(object => {
+            object.set(patch);
+            object.initDimensions?.();
+        });
+        this.canvas?.requestRenderAll?.();
+        this.saveHistory('Text');
+        return true;
+    },
+    _applyTextAppearanceFilter(name) {
+        const targets = this._activeTextObjects();
+        if (!targets.length) { this.toast(this._t('Select a text object first'), 'info'); return false; }
+        const shiftFill = (hex, mode) => {
+            const n = this._normHexColor(hex) || '#ffffff';
+            const r = parseInt(n.slice(1, 3), 16), g = parseInt(n.slice(3, 5), 16), b = parseInt(n.slice(5, 7), 16);
+            let nr = r, ng = g, nb = b;
+            if (mode === 'Grayscale' || mode === 'BlackWhite') {
+                const y = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+                nr = ng = nb = mode === 'BlackWhite' ? (y > 127 ? 255 : 0) : y;
+            } else if (mode === 'Invert') {
+                nr = 255 - r; ng = 255 - g; nb = 255 - b;
+            } else if (mode === 'Sepia') {
+                nr = Math.min(255, Math.round(0.393 * r + 0.769 * g + 0.189 * b));
+                ng = Math.min(255, Math.round(0.349 * r + 0.686 * g + 0.168 * b));
+                nb = Math.min(255, Math.round(0.272 * r + 0.534 * g + 0.131 * b));
+            }
+            return '#' + [nr, ng, nb].map(c => c.toString(16).padStart(2, '0')).join('');
+        };
+        targets.forEach(object => {
+            const fill = typeof object.fill === 'string' ? object.fill : this.state.textColor;
+            if (name === 'Sharpen') {
+                object.set('fontWeight', 'bold');
+            } else if (name === 'Emboss') {
+                object.set('shadow', new fabric.Shadow({ color: 'rgba(0,0,0,0.45)', offsetX: 2, offsetY: 2, blur: 0 }));
+            } else {
+                object.set('fill', shiftFill(fill, name));
+            }
+        });
+        this.canvas.requestRenderAll();
+        this.saveHistory('Text: ' + name);
+        this.toast(`Applied ${name} to text`, 'success');
+        this._lastFilter = name;
+        return true;
+    },
+    _mergeFontList(families) {
+        const select = document.getElementById('text-font');
+        if (!select || !Array.isArray(families) || !families.length) return;
+        const have = new Set([...select.options].map(o => o.value || o.textContent));
+        const current = select.value;
+        const frag = document.createDocumentFragment();
+        let added = 0;
+        families
+            .map(f => String(f || '').trim())
+            .filter(f => f && !have.has(f))
+            .sort((a, b) => a.localeCompare(b))
+            .slice(0, 1200)
+            .forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                frag.appendChild(opt);
+                have.add(name);
+                added += 1;
+            });
+        if (added) select.appendChild(frag);
+        if (current) select.value = current;
+    },
+    _setupFontListLazyLoad() {
+        const select = document.getElementById('text-font');
+        if (!select || select.dataset.fontsBound === '1') return;
+        select.dataset.fontsBound = '1';
+        const requestFonts = () => {
+            if (this._fontsRequested) return;
+            this._fontsRequested = true;
+            try { window.parent?.postMessage?.({ type: 'bndz-request-system-fonts' }, '*'); } catch { /* ignore */ }
+        };
+        select.addEventListener('pointerdown', requestFonts, { passive: true });
+        select.addEventListener('focus', requestFonts, { passive: true });
+    },
+    async _loadInstalledFonts() {
+        if (this._fontsRequested) return;
+        this._fontsRequested = true;
+        try { window.parent?.postMessage?.({ type: 'bndz-request-system-fonts' }, '*'); } catch { /* ignore */ }
     },
     _normalizeTextRangeStyles(value) {
         const source = value && typeof value === 'object' ? value : {};
@@ -25506,10 +26326,33 @@ self.onmessage = async function(event) {
     _penUpdatePreview() {
         const svg = document.querySelector('#pen-overlay svg path');
         if (!svg || this._penPoints.length < 1) return;
+        this._penSyncPreviewStyle();
         svg.setAttribute('d', this._penScreenPathData(this._penPoints));
+        this._penRenderAnchors();
+    },
+    _penRenderAnchors() {
+        const g = document.querySelector('#pen-overlay svg g.pen-anchors');
+        if (!g) return;
+        while (g.firstChild) g.removeChild(g.firstChild);
+        const stroke = this._activePenStroke();
+        (this._penPoints || []).forEach((pt, i) => {
+            const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            c.setAttribute('class', 'pen-anchor' + (i === 0 ? ' is-first' : ''));
+            c.setAttribute('cx', String(pt.sx != null ? pt.sx : pt.x));
+            c.setAttribute('cy', String(pt.sy != null ? pt.sy : pt.y));
+            c.setAttribute('r', i === 0 && this._penPoints.length >= 2 ? '5.5' : '4');
+            c.setAttribute('fill', stroke);
+            g.appendChild(c);
+        });
     },
     _penFinish() {
-        if (this._penPoints.length < 2) { this._penPoints = []; return; }
+        if (this._penPoints.length < 2) {
+            this._penPoints = [];
+            this._penRenderAnchors?.();
+            const preview = document.querySelector('#pen-overlay svg path');
+            if (preview) preview.setAttribute('d', '');
+            return;
+        }
         if (!this._guardActiveLayerEdit()) {
             this._penPoints = [];
             const preview = document.querySelector('#pen-overlay svg path');
@@ -25518,13 +26361,16 @@ self.onmessage = async function(event) {
         }
         const closeIt = this.state.penFilled || this._penClosedByStart;
         const closed = this._penPathDataFromPts(this._penPoints, !!closeIt);
+        const stroke = this._activePenStroke();
         const path = new fabric.Path(closed, {
-            fill: closeIt ? this.state.shapeFill : 'transparent',
-            stroke: this.state.penStroke,
+            fill: closeIt ? (this.state.fgColor || this.state.shapeFill) : 'transparent',
+            stroke,
             strokeWidth: this.state.penWidth,
             selectable: true,
             objectCaching: false,
         });
+        // Pen never auto-fills open paths; closed paths only fill when penFilled is on
+        if (!this.state.penFilled) path.set('fill', 'transparent');
         this._addObjectAsLayer(path, this._shapeLayerName('pen'));
         this.saveHistory('Pen Path'); this.updateLayersPanel();
         const segCount = this._penPoints.length;
@@ -25772,7 +26618,7 @@ self.onmessage = async function(event) {
         else if (h < 300) { r = x; g = 0; bl = c; }
         else { r = c; g = 0; bl = x; }
         const hex = '#' + [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((bl+m)*255)].map(v => v.toString(16).padStart(2,'0')).join('');
-        this.setFgColor(hex);
+        this.setFgColor(hex, { skipHsb: true });
     },
 
     // ====================== CHANNEL MIXER ======================
@@ -25919,7 +26765,7 @@ self.onmessage = async function(event) {
         return {
             defaultW:1920, defaultH:1080, gridSize:20, snapTolerance:5, maxHistory:120,
             stackNewObjects:false, vectorStrokes:false, rulersVisible:true, pixelZoomSnap:false,
-            toolOptions:{}, panelSizes:[]
+            toolOptions:{}, panelSizes:[], panelDock:'right'
         };
     },
     _migratePreferences(record) {
@@ -25973,6 +26819,8 @@ self.onmessage = async function(event) {
         normalized.panelSizes = Array.isArray(normalized.panelSizes)
             ? normalized.panelSizes.slice(0, 8).map(value => clamp(value, this._panelMinHeight, 2000, this._panelMinHeight))
             : [];
+        const dock = String(normalized.panelDock || defaults.panelDock || 'right').toLowerCase();
+        normalized.panelDock = ['left', 'right', 'bottom'].includes(dock) ? dock : 'right';
         if (/^#[0-9a-fA-F]{6}$/.test(String(normalized.accent || ''))) normalized.accent = String(normalized.accent).toLowerCase();
         else delete normalized.accent;
         return normalized;
@@ -25992,11 +26840,16 @@ self.onmessage = async function(event) {
         this._prefs.pixelZoomSnap = normalized.pixelZoomSnap;
         this._prefs.toolOptions = normalized.toolOptions;
         this._prefs.panelSizes = normalized.panelSizes;
+        this._prefs.panelDock = normalized.panelDock || 'right';
         this._prefs.accent = normalized.accent || null;
         this.rulersVisible = normalized.rulersVisible;
         this._pixelZoomSnap = normalized.pixelZoomSnap;
         this._syncPixelZoomControl?.();
         this._applyZoomRendering?.();
+        try {
+          localStorage.setItem('os_panel_dock', this._prefs.panelDock);
+          this._bndzApplyPanelDock?.(this._prefs.panelDock, { silent: true });
+        } catch { /* ignore */ }
         if (normalized.accent) document.documentElement.style.setProperty('--accent', normalized.accent);
         else document.documentElement.style.removeProperty('--accent');
         return normalized;
@@ -26016,6 +26869,7 @@ self.onmessage = async function(event) {
             pixelZoomSnap:Boolean(this._pixelZoomSnap),
             toolOptions:this._prefs.toolOptions,
             panelSizes:this._prefs.panelSizes,
+            panelDock:this._prefs.panelDock || localStorage.getItem('os_panel_dock') || 'right',
             ...( /^#[0-9a-fA-F]{6}$/.test(String(requestedAccent || ''))
                 ? { accent:String(requestedAccent).toLowerCase() }
                 : {} )
@@ -26318,10 +27172,23 @@ self.onmessage = async function(event) {
 
     // ====================== LAYER DRAG REORDER ======================
     initLayerDrag(layerEl, idx) {
-        layerEl.setAttribute('draggable', 'true');
+        // Handle-only drag — prevent accidental text/row drags (plan G.3).
+        const handle = layerEl.querySelector('.layer-drag-handle');
+        layerEl.setAttribute('draggable', 'false');
+        if (handle) {
+            handle.setAttribute('draggable', 'true');
+            handle.addEventListener('dragstart', e => {
+                e.stopPropagation();
+                e.dataTransfer.setData('text/plain', String(idx));
+                layerEl.classList.add('dragging');
+            });
+            handle.addEventListener('dragend', () => layerEl.classList.remove('dragging'));
+        }
         layerEl.addEventListener('dragstart', e => {
-            e.dataTransfer.setData('text/plain', idx);
-            layerEl.classList.add('dragging');
+            if (!e.target.closest?.('.layer-drag-handle')) {
+                e.preventDefault();
+                return;
+            }
         });
         layerEl.addEventListener('dragend', () => layerEl.classList.remove('dragging'));
         layerEl.addEventListener('dragover', e => {
@@ -27752,6 +28619,8 @@ self.onmessage = async function(e) {
                 <button class="btn" id="es-jpeg" data-fmt="jpeg">JPEG</button>
                 <button class="btn" id="es-webp" data-fmt="webp">WebP</button>
                 <button class="btn" id="es-avif" data-fmt="avif">AVIF</button>
+                <button class="btn" id="es-svg" data-fmt="svg">SVG</button>
+                <button class="btn" id="es-ico" data-fmt="ico">ICO</button>
             </div>
             <div class="modal-row" id="es-quality-row" style="display:none"><label>Quality</label><input id="es-quality" type="range" min="1" max="100" value="92" data-suffix="%"><span class="opt-val">92%</span></div>
             <div class="modal-row"><label>Scale</label><select id="es-scale"><option value="1">1x (Original)</option><option value="0.5">0.5x (Half)</option><option value="2">2x (Double)</option><option value="0.25">0.25x (Quarter)</option></select></div>
@@ -27782,7 +28651,7 @@ self.onmessage = async function(e) {
         });
         o.querySelector('[data-modal-action]').addEventListener('click', () => this._doExportSettings(o));
         document.body.appendChild(o);
-        const requested = ['png','jpeg','webp','avif'].includes(String(initialFormat).toLowerCase()) ? String(initialFormat).toLowerCase() : 'png';
+        const requested = ['png','jpeg','webp','avif','svg','ico'].includes(String(initialFormat).toLowerCase()) ? String(initialFormat).toLowerCase() : 'png';
         const button = o.querySelector(`[data-fmt="${requested}"]`);
         requestAnimationFrame(() => {
             o.classList.add('show');
@@ -27797,7 +28666,7 @@ self.onmessage = async function(e) {
         const alpha = overlay.querySelector('#es-transparent');
         const matteRow = overlay.querySelector('#es-matte-row');
         const alphaHelp = overlay.querySelector('#es-alpha-help');
-        overlay.querySelector('#es-quality-row').style.display = fmt === 'png' ? 'none' : 'flex';
+        overlay.querySelector('#es-quality-row').style.display = (fmt === 'png' || fmt === 'svg' || fmt === 'ico') ? 'none' : 'flex';
         if (fmt === 'jpeg') {
             // Only record the preference on the way in; clicking JPEG twice
             // used to overwrite it with the forced-off value.
@@ -27806,6 +28675,16 @@ self.onmessage = async function(e) {
             alpha.disabled = true;
             matteRow.style.display = 'flex';
             alphaHelp.textContent = 'JPEG always uses a matte';
+        } else if (fmt === 'svg') {
+            alpha.disabled = false;
+            alpha.checked = true;
+            matteRow.style.display = 'none';
+            alphaHelp.textContent = 'SVG exports vector paths when available';
+        } else if (fmt === 'ico') {
+            alpha.disabled = false;
+            alpha.checked = true;
+            matteRow.style.display = 'none';
+            alphaHelp.textContent = 'ICO packs a 256px PNG into a real .ico container';
         } else {
             alpha.disabled = false;
             alpha.checked = alpha.dataset.previous ? alpha.dataset.previous === 'true' : true;
@@ -28425,7 +29304,8 @@ self.onmessage = async function(e) {
         owner.style.setProperty('anchor-name', anchor);
         surface.style.setProperty('position-anchor', anchor);
         surface.style.setProperty('position-area', area);
-        surface.setAttribute('popover', mode);
+        const isMenuRoot = owner.matches?.('.menu-bar > .menu-item');
+        surface.setAttribute('popover', isMenuRoot ? 'manual' : mode);
         surface.addEventListener('toggle', event => {
             const open = event.newState === 'open';
             if (!open) surface._osHoverOpened = false;
@@ -28472,6 +29352,97 @@ self.onmessage = async function(e) {
     },
 
     // ====================== CONTEXT MENU ======================
+    _presentContextMenu(e, items) {
+        const menu = document.getElementById('context-menu');
+        if (!menu || !items?.length) return;
+        let nativeAnchor = document.getElementById('context-menu-anchor');
+        this._ctxItems = [];
+        const flattenItems = (arr) => {
+            arr.forEach(it => { if (it.children) flattenItems(it.children); else this._ctxItems.push(it); });
+        };
+        flattenItems(items);
+        const renderItems = (arr, parent) => arr.forEach(it => {
+            if (it.sep) {
+                const sep = document.createElement('div');
+                sep.className = 'ctx-sep';
+                parent.appendChild(sep);
+                return;
+            }
+            const item = document.createElement('div');
+            item.className = 'ctx-item' + (it.children ? ' ctx-sub' : '');
+            const label = document.createElement('span');
+            label.textContent = this._safeText(it.label, 100);
+            item.appendChild(label);
+            if (it.key) {
+                const shortcut = document.createElement('span');
+                shortcut.className = 'ctx-shortcut';
+                shortcut.dataset.osShortcut = this._safeText(it.key, 30);
+                shortcut.textContent = this._displayShortcut(it.key);
+                item.appendChild(shortcut);
+            }
+            if (it.children) {
+                const submenu = document.createElement('div');
+                submenu.className = 'ctx-submenu';
+                renderItems(it.children, submenu);
+                item.appendChild(submenu);
+                if (this._anchorPopover(item, submenu, 'inline-end span-block-end')) {
+                    this._bindHoverPopover(item, submenu);
+                }
+            } else {
+                item.dataset.ctx = String(this._ctxItems.indexOf(it));
+            }
+            parent.appendChild(item);
+        });
+        this._clearNode(menu);
+        renderItems(items, menu);
+        menu.querySelectorAll('.ctx-item[data-ctx]').forEach(el => {
+            el.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const idx = +el.dataset.ctx;
+                if (this._ctxItems[idx] && this._ctxItems[idx].fn) this._ctxItems[idx].fn();
+                this._hidePopover(menu);
+                menu.classList.remove('visible');
+            });
+        });
+        if (nativeAnchor && this._nativePopoverUI) {
+            nativeAnchor.style.left = e.clientX + 'px';
+            nativeAnchor.style.top = e.clientY + 'px';
+            this._showPopover(menu);
+        } else {
+            const mw = 220, mh = Math.min(420, items.length * 28);
+            let mx = e.clientX, my = e.clientY;
+            if (mx + mw > window.innerWidth) mx = window.innerWidth - mw - 4;
+            if (my + mh > window.innerHeight) my = window.innerHeight - mh - 4;
+            menu.style.left = mx + 'px';
+            menu.style.top = my + 'px';
+            menu.classList.add('visible');
+        }
+    },
+    _showLayerListContextMenu(e, layerIndex) {
+        const layer = this.layers[layerIndex];
+        if (!layer) return;
+        const items = [
+            { label: 'Duplicate Layer', fn: () => { this.selectLayer(layerIndex); this.duplicateLayer(); }, key: 'Ctrl+J' },
+            { label: 'Delete Layer', fn: () => { this.selectLayer(layerIndex); this.deleteLayer(); }, key: 'Del' },
+            { sep: true },
+            { label: layer.visible === false ? 'Show Layer' : 'Hide Layer', fn: () => this.toggleLayerVisibility(layerIndex) },
+            { label: layer.locked ? 'Unlock Layer' : 'Lock Layer', fn: () => this.toggleLayerLock(layerIndex) },
+            { sep: true },
+            { label: 'Merge Down', fn: () => { this.selectLayer(layerIndex); this.mergeDown(); } },
+            { label: 'New Layer Above', fn: () => { this.selectLayer(layerIndex); this.addLayer(); } },
+            { sep: true },
+            { label: 'Rename…', fn: () => {
+                this.selectLayer(layerIndex);
+                const visual = document.getElementById('layers-visual') || document.querySelector('#layers-panel .layers-visual');
+                const rows = visual?.querySelectorAll?.('.layer-item');
+                const row = rows?.[layerIndex];
+                const nm = row?.querySelector?.('.layer-name');
+                if (nm) this.startRenameLayer(nm, layerIndex);
+                else this.toast('Double-click layer name to rename', 'info');
+            } },
+        ];
+        this._presentContextMenu(e, items);
+    },
     initContextMenu() {
         const ca = document.getElementById('canvas-area');
         const menu = document.getElementById('context-menu');
@@ -28560,72 +29531,14 @@ self.onmessage = async function(e) {
                 items.push({label:'Canvas Size...',fn:()=>this.showResize()});
                 items.push({label:'Image Info...',fn:()=>this.showImageInfo()});
             }
-            // Store items for click handler (flatten for indexing)
-            this._ctxItems = [];
-            const flattenItems = (arr) => {
-                arr.forEach(it => { if (it.children) flattenItems(it.children); else this._ctxItems.push(it); });
-            };
-            flattenItems(items);
-
-            const renderItems = (arr, parent) => arr.forEach(it => {
-                if (it.sep) {
-                    const sep = document.createElement('div');
-                    sep.className = 'ctx-sep';
-                    parent.appendChild(sep);
-                    return;
-                }
-                const item = document.createElement('div');
-                item.className = 'ctx-item' + (it.children ? ' ctx-sub' : '');
-                const label = document.createElement('span');
-                label.textContent = this._safeText(it.label, 100);
-                item.appendChild(label);
-                if (it.key) {
-                    const shortcut = document.createElement('span');
-                    shortcut.className = 'ctx-shortcut';
-                    shortcut.dataset.osShortcut = this._safeText(it.key, 30);
-                    shortcut.textContent = this._displayShortcut(it.key);
-                    item.appendChild(shortcut);
-                }
-                if (it.children) {
-                    const submenu = document.createElement('div');
-                    submenu.className = 'ctx-submenu';
-                    renderItems(it.children, submenu);
-                    item.appendChild(submenu);
-                    if (this._anchorPopover(item, submenu, 'inline-end span-block-end')) {
-                        this._bindHoverPopover(item, submenu);
-                    }
-                } else {
-                    item.dataset.ctx = String(this._ctxItems.indexOf(it));
-                }
-                parent.appendChild(item);
-            });
-
-            this._clearNode(menu);
-            renderItems(items, menu);
-            menu.querySelectorAll('.ctx-item[data-ctx]').forEach(el => {
-                el.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
-                    const idx = +el.dataset.ctx;
-                    if (this._ctxItems[idx] && this._ctxItems[idx].fn) this._ctxItems[idx].fn();
-                    this._hidePopover(menu);
-                    menu.classList.remove('visible');
-                });
-            });
-            if (nativeAnchor) {
-                nativeAnchor.style.left = e.clientX + 'px';
-                nativeAnchor.style.top = e.clientY + 'px';
-                this._showPopover(menu);
-            } else {
-                // Position with bounds check
-                const mw = 220, mh = items.length * 28;
-                let mx = e.clientX, my = e.clientY;
-                if (mx + mw > window.innerWidth) mx = window.innerWidth - mw - 4;
-                if (my + mh > window.innerHeight) my = window.innerHeight - mh - 4;
-                menu.style.left = mx + 'px';
-                menu.style.top = my + 'px';
-            }
-            menu.classList.add('visible');
+            this._presentContextMenu(e, items);
         });
+        // Outside click closes non-popover menu
+        document.addEventListener('pointerdown', (ev) => {
+            if (!menu.classList.contains('visible')) return;
+            if (menu.contains(ev.target)) return;
+            menu.classList.remove('visible');
+        }, true);
         if (!this._nativePopoverUI) {
             document.addEventListener('click', () => document.getElementById('context-menu').classList.remove('visible'));
         }
@@ -28771,6 +29684,7 @@ self.onmessage = async function(e) {
         g.classList.toggle('is-rail-hidden', hide);
         try { localStorage.setItem(key, hide ? '0' : '1'); } catch { /* ignore */ }
         this._syncViewMenuState();
+        this._syncCanvasLayoutForPanelRail?.();
     },
     _buildGradientStopsFromControls() {
         const from = document.getElementById('grad-from')?.value || this.state.gradFrom || '#6c8cff';
@@ -28996,13 +29910,29 @@ self.onmessage = async function(e) {
                 if (document.activeElement !== intended) this._restoreMenuKeyboardTarget(intended);
             });
         });
+        // pointerdown opens roots more reliably than click in WebView2 embeds
+        // (first-click races with host drag / NC hit-testing).
+        bar.addEventListener('pointerdown', event => {
+            if (event.button !== 0) return;
+            // Dropdown rows keep click handling; only open from the root label.
+            if (event.target?.closest?.('.menu-dropdown')) return;
+            const root = event.target?.closest?.('.menu-bar > .menu-item');
+            if (!root) return;
+            event.preventDefault();
+            event.stopPropagation();
+            bar.classList.remove('keyboard-nav');
+            this._menuKeyboardTarget = null;
+            this._toggleMenuPopupFromPointer(root);
+            this._focusMenuRoot(root);
+        });
         bar.addEventListener('click', event => {
             bar.classList.remove('keyboard-nav');
             this._menuKeyboardTarget = null;
             const root = event.target?.closest?.('.menu-bar > .menu-item');
-            if (root && event.target === root) {
-                this._toggleMenuPopupFromPointer(root);
-                this._focusMenuRoot(root);
+            if (root && !event.target?.closest?.('.menu-dropdown')) {
+                // Already handled on pointerdown — avoid immediate toggle-close.
+                event.preventDefault();
+                event.stopPropagation();
                 return;
             }
             // Resolve the innermost row first: a leaf inside "Export As" is a
@@ -29022,12 +29952,13 @@ self.onmessage = async function(e) {
             // A real command ran, so the whole tree collapses.
             this._closeAllMenus();
         });
+        document.addEventListener('pointerdown', event => {
+            if (bar.contains(event.target)) return;
+            this._closeAllMenus();
+        });
         if (!this._nativePopoverUI) {
             bar.addEventListener('focusout', event => {
                 if (!bar.contains(event.relatedTarget)) this._closeAllMenus();
-            });
-            document.addEventListener('pointerdown', event => {
-                if (!bar.contains(event.target)) this._closeAllMenus();
             });
         }
     },
@@ -29410,52 +30341,111 @@ self.onmessage = async function(e) {
     },
 
     // ====================== STICKY NOTES / ANNOTATIONS ======================
+    _ensureStickyHost() {
+        let container = document.getElementById('sticky-container');
+        const area = document.getElementById('canvas-area');
+        if (!container || !area) return container;
+        if (container.parentElement !== area) {
+            area.appendChild(container);
+            container.style.position = 'absolute';
+            container.style.inset = '0';
+            container.style.pointerEvents = 'none';
+            container.style.zIndex = '920';
+            container.style.overflow = 'hidden';
+        }
+        return container;
+    },
+    _clearStickyNotes() {
+        (this._stickyNotes || []).forEach((note) => {
+            try { note._osCleanup?.(); } catch { /* ignore */ }
+            note.remove();
+        });
+        this._stickyNotes = [];
+        const container = document.getElementById('sticky-container');
+        if (container) container.replaceChildren();
+    },
+    _syncStickyNotesToViewport() {
+        const vpt = this.canvas?.viewportTransform;
+        if (!vpt) return;
+        (this._stickyNotes || []).forEach((note) => {
+            const docX = Number(note.dataset.docX);
+            const docY = Number(note.dataset.docY);
+            if (!Number.isFinite(docX) || !Number.isFinite(docY)) return;
+            note.style.left = (docX * vpt[0] + vpt[4]) + 'px';
+            note.style.top = (docY * vpt[3] + vpt[5]) + 'px';
+        });
+    },
     addStickyNote(e) {
         const colors = ['#FFE066','#66D9E8','#D0BFFF','#FFB3B3','#A9E34B','#FFC078'];
         const color = colors[this._stickyNotes.length % colors.length];
-        const container = document.getElementById('sticky-container');
+        const container = this._ensureStickyHost();
+        if (!container || !this.canvas) return;
+        const ptr = this.canvas.getScenePoint?.(e) || { x: 200, y: 200 };
+        const vpt = this.canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
         const note = document.createElement('div');
         note.className = 'sticky-note';
         note.style.background = color;
-        note.style.left = (e.clientX || 200) + 'px';
-        note.style.top = (e.clientY || 200) + 'px';
+        note.dataset.docX = String(ptr.x);
+        note.dataset.docY = String(ptr.y);
+        note.style.left = (ptr.x * vpt[0] + vpt[4]) + 'px';
+        note.style.top = (ptr.y * vpt[3] + vpt[5]) + 'px';
         note.style.pointerEvents = 'all';
-        // Every note used to add permanent document-level listeners; an
-        // AbortController ties them to the note's lifetime instead.
         const controller = new AbortController();
         const { signal } = controller;
+        const removeNote = (ev) => {
+            ev?.preventDefault?.();
+            ev?.stopPropagation?.();
+            controller.abort();
+            note.remove();
+            this._stickyNotes = this._stickyNotes.filter(n => n !== note);
+            this.toast('Note deleted', 'info');
+        };
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'sticky-close';
         close.textContent = '×';
         close.setAttribute('aria-label', 'Delete note');
         close.title = 'Delete note';
-        close.addEventListener('click', () => {
-            controller.abort();
-            note.remove();
-            this._stickyNotes = this._stickyNotes.filter(n => n !== note);
-        }, { signal });
+        close.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); }, { signal });
+        close.addEventListener('click', removeNote, { signal });
         const textarea = document.createElement('textarea');
         textarea.placeholder = 'Type a note...';
         textarea.setAttribute('aria-label', 'Note text');
         note.append(close, textarea);
-        // Make draggable
-        let dragging = false, offX, offY;
-        note.addEventListener('mousedown', ev => {
-            if (ev.target.tagName === 'TEXTAREA' || ev.target.classList.contains('sticky-close')) return;
-            dragging = true; offX = ev.clientX - note.offsetLeft; offY = ev.clientY - note.offsetTop;
+        let dragging = false, grabDocX = 0, grabDocY = 0;
+        note.addEventListener('pointerdown', ev => {
+            if (ev.target === close || ev.target.closest?.('.sticky-close') || ev.target.tagName === 'TEXTAREA') return;
+            dragging = true;
+            const scene = this.canvas.getScenePoint(ev);
+            grabDocX = scene.x - Number(note.dataset.docX || 0);
+            grabDocY = scene.y - Number(note.dataset.docY || 0);
+            try { note.setPointerCapture?.(ev.pointerId); } catch { /* ignore */ }
+            ev.preventDefault();
+            ev.stopPropagation();
         }, { signal });
-        document.addEventListener('mousemove', ev => {
+        note.addEventListener('pointermove', ev => {
             if (!dragging) return;
-            note.style.left = (ev.clientX - offX) + 'px';
-            note.style.top = (ev.clientY - offY) + 'px';
+            const scene = this.canvas.getScenePoint(ev);
+            const docX = scene.x - grabDocX;
+            const docY = scene.y - grabDocY;
+            note.dataset.docX = String(docX);
+            note.dataset.docY = String(docY);
+            const vt = this.canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+            note.style.left = (docX * vt[0] + vt[4]) + 'px';
+            note.style.top = (docY * vt[3] + vt[5]) + 'px';
         }, { signal });
-        document.addEventListener('mouseup', () => { dragging = false; }, { signal });
+        note.addEventListener('pointerup', () => { dragging = false; }, { signal });
+        note.addEventListener('pointercancel', () => { dragging = false; }, { signal });
+        note.addEventListener('keydown', (ev) => {
+            if ((ev.key === 'Delete' || ev.key === 'Backspace') && document.activeElement !== textarea) {
+                removeNote(ev);
+            }
+        }, { signal });
         note._osCleanup = () => controller.abort();
         container.appendChild(note);
         this._stickyNotes.push(note);
-        note.querySelector('textarea').focus();
-        this.toast('Note added', 'info');
+        textarea.focus();
+        this.toast('Note added — click × or Delete to remove', 'info');
     },
 
     // ====================== COLOR PALETTES ======================
@@ -30160,8 +31150,19 @@ self.onmessage = async function(e) {
                     if (!this._tempPanning) {
                         this._tempPanning = true;
                         this._prevCursor = this.canvas.defaultCursor;
+                        this._prevHover = this.canvas.hoverCursor;
+                        this._prevSelection = this.canvas.selection;
+                        this._panLockedObjects = [];
+                        this.canvas.selection = false;
+                        this.canvas.discardActiveObject();
+                        this.canvas.forEachObject((o) => {
+                            this._panLockedObjects.push({ o, selectable: o.selectable, evented: o.evented });
+                            o.selectable = false;
+                            o.evented = false;
+                        });
                         this.canvas.defaultCursor = 'grab';
                         this.canvas.hoverCursor = 'grab';
+                        this.canvas.requestRenderAll();
                     }
                     return;
                 case 'Tab':
@@ -30203,10 +31204,19 @@ self.onmessage = async function(e) {
         document.addEventListener('keyup', e => {
             if (e.key === ' ' && this._tempPanning) {
                 this._tempPanning = false;
+                if (Array.isArray(this._panLockedObjects)) {
+                    this._panLockedObjects.forEach((entry) => {
+                        entry.o.selectable = entry.selectable;
+                        entry.o.evented = entry.evented;
+                    });
+                    this._panLockedObjects = null;
+                }
+                this.canvas.selection = this._prevSelection !== undefined ? this._prevSelection : (this.state.tool === 'select');
                 this.canvas.defaultCursor = this._prevCursor || 'crosshair';
-                // Restore hover cursor based on current tool
+                this.canvas.hoverCursor = this._prevHover || 'crosshair';
                 if (this.state.tool === 'select') { this.canvas.defaultCursor = 'default'; this.canvas.hoverCursor = 'move'; }
-                else { this.canvas.hoverCursor = 'crosshair'; }
+                else if (this.state.tool === 'pan') { this.canvas.defaultCursor = 'grab'; this.canvas.hoverCursor = 'grab'; }
+                this.canvas.requestRenderAll();
             }
         });
     },
@@ -30531,10 +31541,30 @@ self.onmessage = async function(e) {
     freeTransform() {
         const active = this.canvas.getActiveObject();
         if (!active || active.name === '__boundary__') { this.toast('Select an object first', 'info'); return; }
-        active.set({ hasControls: true, hasBorders: true, lockRotation: false, lockScalingX: false, lockScalingY: false, cornerStyle: 'circle', cornerColor: this._themeColor('--accent', '#6c8cff'), transparentCorners: false });
+        this._syncActiveTransformControls(active);
         this.canvas.setActiveObject(active);
         this.canvas.requestRenderAll();
         this.toast('Free Transform - drag handles to resize/rotate', 'info');
+    },
+    _syncActiveTransformControls(active = this.canvas?.getActiveObject?.()) {
+        if (!active || active.name === '__boundary__') return;
+        active.set({
+            hasControls: this.state.showTransformControls !== false,
+            hasBorders: this.state.showTransformControls !== false,
+            lockRotation: false,
+            lockScalingX: false,
+            lockScalingY: false,
+            hasRotatingPoint: true,
+            transparentCorners: false,
+            cornerStyle: 'circle',
+            cornerColor: '#ffffff',
+            cornerStrokeColor: '#6c8cff',
+            borderColor: '#6c8cff',
+            cornerSize: 11,
+        });
+        if (active.type === 'activeSelection' && active.forEachObject) {
+            active.forEachObject(child => this._syncActiveTransformControls(child));
+        }
     },
     mergeVisibleLayers() {
         const visible = this.layers.filter(l => l.visible);
@@ -32305,7 +33335,7 @@ self.onmessage = async function(e) {
     // in the nearest open-source rival (miniPaint#312). The mode is captured
     // when the gesture starts, because by the time a marquee is released the
     // modifier is often already back up.
-    _selectionCombineTools: new Set(['marquee-rect','marquee-ellipse','magic-wand','lasso','lasso-polygonal','lasso-magnetic','quick-selection','ai-segment']),
+    _selectionCombineTools: new Set(['marquee-rect','marquee-ellipse','marquee-row','marquee-column','magic-wand','lasso','lasso-polygonal','lasso-magnetic','quick-selection','ai-segment']),
     _selectionCombine: 'replace',
     // What the toolbar is set to. A held modifier wins for that one gesture.
     _selectionCombineDefault: 'replace',
@@ -34357,6 +35387,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     try {
         window.OS = OS;
         window.__BNDZ_STUDIO_CHROME__?.install?.(OS);
+        window.__BNDZ_STUB_TOOLS__?.install?.(OS);
         OS.init();
     } catch (error) {
         renderBootFailure('editor initialization', error);
@@ -34385,6 +35416,8 @@ window.addEventListener('DOMContentLoaded', async () => {
             } catch { /* ignore */ }
             g.classList.toggle('is-rail-hidden', hidden);
         });
+        // Titles stamped — restore dock side + panel stack order from last session.
+        try { OS._bndzRestorePanelDock?.(); } catch { /* ignore */ }
         // Far-right panel rail
         document.querySelectorAll('#bndz-panel-rail [data-rail]').forEach((btn) => {
             btn.addEventListener('click', (e) => {

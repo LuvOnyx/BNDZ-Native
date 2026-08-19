@@ -68,6 +68,8 @@ public sealed partial class CraftPaneHost : UserControl
 	public CraftPaneHost()
 	{
 		InitializeComponent();
+		Loaded += (_, _) => SyncRasterizationScale();
+		ActualThemeChanged += (_, _) => SyncRasterizationScale();
 		Unloaded += (_, _) =>
 		{
 			if (_pushHandler != null)
@@ -171,6 +173,18 @@ public sealed partial class CraftPaneHost : UserControl
 			core.Settings.IsZoomControlEnabled = false;
 			core.Settings.IsGeneralAutofillEnabled = false;
 			core.Settings.IsPasswordAutosaveEnabled = false;
+			core.ContextMenuRequested += (_, e) => e.Handled = true;
+			SyncRasterizationScale();
+			if (XamlRoot is not null)
+				XamlRoot.Changed += (_, _) => SyncRasterizationScale();
+			// Desktop → studio canvas: OLE host drop + React studioDropBridge (WinUI WebView2
+			// has no AllowExternalDrop XAML API like WPF; do not set a missing member).
+			try
+			{
+				var prop = PaneWebView.GetType().GetProperty("AllowExternalDrop");
+				prop?.SetValue(PaneWebView, true);
+			}
+			catch (Exception dropEx) { Debug.WriteLine($"[CraftPaneHost] AllowExternalDrop: {dropEx.Message}"); }
 			// Let WinUI ExtendsContentIntoTitleBar caption buttons receive clicks over WebView2.
 			try { core.Settings.IsNonClientRegionSupportEnabled = true; }
 			catch (Exception ncEx) { Debug.WriteLine($"[CraftPaneHost] IsNonClientRegionSupportEnabled: {ncEx.Message}"); }
@@ -195,6 +209,12 @@ public sealed partial class CraftPaneHost : UserControl
 				CoreWebView2WebResourceContext.All);
 			core.AddWebResourceRequestedFilter(
 				"http://bndz.local/local-stream/*",
+				CoreWebView2WebResourceContext.All);
+			core.AddWebResourceRequestedFilter(
+				$"{BndzMediaScheme.CustomScheme}:*",
+				CoreWebView2WebResourceContext.All);
+			core.AddWebResourceRequestedFilter(
+				"http://bndz.local/assets/native-icon/*",
 				CoreWebView2WebResourceContext.All);
 			core.WebResourceRequested += Core_WebResourceRequested;
 
@@ -269,16 +289,19 @@ public sealed partial class CraftPaneHost : UserControl
 
 			// Native-feel compositor: D3D11 GPU path + zero-copy. Drag regions via
 			// IsNonClientRegionSupportEnabled only (not legacy msWebView2EnableDraggableRegions).
+			// --disable-frame-rate-limit: compositor follows monitor Hz (not Chromium's 60 cap).
+			// --disable-smooth-scrolling: 1:1 wheel like Explorer, not eased browser scroll.
 			var options = new CoreWebView2EnvironmentOptions
 			{
 				AdditionalBrowserArguments =
 					"--enable-gpu --enable-gpu-rasterization --enable-gpu-compositing --enable-zero-copy " +
 					"--use-angle=d3d11 --enable-features=CanvasOopRasterization " +
 					"--disable-features=CalculateNativeWinOcclusion,msExperimentalScrolling " +
-					"--ignore-gpu-blocklist " +
+					"--disable-frame-rate-limit --disable-smooth-scrolling --ignore-gpu-blocklist " +
 					"--unsafely-treat-insecure-origin-as-secure=http://bndz.local,https://bndz.local",
 			};
 			options.CustomSchemeRegistrations.Add(streamScheme);
+			options.CustomSchemeRegistrations.Add(BndzMediaSchemeHost.CreateRegistration());
 
 			s_sharedPaneEnv = await CoreWebView2Environment
 				.CreateWithOptionsAsync(null, profileDir, options)
@@ -292,14 +315,33 @@ public sealed partial class CraftPaneHost : UserControl
 		}
 	}
 
+	private void SyncRasterizationScale()
+	{
+		try
+		{
+			var scale = XamlRoot?.RasterizationScale ?? 1.0;
+			if (scale > 0.1 && Math.Abs(PaneWebView.RasterizationScale - scale) > 0.001)
+				PaneWebView.RasterizationScale = scale;
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] RasterizationScale: {ex.Message}");
+		}
+	}
+
 	private void Core_WebResourceRequested(CoreWebView2 sender, CoreWebView2WebResourceRequestedEventArgs e)
 	{
 		try
 		{
-			var uri = e.Request.Uri;
-			if (!BndzLocalStreamService.IsStreamRequest(uri))
-				return;
 			if (_webEnv is null)
+				return;
+			var uri = e.Request.Uri;
+			if (BndzMediaScheme.IsMediaRequest(uri))
+			{
+				BndzMediaSchemeHost.Serve(_webEnv, e);
+				return;
+			}
+			if (!BndzLocalStreamService.IsStreamRequest(uri))
 				return;
 			var localPath = BndzLocalStreamService.ParseLocalStreamPath(uri);
 			BndzLocalStreamService.ServeLocalFile(_webEnv, e, localPath);

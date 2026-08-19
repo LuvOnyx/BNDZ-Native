@@ -116,6 +116,7 @@ namespace BNDZ.Services
         private Action? _hostCloseAction;
         private Action? _hostHideToTrayAction;
         private Action? _hostRestoreFromTrayAction;
+        private Func<string, string?, string?, bool>? _openPluginWindowAction;
 
         // Headless: no real WebView2 — stub so leftover chrome helpers compile; IPC never uses it.
         private sealed class HeadlessWebViewStub
@@ -173,6 +174,7 @@ namespace BNDZ.Services
         {
             if (hwnd == IntPtr.Zero) return;
             _hostWindowHandle = hwnd;
+            try { ModernShareHelper.SetOwnerHwnd(hwnd); } catch { /* ignore */ }
             try { _automationRunnerDeps.HostWindow = hwnd; } catch { /* ignore */ }
         }
 
@@ -180,6 +182,7 @@ namespace BNDZ.Services
         public void SetHostCloseAction(Action? closeAction)
         {
             _hostCloseAction = closeAction;
+            try { _shellIntegrationService.ExitHost = closeAction; } catch { /* ignore */ }
         }
 
         /// <summary>WinUI tray hide/restore (NotifyIcon). Replaces WPF SystemTrayService in headless shell.</summary>
@@ -187,6 +190,12 @@ namespace BNDZ.Services
         {
             _hostHideToTrayAction = hideToTray;
             _hostRestoreFromTrayAction = restoreFromTray;
+        }
+
+        /// <summary>Open plugin/sticky pop-outs in-process so they share the embedded backend.</summary>
+        public void SetOpenPluginWindowAction(Func<string, string?, string?, bool>? action)
+        {
+            _openPluginWindowAction = action;
         }
 
         /// <summary>WinUI forwards WM_DEVICECHANGE so Drives list live-updates on USB insert/eject.</summary>
@@ -202,6 +211,10 @@ namespace BNDZ.Services
         {
             _pushWebMessage = pushWebMessage;
             _hostWindowHandle = hostWindowHandle;
+            if (hostWindowHandle != IntPtr.Zero)
+            {
+                try { ModernShareHelper.SetOwnerHwnd(hostWindowHandle); } catch { /* ignore */ }
+            }
             _fileService = fileService;
             _aiService = aiService;
             _localAi = localAi;
@@ -531,8 +544,15 @@ namespace BNDZ.Services
                     ? "Sticky"
                     : (!string.IsNullOrWhiteSpace(_pendingPluginId) ? _pendingPluginId : "Plugin");
             Title = $"BNDZ · {label}";
-            // Sticky widgets behave like desktop notes — stay above other windows.
+            // Sticky widgets behave like desktop notes — stay above other windows, no caption chrome.
             Topmost = stickyMode;
+            if (stickyMode)
+            {
+                WindowStyle = WindowStyle.None;
+                AllowsTransparency = true;
+                ResizeMode = ResizeMode.CanResizeWithGrip;
+                Background = System.Windows.Media.Brushes.Transparent;
+            }
         }
 
         private void PersistWindowPlacementIntoSettings()
@@ -2571,8 +2591,9 @@ namespace BNDZ.Services
                     // the WebView message pump at first paint.
                     _ = Task.Run(() =>
                     {
-                        try { InboundVolumeService.Instance.StartWatching(); } catch { }
                         try { InboundVolumeService.Instance.PurgeExpired(); } catch { }
+                        try { InboundVolumeService.Instance.CapStoredEntries(48); } catch { }
+                        try { CaptureInboxService.Instance.CapStoredCaptures(48); } catch { }
                         try { WarmKnownFolderGlyphs(); } catch { }
                     });
                 }
@@ -5973,7 +5994,6 @@ namespace BNDZ.Services
                 else if (type == "GET_THUMBNAILS_BATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                     int thumbSize = 96;
                     List<string> paths = new();
                     try
@@ -6000,50 +6020,30 @@ namespace BNDZ.Services
 
                     var pathsCopy = paths;
                     var sizeCopy = thumbSize;
+                    var nativeSvc = _nativeShellService;
 
                     _ = Task.Run(async () =>
                     {
-                        var ran = await BndzIpcWorkQueue.TryRunThumbnailAsync(() =>
+                        Dictionary<string, string?> results;
+                        try
                         {
-                            var nativeSvc = _nativeShellService;
-                            foreach (var path in pathsCopy)
-                            {
-                                try
-                                {
-                                    var b64 = BndzHostCaches.ResolveThumbnailDelivery(
-                                        path,
-                                        sizeCopy,
-                                        () => nativeSvc.GetNativeThumbnailBase64(path, sizeCopy) ?? "");
-                                    results[path] = string.IsNullOrEmpty(b64) ? null : b64;
-                                }
-                                catch
-                                {
-                                    results[path] = null;
-                                }
-                            }
-
-                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                            PostToUi(() =>
-                            {
-                                try { DeliverIpcJson(responseJson); }
-                                catch { }
-                            });
-                            return Task.CompletedTask;
-                        }, waitMs: 8000).ConfigureAwait(false);
-
-                        if (!ran)
-                        {
-                            var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
-                            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            string responseJson = JsonSerializer.Serialize(response, jsonOptions);
-                            PostToUi(() =>
-                            {
-                                try { DeliverIpcJson(responseJson); }
-                                catch { }
-                            });
+                            results = await BndzIconBatchWork.ResolveThumbnailsAsync(pathsCopy, sizeCopy, nativeSvc).ConfigureAwait(false);
                         }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"GET_THUMBNAILS_BATCH failed: {ex.Message}");
+                            results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var path in pathsCopy) results[path] = null;
+                        }
+
+                        var response = new { type = "THUMBNAILS_BATCH_RESULT", id = idProp, payload = results };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        string responseJson = JsonSerializer.Serialize(response, jsonOptions);
+                        PostToUi(() =>
+                        {
+                            try { DeliverIpcJson(responseJson); }
+                            catch { }
+                        });
                     });
                 }
                 else if (type == "GET_EXTENDED_METADATA")
@@ -6384,6 +6384,21 @@ namespace BNDZ.Services
                             error = "Missing pluginId.";
                         else
                         {
+                            var openedInProcess = false;
+                            try
+                            {
+                                openedInProcess = _openPluginWindowAction?.Invoke(pluginId, stickyId, title) == true;
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[IPC] in-process plugin window: {ex.Message}");
+                            }
+                            if (openedInProcess)
+                            {
+                                ok = true;
+                            }
+                            else
+                            {
                             var exe = Environment.ProcessPath
                                 ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
                             if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe))
@@ -6456,6 +6471,7 @@ namespace BNDZ.Services
                                     error = "Failed to start plugin window process.";
                                 else
                                     ok = true;
+                            }
                             }
                         }
                     }
@@ -7076,7 +7092,6 @@ namespace BNDZ.Services
                 else if (type == "GET_SHELL_ICONS_BATCH")
                 {
                     var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
-                    var results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                     int batchSize = 48;
                     try
                     {
@@ -7087,46 +7102,46 @@ namespace BNDZ.Services
                     }
                     catch { }
 
-                    var sizeCopy = batchSize;
-                    _ = Task.Run(() =>
+                    var work = new List<BndzIconBatchWork.ShellItem>();
+                    try
                     {
+                        if (root.TryGetProperty("payload", out var batchPayload)
+                            && batchPayload.TryGetProperty("items", out var itemsEl))
+                        {
+                            foreach (var item in itemsEl.EnumerateArray())
+                            {
+                                string rawPath = item.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
+                                bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
+                                int itemSize = batchSize;
+                                if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
+                                    itemSize = Math.Clamp(isz <= 0 ? batchSize : isz, 16, 512);
+                                string path = ShellPathResolver.ResolveForShell(rawPath);
+                                if (string.IsNullOrEmpty(path)) continue;
+
+                                if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:\\?$"))
+                                    isDir = false;
+
+                                work.Add(new BndzIconBatchWork.ShellItem(path, isDir, itemSize));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Batch icon parse: {ex.Message}");
+                    }
+
+                    var nativeSvc = _nativeShellService;
+                    _ = Task.Run(async () =>
+                    {
+                        Dictionary<string, string?> results;
                         try
                         {
-                            if (root.TryGetProperty("payload", out var batchPayload)
-                                && batchPayload.TryGetProperty("items", out var itemsEl))
-                            {
-                                foreach (var item in itemsEl.EnumerateArray())
-                                {
-                                    string rawPath = item.TryGetProperty("path", out var pEl) ? pEl.GetString() ?? "" : "";
-                                    bool isDir = item.TryGetProperty("isDirectory", out var dEl) && dEl.GetBoolean();
-                                    int itemSize = sizeCopy;
-                                    if (item.TryGetProperty("size", out var iSz) && iSz.TryGetInt32(out var isz))
-                                        itemSize = Math.Clamp(isz <= 0 ? sizeCopy : isz, 16, 512);
-                                    string path = ShellPathResolver.ResolveForShell(rawPath);
-                                    if (string.IsNullOrEmpty(path)) continue;
-
-                                    if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^[A-Za-z]:\\?$"))
-                                        isDir = false;
-
-                                    string? extracted = null;
-                                    try
-                                    {
-                                        int sz = itemSize;
-                                        extracted = BndzHostCaches.ResolveIconBase64(
-                                            path,
-                                            isDir,
-                                            () => _nativeShellService.GetNativeShellIconBase64(path, isDir, sz) ?? "",
-                                            sz);
-                                    }
-                                    catch { }
-
-                                    results[path] = string.IsNullOrEmpty(extracted) ? null : extracted;
-                                }
-                            }
+                            results = await BndzIconBatchWork.ResolveShellIconsAsync(work, nativeSvc).ConfigureAwait(false);
                         }
                         catch (Exception ex)
                         {
                             System.Diagnostics.Debug.WriteLine($"Batch icon error: {ex.Message}");
+                            results = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                         }
 
                         var response = new { type = "SHELL_ICONS_BATCH_RESULT", id = idProp, payload = results };
@@ -8200,6 +8215,32 @@ namespace BNDZ.Services
                         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                         PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
                     }
+                }
+                else if (type == "GET_SYSTEM_FONTS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    _ = Task.Run(() =>
+                    {
+                        var families = new List<string>();
+                        try
+                        {
+                            using var col = new System.Drawing.Text.InstalledFontCollection();
+                            foreach (var font in col.Families)
+                            {
+                                if (!string.IsNullOrWhiteSpace(font.Name))
+                                    families.Add(font.Name);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[IPC] GET_SYSTEM_FONTS: {ex.Message}");
+                        }
+                        families.Sort(StringComparer.CurrentCultureIgnoreCase);
+                        var distinct = families.Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
+                        var response = new { type = "SYSTEM_FONTS_RESULT", id = idProp, payload = new { families = distinct } };
+                        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                        PostToUi(() => DeliverIpcJson(JsonSerializer.Serialize(response, jsonOptions)));
+                    });
                 }
                 else if (type == "SET_BNDZ_META")
                 {

@@ -612,6 +612,7 @@ function matchesColorFilter(
   expr: string,
   ctx: { name: string; ext: string; attrs: string[]; size: number; modified: Date | null; entity: any }
 ): boolean {
+  if (typeof expr !== 'string' || !expr) return false;
   const lower = expr.toLowerCase();
 
   if (expr.startsWith('*.') || expr.includes(';')) {

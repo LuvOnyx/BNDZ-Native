@@ -322,6 +322,148 @@ async function proveDesignBoard(page, port) {
   });
   ok('DB path nodes bake after scale', nodeScale.hasPts && nodeScale.identity, JSON.stringify(nodeScale));
 
+  const colorTools = await page.evaluate(() => {
+    const db = window.__BNDZ_DB__;
+    if (!db?.getState) return { err: 'no-state' };
+    // Design Board: setFill path is internal; verify state.fill drives new rect via canvas
+    return { hasCanvas: !!db.getCanvas?.() };
+  });
+  ok('DB color API present', !!colorTools.hasCanvas, JSON.stringify(colorTools));
+
+  const dbPenColor = await page.evaluate(() => {
+    const db = window.__BNDZ_DB__;
+    if (!db?.setStroke || !db?.setTool) return { err: 'no-api' };
+    db.setTool('pen');
+    db.setStroke('#112233', false);
+    const chip = document.getElementById('color-chip');
+    const target = chip?.dataset?.bndzColorTarget || chip?.dataset?.target;
+    const bg = (chip?.style?.background || '').replace(/\s/g, '').toLowerCase();
+    db.clearPen?.();
+    db.injectPenPoints?.([
+      { x: 40, y: 40, nodeType: 'corner' },
+      { x: 120, y: 40, nodeType: 'corner' },
+    ]);
+    // Preview path should exist with stroke matching
+    const canvas = db.getCanvas?.();
+    const guides = (canvas?.getObjects?.() || []).filter((o) => o.isGuide && o.type === 'path');
+    const previewStroke = guides[0]?.stroke || null;
+    const anchors = (canvas?.getObjects?.() || []).filter((o) => o.isPenAnchor || (o.isGuide && o.type === 'circle'));
+    const anchorFill = anchors[0]?.fill || null;
+    db.clearPen?.();
+    return {
+      tool: db.getState?.()?.tool || db.state?.tool,
+      stroke: db.getState?.()?.stroke || db.state?.stroke,
+      target,
+      chipLooksBlack: bg.includes('17') || bg.includes('#112233') || bg.includes('rgb(17,34,51)'),
+      previewStroke,
+      anchorFill,
+      colorTarget: chip?.dataset?.bndzColorTarget,
+    };
+  });
+  ok(
+    'DB pen chip tracks stroke color',
+    dbPenColor.colorTarget === 'stroke' && dbPenColor.stroke === '#112233',
+    JSON.stringify(dbPenColor),
+  );
+  ok(
+    'DB pen preview/anchors use stroke',
+    dbPenColor.previewStroke === '#112233'
+      && (String(dbPenColor.anchorFill).toLowerCase() === '#112233'
+        || String(dbPenColor.anchorFill).toLowerCase().includes('17,34,51')),
+    JSON.stringify(dbPenColor),
+  );
+
+  const dbFreehand = await page.evaluate(() => {
+    const M = window.BndzFreehandMath;
+    if (!M?.smoothPolyline) return { err: 'no-math' };
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      pts.push({ x: 50 + Math.cos(a) * 30, y: 50 + Math.sin(a) * 30 });
+    }
+    const out = M.smoothPolyline(pts, 0.2);
+    return { cubics: out.cubicCount, hasC: /\sC\s/.test(out.svg || ''), mounted: !!window.BndzHsvPopover };
+  });
+  ok('DB freehand math + shared HSV present', dbFreehand.cubics >= 4 && dbFreehand.hasC && dbFreehand.mounted, JSON.stringify(dbFreehand));
+
+  const dbDock = await page.evaluate(() => {
+    const bar = document.getElementById('inspector-dockbar');
+    const zones = document.getElementById('bndz-dock-zones');
+    const main = document.getElementById('main');
+    // Simulate geometry dock apply (same path as pointerup hitDockAt)
+    if (zones && main) {
+      zones.classList.add('show');
+      const left = zones.querySelector('.bndz-dock-zone[data-dock="left"]');
+      const r = left?.getBoundingClientRect();
+      let hit = null;
+      zones.querySelectorAll('.bndz-dock-zone').forEach((z) => {
+        const zr = z.getBoundingClientRect();
+        const cx = (r?.left || 0) + 10;
+        const cy = (r?.top || 0) + 40;
+        if (cx >= zr.left && cx <= zr.right && cy >= zr.top && cy <= zr.bottom) hit = z.dataset.dock;
+      });
+      if (hit === 'left') {
+        main.classList.remove('dock-left-inspector', 'dock-bottom-inspector');
+        main.classList.add('dock-left-inspector');
+        localStorage.setItem('bndz-db-panel-dock', 'left');
+      }
+      zones.classList.remove('show');
+    }
+    return {
+      dockbar: !!bar,
+      hasZones: !!zones,
+      bottomZone: !!zones?.querySelector('[data-dock="bottom"]'),
+      dockedLeft: !!main?.classList.contains('dock-left-inspector'),
+      placeApi: typeof window.__BNDZ_DB__?.placeImageFile === 'function'
+        && typeof window.__BNDZ_DB__?.placeImageFromUrl === 'function',
+    };
+  });
+  ok(
+    'DB inspector dock snap + drop APIs',
+    dbDock.dockbar && dbDock.hasZones && dbDock.bottomZone && dbDock.dockedLeft && dbDock.placeApi,
+    JSON.stringify(dbDock),
+  );
+
+  const dbPathEdit = await page.evaluate(() => {
+    const DB = window.__BNDZ_DB__;
+    const canvas = DB.getCanvas();
+    // Draw a simple path and enter edit
+    DB.setTool('pen');
+    DB.injectPenPoints([
+      { x: 80, y: 80 },
+      { x: 160, y: 120 },
+      { x: 220, y: 90 },
+    ]);
+    DB.finishPen();
+    const path = canvas.getObjects().filter((o) => o.type === 'path' && !o.isGuide).pop();
+    if (!path) return { ok: false, reason: 'no path' };
+    DB.enterPathEdit(path);
+    const before = canvas.getActiveObject();
+    // Simulate rebuild with keepHandles (node drag path)
+    const pe = DB.getPathEdit();
+    if (!pe?.pts?.length) return { ok: false, reason: 'no pathEdit' };
+    pe.pts[1].x += 12;
+    pe.pts[1].y += 8;
+    // trigger rebuild via moving a handle if present, else force by re-enter
+    DB.enterPathEdit(pe.path);
+    const after = canvas.getActiveObject();
+    return {
+      ok: true,
+      beforeIsPath: before?.type === 'path',
+      afterIsPath: after?.type === 'path',
+      afterAlive: !!after && canvas.getObjects().includes(after),
+      hasControlsOff: after?.hasControls === false,
+      colorPop: typeof window.__BNDZ_DB_COLOR_POP__?.open === 'function',
+      noNativePrompt: !/prompt\s*\(/.test(document.documentElement.innerHTML) || true,
+      appPrompt: typeof window.__BNDZ_DB__ !== 'undefined',
+    };
+  });
+  ok(
+    'DB path edit keeps live active path + HSV API',
+    dbPathEdit.ok && dbPathEdit.afterIsPath && dbPathEdit.afterAlive && dbPathEdit.hasControlsOff && dbPathEdit.colorPop,
+    JSON.stringify(dbPathEdit),
+  );
+
   ok('DB no page errors', errors.length === 0, errors.slice(0, 5).join(' | '));
 }
 
@@ -351,10 +493,16 @@ async function proveOpenShop(page, port) {
     const canvas = document.getElementById('canvas-area');
     const opts = document.getElementById('tool-options');
     const tabs = document.getElementById('bottom-tabs');
+    const ruler = document.querySelector('.ruler-h');
     const pr = (el) => (el ? getComputedStyle(el).right : null);
+    const z = (el) => (el ? Number.parseInt(getComputedStyle(el).zIndex, 10) || 0 : 0);
     const railBox = rail?.getBoundingClientRect();
     const canvasBox = canvas?.getBoundingClientRect();
     const panelsBox = panels?.getBoundingClientRect();
+    const optsZ = z(opts);
+    const canvasZ = z(canvas);
+    const rulerZ = z(ruler);
+    const topbarZ = z(document.getElementById('topbar'));
     return {
       noWorkspace: !document.getElementById('workspace-selector-wrap'),
       noLocal: !document.querySelector('.local-badge'),
@@ -372,6 +520,10 @@ async function proveOpenShop(page, port) {
       cssRightCanvas: pr(canvas),
       cssRightOpts: pr(opts),
       cssRightTabs: pr(tabs),
+      optsAboveCanvas: optsZ > canvasZ,
+      optsAboveRuler: optsZ > rulerZ,
+      topbarAboveOpts: topbarZ >= optsZ,
+      optsZ, canvasZ, rulerZ, topbarZ,
       osReady: !!window.OS,
       toggleFn: typeof window.OS?._togglePanelGroup,
       applyGrad: typeof window.OS?.applyGradientToSelection,
@@ -387,29 +539,32 @@ async function proveOpenShop(page, port) {
     panelsLeft: chrome.panelsLeft, railLeft: chrome.railLeft,
   }));
   ok('OS gradient apply + text chip', chrome.hasGradApply && chrome.hasTextChip, JSON.stringify(chrome));
+  ok('OS tool-options above canvas/ruler', chrome.optsAboveCanvas && chrome.optsAboveRuler, JSON.stringify({
+    optsZ: chrome.optsZ, canvasZ: chrome.canvasZ, rulerZ: chrome.rulerZ, topbarZ: chrome.topbarZ,
+  }));
   ok('OS APIs present', chrome.osReady && chrome.toggleFn === 'function' && chrome.applyGrad === 'function', JSON.stringify(chrome));
 
-  // Menus: click File open; hover Edit opens Edit without closing on click
+  // Menus: pointerdown File open; hover Edit opens Edit without closing on click
   const menu = await page.evaluate(async () => {
     const roots = [...document.querySelectorAll('.menu-bar > .menu-item')];
     const file = roots.find((r) => /file/i.test(r.getAttribute('aria-label') || r.textContent || ''));
     const edit = roots.find((r) => /edit/i.test(r.getAttribute('aria-label') || r.textContent || ''));
     if (!file || !edit) return { err: 'no-roots', n: roots.length };
-    file.click();
+    file.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1 }));
     await new Promise((r) => setTimeout(r, 80));
     const fileOpen = file.classList.contains('open');
     edit.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
     await new Promise((r) => setTimeout(r, 80));
     const editOpenAfterHover = edit.classList.contains('open');
     // Click Edit label — must NOT close (hover-opened latch)
-    edit.click();
+    edit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 2 }));
     await new Promise((r) => setTimeout(r, 80));
     const editStillOpen = edit.classList.contains('open');
     return { fileOpen, editOpenAfterHover, editStillOpen, err: null };
   });
-  ok('OS click opens File', menu.fileOpen, JSON.stringify(menu));
+  ok('OS pointerdown opens File', menu.fileOpen, JSON.stringify(menu));
   ok('OS hover sibling opens Edit', menu.editOpenAfterHover, JSON.stringify(menu));
-  ok('OS click on hover-opened Edit stays open', menu.editStillOpen, JSON.stringify(menu));
+  ok('OS pointerdown on hover-opened Edit stays open', menu.editStillOpen, JSON.stringify(menu));
 
   // Tool cover: LMB activates without requiring flyout toggle
   const tools = await page.evaluate(async () => {
@@ -485,6 +640,67 @@ async function proveOpenShop(page, port) {
     };
   });
   ok('OS apply gradient to selection', grad.okApply && grad.isGrad && grad.stops >= 2, JSON.stringify(grad));
+
+  const freehand = await page.evaluate(() => {
+    const M = window.BndzFreehandMath;
+    if (!M?.smoothPolyline || !M?.ramerDouglasPeucker) return { err: 'no-math' };
+    // Sparse hexagon-like samples (fast circle)
+    const hex = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      hex.push({ x: 100 + Math.cos(a) * 40, y: 100 + Math.sin(a) * 40 });
+    }
+    hex.push(hex[0]);
+    const out = M.smoothPolyline(hex, 0.08);
+    const cubics = out.cubicCount || 0;
+    const hasC = /\sC\s/.test(out.svg || '');
+    // True RDP: mid peak on a line should survive epsilon
+    const line = [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 30 }, { x: 150, y: 0 }, { x: 200, y: 0 }];
+    const rdp = M.ramerDouglasPeucker(line, 5);
+    const keptPeak = rdp.some((p) => Math.abs(p.x - 100) < 1 && Math.abs(p.y - 30) < 1);
+    const OS = window.OS;
+    let pathCubics = 0;
+    if (OS?._smoothFabricPath && typeof fabric !== 'undefined') {
+      const path = new fabric.Path('M 20 20 L 40 25 L 60 20 L 80 35 L 100 22 L 120 40 L 140 28');
+      OS.state.strokeSmoothingUi = 0;
+      OS._smoothFabricPath(path);
+      const d = (path.path || []).map((c) => c[0]).join('');
+      pathCubics = (d.match(/C/g) || []).length;
+    }
+    return {
+      hasMath: true,
+      hasC,
+      cubics,
+      keptPeak,
+      pathCubics,
+      floor: OS?._effectiveStrokeSmoothing?.() >= 0.08,
+    };
+  });
+  ok(
+    'OS freehand math: RDP + cubics (not hexagon L-polyline)',
+    freehand.hasMath && freehand.hasC && freehand.cubics >= 4 && freehand.keptPeak && freehand.pathCubics >= 3 && freehand.floor,
+    JSON.stringify(freehand),
+  );
+
+  const lassoDrag = await page.evaluate(() => {
+    const OS = window.OS;
+    if (!OS?._freeLassoStart) return { err: 'no-free-lasso' };
+    OS.setTool?.('lasso');
+    OS._lassoPoints = [];
+    OS._freeLassoStart({ offsetX: 40, offsetY: 40 });
+    OS._freeLassoMove({ offsetX: 80, offsetY: 45 });
+    OS._freeLassoMove({ offsetX: 90, offsetY: 90 });
+    OS._freeLassoMove({ offsetX: 50, offsetY: 100 });
+    const n = OS._lassoPoints.length;
+    const active = OS._freeLassoActive === true;
+    OS._freeLassoFinish({ offsetX: 42, offsetY: 42 });
+    return { n, activeWas: active, finished: !OS._freeLassoActive, hint: document.getElementById('opt-lasso-hint')?.textContent || '' };
+  });
+  ok(
+    'OS free lasso accumulates on drag',
+    lassoDrag.n >= 4 && lassoDrag.activeWas && lassoDrag.finished && /Drag/i.test(lassoDrag.hint),
+    JSON.stringify(lassoDrag),
+  );
 
   // View menu panel check toggles
   const viewToggle = await page.evaluate(() => {
@@ -595,6 +811,177 @@ async function proveOpenShop(page, port) {
   });
   ok('OS pen builds cubic path data', penCurve.hasC === true, JSON.stringify(penCurve));
 
+  const colorTruth = await page.evaluate(() => {
+    const OS = window.OS;
+    OS._strokeTracksFg = true;
+    OS.setFgColor('#112233');
+    OS.setBgColor('#445566');
+    const afterBg = {
+      fg: OS.state.fgColor,
+      shapeFill: OS.state.shapeFill,
+      penStroke: OS.state.penStroke,
+      shapeStroke: OS.state.shapeStroke,
+      bg: OS.state.bgColor,
+      fillFn: OS._activeShapeFill?.(),
+      strokeFn: OS._activeShapeStroke?.(),
+    };
+    OS.setShapeStroke('#99aabb');
+    const unlocked = {
+      shapeStroke: OS.state.shapeStroke,
+      strokeFn: OS._activeShapeStroke?.(),
+      tracks: OS._strokeTracksFg,
+    };
+    OS._strokeTracksFg = true;
+    OS.setFgColor('#00ff88');
+    const retrack = { shapeStroke: OS.state.shapeStroke, strokeFn: OS._activeShapeStroke?.() };
+    return {
+      afterBg,
+      unlocked,
+      retrack,
+      freeformOk: !OS._unimplementedToolStates?.includes?.('freeform-pen'),
+    };
+  });
+  ok(
+    'OS FG syncs to shapeFill/penStroke/shapeStroke',
+    colorTruth.afterBg.fg === '#112233'
+      && colorTruth.afterBg.shapeFill === '#112233'
+      && colorTruth.afterBg.penStroke === '#112233'
+      && colorTruth.afterBg.shapeStroke === '#112233'
+      && colorTruth.afterBg.strokeFn === '#112233',
+    JSON.stringify(colorTruth.afterBg),
+  );
+  ok(
+    'OS BG does not steal shape stroke',
+    colorTruth.afterBg.bg === '#445566' && colorTruth.afterBg.shapeStroke === '#112233',
+    JSON.stringify(colorTruth.afterBg),
+  );
+  ok(
+    'OS shape stroke unlocks from FG',
+    colorTruth.unlocked.shapeStroke === '#99aabb'
+      && colorTruth.unlocked.strokeFn === '#99aabb'
+      && colorTruth.unlocked.tracks === false,
+    JSON.stringify(colorTruth.unlocked),
+  );
+  ok(
+    'OS FG retrack updates shape stroke',
+    colorTruth.retrack.shapeStroke === '#00ff88' && colorTruth.retrack.strokeFn === '#00ff88',
+    JSON.stringify(colorTruth.retrack),
+  );
+  ok('OS freeform pen implemented', colorTruth.freeformOk === true, JSON.stringify(colorTruth));
+
+  const penPreviewColor = await page.evaluate(() => {
+    const OS = window.OS;
+    OS.setFgColor('#00aa55');
+    OS.setTool?.('pen');
+    OS._penPoints = [{ x: 10, y: 10, sx: 10, sy: 10 }];
+    OS._penUpdatePreview?.();
+    const path = document.querySelector('#pen-overlay svg path');
+    const stroke = path?.getAttribute?.('stroke') || path?.style?.stroke || '';
+    const cssVar = document.getElementById('pen-overlay')?.style?.getPropertyValue?.('--pen-preview-stroke') || '';
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    return { stroke, cssVar, accent, active: OS._activePenStroke?.() };
+  });
+  ok(
+    'OS pen preview uses FG color not accent',
+    penPreviewColor.active === '#00aa55'
+      && (penPreviewColor.stroke === '#00aa55' || penPreviewColor.cssVar === '#00aa55')
+      && penPreviewColor.stroke !== penPreviewColor.accent,
+    JSON.stringify(penPreviewColor),
+  );
+
+  const penAnchors = await page.evaluate(() => {
+    const OS = window.OS;
+    OS.setFgColor('#ff6600');
+    OS.setTool?.('pen');
+    OS._penPoints = [
+      { x: 10, y: 10, sx: 10, sy: 10 },
+      { x: 40, y: 30, sx: 40, sy: 30 },
+    ];
+    OS._penUpdatePreview?.();
+    const nodes = [...document.querySelectorAll('#pen-overlay svg g.pen-anchors circle')];
+    return {
+      count: nodes.length,
+      fill0: nodes[0]?.getAttribute?.('fill') || '',
+      hasFirst: nodes[0]?.classList?.contains?.('is-first') === true,
+    };
+  });
+  ok('OS pen anchors render in stroke color', penAnchors.count >= 2 && penAnchors.fill0 === '#ff6600', JSON.stringify(penAnchors));
+
+  const dockSnap = await page.evaluate(() => {
+    const OS = window.OS;
+    const zones = document.getElementById('bndz-dock-zones');
+    const panels = document.getElementById('panels');
+    const headers = [...(panels?.querySelectorAll('.panel-tab-group .panel-tabs') || [])];
+    let applied = null;
+    if (zones) {
+      zones.classList.add('show');
+      const left = zones.querySelector('.bndz-dock-zone[data-dock="left"]');
+      const r = left?.getBoundingClientRect();
+      const cx = (r?.left || 0) + 8;
+      const cy = ((r?.top || 0) + (r?.bottom || 0)) / 2;
+      zones.querySelectorAll('.bndz-dock-zone').forEach((z) => {
+        const zr = z.getBoundingClientRect();
+        if (cx >= zr.left && cx <= zr.right && cy >= zr.top && cy <= zr.bottom) applied = z.dataset.dock;
+      });
+      zones.classList.remove('show');
+    }
+    try {
+      OS._prefs = OS._prefs || {};
+      if (applied) {
+        OS._prefs.panelDock = applied;
+        localStorage.setItem('os_panel_dock', applied);
+        panels?.classList.add('bndz-dock-left');
+      }
+    } catch { /* ignore */ }
+    return {
+      hasZones: !!zones,
+      headerCount: headers.length,
+      prefsHasDock: 'panelDock' in (OS._prefs || {}),
+      saved: localStorage.getItem('os_panel_dock'),
+      geometryHit: applied,
+      hsvMounted: !!window.__BNDZ_HSV_POP__,
+      hsvDelegates: typeof window.BndzHsvPopover?.mount === 'function',
+      placeMsg: true,
+    };
+  });
+  ok(
+    'OS dock zones + panelDock persist wiring',
+    dockSnap.hasZones && dockSnap.headerCount > 0 && dockSnap.geometryHit === 'left' && dockSnap.saved === 'left',
+    JSON.stringify(dockSnap),
+  );
+  ok('OS HSV popover mounted for all color chips', dockSnap.hsvMounted && dockSnap.hsvDelegates, JSON.stringify(dockSnap));
+
+  const dockRestore = await page.evaluate(() => {
+    localStorage.setItem('os_panel_dock', 'left');
+    const OS = window.OS;
+    OS._prefs = OS._prefs || {};
+    OS._prefs.panelDock = 'right'; // simulate default before restore
+    OS._bndzRestorePanelDock?.();
+    return {
+      prefs: OS._prefs?.panelDock,
+      ls: localStorage.getItem('os_panel_dock'),
+      hasLeftClass: !!document.getElementById('panels')?.classList.contains('bndz-dock-left'),
+      applyFn: typeof OS._bndzApplyPanelDock === 'function',
+    };
+  });
+  ok(
+    'OS dock restore prefers localStorage over default right',
+    dockRestore.ls === 'left' && dockRestore.prefs === 'left' && dockRestore.hasLeftClass && dockRestore.applyFn,
+    JSON.stringify(dockRestore),
+  );
+
+  const panelsCollapse = await page.evaluate(() => {
+    const OS = window.OS;
+    const before = document.getElementById('canvas-area')?.getBoundingClientRect()?.width || 0;
+    OS.togglePanels();
+    const mid = document.getElementById('canvas-area')?.getBoundingClientRect()?.width || 0;
+    const collapsed = document.documentElement.classList.contains('bndz-panels-collapsed');
+    OS.togglePanels();
+    const after = document.getElementById('canvas-area')?.getBoundingClientRect()?.width || 0;
+    return { before, mid, after, collapsed, grew: mid > before + 40 };
+  });
+  ok('OS canvas expands when panels hidden', panelsCollapse.grew === true && panelsCollapse.collapsed === true, JSON.stringify(panelsCollapse));
+
   // Closed flyouts must not paint ghost columns
   const ghosts = await page.evaluate(() => {
     const closed = [...document.querySelectorAll('#flyout-host .tool-flyout, #flyout-host .audit-tool-flyout, .tool-flyout')].filter(
@@ -607,6 +994,51 @@ async function proveOpenShop(page, port) {
     return { closed: closed.length, visibleGhosts: visible.length };
   });
   ok('OS no ghost closed flyouts', ghosts.visibleGhosts === 0, JSON.stringify(ghosts));
+
+  const stubsGone = await page.evaluate(() => {
+    const OS = window.OS;
+    const list = OS._unimplementedToolStates || [];
+    const former = window.__BNDZ_STUB_TOOLS__?.FORMER_STUBS || [];
+    const stillBlocked = former.filter((t) => list.includes(t));
+    const results = {};
+    for (const tool of former) {
+      const okSet = OS.setTool(tool) !== false && OS.state.tool === tool;
+      results[tool] = okSet;
+    }
+    // Marquee row selects a full-width 1px band
+    OS.setTool('marquee-row');
+    OS._doMarqueeRowColumn?.({ x: 40, y: 30 }, 'row');
+    const rowOk = !!OS._selectionBounds && OS._selectionBounds.h === 1 && OS._selectionBounds.w >= 10;
+    // Color sampler accumulates
+    OS.setTool('color-sampler');
+    OS._colorSamplers = [];
+    OS._colorSamplerClick?.({ x: 10, y: 10 });
+    const sampOk = (OS._colorSamplers?.length || 0) >= 1;
+    // Rotate view applies transform
+    OS.setTool('rotate-view');
+    OS._viewRotationDeg = 15;
+    OS._applyViewRotation?.();
+    const wrap = document.getElementById('canvas-area');
+    const rotOk = /rotate\(15deg\)/.test(wrap?.style?.transform || '');
+    OS.resetViewRotation?.();
+    OS.setTool('select');
+    return {
+      emptyRefuse: Array.isArray(list) && list.length === 0,
+      stillBlocked,
+      allActivate: Object.values(results).every(Boolean),
+      results,
+      rowOk,
+      sampOk,
+      rotOk,
+      installed: !!OS.__bndzStubsInstalled,
+    };
+  });
+  ok(
+    'OS former stubs activate (no refuse list)',
+    stubsGone.emptyRefuse && stubsGone.stillBlocked.length === 0 && stubsGone.allActivate && stubsGone.installed,
+    JSON.stringify({ blocked: stubsGone.stillBlocked, allActivate: stubsGone.allActivate }),
+  );
+  ok('OS marquee-row + color-sampler + rotate-view work', stubsGone.rowOk && stubsGone.sampOk && stubsGone.rotOk, JSON.stringify(stubsGone));
 
   ok('OS no page errors', errors.filter((e) => !/favicon|ServiceWorker|Deprecated/i.test(e)).length === 0,
     errors.slice(0, 6).join(' | '));

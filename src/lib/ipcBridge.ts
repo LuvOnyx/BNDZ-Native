@@ -2908,10 +2908,20 @@ export const IPC = {
   getBndzMeta(key: string): Promise<string | null> {
     if (this.isNative) {
       const id = `${Date.now()}_getMeta`;
-      return _nativeCall<{ value?: string | null }>('GET_BNDZ_META', 'BNDZ_META_RESULT', id, { key }, 10000)
+      return _nativeCall<{ value?: string | null }>('GET_BNDZ_META', 'BNDZ_META_RESULT', id, { key }, 20000)
         .then(r => r?.value ?? null);
     }
     return Promise.resolve(localStorage.getItem(`bndz_meta_${key}`));
+  },
+
+  getInstalledFonts(): Promise<string[]> {
+    if (this.isNative) {
+      const id = `${Date.now()}_fonts`;
+      return _nativeCall<{ families?: string[] }>('GET_SYSTEM_FONTS', 'SYSTEM_FONTS_RESULT', id, {}, 12000)
+        .then(r => Array.isArray(r?.families) ? r.families.filter(f => typeof f === 'string' && f.trim()) : [])
+        .catch(() => []);
+    }
+    return Promise.resolve([]);
   },
 
   setBndzMeta(key: string, value: string): Promise<boolean> {

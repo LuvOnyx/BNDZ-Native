@@ -74,7 +74,7 @@ public sealed class ShellContextMenuService
     }
 
     private const int SW_SHOW = 5;
-    private const uint SEE_MASK_NOASYNC = 0x00000100;
+    private const uint SEE_MASK_ASYNCOK = 0x00100000;
 
     private const uint FO_DELETE = 0x0003;
     private const ushort FOF_ALLOWUNDO = 0x0040;
@@ -120,7 +120,7 @@ public sealed class ShellContextMenuService
 
         try
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            BndzUiDispatcher.Invoke(() =>
             {
                 var items = new List<ShellItem>(paths.Count);
                 try
@@ -260,12 +260,28 @@ public sealed class ShellContextMenuService
             switch (verb)
             {
                 case "open":
-                    foreach (var p in paths) LaunchShellVerb(p, "open");
+                    // Fire-and-forget — never block the IPC/UI thread on association launch.
+                    var openPaths = paths.ToList();
+                    _ = Task.Run(() =>
+                    {
+                        foreach (var p in openPaths)
+                        {
+                            try { LaunchShellVerb(p, "open"); }
+                            catch (Exception ex) { Debug.WriteLine($"open '{p}': {ex.Message}"); }
+                        }
+                    });
                     return true;
 
                 case "edit":
-                    foreach (var p in paths.Where(File.Exists))
-                        LaunchShellVerb(p, "edit");
+                    var editPaths = paths.Where(File.Exists).ToList();
+                    _ = Task.Run(() =>
+                    {
+                        foreach (var p in editPaths)
+                        {
+                            try { LaunchShellVerb(p, "edit"); }
+                            catch (Exception ex) { Debug.WriteLine($"edit '{p}': {ex.Message}"); }
+                        }
+                    });
                     return true;
 
                 case "openas":
@@ -375,7 +391,9 @@ public sealed class ShellContextMenuService
         var info = new SHELLEXECUTEINFO
         {
             cbSize = Marshal.SizeOf<SHELLEXECUTEINFO>(),
-            fMask = SEE_MASK_NOASYNC,
+            // NEVER SEE_MASK_NOASYNC — that waits for DDE/association activation and freezes
+            // the whole BNDZ host when Photos (or any handler) is slow on PNG/ICO open.
+            fMask = SEE_MASK_ASYNCOK,
             hwnd = hwnd,
             lpVerb = verb,
             lpFile = path,
@@ -424,7 +442,7 @@ public sealed class ShellContextMenuService
     {
         try
         {
-            return System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            return BndzUiDispatcher.Invoke(() =>
             {
                 var list = new List<string>();
                 bool isCut = false;
@@ -466,7 +484,7 @@ public sealed class ShellContextMenuService
     {
         try
         {
-            return System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            return BndzUiDispatcher.Invoke(() =>
             {
                 try
                 {
@@ -493,7 +511,7 @@ public sealed class ShellContextMenuService
     {
         try
         {
-            return System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            return BndzUiDispatcher.Invoke(() =>
             {
                 var data = new System.Windows.DataObject();
                 var fileList = new System.Collections.Specialized.StringCollection();
@@ -522,7 +540,7 @@ public sealed class ShellContextMenuService
         bool move;
         try
         {
-            (sources, move) = System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            (sources, move) = BndzUiDispatcher.Invoke(() =>
             {
                 var list = new List<string>();
                 bool isMove = false;

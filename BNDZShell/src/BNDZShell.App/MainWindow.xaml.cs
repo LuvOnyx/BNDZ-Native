@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using BNDZ.Services;
@@ -25,6 +27,7 @@ public sealed partial class MainWindow : Window
     private bool _closing;
     private BndzTrayIcon? _trayIcon;
     private SubclassProc? _subclassProc;
+    private readonly PluginLaunch _launch;
 
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, nuint uIdSubclass, nuint dwRefData);
 
@@ -40,17 +43,22 @@ public sealed partial class MainWindow : Window
     private const nuint DeviceChangeSubclassId = 0xB002;
     private const uint WM_DEVICECHANGE = 0x0219;
 
-    public MainWindow()
+    public MainWindow() : this(null)
     {
+    }
+
+    internal MainWindow(PluginLaunch? launch)
+    {
+        _launch = launch ?? PluginLaunch.FromBoot();
         InitializeComponent();
-        Title = PluginWindowBoot.IsPluginWindow
-            ? (string.IsNullOrWhiteSpace(PluginWindowBoot.Title) ? "BNDZ Plugin" : PluginWindowBoot.Title!)
+        Title = _launch.IsPlugin
+            ? (string.IsNullOrWhiteSpace(_launch.Title) ? "BNDZ Plugin" : _launch.Title!)
             : "BNDZ";
-        if (PluginWindowBoot.IsPluginWindow)
+        if (_launch.IsPlugin)
         {
-            ChromeHost.PluginWindowId = PluginWindowBoot.PluginId;
-            ChromeHost.PluginStickyId = PluginWindowBoot.StickyId;
-            ChromeHost.PluginWindowTitle = PluginWindowBoot.Title;
+            ChromeHost.PluginWindowId = _launch.PluginId;
+            ChromeHost.PluginStickyId = _launch.StickyId;
+            ChromeHost.PluginWindowTitle = _launch.Title;
             try { NativeList.Visibility = Visibility.Collapsed; } catch { /* ignore */ }
         }
         ConfigureAppWindow();
@@ -70,6 +78,7 @@ public sealed partial class MainWindow : Window
         {
             RemoveWindowSubclass();
             DisposeTray();
+            if (_launch.IsPlugin) return;
             try { BndzEmbeddedBackendHost.SetHostCloseAction(() => { }); } catch { /* ignore */ }
         };
 
@@ -79,10 +88,12 @@ public sealed partial class MainWindow : Window
 
     private void WireHostLifecycle()
     {
+        if (_launch.IsPlugin) return;
         if (_hwnd != IntPtr.Zero)
             BndzEmbeddedBackendHost.SetHostWindowHandle(_hwnd);
         BndzEmbeddedBackendHost.SetHostCloseAction(RequestHostClose);
         BndzEmbeddedBackendHost.SetHostTrayActions(HideToTray, RestoreFromTray);
+        BndzEmbeddedBackendHost.SetOpenPluginWindowAction(PluginWindowRegistry.Open);
     }
 
     private void RequestHostClose()
@@ -131,14 +142,24 @@ public sealed partial class MainWindow : Window
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
 
-            var (w, h) = PluginWindowBoot.IsPluginWindow
-                ? (980, 720)
-                : ResolveDefaultWindowSize(windowId);
+            var (w, h) = _launch.IsSticky
+                ? (340, 390)
+                : _launch.IsPlugin
+                    ? (980, 720)
+                    : ResolveDefaultWindowSize(windowId);
             _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
             if (_appWindow.Presenter is OverlappedPresenter overlapped)
             {
-                overlapped.PreferredMinimumWidth = PluginWindowBoot.IsPluginWindow ? 480 : MinWindowWidth;
-                overlapped.PreferredMinimumHeight = PluginWindowBoot.IsPluginWindow ? 360 : MinWindowHeight;
+                overlapped.PreferredMinimumWidth = _launch.IsSticky ? 220 : _launch.IsPlugin ? 480 : MinWindowWidth;
+                overlapped.PreferredMinimumHeight = _launch.IsSticky ? 180 : _launch.IsPlugin ? 360 : MinWindowHeight;
+                if (_launch.IsSticky)
+                {
+                    try { overlapped.SetBorderAndTitleBar(false, false); } catch { /* older WASDK */ }
+                    overlapped.IsMaximizable = false;
+                    overlapped.IsMinimizable = false;
+                    overlapped.IsAlwaysOnTop = true;
+                    overlapped.IsResizable = true;
+                }
             }
 
             // WinUIEx: persist placement across launches (falls back silently if unavailable).
@@ -146,11 +167,13 @@ public sealed partial class MainWindow : Window
             try
             {
                 var mgr = WinUIEx.WindowManager.Get(this);
-                mgr.MinWidth = PluginWindowBoot.IsPluginWindow ? 480 : MinWindowWidth;
-                mgr.MinHeight = PluginWindowBoot.IsPluginWindow ? 360 : MinWindowHeight;
-                mgr.PersistenceId = PluginWindowBoot.IsPluginWindow
-                    ? "BNDZShell.PluginPopout.v1"
-                    : "BNDZShell.MainWindow.v54";
+                mgr.MinWidth = _launch.IsSticky ? 220 : _launch.IsPlugin ? 480 : MinWindowWidth;
+                mgr.MinHeight = _launch.IsSticky ? 180 : _launch.IsPlugin ? 360 : MinWindowHeight;
+                mgr.PersistenceId = _launch.IsSticky
+                    ? "BNDZShell.StickyWidget.v1"
+                    : _launch.IsPlugin
+                        ? "BNDZShell.PluginPopout.v1"
+                        : "BNDZShell.MainWindow.v54";
             }
             catch (Exception winUiEx)
             {
@@ -160,7 +183,7 @@ public sealed partial class MainWindow : Window
             // After persistence restore, clamp into the work area (never larger than the display).
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ClampWindowToWorkArea);
 
-            ExtendsContentIntoTitleBar = true;
+            ExtendsContentIntoTitleBar = !_launch.IsSticky;
             ApplySystemBackdropFromSettings();
             var tb = _appWindow.TitleBar;
             tb.ButtonBackgroundColor = Colors.Transparent;
@@ -171,14 +194,31 @@ public sealed partial class MainWindow : Window
             tb.ButtonInactiveForegroundColor = ColorHelper.FromArgb(0x99, 0xFF, 0xFF, 0xFF);
             tb.BackgroundColor = Colors.Transparent;
             tb.InactiveBackgroundColor = Colors.Transparent;
+            if (_launch.IsSticky)
+            {
+                try
+                {
+                    tb.ExtendsContentIntoTitleBar = true;
+                    tb.IconShowOptions = IconShowOptions.HideIconAndSystemMenu;
+                    tb.PreferredHeightOption = TitleBarHeightOption.Collapsed;
+                }
+                catch { /* older WASDK */ }
+                try
+                {
+                    if (RootGrid is not null)
+                        RootGrid.Background = new SolidColorBrush(Colors.Transparent);
+                    SystemBackdrop = null;
+                }
+                catch { /* ignore */ }
+            }
 
             // Caption X / Alt+F4 / taskbar close → same Ask/Tray/Quit flow as File→Exit.
             // Plugin pop-outs are slim tear-offs — close immediately (no FM quit dialog).
             _appWindow.Closing += (_, args) =>
             {
-                if (_closeConfirmed || PluginWindowBoot.IsPluginWindow)
+                if (_closeConfirmed || _launch.IsPlugin)
                 {
-                    if (PluginWindowBoot.IsPluginWindow)
+                    if (_launch.IsPlugin)
                         _closeConfirmed = true;
                     return;
                 }
@@ -231,12 +271,16 @@ public sealed partial class MainWindow : Window
         try
         {
             if (_appWindow is null) return;
+            if (_launch.IsPlugin) return;
+            if (_launch.IsSticky) return;
             var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Nearest);
             var work = area.WorkArea;
             var size = _appWindow.Size;
             var pos = _appWindow.Position;
-            var w = Math.Min(size.Width, Math.Max(MinWindowWidth, work.Width - 16));
-            var h = Math.Min(size.Height, Math.Max(MinWindowHeight, work.Height - 16));
+            var minW = _launch.IsPlugin ? 480 : MinWindowWidth;
+            var minH = _launch.IsPlugin ? 360 : MinWindowHeight;
+            var w = Math.Min(size.Width, Math.Max(minW, work.Width - 16));
+            var h = Math.Min(size.Height, Math.Max(minH, work.Height - 16));
             if (w != size.Width || h != size.Height)
                 _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
 
@@ -403,11 +447,28 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "BNDZ.ico");
-            if (!File.Exists(iconPath) || _appWindow is null) return;
-            _appWindow.SetIcon(iconPath);
+            if (_appWindow is null) return;
+            foreach (var iconPath in ResolveAppIconPaths())
+            {
+                if (string.IsNullOrWhiteSpace(iconPath) || !File.Exists(iconPath)) continue;
+                _appWindow.SetIcon(iconPath);
+                return;
+            }
         }
         catch { /* best effort */ }
+    }
+
+    private static IEnumerable<string> ResolveAppIconPaths()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        yield return Path.Combine(baseDir, "Assets", "BNDZ.ico");
+        var exe = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(exe))
+        {
+            var exeDir = Path.GetDirectoryName(exe);
+            if (!string.IsNullOrWhiteSpace(exeDir))
+                yield return Path.Combine(exeDir, "Assets", "BNDZ.ico");
+        }
     }
 
     private void ApplySystemBackdropFromSettings()
@@ -629,6 +690,12 @@ public sealed partial class MainWindow : Window
                     BroadcastWindowState();
                     break;
                 case "close":
+                    if (_launch.IsPlugin)
+                    {
+                        _closeConfirmed = true;
+                        Close();
+                        break;
+                    }
                     try
                     {
                         ChromeHost.PostHostMessage(new

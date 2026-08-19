@@ -162,7 +162,7 @@ export function resolveEntityPanePath(
   if (entity.path) return toPanePath(entity.path);
   const normPane = normalizePanePath(panePath);
   if (normPane === '/' || normPane === '/this-pc') {
-    if (entity.name.startsWith('/')) return toPanePath(entity.name);
+    if (typeof entity.name === 'string' && entity.name.startsWith('/')) return toPanePath(entity.name);
     return toPanePath(`/${entity.name}`);
   }
   return joinPanePath(panePath, entity);

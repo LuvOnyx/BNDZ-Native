@@ -105,7 +105,8 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
     || (entity as any).shareName
     || ((entity as any).attributes || []).includes?.('shared')
   );
-  const networkProbe = path.startsWith('//') || path.startsWith('\\\\') || /^\/\//.test(path);
+  const pathStr = typeof path === 'string' ? path : String(path ?? '');
+  const networkProbe = pathStr.startsWith('//') || pathStr.startsWith('\\\\') || /^\/\//.test(pathStr);
   const overlaysBlockedOnNetwork = networkProbe
     && !!config.showIconOverlays
     && !config.inNetworkLocationsAsWell;
@@ -280,7 +281,7 @@ export const ThumbnailIcon = memo(function ThumbnailIcon({
         <img
           src={displaySrc}
           alt=""
-          decoding={size >= 64 ? 'sync' : 'async'}
+          decoding="async"
           loading="eager"
           className={config.autoRotateThumbnails !== false ? 'bndz-auto-rotate-thumbs' : undefined}
           style={{

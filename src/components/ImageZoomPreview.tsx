@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icons8Icon } from './Icons8Icon';
 import { toWindowsPath } from '../lib/pathUtils';
 import { useAppConfig } from '../data/configContext';
 import { getBlowUpBehavior, getBlowUpMouseBehavior } from '../lib/settingsBehavior';
 import { applyWebPathMap } from '../lib/listReportExport';
 import { buildSettingsRuntime } from '../lib/settingsRuntime';
+import InspectionLens2D from '../workstation/inspection/InspectionLens2D';
+import type { InspectionShaderMode } from '../workstation/inspection/InspectionViewportRouter';
 
 interface ImageZoomPreviewProps {
   src: string;
@@ -12,9 +14,12 @@ interface ImageZoomPreviewProps {
   fallbackSrc?: string;
   filePath?: string | null;
   onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
-  /** Opens BNDZ floating Quick Look overlay for the current file. */
   onOpenFloating?: () => void;
+  inspectionMode?: InspectionShaderMode;
 }
+
+const LUMA_FILTER =
+  'grayscale(1) contrast(1.55) brightness(1.18) sepia(0.7) hue-rotate(158deg) saturate(2.1)';
 
 function measureContainScale(
   imgW: number,
@@ -43,7 +48,7 @@ function measureCoverScale(
 }
 
 export default function ImageZoomPreview({
-  src, alt, fallbackSrc, filePath, onError, onOpenFloating,
+  src, alt, fallbackSrc, filePath, onError, onOpenFloating, inspectionMode = 'passthrough',
 }: ImageZoomPreviewProps) {
   const { config } = useAppConfig();
   const blowUp = getBlowUpMouseBehavior(config);
@@ -58,6 +63,14 @@ export default function ImageZoomPreview({
   const blobTriedRef = useRef(false);
   const blobUrlRef = useRef<string | null>(null);
   const baseFitScaleRef = useRef(1);
+  const userAdjustedRef = useRef(false);
+  const lastDisplayRef = useRef(1);
+  const lastRoSizeRef = useRef({ w: 0, h: 0 });
+  const fittingRef = useRef(false);
+  const inspectionModeRef = useRef(inspectionMode);
+  inspectionModeRef.current = inspectionMode;
+  const displayScaleRef = useRef(displayScale);
+  displayScaleRef.current = displayScale;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -69,19 +82,27 @@ export default function ImageZoomPreview({
   const lastPosRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
 
+  const pathMapEnabled = config.enableServerMappings !== false;
+  const limitOrig = !!config.limitOriginalPreviewSize;
+  const limitOrigPx = Number(config.limitOriginalPreviewSizeValue) || 1600;
+  const zoomToFill = !!blowVisual.zoomToFill;
+
   useEffect(() => {
     blobTriedRef.current = false;
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current);
       blobUrlRef.current = null;
     }
-    setImgSrc(applyWebPathMap(config, src));
+    setImgSrc(pathMapEnabled ? applyWebPathMap(config, src) : src);
     offsetRef.current = { x: 0, y: 0 };
     baseFitScaleRef.current = 1;
-    // Always start from identity; fit runs on load so large PNGs are not stuck at 100% native.
+    userAdjustedRef.current = false;
     scaleRef.current = 1;
+    lastDisplayRef.current = 1;
+    lastRoSizeRef.current = { w: 0, h: 0 };
     setDisplayScale(1);
-  }, [src, filePath, config]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional narrow deps
+  }, [src, filePath, pathMapEnabled]);
 
   useEffect(() => () => {
     if (blobUrlRef.current) {
@@ -96,11 +117,21 @@ export default function ImageZoomPreview({
     try {
       const { IPC } = await import('../lib/ipcBridge');
       if (!IPC.isNative) return false;
-      const result = await IPC.getMediaBlob(toWindowsPath(filePath));
-      if (!result.base64 || !result.mime) return false;
+      // Hard cap — decoding multi‑MB base64 on the UI thread freezes WebView2.
+      const result = await IPC.getMediaBlob(toWindowsPath(filePath), 2 * 1024 * 1024);
+      if (!result.base64 || !result.mime || result.error) return false;
+      if (result.base64.length > 2.8e6) return false; // ~2MB binary ≈ 2.7M b64 chars
       const binary = atob(result.base64);
       const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const chunk = 0x8000;
+      for (let i = 0; i < binary.length; i += chunk) {
+        const end = Math.min(i + chunk, binary.length);
+        for (let j = i; j < end; j++) bytes[j] = binary.charCodeAt(j);
+        if (end < binary.length) {
+          // Yield so selection / scroll / inspection clicks stay responsive.
+          await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        }
+      }
       const blob = new Blob([bytes], { type: result.mime });
       const url = URL.createObjectURL(blob);
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
@@ -118,6 +149,8 @@ export default function ImageZoomPreview({
     const { x, y } = offsetRef.current;
     const s = scaleRef.current;
     el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${s})`;
+    // Filter on the same node as transform — guaranteed visible for Luma.
+    el.style.filter = inspectionModeRef.current === 'histogram' ? LUMA_FILTER : '';
     rafRef.current = null;
   }, []);
 
@@ -126,10 +159,28 @@ export default function ImageZoomPreview({
     rafRef.current = requestAnimationFrame(applyTransform);
   }, [applyTransform]);
 
-  const setScaleImmediate = useCallback((next: number) => {
-    const clamped = Math.min(24, Math.max(0.1, next));
+  const setScaleImmediate = useCallback((next: number, fromUser = true) => {
+    if (fromUser) userAdjustedRef.current = true;
+    const fit = baseFitScaleRef.current > 0 ? baseFitScaleRef.current : 1;
+    const minScale = Math.max(0.05, fit * 0.2);
+    const clamped = Math.min(24, Math.max(minScale, next));
     scaleRef.current = clamped;
-    setDisplayScale(clamped);
+    // Avoid setState churn — ResizeObserver + fit feedback loops froze the WebView.
+    if (Math.abs(lastDisplayRef.current - clamped) > 0.002) {
+      lastDisplayRef.current = clamped;
+      setDisplayScale(clamped);
+    }
+    const stage = stageRef.current;
+    const img = imgRef.current;
+    if (stage && img?.naturalWidth) {
+      const s = clamped;
+      const maxX = Math.max(48, (img.naturalWidth * s - stage.clientWidth) / 2 + 48);
+      const maxY = Math.max(48, (img.naturalHeight * s - stage.clientHeight) / 2 + 48);
+      offsetRef.current = {
+        x: Math.max(-maxX, Math.min(maxX, offsetRef.current.x)),
+        y: Math.max(-maxY, Math.min(maxY, offsetRef.current.y)),
+      };
+    }
     scheduleTransform();
   }, [scheduleTransform]);
 
@@ -140,21 +191,18 @@ export default function ImageZoomPreview({
     const boxW = stage.clientWidth;
     const boxH = stage.clientHeight;
     if (boxW < 8 || boxH < 8) return 1;
-    const measure = blowVisual.zoomToFill ? measureCoverScale : measureContainScale;
+    const measure = zoomToFill ? measureCoverScale : measureContainScale;
     let fit = measure(img.naturalWidth, img.naturalHeight, boxW, boxH);
-    // Fit-to-screen: never enlarge past 100% for photos (avoids "already zoomed in" on small PNGs).
-    // Cover mode may still fill; contain caps at 1 unless the user zooms manually.
-    if (!blowVisual.zoomToFill) {
+    if (!zoomToFill) {
       fit = Math.min(fit, 1);
     }
-    // Settings → Limit original preview size (px) caps the fitted native scale.
-    if (config.limitOriginalPreviewSize) {
-      const maxPx = Math.max(64, Number(config.limitOriginalPreviewSizeValue) || 1600);
+    if (limitOrig) {
+      const maxPx = Math.max(64, limitOrigPx);
       const maxScale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
       fit = Math.min(fit, maxScale);
     }
     return Math.max(0.05, fit);
-  }, [blowVisual.zoomToFill, config.limitOriginalPreviewSize, config.limitOriginalPreviewSizeValue]);
+  }, [zoomToFill, limitOrig, limitOrigPx]);
 
   const fitToContainer = useCallback((preserveZoom = false) => {
     const stage = stageRef.current;
@@ -164,13 +212,13 @@ export default function ImageZoomPreview({
     baseFitScaleRef.current = fit;
     if (!preserveZoom) {
       offsetRef.current = { x: 0, y: 0 };
-      setScaleImmediate(fit);
+      userAdjustedRef.current = false;
+      setScaleImmediate(fit, false);
     }
     return true;
   }, [measureFitScale, setScaleImmediate]);
 
   const scheduleFit = useCallback(() => {
-    // Stage often has 0×0 on first onLoad — retry until layout settles.
     const tryFit = (attempt: number) => {
       if (fitToContainer(false)) return;
       if (attempt >= 12) return;
@@ -179,24 +227,24 @@ export default function ImageZoomPreview({
     tryFit(0);
   }, [fitToContainer]);
 
-  const zoomIn = () => setScaleImmediate(scaleRef.current + 0.25);
-  const zoomOut = () => setScaleImmediate(scaleRef.current - 0.25);
+  const zoomIn = () => setScaleImmediate(scaleRef.current + 0.25, true);
+  const zoomOut = () => setScaleImmediate(scaleRef.current - 0.25, true);
   const reset = () => {
     offsetRef.current = { x: 0, y: 0 };
-    setScaleImmediate(1);
+    setScaleImmediate(1, true);
   };
   const fit = () => { scheduleFit(); };
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      setScaleImmediate(scaleRef.current + (e.deltaY < 0 ? 0.15 : -0.15));
+      e.stopPropagation();
+      setScaleImmediate(scaleRef.current + (e.deltaY < 0 ? 0.15 : -0.15), true);
     };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [setScaleImmediate]);
+    const targets = [containerRef.current, stageRef.current].filter(Boolean) as HTMLElement[];
+    targets.forEach((el) => el.addEventListener('wheel', onWheel, { passive: false }));
+    return () => targets.forEach((el) => el.removeEventListener('wheel', onWheel));
+  }, [setScaleImmediate, imgSrc, isDragging]);
 
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -205,15 +253,39 @@ export default function ImageZoomPreview({
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
+    let raf = 0;
     const ro = new ResizeObserver(() => {
-      if (!stage.clientWidth || !stage.clientHeight) return;
-      // Keep fitted while the user has not manually zoomed away from fit.
-      const nearFit = Math.abs(scaleRef.current - baseFitScaleRef.current) < 0.08;
-      if (nearFit || baseFitScaleRef.current <= 1.01) fitToContainer(false);
+      if (fittingRef.current) return;
+      cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(() => {
+        const w = stage.clientWidth;
+        const h = stage.clientHeight;
+        if (w < 8 || h < 8) return;
+        const prev = lastRoSizeRef.current;
+        // Ignore sub-pixel / flex thrash that used to spin fit forever and freeze UI.
+        if (Math.abs(prev.w - w) < 3 && Math.abs(prev.h - h) < 3) return;
+        lastRoSizeRef.current = { w, h };
+
+        if (userAdjustedRef.current) {
+          const nextFit = measureFitScale();
+          if (nextFit && Number.isFinite(nextFit)) baseFitScaleRef.current = nextFit;
+          return;
+        }
+
+        fittingRef.current = true;
+        try {
+          fitToContainer(false);
+        } finally {
+          window.requestAnimationFrame(() => { fittingRef.current = false; });
+        }
+      });
     });
     ro.observe(stage);
-    return () => ro.disconnect();
-  }, [fitToContainer, imgSrc]);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [fitToContainer, measureFitScale, imgSrc]);
 
   const checker = previewRt.transparencyBg !== false
     && config.transparencyBackground !== false
@@ -228,7 +300,6 @@ export default function ImageZoomPreview({
       e.preventDefault();
       return;
     }
-    // Always allow drag-pan in the preview panel (WebView2-safe pointer path).
     if (e.button === 2 && !blowUp.onRightMouseDown) return;
     if (e.button !== 0 && e.button !== 2) return;
     draggingRef.current = true;
@@ -240,13 +311,22 @@ export default function ImageZoomPreview({
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!draggingRef.current) return;
+    userAdjustedRef.current = true;
     const dx = e.clientX - lastPosRef.current.x;
     const dy = e.clientY - lastPosRef.current.y;
     lastPosRef.current = { x: e.clientX, y: e.clientY };
-    offsetRef.current = {
-      x: offsetRef.current.x + dx,
-      y: offsetRef.current.y + dy,
-    };
+    const stage = stageRef.current;
+    const img = imgRef.current;
+    let nx = offsetRef.current.x + dx;
+    let ny = offsetRef.current.y + dy;
+    if (stage && img?.naturalWidth) {
+      const s = scaleRef.current;
+      const maxX = Math.max(48, (img.naturalWidth * s - stage.clientWidth) / 2 + 48);
+      const maxY = Math.max(48, (img.naturalHeight * s - stage.clientHeight) / 2 + 48);
+      nx = Math.max(-maxX, Math.min(maxX, nx));
+      ny = Math.max(-maxY, Math.min(maxY, ny));
+    }
+    offsetRef.current = { x: nx, y: ny };
     scheduleTransform();
   }, [scheduleTransform]);
 
@@ -259,10 +339,23 @@ export default function ImageZoomPreview({
     }
   }, [blowUp.stayUp, blowUp.onRightMouseDown]);
 
+  const isLuma = inspectionMode === 'histogram';
+  const isLoupe = inspectionMode === 'loupe';
+
+  useEffect(() => {
+    scheduleTransform();
+  }, [inspectionMode, scheduleTransform]);
+
+  useLayoutEffect(() => {
+    applyTransform();
+  }, [applyTransform, inspectionMode]);
+
   return (
     <div
       ref={containerRef}
-      className={`bndz-image-preview ${checker ? 'bndz-image-preview--checker' : ''} bndz-thumb-style-${thumbStyle.replace(/\s+/g, '-').toLowerCase()}`}
+      data-bndz-workspace-surface="preview"
+      data-inspect={inspectionMode}
+      className={`bndz-image-preview ${checker ? 'bndz-image-preview--checker' : ''} bndz-thumb-style-${thumbStyle.replace(/\s+/g, '-').toLowerCase()}${isLuma ? ' is-luma' : ''}${isLoupe ? ' is-loupe' : ''}`}
       style={{ ['--bndz-thumb-pad' as string]: `${thumbPad}px` }}
     >
       <div
@@ -278,8 +371,7 @@ export default function ImageZoomPreview({
       >
         <div
           ref={transformRef}
-          className="bndz-image-preview-transform"
-          style={{ transform: 'translate(-50%, -50%) scale(1)' }}
+          className={`bndz-image-preview-transform${isLuma ? ' bndz-image-preview-transform--luma' : ''}`}
         >
           <img
             ref={imgRef}
@@ -290,25 +382,35 @@ export default function ImageZoomPreview({
             className={`bndz-image-preview-img${config.autoRotatePreview ? ' bndz-auto-rotate-preview' : ''}`}
             style={{ imageRendering }}
             onLoad={() => {
-              // Always fit PNGs/images to the preview panel on open (not stuck at 100% native).
               scheduleFit();
             }}
             onError={(e) => {
+              // Prefer the already-warm CAS/shell thumb — never jump straight into a
+              // multi‑MB GET_MEDIA_BLOB + atob that freezes the host on PNG/ICO open.
+              if (fallbackSrc && imgSrc !== fallbackSrc) {
+                setImgSrc(fallbackSrc);
+                return;
+              }
               void tryBlobFallback().then((ok) => {
-                if (ok) return;
-                if (fallbackSrc && imgSrc !== fallbackSrc) {
-                  setImgSrc(fallbackSrc);
-                  return;
-                }
-                onError?.(e);
+                if (!ok) onError?.(e);
               });
             }}
           />
         </div>
+        {isLoupe && (
+          <InspectionLens2D
+            mode="loupe"
+            stageRef={stageRef}
+            imgRef={imgRef}
+            displayScaleRef={displayScaleRef}
+          />
+        )}
       </div>
 
       <div className="bndz-image-preview-chrome">
-        <span className="bndz-image-preview-hint">Scroll to zoom · Drag to pan</span>
+        <span className="bndz-image-preview-hint">
+          {isLoupe ? 'Scroll zoom · Drag pan · Move cursor for loupe' : isLuma ? 'Luma · Scroll zoom · Drag pan' : 'Scroll to zoom · Drag to pan'}
+        </span>
         <div className="bndz-image-preview-tools">
           <button type="button" onClick={zoomOut} className="bndz-media-transport-btn" title="Zoom out">
             <Icons8Icon id="zoom_out_ui" size={14} />
@@ -326,13 +428,8 @@ export default function ImageZoomPreview({
           {onOpenFloating && (
             <>
               <span className="bndz-image-preview-sep" aria-hidden />
-              <button
-                type="button"
-                onClick={onOpenFloating}
-                className="bndz-media-transport-btn bndz-media-transport-btn--accent"
-                title="Open floating preview (Space)"
-              >
-                <Icons8Icon id="eye_ui" size={14} />
+              <button type="button" onClick={onOpenFloating} className="bndz-media-transport-btn" title="Quick Look">
+                <Icons8Icon id="preview" size={14} />
               </button>
             </>
           )}

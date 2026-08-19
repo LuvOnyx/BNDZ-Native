@@ -114,9 +114,17 @@ export function toolsForSignature(sig: SelectionSignature): ContextTool[] {
     case 'image':
       return [
         tool('transcode-rack', 'Transcode', 'edit_image', 'transcode-rack'),
+        // Loupe / Luma are 2D image tools only — never offered for 3D meshes.
         tool('histogram', 'Luma inspect', 'color', undefined, 'host'),
         tool('loupe', 'Loupe', 'preview', undefined, 'host'),
         tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
+        tool('properties', 'Properties', 'sys_properties', 'properties'),
+      ];
+    case 'model':
+      // 3D / FiveM RAGE (.ydr/.ybn/…) — main preview GpuModelViewport only; no Loupe/Luma.
+      return [
+        tool('quick-look', 'Quick Look', 'preview', undefined, 'host'),
+        tool('mesh-drop', 'Mesh Drop', 'emblem-shared', 'remote-mesh'),
         tool('properties', 'Properties', 'sys_properties', 'properties'),
       ];
     case 'video':

@@ -241,10 +241,11 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
                 className="bndz-vlist-row"
                 style={{
                   position: 'absolute',
-                  top: vi.start,
+                  top: 0,
                   left: 0,
                   width: '100%',
                   height: vi.size,
+                  transform: `translate3d(0, ${vi.start}px, 0)`,
                   contain: 'layout style paint',
                   overflow: 'hidden',
                   pointerEvents: 'none',
@@ -295,10 +296,11 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
             className="bndz-vlist-row"
             style={{
               position: 'absolute',
-              top: vi.start,
+              top: 0,
               left: 0,
               width: '100%',
               height: rowHeight,
+              transform: `translate3d(0, ${vi.start}px, 0)`,
               contain: 'layout style paint',
               overflow: 'hidden',
               pointerEvents: 'none',
