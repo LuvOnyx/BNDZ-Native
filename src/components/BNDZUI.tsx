@@ -4908,6 +4908,33 @@ export default function BNDZUI() {
   const [meshHosts, setMeshHosts] = useState<MeshHost[]>([]);
   const [linuxExpanded, setLinuxExpanded] = useState(false);
   const [librariesExpanded, setLibrariesExpanded] = useState(true);
+
+  useEffect(() => {
+    if (!config.rememberStateOfTree) return;
+    try {
+      const raw = localStorage.getItem('bndz.navTree.staticExpanded');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, boolean>;
+      if (typeof parsed.libraries === 'boolean') setLibrariesExpanded(parsed.libraries);
+      if (typeof parsed.smartViews === 'boolean') setSmartViewsExpanded(parsed.smartViews);
+      if (typeof parsed.workspaceTools === 'boolean') setWorkspaceToolsExpanded(parsed.workspaceTools);
+      if (typeof parsed.ramStaging === 'boolean') setRamStagingExpanded(parsed.ramStaging);
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.rememberStateOfTree]);
+
+  useEffect(() => {
+    if (!config.rememberStateOfTree) return;
+    try {
+      localStorage.setItem('bndz.navTree.staticExpanded', JSON.stringify({
+        libraries: librariesExpanded,
+        smartViews: smartViewsExpanded,
+        workspaceTools: workspaceToolsExpanded,
+        ramStaging: ramStagingExpanded,
+      }));
+    } catch { /* ignore */ }
+  }, [librariesExpanded, smartViewsExpanded, workspaceToolsExpanded, ramStagingExpanded, config.rememberStateOfTree]);
+
   const [destinationPicker, setDestinationPicker] = useState<{ mode: 'copy' | 'move'; sources: string[] } | null>(null);
   const [tabFileDropTarget, setTabFileDropTarget] = useState<{ paneId: string; tabIndex: number } | null>(null);
   /** During pointer file drag — drives list + tab chrome to hovered tab before drop. */
@@ -5331,7 +5358,7 @@ export default function BNDZUI() {
         useShellIcon: true,
         onClick: () => setCurrentPath('/shell:Libraries'),
         expanded: librariesExpanded,
-        onToggle: () => setLibrariesExpanded(!librariesExpanded),
+        onToggle: () => setLibrariesExpanded(v => !v),
         childrenItems: libraryFolderItems,
       },
       {
@@ -5357,7 +5384,7 @@ export default function BNDZUI() {
         useShellIcon: false,
         expanded: smartViewsExpanded,
         onClick: () => setCurrentPath(BNDZ_VIEWS_ROOT),
-        onToggle: () => setSmartViewsExpanded(!smartViewsExpanded),
+        onToggle: () => setSmartViewsExpanded(v => !v),
         childrenItems: [
           ...(['recent', 'media', 'audio', 'documents', 'large'] as const).map(view => ({
             label: bndzVirtualLabel(view),
@@ -5390,7 +5417,7 @@ export default function BNDZUI() {
         useShellIcon: false,
         expanded: workspaceToolsExpanded,
         onClick: () => openWorkspaceToolTab(BNDZ_CANVAS),
-        onToggle: () => setWorkspaceToolsExpanded(!workspaceToolsExpanded),
+        onToggle: () => setWorkspaceToolsExpanded(v => !v),
         childrenItems: [
           {
             label: 'Spatial Canvas',
@@ -5421,7 +5448,7 @@ export default function BNDZUI() {
             useShellIcon: false as const,
             expanded: ramStagingExpanded,
             onClick: () => setCurrentPath(BNDZ_RAM_ROOT),
-            onToggle: () => setRamStagingExpanded(!ramStagingExpanded),
+            onToggle: () => setRamStagingExpanded(v => !v),
             childrenItems: sidebarRamZones.map(z => ({
               label: z.isDirty ? `${z.name} · dirty` : z.name,
               path: bndzRamVirtualPath(z.id),
@@ -13731,7 +13758,7 @@ export default function BNDZUI() {
             >
                <LeftSidebar
                   sidebarOrder={config.sidebarOrder}
-                  showMiniTree={config.showMiniTree !== false}
+                  showMiniTree={config.showMiniTree === true}
                   onSectionOrderChange={(order: string[]) => updateConfig({ sidebarOrder: order })}
                   onBackgroundClick={() => { setSelectedItems([], activePaneId); scheduleSelectionChrome([], true); scheduleQuickActionsBar(false); setFocusedItemId(null); setLastClickData(null); setInlineRename(null); }}
                   drivesContent={
@@ -13907,7 +13934,7 @@ export default function BNDZUI() {
                     )
                   }
                   miniTreeContent={
-                    config.showMiniTree !== false ? (
+                    config.showMiniTree === true ? (
                       <MiniTreePanel nodes={miniTreeLiveNodes} activePath={currentPath} onNavigate={guardedSetCurrentPath} />
                     ) : null
                   }

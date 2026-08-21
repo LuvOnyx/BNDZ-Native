@@ -1400,38 +1400,63 @@ export const IPC = {
     if (!this.isNative) return false;
     const id = `${Date.now()}_aiDownload`;
     try {
-      const result = await _nativeCall<{ ok?: boolean }>('AI_DOWNLOAD_MODEL', 'AI_DOWNLOAD_MODEL_RESULT', id, {}, 7_200_000);
-      return !!result?.ok;
-    } catch {
+      const result = await _nativeCall<{ ok?: boolean; error?: string }>('AI_DOWNLOAD_MODEL', 'AI_DOWNLOAD_MODEL_RESULT', id, {}, 7_200_000);
+      if (!result?.ok) {
+        const { pushToast } = await import('../components/ToastHost');
+        pushToast({ kind: 'error', title: 'Model download failed', message: result?.error || 'Host returned failure.' });
+        return false;
+      }
+      return true;
+    } catch (e) {
+      const { pushToast } = await import('../components/ToastHost');
+      pushToast({
+        kind: 'error',
+        title: 'Model download failed',
+        message: e instanceof Error ? e.message : String(e),
+      });
       return false;
     }
   },
 
   async aiGenerate(prompt: string, timeoutMs = 120000): Promise<string> {
-    if (this.isNative) {
-      const { ensureAiModelReady } = await import('./aiModelGate');
-      const ready = await ensureAiModelReady();
-      if (!ready) return '';
-      const id = `${Date.now()}_aiGenerate`;
-      try {
-        const result = await _nativeCall<{ text?: string }>('AI_GENERATE', 'AI_GENERATE_RESULT', id, { prompt }, timeoutMs);
-        return result?.text ?? '';
-      } catch {
-        return '';
-      }
+    if (!this.isNative) {
+      const { pushToast } = await import('../components/ToastHost');
+      pushToast({ kind: 'error', title: 'Assistant unavailable', message: 'Native host required.' });
+      throw new Error('Native host required.');
     }
-    return '';
+    const { ensureAiModelReady } = await import('./aiModelGate');
+    const ready = await ensureAiModelReady();
+    if (!ready) {
+      const { pushToast } = await import('../components/ToastHost');
+      pushToast({ kind: 'warning', title: 'Assistant not ready', message: 'Download or load the local model first.' });
+      throw new Error('AI model not ready.');
+    }
+    const id = `${Date.now()}_aiGenerate`;
+    try {
+      const result = await _nativeCall<{ text?: string; error?: string }>('AI_GENERATE', 'AI_GENERATE_RESULT', id, { prompt }, timeoutMs);
+      if (result?.error) throw new Error(result.error);
+      return result?.text ?? '';
+    } catch (e) {
+      const { pushToast } = await import('../components/ToastHost');
+      const message = e instanceof Error ? e.message : String(e);
+      pushToast({ kind: 'error', title: 'Assistant unavailable', message });
+      throw e instanceof Error ? e : new Error(message);
+    }
   },
 
   aiGenerateStream(prompt: string, onChunk?: (chunk: string) => void, timeoutMs = 120000): Promise<string> {
-    if (!this.isNative) return Promise.resolve('');
+    if (!this.isNative) {
+      return Promise.reject(new Error('Native host required.'));
+    }
     this.init();
     const id = `${Date.now()}_aiStream`;
     return new Promise(async (resolve, reject) => {
       const { ensureAiModelReady } = await import('./aiModelGate');
       const ready = await ensureAiModelReady();
       if (!ready) {
-        resolve('');
+        const { pushToast } = await import('../components/ToastHost');
+        pushToast({ kind: 'warning', title: 'Assistant not ready', message: 'Download or load the local model first.' });
+        reject(new Error('AI model not ready.'));
         return;
       }
       const chunks: string[] = [];

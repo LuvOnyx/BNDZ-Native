@@ -63,7 +63,24 @@ export default class BndzErrorBoundary extends React.Component<Props, State> {
     if (!this.state.error) return this.props.children;
 
     if (this.props.isolate) {
-      return this.props.fallback ?? null;
+      if (this.props.fallback) return this.props.fallback;
+      return (
+        <div className="flex h-full min-h-[160px] w-full flex-col items-center justify-center gap-2 bg-[#0C0F14]/80 px-6 text-center">
+          <div className="text-[13px] font-semibold text-[#e8eef6]">
+            {this.props.label || 'Panel'} failed to render
+          </div>
+          <div className="max-w-md text-[11px] leading-relaxed text-[#9CA3AF]">
+            {this.state.error.message || 'Unknown error'}
+          </div>
+          <button
+            type="button"
+            className="mt-1 rounded-[10px] border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] text-[#c5cdd6] hover:bg-white/10"
+            onClick={() => this.setState({ error: null })}
+          >
+            Retry
+          </button>
+        </div>
+      );
     }
 
     return (

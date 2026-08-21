@@ -102,7 +102,7 @@
     <PackageReference Include="Meziantou.Framework.Win32.ChangeJournal" Version="2.0.3" />
     <PackageReference Include="Meziantou.Framework.Win32.Jobs" Version="3.4.5" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.0" />
@@ -112,20 +112,25 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="NHotkey.Wpf" Version="3.0.0" />
     <PackageReference Include="Ookii.Dialogs.Wpf" Version="5.0.1" />
+    <PackageReference Include="PdfPig" Version="0.1.12" />
+    <PackageReference Include="PhotoSauce.MagicScaler" Version="0.15.0" />
     <PackageReference Include="SharpCompress" Version="0.50.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.1" />
     <PackageReference Include="Svg.Skia" Version="3.0.4" />
     <PackageReference Include="System.Data.OleDb" Version="10.0.2" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.2" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
-    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="10.0.2" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.2" />
     <PackageReference Include="SSH.NET" Version="2024.2.0" />
     <PackageReference Include="SIPSorcery" Version="8.0.23" />
+    <PackageReference Include="UTF.Unknown" Version="2.6.0" />
     <PackageReference Include="Zeroconf" Version="3.6.11" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
+    <PackageReference Include="Vanara.PInvoke.Ole" Version="5.0.5" />
     <PackageReference Include="Vanara.PInvoke.SearchApi" Version="5.0.5" />
     <PackageReference Include="Vanara.Windows.Shell" Version="5.0.5" />
   </ItemGroup>

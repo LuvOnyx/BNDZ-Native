@@ -63,7 +63,7 @@ export const MeshPluginDef = {
   name: 'Remote Mesh',
   icon: 'cloud_ui',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type Props = {

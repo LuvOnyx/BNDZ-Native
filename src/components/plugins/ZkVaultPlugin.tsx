@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
+import { assertIpcOk, runPluginRefresh } from '../../lib/pluginRefresh';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatUiPath } from '../../lib/displayPath';
 import PluginPanelShell from './PluginPanelShell';
@@ -48,12 +49,18 @@ export default function ZkVaultPlugin({
     : currentPath ? toWindowsPath(currentPath) : '';
 
   const refresh = useCallback(async () => {
-    const res = await IPC.zkVaultStatus();
-    if (res.ok && res.status) {
+    await runPluginRefresh('ZK Vault', async () => {
+      const res = await IPC.zkVaultStatus();
+      assertIpcOk(res, 'Could not load vault status.');
       const st = res.status as { sessions?: VaultSession[]; vaultCount?: number };
-      setSessions(Array.isArray(st.sessions) ? st.sessions : []);
-      setVaultCount(st.vaultCount ?? 0);
-    }
+      return {
+        sessions: Array.isArray(st.sessions) ? st.sessions : [],
+        vaultCount: st.vaultCount ?? 0,
+      };
+    }, ({ sessions: nextSessions, vaultCount: count }) => {
+      setSessions(nextSessions);
+      setVaultCount(count);
+    });
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);

@@ -88,7 +88,9 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
     syncPack();
     const ro = new ResizeObserver(syncPack);
     ro.observe(scrollEl);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+    };
   }, [mode, scrollEl, gridMinItemWidth, gap]);
 
   const gridCols = gridPack.cols;
@@ -299,7 +301,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
               top: 0,
               left: 0,
               width: '100%',
-              height: rowHeight,
+              height: vi.size,
               transform: `translate3d(0, ${vi.start}px, 0)`,
               contain: 'layout style paint',
               overflow: 'hidden',

@@ -86,7 +86,7 @@ export const WORK_INTENT_PACKS: Record<WorkIntentId, WorkIntentPack> = {
     },
     sortColumn: 'modified',
     sortDirection: 'desc',
-    preferredPlugins: ['ram-staging', 'metadata', 'music-studio'],
+    preferredPlugins: ['ram-staging', 'metadata', 'transcode-rack'],
     previewMode: 'media',
     confirmStrictness: 'relaxed',
     defaultAutomationGraphId: 'producer-desk',

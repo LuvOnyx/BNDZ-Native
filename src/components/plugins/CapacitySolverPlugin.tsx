@@ -24,7 +24,7 @@ export const CapacitySolverPluginDef = {
   icon: 'hard_drive_ui',
   description: 'What-if capacity planner with scrubbers, projected outcomes, and budget governor.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type PlanAction = {

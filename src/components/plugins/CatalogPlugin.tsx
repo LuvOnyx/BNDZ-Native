@@ -8,6 +8,7 @@ import { formatUiPath, splitUiPath } from '../../lib/displayPath';
 import { requestNativePrompt } from '../../lib/nativeDialog';
 import { pushToast } from '../ToastHost';
 import { IPC } from '../../lib/ipcBridge';
+import { runPluginRefresh } from '../../lib/pluginRefresh';
 import {
   PluginToolbarButton,
   PluginSectionTitle,
@@ -57,13 +58,9 @@ export default function CatalogPlugin({ selectedPaths = [], onNavigate }: Props)
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      setCatalogs(await listCatalogs());
-    } catch {
-      setCatalogs([]);
-    } finally {
-      setLoading(false);
-    }
+    const ok = await runPluginRefresh('Catalog', () => listCatalogs(), setCatalogs);
+    if (!ok) setCatalogs([]);
+    setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);

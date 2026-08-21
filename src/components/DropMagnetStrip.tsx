@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IPC } from '../lib/ipcBridge';
 import { pushToast } from './ToastHost';
+import { runPluginRefresh } from '../lib/pluginRefresh';
 
 type MagnetRow = {
   id: string;
@@ -33,12 +34,12 @@ export default function DropMagnetStrip({ externalDragActive, pendingPaths, onAp
   const [applying, setApplying] = useState(false);
 
   const refresh = useCallback(async () => {
-    const res = await IPC.magnetList();
-    setMagnets(
-      (res.magnets || [])
+    await runPluginRefresh('Drop Magnets', async () => {
+      const res = await IPC.magnetList();
+      return (res.magnets || [])
         .map((m: Record<string, unknown>) => normalizeMagnet(m))
-        .filter(m => m.enabled),
-    );
+        .filter(m => m.enabled);
+    }, setMagnets);
   }, []);
 
   useEffect(() => {

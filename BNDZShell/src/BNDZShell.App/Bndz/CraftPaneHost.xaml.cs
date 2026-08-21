@@ -44,6 +44,10 @@ public sealed partial class CraftPaneHost : UserControl
 	/// <summary>Last DIR listing JSON — re-posted on BNDZ_UI_READY because early PostWebMessage drops if React has not subscribed yet.</summary>
 	private string? _lastListingJson;
 	private Action<string>? _pushHandler;
+	/// <summary>WinUI main window HWND — required for OLE drop registration.</summary>
+	public IntPtr HostWindowHandle { get; set; }
+
+	private bool _oleDropRegistered;
 
 	private static CoreWebView2Environment? s_sharedPaneEnv;
 	private static readonly SemaphoreSlim s_envLock = new(1, 1);
@@ -77,6 +81,8 @@ public sealed partial class CraftPaneHost : UserControl
 				BndzEmbeddedBackendHost.UnregisterPushTarget(_pushHandler);
 				_pushHandler = null;
 			}
+			BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
+			_oleDropRegistered = false;
 		};
 	}
 
@@ -219,10 +225,12 @@ public sealed partial class CraftPaneHost : UserControl
 			core.WebResourceRequested += Core_WebResourceRequested;
 
 			core.WebMessageReceived += Core_WebMessageReceived;
+			core.NavigationStarting += Core_NavigationStarting;
 			core.NavigationCompleted += Core_NavigationCompleted;
 			core.ProcessFailed += Core_ProcessFailed;
 			_initialized = true;
 			WebViewInitialized?.Invoke(this, EventArgs.Empty);
+			TryRegisterOleDropTarget();
 			PaneStatusHint.Text = "Loading BNDZ UI…";
 			ApplyPaneRoute(forceNavigate: true);
 			ScheduleReadyWatchdog();
@@ -322,10 +330,101 @@ public sealed partial class CraftPaneHost : UserControl
 			var scale = XamlRoot?.RasterizationScale ?? 1.0;
 			if (scale > 0.1 && Math.Abs(PaneWebView.RasterizationScale - scale) > 0.001)
 				PaneWebView.RasterizationScale = scale;
+			if (_initialized)
+				TryRegisterOleDropTarget();
 		}
 		catch (Exception ex)
 		{
 			Debug.WriteLine($"[CraftPaneHost] RasterizationScale: {ex.Message}");
+		}
+	}
+
+	/// <summary>Register native OLE IDropTarget on WebView2 child HWND (desktop → BNDZ drops).</summary>
+	internal void TryRegisterOleDropTarget()
+	{
+		if (!_initialized || PaneWebView.CoreWebView2 is null)
+			return;
+		var hwnd = HostWindowHandle;
+		if (hwnd == IntPtr.Zero)
+			return;
+
+		try
+		{
+			BndzEmbeddedBackendHost.SetHostWindowHandle(hwnd);
+
+			var clientW = PaneWebView.ActualWidth;
+			var clientH = PaneWebView.ActualHeight;
+			if (clientW < 1) clientW = 1280;
+			if (clientH < 1) clientH = 720;
+			var rasterScale = XamlRoot?.RasterizationScale ?? 1.0;
+
+			BndzEmbeddedBackendHost.ConfigureHeadlessDropBridge(
+				(screenX, screenY) =>
+				{
+					if (BndzEmbeddedBackendHost.TryScreenToWebViewClient(screenX, screenY, out var cx, out var cy))
+					{
+						if (rasterScale > 0.01)
+							return (cx / rasterScale, cy / rasterScale);
+						return (cx, cy);
+					}
+					return (screenX, screenY);
+				},
+				clientW,
+				clientH);
+
+			_oleDropRegistered = BndzEmbeddedBackendHost.RegisterHostOleDropTarget();
+			if (!_oleDropRegistered)
+			{
+				Debug.WriteLine("[CraftPaneHost] OLE drop target registration pending — WebView2 HWND not ready.");
+				ScheduleOleDropRetry();
+			}
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] TryRegisterOleDropTarget: {ex.Message}");
+		}
+	}
+
+	private int _oleDropRetryGeneration;
+
+	private void ScheduleOleDropRetry()
+	{
+		var generation = ++_oleDropRetryGeneration;
+		_ = Task.Run(async () =>
+		{
+			for (var attempt = 0; attempt < 8 && generation == _oleDropRetryGeneration; attempt++)
+			{
+				await Task.Delay(attempt == 0 ? 120 : 250).ConfigureAwait(false);
+				try
+				{
+					DispatcherQueue?.TryEnqueue(() =>
+					{
+						if (generation != _oleDropRetryGeneration || _oleDropRegistered)
+							return;
+						TryRegisterOleDropTarget();
+					});
+				}
+				catch { /* ignore */ }
+				if (_oleDropRegistered)
+					break;
+			}
+		});
+	}
+
+	private void Core_NavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
+	{
+		if (!args.Uri.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+			return;
+		args.Cancel = true;
+		try
+		{
+			var localPath = new Uri(args.Uri).LocalPath;
+			if (!string.IsNullOrWhiteSpace(localPath))
+				BndzEmbeddedBackendHost.NotifyNavigationFileDrop(localPath);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] NavigationStarting file drop: {ex.Message}");
 		}
 	}
 
@@ -354,6 +453,7 @@ public sealed partial class CraftPaneHost : UserControl
 
 	private void Core_NavigationCompleted(CoreWebView2 sender, CoreWebView2NavigationCompletedEventArgs args)
 	{
+		TryRegisterOleDropTarget();
 		// Do not mark ready / hide hint here — React mounts after NavigationCompleted.
 		// BNDZ_UI_READY owns document-ready + flush so DIR listings are not dropped.
 		if (args.IsSuccess)
@@ -375,6 +475,8 @@ public sealed partial class CraftPaneHost : UserControl
 
 	private void Core_ProcessFailed(CoreWebView2 sender, CoreWebView2ProcessFailedEventArgs args)
 	{
+		BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
+		_oleDropRegistered = false;
 		_documentReady = false;
 		PaneStatusHint.Visibility = Visibility.Visible;
 		PaneStatusHint.Text = "UI process crashed — reloading…";

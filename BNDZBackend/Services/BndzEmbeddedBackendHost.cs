@@ -169,6 +169,82 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    /// <summary>WinUI CraftPaneHost: map OLE screen coords to WebView2 CSS client space.</summary>
+    public static void ConfigureHeadlessDropBridge(
+        Func<double, double, (double X, double Y)>? screenToClientMapper,
+        double webViewClientWidth,
+        double webViewClientHeight)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try
+        {
+            _host?.ConfigureHeadlessDropBridge(
+                screenToClientMapper == null
+                    ? null
+                    : (x, y) =>
+                    {
+                        var p = screenToClientMapper(x, y);
+                        return new System.Windows.Point(p.X, p.Y);
+                    },
+                webViewClientWidth,
+                webViewClientHeight);
+        }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] ConfigureHeadlessDropBridge: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Register BNDZ OLE IDropTarget on WebView2 child HWND under the WinUI shell window.</summary>
+    public static bool RegisterHostOleDropTarget()
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try
+        {
+            _host?.RegisterHostOleDropTarget();
+            return WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[BndzEmbeddedBackendHost] RegisterHostOleDropTarget: {ex.Message}");
+            return false;
+        }
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>Revoke OLE drop target (pane unload / WebView recovery).</summary>
+    public static void RevokeHostOleDropTarget()
+    {
+#if BNDZ_HEADLESS_CORE
+        try { _host?.RevokeHostOleDropTarget(); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] RevokeHostOleDropTarget: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Path A fallback when Chromium navigates to file: from an external drop.</summary>
+    public static void NotifyNavigationFileDrop(string localPath)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.NotifyNavigationFileDrop(localPath); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] NotifyNavigationFileDrop: {ex.Message}"); }
+#endif
+    }
+
+    /// <summary>Map screen coordinates to WebView2 client space after OLE registration.</summary>
+    public static bool TryScreenToWebViewClient(double screenX, double screenY, out double clientX, out double clientY)
+    {
+#if BNDZ_HEADLESS_CORE
+        return WebView2DropTargetService.TryScreenToWebViewClient(screenX, screenY, out clientX, out clientY);
+#else
+        clientX = screenX;
+        clientY = screenY;
+        return false;
+#endif
+    }
+
     public static void SetHostCloseAction(Action closeAction)
     {
 #if BNDZ_HEADLESS_CORE

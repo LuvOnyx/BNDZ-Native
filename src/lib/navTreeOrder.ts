@@ -2,7 +2,7 @@ import type { NavTreeSourceNode } from './navTreeModel';
 
 /** Default root-level navigation tree order — Workspace Tools stays at the bottom. */
 export const NAV_TREE_ORDER_DEFAULT = [
-  'home',
+  'continuum-home',
   'libraries',
   'this-pc',
   'linux',
@@ -24,6 +24,7 @@ export function migrateNavTreeOrder(saved: string[] | undefined): string[] {
     let key = k;
     if (k.startsWith('cloud:')) key = 'cloud-drives';
     if (k === 'gallery') key = 'libraries';
+    if (k === 'home') key = 'continuum-home';
     if (k === 'spatial-canvas' || k === 'automation') key = 'workspace-tools';
     if (!out.includes(key)) out.push(key);
   }

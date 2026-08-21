@@ -20,6 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { useAppConfig } from '../data/configContext';
 import { Icons8Icon, DragHandleGlyph } from './Icons8Icon';
+import BndzErrorBoundary from './BndzErrorBoundary';
 import type { ContextToolId } from '../workstation/command-deck/contextToolRegistry';
 
 /** Keep tab reorder drags horizontal — no vertical pull on the tab strip. */
@@ -434,7 +435,9 @@ export default function BottomPluginPanel(props: any & {
               exit={{ opacity: 0, y: -8, filter: 'blur(3px)' }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
-              <ActiveComponent {...mergedPluginProps} isPluginTabActive immersive={immersive} />
+              <BndzErrorBoundary isolate label={`Plugin:${activeTab}`} resetKey={activeTab}>
+                <ActiveComponent {...mergedPluginProps} isPluginTabActive immersive={immersive} />
+              </BndzErrorBoundary>
             </motion.div>
             );
           })()}
@@ -445,7 +448,9 @@ export default function BottomPluginPanel(props: any & {
           if (!Component) return null;
           return (
             <div key={plugin.id} className="bndz-bottom-plugin-surface absolute inset-0 z-0 pointer-events-none invisible flex flex-col min-h-0 overflow-hidden" aria-hidden>
-              <Component {...mergedPluginProps} isPluginTabActive={false} immersive={immersive} />
+              <BndzErrorBoundary isolate label={`Plugin:${plugin.id}`} resetKey={plugin.id}>
+                <Component {...mergedPluginProps} isPluginTabActive={false} immersive={immersive} />
+              </BndzErrorBoundary>
             </div>
           );
         })}

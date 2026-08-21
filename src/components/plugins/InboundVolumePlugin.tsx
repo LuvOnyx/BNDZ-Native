@@ -23,7 +23,7 @@ export const InboundVolumePluginDef = {
   icon: 'download_ui',
   description: 'Clipboard catcher and inbound file watcher — capture, review, and copy into your library.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TabId = 'inbox' | 'settings';

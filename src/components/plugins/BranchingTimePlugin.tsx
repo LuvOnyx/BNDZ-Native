@@ -22,7 +22,7 @@ export const BranchingTimePluginDef = {
   icon: 'history_ui',
   description: 'Content-addressed folder branches — snapshot, scrub, restore. Git for folders without git.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TabId = 'branches' | 'peek' | 'vss';

@@ -5,9 +5,8 @@ type Props = {
   mode: InspectionShaderMode;
   stageRef: React.RefObject<HTMLElement | null>;
   imgRef: React.RefObject<HTMLImageElement | null>;
-  /** Live pan/zoom scale — ref so zoom does not rebind pointer listeners every frame. */
-  displayScaleRef?: React.RefObject<number>;
-  displayScale?: number;
+  /** Live pan/zoom scale — so zoom does not cause unnecessary re-renders. */
+  displayScale: number;
 };
 
 const LOUPE_PX = 176;
@@ -20,13 +19,10 @@ export default function InspectionLens2D({
   mode,
   stageRef,
   imgRef,
-  displayScaleRef,
-  displayScale = 1,
+  displayScale,
 }: Props) {
   const glassRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
-  const scaleFallbackRef = useRef(displayScale);
-  scaleFallbackRef.current = displayScale;
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -34,10 +30,15 @@ export default function InspectionLens2D({
     const inner = innerRef.current;
     if (!stage || !glass || !inner || mode !== 'loupe') return;
 
-    const readScale = () => displayScaleRef?.current ?? scaleFallbackRef.current ?? 1;
+    const readScale = () => displayScale ?? 1;
 
     const paint = (clientX: number, clientY: number) => {
       const live = imgRef.current;
+      if (!live) {
+        inner.style.backgroundImage = '';
+        return;
+      }
+
       const stageBox = stage.getBoundingClientRect();
       if (stageBox.width < 8 || stageBox.height < 8) return;
 
@@ -45,9 +46,9 @@ export default function InspectionLens2D({
       const cy = clientY - stageBox.top;
       glass.style.left = `${cx - LOUPE_PX / 2}px`;
       glass.style.top = `${cy - LOUPE_PX / 2}px`;
-      glass.style.opacity = '1';
+      glass.style.opacity = live.complete && live.naturalWidth ? '1' : '0';
 
-      if (!live?.complete || !live.naturalWidth) {
+      if (!live.complete || !live.naturalWidth) {
         inner.style.backgroundImage = '';
         return;
       }
@@ -71,8 +72,18 @@ export default function InspectionLens2D({
 
     stage.addEventListener('pointermove', onMove);
     const img = imgRef.current;
-    img?.addEventListener('load', seed);
-    seed();
+    const onLoad = () => seed();
+    const onError = () => {
+      inner.style.backgroundImage = '';
+    };
+    img?.addEventListener('load', onLoad);
+    img?.addEventListener('error', onError);
+
+    // Initial seed call - but only if we have a valid image to avoid early mispositioning
+    if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      seed();
+    }
+
     let roRaf = 0;
     const ro = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(() => {
@@ -84,11 +95,12 @@ export default function InspectionLens2D({
 
     return () => {
       stage.removeEventListener('pointermove', onMove);
-      img?.removeEventListener('load', seed);
+      img?.removeEventListener('load', onLoad);
+      img?.removeEventListener('error', onError);
       cancelAnimationFrame(roRaf);
       ro?.disconnect();
     };
-  }, [displayScaleRef, imgRef, mode, stageRef]);
+  }, [displayScale, imgRef, mode, stageRef]);
 
   if (mode !== 'loupe') return null;
 

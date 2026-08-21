@@ -112,10 +112,8 @@ export function bindFloatingTooltipHandlers(
   const zoomScale = Number.isFinite(tipZoom) && tipZoom > 0
     ? Math.min(2.5, Math.max(0.75, tipZoom > 5 ? tipZoom / 100 : tipZoom))
     : 1;
-  void config.visibleTimeInMilliseconds;
-  void config.showVerbatimTooltips;
-  void config.showTipsForClippedTreeAndListItems;
-  void config.forJunctionsAsWell;
+  // visibleTime / verbatim / clipped / junctions are applied in FloatingTooltipHost
+  // and entityTooltip.ts — keep bind path free of dead voids.
   void opts?.context;
 
   return {

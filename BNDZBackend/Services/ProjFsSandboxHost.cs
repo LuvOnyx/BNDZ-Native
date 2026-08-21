@@ -4,9 +4,11 @@ using System.Runtime.InteropServices;
 namespace BNDZ.Services;
 
 /// <summary>
-/// ProjFS sandbox host (Impl B). Attempts to start a virtualization root when
-/// Client-ProjFS is available; otherwise no-ops and the journal/shadow Commit path applies.
-/// Full provider callbacks require Microsoft.Windows.ProjFS — detected at runtime via LoadLibrary.
+/// Overlay marker helper for Project Sandbox sessions.
+/// Does NOT mount a ProjFS VirtualizationInstance or OS-visible volume.
+/// When ProjectedFSLib.dll is present we still only create a shadow overlay
+/// directory + .bndz-projfs marker so Commit/Discard can merge via the transfer queue.
+/// Real ProjFS/WinFsp volume mounting is not shipped — journal/shadow is the product path.
 /// </summary>
 public static class ProjFsSandboxHost
 {
@@ -19,6 +21,7 @@ public static class ProjFsSandboxHost
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool FreeLibrary(IntPtr hModule);
 
+    /// <summary>True when ProjectedFSLib.dll can be loaded (capability probe only).</summary>
     public static bool IsProjFsAvailable()
     {
         try
@@ -35,34 +38,27 @@ public static class ProjFsSandboxHost
     }
 
     /// <summary>
-    /// Prepare a ProjFS-compatible overlay root under the session shadow directory.
-    /// When ProjFS DLL is missing, returns false and caller uses journal-only sandbox.
+    /// Prepare a shadow overlay directory under the session root and write a marker file.
+    /// Returns true when the overlay dir is ready — not when an OS volume is mounted.
     /// </summary>
     public static bool TryStartSession(string sessionId, string liveRoot, string virtualRoot)
     {
         if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(virtualRoot))
             return false;
-        if (!IsProjFsAvailable())
-        {
-            Debug.WriteLine("[ProjFS] ProjectedFSLib.dll not available — using journal/shadow Commit.");
-            return false;
-        }
 
         try
         {
             Directory.CreateDirectory(virtualRoot);
-            // Mark session as ProjFS-capable. Full VirtualizationInstance wiring needs the
-            // Microsoft.Windows.ProjFS managed package; we persist the mapping so Commit/Discard
-            // know to merge via transfer queue from this overlay root.
             var marker = Path.Combine(virtualRoot, ".bndz-projfs");
-            File.WriteAllText(marker, $"live={liveRoot}\nsession={sessionId}\n");
+            var mode = IsProjFsAvailable() ? "journal+marker" : "journal";
+            File.WriteAllText(marker, $"live={liveRoot}\nsession={sessionId}\nmode={mode}\n");
             lock (Gate) ActiveRoots[sessionId] = virtualRoot;
-            Debug.WriteLine($"[ProjFS] Overlay root ready for session {sessionId}: {virtualRoot}");
+            Debug.WriteLine($"[Sandbox] Shadow overlay ready ({mode}) for session {sessionId}: {virtualRoot}");
             return true;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[ProjFS] TryStartSession failed: {ex.Message}");
+            Debug.WriteLine($"[Sandbox] TryStartSession failed: {ex.Message}");
             return false;
         }
     }
@@ -84,8 +80,8 @@ public static class ProjFsSandboxHost
         }
     }
 
-    public static string? GetOverlayRoot(string sessionId)
+    public static bool IsSessionActive(string sessionId)
     {
-        lock (Gate) return ActiveRoots.TryGetValue(sessionId, out var r) ? r : null;
+        lock (Gate) return ActiveRoots.ContainsKey(sessionId);
     }
 }

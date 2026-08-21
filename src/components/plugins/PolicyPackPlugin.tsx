@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
+import { assertIpcOk, runPluginRefresh } from '../../lib/pluginRefresh';
 import { toWindowsPath } from '../../lib/pathUtils';
 import PluginPanelShell from './PluginPanelShell';
 import {
@@ -63,9 +64,18 @@ export default function PolicyPackPlugin({
   const [editing, setEditing] = useState<PolicyPackRow | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
-    const res = await IPC.policyPackList();
-    if (res.ok && res.packs) setPacks(res.packs.map((p: Record<string, unknown>) => normalizePack(p)));
+    const ok = await runPluginRefresh('Policy Packs', async () => {
+      const res = await IPC.policyPackList();
+      assertIpcOk(res, 'Could not load policy packs.');
+      return (res.packs || []).map((p: Record<string, unknown>) => normalizePack(p));
+    }, (rows) => {
+      setPacks(rows);
+      setLoadError(null);
+    });
+    if (!ok) setLoadError('Could not load policy packs.');
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -125,9 +135,17 @@ export default function PolicyPackPlugin({
         typeLabel="Policy packs"
         meta={<span className="text-xs text-gray-400">eslint for directories — enforce on drop/move</span>}
         actions={
-          <PluginHeroActionButton icon="add_ui" label="New pack" onClick={newPack} />
+          <PluginHeroActionButton icon="add_ui" onClick={newPack} variant="primary">
+            New pack
+          </PluginHeroActionButton>
         }
       />
+
+      {loadError && (
+        <PluginCard className="mb-3 p-3 text-xs text-red-300 border border-red-500/30">
+          {loadError}
+        </PluginCard>
+      )}
 
       {editing && (
         <PluginCard className="mb-3 p-3 space-y-2 bndz-policy-pack-editor">

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -654,15 +655,28 @@ public sealed class BndzFileIndexService : IDisposable
         "txt", "md", "markdown", "csv", "json", "xml", "yml", "yaml", "toml", "ini", "log",
         "cs", "ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "kt", "swift",
         "html", "htm", "css", "scss", "sql", "ps1", "bat", "cmd", "sh",
+        "pdf", "png", "jpg", "jpeg", "jfif", "bmp", "tif", "tiff", "webp",
     };
 
     private static void TryIndexTextContent(SqliteConnection conn, SqliteTransaction? tx, string winPath, string panePath, string ext, long size)
     {
-        if (size <= 0 || size > 512 * 1024) return;
+        if (size <= 0) return;
         if (!IndexableTextExts.Contains(ext)) return;
+
+        // Text files stay small; PDF/OCR allow larger but still bounded.
+        var isRich = ext.Equals("pdf", StringComparison.OrdinalIgnoreCase)
+            || ext is "png" or "jpg" or "jpeg" or "jfif" or "bmp" or "tif" or "tiff" or "webp";
+        if (!isRich && size > 512 * 1024) return;
+        if (isRich && size > 32 * 1024 * 1024) return;
+
         try
         {
-            var snippet = ReadTextSnippet(winPath, 12_000);
+            string? snippet = null;
+            if (isRich)
+                snippet = BndzContentTextExtractor.TryExtract(winPath, ext, size, 12_000);
+            else
+                snippet = ReadTextSnippet(winPath, 12_000);
+
             if (string.IsNullOrWhiteSpace(snippet)) return;
 
             using var del = conn.CreateCommand();
@@ -683,12 +697,29 @@ public sealed class BndzFileIndexService : IDisposable
 
     private static string ReadTextSnippet(string path, int maxChars)
     {
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var reader = new StreamReader(fs, detectEncodingFromByteOrderMarks: true);
-        var buf = new char[Math.Min(maxChars, 16_384)];
-        var n = reader.Read(buf, 0, buf.Length);
-        if (n <= 0) return "";
-        return new string(buf, 0, n);
+        try
+        {
+            // Charset detection for Shift-JIS / ANSI / UTF-16 logs (UTF.Unknown).
+            var bytes = File.ReadAllBytes(path);
+            if (bytes.Length == 0) return "";
+            if (bytes.Length > maxChars * 4)
+                bytes = bytes.AsSpan(0, Math.Min(bytes.Length, maxChars * 4)).ToArray();
+
+            var detected = UtfUnknown.CharsetDetector.DetectFromBytes(bytes);
+            var enc = detected?.Detected?.Encoding ?? Encoding.UTF8;
+            var text = enc.GetString(bytes);
+            if (text.Length > maxChars) text = text[..maxChars];
+            return text;
+        }
+        catch
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(fs, detectEncodingFromByteOrderMarks: true);
+            var buf = new char[Math.Min(maxChars, 16_384)];
+            var n = reader.Read(buf, 0, buf.Length);
+            if (n <= 0) return "";
+            return new string(buf, 0, n);
+        }
     }
 
     public List<object> GetRecentFiles(int limit = 500) =>

@@ -71,8 +71,8 @@ public sealed class BndzContentGrepService
                 {
                     var fi = new FileInfo(file);
                     if (fi.Length > MaxFileBytes) continue;
-                    var text = File.ReadAllText(file, Encoding.UTF8);
-                    if (!ContentMatches(text, pattern, comparison, regex)) continue;
+                    var text = ReadFileTextDetected(file);
+                    if (string.IsNullOrEmpty(text) || !ContentMatches(text, pattern, comparison, regex)) continue;
                     results.Add(new
                     {
                         name = fi.Name,
@@ -97,5 +97,22 @@ public sealed class BndzContentGrepService
     {
         if (regex != null) return regex.IsMatch(text);
         return text.Contains(pattern, comparison);
+    }
+
+    private static string ReadFileTextDetected(string file)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(file);
+            if (bytes.Length == 0) return "";
+            var detected = UtfUnknown.CharsetDetector.DetectFromBytes(bytes);
+            var enc = detected?.Detected?.Encoding ?? Encoding.UTF8;
+            return enc.GetString(bytes);
+        }
+        catch
+        {
+            try { return File.ReadAllText(file, Encoding.UTF8); }
+            catch { return ""; }
+        }
     }
 }

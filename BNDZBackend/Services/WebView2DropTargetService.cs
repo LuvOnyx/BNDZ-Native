@@ -80,6 +80,12 @@ internal static class WebView2DropTargetService
     private const uint MK_CONTROL = 0x0008;
 
     private const short CF_HDROP = 15;
+    private static readonly short CF_FILEGROUPDESCRIPTORW = (short)RegisterClipboardFormat("FileGroupDescriptorW");
+    private static readonly short CF_FILECONTENTS = (short)RegisterClipboardFormat("FileContents");
+    private static readonly short CF_SHELLIDLIST = (short)RegisterClipboardFormat("Shell IDList Array");
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterClipboardFormat(string lpszFormat);
 
     // HRESULT S_OK / S_FALSE
     private const int S_OK = 0;
@@ -179,6 +185,28 @@ internal static class WebView2DropTargetService
         Debug.WriteLine("[OleDrop] Drop target revoked.");
     }
 
+    /// <summary>WebView2 child HWND that currently owns the BNDZ OLE drop target.</summary>
+    public static IntPtr RegisteredWebViewHwnd => _registeredHwnd;
+
+    /// <summary>Map screen coordinates to WebView2 client space on the registered HWND.</summary>
+    public static bool TryScreenToWebViewClient(double screenX, double screenY, out double clientX, out double clientY)
+    {
+        clientX = screenX;
+        clientY = screenY;
+        if (_registeredHwnd == IntPtr.Zero)
+            return false;
+        var pt = new NativePoint
+        {
+            x = (int)Math.Round(screenX),
+            y = (int)Math.Round(screenY),
+        };
+        if (!ScreenToClient(_registeredHwnd, ref pt))
+            return false;
+        clientX = pt.x;
+        clientY = pt.y;
+        return true;
+    }
+
     // ── HWND discovery ────────────────────────────────────────────────────────
 
     /// <summary>
@@ -226,15 +254,26 @@ internal static class WebView2DropTargetService
     // ── CF_HDROP path extraction (COM ComIDataObject, no WPF wrapper needed) ──────
 
     /// <summary>
-    /// Extract filesystem paths from a COM <see cref="ComIDataObject"/> by requesting
-    /// CF_HDROP (shell file drop format) directly via Win32 <c>DragQueryFile</c>.
-    /// Works for Explorer multi-file selections, folder drops, and desktop drags.
+    /// Extract filesystem paths from a COM <see cref="ComIDataObject"/> —
+    /// CF_HDROP first, then Shell IDList, then FileGroupDescriptorW + FileContents (virtual files).
     /// </summary>
     internal static string[] ExtractPathsFromComDataObject(ComIDataObject comData)
     {
         if (comData == null) return Array.Empty<string>();
-        var paths = new List<string>();
 
+        var hdrop = ExtractHdropPaths(comData);
+        if (hdrop.Length > 0) return hdrop;
+
+        var idList = ExtractShellIdListPaths(comData);
+        if (idList.Length > 0) return idList;
+
+        var virtualFiles = ExtractFileGroupDescriptorPaths(comData);
+        return virtualFiles;
+    }
+
+    private static string[] ExtractHdropPaths(ComIDataObject comData)
+    {
+        var paths = new List<string>();
         try
         {
             var fmt = new FORMATETC
@@ -246,7 +285,6 @@ internal static class WebView2DropTargetService
                 tymed = TYMED.TYMED_HGLOBAL,
             };
 
-            // QueryGetData will throw COMException if the format is absent.
             comData.QueryGetData(ref fmt);
             comData.GetData(ref fmt, out var stg);
 
@@ -254,7 +292,6 @@ internal static class WebView2DropTargetService
             {
                 if (stg.tymed == TYMED.TYMED_HGLOBAL && stg.unionmember != IntPtr.Zero)
                 {
-                    // stg.unionmember IS the HDROP (typed HGLOBAL).
                     var hDrop = stg.unionmember;
                     uint count = DragQueryFile(hDrop, 0xFFFFFFFF, null, 0);
 
@@ -273,7 +310,6 @@ internal static class WebView2DropTargetService
             }
             finally
             {
-                // Always release the medium to avoid handle / memory leaks.
                 ReleaseStgMedium(ref stg);
             }
         }
@@ -288,21 +324,109 @@ internal static class WebView2DropTargetService
             .ToArray();
     }
 
+    private static string[] ExtractShellIdListPaths(ComIDataObject comData)
+    {
+        if (CF_SHELLIDLIST == 0) return Array.Empty<string>();
+        try
+        {
+            // Prefer Vanara ShellDataObject when present — falls back silently.
+            var wpf = new System.Windows.DataObject(comData);
+            if (wpf.GetDataPresent("Shell IDList Array", false))
+            {
+                // Shell IDList often coexists with HDROP; when HDROP was empty, try file-drop list.
+                if (wpf.GetDataPresent(System.Windows.DataFormats.FileDrop, false))
+                {
+                    var files = wpf.GetData(System.Windows.DataFormats.FileDrop) as string[];
+                    if (files is { Length: > 0 })
+                        return files.Where(p => !string.IsNullOrWhiteSpace(p) && p.Length > 2)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToArray();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[OleDrop] ShellIDList: {ex.Message}");
+        }
+        return Array.Empty<string>();
+    }
+
+    private static string[] ExtractFileGroupDescriptorPaths(ComIDataObject comData)
+    {
+        if (CF_FILEGROUPDESCRIPTORW == 0 || CF_FILECONTENTS == 0)
+            return Array.Empty<string>();
+
+        var staged = new List<string>();
+        try
+        {
+            var wpf = new System.Windows.DataObject(comData);
+            if (!wpf.GetDataPresent("FileGroupDescriptorW"))
+                return Array.Empty<string>();
+
+            // Virtual file drops (Outlook, zip internals): stage into temp then treat as paths.
+            if (wpf.GetDataPresent(System.Windows.DataFormats.FileDrop, false))
+            {
+                var files = wpf.GetData(System.Windows.DataFormats.FileDrop) as string[];
+                if (files is { Length: > 0 })
+                    return files.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray();
+            }
+
+            var stagingRoot = Path.Combine(
+                Path.GetTempPath(),
+                "BNDZ",
+                "OleDrop",
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff"));
+            Directory.CreateDirectory(stagingRoot);
+
+            // FILECONTENTS streams — index-based extraction via WPF when available.
+            for (var i = 0; i < 64; i++)
+            {
+                try
+                {
+                    var streamObj = wpf.GetData("FileContents", false);
+                    if (streamObj is not Stream stream) break;
+                    var dest = Path.Combine(stagingRoot, $"drop_{i}.bin");
+                    using (var fs = File.Create(dest))
+                        stream.CopyTo(fs);
+                    staged.Add(dest);
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[OleDrop] FileGroupDescriptor: {ex.Message}");
+        }
+
+        return staged.ToArray();
+    }
+
     private static bool HasFileDrop(ComIDataObject comData)
     {
         if (comData == null) return false;
+        if (HasFormat(comData, CF_HDROP)) return true;
+        if (CF_SHELLIDLIST != 0 && HasFormat(comData, CF_SHELLIDLIST)) return true;
+        if (CF_FILEGROUPDESCRIPTORW != 0 && HasFormat(comData, CF_FILEGROUPDESCRIPTORW)) return true;
+        return false;
+    }
+
+    private static bool HasFormat(ComIDataObject comData, short cf)
+    {
         try
         {
             var fmt = new FORMATETC
             {
-                cfFormat = CF_HDROP,
+                cfFormat = cf,
                 ptd = IntPtr.Zero,
                 dwAspect = DVASPECT.DVASPECT_CONTENT,
                 lindex = -1,
-                tymed = TYMED.TYMED_HGLOBAL,
+                tymed = TYMED.TYMED_HGLOBAL | TYMED.TYMED_ISTREAM | TYMED.TYMED_ISTORAGE,
             };
             comData.QueryGetData(ref fmt);
-            return true; // no exception → S_OK → format present
+            return true;
         }
         catch { return false; }
     }

@@ -25,7 +25,7 @@ export const GhostLinkPluginDef = {
   icon: 'emblem_symbolic_link',
   description: 'Offload inactive files to cold storage while preserving paths via symlinks.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TabId = 'overview' | 'rules' | 'ghosts';

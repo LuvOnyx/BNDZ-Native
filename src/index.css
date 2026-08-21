@@ -11545,7 +11545,7 @@ html[data-theme] .nav-tree-row:focus-visible {
     inset 0 1.5px 0 rgba(255,255,255,0.12),
     inset 0 -1px 0 rgba(0,0,0,0.45);
 }
-.bndz-rack-pin {
+.bndz-pin-module {
   position: absolute; display: flex; flex-direction: column; gap: 8px;
   padding: 12px 12px 10px 16px; border-radius: 12px;
   border: 1px solid #3a4048;
@@ -13491,6 +13491,10 @@ html[data-theme] .nav-tree-row:focus-visible {
   position: relative;
   z-index: 8;
   pointer-events: auto;
+}
+.bndz-inspection-mode-bar--stage {
+  background: linear-gradient(180deg, rgba(12, 18, 28, 0.92), rgba(12, 18, 28, 0.72));
+  border-bottom: 1px solid rgba(56, 189, 248, 0.18);
 }
 .bndz-inspection-mode-strip {
   flex-shrink: 1;

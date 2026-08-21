@@ -71,6 +71,8 @@ public sealed partial class MainWindow : Window
         ChromeHost.WebViewInitialized += (_, _) =>
         {
             WireHostLifecycle();
+            ChromeHost.HostWindowHandle = _hwnd;
+            ChromeHost.TryRegisterOleDropTarget();
             _ = BootstrapAsync();
         };
 
@@ -139,6 +141,7 @@ public sealed partial class MainWindow : Window
         try
         {
             _hwnd = WindowNative.GetWindowHandle(this);
+            ChromeHost.HostWindowHandle = _hwnd;
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
 

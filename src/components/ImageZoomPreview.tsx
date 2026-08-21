@@ -18,9 +18,6 @@ interface ImageZoomPreviewProps {
   inspectionMode?: InspectionShaderMode;
 }
 
-const LUMA_FILTER =
-  'grayscale(1) contrast(1.55) brightness(1.18) sepia(0.7) hue-rotate(158deg) saturate(2.1)';
-
 function measureContainScale(
   imgW: number,
   imgH: number,
@@ -149,8 +146,8 @@ export default function ImageZoomPreview({
     const { x, y } = offsetRef.current;
     const s = scaleRef.current;
     el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${s})`;
-    // Filter on the same node as transform — guaranteed visible for Luma.
-    el.style.filter = inspectionModeRef.current === 'histogram' ? LUMA_FILTER : '';
+    // Luma filter comes from CSS classes (.is-luma / --luma) — never inline blowout.
+    el.style.filter = '';
     rafRef.current = null;
   }, []);
 
@@ -174,8 +171,8 @@ export default function ImageZoomPreview({
     const img = imgRef.current;
     if (stage && img?.naturalWidth) {
       const s = clamped;
-      const maxX = Math.max(48, (img.naturalWidth * s - stage.clientWidth) / 2 + 48);
-      const maxY = Math.max(48, (img.naturalHeight * s - stage.clientHeight) / 2 + 48);
+      const maxX = Math.max(48, Math.abs(img.naturalWidth * s - stage.clientWidth) / 2);
+      const maxY = Math.max(48, Math.abs(img.naturalHeight * s - stage.clientHeight) / 2);
       offsetRef.current = {
         x: Math.max(-maxX, Math.min(maxX, offsetRef.current.x)),
         y: Math.max(-maxY, Math.min(maxY, offsetRef.current.y)),
@@ -321,8 +318,8 @@ export default function ImageZoomPreview({
     let ny = offsetRef.current.y + dy;
     if (stage && img?.naturalWidth) {
       const s = scaleRef.current;
-      const maxX = Math.max(48, (img.naturalWidth * s - stage.clientWidth) / 2 + 48);
-      const maxY = Math.max(48, (img.naturalHeight * s - stage.clientHeight) / 2 + 48);
+      const maxX = Math.max(48, Math.abs(img.naturalWidth * s - stage.clientWidth) / 2);
+      const maxY = Math.max(48, Math.abs(img.naturalHeight * s - stage.clientHeight) / 2);
       nx = Math.max(-maxX, Math.min(maxX, nx));
       ny = Math.max(-maxY, Math.min(maxY, ny));
     }
@@ -338,6 +335,15 @@ export default function ImageZoomPreview({
       try { (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId); } catch { /* ignore */ }
     }
   }, [blowUp.stayUp, blowUp.onRightMouseDown]);
+
+  useEffect(() => {
+    const needsBlob =
+      (inspectionMode === 'histogram' || inspectionMode === 'loupe')
+      && filePath
+      && (imgSrc.startsWith('bndz-stream:') || imgSrc.includes('/local-stream/'));
+    if (!needsBlob) return;
+    void tryBlobFallback();
+  }, [inspectionMode, filePath, imgSrc, tryBlobFallback]);
 
   const isLuma = inspectionMode === 'histogram';
   const isLoupe = inspectionMode === 'loupe';
@@ -402,7 +408,7 @@ export default function ImageZoomPreview({
             mode="loupe"
             stageRef={stageRef}
             imgRef={imgRef}
-            displayScaleRef={displayScaleRef}
+            displayScale={displayScale}
           />
         )}
       </div>

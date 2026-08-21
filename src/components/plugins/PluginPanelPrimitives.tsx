@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { type CSSProperties, type ReactNode } from 'react';
 import { Icons8Icon } from '../Icons8Icon';
 import { formatUiPath } from '../../lib/displayPath';
 
@@ -99,12 +99,14 @@ export function PluginSectionTitle({
 export function PluginCard({
   children,
   className = '',
+  style,
 }: {
   children: ReactNode;
   className?: string;
+  style?: CSSProperties;
 }) {
   return (
-    <div className={`bndz-plugin-card ${className}`}>
+    <div className={`bndz-plugin-card ${className}`} style={style}>
       {children}
     </div>
   );

@@ -113,6 +113,10 @@ function InspectionPlane({
     });
   }, [texture, shaderMode, mouse]);
 
+  useEffect(() => () => {
+    material.dispose();
+  }, [material]);
+
   useEffect(() => {
     material.uniforms.uMap.value = texture;
     material.uniforms.uResolution.value.set(size.width, size.height);
@@ -169,7 +173,7 @@ function InspectionPlane({
         planeHalfRef={planeHalfRef}
         onZoomChange={onZoomChange}
       />
-      <mesh>
+      <mesh key={shaderMode}>
         <planeGeometry args={[planeW, planeH]} />
         <primitive object={material} attach="material" />
       </mesh>
@@ -255,23 +259,30 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
 
   if (!src || failed || !textureSrc) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
+      <div
+        className="w-full h-full flex items-center justify-center text-xs text-gray-500"
+        style={{ background: '#0b0e14' }}
+      >
         {failed ? 'GPU preview unavailable' : 'Loading GPU preview…'}
       </div>
     );
   }
 
   return (
-    <div ref={viewportRef} className="bndz-gpu-viewport group relative w-full h-full min-h-0">
+    <div
+      ref={viewportRef}
+      className="bndz-gpu-viewport group relative w-full h-full min-h-0"
+      style={{ background: '#0b0e14' }}
+    >
       <BndzErrorBoundary
         isolate
         label="GPU inspection"
-        resetKey={`${textureSrc}`}
+        resetKey={`${textureSrc}:${shaderMode}`}
         onError={() => setFailed(true)}
-        fallback={<div className="w-full h-full flex items-center justify-center text-xs text-gray-500">GPU preview unavailable</div>}
+        fallback={<div className="w-full h-full flex items-center justify-center text-xs text-gray-500" style={{ background: '#0b0e14' }}>GPU preview unavailable</div>}
       >
         <Canvas
-          key={canvasKey}
+          key={`${canvasKey}:${shaderMode}`}
           orthographic
           frameloop="demand"
           camera={{ position: [0, 0, 2], zoom: 1, near: 0.1, far: 10 }}
@@ -281,12 +292,13 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
             antialias: false,
             stencil: false,
             depth: false,
-            alpha: true,
+            alpha: false,
             premultipliedAlpha: false,
             failIfMajorPerformanceCaveat: false,
             preserveDrawingBuffer: false,
           }}
           onCreated={({ gl, invalidate }) => {
+            gl.setClearColor('#0b0e14', 1);
             const canvas = gl.domElement;
             const onLost = (e: Event) => {
               // Do NOT dispose — that leaves a dead black/empty canvas and blocks restore.
@@ -303,9 +315,10 @@ export default function GpuInspectionViewport({ src, alt, filePath, shaderMode =
           }}
           onError={() => setFailed(true)}
         >
-          <color attach="background" args={['#00000000']} />
+          <color attach="background" args={['#0b0e14']} />
           <Suspense fallback={null}>
             <InspectionPlane
+              key={shaderMode}
               src={textureSrc}
               shaderMode={shaderMode}
               viewportRef={viewportRef}

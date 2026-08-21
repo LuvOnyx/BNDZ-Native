@@ -56,17 +56,11 @@ export const DEFAULT_INSTALLED_PLUGINS: string[] = [
 ];
 
 /**
- * Selling-pillar plugins that may soft-install when opened from FM homes.
- * Part B wraps (Drop Magnet, Capture, Reality Check, Verb Forge, Transcode,
- * Semantic Desk, Policy Packs) stay marketplace-optional — not first-use chrome.
+ * Selling-pillar plugin ids previously soft-installed on first open.
+ * Auto-install is intentionally disabled — keep this list empty so marketplace
+ * installs stay explicit. Prefer installing from the plugin store.
  */
-export const FIRST_USE_PLUGINS: string[] = [
-    'project-sandbox',
-    'library-health',
-    'capacity-solver',
-    'inbound-volume',
-    'branching-time',
-];
+export const FIRST_USE_PLUGINS: string[] = [];
 
 const ALL_PLUGINS: PluginManifest[] = [
     {
@@ -291,7 +285,8 @@ const ALL_PLUGINS: PluginManifest[] = [
     {
         ...DesignBoardPluginDef,
         isInstalled: false,
-        isNative: true,
+        // Hosted Fabric/OpenPencil iframe shell — not a native C# filesystem plugin.
+        isNative: false,
         targetPanel: 'bottom',
         component: DesignBoardPlugin,
     },

@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace BNDZ.Services.Music;
 
 /// <summary>
-/// Producer tools: BPM + musical key from selected audio via ffmpeg PCM decode.
-/// Uses energy-flux tempo estimation and chromagram key profiles (Krumhansl-Schmuckler).
+/// Producer tools: BPM + musical key from selected audio.
+/// Primary decode path is in-process NAudio; ffmpeg remains a fallback for exotic codecs / encode.
 /// </summary>
 public static class MusicAnalysisService
 {
@@ -27,22 +29,31 @@ public static class MusicAnalysisService
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             return MusicAnalysisResult.Fail("Audio file not found.");
 
-        var ready = await BndzFfmpegBootstrap.EnsureAsync(ct).ConfigureAwait(false);
-        if (!ready.ok)
-            return MusicAnalysisResult.Fail(ready.error ?? "Could not prepare ffmpeg.");
-
-        var ffmpeg = BndzFfmpegBootstrap.GetFfmpegPath();
-        if (ffmpeg == null)
-            return MusicAnalysisResult.Fail("ffmpeg not available.");
-
         float[] mono;
         try
         {
-            mono = await DecodeMonoAsync(ffmpeg, path, ct).ConfigureAwait(false);
+            // Prefer in-process NAudio decode — no ffmpeg.exe for analysis.
+            mono = await DecodeMonoNAudioAsync(path, ct).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception naudioEx)
         {
-            return MusicAnalysisResult.Fail(ex.Message);
+            System.Diagnostics.Debug.WriteLine($"[MusicAnalysis] NAudio decode: {naudioEx.Message}");
+            try
+            {
+                var ready = await BndzFfmpegBootstrap.EnsureAsync(ct).ConfigureAwait(false);
+                if (!ready.ok)
+                    return MusicAnalysisResult.Fail(naudioEx.Message);
+
+                var ffmpeg = BndzFfmpegBootstrap.GetFfmpegPath();
+                if (ffmpeg == null)
+                    return MusicAnalysisResult.Fail(naudioEx.Message);
+
+                mono = await DecodeMonoAsync(ffmpeg, path, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                return MusicAnalysisResult.Fail(ex.Message);
+            }
         }
 
         if (mono.Length < SampleRate)
@@ -136,6 +147,36 @@ public static class MusicAnalysisService
         {
             return false;
         }
+    }
+
+    private static Task<float[]> DecodeMonoNAudioAsync(string path, CancellationToken ct)
+    {
+        return Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            using var reader = new AudioFileReader(path);
+            ISampleProvider sample = reader;
+            if (reader.WaveFormat.Channels > 1)
+                sample = new StereoToMonoSampleProvider(reader) { LeftVolume = 0.5f, RightVolume = 0.5f };
+            if (reader.WaveFormat.SampleRate != SampleRate)
+                sample = new WdlResamplingSampleProvider(sample, SampleRate);
+
+            var maxSamples = SampleRate * MaxAnalyzeSeconds;
+            var buffer = new float[Math.Min(SampleRate, 8192)];
+            var list = new List<float>(Math.Min(maxSamples, SampleRate * 30));
+            int read;
+            while ((read = sample.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                for (var i = 0; i < read; i++)
+                    list.Add(buffer[i]);
+                if (list.Count >= maxSamples)
+                    break;
+            }
+            if (list.Count < 4)
+                throw new InvalidOperationException("No PCM decoded from audio (NAudio).");
+            return list.ToArray();
+        }, ct);
     }
 
     private static async Task<float[]> DecodeMonoAsync(string ffmpeg, string path, CancellationToken ct)

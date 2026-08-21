@@ -214,7 +214,7 @@ function TreeRow({
     }
     if (row.isPlaceholder) return;
 
-    if (expandOnSingleClick && row.hasChildren) {
+    if (expandOnSingleClick && row.hasChildren && row.path) {
       onToggle(row);
     }
 
@@ -368,7 +368,7 @@ function TreeRow({
           onDoubleClick={e => e.stopPropagation()}
         />
       ) : (
-        <span className="text-[12px] select-none truncate nav-tree-label transition-colors flex items-center gap-1 min-w-0">
+        <span className="text-[12px] select-none truncate nav-tree-label transition-colors flex items-center gap-1 min-w-0" title={row.label}>
           <span className="truncate">{row.label}</span>
           {showIndexBadges && indexedRoots?.length && row.path && isPathUnderIndexedRoot(row.path, indexedRoots) && (
             <span className="shrink-0 px-1 py-px text-[8px] font-medium bg-[#094771]/70 text-[#99c9f0]" title="Search indexed">IDX</span>
@@ -442,7 +442,7 @@ function areTreeRowPropsEqual(
     && prev.row.label === next.row.label
     && prev.row.path === next.row.path
     && prev.row.depth === next.row.depth
-    && prev.row.expanded === next.row.expanded
+    && prev.row.isExpanded === next.row.isExpanded
     && prev.row.hasChildren === next.row.hasChildren
     && prev.row.selected === next.row.selected
     && prev.row.isPlaceholder === next.row.isPlaceholder

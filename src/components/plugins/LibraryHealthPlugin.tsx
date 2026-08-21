@@ -24,7 +24,7 @@ export const LibraryHealthPluginDef = {
   icon: 'shield_ui',
   description: 'Scan libraries for broken links, naming conflicts, permission issues, and orphans.',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TabId = 'summary' | 'problems' | 'plan';

@@ -34,7 +34,7 @@ export const StorageCleanupPluginDef = {
   name: 'Storage Cleanup',
   icon: 'storage_cleanup',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TabId = 'overview' | 'advanced' | 'uninstaller' | 'duplicates' | 'organize';

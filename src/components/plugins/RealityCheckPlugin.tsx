@@ -4,6 +4,7 @@ import { IPC } from '../../lib/ipcBridge';
 import { pushToast } from '../ToastHost';
 import { toWindowsPath } from '../../lib/pathUtils';
 import { formatPathLeafName, formatUiPath } from '../../lib/displayPath';
+import { runPluginRefresh } from '../../lib/pluginRefresh';
 import PluginPanelShell from './PluginPanelShell';
 import {
   PluginToolbarButton,
@@ -83,10 +84,14 @@ export default function RealityCheckPlugin({
   }, [syncFromState]);
 
   useEffect(() => {
-    void IPC.realityCheckGetState().then(state => {
-      if (state.lastScan) applyRealityCheckScan(state.lastScan as Record<string, unknown>);
-      setRealityCheckActive(!!state.active);
-    }).catch(() => {});
+    void runPluginRefresh(
+      'Reality Check',
+      () => IPC.realityCheckGetState(),
+      (state) => {
+        if (state.lastScan) applyRealityCheckScan(state.lastScan as Record<string, unknown>);
+        setRealityCheckActive(!!state.active);
+      },
+    );
   }, []);
 
   const runScan = async (root?: string) => {

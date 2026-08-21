@@ -27,7 +27,8 @@ interface Icons8IconProps {
  * Exceptions: tag_manager / tag__ use a tintable tag mask; favorites uses the bookmark glyph.
  */
 export function Icons8Icon({ id, size = 16, className = '', disabled, spin, title, color }: Icons8IconProps) {
-  if (!id) {
+  // Guard: plugins sometimes pass a ReactNode by mistake — never call string methods on it.
+  if (typeof id !== 'string' || !id) {
     return (
       <span
         className={`inline-block rounded-full bg-white/20 ${className}`}

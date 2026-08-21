@@ -24,7 +24,7 @@ import MarkdownPreviewPanel from './MarkdownPreviewPanel';
 import HtmlPreviewPanel from './HtmlPreviewPanel';
 const DocxPreviewPanel = lazy(() => import('./DocxPreviewPanel'));
 const GpuModelViewport = lazy(() => import('../workstation/inspection/GpuModelViewport'));
-import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt, isFontExt } from '../lib/textFileTypes';
+import { isTextEditableExt, isCodeExt, isHtmlExt, isMarkdownExt, isDocxExt, isOfficeExt, isFontExt } from '../lib/textFileTypes';
 import ArchivePreviewPanel from './ArchivePreviewPanel';
 import TorrentPreviewPanel from './TorrentPreviewPanel';
 import { PreviewHeroIcon } from './PreviewHeroIcon';
@@ -256,11 +256,18 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   const isDir = entity?.type === 'directory' || !!(entity as any)?.isVirtual;
   const heroPath = (entity as any)?.isVirtual ? getLocationIconPath(path) : path;
-  const ext = !isDir ? (entity as any)?.extension?.toLowerCase() || '' : '';
+  // Prefer entity.extension, but fall back to path/name so inspection modes never vanish
+  // when the list row omits extension (common for some virtual / optimistic rows).
+  const extRaw = !isDir
+    ? String((entity as any)?.extension || '')
+      || (path ? path.split(/[/\\]/).pop()?.split('.').slice(1).pop() || '' : '')
+      || String(entity?.name || '').split('.').slice(1).pop() || ''
+    : '';
+  const ext = extRaw.toLowerCase().replace(/^\./, '');
   const isImage = isImageExt(ext);
   const isModel = isModelExt(ext);
   const isFont = isFontExt(ext);
-  const isSvg = ext === 'svg';
+  const isSvg = ext === 'svg' || ext === 'svgz';
   const isAudio = isAudioExt(ext);
   const isVideo = isVideoExt(ext);
   const isTextRaw = isTextEditableExt(ext) && !isCodeExt(ext) && !isHtmlExt(ext) && !isMarkdownExt(ext);
@@ -268,6 +275,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const isHtml = isHtmlExt(ext);
   const isMarkdown = isMarkdownExt(ext);
   const isDocx = isDocxExt(ext);
+  const isOfficeOther = isOfficeExt(ext) && !isDocx;
   const isEditableText = isTextRaw || isCode || isMarkdown;
   const isPdf = ext === 'pdf';
   const isBinary = ['exe', 'dll', 'sys', 'dat', 'bin'].includes(ext);
@@ -649,7 +657,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           );
       }
 
-      if (isSvg && previewAllowed) {
+      if (isSvg) {
           const wantInspect = inspectMode !== 'passthrough';
           // SVG is still 2D — Loupe/Luma tint/magnify the rasterized image.
           if (wantInspect) {
@@ -669,11 +677,12 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   filePath={path}
                   onOpenFloating={onOpenFloatingPreview}
                   shaderMode={inspectMode}
+                  gpuEnabled={config.gpuInspection !== false}
                 />
               </div>
             );
           }
-          const src = svgPreviewUrl;
+          const src = svgPreviewUrl || virtualUrl;
           if (!src) {
             return (
               <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
@@ -763,15 +772,21 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         );
       }
 
-      if (isImage && previewAllowed) {
-          // Loupe / Luma apply here only (2D photos). Never used for 3D meshes.
-          // Always prefer full-res stream for the panel — CAS thumbs are interim/fallback only.
-          // Preferring thumbs as primary made zoom look soft/pixelated.
+      if (isImage) {
+          // Always use the inspection viewport for images so Luma/Loupe can apply —
+          // never fall through to a static hero thumb while the mode bar is visible.
           const thumbData = thumbnailNative
               ? `data:image/png;base64,${thumbnailNative}`
               : null;
           const primarySrc = virtualUrl || thumbData || '';
           const fallbackSrc = thumbData || undefined;
+          if (!primarySrc) {
+            return (
+              <div className="w-full h-full flex items-center justify-center bndz-preview-stage pattern-checkerboard p-4">
+                <div className="text-xs text-gray-500 animate-pulse">Loading image…</div>
+              </div>
+            );
+          }
           return (
             <div
               className={`relative w-full h-full min-h-0 flex-1 bndz-preview-media-frame bndz-preview-media-frame--flush bndz-preview-border-${mediaBorderType}`}
@@ -783,6 +798,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   filePath={path}
                   onOpenFloating={onOpenFloatingPreview}
                   shaderMode={inspectMode}
+                  gpuEnabled={config.gpuInspection !== false}
               />
               {showPreviewCaption && (
                 <div
@@ -815,6 +831,26 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
             <Suspense fallback={<div className="p-4 text-gray-500 text-sm">Loading document preview…</div>}>
               <DocxPreviewPanel url={virtualUrl} title={entity.name} />
             </Suspense>
+          );
+      }
+
+      // 3a2. Other Office (xlsx/pptx/xls/.doc) — honest open-externally, not hex/binary dump
+      if (isOfficeOther && previewAllowed) {
+          return (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bndz-preview-stage">
+              <Icons8Icon id="sys_properties" size={40} className="opacity-70" />
+              <div className="text-sm font-semibold text-white/90">{entity.name}</div>
+              <div className="text-xs text-white/50 max-w-[280px]">
+                In-panel preview is not available for this Office format. Open it in the associated app.
+              </div>
+              <button
+                type="button"
+                className="bndz-preview-action-btn px-3 py-1.5 text-xs font-semibold"
+                onClick={openInShell}
+              >
+                Open externally
+              </button>
+            </div>
           );
       }
 
@@ -1056,7 +1092,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
   const setInspectionMode = useCallback((mode: InspectionShaderMode) => {
     setInspectMode(mode);
-    // Persist mode without forcing a full settings-runtime/shell sync storm on every click.
+    // Inspection lives on Workspace — jump there if the user is on Details/Media.
+    setActiveTab('preview');
     updateConfig({ inspectionShaderMode: mode });
   }, [updateConfig]);
 
@@ -1075,7 +1112,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 </button>
              ))}
           </div>
-          <div className="flex gap-0.5 shrink-0">
+          <div className="flex gap-0.5 shrink-0 ml-auto">
              <button type="button" onClick={openInShell} className="bndz-preview-action-btn" title="Open in default app"><Icons8Icon id="external_link" size={18} className="bndz-preview-action-icon" /></button>
              <button type="button" onClick={showProperties} className="bndz-preview-action-btn" title="Properties"><Icons8Icon id="sys_properties" size={18} className="bndz-preview-action-icon" /></button>
           </div>
@@ -1102,8 +1139,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               }}
             />
           )}
-          {isImage && activeTab === 'preview' && (
-            <div className="bndz-inspection-mode-bar shrink-0" role="tablist" aria-label="Preview inspection mode">
+          {(isImage || isSvg) && activeTab === 'preview' && (
+            <div className="bndz-inspection-mode-bar bndz-inspection-mode-bar--stage shrink-0" role="tablist" aria-label="Preview inspection mode">
               {inspectionModes.map(mode => (
                 <button
                   key={mode.id}

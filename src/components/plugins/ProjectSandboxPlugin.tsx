@@ -23,9 +23,9 @@ export const ProjectSandboxPluginDef = {
   id: 'project-sandbox',
   name: 'Project Sandbox',
   icon: 'layers_ui',
-  description: 'Isolated sandbox sessions — experiment freely, commit or discard changes.',
+  description: 'Journal + shadow sandbox sessions — experiment in BNDZ, commit or discard changes (no OS volume mount).',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 type TabId = 'active' | 'history' | 'checkpoints';
@@ -258,7 +258,7 @@ export default function ProjectSandboxPlugin({
       icon="layers_ui"
       iconColor="#34d399"
       variant="embedded"
-      subtitle="Isolated experiment sessions · commit or discard"
+      subtitle="Journal + shadow sessions · commit or discard (not an OS volume)"
       toolbar={
         <PluginTabStrip className="!border-0 !min-h-0 bg-black/20 rounded-md p-0.5 gap-0.5">
           {tabs.map(t => (
@@ -283,7 +283,7 @@ export default function ProjectSandboxPlugin({
             </div>
           }
           name="Project Sandbox"
-          typeLabel="Isolated sessions"
+          typeLabel="Sandbox sessions"
           meta={
             <span className="bndz-panel-muted text-xs">
               {activeSessions.length} active · {sessions.length} total

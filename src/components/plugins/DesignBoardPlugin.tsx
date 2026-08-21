@@ -13,7 +13,7 @@ export const DesignBoardPluginDef = {
   name: 'Design Board',
   icon: 'layers_ui',
   description:
-    'ProDesign / Figma chrome with Fabric canvas — stable pen, shapes, and layers. OpenPencil vector engine: ?engine=openpencil.',
+    'Hosted design canvas (Fabric / optional OpenPencil) — shapes, pen, and layers inside BNDZ chrome.',
   targetPanel: 'bottom' as const,
   installOnFirstUse: false,
 };
@@ -231,7 +231,7 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
       title="Design Board"
       icon="layers_ui"
       iconColor="#0d99ff"
-      subtitle="Infinite canvas"
+      subtitle="Hosted canvas engine · Fabric / OpenPencil"
       variant="embedded"
       footer={(
         <div className="bndz-design-board-host-actions" style={{ border: 'none', padding: 0, background: 'transparent', width: '100%' }}>

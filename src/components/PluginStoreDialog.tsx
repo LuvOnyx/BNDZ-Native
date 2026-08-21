@@ -54,6 +54,16 @@ function capabilitiesFor(plugin: PluginManifest): string[] {
       'Batch copy or move into the active pane',
       'Clear or reorder the stack mid-session',
     ],
+    'drop-magnet': [
+      'Named landing pads during Explorer → BNDZ drops',
+      'Rename patterns, tags, and target folders in one release',
+      'Test recipes against the current list selection',
+    ],
+    'design-board': [
+      'Infinite Fabric canvas with ProDesign chrome',
+      'Place images via Explorer drop onto the board',
+      'Expand to fill the workspace without leaving BNDZ',
+    ],
     filters: [
       'Visual color filters for list rows',
       'Quick toggles from the bottom panel',

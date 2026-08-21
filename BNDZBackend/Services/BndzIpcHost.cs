@@ -178,6 +178,42 @@ namespace BNDZ.Services
             try { _automationRunnerDeps.HostWindow = hwnd; } catch { /* ignore */ }
         }
 
+        /// <summary>Screen → WebView2 CSS client coords for headless WinUI hosts (BNDZShell).</summary>
+        public delegate System.Windows.Point HeadlessOleCoordMapper(double screenX, double screenY);
+
+        private HeadlessOleCoordMapper? _headlessOleCoordMapper;
+        private double _headlessWebViewClientWidth;
+        private double _headlessWebViewClientHeight;
+
+        /// <summary>Configure WinUI WebView metrics + coord mapper before <see cref="RegisterHostOleDropTarget"/>.</summary>
+        public void ConfigureHeadlessDropBridge(
+            HeadlessOleCoordMapper? screenToClientMapper,
+            double webViewClientWidth,
+            double webViewClientHeight)
+        {
+            _headlessOleCoordMapper = screenToClientMapper;
+            _headlessWebViewClientWidth = webViewClientWidth;
+            _headlessWebViewClientHeight = webViewClientHeight;
+        }
+
+        /// <summary>Register native OLE drop target on WebView2 child HWND (BNDZShell path).</summary>
+        public void RegisterHostOleDropTarget()
+        {
+            RegisterWebView2OleDropTarget();
+        }
+
+        /// <summary>Revoke OLE drop target (pane unload / WebView process recovery).</summary>
+        public void RevokeHostOleDropTarget()
+        {
+            WebView2DropTargetService.Revoke();
+        }
+
+        /// <summary>Path A fallback: Chromium attempted file: navigation from external drop.</summary>
+        public void NotifyNavigationFileDrop(string localPath)
+        {
+            PostNavigationFileDrop(localPath);
+        }
+
         /// <summary>Wire real WinUI Window.Close so File→Exit / Restart / confirm-quit actually quit.</summary>
         public void SetHostCloseAction(Action? closeAction)
         {
@@ -1175,8 +1211,10 @@ namespace BNDZ.Services
         private void PostNavigationFileDrop(string localPath)
         {
             if (string.IsNullOrWhiteSpace(localPath)) return;
-            var fallbackX = MainWebView.ActualWidth > 0 ? MainWebView.ActualWidth / 2 : 400;
-            var fallbackY = MainWebView.ActualHeight > 0 ? MainWebView.ActualHeight / 2 : 300;
+            var viewW = MainWebView.ActualWidth > 0 ? MainWebView.ActualWidth : _headlessWebViewClientWidth;
+            var viewH = MainWebView.ActualHeight > 0 ? MainWebView.ActualHeight : _headlessWebViewClientHeight;
+            var fallbackX = viewW > 0 ? viewW / 2 : 400;
+            var fallbackY = viewH > 0 ? viewH / 2 : 300;
             var pt = ResolveDropCoords(new System.Windows.Point(
                 _lastExternalDragWebViewX ?? fallbackX,
                 _lastExternalDragWebViewY ?? fallbackY));
@@ -1185,8 +1223,11 @@ namespace BNDZ.Services
 
         private bool IsValidWebViewCoord(double x, double y)
         {
-            if (MainWebView.ActualWidth <= 0 || MainWebView.ActualHeight <= 0) return false;
-            return x >= 0 && y >= 0 && x <= MainWebView.ActualWidth && y <= MainWebView.ActualHeight;
+            var w = MainWebView.ActualWidth > 0 ? MainWebView.ActualWidth : _headlessWebViewClientWidth;
+            var h = MainWebView.ActualHeight > 0 ? MainWebView.ActualHeight : _headlessWebViewClientHeight;
+            if (w <= 0 || h <= 0)
+                return x >= 0 && y >= 0;
+            return x >= 0 && y >= 0 && x <= w && y <= h;
         }
 
         private System.Windows.Point ResolveDropCoords(System.Windows.Point dropPt)
@@ -1454,14 +1495,22 @@ namespace BNDZ.Services
             // Screen-coords → WebView2-client-coords (handles DPI + ZoomFactor + JS scale).
             System.Windows.Point OleScreenToWebViewClient(double screenX, double screenY)
             {
-                var wvPt = MainWebView.PointFromScreen(new System.Windows.Point(screenX, screenY));
-                try
+                System.Windows.Point wvPt;
+                if (_headlessOleCoordMapper != null)
                 {
-                    var zoom = MainWebView.ZoomFactor;
-                    if (zoom > 0.01 && Math.Abs(zoom - 1.0) > 0.001)
-                        wvPt = new System.Windows.Point(wvPt.X / zoom, wvPt.Y / zoom);
+                    wvPt = _headlessOleCoordMapper(screenX, screenY);
                 }
-                catch { /* best-effort */ }
+                else
+                {
+                    wvPt = MainWebView.PointFromScreen(new System.Windows.Point(screenX, screenY));
+                    try
+                    {
+                        var zoom = MainWebView.ZoomFactor;
+                        if (zoom > 0.01 && Math.Abs(zoom - 1.0) > 0.001)
+                            wvPt = new System.Windows.Point(wvPt.X / zoom, wvPt.Y / zoom);
+                    }
+                    catch { /* best-effort */ }
+                }
                 if (Math.Abs(_webviewJsScaleX - 1.0) > 0.02 || Math.Abs(_webviewJsScaleY - 1.0) > 0.02)
                     wvPt = new System.Windows.Point(wvPt.X * _webviewJsScaleX, wvPt.Y * _webviewJsScaleY);
                 return wvPt;
@@ -9641,7 +9690,8 @@ namespace BNDZ.Services
             FileTransferPriority priority = FileTransferPriority.Normal,
             string? ipcIdProp = null,
             string? ipcResultType = null,
-            bool deleteLane = false)
+            bool deleteLane = false,
+            bool forceWaitForIpcResult = false)
         {
             var prefs = FileOperationPreferences.Current;
 
@@ -9657,7 +9707,7 @@ namespace BNDZ.Services
                 }
             }
 
-            if (prefs.BackgroundProcessing && !string.IsNullOrEmpty(ipcIdProp) && !string.IsNullOrEmpty(ipcResultType))
+            if (prefs.BackgroundProcessing && !forceWaitForIpcResult && !string.IsNullOrEmpty(ipcIdProp) && !string.IsNullOrEmpty(ipcResultType))
             {
                 await PostIpcResultAsync(ipcResultType, ipcIdProp, BackgroundIpcAck()).ConfigureAwait(false);
                 _ = RunWorkAsync();
@@ -10548,9 +10598,29 @@ namespace BNDZ.Services
                         if (move)
                         {
                             if (File.Exists(entry.Source))
-                                File.Move(entry.Source, entry.Destination, overwrite: true);
+                            {
+                                try
+                                {
+                                    File.Move(entry.Source, entry.Destination, overwrite: true);
+                                }
+                                catch (IOException)
+                                {
+                                    File.Copy(entry.Source, entry.Destination, overwrite: true);
+                                    File.Delete(entry.Source);
+                                }
+                            }
                             else if (Directory.Exists(entry.Source))
-                                Directory.Move(entry.Source, entry.Destination);
+                            {
+                                try
+                                {
+                                    Directory.Move(entry.Source, entry.Destination);
+                                }
+                                catch (IOException)
+                                {
+                                    CopyDirectoryForMagnet(entry.Source, entry.Destination);
+                                    Directory.Delete(entry.Source, recursive: true);
+                                }
+                            }
                         }
                         else
                         {
@@ -10591,16 +10661,19 @@ namespace BNDZ.Services
                 }
             }
 
-            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "MAGNET_APPLY_DROP_RESULT").ConfigureAwait(false);
+            await ScheduleTransferWorkAsync(operationId, ExecuteCoreAsync, FileTransferPriority.High, idProp, "MAGNET_APPLY_DROP_RESULT", forceWaitForIpcResult: true).ConfigureAwait(false);
         }
 
-        private static void CopyDirectoryForMagnet(string sourceDir, string destDir)
+        private static void CopyDirectoryForMagnet(string sourceDir, string destDir, HashSet<string>? visited = null)
         {
+            visited ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var sourceFull = Path.GetFullPath(sourceDir);
+            if (!visited.Add(sourceFull)) return;
             Directory.CreateDirectory(destDir);
             foreach (var file in Directory.GetFiles(sourceDir))
                 File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite: true);
             foreach (var dir in Directory.GetDirectories(sourceDir))
-                CopyDirectoryForMagnet(dir, Path.Combine(destDir, Path.GetFileName(dir)));
+                CopyDirectoryForMagnet(dir, Path.Combine(destDir, Path.GetFileName(dir)), visited);
         }
 
         private async Task HandleSyncFoldersAsync(string operationId, string sourceDir, string targetDir, string? idProp, bool mirrorMode = false)

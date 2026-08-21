@@ -22,7 +22,7 @@ export const FolderSyncPluginDef = {
   name: 'Folder Sync',
   icon: 'sync_folders',
   targetPanel: 'bottom' as const,
-  installOnFirstUse: true,
+  installOnFirstUse: false,
 };
 
 export interface FolderSyncJob {

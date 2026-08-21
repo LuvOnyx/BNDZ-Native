@@ -412,7 +412,6 @@ export default function BndzPaneShell({ initial }: Props) {
       body = (
         <div className="bndz-native-pane-surface bndz-native-pane-surface--dialog bndz-native-pane-surface--content-flush">
           <SmartToolsDialog
-            embedded
             selectedItems={selectedPaths}
             currentPath={ctx.path || ''}
             onNavigate={onNavigate}

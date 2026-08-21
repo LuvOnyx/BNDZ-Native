@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import WindowTitleBar from './WindowTitleBar';
 import StickyWidgetEditor from './StickyWidgetEditor';
+import BndzErrorBoundary from './BndzErrorBoundary';
 import { usePluginRegistry } from '../data/PluginRegistryContext';
 import { IPC } from '../lib/ipcBridge';
 import {
@@ -66,14 +67,16 @@ export default function PluginPopoutShell({ initial }: Props) {
       const Active = plugin.component;
       return (
         <div className="bndz-plugin-popout-surface flex-1 min-h-0 flex flex-col overflow-hidden">
-          <Active
-            isPluginTabActive
-            immersive
-            popout
-            selectedItems={[]}
-            selectedPaths={[]}
-            currentPath=""
-          />
+          <BndzErrorBoundary isolate label={`PluginPopout:${boot.pluginId}`} resetKey={boot.pluginId}>
+            <Active
+              isPluginTabActive
+              immersive
+              popout
+              selectedItems={[]}
+              selectedPaths={[]}
+              currentPath=""
+            />
+          </BndzErrorBoundary>
         </div>
       );
     })()

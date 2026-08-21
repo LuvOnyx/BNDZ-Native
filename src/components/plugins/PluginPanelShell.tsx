@@ -27,6 +27,7 @@ export default function PluginPanelShell({
   footer,
   variant = 'default',
 }: PluginPanelShellProps) {
+  const iconId = typeof icon === 'string' ? icon : 'extension_hub';
   if (variant === 'embedded') {
     return (
       <div className="bndz-plugin-tier flex flex-col w-full h-full min-h-0 bg-[var(--bndz-surface-panel,#0c0e14)] text-slate-300">
@@ -53,7 +54,7 @@ export default function PluginPanelShell({
       <div className="bndz-plugin-toolbar shrink-0 px-4 py-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Icons8Icon id={icon} size={16} className="shrink-0" style={{ color: iconColor } as React.CSSProperties} />
+            <Icons8Icon id={iconId} size={16} className="shrink-0" style={{ color: iconColor } as React.CSSProperties} />
             <span className="font-semibold text-sm text-white tracking-tight">{title}</span>
           </div>
           {subtitle && <p className="bndz-panel-muted mt-0.5 truncate">{subtitle}</p>}

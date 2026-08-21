@@ -493,7 +493,7 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
       <iframe
         ref={iframeRef}
         className="bndz-photo-studio-frame"
-        title="BNDZ Photo Studio"
+        title="BNDZ Photo Studio (hosted engine)"
         tabIndex={0}
         src={photoStudioSrc()}
         sandbox="allow-scripts allow-same-origin allow-downloads allow-modals allow-forms"
