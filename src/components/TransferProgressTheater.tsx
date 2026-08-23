@@ -138,8 +138,8 @@ function JobTheaterCard({
               </span>
               {extra > 0 && (
                 <span
-                  className="inline-flex items-center justify-center rounded-full text-[9px] font-bold px-1.5 min-w-[18px] h-[18px]"
-                  style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(200,200,220,0.7)' }}
+                  className="inline-flex items-center justify-center text-[9px] font-bold px-1.5 min-w-[18px] h-[18px]"
+                  style={{ borderRadius: 7, background: 'rgba(255,255,255,0.08)', color: 'rgba(200,200,220,0.7)' }}
                 >
                   +{extra}
                 </span>
@@ -156,8 +156,8 @@ function JobTheaterCard({
 
           {/* Close / dismiss */}
           <button
-            className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full opacity-40 hover:opacity-80 transition-opacity"
-            style={{ background: 'rgba(255,255,255,0.06)' }}
+            className="shrink-0 w-6 h-6 flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity"
+            style={{ borderRadius: 7, background: 'rgba(255,255,255,0.06)' }}
             onClick={onDismiss}
             title="Dismiss"
           >

@@ -2703,6 +2703,20 @@ html.theme-light .bndz-list-col-header--sortable:hover {
   color: rgba(0, 0, 0, 0.82) !important;
 }
 
+/* Inactive col chips — pale paper (not dark metal) */
+html.theme-light .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter),
+html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter) {
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03) !important;
+}
+
+html.theme-light .bndz-list-header-bar:not(.bndz-list-header-bar--no-grid) .bndz-list-col-header:not(:last-child)::after {
+  background: rgba(0, 0, 0, 0.10) !important;
+}
+
 html.theme-light .bndz-list-col-header--active,
 html.theme-light .bndz-list-col-header--active .bndz-list-col-header-label,
 html.theme-light .bndz-list-header-bar .bndz-list-col-header--active,
@@ -5622,7 +5636,7 @@ html.theme-light .bndz-view-grid.bndz-tile--hoverable:hover:not(.fs-item-selecte
 }
 
 html.theme-light .bndz-view-grid.fs-item-selected {
-  background: rgba(0, 120, 215, 0.22) !important;
+  background: color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 28%, transparent) !important;
 }
 
 html.theme-light .bndz-view-list {
@@ -5644,7 +5658,7 @@ html.theme-light .bndz-view-list.bndz-tile--hoverable:hover:not(.fs-item-selecte
 }
 
 html.theme-light .bndz-view-list.fs-item-selected {
-  background: rgba(0, 120, 215, 0.28) !important;
+  background: color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 32%, transparent) !important;
 }
 
 /* ?? List/Grid cards setting (Appearance ? Show cards). Default: off. ?? */
@@ -5688,12 +5702,12 @@ html[data-tile-cards="off"] .bndz-view-list.fs-item-selected {
 }
 
 html[data-selection-style="classic"][data-tile-cards="off"] .bndz-view-list.fs-item-selected:not([style*="background"]) {
-  background: rgba(0, 120, 215, 0.55) !important;
+  background: color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 48%, transparent) !important;
   box-shadow: none !important;
 }
 
 html[data-selection-style="classic"][data-tile-cards="off"] .bndz-view-grid.fs-item-selected {
-  background: rgba(0, 120, 215, 0.35) !important;
+  background: color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 36%, transparent) !important;
   box-shadow: none !important;
 }
 
@@ -15146,13 +15160,8 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-flow-edge--true .react-flow__edge-path { stroke: #34d399; }
 .bndz-flow-edge--false .react-flow__edge-path { stroke: #f87171; }
 
-/* Live edge glow when pipeline is running */
-@keyframes automation-edge-pulse {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(126, 184, 232, 0.5)); stroke-opacity: 1; }
-  50% { filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.9)); stroke-opacity: 0.7; }
-}
+/* Running / armed edges — static stroke only (no drop-shadow pulse; keeps canvas FPS clean) */
 .bndz-automation.is-running .bndz-automation-flow .react-flow__edge-path {
-  animation: automation-edge-pulse 1.2s ease-in-out infinite;
   stroke: #38bdf8;
   stroke-width: 2.5;
 }
@@ -15160,16 +15169,9 @@ html[data-theme] .nav-tree-row:focus-visible {
   box-shadow: inset 0 0 40px rgba(56, 189, 248, 0.06);
 }
 
-/* Subtle glow when armed with active live watchers */
-@keyframes automation-armed-glow {
-  0%, 100% { box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.03); }
-  50% { box-shadow: inset 0 0 30px rgba(16, 185, 129, 0.07); }
-}
-.bndz-automation.is-armed-live .bndz-automation-canvas-wrap {
-  animation: automation-armed-glow 4s ease-in-out infinite;
-}
 .bndz-automation.is-armed-live .bndz-automation-flow .react-flow__edge-path {
-  filter: drop-shadow(0 0 5px rgba(52, 211, 153, 0.4));
+  stroke: #34d399;
+  stroke-width: 2;
 }
 
 .bndz-ws-chip--armed {
@@ -16782,6 +16784,12 @@ html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab * {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
+/* Footer may still carry tree-tab class — force solid dark chrome, never pale/theme wash */
+html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab {
+  background: #1e1e24 !important;
+  background-image: none !important;
+}
+
 html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip,
 html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip * {
   background-color: #2a2a2a !important;
@@ -16906,4 +16914,87 @@ html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip * {
 html.theme-light .bndz-chrome-bottom .bndz-plugin-tier > *:not(.bndz-plugin-card):not(.bndz-plugin-sidebar),
 html.theme-light .bndz-chrome-bottom .bndz-bottom-content {
   color: rgba(0, 0, 0, 0.86) !important;
+}
+
+/* Preview empty state — black ink on paper (not gray-on-white) */
+html.theme-light .bndz-preview-empty-title {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+html.theme-light .bndz-preview-empty-desc {
+  color: rgba(0, 0, 0, 0.62) !important;
+}
+html.theme-light .bndz-preview-empty-btn {
+  color: rgba(0, 0, 0, 0.86) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+html.theme-light .bndz-preview-empty-btn:hover {
+  color: rgba(0, 0, 0, 0.92) !important;
+  border-color: rgba(0, 0, 0, 0.18) !important;
+  background: #ffffff !important;
+}
+html.theme-light .bndz-preview-empty-btn.is-accent {
+  color: rgba(0, 0, 0, 0.9) !important;
+  border-color: color-mix(in srgb, var(--accent, #c026d3) 35%, rgba(0, 0, 0, 0.12)) !important;
+  background: color-mix(in srgb, var(--accent, #c026d3) 10%, #ffffff) !important;
+}
+
+/* Large tile hero wells — pale paper, soft shadow (no dark metal plate) */
+html.theme-light .bndz-list-thumb--hero,
+html.theme-light[data-bndz-shell="native-host"] .bndz-list-thumb--hero {
+  background: linear-gradient(160deg, #fafbfc 0%, #f2f4f7 55%, #e9ecf1 100%) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 4px 14px rgba(0, 0, 0, 0.08) !important;
+}
+html.theme-light .bndz-view-grid .bndz-grid-icon-well:has(.bndz-list-thumb--hero),
+html.theme-light .bndz-view-list .bndz-list-icon-well:has(.bndz-list-thumb--hero),
+html.theme-light[data-bndz-shell="native-host"] .bndz-view-grid .bndz-grid-icon-well {
+  background: linear-gradient(160deg, #f7f8fa 0%, #eef0f3 100%) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset !important;
+}
+
+/* Inactive list col chips — pale paper + soft separator (FINAL override) */
+html.theme-light .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter),
+html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active):not(.bndz-list-col-header--gutter) {
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03) !important;
+}
+html.theme-light .bndz-list-header-bar:not(.bndz-list-header-bar--no-grid) .bndz-list-col-header:not(:last-child)::after {
+  background: rgba(0, 0, 0, 0.10) !important;
+}
+
+/* Light list/grid selection — magenta/accent mix (never Files #0078d7) */
+html.theme-light .bndz-view-grid.fs-item-selected,
+html.theme-light .bndz-view-list.fs-item-selected,
+html.theme-light .fs-list-item.fs-item-selected,
+html.theme-light .fs-grid-item.fs-item-selected {
+  background: color-mix(in srgb, var(--list-selected-bg, var(--accent, #c026d3)) 30%, transparent) !important;
+}
+
+
+/* Dual-pane DiffPlex strip — tokenized craft (not hardcoded GitHub-dark SaaS) */
+.bndz-dual-diff-strip {
+  background: color-mix(in srgb, var(--surface-raised, #16161c) 92%, #000);
+  color: var(--fg, #e8e8ec);
+  border-color: color-mix(in srgb, var(--fg, #fff) 10%, transparent);
+}
+.bndz-dual-diff-strip__hdr {
+  background: color-mix(in srgb, var(--surface-raised, #121218) 96%, #000);
+  border-color: color-mix(in srgb, var(--fg, #fff) 8%, transparent);
+}
+html.theme-light .bndz-dual-diff-strip {
+  background: #f4f5f8;
+  color: rgba(0, 0, 0, 0.88);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+html.theme-light .bndz-dual-diff-strip__hdr {
+  background: #eef0f4;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+html.theme-light .bndz-dual-diff-strip__row:hover {
+  background: color-mix(in srgb, var(--accent, #c026d3) 10%, #fff);
 }

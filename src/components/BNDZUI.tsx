@@ -11071,7 +11071,7 @@ export default function BNDZUI() {
                   const isDoubleTap = !!(
                     gesture.entityId
                     && priorDbl
-                    && priorDbl.paneId === pane.id
+                    && priorDbl.paneId === (gesture.paneId || pane.id)
                     && priorDbl.entityId === gesture.entityId
                     && now - priorDbl.at < 450
                     && !gesture.ctrlKey
@@ -11082,8 +11082,11 @@ export default function BNDZUI() {
                   const ownerBridge = getPaneFileListBridge(ownerPaneId);
                   if (isDoubleTap && gesture.entityId) {
                     listEntityDblRef.current = null;
-                    const entity = contents?.find((x: any) => x.id === gesture.entityId)
-                      || safeGetDirContents(fileSystem, panePath)?.find((x: any) => x.id === gesture.entityId);
+                    // Resolve entity from the OWNER pane listing — not this render's contents/path.
+                    const ownerContents = ownerBridge?.contents;
+                    const ownerPath = ownerBridge?.panePath || panePath;
+                    const entity = ownerContents?.find((x: any) => x.id === gesture.entityId)
+                      || safeGetDirContents(fileSystem, ownerPath)?.find((x: any) => x.id === gesture.entityId);
                     if (entity) {
                       suppressRowClickRef.current = true;
                       // Must arm before open — native dblclick fires after this pointerup.
@@ -11091,7 +11094,7 @@ export default function BNDZUI() {
                       ownerBridge?.handleEntityDoubleClicked(entity);
                     }
                   } else if (gesture.entityId) {
-                    listEntityDblRef.current = { paneId: pane.id, entityId: gesture.entityId, at: now };
+                    listEntityDblRef.current = { paneId: ownerPaneId, entityId: gesture.entityId, at: now };
                   }
                   // WebView2 often drops row onClick — commit click side-effects on pointerup.
                   const clickHandler = ownerBridge?.handleEntityClicked ?? null;
@@ -14113,10 +14116,22 @@ export default function BNDZUI() {
                              const pathA = p1Tab?.path || '';
                              const pathB = p2Tab?.path || '';
                              // File compare: when both panes have the same single selected file
-                             const selA = p1Tab?.selectedItems;
-                             const selB = p2Tab?.selectedItems;
-                             const fileA = selA?.length === 1 && selB?.length === 1 ? selA[0] : undefined;
-                             const fileB = selA?.length === 1 && selB?.length === 1 ? selB[0] : undefined;
+                             // selectedItems are entity ids (= full path for FS items). File mode only when both are files.
+                             const candA = p1Tab?.selectedItems?.length === 1 ? p1Tab.selectedItems[0] : undefined;
+                             const candB = p2Tab?.selectedItems?.length === 1 ? p2Tab.selectedItems[0] : undefined;
+                             const isFileEntity = (paneId: string | undefined, id?: string) => {
+                               if (!paneId || !id) return false;
+                               const ent = getPaneFileListBridge(paneId)?.contents?.find((x: any) => x.id === id);
+                               if (!ent) {
+                                 // Fallback: treat as file when path has an extension and is not a trailing-slash folder.
+                                 const base = id.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
+                                 return base.includes('.') && !base.endsWith('.');
+                               }
+                               const t = String(ent.type || ent.kind || '').toLowerCase();
+                               return t !== 'directory' && t !== 'folder' && !ent.isDirectory;
+                             };
+                             const fileA = isFileEntity(panes[0]?.id, candA) && isFileEntity(panes[1]?.id, candB) ? candA : undefined;
+                             const fileB = isFileEntity(panes[0]?.id, candA) && isFileEntity(panes[1]?.id, candB) ? candB : undefined;
                              return (
                                <DualPaneDiffStrip
                                  pathA={pathA}
@@ -14383,7 +14398,7 @@ export default function BNDZUI() {
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (
       <div
-        className="bndz-chrome-statusbar bndz-status-bar-tree-tab bndz-sidebar-section-header bndz-sidebar-section-drives px-3 py-1.5 pl-4 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
+        className="bndz-chrome-statusbar bndz-sidebar-section-header bndz-sidebar-section-drives px-3 py-1.5 pl-4 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
         title="Right-click for folder menu"
         onContextMenu={(e) => {
           if ((e.target as HTMLElement).closest('button, a, input')) return;

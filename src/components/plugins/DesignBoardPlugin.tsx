@@ -200,7 +200,7 @@ export default function DesignBoardPlugin({
   useEffect(() => {
     if (!isPluginTabActive && !expanded && !popout) return;
     const forceFit = !!(expanded || popout);
-    const delays = forceFit ? [0, 50, 120, 280, 600, 1200] : [0, 80, 220];
+    const delays = forceFit ? [0, 50, 120, 280, 600, 1200] : [0, 80];
     const timers = delays.map((ms) => window.setTimeout(() => postResize({ forceFit }), ms));
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [expanded, popout, boardKey, isPluginTabActive, postResize]);

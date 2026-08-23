@@ -53,8 +53,12 @@ function installExternalOleDragBridge() {
   const onDragOver = (e: DragEvent) => {
     const types = e.dataTransfer?.types;
     if (!types?.length || !hasFilePayload(types)) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    // Same gate as drop: never preventDefault for native WebView2 file payloads
+    // (OLE / Path A navigation). Browser-dev still needs preventDefault to avoid navigate-away.
+    if (!isNative) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    }
     const now = performance.now();
     if (now - lastHoverMs < 40) return;
     lastHoverMs = now;

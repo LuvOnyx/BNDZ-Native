@@ -2862,10 +2862,18 @@ namespace BNDZ.Services
                             }
                             else
                             {
-                                // Classic WPF host path: window is visible and Dispatcher is running.
-                                try { AttachShellDragImage(dataObject, pathArray); }
-                                catch (Exception dragImgEx) { Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}"); }
-                                System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
+                                // Classic WPF path only when this window is shown.
+                                // Headless BNDZShell without a host HWND must not DoDragDrop(this).
+                                if (!IsVisible)
+                                {
+                                    Debug.WriteLine("[START_DRAG] refused: headless host with no HWND yet");
+                                }
+                                else
+                                {
+                                    try { AttachShellDragImage(dataObject, pathArray); }
+                                    catch (Exception dragImgEx) { Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}"); }
+                                    System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);
+                                }
                             }
                         }
                         catch (Exception ex)

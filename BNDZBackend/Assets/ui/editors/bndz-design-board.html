@@ -186,7 +186,11 @@
     #main { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--left-sidebar-w, 220px) 1fr var(--right-sidebar-w, minmax(268px, 300px)); grid-template-rows: minmax(0, 1fr); align-items: stretch; }
     #workspace { position: relative; min-width: 0; min-height: 0; width: 100%; height: 100%; align-self: stretch; background: var(--canvas); overflow: hidden; }
     #left-sidebar, #right-sidebar { min-height: 0; overflow: hidden; }
-    #main.panels-hidden { --left-sidebar-w: 0px; --right-sidebar-w: 0px; }
+    #main.panels-hidden {
+      --left-sidebar-w: 0px;
+      --right-sidebar-w: 0px;
+      grid-template-columns: minmax(0, 1fr);
+    }
     #main.panels-hidden #left-sidebar,
     #main.panels-hidden #right-sidebar { display: none; }
     #main.panels-hidden.dock-bottom-inspector #right-sidebar,
@@ -202,6 +206,7 @@
       --left-sidebar-w: 0px;
       --right-sidebar-w: 0px;
     }
+    #main.panels-hidden #workspace { min-height: 1px; }
     #main.dock-left-inspector { grid-template-columns: var(--right-sidebar-w, minmax(268px, 300px)) 1fr var(--left-sidebar-w, 220px); }
     #main.dock-left-inspector #right-sidebar { order: -1; }
     #main.dock-bottom-inspector { grid-template-columns: var(--left-sidebar-w, 220px) 1fr; grid-template-rows: minmax(0, 1fr) var(--bottom-panel-h, 220px); }

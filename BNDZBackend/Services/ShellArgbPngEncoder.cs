@@ -172,16 +172,27 @@ internal static class ShellArgbPngEncoder
 
     private static string EncodeViaFromHbitmapFallback(IntPtr hBitmap)
     {
-        // Image.FromHbitmap often flattens alpha — still better than MakeTransparent on white plates.
-        using var gdi = Image.FromHbitmap(hBitmap);
-        using var argb = new Bitmap(gdi.Width, gdi.Height, PixelFormat.Format32bppArgb);
-        using (var g = Graphics.FromImage(argb))
+        // Image.FromHbitmap often flattens alpha into an opaque plate.
+        // Prefer soft-fail (empty) over shipping glowing white rectangles.
+        try
         {
-            g.Clear(Color.Transparent);
-            g.CompositingMode = CompositingMode.SourceOver;
-            g.DrawImage(gdi, 0, 0, gdi.Width, gdi.Height);
+            using var gdi = Image.FromHbitmap(hBitmap);
+            // If source reports no alpha channel, skip — caller should use icon extract instead.
+            if (gdi.PixelFormat != PixelFormat.Format32bppArgb && gdi.PixelFormat != PixelFormat.Format32bppPArgb)
+                return "";
+            using var argb = new Bitmap(gdi.Width, gdi.Height, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(argb))
+            {
+                g.Clear(Color.Transparent);
+                g.CompositingMode = CompositingMode.SourceOver;
+                g.DrawImage(gdi, 0, 0, gdi.Width, gdi.Height);
+            }
+            return SavePngBase64(argb);
         }
-        return SavePngBase64(argb);
+        catch
+        {
+            return "";
+        }
     }
 
     private static string SavePngBase64(Bitmap bitmap)
