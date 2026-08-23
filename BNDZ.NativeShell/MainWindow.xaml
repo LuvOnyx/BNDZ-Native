@@ -59,7 +59,8 @@
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
       <Button Content="↑ Up" Command="{Binding GoUpCommand}" />
-      <TextBox Grid.Column="1"
+      <TextBox x:Name="OmnibarTextBox"
+               Grid.Column="1"
                Text="{Binding OmnibarText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                KeyDown="Omnibar_KeyDown"
                PlaceholderText="Path" />

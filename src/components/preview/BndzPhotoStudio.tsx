@@ -496,15 +496,19 @@ export default function BndzPhotoStudio({ path, title, onSaved, onRequestClose }
         title="BNDZ Photo Studio (hosted engine)"
         tabIndex={0}
         src={photoStudioSrc()}
-        sandbox="allow-scripts allow-same-origin allow-downloads allow-modals allow-forms"
+        sandbox="allow-scripts allow-same-origin allow-downloads allow-modals allow-forms allow-pointer-lock"
         onLoad={() => {
           helloSentRef.current = false;
           embedBoundRef.current = false;
           setFrameReady(false);
+          // Small delay lets OpenShop's DOMContentLoaded init fire and send its
+          // initial openshop:ready (no-caps) before we send hello. If it arrives
+          // first the message handler fires bindOpenShop(); the setTimeout below
+          // then no-ops because helloSentRef is already true.
           setTimeout(() => {
             bindOpenShop();
             postToStudio({ type: 'setTheme', theme: studioTheme });
-          }, 40);
+          }, 80);
           try {
             iframeRef.current?.focus({ preventScroll: true });
           } catch { /* ignore */ }

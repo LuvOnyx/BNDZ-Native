@@ -277,6 +277,16 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
     pushToast({ kind: 'info', title: 'Dual pane', message: 'Opened path A — set path B in the other pane if dual-pane is enabled.' });
   }, [pathA, pathB, onNavigate]);
 
+  const openDualPaneWithDiff = useCallback(() => {
+    if (!pathA.trim() || !pathB.trim()) return;
+    window.dispatchEvent(new CustomEvent('bndz-open-dual-pane', {
+      detail: { pathA: normalizePanePath(pathA), pathB: normalizePanePath(pathB) },
+    }));
+    window.dispatchEvent(new CustomEvent('bndz-compare-panes'));
+    onNavigate?.(normalizePanePath(pathA));
+    pushToast({ kind: 'info', title: 'Dual pane diff', message: 'DiffPlex compare strip opened in dual pane.' });
+  }, [pathA, pathB, onNavigate]);
+
   const heroMeta =
     mode === 'files' && fileResult?.ok
       ? (fileResult.identical ? 'Files are identical' : 'Files differ')
@@ -488,6 +498,9 @@ export default function ComparePlugin({ selectedPaths = [], focusedPath, onNavig
                   </PluginToolbarButton>
                   <PluginToolbarButton icon="view_split" onClick={openDualPane}>
                     Dual pane
+                  </PluginToolbarButton>
+                  <PluginToolbarButton icon="compare_ui" onClick={openDualPaneWithDiff}>
+                    Dual + Diff
                   </PluginToolbarButton>
                 </div>
               </div>

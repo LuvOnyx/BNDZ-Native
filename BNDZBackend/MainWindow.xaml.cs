@@ -209,6 +209,7 @@ namespace BNDZ
             _ = Task.Run(() =>
             {
                 try { UsnHealthWatcherService.Instance.Start(); } catch { }
+                try { BndzUsnJournalWatcher.Instance.Start(); } catch { }
                 try { _shellIntegrationService.EnsureOpenInBndzVerb(); } catch { }
             });
             _meshDropService.SetSessionChangedHandler(evt =>
@@ -4611,6 +4612,42 @@ namespace BNDZ
                         }
                     });
                 }
+                else if (type == "BRANCH_LIST_SYSTEM_SHADOWS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var path = root.TryGetProperty("payload", out var pl) && pl.TryGetProperty("path", out var pe) ? pe.GetString() ?? "" : "";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var shadows = VssBranchService.Instance.ListSystemShadows(string.IsNullOrWhiteSpace(path) ? "C:\\" : path);
+                            PostMeshIpcResult(idProp, "BRANCH_LIST_SYSTEM_SHADOWS_RESULT", new { ok = true, shadows });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_LIST_SYSTEM_SHADOWS_RESULT", new { ok = false, shadows = Array.Empty<object>(), error = ex.Message });
+                        }
+                    });
+                }
+                else if (type == "BRANCH_RESTORE_SYSTEM_SHADOW")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var device = payload.TryGetProperty("deviceObject", out var dev) ? dev.GetString() ?? "" : "";
+                    var origPath = payload.TryGetProperty("originalPath", out var op) ? op.GetString() ?? "" : "";
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await VssBranchService.Instance.RestoreSystemShadowAsync(device, origPath).ConfigureAwait(false);
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_SYSTEM_SHADOW_RESULT", new { ok = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "BRANCH_RESTORE_SYSTEM_SHADOW_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
                 // ── Phase 9+ selling-pillar IPC: Lineage ──
                 else if (type == "LINEAGE_GET")
                 {
@@ -5275,6 +5312,52 @@ namespace BNDZ
                         {
                             PostMeshIpcResult(idProp, "SEMANTIC_DESK_CLUSTER_RESULT", new { ok = false, error = ex.Message });
                         }
+                    });
+                }
+                // ── Semantic rank (embedding rerank for Fast Search) ──
+                else if (type == "SEMANTIC_RANK")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl2) ? idEl2.GetString() : null;
+                    var payload = root.GetProperty("payload");
+                    var query = payload.TryGetProperty("query", out var qEl) ? qEl.GetString() ?? "" : "";
+                    int limit = payload.TryGetProperty("limit", out var limEl) && limEl.ValueKind == JsonValueKind.Number
+                        ? limEl.GetInt32() : 200;
+                    var candidatePaths = new List<string>();
+                    if (payload.TryGetProperty("paths", out var cpEl) && cpEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in cpEl.EnumerateArray())
+                        {
+                            var s = item.GetString();
+                            if (!string.IsNullOrEmpty(s)) candidatePaths.Add(s);
+                        }
+                    }
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var ranked = BndzEmbeddingService.Instance.SemanticRank(query, candidatePaths, limit);
+                            var items = ranked.Select(r => new { path = r.Path, score = r.Score }).ToList();
+                            PostMeshIpcResult(idProp, "SEMANTIC_RANK_RESULT", new
+                            {
+                                ok = true,
+                                modelPresent = BndzEmbeddingService.Instance.ModelLoaded,
+                                items,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            PostMeshIpcResult(idProp, "SEMANTIC_RANK_RESULT", new { ok = false, error = ex.Message });
+                        }
+                    });
+                }
+                // ── Embedding model status ──
+                else if (type == "EMBEDDING_STATUS")
+                {
+                    var idProp = root.TryGetProperty("id", out var idEl3) ? idEl3.GetString() : null;
+                    PostMeshIpcResult(idProp, "EMBEDDING_STATUS_RESULT", new
+                    {
+                        ok = true,
+                        status = BndzEmbeddingService.Instance.GetStatus(),
                     });
                 }
                 // ── Content DNA ──

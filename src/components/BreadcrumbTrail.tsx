@@ -36,8 +36,8 @@ async function showBreadcrumbOverflowHostMenu(
   mid: BreadcrumbSeg[],
   onNavigate: (path: string, opts?: { newTab?: boolean }) => void,
 ): Promise<boolean> {
-  // Classic WPF host only — BNDZShell headless IPC cannot own a reliable popup.
-  if (!IPC.isNative || isNativeShellHostBoot() || !mid.length) return false;
+  // Native host (WPF classic or BNDZShell WinUI MenuFlyout via CraftPaneHost).
+  if (!IPC.isNative || !mid.length) return false;
   const items = mid.map((seg, i) => ({
     id: `crumb-${i}`,
     label: seg.label || seg.path,

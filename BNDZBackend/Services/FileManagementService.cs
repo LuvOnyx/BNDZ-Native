@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 using BNDZ.Services.Mesh;
@@ -18,6 +19,16 @@ public class FileManagementService
             || PortableDeviceService.IsPortableDevicePath(shellPath)
             || PortableDeviceService.IsPortableDevicePath(path)))
             return ShellFolderEnumerator.EnumerateAsync(shellPath);
+
+        // Wave 5 — virtual disc image folders (.iso / .vhd / .vhdx)
+        var fsPathForDiscObj = !string.IsNullOrEmpty(shellPath)
+            ? shellPath
+            : ShellPathResolver.NormalizeIncoming(path);
+        if (DiscUtilsVolumeService.IsContainerPath(fsPathForDiscObj))
+        {
+            var discEntries = DiscUtilsVolumeService.TryList(fsPathForDiscObj);
+            if (discEntries != null) return Task.FromResult<List<object>>(discEntries.Cast<object>().ToList());
+        }
 
         return Task.Run(() =>
         {
@@ -76,6 +87,16 @@ public class FileManagementService
             return MapToDtos(raw);
         }
 
+        // Wave 5 — virtual disc image folders (.iso / .vhd / .vhdx)
+        var fsPathForDisc = !string.IsNullOrEmpty(shellPath)
+            ? shellPath
+            : ShellPathResolver.NormalizeIncoming(path);
+        if (DiscUtilsVolumeService.IsContainerPath(fsPathForDisc))
+        {
+            var discEntries = await Task.Run(() => DiscUtilsVolumeService.TryList(fsPathForDisc), ct).ConfigureAwait(false);
+            if (discEntries != null) return discEntries;
+        }
+
         return await Task.Run(() =>
         {
             var results = new List<DirListingSharedBuffer.DirEntryDto>();
@@ -131,6 +152,18 @@ public class FileManagementService
 
         var shellPath = ShellPathResolver.ResolveForShell(path);
         var fsPath = !string.IsNullOrEmpty(shellPath) ? shellPath : ShellPathResolver.NormalizeIncoming(path);
+
+        // Wave 5 — virtual disc image folders (.iso / .vhd / .vhdx)
+        if (DiscUtilsVolumeService.IsContainerPath(fsPath))
+        {
+            var discEntries = await Task.Run(() => DiscUtilsVolumeService.TryList(fsPath), ct).ConfigureAwait(false);
+            if (discEntries != null)
+            {
+                foreach (var e in discEntries) { ct.ThrowIfCancellationRequested(); yield return e; }
+                yield break;
+            }
+        }
+
         if (!Directory.Exists(fsPath)) yield break;
 
         var opts = new EnumerationOptions

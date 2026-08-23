@@ -21,6 +21,16 @@ public sealed class SemanticDeskClusterResult
     public int ClusterCount { get; set; }
 }
 
+/// <summary>
+/// Semantic Desk clustering service.
+///
+/// Wave 10: when BndzEmbeddingService has a loaded ONNX model the feature vector is
+/// replaced by the model's 384-dim (or whatever dim) embedding of the filename/path,
+/// which groups files by semantic name meaning rather than extension heuristics alone.
+/// Falls back to the original 12-dim hand-crafted feature vector when no model is present.
+///
+/// The k-means core is identical; only BuildFeatureVector and FeatureDim change.
+/// </summary>
 public sealed class SemanticDeskService
 {
     private static readonly Lazy<SemanticDeskService> Lazy = new(() => new SemanticDeskService());
@@ -49,6 +59,7 @@ public sealed class SemanticDeskService
 
         var centroids = InitializeCentroids(items, k);
         var assignments = new int[items.Count];
+        var dim = items[0].Vec.Length;
 
         for (int iter = 0; iter < 24; iter++)
         {
@@ -58,20 +69,20 @@ public sealed class SemanticDeskService
             var newCentroids = new double[k][];
             var counts = new int[k];
             for (int c = 0; c < k; c++)
-                newCentroids[c] = new double[FeatureDim];
+                newCentroids[c] = new double[dim];
 
             for (int i = 0; i < items.Count; i++)
             {
                 var a = assignments[i];
                 counts[a]++;
-                for (int d = 0; d < FeatureDim; d++)
+                for (int d = 0; d < dim; d++)
                     newCentroids[a][d] += items[i].Vec[d];
             }
 
             for (int c = 0; c < k; c++)
             {
                 if (counts[c] == 0) continue;
-                for (int d = 0; d < FeatureDim; d++)
+                for (int d = 0; d < dim; d++)
                     newCentroids[c][d] /= counts[c];
             }
             centroids = newCentroids;
@@ -125,7 +136,9 @@ public sealed class SemanticDeskService
         return ClusterPaths(paths, desiredClusters);
     }
 
-    private const int FeatureDim = 12;
+    // ─── Feature vector ───────────────────────────────────────────────────────
+
+    private const int HandCraftedDim = 12;
 
     private static int ComputeK(int n)
     {
@@ -134,9 +147,30 @@ public sealed class SemanticDeskService
         return Math.Clamp(k, 3, 8);
     }
 
+    /// <summary>
+    /// Wave 10: use ONNX embedding of the filename when model is available;
+    /// otherwise fall through to the original 12-dim hand-crafted vector.
+    /// </summary>
     private static double[] BuildFeatureVector(string path)
     {
-        var vec = new double[FeatureDim];
+        var embSvc = BndzEmbeddingService.Instance;
+        if (embSvc.ModelLoaded)
+        {
+            var name = Path.GetFileNameWithoutExtension(path);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var floats = embSvc.GetEmbedding(name);
+                if (floats != null && floats.Length > 0)
+                    return Array.ConvertAll(floats, f => (double)f);
+            }
+        }
+        return BuildHandCraftedVector(path);
+    }
+
+    /// <summary>Original 12-dim heuristic feature vector (filename tokens, ext, size).</summary>
+    private static double[] BuildHandCraftedVector(string path)
+    {
+        var vec = new double[HandCraftedDim];
         var isDir = Directory.Exists(path);
         var name = Path.GetFileName(path) ?? "";
         var ext = Path.GetExtension(path).ToLowerInvariant();
@@ -162,6 +196,8 @@ public sealed class SemanticDeskService
 
         return vec;
     }
+
+    // ─── k-means helpers ─────────────────────────────────────────────────────
 
     private static double[][] InitializeCentroids(List<(string Path, double[] Vec)> items, int k)
     {
@@ -197,13 +233,16 @@ public sealed class SemanticDeskService
     private static double SquaredDistance(double[] a, double[] b)
     {
         double sum = 0;
-        for (int i = 0; i < a.Length; i++)
+        int len = Math.Min(a.Length, b.Length);
+        for (int i = 0; i < len; i++)
         {
             var diff = a[i] - b[i];
             sum += diff * diff;
         }
         return sum;
     }
+
+    // ─── Cluster labeling ─────────────────────────────────────────────────────
 
     private static string LabelForCluster(List<string> paths)
     {

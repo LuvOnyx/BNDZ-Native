@@ -93,13 +93,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AssimpNetter" Version="5.4.3.1" />
     <PackageReference Include="AWSSDK.S3" Version="3.7.410.12" />
     <PackageReference Include="BitFaster.Caching" Version="2.6.0" />
     <PackageReference Include="DiffPlex" Version="1.9.0" />
+    <PackageReference Include="DiscUtils.Core" Version="0.16.13" />
+    <PackageReference Include="DiscUtils.Fat" Version="0.16.13" />
+    <PackageReference Include="DiscUtils.Iso9660" Version="0.16.13" />
+    <PackageReference Include="DiscUtils.Ntfs" Version="0.16.13" />
+    <PackageReference Include="DiscUtils.Udf" Version="0.16.13" />
+    <PackageReference Include="DiscUtils.Vhd" Version="0.16.13" />
+    <PackageReference Include="DiscUtils.Vhdx" Version="0.16.13" />
     <PackageReference Include="LLamaSharp" Version="0.27.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.20.1" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="0.22.1" />
     <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" ExcludeAssets="runtime" GeneratePathProperty="true" />
     <PackageReference Include="MetadataExtractor" Version="2.9.3" />
-    <PackageReference Include="Meziantou.Framework.Win32.ChangeJournal" Version="2.0.3" />
+    <PackageReference Include="Meziantou.Framework.Win32.ChangeJournal" Version="3.2.16" />
     <PackageReference Include="Meziantou.Framework.Win32.Jobs" Version="3.4.5" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
@@ -119,6 +129,7 @@
     <PackageReference Include="PhotoSauce.MagicScaler" Version="0.15.0" />
     <PackageReference Include="SharpCompress" Version="0.50.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.1" />
+    <PackageReference Include="Squid-Box.SevenZipSharp" Version="1.6.2.24" />
     <PackageReference Include="Svg.Skia" Version="3.0.4" />
     <PackageReference Include="System.Data.OleDb" Version="10.0.2" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.2" />
@@ -133,6 +144,7 @@
     <PackageReference Include="Vanara.PInvoke.Ole" Version="5.0.5" />
     <PackageReference Include="Vanara.PInvoke.SearchApi" Version="5.0.5" />
     <PackageReference Include="Vanara.Windows.Shell" Version="5.0.5" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.5" />
   </ItemGroup>
 
   <ItemGroup>
@@ -210,15 +222,36 @@
       <_GlobPkg>$(NuGetPackageRoot)microsoft.extensions.filesystemglobbing\10.0.0\lib\net8.0</_GlobPkg>
     </PropertyGroup>
     <ItemGroup>
-      <_ExtFix Include="$(_DiPkg)\Microsoft.Extensions.DependencyInjection.dll"
-               Condition="Exists('$(_DiPkg)\Microsoft.Extensions.DependencyInjection.dll')" />
-      <_ExtFix Include="$(_DiAbsPkg)\Microsoft.Extensions.DependencyInjection.Abstractions.dll"
-               Condition="Exists('$(_DiAbsPkg)\Microsoft.Extensions.DependencyInjection.Abstractions.dll')" />
-      <_ExtFix Include="$(_GlobPkg)\Microsoft.Extensions.FileSystemGlobbing.dll"
-               Condition="Exists('$(_GlobPkg)\Microsoft.Extensions.FileSystemGlobbing.dll')" />
+      <_ExtFix Include="$(_DiPkg)\Microsoft.Extensions.DependencyInjection.dll" Condition="Exists('$(_DiPkg)\Microsoft.Extensions.DependencyInjection.dll')" />
+      <_ExtFix Include="$(_DiAbsPkg)\Microsoft.Extensions.DependencyInjection.Abstractions.dll" Condition="Exists('$(_DiAbsPkg)\Microsoft.Extensions.DependencyInjection.Abstractions.dll')" />
+      <_ExtFix Include="$(_GlobPkg)\Microsoft.Extensions.FileSystemGlobbing.dll" Condition="Exists('$(_GlobPkg)\Microsoft.Extensions.FileSystemGlobbing.dll')" />
     </ItemGroup>
     <Copy SourceFiles="@(_ExtFix)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="false" Condition="'@(_ExtFix)' != ''" />
     <Warning Text="Publish Extensions restore skipped — NuGet package layout missing under $(NuGetPackageRoot)." Condition="'@(_ExtFix)' == ''" />
+  </Target>
+
+
+  <!--
+    7z.dll staging (Wave 4 — SevenZipSharp).
+    SevenZipSharp is a managed wrapper; it needs the native 7z.dll at runtime.
+    The DLL is NOT bundled in the NuGet package — it ships with 7-Zip.
+    Sources checked in order:
+      1. Already present in output directory (manual drop-in / CI artifact).
+      2. 7-Zip installed in Program Files (x64 host → x64 DLL).
+      3. FilesMerge build output (if sibling repo is built).
+    The runtime C# discovery in ArchiveService.cs uses the same search order.
+  -->
+  <Target Name="Stage7zDll" AfterTargets="Build">
+    <PropertyGroup>
+      <_7zPF64>$(PROGRAMW6432)\7-Zip\7z.dll</_7zPF64>
+      <_7zPF86>$(ProgramFiles(x86))\7-Zip\7z.dll</_7zPF86>
+      <!-- FilesMerge sibling repo typical Debug output -->
+      <_7zFilesMerge>$(MSBuildProjectDirectory)\..\FilesMerge\src\Files.App\bin\x64\Debug\net8.0-windows10.0.19041.0\7z.dll</_7zFilesMerge>
+    </PropertyGroup>
+    <!-- Only copy if not already in output to avoid overwriting a newer manual drop -->
+    <Copy SourceFiles="$(_7zPF64)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="!Exists('$(OutputPath)7z.dll') AND Exists('$(_7zPF64)')" />
+    <Copy SourceFiles="$(_7zPF86)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="!Exists('$(OutputPath)7z.dll') AND !Exists('$(_7zPF64)') AND Exists('$(_7zPF86)')" />
+    <Copy SourceFiles="$(_7zFilesMerge)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="!Exists('$(OutputPath)7z.dll') AND !Exists('$(_7zPF64)') AND !Exists('$(_7zPF86)') AND Exists('$(_7zFilesMerge)')" />
   </Target>
 
 </Project>

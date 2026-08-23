@@ -1,5 +1,5 @@
 import { generateId } from './generateId';
-import { decodeBnd1DirListing } from './dirListingBinary';
+import { decodeBnd1DirListing, decodeBng1GlyphMap } from './dirListingBinary';
 import { hydrateShellGlyphMap } from './nativeIconService';
 
 /** Unique IPC request IDs — prevents response cross-wiring under burst load. */
@@ -128,15 +128,28 @@ function ensureGlobalListener() {
       const type = meta.type as string | undefined;
       const format = meta.format as string | undefined;
       const buffer: ArrayBuffer | undefined = e.getBuffer?.();
-      if (!buffer || !id || !type) {
+      if (!buffer || !type) {
         if (buffer) {
           try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
         }
         return;
       }
+      // SHELL_GLYPH_MAP is a push-only event — id may be null on the backend-host path.
+      if (!id && type !== 'SHELL_GLYPH_MAP') {
+        try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+        return;
+      }
 
       let payload: unknown;
-      if (format === 'bnd1') {
+      if (format === 'bng1') {
+        try {
+          payload = decodeBng1GlyphMap(buffer);
+        } catch (decodeErr) {
+          try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+          if (id) rejectPending(id, decodeErr instanceof Error ? decodeErr : new Error(String(decodeErr)));
+          return;
+        }
+      } else if (format === 'bnd1') {
         try {
           payload = decodeBnd1DirListing(buffer);
         } catch (decodeErr) {
@@ -146,11 +159,21 @@ function ensureGlobalListener() {
         }
       } else {
         try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
-        rejectPending(id, new Error(`Unsupported SharedBuffer format: ${format ?? 'unknown'}`));
+        if (id) rejectPending(id, new Error(`Unsupported SharedBuffer format: ${format ?? 'unknown'}`));
         return;
       }
 
       try { webview.releaseBuffer?.(buffer); } catch { /* ignore */ }
+
+      // Glyph map is a fire-and-forget push; hydrate before dir contents resolve.
+      if (type === 'SHELL_GLYPH_MAP') {
+        const path = (meta.path as string | undefined) || '';
+        hydrateShellGlyphMap(payload as Record<string, string>);
+        window.dispatchEvent(new CustomEvent('bndz-shell-glyph-map', {
+          detail: { id, path, glyphs: payload },
+        }));
+        return;
+      }
 
       if (type === 'DIR_CONTENTS_APPEND') {
         const path = (meta.path as string | undefined) || '';

@@ -158,12 +158,12 @@ export function PluginHeroActionButton({
   icon?: string;
   variant?: 'primary' | 'default';
 }) {
-  const base = 'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors disabled:opacity-40';
+  const base = 'bndz-plugin-hero-action flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors disabled:opacity-40';
   const styles = variant === 'primary'
-    ? 'bg-sky-500/15 border-sky-400/35 text-sky-300 hover:bg-sky-500/25'
+    ? 'bndz-plugin-hero-action--primary bg-sky-500/15 border-sky-400/35 text-sky-300 hover:bg-sky-500/25'
     : active
-      ? 'bg-[#094771]/35 border-[#38bdf8]/40 text-[#bae6fd]'
-      : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:border-white/20';
+      ? 'bndz-plugin-hero-action--active bg-[#094771]/35 border-[#38bdf8]/40 text-[#bae6fd]'
+      : 'bndz-plugin-hero-action--default bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:border-white/20';
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={`${base} ${styles}`}>
       {icon && <Icons8Icon id={icon} size={13} />}
@@ -192,7 +192,7 @@ export function PluginHeroStrip({
     <div className="bndz-plugin-hero shrink-0 border-b border-white/[0.08] px-5 py-4 flex gap-5 items-center min-w-0">
       <div className="shrink-0 drop-shadow-lg">{icon}</div>
       <div className="flex-1 min-w-0">
-        <h2 className="text-base font-semibold text-white truncate leading-tight tracking-tight">{name}</h2>
+        <h2 className="bndz-plugin-hero-title text-base font-semibold truncate leading-tight tracking-tight">{name}</h2>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           {typeLabel && <span className="bndz-plugin-kind-pill">{typeLabel}</span>}
           {meta}

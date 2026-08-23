@@ -138,13 +138,42 @@ public sealed class ZkVaultService
         try
         {
             if (Directory.Exists(session.MountPath))
-                Directory.Delete(session.MountPath, true);
+                SecureDeleteTree(session.MountPath);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[ZkVault] Lock cleanup failed: {ex.Message}");
         }
         return true;
+    }
+
+    /// <summary>Overwrite file contents then delete — avoid leaving plaintext vault sessions in %TEMP%.</summary>
+    private static void SecureDeleteTree(string root)
+    {
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            try
+            {
+                var len = new FileInfo(file).Length;
+                if (len > 0 && len < 64 * 1024 * 1024)
+                {
+                    using var fs = new FileStream(file, FileMode.Open, FileAccess.Write, FileShare.None);
+                    var buf = new byte[Math.Min(len, 1024 * 1024)];
+                    Array.Clear(buf, 0, buf.Length);
+                    long remaining = len;
+                    while (remaining > 0)
+                    {
+                        var n = (int)Math.Min(buf.Length, remaining);
+                        fs.Write(buf, 0, n);
+                        remaining -= n;
+                    }
+                    fs.Flush(true);
+                }
+            }
+            catch { /* best effort */ }
+            try { File.Delete(file); } catch { /* ignore */ }
+        }
+        try { Directory.Delete(root, true); } catch { /* ignore */ }
     }
 
     public ZkVaultSession? GetSession(string vaultId) =>

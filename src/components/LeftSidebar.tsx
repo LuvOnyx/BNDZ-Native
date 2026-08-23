@@ -189,7 +189,7 @@ export function LeftSidebar({
                                     className="opacity-60 cursor-pointer transition-transform"
                                 />
                                 <Icons8Icon id={sec.icon} size={12} className="opacity-70 group-hover:opacity-100 transition-opacity" />
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-[#888] group-hover:text-gray-100 transition-colors">{sec.label}</span>
+                                <span className="bndz-sidebar-section-title text-[10px] font-bold uppercase tracking-widest transition-colors">{sec.label}</span>
                             </div>
                             <div
                                 className="opacity-0 group-hover:opacity-50 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 transition-opacity touch-none"

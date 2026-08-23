@@ -123,3 +123,48 @@ export function decodeBnd1DirListing(buffer: ArrayBuffer): any[] {
 
   return items;
 }
+
+// ---------------------------------------------------------------------------
+// BNG1 — shell glyph map shared buffer codec
+// mirrors BNDZBackend/Services/IconGlyphSharedBuffer.cs
+// ---------------------------------------------------------------------------
+
+const BNG1_MAGIC = 0x31474e42; // 'BNG1' LE
+const BNG1_VERSION = 1;
+
+/**
+ * Decode a BNG1 SharedBuffer payload into a glyph map keyed by extension /
+ * "__folder__" with base64-PNG values (no "data:" prefix), mirroring the
+ * existing JSON SHELL_GLYPH_MAP payload shape so hydrateShellGlyphMap can
+ * consume it unchanged.
+ */
+export function decodeBng1GlyphMap(buffer: ArrayBuffer): Record<string, string> {
+  const view = new DataView(buffer);
+  if (view.byteLength < 10) throw new Error('BNG1 buffer too small');
+  const magic = view.getUint32(0, true);
+  if (magic !== BNG1_MAGIC) throw new Error(`BNG1 bad magic 0x${magic.toString(16)}`);
+  const version = view.getUint16(4, true);
+  if (version !== BNG1_VERSION) throw new Error(`BNG1 unsupported version ${version}`);
+  const count = view.getUint32(6, true);
+  const decoder = new TextDecoder('utf-8');
+  const map: Record<string, string> = {};
+  let o = 10;
+
+  for (let i = 0; i < count; i++) {
+    if (o + 2 > view.byteLength) throw new Error(`BNG1 truncated key-len at entry ${i}`);
+    const keyLen = view.getUint16(o, true); o += 2;
+    if (o + keyLen > view.byteLength) throw new Error(`BNG1 truncated key at entry ${i}`);
+    const key = keyLen > 0 ? decoder.decode(new Uint8Array(buffer, o, keyLen)) : '';
+    o += keyLen;
+
+    if (o + 4 > view.byteLength) throw new Error(`BNG1 truncated val-len at entry ${i}`);
+    const valLen = view.getUint32(o, true); o += 4;
+    if (o + valLen > view.byteLength) throw new Error(`BNG1 truncated val at entry ${i}`);
+    const val = valLen > 0 ? decoder.decode(new Uint8Array(buffer, o, valLen)) : '';
+    o += valLen;
+
+    if (key) map[key] = val;
+  }
+
+  return map;
+}

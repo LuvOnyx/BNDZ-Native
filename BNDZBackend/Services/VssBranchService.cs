@@ -47,6 +47,17 @@ public sealed class VssBranchService
         public string CreatedUtc { get; set; } = "";
     }
 
+    public sealed class SystemShadowDto
+    {
+        public string Id { get; set; } = "";
+        public string VolumeRoot { get; set; } = "";
+        public string DeviceObject { get; set; } = "";
+        public string BrowseRoot { get; set; } = "";
+        public string CreatedUtc { get; set; } = "";
+        public bool ClientAccessible { get; set; }
+        public string OriginalPath { get; set; } = "";
+    }
+
     public VssBranchDto Create(string rootPath, string name)
     {
         if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath))
@@ -195,6 +206,66 @@ public sealed class VssBranchService
         await ops.ExecuteOperationAsync(opId, "copy", sources, liveRoot, bypassRecycleBin: false, cancellationToken: ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// List all existing system shadow copies for the volume containing <paramref name="path"/>.
+    /// Returns read-only snapshots (created by Windows, not just BNDZ) with device paths for browsing.
+    /// </summary>
+    public List<SystemShadowDto> ListSystemShadows(string path)
+    {
+        var full = Path.GetFullPath(path.Trim());
+        var volume = (Path.GetPathRoot(full) ?? "C:\\").TrimEnd('\\', '/') + "\\";
+        var result = new List<SystemShadowDto>();
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"SELECT * FROM Win32_ShadowCopy WHERE VolumeName='{volume.Replace("'", "''")}' OR VolumeName='{volume.TrimEnd('\\').Replace("'", "''")}'");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var id = obj["ID"]?.ToString() ?? "";
+                var device = obj["DeviceObject"]?.ToString() ?? "";
+                var created = obj["InstallDate"]?.ToString() ?? "";
+                var clientAcc = obj["ClientAccessible"] is bool b && b;
+                // Parse WMI datetime (yyyyMMddHHmmss.000000±mmm)
+                var createdUtc = ParseWmiDate(created);
+                // Relative path within volume
+                var rel = full.Length > volume.Length ? full[volume.Length..].TrimStart('\\', '/') : "";
+                var browseRoot = string.IsNullOrEmpty(device) ? "" : CombineShadow(device, rel);
+                result.Add(new SystemShadowDto
+                {
+                    Id = id,
+                    VolumeRoot = volume,
+                    DeviceObject = device,
+                    BrowseRoot = browseRoot.Replace('\\', '/'),
+                    CreatedUtc = createdUtc,
+                    ClientAccessible = clientAcc,
+                    OriginalPath = full.Replace('\\', '/'),
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VssBranchService] ListSystemShadows: {ex.Message}");
+        }
+        return result.OrderByDescending(s => s.CreatedUtc).ToList();
+    }
+
+    private static string ParseWmiDate(string wmi)
+    {
+        // WMI date format: "20250601120000.000000+000"
+        if (string.IsNullOrWhiteSpace(wmi) || wmi.Length < 14) return wmi;
+        try
+        {
+            var year = int.Parse(wmi[..4]);
+            var month = int.Parse(wmi[4..6]);
+            var day = int.Parse(wmi[6..8]);
+            var hour = int.Parse(wmi[8..10]);
+            var min = int.Parse(wmi[10..12]);
+            var sec = int.Parse(wmi[12..14]);
+            return new DateTime(year, month, day, hour, min, sec, DateTimeKind.Utc).ToString("O");
+        }
+        catch { return wmi; }
+    }
+
     private static (string ShadowId, string DeviceObject) CreateShadowCopy(string volumeRoot)
     {
         // WMI Win32_ShadowCopy — no native AlphaVSS dependency; requires backup privilege / elevation.
@@ -240,4 +311,57 @@ public sealed class VssBranchService
         if (string.IsNullOrEmpty(relative)) return device + "\\";
         return device + "\\" + relative.Replace('/', '\\').TrimStart('\\');
     }
+
+    /// <summary>Restore files from a system shadow (read-only, identified by DeviceObject path).</summary>
+    public async Task RestoreSystemShadowAsync(
+        string shadowDeviceObject,
+        string originalPath,
+        IReadOnlyList<string>? relativePaths = null,
+        CancellationToken ct = default)
+    {
+        var rel = "";
+        var full = Path.GetFullPath(originalPath.Trim());
+        var volume = Path.GetPathRoot(full) ?? "C:\\";
+        if (full.Length > volume.Length)
+            rel = full[volume.Length..].TrimStart('\\', '/');
+
+        var shadowRoot = CombineShadow(shadowDeviceObject, rel);
+        var liveRoot = full;
+
+        var sources = new List<string>();
+        if (relativePaths == null || relativePaths.Count == 0)
+        {
+            if (Directory.Exists(shadowRoot))
+                sources.AddRange(Directory.EnumerateFileSystemEntries(shadowRoot));
+            else if (File.Exists(shadowRoot))
+                sources.Add(shadowRoot);
+        }
+        else
+        {
+            foreach (var rp in relativePaths)
+            {
+                var src = Path.Combine(shadowRoot, rp.Replace('/', '\\').TrimStart('\\'));
+                if (File.Exists(src) || Directory.Exists(src)) sources.Add(src);
+            }
+        }
+
+        if (sources.Count == 0) return;
+
+        var opId = $"vss-sys-restore-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        _queue?.RegisterJob(opId, "copy", $"Restore system shadow of {Path.GetFileName(liveRoot)}", "vss", sources.Count, "vss-system", FileTransferPriority.Normal, liveRoot);
+
+        var ops = new FileOperationService();
+        await ops.ExecuteOperationAsync(opId, "copy", sources, liveRoot, bypassRecycleBin: false, cancellationToken: ct).ConfigureAwait(false);
+    }
+}
+
+public sealed class SystemShadowDto
+{
+    public string Id { get; set; } = "";
+    public string VolumeRoot { get; set; } = "";
+    public string DeviceObject { get; set; } = "";
+    public string BrowseRoot { get; set; } = "";
+    public string CreatedUtc { get; set; } = "";
+    public bool ClientAccessible { get; set; }
+    public string OriginalPath { get; set; } = "";
 }

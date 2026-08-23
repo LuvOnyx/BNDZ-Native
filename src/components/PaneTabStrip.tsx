@@ -160,6 +160,13 @@ function SortablePaneTab({
           background: isActive ? 'var(--tab-active-bg, var(--bndz-surface-raised))' : 'var(--tab-inactive-bg, var(--bndz-surface-chrome))',
           color: isActive ? 'var(--tab-active-text, #e0f2fe)' : 'var(--tab-inactive-text, #94a3b8)',
         }),
+    // Light themes keep dark tabstrip — always prefer light ink when theme-light is on
+    ...(typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light')
+      ? {
+          background: isActive ? 'var(--tab-active-bg, #2a2e36)' : 'var(--tab-inactive-bg, #1a1c22)',
+          color: isActive ? 'var(--tab-active-text, rgba(255,255,255,0.95))' : 'var(--tab-inactive-text, rgba(255,255,255,0.58))',
+        }
+      : {}),
     ...tabAccentStyle(tab.color, isActive),
     transform: CSS.Translate.toString(
       transform ? { ...transform, y: 0, scaleX: 1, scaleY: 1 } : null,

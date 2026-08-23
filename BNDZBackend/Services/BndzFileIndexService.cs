@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -53,6 +55,68 @@ public sealed class BndzFileIndexService : IDisposable
     }
 
     public void Dispose() { }
+
+    // ─── Embedding store / retrieve ───────────────────────────────────────────
+
+    /// <summary>
+    /// Persist a float[] embedding vector as a raw-bytes BLOB in the files table.
+    /// No-op if path is unknown. Call from BndzEmbeddingService after inference.
+    /// </summary>
+    public void StoreEmbedding(string panePath, float[] embedding)
+    {
+        if (string.IsNullOrWhiteSpace(panePath) || embedding == null || embedding.Length == 0) return;
+        EnsureSchema();
+        var blob = MemoryMarshal.AsBytes(embedding.AsSpan()).ToArray();
+        try
+        {
+            _writeLock.Wait();
+            try
+            {
+                using var conn = OpenConnection();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "UPDATE files SET embedding=$e WHERE path=$p";
+                cmd.Parameters.AddWithValue("$e", blob);
+                cmd.Parameters.AddWithValue("$p", NormalizePanePath(panePath));
+                cmd.ExecuteNonQuery();
+            }
+            finally { _writeLock.Release(); }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/Embedding] store: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Retrieve the stored embedding for a pane-path, or null if not yet embedded.
+    /// </summary>
+    public float[]? GetEmbedding(string panePath)
+    {
+        if (string.IsNullOrWhiteSpace(panePath)) return null;
+        EnsureSchema();
+        try
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT embedding FROM files WHERE path=$p LIMIT 1";
+            cmd.Parameters.AddWithValue("$p", NormalizePanePath(panePath));
+            using var r = cmd.ExecuteReader();
+            if (!r.Read() || r.IsDBNull(0)) return null;
+            var bytes = (byte[])r["embedding"];
+            if (bytes == null || bytes.Length == 0 || bytes.Length % 4 != 0) return null;
+            var floats = new float[bytes.Length / 4];
+            Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
+            return floats;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Index/Embedding] retrieve: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Public static helper used by BndzEmbeddingService to avoid code duplication.</summary>
+    public static string ToPanePathStatic(string winPath) => ToPanePath(winPath);
 
     private void EnsureSchema()
     {
@@ -110,11 +174,22 @@ public sealed class BndzFileIndexService : IDisposable
             cmd.ExecuteNonQuery();
             EnsureCreatedColumn(conn);
             EnsureProducerColumns(conn);
+            EnsureEmbeddingColumn(conn);
             EnsureFtsBackfill(conn);
             EnsureMetaKv(conn);
             BackfillCreatedDates(conn);
             _schemaReady = true;
         }
+    }
+
+    private static void EnsureEmbeddingColumn(SqliteConnection conn)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM pragma_table_info('files') WHERE name='embedding'";
+        if (Convert.ToInt64(check.ExecuteScalar()) != 0) return;
+        using var alter = conn.CreateCommand();
+        alter.CommandText = "ALTER TABLE files ADD COLUMN embedding BLOB";
+        alter.ExecuteNonQuery();
     }
 
     private static void EnsureCreatedColumn(SqliteConnection conn)
@@ -1242,6 +1317,24 @@ public sealed class BndzFileIndexService : IDisposable
         cmd.Parameters.AddWithValue("$k", key);
         var v = cmd.ExecuteScalar();
         return v as string;
+    }
+
+    public void TrySetMeta(string key, string value) => SetMeta(key, value);
+
+    /// <summary>USN/FSW hook — soft-invalidate touched leaf names so Fast Search refreshes soon.</summary>
+    public void NotifyUsnTouch(string volumeRoot, IEnumerable<string> names)
+    {
+        try
+        {
+            var list = names.Where(n => !string.IsNullOrWhiteSpace(n)).Take(64).ToList();
+            if (list.Count == 0) return;
+            Debug.WriteLine($"[FileIndex] USN touch on {volumeRoot}: {list.Count} name(s)");
+            SetMeta($"usn_touch:{volumeRoot.TrimEnd('\\')}", $"{DateTime.UtcNow:O}|{string.Join(",", list.Take(8))}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[FileIndex] NotifyUsnTouch: {ex.Message}");
+        }
     }
 
     public void SetMeta(string key, string value)

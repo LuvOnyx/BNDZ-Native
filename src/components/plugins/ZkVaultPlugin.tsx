@@ -88,6 +88,14 @@ export default function ZkVaultPlugin({
     }
   };
 
+  /** Navigate the BNDZ file browser to a local mount path (e.g. a drive letter or temp dir). */
+  const browseMount = (mountPath: string) => {
+    if (!mountPath) return;
+    // Convert Windows path to BNDZ pane path: C:\foo → /C/foo
+    const pane = mountPath.replace(/^([A-Za-z]):[/\\]/, '/$1/').replace(/\\/g, '/');
+    window.dispatchEvent(new CustomEvent('bndz-navigate', { detail: { path: pane } }));
+  };
+
   const unlockVault = async () => {
     if (!folder) {
       pushToast({ kind: 'warning', title: 'Select vault folder', message: 'Pick the folder containing .bndzvault marker.' });
@@ -101,10 +109,13 @@ export default function ZkVaultPlugin({
     try {
       const res = await IPC.zkVaultUnlock(folder, password);
       if (!res.ok) throw new Error(res.error || 'Unlock failed');
-      const mount = (res.session as VaultSession)?.mountPath;
+      const session = res.session as VaultSession | undefined;
+      const mount = session?.mountPath;
       pushToast({ kind: 'success', title: 'Vault unlocked', message: mount || 'Session mount ready' });
       setPassword('');
       await refresh();
+      // Automatically navigate the file browser to the unlocked session mount.
+      if (mount) browseMount(mount);
     } catch (e) {
       pushToast({ kind: 'error', title: 'Unlock failed', message: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -170,9 +181,27 @@ export default function ZkVaultPlugin({
                     <Icons8Icon id="folder_ui" size={14} />
                     <span className="truncate">{formatUiPath(s.sourcePath)}</span>
                   </div>
-                  <div className="text-[11px] text-sky-300/80 mt-1 bndz-mono truncate">Mount: {formatUiPath(s.mountPath)}</div>
+                  <div className="text-[11px] text-sky-300/80 mt-1 bndz-mono truncate">
+                    Mount: {formatUiPath(s.mountPath)}
+                  </div>
+                  {s.mode && (
+                    <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wide">{s.mode}</div>
+                  )}
                 </div>
-                <PluginToolbarButton label="Lock" onClick={() => void lockVault(s.vaultId)} disabled={busy} />
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <PluginToolbarButton
+                    label="Browse"
+                    onClick={() => browseMount(s.mountPath)}
+                    disabled={busy}
+                    title="Navigate file browser to this mount"
+                  />
+                  <PluginToolbarButton
+                    label="Lock"
+                    onClick={() => void lockVault(s.vaultId)}
+                    disabled={busy}
+                    title="Shred temp session and lock vault"
+                  />
+                </div>
               </div>
             </PluginCard>
           ))}

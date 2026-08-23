@@ -621,6 +621,48 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     return screenToBoard(rect.left + rect.width / 2, rect.top + rect.height / 2);
   }, [hitBoardAt, screenToBoard]);
 
+  const fitBoard = useCallback(() => {
+    const d = docRef.current;
+    const stickies = d?.stickies ?? [];
+    if (!d || (!d.items.length && !stickies.length) || !boardRef.current) {
+      if (d) {
+        // Empty board: true identity at world origin (no content to frame).
+        commitDoc({ ...d, panX: 0, panY: 0, zoom: 1 });
+      }
+      return;
+    }
+    const rect = boardRef.current.getBoundingClientRect();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    d.items.forEach(it => {
+      minX = Math.min(minX, it.x);
+      minY = Math.min(minY, it.y);
+      maxX = Math.max(maxX, it.x + CARD_W);
+      maxY = Math.max(maxY, it.y + CARD_H);
+    });
+    stickies.forEach(s => {
+      const w = s.w ?? SPATIAL_STICKY_W;
+      const h = s.h ?? SPATIAL_STICKY_H;
+      minX = Math.min(minX, s.x);
+      minY = Math.min(minY, s.y);
+      maxX = Math.max(maxX, s.x + w);
+      maxY = Math.max(maxY, s.y + h);
+    });
+    const pad = 48;
+    const contentW = Math.max(1, maxX - minX);
+    const contentH = Math.max(1, maxY - minY);
+    const bw = contentW + pad * 2;
+    const bh = contentH + pad * 2;
+    const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
+    // Center the content bounding box in the viewport (world ↔ screen via pan + scale).
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const panX = rect.width / 2 - cx * zoom;
+    const panY = rect.height / 2 - cy * zoom;
+    commitDoc({ ...d, panX, panY, zoom });
+    setStatus('Fitted to board');
+    closeMenu();
+  }, [commitDoc, minZoom, maxZoom, closeMenu]);
+
   useEffect(() => {
     const onExternalDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -629,7 +671,12 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       const clientX = typeof detail.webViewX === 'number' ? detail.webViewX : window.innerWidth / 2;
       const clientY = typeof detail.webViewY === 'number' ? detail.webViewY : window.innerHeight / 2;
       if (!hitBoardAt(clientX, clientY)) return;
+      const wasEmpty = !docRef.current?.items.length && !(docRef.current?.stickies?.length);
       addPaths(paths, resolveDropPoint(clientX, clientY));
+      // Fit board into view when items land on an otherwise-empty canvas so the
+      // user can see them immediately (OLE coords may place cards off-screen if
+      // the canvas pan/zoom was at an unexpected position before the drop).
+      if (wasEmpty) requestAnimationFrame(() => fitBoard());
     };
     const onSpatialAdd = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -655,7 +702,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       window.removeEventListener('bndz-spatial-add', onSpatialAdd);
       window.removeEventListener('pointerup', onPointerUp, true);
     };
-  }, [addPaths, hitBoardAt, resolveDropPoint]);
+  }, [addPaths, hitBoardAt, resolveDropPoint, fitBoard]);
 
   const removeItems = useCallback((ids: string[]) => {
     const d = docRef.current;
@@ -790,48 +837,6 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       { tetherToId: pin.id, startEdit: true },
     );
   }, [addStickyNote]);
-
-  const fitBoard = useCallback(() => {
-    const d = docRef.current;
-    const stickies = d?.stickies ?? [];
-    if (!d || (!d.items.length && !stickies.length) || !boardRef.current) {
-      if (d) {
-        // Empty board: true identity at world origin (no content to frame).
-        commitDoc({ ...d, panX: 0, panY: 0, zoom: 1 });
-      }
-      return;
-    }
-    const rect = boardRef.current.getBoundingClientRect();
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    d.items.forEach(it => {
-      minX = Math.min(minX, it.x);
-      minY = Math.min(minY, it.y);
-      maxX = Math.max(maxX, it.x + CARD_W);
-      maxY = Math.max(maxY, it.y + CARD_H);
-    });
-    stickies.forEach(s => {
-      const w = s.w ?? SPATIAL_STICKY_W;
-      const h = s.h ?? SPATIAL_STICKY_H;
-      minX = Math.min(minX, s.x);
-      minY = Math.min(minY, s.y);
-      maxX = Math.max(maxX, s.x + w);
-      maxY = Math.max(maxY, s.y + h);
-    });
-    const pad = 48;
-    const contentW = Math.max(1, maxX - minX);
-    const contentH = Math.max(1, maxY - minY);
-    const bw = contentW + pad * 2;
-    const bh = contentH + pad * 2;
-    const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(rect.width / bw, rect.height / bh)));
-    // Center the content bounding box in the viewport (world ↔ screen via pan + scale).
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    const panX = rect.width / 2 - cx * zoom;
-    const panY = rect.height / 2 - cy * zoom;
-    commitDoc({ ...d, panX, panY, zoom });
-    setStatus('Fitted to board');
-    closeMenu();
-  }, [commitDoc, minZoom, maxZoom, closeMenu]);
 
   const openContinuumBoard = useCallback(async () => {
     await flushAutosave(true);
@@ -1250,20 +1255,26 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       || interacting.current
       || !!draggingRef.current;
 
-    const adoptExternalDoc = (next: SpatialCanvasDoc) => {
+    const adoptExternalDoc = (next: SpatialCanvasDoc, opts?: { fit?: boolean }) => {
       if (cancelled || busyEditing()) return;
       const sanitized = sanitizePinDisplayNames(next);
-      // Preserve live camera if the external writer didn't change transforms.
+      // Preserve live camera if the external writer didn't change transforms —
+      // unless caller asked to fit (context-menu pin / intro CTAs).
       const cur = docRef.current;
-      const merged = cur && sanitized.id === cur.id
+      const merged = cur && sanitized.id === cur.id && !opts?.fit
         ? { ...sanitized, panX: cur.panX, panY: cur.panY, zoom: cur.zoom }
         : sanitized;
       docRef.current = merged;
       setDoc(merged);
       invalidateSpatialVisual();
+      if (opts?.fit) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => fitBoard());
+        });
+      }
     };
 
-    const scheduleReload = () => {
+    const scheduleReload = (opts?: { fit?: boolean }) => {
       if (busyEditing()) return;
       if (reloadTimer) clearTimeout(reloadTimer);
       reloadTimer = setTimeout(() => {
@@ -1272,7 +1283,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         const gen = ++reloadGen;
         void loadSpatialCanvas({ force: true }).then(next => {
           if (cancelled || gen !== reloadGen || busyEditing()) return;
-          adoptExternalDoc(next);
+          adoptExternalDoc(next, opts);
         });
       }, 200);
     };
@@ -1305,7 +1316,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
           return;
         }
       }
-      scheduleReload();
+      scheduleReload({ fit: !!detail.fit || !!detail.added });
     };
 
     // Do NOT listen to window `focus` — clicking a sticky/textarea fires it in WebView2
@@ -1322,7 +1333,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
       window.removeEventListener('bndz-spatial-doc-changed', onDocChanged);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, []);
+  }, [fitBoard]);
 
   const updateMarqueeDom = useCallback((m: { x1: number; y1: number; x2: number; y2: number }) => {
     const el = marqueeElRef.current;
@@ -1738,6 +1749,7 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
     const pt = screenToBoard(e.clientX, e.clientY);
     const payload = readBndzFileDragData(e);
     let pinned = false;
+    const wasEmpty = !docRef.current?.items.length && !(docRef.current?.stickies?.length);
     if (payload?.paths?.length) {
       addPaths(payload.paths, pt);
       pinned = true;
@@ -1761,7 +1773,10 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
         }
       }
     }
-    if (pinned) endInternalFileDragUi('spatial-html-drop');
+    if (pinned) {
+      endInternalFileDragUi('spatial-html-drop');
+      if (wasEmpty) requestAnimationFrame(() => fitBoard());
+    }
   };
 
   const menuItem = doc?.items.find(it => it.id === menu?.targetId) ?? null;
@@ -2088,7 +2103,11 @@ export default function BndzSpatialCanvasView({ onNavigate, onOpenPath }: Props)
                         type="button"
                         className="bndz-spatial-empty-cta"
                         onClick={() => {
-                          addPaths([btn.path], { x: 120 + Math.random() * 80, y: 100 + Math.random() * 60 });
+                          // Viewport center (omit `at`) + fit so pins never land off-camera.
+                          addPaths([btn.path]);
+                          requestAnimationFrame(() => {
+                            requestAnimationFrame(() => fitBoard());
+                          });
                         }}
                       >
                         {btn.label}

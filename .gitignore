@@ -86,3 +86,7 @@ installer/output/
 !installer/*.iss
 
 external/CodeWalker/
+
+# Local build dumps (do not commit)
+artifacts/
+

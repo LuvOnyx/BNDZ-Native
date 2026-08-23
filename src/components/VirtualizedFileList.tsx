@@ -109,7 +109,7 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
     getScrollElement: () => scrollEl,
     estimateSize,
     /** Extra rows hide recycle flash during fast wheel/trackpad flings. */
-    overscan: mode === 'grid' ? 6 : 18,
+    overscan: mode === 'grid' ? 8 : 24,
     enabled: useVirtual && !!scrollEl,
   });
 
@@ -249,6 +249,8 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
                   height: vi.size,
                   transform: `translate3d(0, ${vi.start}px, 0)`,
                   contain: 'layout style paint',
+                  contentVisibility: 'auto',
+                  willChange: 'transform',
                   overflow: 'hidden',
                   pointerEvents: 'none',
                 }}
@@ -304,6 +306,8 @@ export const VirtualizedFileList = memo(function VirtualizedFileList<T>({
               height: vi.size,
               transform: `translate3d(0, ${vi.start}px, 0)`,
               contain: 'layout style paint',
+              contentVisibility: 'auto',
+              willChange: 'transform',
               overflow: 'hidden',
               pointerEvents: 'none',
             }}

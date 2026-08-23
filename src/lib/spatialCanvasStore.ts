@@ -417,8 +417,9 @@ export async function pinPathsToSpatialCanvas(paths: string[]): Promise<number> 
   const existing = new Set(doc.items.map(it => it.path));
   const toAdd = normalized.filter(p => !existing.has(p));
   if (!toAdd.length) return 0;
-  const startX = 80;
-  const startY = 80;
+  // Place near world origin in a tidy grid — Spatial view will fitBoard on `fit: true`.
+  const startX = 0;
+  const startY = 0;
   const added = toAdd.map((path, i) => makeCanvasPin(
     path,
     startX + (i % 6) * (PIN_CARD_W + 16),
@@ -427,7 +428,9 @@ export async function pinPathsToSpatialCanvas(paths: string[]): Promise<number> 
   const next = { ...doc, items: [...doc.items, ...added] };
   await saveSpatialCanvasNow(next);
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('bndz-spatial-doc-changed', { detail: { added: added.length } }));
+    window.dispatchEvent(new CustomEvent('bndz-spatial-doc-changed', {
+      detail: { added: added.length, fit: true },
+    }));
   }
   return added.length;
 }

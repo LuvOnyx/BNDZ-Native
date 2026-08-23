@@ -283,8 +283,18 @@ public sealed class BndzActionLogService
             case ActionKind.Copy:
                 foreach (var created in entry.TargetPaths)
                 {
-                    if (File.Exists(created)) File.Delete(created);
-                    else if (Directory.Exists(created)) Directory.Delete(created, true);
+                    if (File.Exists(created))
+                    {
+                        File.Delete(created);
+                    }
+                    else if (Directory.Exists(created))
+                    {
+                        // Route directory deletion through the engine for progress tracking and
+                        // cancellation support; bypassRecycleBin=true because originals still exist.
+                        await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "delete",
+                            new List<string> { created }, "", bypassRecycleBin: true,
+                            recordActionLog: false).ConfigureAwait(false);
+                    }
                 }
                 break;
 
@@ -470,8 +480,36 @@ public sealed class BndzActionLogService
                 break;
 
             case ActionKind.ExtractArchive:
+            {
+                var archivePath = entry.SourcePaths.FirstOrDefault();
+                var destination = entry.TargetPaths.FirstOrDefault();
+                if (string.IsNullOrEmpty(archivePath))
+                    throw new InvalidOperationException("Archive path missing — cannot redo extraction.");
+                if (!File.Exists(archivePath))
+                    throw new FileNotFoundException($"Archive no longer exists at: {archivePath}");
+                if (string.IsNullOrEmpty(destination))
+                    throw new InvalidOperationException("Destination path missing — cannot redo extraction.");
+                Directory.CreateDirectory(destination);
+                await new ArchiveService().ExtractArchiveAsync(archivePath, destination).ConfigureAwait(false);
+                break;
+            }
+
             case ActionKind.SyncFolder:
-                throw new NotSupportedException($"Redo for {entry.Kind} is not supported — re-run the operation manually.");
+            {
+                var source = entry.SourcePaths.FirstOrDefault();
+                var dest = entry.TargetPaths.FirstOrDefault();
+                if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(dest))
+                    throw new InvalidOperationException("Source or destination path missing — cannot redo folder sync.");
+                if (!Directory.Exists(source))
+                    throw new DirectoryNotFoundException($"Source folder no longer exists: {source}");
+                Directory.CreateDirectory(dest);
+                // Re-copy top-level contents of source into dest — closest to re-sync without re-running robocopy.
+                var topItems = Directory.EnumerateFileSystemEntries(source).ToList();
+                if (topItems.Count > 0)
+                    await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "copy",
+                        topItems, dest, bypassRecycleBin: true, recordActionLog: false).ConfigureAwait(false);
+                break;
+            }
 
             case ActionKind.Delete:
                 await fileOps.ExecuteOperationAsync(Guid.NewGuid().ToString("N"), "delete",

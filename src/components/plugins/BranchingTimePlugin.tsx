@@ -25,7 +25,7 @@ export const BranchingTimePluginDef = {
   installOnFirstUse: false,
 };
 
-type TabId = 'branches' | 'peek' | 'vss';
+type TabId = 'branches' | 'peek' | 'vss' | 'system';
 
 type BranchRow = {
   id: string;
@@ -42,6 +42,16 @@ type VssBranchRow = {
   rootPath: string;
   browseRoot: string;
   createdUtc: string;
+};
+
+type SystemShadowRow = {
+  id: string;
+  volumeRoot: string;
+  deviceObject: string;
+  browseRoot: string;
+  createdUtc: string;
+  clientAccessible: boolean;
+  originalPath: string;
 };
 
 type PeekEntry = {
@@ -78,11 +88,15 @@ export default function BranchingTimePlugin({
   const [activeTab, setActiveTab] = useState<TabId>('branches');
   const [branches, setBranches] = useState<BranchRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [createProgress, setCreateProgress] = useState<string | null>(null);
   const [branchName, setBranchName] = useState('');
   const [peekId, setPeekId] = useState<string | null>(null);
   const [peekEntries, setPeekEntries] = useState<PeekEntry[]>([]);
   const [peekMeta, setPeekMeta] = useState<{ name: string; fileCount: number; totalBytes: number } | null>(null);
   const [vssBranches, setVssBranches] = useState<VssBranchRow[]>([]);
+  const [systemShadows, setSystemShadows] = useState<SystemShadowRow[]>([]);
+  const [shadowsLoading, setShadowsLoading] = useState(false);
+  const [shadowsError, setShadowsError] = useState<string | null>(null);
 
   const root = (currentPath || '').replace(/\//g, '\\');
 
@@ -103,6 +117,33 @@ export default function BranchingTimePlugin({
     }
   }, [root]);
 
+  const loadSystemShadows = useCallback(async () => {
+    setShadowsLoading(true);
+    setShadowsError(null);
+    try {
+      const res = await IPC.branchListSystemShadows(root || 'C:\\');
+      if (!res.ok && res.error) {
+        setShadowsError(res.error);
+        setSystemShadows([]);
+      } else {
+        setSystemShadows((res.shadows || []).map((s: Record<string, unknown>) => ({
+          id: String(s.id ?? s.Id ?? ''),
+          volumeRoot: String(s.volumeRoot ?? s.VolumeRoot ?? ''),
+          deviceObject: String(s.deviceObject ?? s.DeviceObject ?? ''),
+          browseRoot: String(s.browseRoot ?? s.BrowseRoot ?? ''),
+          createdUtc: String(s.createdUtc ?? s.CreatedUtc ?? ''),
+          clientAccessible: Boolean(s.clientAccessible ?? s.ClientAccessible ?? false),
+          originalPath: String(s.originalPath ?? s.OriginalPath ?? root ?? ''),
+        })));
+      }
+    } catch (e) {
+      setShadowsError(e instanceof Error ? e.message : String(e));
+      setSystemShadows([]);
+    } finally {
+      setShadowsLoading(false);
+    }
+  }, [root]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -114,6 +155,7 @@ export default function BranchingTimePlugin({
     }
     const name = branchName.trim() || `snapshot-${new Date().toISOString().slice(0, 16).replace('T', '-')}`;
     setBusy(true);
+    setCreateProgress('Hashing files…');
     try {
       const res = await IPC.branchCreate(root, name);
       if (!res.ok) {
@@ -125,6 +167,7 @@ export default function BranchingTimePlugin({
       await refresh();
     } finally {
       setBusy(false);
+      setCreateProgress(null);
     }
   };
 
@@ -234,6 +277,17 @@ export default function BranchingTimePlugin({
     }
   };
 
+  const restoreSystemShadow = async (shadow: SystemShadowRow) => {
+    setBusy(true);
+    try {
+      const res = await IPC.branchRestoreSystemShadow(shadow.deviceObject, shadow.originalPath);
+      if (!res.ok) pushToast(res.error || 'System shadow restore failed.');
+      else pushToast('System shadow restore queued to live folder.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <PluginPanelShell
       title="Branching Time"
@@ -247,7 +301,10 @@ export default function BranchingTimePlugin({
             Branches
           </PluginTab>
           <PluginTab active={activeTab === 'vss'} onClick={() => setActiveTab('vss')}>
-            VSS
+            VSS Named
+          </PluginTab>
+          <PluginTab active={activeTab === 'system'} onClick={() => { setActiveTab('system'); void loadSystemShadows(); }}>
+            System Shadows
           </PluginTab>
           <PluginTab active={activeTab === 'peek'} onClick={() => peekId && setActiveTab('peek')}>
             Peek
@@ -267,7 +324,9 @@ export default function BranchingTimePlugin({
           path={root || null}
           meta={
             <span className="bndz-panel-muted text-xs">
-              {branches.length} branch{branches.length === 1 ? '' : 'es'}
+              {createProgress
+                ? <span className="text-[#8b9cf8] animate-pulse">{createProgress}</span>
+                : `${branches.length} branch${branches.length === 1 ? '' : 'es'}`}
             </span>
           }
           actions={
@@ -301,8 +360,10 @@ export default function BranchingTimePlugin({
             {branches.length === 0 ? (
               <PluginEmptyState
                 icon="history_ui"
-                title="No branches yet"
-                description="Create a branch of the active folder to freeze a content-addressed tip you can restore later."
+                title={root ? 'No snapshots yet' : 'No folder selected'}
+                description={root
+                  ? 'Type a name (or leave blank for auto-name) and click Create branch to take your first content-addressed snapshot of this folder.'
+                  : 'Navigate to a folder in the file list, then open Branching Time to snapshot it.'}
               />
             ) : (
               branches.map(b => (
@@ -338,8 +399,8 @@ export default function BranchingTimePlugin({
             {vssBranches.length === 0 ? (
               <PluginEmptyState
                 icon="history_ui"
-                title="No VSS branches"
-                description="Create a named Volume Shadow Copy branch of the active folder (may require elevation)."
+                title="No named VSS branches"
+                description="Click 'Create VSS' to take a Volume Shadow Copy snapshot of this folder. Requires elevation — run BNDZ as Administrator if this fails. System shadow copies (all volumes) are shown in the System Shadows tab."
               />
             ) : (
               vssBranches.map(b => (
@@ -367,6 +428,55 @@ export default function BranchingTimePlugin({
                 </PluginCard>
               ))
             )}
+          </div>
+        )}
+
+        {activeTab === 'system' && (
+          <div className="px-3 pb-3 space-y-2 overflow-y-auto bndz-scrollbar flex-1 min-h-0">
+            <div className="flex items-center gap-2 py-1 mb-1">
+              <span className="text-[10px] text-[#6b7280]">Windows Volume Shadow Copies for this drive</span>
+              <button
+                onClick={() => void loadSystemShadows()}
+                disabled={shadowsLoading}
+                className="ml-auto px-2 py-0.5 text-[10px] bg-[#1e2030] hover:bg-[#252640] border border-[#3a3a5a] text-[#8b9cf8] rounded disabled:opacity-40 transition-colors"
+              >
+                {shadowsLoading ? '⟳ Loading…' : '⟳ Refresh'}
+              </button>
+            </div>
+            {shadowsError && (
+              <div className="text-[11px] text-[#f87171] bg-[#2a1010] border border-[#7f1d1d] rounded px-3 py-2">
+                <span className="font-semibold">VSS access error:</span> {shadowsError}
+                <div className="mt-1 text-[10px] text-[#fca5a5]">Run BNDZ as Administrator to list or restore system shadow copies.</div>
+              </div>
+            )}
+            {!shadowsLoading && !shadowsError && systemShadows.length === 0 && (
+              <PluginEmptyState
+                icon="history_ui"
+                title="No system shadows found"
+                description="Windows hasn't created any Volume Shadow Copies for this drive, or BNDZ needs elevation to list them. Enable System Protection in Windows settings to create automatic restore points."
+              />
+            )}
+            {systemShadows.map(s => (
+              <PluginCard key={s.id}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <PluginSectionTitle>
+                      {s.createdUtc ? new Date(s.createdUtc).toLocaleString() : s.id}
+                      {s.clientAccessible && (
+                        <span className="ml-1 px-1 py-0 rounded text-[8px] bg-[#14532d] text-[#22c55e] border border-[#15803d] font-normal">accessible</span>
+                      )}
+                    </PluginSectionTitle>
+                    <div className="text-[10px] text-gray-500 truncate" title={s.originalPath}>{formatUiPath(s.originalPath)}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5 font-mono truncate">{s.deviceObject}</div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <PluginToolbarButton title="Restore shadow to live folder" onClick={() => void restoreSystemShadow(s)} disabled={busy}>
+                      <EmblemIcon id="emblem-update" size={12} />
+                    </PluginToolbarButton>
+                  </div>
+                </div>
+              </PluginCard>
+            ))}
           </div>
         )}
 

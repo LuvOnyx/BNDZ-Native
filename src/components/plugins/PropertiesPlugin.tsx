@@ -382,7 +382,7 @@ export default function PropertiesPlugin({
             variant="embedded"
             subtitle={displayName}
         >
-        <div className="flex-1 w-full flex flex-col overflow-hidden text-slate-300 min-h-0">
+        <div className="flex-1 w-full flex flex-col overflow-hidden min-h-0">
             <PluginHeroStrip
                 icon={
                     // Settings → Show embedded icons on Properties tab

@@ -90,6 +90,19 @@ export interface FileTransferQueueState {
   jobs: FileTransferJobDto[];
 }
 
+export interface ConflictPayload {
+  operationId: string;
+  fileName: string;
+  sourcePath?: string;
+  destPath?: string;
+  /** File size in bytes; 0 if not available */
+  sourceSize?: number;
+  /** Unix timestamp (seconds) of source file's last-write UTC */
+  sourceModifiedUtc?: number;
+  destSize?: number;
+  destModifiedUtc?: number;
+}
+
 function _parseWebViewMessage(raw: unknown): any {
   if (raw == null) return null;
   if (typeof raw === 'string') {
@@ -284,7 +297,7 @@ export const IPC = {
     };
   },
 
-  onConflictContent(callback: (conflict: any) => void) {
+  onConflictContent(callback: (conflict: ConflictPayload) => void) {
     this.init();
     this._conflictListeners.push(callback);
     return () => {
@@ -3300,6 +3313,21 @@ export const IPC = {
     return _nativeCall<any>('BRANCH_RESTORE_VSS', 'BRANCH_RESTORE_VSS_RESULT', id, { id: branchId }, 300000);
   },
 
+  /** List all existing system VSS shadow copies for the volume containing path. */
+  branchListSystemShadows(path: string): Promise<{ ok: boolean; shadows: any[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: true, shadows: [] });
+    const id = `${Date.now()}_branchListSysShadows`;
+    return _nativeCall<any>('BRANCH_LIST_SYSTEM_SHADOWS', 'BRANCH_LIST_SYSTEM_SHADOWS_RESULT', id, { path }, 30000)
+      .then(r => ({ ok: r?.ok ?? false, shadows: Array.isArray(r?.shadows) ? r.shadows : [], error: r?.error }));
+  },
+
+  /** Restore files from a system shadow copy (identified by its WMI DeviceObject path). */
+  branchRestoreSystemShadow(deviceObject: string, originalPath: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_branchRestoreSysShadow`;
+    return _nativeCall<any>('BRANCH_RESTORE_SYSTEM_SHADOW', 'BRANCH_RESTORE_SYSTEM_SHADOW_RESULT', id, { deviceObject, originalPath }, 300000);
+  },
+
   lineageGet(path: string, depth?: number): Promise<{ edges: any[]; inbound?: any[]; outbound?: any[]; timeline?: any[] }> {
     if (!this.isNative) return Promise.resolve({ edges: [] });
     const id = `${Date.now()}_lineageGet`;
@@ -3916,5 +3944,41 @@ export const IPC = {
     if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
     const id = `${Date.now()}_nsList`;
     return _nativeCall<any>('NAMESPACE_LIST', 'NAMESPACE_LIST_RESULT', id, {}, 15000);
+  },
+
+  /**
+   * Wave 9 — Semantic search reranking.
+   * Re-orders candidatePaths by cosine similarity of their name embeddings to query.
+   * Returns { ok, modelPresent, items: [{ path, score }] }.
+   * When modelPresent is false the backend returns paths in original order with score 0.
+   */
+  semanticRank(
+    query: string,
+    paths: string[],
+    limit = 200,
+  ): Promise<{ ok: boolean; modelPresent?: boolean; items?: { path: string; score: number }[]; error?: string }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_semRank`;
+    return _nativeCall<any>('SEMANTIC_RANK', 'SEMANTIC_RANK_RESULT', id, { query, paths, limit }, 30000);
+  },
+
+  /**
+   * Wave 9 — Get embedding model status (loaded, dimension, file paths).
+   */
+  embeddingStatus(): Promise<{
+    ok: boolean;
+    status?: {
+      modelLoaded: boolean;
+      embeddingDimension: number;
+      modelPath: string;
+      vocabPath: string;
+      modelExists: boolean;
+      vocabExists: boolean;
+    };
+    error?: string;
+  }> {
+    if (!this.isNative) return Promise.resolve({ ok: false, error: 'Native host required' });
+    const id = `${Date.now()}_embStatus`;
+    return _nativeCall<any>('EMBEDDING_STATUS', 'EMBEDDING_STATUS_RESULT', id, {}, 5000);
   },
 };

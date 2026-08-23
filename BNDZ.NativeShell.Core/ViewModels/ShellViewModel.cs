@@ -182,6 +182,84 @@ public partial class ShellViewModel : ObservableObject
         ActiveTab = tab;
     }
 
+    [RelayCommand]
+    private void Delete()
+    {
+        // TODO: Implement delete functionality
+    }
+
+    [RelayCommand]
+    private void PermanentDelete()
+    {
+        // TODO: Implement permanent delete functionality
+    }
+
+    [RelayCommand]
+    private void Rename()
+    {
+        // TODO: Implement rename functionality
+    }
+
+    [RelayCommand]
+    private void SelectAll()
+    {
+        // TODO: Implement select all functionality
+    }
+
+    [RelayCommand]
+    private void Copy()
+    {
+        // TODO: Implement copy functionality
+    }
+
+    [RelayCommand]
+    private void Cut()
+    {
+        // TODO: Implement cut functionality
+    }
+
+    [RelayCommand]
+    private void Paste()
+    {
+        // TODO: Implement paste functionality
+    }
+
+    [RelayCommand]
+    private void FocusSearch()
+    {
+        // TODO: Implement focus search functionality
+    }
+
+    [RelayCommand]
+    private void ShowProperties()
+    {
+        // TODO: Implement show properties functionality
+    }
+
+    [RelayCommand]
+    private void CreateFolder()
+    {
+        // TODO: Implement create folder functionality
+    }
+
+    [RelayCommand]
+    private void GoBack()
+    {
+        // TODO: Implement go back functionality
+    }
+
+    [RelayCommand]
+    private void GoForward()
+    {
+        // TODO: Implement go forward functionality
+    }
+
+    [RelayCommand]
+    private void TogglePreviewPane()
+    {
+        // TODO: Implement toggle preview pane functionality
+    }
+
     private async Task RefreshPreviewAsync(string? path)
     {
         _previewCts?.Cancel();
