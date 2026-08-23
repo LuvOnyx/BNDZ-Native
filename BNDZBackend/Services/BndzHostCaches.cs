@@ -63,6 +63,12 @@ public static class BndzHostCaches
         };
     }
 
+    /// <summary>
+    /// Bump when icon PNG encode semantics change (e.g. alpha-preserving ARGB) so L1/L2
+    /// keys miss poisoned white-plate PNGs from MakeTransparent / Icon.ToBitmap.
+    /// </summary>
+    public const string IconEncodeEpoch = "a3";
+
     public static string IconCacheKey(string path, bool isDirectory, int pixelSize = 48)
     {
         path ??= "";
@@ -77,7 +83,7 @@ public static class BndzHostCaches
             || path.StartsWith("::{", StringComparison.Ordinal);
         // Bust prior disk/L1 poison where CLSIDs were stored under the generic white-doc glyph.
         if (isVirtual)
-            return "shellns:v2:" + path + "@" + band;
+            return IconEncodeEpoch + ":shellns:v2:" + path + "@" + band;
         if (!isDirectory && path.Length > 0
             && !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             && !path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
@@ -85,9 +91,9 @@ public static class BndzHostCaches
         {
             var ext = System.IO.Path.GetExtension(path);
             if (!string.IsNullOrEmpty(ext))
-                return ext.ToLowerInvariant() + "@" + band;
+                return IconEncodeEpoch + ":" + ext.ToLowerInvariant() + "@" + band;
         }
-        return path + "@" + band;
+        return IconEncodeEpoch + ":" + path + "@" + band;
     }
 
     public static string ThumbnailCacheKey(string path, int size)

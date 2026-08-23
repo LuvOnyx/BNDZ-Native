@@ -183,15 +183,28 @@
     .btn-accent:hover { background: linear-gradient(135deg, #33b5ff, #0d80e6); }
 
     /* ---------- Layout ---------- */
-    #main { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--left-sidebar-w, 220px) 1fr var(--right-sidebar-w, minmax(268px, 300px)); }
+    #main { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--left-sidebar-w, 220px) 1fr var(--right-sidebar-w, minmax(268px, 300px)); grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+    #workspace { position: relative; min-width: 0; min-height: 0; width: 100%; height: 100%; align-self: stretch; background: var(--canvas); overflow: hidden; }
+    #left-sidebar, #right-sidebar { min-height: 0; overflow: hidden; }
     #main.panels-hidden { --left-sidebar-w: 0px; --right-sidebar-w: 0px; }
     #main.panels-hidden #left-sidebar,
     #main.panels-hidden #right-sidebar { display: none; }
     #main.panels-hidden.dock-bottom-inspector #right-sidebar,
     #main.panels-hidden.dock-left-inspector #right-sidebar { display: none !important; }
+    /* Collapse reserved dock rows/cols so workspace gets real height when panels are hidden */
+    #main.panels-hidden.dock-bottom-inspector {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      --bottom-panel-h: 0px;
+    }
+    #main.panels-hidden.dock-left-inspector {
+      grid-template-columns: minmax(0, 1fr);
+      --left-sidebar-w: 0px;
+      --right-sidebar-w: 0px;
+    }
     #main.dock-left-inspector { grid-template-columns: var(--right-sidebar-w, minmax(268px, 300px)) 1fr var(--left-sidebar-w, 220px); }
     #main.dock-left-inspector #right-sidebar { order: -1; }
-    #main.dock-bottom-inspector { grid-template-columns: var(--left-sidebar-w, 220px) 1fr; grid-template-rows: 1fr var(--bottom-panel-h, 220px); }
+    #main.dock-bottom-inspector { grid-template-columns: var(--left-sidebar-w, 220px) 1fr; grid-template-rows: minmax(0, 1fr) var(--bottom-panel-h, 220px); }
     #main.dock-bottom-inspector #right-sidebar {
       grid-column: 1 / -1; grid-row: 2; max-height: var(--bottom-panel-h, 220px);
       flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
@@ -378,13 +391,20 @@
     .layer-toggle:hover { background: var(--hover); color: #fff; }
 
     /* ---------- Workspace / canvas ---------- */
-    #workspace { position: relative; min-width: 0; background: var(--canvas); overflow: hidden; }
+    /* Layout height/width set in #main grid block above — do not reset here. */
     #engine-host, #engine-frame {
       position: absolute; inset: 0; width: 100%; height: 100%;
       border: 0; z-index: 2; background: #1e1e1e; pointer-events: auto;
     }
     #workspace.engine-off #engine-host,
     #workspace.engine-off #engine-frame { display: none; pointer-events: none; }
+    /* OpenPencil inline-mount sizing — bndz-openpencil-host.css is NOT loaded here,
+       so replicate the critical layout rules the Vue bundle expects. */
+    .bndz-op-inline-root { width: 100% !important; height: 100% !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; }
+    .engine-root { position: relative; width: 100% !important; height: 100% !important; display: flex !important; flex-direction: column !important; background: #1e1e1e; touch-action: none; }
+    .canvas-root { flex: 1 1 auto !important; min-height: 0 !important; width: 100% !important; position: relative !important; }
+    .canvas-surface, .canvas-root canvas { width: 100% !important; height: 100% !important; display: block !important; touch-action: none; }
+    .engine-status { position: absolute; left: 10px; bottom: 8px; z-index: 2; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; color: rgba(255,255,255,.45); pointer-events: none; }
     #workspace.engine-on #c,
     #workspace.engine-on #grid,
     #workspace.engine-on .upper-canvas,
@@ -1644,6 +1664,17 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
 
   /* ---------------- Canvas ---------------- */
   const workspace = $('#workspace');
+  // Bottom-dock embed: hide side panels immediately so the canvas column gets full width.
+  // Do not keep dock-bottom/left while panels are hidden — reserved rows zero workspace height.
+  try {
+    if (window.self !== window.top) {
+      const embedMain = $('#main');
+      if (embedMain) {
+        embedMain.classList.add('panels-hidden');
+        embedMain.classList.remove('dock-bottom-inspector', 'dock-left-inspector');
+      }
+    }
+  } catch { /* ignore */ }
   // Fabric is the stable default. OpenPencil is opt-in via ?engine=openpencil.
   const USE_OPENPENCIL = /engine=openpencil/i.test(location.search || '');
   const engineHost = $('#engine-host');
@@ -1662,6 +1693,8 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   }
   function handleEngineEvent(d) {
     if (!d || d.source !== 'bndz-openpencil') return;
+    // Relay every OpenPencil event to the parent React host (status bar, tool indicators).
+    try { window.parent?.postMessage(d, '*'); } catch { /* cross-origin guard */ }
     if (d.type === 'ready') {
       workspace.dataset.engineReady = d.degraded ? '0' : '1';
       if (d.degraded) {
@@ -1705,19 +1738,43 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   function bootEngineInline() {
     if (!USE_OPENPENCIL || !engineHost) return;
     window.__bndzDesignBoardOnEngine = handleEngineEvent;
-    const s = document.createElement('script');
-    s.type = 'module';
-    s.textContent = [
-      "import { mountBndzOpenPencil } from './engines/openpencil/embed.js';",
-      "mountBndzOpenPencil(document.getElementById('engine-host'), {",
-      "  onEvent(d) { window.__bndzDesignBoardOnEngine?.(d); },",
-      "}).catch(err => {",
-      "  console.error('[design-board] OpenPencil boot failed', err);",
-      "  const ws = document.getElementById('workspace');",
-      "  if (ws) { ws.classList.remove('engine-on'); ws.classList.add('engine-off'); ws.dataset.engineReady = '0'; }",
-      "});",
-    ].join('\n');
-    document.body.appendChild(s);
+
+    function _doMount() {
+      const rect = engineHost.getBoundingClientRect();
+      if (rect.width < 16 || rect.height < 16) {
+        // Engine-host not laid out yet — wait for real dimensions via ResizeObserver.
+        if (typeof ResizeObserver !== 'undefined') {
+          const ro = new ResizeObserver(() => {
+            const r2 = engineHost.getBoundingClientRect();
+            if (r2.width >= 16 && r2.height >= 16) {
+              ro.disconnect();
+              _doMount();
+            }
+          });
+          ro.observe(engineHost);
+        } else {
+          // Fallback: rAF loop (legacy)
+          requestAnimationFrame(_doMount);
+        }
+        return;
+      }
+
+      const s = document.createElement('script');
+      s.type = 'module';
+      s.textContent = [
+        "import { mountBndzOpenPencil } from './engines/openpencil/embed.js';",
+        "mountBndzOpenPencil(document.getElementById('engine-host'), {",
+        "  onEvent(d) { window.__bndzDesignBoardOnEngine?.(d); },",
+        "}).catch(err => {",
+        "  console.error('[design-board] OpenPencil boot failed', err);",
+        "  const ws = document.getElementById('workspace');",
+        "  if (ws) { ws.classList.remove('engine-on'); ws.classList.add('engine-off'); ws.dataset.engineReady = '0'; }",
+        "});",
+      ].join('\n');
+      document.body.appendChild(s);
+    }
+
+    _doMount();
   }
   if (!USE_OPENPENCIL) {
     workspace.classList.remove('engine-on');
@@ -2431,13 +2488,131 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     return line;
   }
 
-  function resizeCanvas() {
-    const r = workspace.getBoundingClientRect();
-    canvas.setWidth(r.width); canvas.setHeight(r.height);
-    gridCanvas.width = r.width; gridCanvas.height = r.height;
-    renderGrid(); canvas.requestRenderAll();
+  const MIN_LAYOUT_W = 160;
+  const MIN_LAYOUT_H = 120;
+  const MIN_FIT_CANVAS_W = 240;
+  const MIN_FIT_CANVAS_H = 160;
+  let layoutFitPending = true;
+  let lastFitW = 0;
+  let lastFitH = 0;
+  let bootReady = false;
+  let bootAttempts = 0;
+  let embedPanelsCollapsedOnce = false;
+
+  function workspaceReady(box) {
+    return box.width >= MIN_LAYOUT_W && box.height >= MIN_LAYOUT_H;
   }
-  new ResizeObserver(resizeCanvas).observe(workspace);
+  function canvasReadyForFit() {
+    const w = canvas.getWidth() || 0;
+    const h = canvas.getHeight() || 0;
+    return w >= MIN_FIT_CANVAS_W && h >= MIN_FIT_CANVAS_H;
+  }
+  /** Collapse side panels once when the dock is tight — never block boot forever. */
+  function ensureEmbedWorkspaceRoom() {
+    if (embedPanelsCollapsedOnce) return false;
+    const box = workspace.getBoundingClientRect();
+    const main = $('#main');
+    if (!main || main.classList.contains('panels-hidden')) {
+      embedPanelsCollapsedOnce = true;
+      return false;
+    }
+    if (box.width >= MIN_LAYOUT_W && box.height >= MIN_LAYOUT_H) {
+      embedPanelsCollapsedOnce = true;
+      return false;
+    }
+    embedPanelsCollapsedOnce = true;
+    main.classList.add('panels-hidden');
+    main.classList.remove('dock-bottom-inspector', 'dock-left-inspector');
+    try { localStorage.setItem('bndz-db-panels-hidden', '1'); } catch { /* ignore */ }
+    requestAnimationFrame(() => afterLayoutClassChange());
+    return true;
+  }
+  function needsLayoutFit(w, h) {
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 16 || h < 16) return false;
+    if (layoutFitPending) return workspaceReady({ width: w, height: h });
+    const prevArea = lastFitW * lastFitH;
+    const nextArea = w * h;
+    if (prevArea <= 0) return true;
+    // Size past MIN_FIT_* growth — allow fit without host forceFit thrash
+    return nextArea > prevArea * 1.15 || w > lastFitW * 1.2 || h > lastFitH * 1.2
+      || (w >= MIN_FIT_CANVAS_W && h >= MIN_FIT_CANVAS_H && (lastFitW < MIN_FIT_CANVAS_W || lastFitH < MIN_FIT_CANVAS_H));
+  }
+  function markLayoutFit(w, h) {
+    if (!workspaceReady({ width: w, height: h })) return;
+    layoutFitPending = false;
+    lastFitW = w;
+    lastFitH = h;
+  }
+  function applyLayoutFit(force) {
+    const size = measureWorkspaceSize();
+    if (!force && !needsLayoutFit(size.width, size.height)) return;
+    // Tiny dock: never zoomFit an 800×600 artboard into a stamp-sized canvas (~5%).
+    if (!canvasReadyForFit() && !workspaceReady(size)) {
+      try { resetZoom(); } catch (e) { /* ignore */ }
+      return;
+    }
+    try { zoomFit(); markLayoutFit(size.width, size.height); } catch (e) { /* ignore */ }
+  }
+
+  function measureWorkspaceSize() {
+    const raw = workspace.getBoundingClientRect();
+    const main = $('#main');
+    let w = Math.max(1, Math.floor(raw.width || 0));
+    let h = Math.max(1, Math.floor(raw.height || 0));
+    // Prefer the workspace box itself. Only borrow main size when workspace is
+    // still collapsing (0–2px) — never invent a tall canvas for a short dock.
+    if (main && (w < 4 || h < 4)) {
+      const mr = main.getBoundingClientRect();
+      if (w < 4 && mr.width > 4) w = Math.floor(mr.width);
+      if (h < 4 && mr.height > 4) h = Math.floor(mr.height);
+    }
+    return { width: Math.max(1, w), height: Math.max(1, h) };
+  }
+
+  function ensureBootArtboardPresent() {
+    const objs = canvas.getObjects();
+    const hasFrame = objs.some((o) => o && (o.isFrame || o.isBootFrame));
+    if (hasFrame) return false;
+    if (!canvasReadyForFit() && !workspaceReady(measureWorkspaceSize())) return false;
+    createBootArtboard();
+    return true;
+  }
+
+  /** After dock / panels-hidden class changes: one resize, then fit only if ready. */
+  function afterLayoutClassChange() {
+    resizeCanvas();
+    if (canvasReadyForFit()) applyLayoutFit(true);
+    ensureBootArtboardPresent();
+  }
+
+  function resizeCanvas(opts) {
+    const size = measureWorkspaceSize();
+    canvas.setWidth(size.width); canvas.setHeight(size.height);
+    gridCanvas.width = size.width; gridCanvas.height = size.height;
+    renderGrid(); canvas.requestRenderAll();
+    if (opts && opts.forceFit) applyLayoutFit(true);
+    else applyLayoutFit(false);
+  }
+  new ResizeObserver(() => resizeCanvas()).observe(workspace);
+  const mainEl = $('#main');
+  if (mainEl) new ResizeObserver(() => resizeCanvas()).observe(mainEl);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      requestAnimationFrame(() => {
+        resizeCanvas();
+        if (canvasReadyForFit()) applyLayoutFit(true);
+      });
+    }
+  });
+  function scheduleLayoutFitBurst() {
+    [0, 60, 180, 420, 900, 1600, 2800].forEach((ms) => {
+      window.setTimeout(() => {
+        resizeCanvas();
+        if (canvasReadyForFit()) applyLayoutFit(layoutFitPending);
+        ensureBootArtboardPresent();
+      }, ms);
+    });
+  }
 
   function updateZoomLabel() {
     const pct = Math.round(canvas.getZoom() * 100) + '%';
@@ -2460,15 +2635,19 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
   function zoomFit() {
     const objs = canvas.getObjects().filter((o) => !o.isGuide);
     if (!objs.length) return resetZoom();
-    const g = objs[0].group ? null : null;
+    const cw = canvas.getWidth() || 0;
+    const ch = canvas.getHeight() || 0;
+    // Stamp-sized surface → center artboard at 100%, do not crush to ~5%.
+    if (cw < MIN_FIT_CANVAS_W || ch < MIN_FIT_CANVAS_H) return resetZoom();
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     objs.forEach((o) => { const b = o.getBoundingRect(true, true); minX = Math.min(minX, b.left); minY = Math.min(minY, b.top); maxX = Math.max(maxX, b.left + b.width); maxY = Math.max(maxY, b.top + b.height); });
     const w = maxX - minX, h = maxY - minY;
-    const z = Math.min(8, Math.max(0.05, Math.min(canvas.getWidth() / (w + 120), canvas.getHeight() / (h + 120))));
+    if (!(w > 1) || !(h > 1)) return resetZoom();
+    const z = Math.min(8, Math.max(0.15, Math.min(cw / (w + 120), ch / (h + 120))));
     canvas.setZoom(z);
     const vpt = canvas.viewportTransform.slice();
-    vpt[4] = canvas.getWidth() / 2 - (minX + w / 2) * z;
-    vpt[5] = canvas.getHeight() / 2 - (minY + h / 2) * z;
+    vpt[4] = cw / 2 - (minX + w / 2) * z;
+    vpt[5] = ch / 2 - (minY + h / 2) * z;
     canvas.setViewportTransform(vpt);
     updateZoomLabel(); renderGrid();
   }
@@ -4728,8 +4907,14 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     frame.id = uid();
     canvas.add(frame);
     canvas.discardActiveObject();
+    layoutFitPending = true;
     resizeCanvas();
-    zoomFit();
+    if (canvasReadyForFit()) applyLayoutFit(true);
+    else {
+      try { resetZoom(); } catch (e) { /* ignore */ }
+    }
+    ensureBootArtboardPresent();
+    scheduleLayoutFitBurst();
     renderPages();
     updateLayers();
     syncInspector();
@@ -4743,8 +4928,12 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (!main) return;
     main.classList.toggle('panels-hidden');
     const hidden = main.classList.contains('panels-hidden');
+    if (hidden) {
+      // Collapsed dock rows must not reserve height while panels are hidden.
+      main.classList.remove('dock-bottom-inspector', 'dock-left-inspector');
+    }
     try { localStorage.setItem('bndz-db-panels-hidden', hidden ? '1' : '0'); } catch { /* ignore */ }
-    requestAnimationFrame(() => { resizeCanvas(); toast(hidden ? 'Panels hidden' : 'Panels shown'); });
+    requestAnimationFrame(() => { afterLayoutClassChange(); toast(hidden ? 'Panels hidden' : 'Panels shown'); });
   }
 
   function openSettings() {
@@ -4810,8 +4999,13 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
       main.classList.remove('dock-left-inspector', 'dock-bottom-inspector');
       if (dock === 'left') main.classList.add('dock-left-inspector');
       else if (dock === 'bottom') main.classList.add('dock-bottom-inspector');
+      // Showing a dock implies panels visible again.
+      if (dock === 'left' || dock === 'bottom' || dock === 'right') {
+        main.classList.remove('panels-hidden');
+        try { localStorage.setItem('bndz-db-panels-hidden', '0'); } catch { /* ignore */ }
+      }
       try { localStorage.setItem('bndz-db-panel-dock', dock); } catch { /* ignore */ }
-      requestAnimationFrame(resizeCanvas);
+      requestAnimationFrame(() => afterLayoutClassChange());
       toast('Inspector docked ' + dock);
     }
 
@@ -4865,10 +5059,16 @@ input.range::-moz-range-thumb,input[type="range"]::-moz-range-thumb{
     if (toggleBtn) toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePanels(); });
 
     try {
+      const panelsHidden = localStorage.getItem('bndz-db-panels-hidden') === '1';
       const dock = localStorage.getItem('bndz-db-panel-dock') || 'right';
-      if (dock === 'left') main.classList.add('dock-left-inspector');
-      else if (dock === 'bottom') main.classList.add('dock-bottom-inspector');
-      if (localStorage.getItem('bndz-db-panels-hidden') === '1') main.classList.add('panels-hidden');
+      // Never restore dock-bottom/left while panels are hidden — zeros workspace height.
+      if (panelsHidden) {
+        main.classList.add('panels-hidden');
+        main.classList.remove('dock-left-inspector', 'dock-bottom-inspector');
+      } else {
+        if (dock === 'left') main.classList.add('dock-left-inspector');
+        else if (dock === 'bottom') main.classList.add('dock-bottom-inspector');
+      }
       const saved = JSON.parse(localStorage.getItem('bndz-db-settings') || 'null');
       if (saved) {
         if (saved.gridSize != null) state.gridSize = saved.gridSize;
@@ -5500,16 +5700,27 @@ window.addEventListener('keydown', onKeyDown);
     if (!url) return;
     fabric.Image.fromURL(url, (img) => {
       if (!img) { toast('Could not place ' + (name || 'image')); return; }
+      applyLayoutFit(true);
       const pt = atPoint && Number.isFinite(atPoint.x) ? atPoint : null;
       if (pt) {
         img.scaleToWidth(Math.min(520, img.width || 520));
         img.set({ left: pt.x - img.getScaledWidth() / 2, top: pt.y - img.getScaledHeight() / 2 });
       } else {
-        const vpt = canvas.viewportTransform;
-        const cx = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
-        const cy = (canvas.getHeight() / 2 - vpt[5]) / vpt[0];
-        img.scaleToWidth(Math.min(520, img.width || 520));
-        img.set({ left: cx - img.getScaledWidth() / 2, top: cy - img.getScaledHeight() / 2 });
+        const frame = canvas.getObjects().find((o) => o.isFrame || o.isBootFrame);
+        if (frame) {
+          const b = frame.getBoundingRect(true, true);
+          img.scaleToWidth(Math.min(520, img.width || 520, Math.max(120, b.width - 48)));
+          img.set({
+            left: b.left + (b.width - img.getScaledWidth()) / 2,
+            top: b.top + (b.height - img.getScaledHeight()) / 2,
+          });
+        } else {
+          const vpt = canvas.viewportTransform;
+          const cx = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
+          const cy = (canvas.getHeight() / 2 - vpt[5]) / vpt[0];
+          img.scaleToWidth(Math.min(520, img.width || 520));
+          img.set({ left: cx - img.getScaledWidth() / 2, top: cy - img.getScaledHeight() / 2 });
+        }
       }
       img.placeBoxW = img.getScaledWidth(); img.placeBoxH = img.getScaledHeight();
       img.placeBoxLeft = img.left; img.placeBoxTop = img.top;
@@ -5517,7 +5728,26 @@ window.addEventListener('keydown', onKeyDown);
       if (name) img.name = String(name).replace(/\.[^.]+$/, '') || name;
       canvas.add(img);
       finalizeNew(img, 'image');
+      canvas.setActiveObject(img);
+      try { zoomFitSelection(); } catch (e) { applyLayoutFit(true); }
+      canvas.requestRenderAll();
     }, { crossOrigin: 'anonymous' });
+  }
+
+  function runWhenBootReady(fn) {
+    if (bootReady) { fn(); return; }
+    let frames = 0;
+    const tick = () => {
+      if (bootReady || frames > 120) {
+        // Force unlock if boot stalled — host New board / place must never hang.
+        if (!bootReady) bootReady = true;
+        fn();
+        return;
+      }
+      frames += 1;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   window.addEventListener('message', (ev) => {
@@ -5526,12 +5756,20 @@ window.addEventListener('keydown', onKeyDown);
     if (d.type === 'placeImages' || d.type === 'dropImages') {
       const items = Array.isArray(d.images) ? d.images : [];
       if (!items.length) { toast('Drop an image (PNG, JPG, WEBP, SVG, ICO…)'); return; }
-      items.slice(0, 8).forEach((item, i) => {
-        const url = item && (item.dataUrl || item.url);
-        if (!url) return;
-        placeImageFromUrl(url, item.name || ('image-' + (i + 1)), item.atPoint || null);
+      if (engineLive()) {
+        // OpenPencil handles its own placement — send the full items list.
+        postEngine({ type: 'placeImages', images: items });
+        toast('Placed ' + Math.min(items.length, 8) + ' image' + (items.length === 1 ? '' : 's'));
+        return;
+      }
+      runWhenBootReady(() => {
+        items.slice(0, 8).forEach((item, i) => {
+          const url = item && (item.dataUrl || item.url);
+          if (!url) return;
+          placeImageFromUrl(url, item.name || ('image-' + (i + 1)), item.atPoint || null);
+        });
+        toast('Placed ' + Math.min(items.length, 8) + ' image' + (items.length === 1 ? '' : 's'));
       });
-      toast('Placed ' + Math.min(items.length, 8) + ' image' + (items.length === 1 ? '' : 's'));
       return;
     }
     if (d.type === 'action') {
@@ -5540,12 +5778,13 @@ window.addEventListener('keydown', onKeyDown);
         if (d.action === 'redo') { postEngine({ type: 'redo' }); return; }
         if (d.action === 'exportPng' || d.action === 'exportSvg') { postEngine({ type: 'exportPng' }); return; }
       }
-      if (d.action === 'new') newFile();
+      if (d.action === 'new') runWhenBootReady(newFile);
       else if (d.action === 'undo') undo();
       else if (d.action === 'redo') redo();
       else if (d.action === 'exportPng') exportFile('png', { scale: 2, scope: 'auto' });
       else if (d.action === 'exportSvg') exportFile('svg', { scale: 1, scope: 'auto' });
       else if (d.action === 'openExport') openExportModal();
+      else if (d.action === 'resize') resizeCanvas({ forceFit: !!d.forceFit });
       return;
     }
     if (d.type === 'keydown' || d.type === 'keyup') {
@@ -6720,14 +6959,7 @@ function booleanOp(mode) {
 
 
   /* ---------------- Boot ---------------- */
-  function boot() {
-    resizeCanvas();
-    setFill(state.fill, state.fillAlpha, false);
-    setStroke(state.stroke, false);
-    renderRecent();
-    renderPages();
-    resetZoom();
-
+  function createBootArtboard() {
     const frame = newFrame(0, 0);
     frame.set({
       width: 800, height: 600, left: 0, top: 0,
@@ -6740,7 +6972,37 @@ function booleanOp(mode) {
     frame.name = autoName('frame'); frame.id = uid();
     canvas.add(frame);
     canvas.discardActiveObject();
-    zoomFit();
+    return frame;
+  }
+
+  function boot() {
+    bootAttempts += 1;
+    // One-shot panel collapse for tight docks — must never infinite-loop boot.
+    if (ensureEmbedWorkspaceRoom() && bootAttempts < 8) {
+      requestAnimationFrame(boot);
+      return;
+    }
+    const box = measureWorkspaceSize();
+    // Prefer a real surface before first zoomFit, but never deadlock host actions.
+    if (!workspaceReady(box) && bootAttempts < 45) {
+      requestAnimationFrame(boot);
+      return;
+    }
+    resizeCanvas();
+    setFill(state.fill, state.fillAlpha, false);
+    setStroke(state.stroke, false);
+    renderRecent();
+    renderPages();
+
+    createBootArtboard();
+    // Always unlock host message handlers first — New board / place image depend on this.
+    bootReady = true;
+    layoutFitPending = true;
+    if (canvasReadyForFit()) applyLayoutFit(true);
+    else resetZoom();
+    // If first artboard was lost / skipped while size was tiny, create once more when ready.
+    ensureBootArtboardPresent();
+    scheduleLayoutFitBurst();
     updateLayers(); syncInspector(); pushHistory(); updateZoomLabel();
     syncRailColorChip();
     setTool('select');
@@ -6753,6 +7015,7 @@ function booleanOp(mode) {
       getTool: () => state.tool,
       getCanvas: () => canvas,
       getState: () => state,
+      isBootReady: () => bootReady,
       placeImageFile,
       placeImageFromUrl,
       setTool,

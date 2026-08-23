@@ -545,13 +545,13 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
   const renderFolderContentsPreview = () => {
     if (config.folderContentsPreview === false || !isDir || folderChildren.length === 0) return null;
     return (
-      <div className="flex flex-col min-h-0 flex-1 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]">
-        <div className="bndz-panel-section-title px-2 py-1.5 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+      <div className="bndz-preview-contents-panel flex flex-col min-h-0 flex-1 overflow-hidden rounded-xl border">
+        <div className="bndz-panel-section-title px-2 py-1.5 border-b flex items-center justify-between gap-2 shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
           <span>Contents preview</span>
           {browsePath && path && browsePath !== path && (
             <button
               type="button"
-              className="text-[#7eb8e8] hover:text-[#99c9f0] normal-case tracking-normal text-xs font-medium"
+              className="bndz-preview-accent-muted normal-case tracking-normal text-xs font-medium hover:opacity-80"
               onClick={() => {
                 const parent = browsePath.replace(/\/[^/]+$/, '') || path;
                 setBrowsePath(parent);
@@ -569,8 +569,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
               type="button"
               onClick={() => openChild(c)}
               onDoubleClick={() => openChild(c, { navigateMain: true })}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
-                selectedChild === c.name ? 'bg-[#094771]/35 text-[#cce4f7]' : 'hover:bg-white/[0.06] text-gray-300'
+              className={`bndz-preview-contents-row w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
+                selectedChild === c.name ? 'is-selected' : ''
               }`}
               title={c.type === 'directory' ? 'Click to browse · Double-click to open in list' : 'Double-click to show in folder'}
             >
@@ -705,7 +705,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       if (isFont && previewAllowed && virtualUrl) {
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-5 p-5 text-[color:var(--preview-text,#e8e8e8)] bndz-preview-stage">
+          <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-5 p-5 text-[color:var(--preview-text,#e8e8e8)] bndz-preview-stage">
             <style>{`@font-face{font-family:'${fontFamilyName}';src:url('${virtualUrl}');font-display:swap;}`}</style>
             <div className="text-[10px] uppercase tracking-[0.16em] opacity-45">Font preview</div>
             <div style={{ fontFamily: `'${fontFamilyName}', sans-serif` }} className="text-[28px] leading-snug text-center max-w-full">
@@ -726,7 +726,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         const canShow = webGlReady && (isGpuNativeModelExt(ext) || isRageConvertModelExt(ext));
         if (!webGlReady) {
           return (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
               <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
               <p>WebGL is unavailable — enable GPU acceleration to preview 3D models.</p>
             </div>
@@ -734,7 +734,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         }
         if (!canShow) {
           return (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
               <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
               <p>{ext.toUpperCase()} is recognized as a 3D/RAGE asset. Open externally for full tooling.</p>
             </div>
@@ -749,7 +749,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
         }
         if (modelPreview.error || !modelPreview.url) {
           return (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-2 text-gray-500 text-xs p-6 text-center bndz-preview-stage">
               <PreviewHeroIcon path={path} isDir={false} size={PREVIEW_HERO_ICON_SIZE.file} extension={ext} />
               <p>{modelPreview.error || '3D preview unavailable'}</p>
             </div>
@@ -822,7 +822,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
 
       // 3. Document / PDF
       if (isPdf && previewAllowed) {
-          return <PdfPreviewPanel url={virtualUrl} title={entity.name} />;
+          return <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><PdfPreviewPanel url={virtualUrl} title={entity.name} /></div>;
       }
 
       // 3a. Word (.docx)
@@ -837,7 +837,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       // 3a2. Other Office (xlsx/pptx/xls/.doc) — honest open-externally, not hex/binary dump
       if (isOfficeOther && previewAllowed) {
           return (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bndz-preview-stage">
+            <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col items-center justify-center gap-3 p-6 text-center bndz-preview-stage">
               <Icons8Icon id="sys_properties" size={40} className="opacity-70" />
               <div className="text-sm font-semibold text-white/90">{entity.name}</div>
               <div className="text-xs text-white/50 max-w-[280px]">
@@ -857,7 +857,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       // 3b. Markdown preview
       if (isMarkdown && previewAllowed) {
           return (
-            <div className="w-full h-full bndz-preview-stage flex flex-col min-h-0">
+            <div className="w-full h-full min-h-[240px] overflow-hidden bndz-preview-stage flex flex-col min-h-0">
               <div className="flex gap-1 p-1.5 border-b border-white/10 bg-black/20 shrink-0">
                 <button
                   type="button"
@@ -898,7 +898,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       // 3b. HTML live preview
       if (isHtml && previewAllowed) {
           return (
-            <div className="w-full h-full bndz-preview-stage flex flex-col min-h-0">
+            <div className="w-full h-full min-h-[240px] overflow-hidden bndz-preview-stage flex flex-col min-h-0">
               <div className="flex gap-1 p-1.5 border-b border-white/10 bg-black/20 shrink-0">
                 <button
                   type="button"
@@ -940,19 +940,19 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
           if (fileContent != null && path) {
               if (isCode) {
                 return (
-                  <Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading editor…</div>}>
+                  <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><Suspense fallback={<div className="p-4 text-xs text-gray-400 animate-pulse">Loading editor…</div>}>
                     <MonacoMicroEditor path={path} fileName={entity.name} extension={ext} initialContent={fileContent} />
-                  </Suspense>
+                  </Suspense></div>
                 );
               }
               return (
-                <TextPreviewEditor
+                <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col"><TextPreviewEditor
                   path={path}
                   fileName={entity.name}
                   extension={ext}
                   initialContent={fileContent}
                   displayTabsAsSpaces={previewRt.displayTabsAsSpaces}
-                />
+                /></div>
               );
           }
       }
@@ -960,7 +960,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
       // 5. Hex View Fallback
       if (isBinary || (!isDir && hexContent)) {
           return (
-              <div className="w-full h-full flex flex-col bndz-preview-stage p-4 overflow-hidden">
+              <div className="w-full h-full min-h-[240px] overflow-hidden flex flex-col bndz-preview-stage p-4">
                   <div className="flex items-center gap-2 mb-4 text-[#eab308] bndz-mono text-xs pb-2 border-b border-[#333]">
                       <Icons8Icon id="code_ui" size={14} /> <span>HEX INSPECTOR (First 256 Bytes)</span>
                   </div>
@@ -1026,7 +1026,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <div className="flex flex-col items-center ">{getPreviewIcon()}</div>
                  )}
                  {isDir && folderStats && (
-                    <div className="text-xs text-white/55 text-center font-medium tracking-wide">
+                    <div className="text-xs bndz-panel-muted text-center font-medium tracking-wide">
                        {folderStats.folders} folders · {folderStats.files} files · {formatSize(folderStats.size)}
                     </div>
                  )}
@@ -1037,17 +1037,17 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                     <div className="bndz-panel-muted text-center animate-pulse">Calculating folder size…</div>
                  )}
                  {isDrive && (entity as any).driveInfo && (
-                    <div className="text-xs text-white/55 text-center">
+                    <div className="text-xs bndz-panel-muted text-center">
                        {formatSize((entity as any).driveInfo.freeSpace)} free of {formatSize((entity as any).driveInfo.totalSpace)}
                     </div>
                  )}
              </div>
              {!isDir && extendedDetails && curatedPreviewFacts(extendedDetails).length > 0 && (
-               <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 pb-2 text-[10px] text-[#9aa3ad]">
+               <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 pb-2 text-[10px] bndz-panel-muted">
                  {curatedPreviewFacts(extendedDetails).map(f => (
                    <span key={`${f.label}:${f.value}`} className="min-w-0 max-w-full truncate" title={`${f.label}: ${f.value}`}>
-                     <span className="text-[#6b7280]">{f.label}</span>{' '}
-                     <span className="text-[#d1d5db]">{f.value}</span>
+                     <span className="opacity-70">{f.label}</span>{' '}
+                     <span>{f.value}</span>
                    </span>
                  ))}
                </div>
@@ -1056,7 +1056,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 {isDir ? (
                    <span className="bndz-glass-chip text-[#38bdf8] text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">DIR</span>
                 ) : ext && (
-                   <span className="bndz-glass-chip text-white/90 text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">{ext}</span>
+                   <span className="bndz-glass-chip bndz-preview-accent-muted text-[10px] px-2.5 py-1 uppercase font-semibold tracking-wide">{ext}</span>
                 )}
              </div>
          </div>
@@ -1121,7 +1121,7 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
        <div className={`bndz-preview-content flex-1 relative flex flex-col min-h-0 ${
          isArchive || isTorrent || (isAudio && (activeTab === 'media' || activeTab === 'preview'))
            || ((isImage || isSvg) && activeTab === 'preview')
-           ? 'overflow-hidden overscroll-contain'
+           || (activeTab === 'preview' && (isFont || isModel || isPdf || isDocx || isOfficeOther || isMarkdown || isHtml || isEditableText)) ? 'overflow-hidden overscroll-contain'
            : 'overflow-y-auto bndz-scrollbar'
        }`}>
           {path && activeTab !== 'details' && (
@@ -1184,12 +1184,14 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: animDuration > 0 ? -10 : 0 }}
                 transition={{ duration: animDuration, ease: "easeOut" }}
-                className={`flex flex-col flex-1 min-h-0 ${
-                  isArchive || isTorrent || ((isImage || isSvg) && activeTab === 'preview') ? 'h-full' : ''
+                className={`flex flex-col flex-1 min-h-0 overflow-hidden ${
+                  isArchive || isTorrent || ((isImage || isSvg) && activeTab === 'preview')
+                    || (activeTab === 'preview' && (isFont || isModel || isPdf || isDocx || isOfficeOther || isMarkdown || isHtml || isEditableText))
+                    ? 'h-full' : ''
                 }`}
              >
                 {(activeTab === 'preview' || activeTab === 'media') && !(isAudio && activeTab === 'preview') && (
-                <div className={`bndz-preview-stage w-full relative group flex flex-col min-h-0 flex-1 min-h-[160px] ${
+                <div className={`bndz-preview-stage w-full relative group flex flex-col overflow-hidden h-full min-h-0 flex-1 min-h-[240px] ${
                   isArchive || isTorrent
                     ? 'border-0'
                     : 'border-b border-white/[0.06]'
@@ -1216,8 +1218,8 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 {activeTab === 'details' && (
                 <div className="p-4 flex-1 bndz-preview-details flex flex-col gap-4">
                     {/* Primary Identifier */}
-                    <div className="pb-3 border-b border-[#282830]">
-                       <h2 className="text-[14px] font-bold text-white break-words leading-tight">{entity.name}</h2>
+                    <div className="pb-3 border-b border-[var(--border-subtle,rgba(255,255,255,0.08))]">
+                       <h2 className="text-[14px] font-bold break-words leading-tight">{entity.name}</h2>
                        <div className="bndz-panel-muted mt-1 bndz-mono">
                           {isDrive ? (entity as any).typeDescription : (isDir ? 'File Folder' : `${ext.toUpperCase()} File`)}
                        </div>
@@ -1343,9 +1345,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                 {activeTab === 'preview' && (
                 isDir ? (
                   <>
-                  <div className="shrink-0 border-t border-white/[0.06] bg-[#252526] grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
+                  <div className="shrink-0 border-t bndz-preview-folder-strip grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(160px,42%)] gap-3 p-3 min-h-0">
                     <div className="min-w-0 flex flex-col justify-center">
-                      <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
+                      <h2 className="text-[14px] font-semibold truncate tracking-tight">{entity.name}</h2>
                       <p className="bndz-panel-section-title mt-1">Folder</p>
                       {folderStats && (
                         <p className="bndz-panel-muted mt-2 bndz-mono">
@@ -1360,9 +1362,9 @@ export default function RightPreviewPanel({ entity, path, pathContentsCache, onN
                   <JobTicketPanel folderPath={path || null} />
                   </>
                 ) : !isArchive && !isTorrent ? (
-                <div className="px-4 py-3 border-t border-white/[0.06] bg-[#252526] shrink-0">
-                   <h2 className="text-[14px] font-semibold text-white truncate tracking-tight">{entity.name}</h2>
-                   <p className="bndz-panel-section-title mt-1 text-[#7eb8e8]">
+                <div className="px-4 py-3 border-t bndz-preview-folder-strip shrink-0">
+                   <h2 className="text-[14px] font-semibold truncate tracking-tight">{entity.name}</h2>
+                   <p className="bndz-panel-section-title mt-1 bndz-preview-accent-muted">
                       {isDrive ? (entity as any).typeDescription : `${ext.toUpperCase()} file`}
                    </p>
                 </div>

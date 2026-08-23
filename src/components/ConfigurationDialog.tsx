@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Icons8Icon } from './Icons8Icon';
-import { useAppConfig } from '../data/configContext';
+import { useAppConfig, DEFAULT_PREVIEW_CATEGORIES } from '../data/configContext';
 import { BndzWindowFrame } from './native/BndzWindowFrame';
 import { NativeDialogShell } from './native/NativeDialogShell';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -81,7 +81,8 @@ function sanitizeDialogConfig(cfg: Record<string, any> | null | undefined) {
   const c = { ...(cfg || {}) };
   const arr = <T,>(v: T[] | undefined | null, fallback: T[] = []): T[] =>
     Array.isArray(v) ? v : fallback;
-  c.previewCategories = arr(c.previewCategories);
+  c.previewCategories = arr(c.previewCategories, DEFAULT_PREVIEW_CATEGORIES.map((x) => ({ ...x })));
+  if (!c.previewCategories.length) c.previewCategories = DEFAULT_PREVIEW_CATEGORIES.map((x) => ({ ...x }));
   c.previewFormats = arr(c.previewFormats);
   c.colorFilters = arr(c.colorFilters);
   c.visualFilters = arr(c.visualFilters);

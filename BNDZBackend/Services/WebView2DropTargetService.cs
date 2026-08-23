@@ -433,6 +433,82 @@ internal static class WebView2DropTargetService
 
     // ── IDropTarget implementation ────────────────────────────────────────────
 
+    // ── Outbound OLE drag (BNDZShell headless / WinUI shell path) ────────────
+
+    [ComImport]
+    [Guid("00000121-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IDropSource
+    {
+        [PreserveSig] int QueryContinueDrag([MarshalAs(UnmanagedType.Bool)] bool fEscapePressed, uint grfKeyState);
+        [PreserveSig] int GiveFeedback(uint dwEffect);
+    }
+
+    [DllImport("ole32.dll", EntryPoint = "DoDragDrop", PreserveSig = true)]
+    private static extern int NativeDoDragDrop(
+        [MarshalAs(UnmanagedType.Interface)] ComIDataObject pDataObj,
+        [MarshalAs(UnmanagedType.Interface)] IDropSource pDropSource,
+        uint dwOKEffect,
+        out uint pdwEffect);
+
+    private const int DRAGDROP_S_DROP   = unchecked((int)0x00040100);
+    private const int DRAGDROP_S_CANCEL = unchecked((int)0x00040101);
+    private const int DRAGDROP_S_USEDEFAULTCURSORS = unchecked((int)0x00040102);
+
+    private sealed class BndzNativeDropSource : IDropSource
+    {
+        private const uint MK_LBUTTON = 0x0001;
+        private const uint MK_RBUTTON = 0x0002;
+
+        public int QueryContinueDrag(bool fEscapePressed, uint grfKeyState)
+        {
+            if (fEscapePressed)
+                return DRAGDROP_S_CANCEL;
+            // Drop when neither mouse button is held
+            if ((grfKeyState & (MK_LBUTTON | MK_RBUTTON)) == 0)
+                return DRAGDROP_S_DROP;
+            return S_OK;
+        }
+
+        public int GiveFeedback(uint dwEffect) => DRAGDROP_S_USEDEFAULTCURSORS;
+    }
+
+    /// <summary>
+    /// Perform native OLE <c>DoDragDrop</c> from the BNDZShell headless path.
+    /// Must be called on an STA thread that has a running message pump
+    /// (e.g. the <see cref="BndzUiDispatcher"/> STA thread).
+    /// Uses <paramref name="hwnd"/> only for <see cref="AttachShellDragImage"/> — the OLE
+    /// loop itself relies on OS mouse tracking, not on the source window.
+    /// </summary>
+    public static void RunNativeDragDrop(IntPtr hwnd, System.Windows.DataObject wpfDataObject)
+    {
+        if (wpfDataObject == null) return;
+        _ = hwnd; // Used by IDragSourceHelper in AttachShellDragImage; kept here for future ShellHelper calls.
+
+        // Ensure OLE is initialized on the calling STA thread (S_FALSE = already done, fine).
+        int oleHr = OleInitialize(IntPtr.Zero);
+        if (oleHr < 0)
+            Debug.WriteLine($"[OleDrag] OleInitialize hr=0x{oleHr:X8}");
+
+        try
+        {
+            // WPF DataObject implements ComTypes.IDataObject directly — cast is safe.
+            var comData = (ComIDataObject)wpfDataObject;
+            var src = new BndzNativeDropSource();
+            const uint DROPEFFECT_COPY = 1u;
+            const uint DROPEFFECT_MOVE = 2u;
+            const uint DROPEFFECT_LINK = 4u;
+            int hr = NativeDoDragDrop(comData, src, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, out var finalEffect);
+            Debug.WriteLine($"[OleDrag] DoDragDrop hr=0x{hr:X8} effect={finalEffect}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[OleDrag] RunNativeDragDrop: {ex.Message}");
+        }
+    }
+
+    // ── IDropTarget implementation ────────────────────────────────────────
+
     private sealed class BndzDropTarget : IRawDropTarget
     {
         private readonly IntPtr _wv2Hwnd;

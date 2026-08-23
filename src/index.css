@@ -817,6 +817,9 @@
   .bndz-plugin-tier .bndz-design-board {
     /* Shell chrome must never paint over the iframe menubar. */
     isolation: isolate;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
   }
 
   .bndz-photo-studio--fabric {
@@ -1193,8 +1196,13 @@
   }
 
   .bndz-design-board--exact {
-    min-height: 480px;
     position: relative;
+    height: 100%;
+    /* Keep a usable dock height so Fabric never boots into a stamp-sized canvas. */
+    min-height: min(480px, 100%);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .bndz-design-board-hostbar {
@@ -1231,7 +1239,8 @@
   .bndz-design-board-frame {
     flex: 1;
     width: 100%;
-    min-height: 0;
+    min-height: 200px;
+    height: 100%;
     border: 0;
     background: #181818;
   }
@@ -2035,22 +2044,22 @@ html[data-theme] .nav-tree-row:hover .nav-tree-label {
   opacity: 1;
 }
 
-html[data-theme] .bndz-chrome-preview,
-html[data-theme] .bndz-chrome-preview *:not(img):not(video):not(svg):not(path) {
+html[data-theme] .bndz-chrome-preview {
   color: var(--panel-preview-text);
 }
 
+/* Do NOT paint every descendant — dark islands (metadata strip) keep their own ink */
 html[data-theme] .bndz-chrome-preview .text-\[\#666\],
 html[data-theme] .bndz-chrome-preview .text-gray-400,
 html[data-theme] .bndz-chrome-preview .text-gray-500 {
   color: var(--panel-preview-muted) !important;
 }
 
-html[data-theme] .bndz-chrome-bottom,
-html[data-theme] .bndz-chrome-bottom *:not(img):not(video) {
+html[data-theme] .bndz-chrome-bottom {
   color: var(--panel-bottom-text);
 }
 
+/* Do NOT paint every descendant — dark plugin cards keep their own ink */
 html[data-theme] .bndz-chrome-bottom .text-gray-400,
 html[data-theme] .bndz-chrome-bottom .text-gray-500,
 html[data-theme] .bndz-chrome-bottom .text-\[\#888\] {
@@ -2063,6 +2072,799 @@ html.theme-light .sidebar-section-header:hover {
 
 html.theme-light .nav-tree-row:hover {
   background: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* ── Light themes: readable text on pale chrome ── */
+html.theme-light .bndz-chrome-sidebar {
+  background: var(--sidebar-bg, #ffffff) !important;
+  border-color: var(--border-subtle, rgba(0, 0, 0, 0.1)) !important;
+}
+
+/* Section rails keep tinted washes — BLACK titles (not white-on-dark) */
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab),
+html.theme-light .bndz-chrome-sidebar .sidebar-section-header:not(.bndz-status-bar-tree-tab) {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab) .text-gray-400,
+html.theme-light .bndz-chrome-sidebar .sidebar-section-header:not(.bndz-status-bar-tree-tab) .text-gray-400,
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab) .bndz-sidebar-section-title,
+html.theme-light .bndz-chrome-sidebar .sidebar-section-header:not(.bndz-status-bar-tree-tab) .bndz-sidebar-section-title {
+  color: rgba(0, 0, 0, 0.72) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .nav-tree-label {
+  color: rgba(0, 0, 0, 0.82) !important;
+  opacity: 1 !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .nav-tree-row:hover .nav-tree-label {
+  color: rgba(0, 0, 0, 0.92) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .sidebar-pin-row:not(.sidebar-pin-row-selected),
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-pin-label {
+  color: rgba(0, 0, 0, 0.82) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .text-gray-300,
+html.theme-light .bndz-chrome-sidebar .text-gray-400,
+html.theme-light .bndz-chrome-sidebar .text-gray-500,
+html.theme-light .bndz-chrome-sidebar .nav-tree-scroll .text-gray-500,
+html.theme-light .bndz-chrome-sidebar .text-slate-300,
+html.theme-light .bndz-chrome-sidebar .text-slate-400,
+html.theme-light .bndz-chrome-sidebar .text-slate-500 {
+  color: rgba(0, 0, 0, 0.58) !important;
+}
+
+html.theme-light .bndz-list-header-bar {
+  color: var(--list-header-text, rgba(0, 0, 0, 0.72)) !important;
+  background: var(--list-header-bg, #eef0f3) !important;
+}
+
+html.theme-light .bndz-list-col-header {
+  color: var(--list-header-text, rgba(0, 0, 0, 0.72)) !important;
+}
+
+html.theme-light .bndz-list-col-header--sortable:hover {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+html.theme-light .bndz-list-col-header--active .bndz-list-col-header-label {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-file-list-scroll,
+html.theme-light .bndz-chrome-workspace,
+html.theme-light .bndz-chrome-workspace .fs-list-item {
+  color: rgba(0, 0, 0, 0.86) !important;
+}
+
+html.theme-light .bndz-chrome-workspace .text-gray-300,
+html.theme-light .bndz-chrome-workspace .text-gray-400,
+html.theme-light .bndz-chrome-workspace .text-gray-500,
+html.theme-light .bndz-chrome-workspace .text-slate-300,
+html.theme-light .bndz-chrome-workspace .text-slate-400,
+html.theme-light .bndz-chrome-workspace .text-slate-500 {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+html.theme-light .bndz-chrome-preview,
+html.theme-light .bndz-chrome-preview .bndz-preview-panel,
+html.theme-light .bndz-chrome-preview .bndz-preview-content {
+  color: rgba(0, 0, 0, 0.86) !important;
+}
+
+html.theme-light .bndz-chrome-preview .text-gray-400,
+html.theme-light .bndz-chrome-preview .text-gray-500,
+html.theme-light .bndz-chrome-preview .text-\[\#666\] {
+  color: rgba(0, 0, 0, 0.58) !important;
+}
+
+html.theme-light .bndz-chrome-bottom,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-tier {
+  color: rgba(0, 0, 0, 0.86) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .text-gray-400,
+html.theme-light .bndz-chrome-bottom .text-gray-500,
+html.theme-light .bndz-chrome-bottom .text-slate-300,
+html.theme-light .bndz-chrome-bottom .text-slate-400,
+html.theme-light .bndz-chrome-bottom .text-slate-500,
+html.theme-light .bndz-chrome-bottom .text-\[\#888\] {
+  color: rgba(0, 0, 0, 0.58) !important;
+}
+
+html.theme-light .bndz-panel-muted {
+  color: rgba(0, 0, 0, 0.58) !important;
+}
+
+/* Light theme: dark top chrome keeps white type (menubar / tabs / toolbar / omnibar / address) */
+html.theme-light .bndz-chrome-menubar,
+html.theme-light .bndz-chrome-toolbar,
+html.theme-light .bndz-chrome-omnibar,
+html.theme-light .bndz-chrome-tabstrip,
+html.theme-light .bndz-chrome-tabs,
+html.theme-light .bndz-files-address-strip,
+html.theme-light .bndz-quick-actions-bar {
+  color: var(--chrome-dark-text, rgba(255, 255, 255, 0.88)) !important;
+}
+
+html.theme-light .bndz-chrome-menubar {
+  background: linear-gradient(180deg, #1e1e24 0%, #18181c 100%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.theme-light .bndz-chrome-toolbar,
+html.theme-light .bndz-chrome-omnibar {
+  background: linear-gradient(180deg, #1a1a1f 0%, #141418 100%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip,
+html.theme-light .bndz-chrome-tabs {
+  background:
+    linear-gradient(180deg, rgba(40, 44, 52, 0.55) 0%, rgba(22, 24, 28, 0.92) 100%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.theme-light .bndz-files-address-strip {
+  background:
+    linear-gradient(180deg, rgba(36, 40, 48, 0.75) 0%, rgba(24, 26, 32, 0.95) 100%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.theme-light .bndz-files-address-well,
+html.theme-light .bndz-breadcrumb-slot {
+  color: var(--chrome-dark-text, rgba(255, 255, 255, 0.88)) !important;
+}
+
+html.theme-light .bndz-chrome-menubar .text-gray-200,
+html.theme-light .bndz-chrome-menubar .text-gray-300,
+html.theme-light .bndz-chrome-menubar .text-gray-400,
+html.theme-light .bndz-chrome-menubar .text-gray-500,
+html.theme-light .bndz-chrome-toolbar .text-gray-200,
+html.theme-light .bndz-chrome-toolbar .text-gray-300,
+html.theme-light .bndz-chrome-toolbar .text-gray-400,
+html.theme-light .bndz-chrome-toolbar .text-gray-500,
+html.theme-light .bndz-chrome-omnibar .text-gray-200,
+html.theme-light .bndz-chrome-omnibar .text-gray-300,
+html.theme-light .bndz-chrome-omnibar .text-gray-400,
+html.theme-light .bndz-chrome-omnibar .text-gray-500,
+html.theme-light .bndz-chrome-tabstrip .text-gray-200,
+html.theme-light .bndz-chrome-tabstrip .text-gray-300,
+html.theme-light .bndz-chrome-tabstrip .text-gray-400,
+html.theme-light .bndz-chrome-tabstrip .text-gray-500,
+html.theme-light .bndz-files-address-strip .text-gray-200,
+html.theme-light .bndz-files-address-strip .text-gray-300,
+html.theme-light .bndz-files-address-strip .text-gray-400,
+html.theme-light .bndz-files-address-strip .text-gray-500,
+html.theme-light .bndz-breadcrumb .text-gray-500,
+html.theme-light .bndz-breadcrumb-slot .text-gray-500 {
+  color: var(--chrome-dark-muted, rgba(255, 255, 255, 0.55)) !important;
+}
+
+html.theme-light .bndz-chrome-menubar .text-white,
+html.theme-light .bndz-chrome-toolbar .text-white,
+html.theme-light .bndz-chrome-omnibar .text-white,
+html.theme-light .bndz-chrome-tabstrip .text-white,
+html.theme-light .bndz-files-address-strip .text-white,
+html.theme-light .bndz-breadcrumb-slot .text-white {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+html.theme-light .bndz-chrome-menubar .bndz-menubar-trigger,
+html.theme-light .bndz-chrome-menubar .bndz-menubar-trigger-active {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-omnibar input {
+  background: var(--chrome-dark-raised, #252528) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.theme-light .bndz-chrome-omnibar input::placeholder {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
+  color: var(--chrome-dark-muted, rgba(255, 255, 255, 0.55)) !important;
+}
+
+html.theme-light .bndz-tab-item.bndz-tab-active {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+html.theme-light[data-theme] .nav-tree-row:hover:not(.nav-tree-row-selected) {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+html.theme-light[data-theme] .sidebar-section-header:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 0%, rgba(0, 0, 0, 0.04) 100%) !important;
+  border-bottom-color: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+}
+
+html.theme-light[data-theme] .nav-tree-row-selected {
+  background: var(--list-selected-bg, color-mix(in srgb, var(--accent) 28%, transparent)) !important;
+}
+
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
+  color: var(--chrome-dark-text, rgba(255, 255, 255, 0.88)) !important;
+}
+
+html.theme-light .status-bar-glow {
+  color: var(--chrome-dark-text, rgba(255, 255, 255, 0.88)) !important;
+}
+
+html.theme-light .bndz-bottom-tabstrip button,
+html.theme-light .bndz-bottom-tabstrip .bndz-bottom-tab {
+  color: rgba(0, 0, 0, 0.72) !important;
+}
+
+html.theme-light .bndz-bottom-tab-active {
+  color: rgba(0, 0, 0, 0.92) !important;
+}
+
+/* ═══ Light theme — global token reset + force readable chrome ═══ */
+html.theme-light {
+  color-scheme: light;
+  --bndz-glass-bg: rgba(255, 255, 255, 0.94);
+  --bndz-glass-border: rgba(0, 0, 0, 0.08);
+  --bndz-glass-highlight: rgba(0, 0, 0, 0.03);
+  --bndz-surface-base: #ffffff;
+  --bndz-surface-raised: #f5f5f7;
+  --bndz-surface-chrome: #f2f2f7;
+  --bndz-surface-panel: #ffffff;
+  --bndz-border-subtle: rgba(0, 0, 0, 0.1);
+  --bndz-text-muted: rgba(0, 0, 0, 0.58);
+  --chrome-dark-bg: #1e1e24;
+  --chrome-dark-raised: #252528;
+  --chrome-dark-text: rgba(255, 255, 255, 0.88);
+  --chrome-dark-muted: rgba(255, 255, 255, 0.55);
+  --tooltip-bg: #ffffff;
+  --tooltip-text: #1a1a1a;
+  --tooltip-muted: rgba(0, 0, 0, 0.55);
+  --tooltip-border: rgba(0, 0, 0, 0.12);
+}
+
+html.theme-light .bndz-chrome-sidebar,
+html.theme-light .bndz-files-modern-sidebar {
+  background: #ffffff !important;
+  border-color: var(--border-subtle, rgba(0, 0, 0, 0.1)) !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-workspace,
+html.theme-light .bndz-file-list-scroll {
+  background: #ffffff !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-preview,
+html.theme-light .bndz-chrome-preview .bndz-preview-panel,
+html.theme-light .bndz-chrome-preview .bndz-preview-tabstrip,
+html.theme-light .bndz-chrome-preview .bndz-preview-content,
+html.theme-light .bndz-chrome-preview .bndz-preview-details,
+html.theme-light .bndz-chrome-preview .bndz-preview-stage,
+html.theme-light .bndz-preview-contents-panel {
+  background: #ffffff !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-bottom,
+html.theme-light .bndz-chrome-bottom .bndz-bottom-panel,
+html.theme-light .bndz-chrome-bottom .bndz-bottom-tabstrip,
+html.theme-light .bndz-chrome-bottom .bndz-bottom-content,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-tier {
+  background: var(--panel-bottom-bg, #f8f8fa) !important;
+  color: var(--panel-bottom-text, rgba(0, 0, 0, 0.88)) !important;
+}
+
+html.theme-light .bndz-plugin-footer {
+  background: color-mix(in srgb, var(--panel-bottom-bg, #f8f8fa) 94%, rgba(0, 0, 0, 0.04) 6%) !important;
+}
+
+/* Preview tabs — dark defaults are unreadable on white */
+html.theme-light .bndz-preview-tabstrip {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, transparent 100%), var(--panel-preview-bg, #fff) !important;
+  border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.theme-light .bndz-preview-tab {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+html.theme-light .bndz-preview-tab:hover {
+  color: rgba(0, 0, 0, 0.82) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-light .bndz-preview-tab-active {
+  background: color-mix(in srgb, var(--accent, #0078d4) 14%, #ffffff 86%) !important;
+  color: rgba(0, 0, 0, 0.9) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #0078d4) 22%, transparent) !important;
+}
+
+html.theme-light .bndz-preview-detail-card {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.theme-light .bndz-preview-folder-strip {
+  background: var(--panel-preview-bg, #ffffff) !important;
+  border-color: var(--border-subtle, rgba(0, 0, 0, 0.08)) !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-preview-accent-muted {
+  color: color-mix(in srgb, var(--accent, #0078d4) 72%, #000000 28%) !important;
+}
+
+html.theme-light .bndz-preview-contents-panel {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.theme-light .bndz-preview-contents-row {
+  color: rgba(0, 0, 0, 0.82) !important;
+}
+
+html.theme-light .bndz-preview-contents-row:hover:not(.is-selected) {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-light .bndz-preview-contents-row.is-selected {
+  background: color-mix(in srgb, var(--accent, #0078d4) 14%, #ffffff 86%) !important;
+  color: rgba(0, 0, 0, 0.92) !important;
+}
+
+/* List sticky group headers (FOLDERS / PROGRAMS) */
+.bndz-list-sticky-group-header {
+  color: color-mix(in srgb, var(--accent, #0078d4) 78%, #ffffff 22%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.12) 100%), var(--list-bg, #252526);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+html.theme-light .bndz-list-sticky-group-header {
+  color: rgba(0, 0, 0, 0.88) !important;
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06) !important;
+}
+
+html.theme-light .bndz-list-sticky-group-header .text-gray-500 {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Hardcoded Tailwind whites inside pale FM panels — skip dark preview / plugin islands */
+html.theme-light .bndz-chrome-sidebar .nav-tree-scroll .text-white,
+html.theme-light .bndz-chrome-sidebar .sidebar-pin-row .text-white,
+html.theme-light .bndz-chrome-workspace .bndz-file-list-scroll .text-white,
+html.theme-light .bndz-chrome-preview .bndz-preview-content > .text-white,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-white,
+html.theme-light .bndz-chrome-preview .bndz-preview-stage .text-white,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-white {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-white,
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-gray-200,
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-gray-300,
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-gray-400,
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-gray-500 {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+html.theme-light .bndz-plugin-hero .text-white,
+html.theme-light .bndz-plugin-hero .bndz-plugin-hero-title,
+html.theme-light .bndz-plugin-hero .bndz-panel-muted {
+  color: rgba(0, 0, 0, 0.82) !important;
+}
+
+html.theme-light .bndz-plugin-hero .bndz-plugin-kind-pill {
+  color: #0369a1 !important;
+  background: rgba(56, 189, 248, 0.14) !important;
+  border-color: rgba(2, 132, 199, 0.28) !important;
+}
+
+html.theme-light .bndz-plugin-hero .bndz-plugin-hero-action--default {
+  color: rgba(0, 0, 0, 0.68) !important;
+  background: rgba(255, 255, 255, 0.62) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html.theme-light .bndz-plugin-hero .bndz-plugin-hero-action--default:hover:not(:disabled) {
+  color: rgba(0, 0, 0, 0.9) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(0, 0, 0, 0.18) !important;
+}
+
+html.theme-light .bndz-plugin-hero .bndz-plugin-hero-action--primary {
+  color: #0369a1 !important;
+  background: rgba(56, 189, 248, 0.22) !important;
+  border-color: rgba(2, 132, 199, 0.35) !important;
+}
+
+html.theme-light .bndz-plugin-hero .bndz-plugin-hero-action--active {
+  color: #0c4a6e !important;
+  background: rgba(56, 189, 248, 0.28) !important;
+  border-color: rgba(2, 132, 199, 0.4) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .text-gray-200,
+html.theme-light .bndz-chrome-workspace .text-gray-200,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-gray-200,
+html.theme-light .bndz-chrome-preview .bndz-preview-stage .text-gray-200,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-200,
+html.theme-light .bndz-chrome-sidebar .text-gray-300,
+html.theme-light .bndz-chrome-workspace .text-gray-300,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-gray-300,
+html.theme-light .bndz-chrome-preview .bndz-preview-stage .text-gray-300,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-300,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-gray-400,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-gray-500,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-400,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-500,
+html.theme-light .bndz-chrome-workspace .text-gray-400,
+html.theme-light .bndz-chrome-workspace .text-gray-500 {
+  color: rgba(0, 0, 0, 0.72) !important;
+}
+
+/* Status bar is dark chrome — never inherit the pale-panel black remap */
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-200,
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-300,
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-400,
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-white,
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-slate-300 {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-preview .text-\[\#99c9f0\]:not(.bndz-preview-metadata-strip *),
+html.theme-light .bndz-chrome-preview .text-\[\#7eb8e8\]:not(.bndz-preview-metadata-strip *),
+html.theme-light .bndz-chrome-preview .text-\[\#cce4f7\]:not(.bndz-preview-metadata-strip *),
+html.theme-light .bndz-chrome-preview .text-\[\#9aa3ad\]:not(.bndz-preview-metadata-strip *),
+html.theme-light .bndz-chrome-preview .text-\[\#6b7280\]:not(.bndz-preview-metadata-strip *),
+html.theme-light .bndz-chrome-preview .text-\[\#d1d5db\]:not(.bndz-preview-metadata-strip *),
+html.theme-light .bndz-chrome-preview .text-\[\#eab308\]:not(.bndz-preview-metadata-strip *) {
+  color: rgba(0, 0, 0, 0.68) !important;
+}
+
+html.theme-light .bndz-chrome-preview .text-emerald-400 {
+  color: #047857 !important;
+}
+
+html.theme-light .bndz-chrome-preview .text-white\/55 {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+html.theme-light .bndz-chrome-preview .border-\[\#282830\],
+html.theme-light .bndz-chrome-preview .border-\[\#333\],
+html.theme-light .bndz-chrome-sidebar.border-\[\#282830\],
+html.theme-light .bndz-chrome-preview.border-\[\#282830\] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+html.theme-light .bndz-chrome-preview .border-white\/\[0\.06\],
+html.theme-light .bndz-chrome-preview .border-white\/5 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.theme-light .bndz-chrome-preview .bg-\[\#252526\] {
+  background: var(--panel-preview-bg, #ffffff) !important;
+}
+
+/* Native shell tree — selection text was defaulting to #f3f4f6 */
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row-selected,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row-selected {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected),
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected) {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 18%, transparent) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .sidebar-pin-row,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .sidebar-pin-row {
+  color: rgba(0, 0, 0, 0.82) !important;
+}
+
+html.theme-light .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab),
+html.theme-light .sidebar-section-header:not(.bndz-status-bar-tree-tab) {
+  /* Tinted wash rails — BLACK titles (statusbar tree tab stays white-on-dark) */
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab) .bndz-sidebar-section-title,
+html.theme-light .sidebar-section-header:not(.bndz-status-bar-tree-tab) .bndz-sidebar-section-title {
+  color: rgba(0, 0, 0, 0.78) !important;
+}
+
+html.theme-light .bndz-panel-section-title {
+  color: rgba(0, 0, 0, 0.58) !important;
+}
+
+html.theme-light .fs-item-wrapper,
+html.theme-light .fs-list-item,
+html.theme-light .bndz-list-col-muted {
+  color: rgba(0, 0, 0, 0.86) !important;
+}
+
+html.theme-light .bndz-chrome-statusbar {
+  background: var(--statusbar-bg, #1e1e24) !important;
+  color: var(--status-text, rgba(255, 255, 255, 0.88)) !important;
+}
+
+/* Address / breadcrumb lives on dark chrome — never force black ink here */
+html.theme-light .bndz-files-address-strip .bndz-breadcrumb,
+html.theme-light .bndz-files-address-strip [data-breadcrumb-path],
+html.theme-light .bndz-breadcrumb-slot,
+html.theme-light .bndz-files-address-well {
+  color: var(--chrome-dark-text, rgba(255, 255, 255, 0.88)) !important;
+}
+
+html.theme-light .bndz-files-address-strip .text-gray-200,
+html.theme-light .bndz-files-address-strip .text-gray-300,
+html.theme-light .bndz-files-address-strip .text-gray-400,
+html.theme-light .bndz-files-address-strip .text-gray-500,
+html.theme-light .bndz-breadcrumb-slot .text-gray-500 {
+  color: var(--chrome-dark-muted, rgba(255, 255, 255, 0.55)) !important;
+}
+
+/* ── Pink-mark audit: surface-aware ink (dark surface → white, light → black) ── */
+
+/*
+ * Rapid Access / menubar / context menus:
+ * Pale white/off-white surfaces + BLACK ink (top menubar strip stays dark separately).
+ */
+html.theme-light .bndz-menubar-menu,
+html.theme-light .bndz-context-menu,
+html.theme-light .bndz-context-submenu,
+html.theme-light .bndz-rapid-access-popup,
+html.theme-light [data-bndz-menubar-menu] {
+  background: #ffffff !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.8) inset !important;
+}
+
+html.theme-light .bndz-menubar-menu .text-gray-200,
+html.theme-light .bndz-menubar-menu .text-gray-300,
+html.theme-light .bndz-menubar-menu .text-gray-400,
+html.theme-light .bndz-menubar-menu .text-white,
+html.theme-light .bndz-context-menu .text-gray-200,
+html.theme-light .bndz-context-menu .text-gray-300,
+html.theme-light .bndz-context-menu .text-white,
+html.theme-light .bndz-context-menu-item,
+html.theme-light .bndz-menubar-menu > div,
+html.theme-light [data-bndz-menubar-menu] .text-gray-200,
+html.theme-light [data-bndz-menubar-menu] .text-gray-300,
+html.theme-light [data-bndz-menubar-menu] > div {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-menubar-menu .text-gray-500,
+html.theme-light .bndz-context-menu .text-gray-500,
+html.theme-light [data-bndz-menubar-menu] .text-gray-500,
+html.theme-light .bndz-context-menu-icon {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Hover keeps dark ink on pale fill (never flip to white/cyan) */
+html.theme-light .bndz-context-menu-item:hover,
+html.theme-light .bndz-context-menu-item-active,
+html.theme-light .bndz-menubar-menu > div.px-3:hover,
+html.theme-light .bndz-context-menu > div.px-3:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: rgba(0, 0, 0, 0.92) !important;
+}
+
+/* Address / breadcrumb dark strip — white path segments (beat colorConfig22 / gray utilities) */
+html.theme-light .bndz-files-address-strip,
+html.theme-light .bndz-files-address-strip *,
+html.theme-light .bndz-breadcrumb-slot,
+html.theme-light .bndz-breadcrumb-slot *,
+html.theme-light .bndz-files-address-well,
+html.theme-light .bndz-files-address-well * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-files-address-strip .text-gray-500,
+html.theme-light .bndz-breadcrumb-slot .text-gray-500 {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* Sidebar / drives on pale tree — black ink (beat apply-colors --tree-text) */
+html.theme-light .bndz-chrome-sidebar .nav-tree-label,
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-pin-label,
+html.theme-light .bndz-chrome-sidebar .sidebar-pin-row,
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-title,
+html.theme-light[data-theme][data-apply-colors="true"] .bndz-chrome-sidebar .nav-tree-label,
+html.theme-light[data-theme][data-apply-colors="true"] .bndz-files-modern-sidebar .nav-tree-label {
+  color: rgba(0, 0, 0, 0.88) !important;
+  opacity: 1 !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-meta,
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-sub {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+/* List column headers / sort chips — pale fills + black text (no active white-ink) */
+html.theme-light .bndz-list-header-bar,
+html.theme-light .bndz-list-header-bar .bndz-list-col-header,
+html.theme-light .bndz-list-header-bar .bndz-list-col-header .bndz-list-col-header-label,
+html.theme-light .bndz-list-col-header--sortable:hover {
+  color: rgba(0, 0, 0, 0.82) !important;
+}
+
+html.theme-light .bndz-list-col-header--active,
+html.theme-light .bndz-list-col-header--active .bndz-list-col-header-label,
+html.theme-light .bndz-list-header-bar .bndz-list-col-header--active,
+html.theme-light .bndz-list-header-bar .bndz-list-col-header--active .bndz-list-col-header-label {
+  color: rgba(0, 0, 0, 0.88) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 12%, #f4f5f7) 0%,
+    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 6%, #e8eaee) 100%
+  ) !important;
+  border-color: color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 28%, rgba(0, 0, 0, 0.12)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-light .bndz-list-col-header--active:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 16%, #f0f1f4) 0%,
+    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 8%, #e2e4e9) 100%
+  ) !important;
+}
+
+html.theme-light .bndz-list-sort-caret--asc {
+  border-bottom-color: rgba(0, 0, 0, 0.72) !important;
+}
+
+html.theme-light .bndz-list-sort-caret--desc {
+  border-top-color: rgba(0, 0, 0, 0.72) !important;
+}
+
+/*
+ * Preview metadata strip stays DARK (#2a2a2a) with WHITE type.
+ * Pale preview body / detail cards / folder strip stay light with black type.
+ */
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip,
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip.bg-\[\#2a2a2a\] {
+  background: #2a2a2a !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #3a3a3a !important;
+}
+
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip,
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-\[\#9ca3af\],
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-\[\#b0b8c0\],
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-\[\#9aa3ad\],
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip .text-\[\#6b7280\] {
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+html.theme-light .bndz-chrome-preview .bndz-preview-detail-card,
+html.theme-light .bndz-chrome-preview .bndz-preview-details,
+html.theme-light .bndz-chrome-preview .bndz-preview-stage,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip {
+  background: #ffffff !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-chrome-preview .bndz-preview-detail-card .text-gray-300,
+html.theme-light .bndz-chrome-preview .bndz-preview-detail-card .text-gray-400,
+html.theme-light .bndz-chrome-preview .bndz-preview-detail-card .text-gray-500,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-gray-300,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-gray-400,
+html.theme-light .bndz-chrome-preview .bndz-preview-details .text-gray-500,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .bndz-panel-muted,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-400,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip .text-gray-500 {
+  color: rgba(0, 0, 0, 0.62) !important;
+}
+
+/* Other hardcoded dark wells in preview (not the metadata strip) → pale + black */
+html.theme-light .bndz-chrome-preview .bg-\[\#252526\]:not(.bndz-preview-metadata-strip),
+html.theme-light .bndz-chrome-preview .bg-\[\#1e1e1e\]:not(.bndz-preview-metadata-strip),
+html.theme-light .bndz-chrome-preview .bg-black\/55,
+html.theme-light .bndz-chrome-preview .bg-black\/50 {
+  background: #ffffff !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+/* Bottom status bar — dark chrome, white type (beat --text-muted / gray remaps) */
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab),
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
+  background: #1e1e24 !important;
+}
+
+/*
+ * System Properties / plugin cards stay dark charcoal on light themes.
+ * Bottom-pane black remaps must NOT bleed into these dark islands.
+ */
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card {
+  background:
+    linear-gradient(165deg, rgba(42, 48, 64, 0.55) 0%, rgba(18, 20, 28, 0.92) 48%, rgba(12, 14, 20, 0.96) 100%),
+    url('/Elements/item-box-bg.png') center / cover no-repeat !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card *,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .bndz-plugin-field-label,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .bndz-plugin-field-label,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .bndz-panel-muted,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .bndz-panel-muted {
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .bndz-plugin-field-value,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .bndz-plugin-field-value,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .text-emerald-400,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-emerald-400 {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .text-emerald-400,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-emerald-400 {
+  color: #6ee7b7 !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .text-sky-300,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-sky-300 {
+  color: #7dd3fc !important;
+}
+
+/* Address / tab chrome — reinforce white ink on dark strips (beat later remaps) */
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item,
+html.theme-light .bndz-chrome-tabs .bndz-tab-item,
+html.theme-light .bndz-tab-item.bndz-tab-active,
+html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+html.theme-light .bndz-files-address-strip,
+html.theme-light .bndz-files-address-strip input,
+html.theme-light .bndz-files-address-well,
+html.theme-light .bndz-breadcrumb-slot,
+html.theme-light .bndz-breadcrumb,
+html.theme-light .bndz-breadcrumb span,
+html.theme-light .bndz-breadcrumb button {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-files-address-strip input::placeholder {
+  color: rgba(255, 255, 255, 0.42) !important;
 }
 
 @keyframes slide-in-right {
@@ -4229,12 +5031,12 @@ html[data-plugin-hero-themed="true"] .bndz-plugin-hero {
   filter: brightness(1.12);
 }
 
-html[data-theme='Light'] .bndz-dropstack-glass,
-html[data-theme='LightMica'] .bndz-dropstack-glass,
-html[data-theme='LightRoundedFlat'] .bndz-dropstack-glass,
-html[data-theme='MinimalWhite'] .bndz-dropstack-glass,
-html[data-theme='Neumorphic'] .bndz-dropstack-glass,
-html[data-theme='macOS Light'] .bndz-dropstack-glass {
+html[data-theme='light'] .bndz-dropstack-glass,
+html[data-theme='lightmica'] .bndz-dropstack-glass,
+html[data-theme='lightroundedflat'] .bndz-dropstack-glass,
+html[data-theme='minimalwhite'] .bndz-dropstack-glass,
+html[data-theme='neumorphic'] .bndz-dropstack-glass,
+html[data-theme='macos-light'] .bndz-dropstack-glass {
   border-color: color-mix(in srgb, var(--accent) 16%, rgba(15, 23, 42, 0.12));
   background: linear-gradient(
     180deg,
@@ -4247,32 +5049,36 @@ html[data-theme='macOS Light'] .bndz-dropstack-glass {
     0 4px 16px rgba(15, 23, 42, 0.08);
 }
 
-html[data-theme='Light'] .bndz-dropstack-title,
-html[data-theme='LightMica'] .bndz-dropstack-title,
-html[data-theme='LightRoundedFlat'] .bndz-dropstack-title,
-html[data-theme='MinimalWhite'] .bndz-dropstack-title,
-html[data-theme='Neumorphic'] .bndz-dropstack-title,
-html[data-theme='macOS Light'] .bndz-dropstack-title {
+html[data-theme='light'] .bndz-dropstack-title,
+html[data-theme='lightmica'] .bndz-dropstack-title,
+html[data-theme='lightroundedflat'] .bndz-dropstack-title,
+html[data-theme='minimalwhite'] .bndz-dropstack-title,
+html[data-theme='neumorphic'] .bndz-dropstack-title,
+html[data-theme='macos-light'] .bndz-dropstack-title {
   color: color-mix(in srgb, #0f172a 88%, var(--accent));
 }
 
-html[data-theme='Light'] .bndz-dropstack-hint,
-html[data-theme='LightMica'] .bndz-dropstack-hint,
-html[data-theme='LightRoundedFlat'] .bndz-dropstack-hint,
-html[data-theme='MinimalWhite'] .bndz-dropstack-hint,
-html[data-theme='Neumorphic'] .bndz-dropstack-hint,
-html[data-theme='macOS Light'] .bndz-dropstack-hint {
+html[data-theme='light'] .bndz-dropstack-hint,
+html[data-theme='lightmica'] .bndz-dropstack-hint,
+html[data-theme='lightroundedflat'] .bndz-dropstack-hint,
+html[data-theme='minimalwhite'] .bndz-dropstack-hint,
+html[data-theme='neumorphic'] .bndz-dropstack-hint,
+html[data-theme='macos-light'] .bndz-dropstack-hint {
   color: rgba(71, 85, 105, 0.85);
 }
 
-html[data-theme='Light'] .bndz-dropstack-icon-well,
-html[data-theme='LightMica'] .bndz-dropstack-icon-well,
-html[data-theme='LightRoundedFlat'] .bndz-dropstack-icon-well,
-html[data-theme='MinimalWhite'] .bndz-dropstack-icon-well,
-html[data-theme='Neumorphic'] .bndz-dropstack-icon-well,
-html[data-theme='macOS Light'] .bndz-dropstack-icon-well {
+html[data-theme='light'] .bndz-dropstack-icon-well,
+html[data-theme='lightmica'] .bndz-dropstack-icon-well,
+html[data-theme='lightroundedflat'] .bndz-dropstack-icon-well,
+html[data-theme='minimalwhite'] .bndz-dropstack-icon-well,
+html[data-theme='neumorphic'] .bndz-dropstack-icon-well,
+html[data-theme='macos-light'] .bndz-dropstack-icon-well {
   background: color-mix(in srgb, #f1f5f9 88%, var(--accent));
   color: color-mix(in srgb, var(--accent) 70%, #334155);
+}
+
+html.theme-light .bndz-plugin-empty {
+  color: rgba(0, 0, 0, 0.48) !important;
 }
 
 .bndz-plugin-empty {
@@ -4583,7 +5389,8 @@ html[data-grid-selection="border"] .fs-grid-item.fs-item-selected {
 }
 .bndz-list-thumb--hero img,
 .bndz-list-thumb--hero canvas {
-  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.32));
+  /* Gated: drop-shadow amplified white-plate icons when alpha was destroyed on encode. */
+  filter: none;
   image-rendering: auto;
 }
 .bndz-view-grid .bndz-list-thumb img,
@@ -8629,6 +9436,11 @@ html[data-theme] .sidebar-section-header:hover {
   border-bottom-color: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+html.theme-light[data-theme] .sidebar-section-header:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 0%, rgba(0, 0, 0, 0.04) 100%) !important;
+  border-bottom-color: color-mix(in srgb, var(--accent) 18%, transparent) !important;
+}
+
 html[data-theme] .nav-tree-row-selected {
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 38%, #1a1a22) 0%, color-mix(in srgb, var(--accent) 18%, transparent) 100%);
   box-shadow: inset 2px 0 0 var(--accent);
@@ -8636,6 +9448,10 @@ html[data-theme] .nav-tree-row-selected {
 
 html[data-theme] .nav-tree-row:hover:not(.nav-tree-row-selected) {
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, #2a2d32) 0%, rgba(32, 34, 38, 0.85) 100%);
+}
+
+html.theme-light[data-theme] .nav-tree-row:hover:not(.nav-tree-row-selected) {
+  background: rgba(0, 0, 0, 0.05) !important;
 }
 
 html[data-theme] .sidebar-pin-row:hover {
@@ -8648,6 +9464,18 @@ html[data-theme] .bndz-list-header-bar {
     linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 42%),
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, #fff 4%) 0%, var(--surface, #16161a) 100%);
   border-bottom-color: var(--menu-border, rgba(255, 255, 255, 0.06));
+  color: var(--list-text-secondary, #9aa0a8);
+}
+
+html.theme-light[data-theme] .fs-list-header,
+html.theme-light[data-theme] .bndz-list-header-bar {
+  background: var(--list-header-bg, #eef0f3) !important;
+  border-bottom-color: rgba(0, 0, 0, 0.1) !important;
+  color: var(--list-header-text, rgba(0, 0, 0, 0.72)) !important;
+}
+
+html.theme-light[data-theme] .bndz-list-col-header {
+  color: var(--list-header-text, rgba(0, 0, 0, 0.72)) !important;
 }
 
 html[data-theme] .status-bar-glow {
@@ -10980,13 +11808,11 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-automation-flow .react-flow__edge-path {
   stroke: #7eb8e8 !important;
   stroke-width: 2.25px !important;
-  filter: drop-shadow(0 0 4px rgba(126, 184, 232, 0.45));
 }
 .bndz-automation-flow .react-flow__edge.selected .react-flow__edge-path,
 .bndz-automation-flow .react-flow__edge:focus .react-flow__edge-path {
   stroke: #b8e0ff !important;
   stroke-width: 2.75px !important;
-  filter: drop-shadow(0 0 8px rgba(126, 184, 232, 0.7));
 }
 .bndz-automation-flow .react-flow__connection-path {
   stroke: #9ad4ff !important;
@@ -12466,6 +13292,20 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-automation-flow.is-node-dragging .react-flow__edges {
   opacity: 0.35; pointer-events: none;
 }
+/* Pause expensive layers while pan/zoom is in flight */
+.bndz-automation-flow.is-viewport-moving .react-flow__background,
+.bndz-automation-flow.is-viewport-moving .bndz-flow-minimap,
+.bndz-automation-flow.is-viewport-moving .bndz-flow-controls {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.bndz-automation-flow.is-viewport-moving .react-flow__edge-path {
+  animation: none !important;
+  transition: none !important;
+}
+.bndz-automation-flow.is-viewport-moving .react-flow__edges {
+  pointer-events: none;
+}
 .bndz-flow-hint-panel {
   font-size: 9px !important;
   color: #6a7078 !important;
@@ -12509,13 +13349,11 @@ html[data-theme] .nav-tree-row:focus-visible {
 .bndz-automation-flow .react-flow__edge-path {
   stroke: #7eb8e8;
   stroke-width: 2;
-  filter: drop-shadow(0 0 3px rgba(126, 184, 232, 0.35));
 }
 .bndz-automation-flow .react-flow__edge.selected .react-flow__edge-path,
 .bndz-automation-flow .react-flow__edge:focus .react-flow__edge-path {
   stroke: #a8d4f5;
   stroke-width: 2.5;
-  filter: drop-shadow(0 0 6px rgba(126, 184, 232, 0.65));
 }
 .bndz-automation-flow .react-flow__connection-line {
   stroke: #7eb8e8;
@@ -14926,8 +15764,49 @@ html[data-bndz-shell="native-host"] .bndz-view-grid .bndz-grid-icon-well {
 }
 html[data-bndz-shell="native-host"] .bndz-view-grid .bndz-list-thumb--hero img,
 html[data-bndz-shell="native-host"] .bndz-view-list .bndz-list-thumb--hero img {
-  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.35));
+  filter: none;
 }
+
+/* Drive cards — font follows surface (dark card default; light theme sidebar/list = dark type) */
+.bndz-drive-card-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+.bndz-drive-card-meta {
+  color: rgba(255, 255, 255, 0.5);
+}
+.bndz-drive-card-sub {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-title,
+html.theme-light .bndz-chrome-workspace .bndz-drive-card-title {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-meta,
+html.theme-light .bndz-chrome-workspace .bndz-drive-card-meta {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-sub,
+html.theme-light .bndz-chrome-workspace .bndz-drive-card-sub {
+  color: rgba(0, 0, 0, 0.45) !important;
+}
+
+.bndz-sidebar-section-title {
+  color: rgba(255, 255, 255, 0.72);
+}
+.bndz-sidebar-section-header:hover .bndz-sidebar-section-title {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+html.theme-light .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab) .bndz-sidebar-section-title,
+html.theme-light .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab):hover .bndz-sidebar-section-title {
+  color: rgba(0, 0, 0, 0.82) !important;
+}
+
+.bndz-plugin-hero-title {
+  color: rgba(255, 255, 255, 0.92);
+}
+
 html[data-bndz-shell="native-host"] .bndz-drive-card {
   border-radius: 10px;
   margin: 2px 8px;
@@ -15060,6 +15939,63 @@ html[data-bndz-shell="native-host"] .sidebar-pin-row-selected,
   border-left-color: var(--accent, #c026d3) !important;
   color: #fff !important;
   box-shadow: inset 3px 0 0 var(--accent, #c026d3), 0 1px 0 rgba(255,255,255,0.05) inset;
+}
+
+/* Light theme wins over native-host tree/pin chrome (rules above load later in cascade) */
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar {
+  background: var(--sidebar-bg, #ffffff) !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-label,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-label,
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .sidebar-pin-row,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .sidebar-pin-row,
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .bndz-sidebar-pin-label,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .bndz-sidebar-pin-label {
+  color: rgba(0, 0, 0, 0.84) !important;
+  opacity: 1 !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row-selected,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row-selected,
+html.theme-light[data-bndz-shell="native-host"][data-theme] .bndz-chrome-sidebar .nav-tree-row-selected,
+html.theme-light[data-bndz-shell="native-host"][data-theme] .bndz-files-modern-sidebar .nav-tree-row-selected {
+  color: rgba(0, 0, 0, 0.92) !important;
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--accent, #0078d4) 18%, #ffffff) 0%,
+      color-mix(in srgb, var(--accent, #0078d4) 8%, #ffffff) 100%) !important;
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 28%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--accent, #0078d4), 0 1px 0 rgba(0, 0, 0, 0.03) inset !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected),
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .nav-tree-row:hover:not(.nav-tree-row-selected) {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: color-mix(in srgb, var(--accent, #0078d4) 16%, transparent) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .sidebar-pin-row-selected,
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .sidebar-pin-row-selected,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .sidebar-pin-row-selected {
+  color: rgba(0, 0, 0, 0.92) !important;
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--accent, #0078d4) 16%, #ffffff) 0%,
+      color-mix(in srgb, var(--accent, #0078d4) 6%, #ffffff) 100%) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar .text-gray-500,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar .text-gray-500 {
+  color: rgba(0, 0, 0, 0.48) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-chrome-sidebar button.text-gray-500:hover,
+html.theme-light[data-bndz-shell="native-host"] .bndz-files-modern-sidebar button.text-gray-500:hover {
+  color: rgba(0, 0, 0, 0.82) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
 }
 
 /* Files / BNDZShell modern layout language ? BNDZ components, Files proportions. */
@@ -15791,4 +16727,183 @@ html[data-bndz-island="sidebar"] .bndz-files-modern-sidebar {
   max-width: none !important;
   flex: 1 1 auto;
   border-right: 0 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   FINAL light-theme contrast lock (must stay last in this file).
+   Dark / colored chrome ? white ink. Pale panels ? black ink.
+   Beats native-host layout rules + Tailwind utilities + inline color vars.
+   --------------------------------------------------------------------------- */
+
+html.theme-light .bndz-chrome-menubar,
+html.theme-light .bndz-chrome-menubar *,
+html.theme-light .bndz-chrome-toolbar,
+html.theme-light .bndz-chrome-toolbar *:not(svg):not(path):not(img),
+html.theme-light .bndz-chrome-tabstrip,
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item,
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item *,
+html.theme-light .bndz-tab-item,
+html.theme-light .bndz-tab-item.bndz-tab-active,
+html.theme-light .bndz-tab-item:not(.bndz-tab-active),
+html.theme-light .bndz-files-address-strip,
+html.theme-light .bndz-files-address-strip *,
+html.theme-light .bndz-files-address-well,
+html.theme-light .bndz-files-address-well *,
+html.theme-light .bndz-breadcrumb-slot,
+html.theme-light .bndz-breadcrumb-slot *,
+html.theme-light .bndz-breadcrumb,
+html.theme-light .bndz-breadcrumb *,
+html.theme-light .bndz-chrome-omnibar,
+html.theme-light .bndz-chrome-omnibar input {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-tab-item:not(.bndz-tab-active) {
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+html.theme-light .bndz-chrome-tabstrip .bndz-tab-item.bndz-tab-active,
+html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item.bndz-tab-active,
+html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item.bndz-tab-active {
+  background: #2a2e36 !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+html.theme-light[data-bndz-shell="native-host"] .bndz-tab-item:not(.bndz-tab-active),
+html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-active) {
+  background: rgba(18, 20, 26, 0.85) !important;
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+html.theme-light .bndz-chrome-statusbar,
+html.theme-light .bndz-chrome-statusbar *,
+html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab,
+html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip,
+html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip * {
+  background-color: #2a2a2a !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card *,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card *,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-sidebar,
+html.theme-light .bndz-chrome-bottom .bndz-plugin-sidebar * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .bndz-plugin-field-label,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .bndz-plugin-field-label {
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .text-emerald-400,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-emerald-400 {
+  color: #6ee7b7 !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-card .text-sky-300,
+html.theme-light .bndz-plugin-tier .bndz-plugin-card .text-sky-300 {
+  color: #7dd3fc !important;
+}
+
+html.theme-light .bndz-list-col-header--active,
+html.theme-light .bndz-list-col-header--active .bndz-list-col-header-label,
+html.theme-light .bndz-list-header-bar .bndz-list-col-header--active,
+html.theme-light .bndz-list-header-bar .bndz-list-col-header--active .bndz-list-col-header-label {
+  color: rgba(0, 0, 0, 0.88) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 12%, #f4f5f7) 0%,
+    color-mix(in srgb, var(--col-accent, var(--accent, #0078d4)) 6%, #e8eaee) 100%
+  ) !important;
+}
+
+html.theme-light .bndz-list-sort-caret--asc {
+  border-bottom-color: rgba(0, 0, 0, 0.72) !important;
+}
+
+html.theme-light .bndz-list-sort-caret--desc {
+  border-top-color: rgba(0, 0, 0, 0.72) !important;
+}
+
+/* Pale popup menus — black ink (removed from white-ink chrome list above) */
+html.theme-light .bndz-menubar-menu,
+html.theme-light .bndz-menubar-menu *,
+html.theme-light .bndz-context-menu,
+html.theme-light .bndz-context-menu *,
+html.theme-light .bndz-context-submenu,
+html.theme-light .bndz-context-submenu *,
+html.theme-light .bndz-rapid-access-popup,
+html.theme-light .bndz-rapid-access-popup *,
+html.theme-light [data-bndz-menubar-menu],
+html.theme-light [data-bndz-menubar-menu] * {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-menubar-menu,
+html.theme-light .bndz-context-menu,
+html.theme-light .bndz-context-submenu,
+html.theme-light .bndz-rapid-access-popup,
+html.theme-light [data-bndz-menubar-menu] {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html.theme-light .bndz-context-menu-item:hover,
+html.theme-light .bndz-context-menu-item-active {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: rgba(0, 0, 0, 0.92) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab),
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-section-header:not(.bndz-status-bar-tree-tab) *,
+html.theme-light .bndz-chrome-sidebar .sidebar-section-header:not(.bndz-status-bar-tree-tab),
+html.theme-light .bndz-chrome-sidebar .sidebar-section-header:not(.bndz-status-bar-tree-tab) * {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-list-sticky-group-header,
+html.theme-light .bndz-list-sticky-group-header * {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html.theme-light .bndz-list-sticky-group-header {
+  background: linear-gradient(180deg, #f7f8fa 0%, #eef0f3 100%) !important;
+}
+
+html.theme-light .bndz-list-sticky-group-header .text-gray-500 {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .nav-tree-label,
+html.theme-light .bndz-chrome-sidebar .bndz-sidebar-pin-label,
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-title,
+html.theme-light .bndz-chrome-workspace .fs-list-item,
+html.theme-light .bndz-chrome-workspace .bndz-list-col-header:not(.bndz-list-col-header--active),
+html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active),
+html.theme-light .bndz-list-header-bar .bndz-list-col-header:not(.bndz-list-col-header--active) .bndz-list-col-header-label {
+  color: rgba(0, 0, 0, 0.86) !important;
+}
+
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-meta,
+html.theme-light .bndz-chrome-sidebar .bndz-drive-card-sub {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+html.theme-light .bndz-chrome-preview .bndz-preview-details,
+html.theme-light .bndz-chrome-preview .bndz-preview-details *:not(.bndz-preview-metadata-strip):not(.bndz-preview-metadata-strip *),
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip,
+html.theme-light .bndz-chrome-preview .bndz-preview-folder-strip * {
+  color: rgba(0, 0, 0, 0.86) !important;
+}
+
+html.theme-light .bndz-chrome-bottom .bndz-plugin-tier > *:not(.bndz-plugin-card):not(.bndz-plugin-sidebar),
+html.theme-light .bndz-chrome-bottom .bndz-bottom-content {
+  color: rgba(0, 0, 0, 0.86) !important;
 }

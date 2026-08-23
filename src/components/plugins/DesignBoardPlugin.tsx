@@ -18,10 +18,11 @@ export const DesignBoardPluginDef = {
   installOnFirstUse: false,
 };
 
-function editorSrc(): string {
+function editorSrc(useOpenPencil?: boolean): string {
   const base = import.meta.env.BASE_URL || '/';
   const prefix = base.endsWith('/') ? base : `${base}/`;
-  return `${prefix}editors/bndz-design-board.html`;
+  const query = useOpenPencil ? '?engine=openpencil' : '';
+  return `${prefix}editors/bndz-design-board.html${query}`;
 }
 
 type Props = {
@@ -32,14 +33,21 @@ type Props = {
   selectedItems?: unknown[];
   selectedPaths?: string[];
   currentPath?: string;
+  /** Use the OpenPencil vector engine instead of Fabric. Appends ?engine=openpencil. */
+  useOpenPencil?: boolean;
 };
 
 /**
  * Host for the Figma/ProDesign UI (public/editors/bndz-design-board.html).
- * Chrome stays; Fabric canvas is default. OpenPencil opt-in via ?engine=openpencil.
+ * Chrome stays; Fabric canvas is default. OpenPencil opt-in via useOpenPencil prop.
  */
-export default function DesignBoardPlugin({ popout = false }: Props) {
+export default function DesignBoardPlugin({
+  popout = false,
+  useOpenPencil = false,
+  isPluginTabActive = true,
+}: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(!!popout);
   const [boardKey, setBoardKey] = useState(0);
   const [keysArmed, setKeysArmed] = useState(!!popout);
@@ -174,8 +182,48 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
     void placeDropImages(undefined, files);
   }, [placeDropImages]);
 
+  const postResize = useCallback((opts?: { forceFit?: boolean }) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          source: 'bndz-host',
+          type: 'action',
+          action: 'resize',
+          forceFit: !!opts?.forceFit,
+        },
+        '*',
+      );
+    } catch { /* ignore */ }
+  }, []);
+
+  // Ordinary host resize: never forceFit (avoids thrash). Expand / large size uses forceFit.
+  useEffect(() => {
+    if (!isPluginTabActive && !expanded && !popout) return;
+    const forceFit = !!(expanded || popout);
+    const delays = forceFit ? [0, 50, 120, 280, 600, 1200] : [0, 80, 220];
+    const timers = delays.map((ms) => window.setTimeout(() => postResize({ forceFit }), ms));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [expanded, popout, boardKey, isPluginTabActive, postResize]);
+
+  useEffect(() => {
+    const root = boardRef.current;
+    if (!root || typeof ResizeObserver === 'undefined') return;
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      // Dock resize only — no forceFit. Fit happens inside the editor when size past MIN_FIT_*.
+      raf = requestAnimationFrame(() => postResize());
+    });
+    ro.observe(root);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [postResize, boardKey]);
+
   const board = (
     <div
+      ref={boardRef}
       className={`bndz-design-board bndz-design-board--exact bndz-design-board--no-hostbar${expanded || popout ? ' is-expanded' : ''}${popout ? ' is-popout' : ''}`}
       data-studio-drop-surface="design-board"
       onDragEnter={onHostDragOver}
@@ -190,12 +238,14 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
         className="bndz-design-board-frame"
         title="BNDZ Design Board"
         tabIndex={0}
-        src={editorSrc()}
+          src={editorSrc(useOpenPencil)}
         sandbox="allow-scripts allow-same-origin allow-downloads allow-modals"
         onLoad={() => {
           try {
             iframeRef.current?.focus({ preventScroll: true });
           } catch { /* ignore */ }
+          window.setTimeout(() => postResize(), 60);
+          window.setTimeout(() => postResize(), 220);
         }}
       />
       {status && <div className="bndz-design-board-toast">{status}</div>}
@@ -233,9 +283,19 @@ export default function DesignBoardPlugin({ popout = false }: Props) {
       iconColor="#0d99ff"
       subtitle="Hosted canvas engine · Fabric / OpenPencil"
       variant="embedded"
+      scrollable={false}
       footer={(
         <div className="bndz-design-board-host-actions" style={{ border: 'none', padding: 0, background: 'transparent', width: '100%' }}>
-          <PluginToolbarButton onClick={() => setExpanded(true)} title="Expand Design Board to fill workspace">Expand</PluginToolbarButton>
+          <PluginToolbarButton
+            onClick={() => {
+              setExpanded(true);
+              window.setTimeout(() => postResize({ forceFit: true }), 40);
+              window.setTimeout(() => postResize({ forceFit: true }), 200);
+            }}
+            title="Expand Design Board to fill workspace"
+          >
+            Expand
+          </PluginToolbarButton>
           <PluginToolbarButton onClick={newBoard} title="Start a fresh board">New board</PluginToolbarButton>
         </div>
       )}

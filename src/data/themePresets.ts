@@ -169,26 +169,36 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   const menubar = mixHex(surface === 'rgba(0,0,0,0)' ? preset.bg : surface, isLight ? '#000000' : '#000000', isLight ? 0.04 : 0.18);
   const toolbar = mixHex(surface === 'rgba(0,0,0,0)' ? preset.bg : surface, isLight ? '#000000' : '#ffffff', isLight ? 0.03 : 0.08);
   const sidebar = mixHex(preset.bg, isLight ? '#ffffff' : '#000000', isLight ? 0.02 : 0.06);
+  // Light themes keep a dark top chrome strip (menubar / tabs / omnibar) with light type.
+  const chromeDarkBg = '#1e1e24';
+  const chromeDarkRaised = '#252528';
+  const chromeDarkText = 'rgba(255,255,255,0.88)';
+  const chromeDarkMuted = 'rgba(255,255,255,0.55)';
 
   root.style.setProperty('--bg-main', preset.bg);
   root.style.setProperty('--bg-surface', surface);
   root.style.setProperty('--surface-elevated', elevated);
-  root.style.setProperty('--menubar-bg', menubar);
-  root.style.setProperty('--toolbar-bg', toolbar);
-  root.style.setProperty('--sidebar-bg', sidebar);
+  root.style.setProperty('--menubar-bg', isLight ? chromeDarkBg : menubar);
+  root.style.setProperty('--toolbar-bg', isLight ? '#1a1a1f' : toolbar);
+  root.style.setProperty('--sidebar-bg', isLight ? '#ffffff' : sidebar);
   // Mirror into the color-pack + chrome tokens so themes repaint even when
   // components still read --tree-bg / --bndz-surface-* (and gradients can override later).
-  root.style.setProperty('--tree-bg', sidebar);
+  root.style.setProperty('--tree-bg', isLight ? '#ffffff' : sidebar);
   root.style.setProperty('--tree-text', preset.text);
-  root.style.setProperty('--list-bg', preset.bg);
+  root.style.setProperty('--list-bg', isLight ? '#ffffff' : preset.bg);
   root.style.setProperty('--list-text', preset.text);
-  root.style.setProperty('--bndz-surface-base', preset.bg);
-  root.style.setProperty('--bndz-surface-raised', elevated);
-  root.style.setProperty('--bndz-surface-chrome', menubar);
-  root.style.setProperty('--bndz-surface-panel', surface);
+  root.style.setProperty('--bndz-surface-base', isLight ? '#ffffff' : preset.bg);
+  root.style.setProperty('--bndz-surface-raised', isLight ? '#f5f5f7' : elevated);
+  root.style.setProperty('--bndz-surface-chrome', isLight ? '#f2f2f7' : menubar);
+  root.style.setProperty('--bndz-surface-panel', isLight ? '#ffffff' : surface);
+  // Dark top strip (menubar/tabs/omnibar/address) — separate from pale panel surfaces.
+  root.style.setProperty('--chrome-dark-bg', isLight ? chromeDarkBg : menubar);
+  root.style.setProperty('--chrome-dark-raised', isLight ? chromeDarkRaised : elevated);
+  root.style.setProperty('--chrome-dark-text', isLight ? chromeDarkText : preset.text);
+  root.style.setProperty('--chrome-dark-muted', isLight ? chromeDarkMuted : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--bndz-border-subtle', isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)');
-  root.style.setProperty('--statusbar-bg', mixHex(preset.bg, '#000000', isLight ? 0.05 : 0.2));
-  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
+  root.style.setProperty('--statusbar-bg', isLight ? chromeDarkBg : mixHex(preset.bg, '#000000', 0.2));
+  root.style.setProperty('--status-text', isLight ? chromeDarkText : 'rgba(255,255,255,0.88)');
   root.style.setProperty('--status-neon', preset.accent);
   root.style.setProperty('--status-neon-soft', `${preset.accent}28`);
   root.style.setProperty('--status-neon-mid', `${preset.accent}0a`);
@@ -203,14 +213,15 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--accent', preset.accent);
   root.style.setProperty('--accent-muted', `${preset.accent}33`);
   root.style.setProperty('--text-main', preset.text);
-  root.style.setProperty('--text-muted', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
+  root.style.setProperty('--text-muted', isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.55)');
+  root.style.setProperty('--bndz-text-muted', isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.52)');
   root.style.setProperty('--list-hover', isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)');
   root.style.setProperty('--list-selected', `${preset.accent}40`);
   root.style.setProperty('--list-selected-border', preset.accent);
   root.style.setProperty('--scrollbar-thumb', isLight ? '#b0b0b0' : '#3a3a3a');
   root.style.setProperty('--scrollbar-thumb-hover', isLight ? '#888' : '#555');
-  root.style.setProperty('--panel-preview-bg', mixHex(preset.bg, isLight ? '#000000' : '#000000', isLight ? 0.06 : 0.14));
-  root.style.setProperty('--panel-bottom-bg', mixHex(preset.bg, isLight ? '#000000' : '#000000', isLight ? 0.08 : 0.18));
+  root.style.setProperty('--panel-preview-bg', isLight ? '#ffffff' : mixHex(preset.bg, '#000000', 0.14));
+  root.style.setProperty('--panel-bottom-bg', isLight ? '#f8f8fa' : mixHex(preset.bg, '#000000', 0.18));
   root.style.setProperty('--panel-preview-text', preset.text);
   root.style.setProperty('--panel-preview-muted', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--panel-bottom-text', preset.text);
@@ -220,27 +231,33 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--tooltip-muted', isLight ? 'rgba(0,0,0,0.52)' : 'rgba(255,255,255,0.52)');
   root.style.setProperty('--tooltip-border', isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.14)');
   root.style.setProperty('--tooltip-accent', preset.accent);
-  root.style.setProperty('--menu-bg', mixHex(menubar, isLight ? '#ffffff' : '#000000', isLight ? 0.04 : 0.12));
-  root.style.setProperty('--menu-text', preset.text);
-  root.style.setProperty('--menu-muted', isLight ? 'rgba(0,0,0,0.52)' : 'rgba(255,255,255,0.52)');
-  root.style.setProperty('--menu-hover', `${preset.accent}33`);
+  // Light themes: pale popup menus + black ink (top menubar strip stays dark via --chrome-dark-*).
+  root.style.setProperty('--menu-bg', isLight ? '#ffffff' : mixHex(menubar, '#000000', 0.12));
+  root.style.setProperty('--menu-text', isLight ? 'rgba(0,0,0,0.88)' : preset.text);
+  root.style.setProperty('--menu-muted', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.52)');
+  root.style.setProperty('--menu-hover', isLight ? 'rgba(0,0,0,0.06)' : `${preset.accent}33`);
   root.style.setProperty('--menu-border', isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)');
   root.style.setProperty('--menu-accent', preset.accent);
-  root.style.setProperty('--list-text-secondary', isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)');
-  root.style.setProperty('--list-bg', preset.bg);
+  root.style.setProperty('--statusbar-bg', isLight ? chromeDarkBg : mixHex(preset.bg, '#000000', 0.2));
+  // Status bar is dark chrome on light themes — keep status ink bright (not muted gray).
+  root.style.setProperty('--status-text', isLight ? chromeDarkText : 'rgba(255,255,255,0.88)');
+  root.style.setProperty('--list-header-bg', isLight ? '#eef0f3' : elevated);
+  root.style.setProperty('--list-header-text', isLight ? 'rgba(0,0,0,0.82)' : 'rgba(255,255,255,0.55)');
+  root.style.setProperty('--list-text-secondary', isLight ? 'rgba(0,0,0,0.58)' : 'rgba(255,255,255,0.45)');
+  root.style.setProperty('--list-bg', isLight ? '#ffffff' : preset.bg);
   root.style.setProperty('--list-text', preset.text);
   root.style.setProperty('--list-alt-bg', elevated);
   root.style.setProperty('--list-hover-bg', isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)');
   root.style.setProperty('--list-selected-bg', `${preset.accent}40`);
   root.style.setProperty('--list-focused-bg', preset.accent);
-  root.style.setProperty('--breadcrumb-bg', surface === 'rgba(0,0,0,0)' ? menubar : surface);
-  root.style.setProperty('--breadcrumb-text', preset.text);
+  root.style.setProperty('--breadcrumb-bg', isLight ? '#24262c' : (surface === 'rgba(0,0,0,0)' ? menubar : surface));
+  root.style.setProperty('--breadcrumb-text', isLight ? chromeDarkText : preset.text);
   root.style.setProperty('--header-bg', elevated);
   root.style.setProperty('--header-text', isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--tab-active-bg', elevated);
   root.style.setProperty('--tab-active-text', preset.accent);
-  root.style.setProperty('--tab-inactive-bg', menubar);
-  root.style.setProperty('--tab-inactive-text', isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.45)');
+  root.style.setProperty('--tab-inactive-bg', isLight ? chromeDarkBg : menubar);
+  root.style.setProperty('--tab-inactive-text', isLight ? chromeDarkMuted : (isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.45)'));
 
   const slug = preset.name.toLowerCase().replace(/\s+/g, '-');
   root.dataset.theme = slug;

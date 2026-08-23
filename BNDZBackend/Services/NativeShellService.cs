@@ -81,14 +81,8 @@ namespace BNDZ.Services
         private const uint SHGFI_PIDL = 0x000000008;
         private const uint FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
 
-        private static string BitmapToBase64Png(Bitmap bitmap)
-        {
-            // Exact-length buffer — avoid pooled-stream edge cases on the hot icon path.
-            using var ms = new System.IO.MemoryStream();
-            bitmap.MakeTransparent();
-            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-            return Convert.ToBase64String(ms.ToArray());
-        }
+        private static string BitmapToBase64Png(Bitmap bitmap) =>
+            ShellArgbPngEncoder.EncodeBitmapPngBase64(bitmap);
 
         /// <summary>PIDL-based icon fetch — handles CLSIDs, shell: known folders, drives, and
         /// real paths with per-folder custom icons. The universal path for shell namespace items.</summary>
@@ -136,10 +130,8 @@ namespace BNDZ.Services
             if (hIcon == IntPtr.Zero) return "";
             try
             {
-                // Clone before DestroyIcon — Icon.FromHandle does not own the HICON lifetime.
-                using var owned = (Icon)Icon.FromHandle(hIcon).Clone();
-                using var bitmap = owned.ToBitmap();
-                return BitmapToBase64Png(bitmap);
+                // Alpha-preserving encode — never Icon.ToBitmap + MakeTransparent (white plates).
+                return ShellArgbPngEncoder.EncodeHIconPngBase64(hIcon);
             }
             finally
             {
@@ -201,8 +193,9 @@ namespace BNDZ.Services
                         size);
                     if (!string.IsNullOrEmpty(hi))
                         return hi;
-                    // Media / folder thumbs: allow thumbnail memory when IconOnly fails at jumbo.
-                    if (size >= 128)
+                    // Directories: IconOnly only — ThumbnailOnly/any yields white folder plates at jumbo.
+                    // Soft-fail to PIDL/SHGFI below rather than stretch a blank thumb.
+                    if (!isDirectory && size >= 128)
                     {
                         var thumb = TryGetShellImageBase64(
                             item,
@@ -258,12 +251,9 @@ namespace BNDZ.Services
             {
                 if (!isDirectory && File.Exists(filePath))
                 {
-                    var icon = Icon.ExtractAssociatedIcon(filePath);
+                    using var icon = Icon.ExtractAssociatedIcon(filePath);
                     if (icon != null)
-                    {
-                        using var bitmap = icon.ToBitmap();
-                        return BitmapToBase64Png(bitmap);
-                    }
+                        return ShellArgbPngEncoder.EncodeHIconPngBase64(icon.Handle);
                 }
             }
             catch { }
@@ -467,8 +457,8 @@ namespace BNDZ.Services
                 using var hbmp = item.GetImage(new SIZE(size, size), flags);
                 if (hbmp == null || hbmp.IsInvalid)
                     return "";
-                using var bitmap = hbmp.ToBitmap();
-                return BitmapToBase64Png(bitmap);
+                // Scan0 / 32bpp ARGB — never hbmp.ToBitmap() (GDI FromHbitmap flattens alpha).
+                return ShellArgbPngEncoder.EncodeHBitmapPngBase64(hbmp.DangerousGetHandle());
             }
             catch
             {

@@ -32,11 +32,7 @@ public static class ShellThumbnailCacheService
             if (hbmp == null || hbmp.IsInvalid)
                 return "";
 
-            using var bitmap = hbmp.ToBitmap();
-            using var ms = new MemoryStream();
-            bitmap.MakeTransparent();
-            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-            return Convert.ToBase64String(ms.ToArray());
+            return ShellArgbPngEncoder.EncodeHBitmapPngBase64(hbmp.DangerousGetHandle());
         }
         catch (Exception ex)
         {

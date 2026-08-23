@@ -108,6 +108,21 @@ export interface AppConfig {
     treeListVisibleItemTypes?: TreeListItemType[];
 }
 
+export const DEFAULT_PREVIEW_CATEGORIES: AppConfig["previewCategories"] = [
+    {n:"Text Files", d:"bat, inf, ini, txt ...", c:true},
+    {n:"Document Files", d:"docx, odt, pdf, xlsx ...", c:true},
+    {n:"Web Files", d:"htm, svg, url, xml, zip ...", c:true},
+    {n:"Font Files", d:"fon, otf, pfm, ttf ...", c:true},
+    {n:"Image Files", d:"gif, jpg, png, raw ...", c:true},
+    {n:"Audio Files", d:"flac, mp3, ogg, wav ...", c:true},
+    {n:"Video Files", d:"avi, mp4, mpg, wmv ...", c:true},
+    {n:"Archive Files", d:"zip, rar, 7z, tar, gz, torrent ...", c:true},
+    {n:"3D Model Files", d:"glb, obj, stl, ydr, ybn, fbx ...", c:true},
+    {n:"Preview as Thumbnail", d:"afphoto, slddrw, webp ...", c:true},
+    {n:"User-Defined Preview Handlers", d:"", c:true}
+];
+
+
 const defaultStructuredConfig: Partial<AppConfig> = {
     visualFilters: [],
     pinnedFavorites: [],
@@ -167,7 +182,8 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
         merged.useCustomContextMenu = true;
     }
     // Bust stale empty SVG/HEIC thumbnail CAS after Svg.Skia + stream-fallback removal.
-    if ((merged.iconCacheBuster ?? 0) < 20) merged.iconCacheBuster = 20;
+    // 21: alpha-preserving shell PNG encode (no MakeTransparent white plates).
+    if ((merged.iconCacheBuster ?? 0) < 21) merged.iconCacheBuster = 21;
     if (merged.showLensStage === undefined) merged.showLensStage = true;
     if (merged.lensCollapsedByDefault === undefined) merged.lensCollapsedByDefault = false;
     if (merged.permanentHomeTab === undefined) merged.permanentHomeTab = false;
@@ -296,8 +312,8 @@ function applyConfigAliases(merged: AppConfig, raw: Partial<AppConfig>): AppConf
             ],
         ];
     }
-    if (!Array.isArray(merged.previewCategories)) {
-        merged.previewCategories = [];
+    if (!Array.isArray(merged.previewCategories) || merged.previewCategories.length === 0) {
+        merged.previewCategories = DEFAULT_PREVIEW_CATEGORIES.map((c) => ({ ...c }));
     }
     if (!Array.isArray(merged.previewFormats)) {
         merged.previewFormats = [];
@@ -402,19 +418,7 @@ export const defaultConfig: AppConfig = normalizeConfig({
     autoRotateThumbnails: true,
     showFileIconOnThumbnail: true,
     lockTreeState: false,
-    previewCategories: [
-        {n:"Text Files", d:"bat, inf, ini, txt ...", c:true},
-        {n:"Document Files", d:"docx, odt, pdf, xlsx ...", c:true},
-        {n:"Web Files", d:"htm, svg, url, xml, zip ...", c:true},
-        {n:"Font Files", d:"fon, otf, pfm, ttf ...", c:true},
-        {n:"Image Files", d:"gif, jpg, png, raw ...", c:true},
-        {n:"Audio Files", d:"flac, mp3, ogg, wav ...", c:true},
-        {n:"Video Files", d:"avi, mp4, mpg, wmv ...", c:true},
-        {n:"Archive Files", d:"zip, rar, 7z, tar, gz, torrent ...", c:true},
-        {n:"3D Model Files", d:"glb, obj, stl, ydr, ybn, fbx ...", c:true},
-        {n:"Preview as Thumbnail", d:"afphoto, slddrw, webp ...", c:true},
-        {n:"User-Defined Preview Handlers", d:"", c:true}
-    ],
+    previewCategories: DEFAULT_PREVIEW_CATEGORIES.map((c) => ({ ...c })),
     previewFormats: [
         {i:"txt", n:"*.accurip, ACCURIP File", c:true},
         {i:"txt", n:"*.adml, ADML File", c:true},

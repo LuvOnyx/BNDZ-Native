@@ -809,6 +809,13 @@ public sealed partial class CraftPaneHost : UserControl
 				AppendShellLog(msg);
 				return;
 			}
+			// SHOW_HOST_CONTEXT_MENU — handle with a native WinUI MenuFlyout so the popup
+			// anchors correctly to the WinUI compositor frame (no hidden-WPF-window offset issues).
+			if (type is "SHOW_HOST_CONTEXT_MENU")
+			{
+				HandleShowHostContextMenu(root.Clone(), requestId);
+				return;
+			}
 		}
 		catch { /* fall through to backend bridge */ }
 
@@ -868,6 +875,83 @@ public sealed partial class CraftPaneHost : UserControl
 		try { sender.PostWebMessageAsJson(json); }
 		catch (Exception ex) { Debug.WriteLine($"[CraftPaneHost] PostWebMessage: {ex.Message}"); }
 	}
+
+	/// <summary>
+	/// Handle SHOW_HOST_CONTEXT_MENU entirely in WinUI — avoids hidden-WPF-window positioning glitches.
+	/// clientX/Y arrive in CSS pixels (=DIPs at any scale) from the WebView; WinUI ShowAt accepts DIPs.
+	/// </summary>
+	private void HandleShowHostContextMenu(JsonElement root, string? requestId)
+	{
+		if (!_initialized || PaneWebView.CoreWebView2 is null)
+		{
+			PostJsonRaw(HostMenuResultJson(requestId, null));
+			return;
+		}
+		try
+		{
+			var payload = root.TryGetProperty("payload", out var p) ? p : default;
+			var clientX = payload.ValueKind != JsonValueKind.Undefined
+				&& payload.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number
+				? cx.GetDouble() : 0.0;
+			var clientY = payload.ValueKind != JsonValueKind.Undefined
+				&& payload.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number
+				? cy.GetDouble() : 0.0;
+
+			var flyout = new MenuFlyout();
+			var chosen = false;
+
+			if (payload.ValueKind != JsonValueKind.Undefined
+				&& payload.TryGetProperty("items", out var itemsEl)
+				&& itemsEl.ValueKind == JsonValueKind.Array)
+			{
+				foreach (var item in itemsEl.EnumerateArray())
+				{
+					var isSep = item.TryGetProperty("separator", out var sep) && sep.ValueKind == JsonValueKind.True;
+					if (isSep)
+					{
+						flyout.Items.Add(new MenuFlyoutSeparator());
+						continue;
+					}
+					var label = item.TryGetProperty("label", out var lbl) ? lbl.GetString() ?? "" : "";
+					var itemId = item.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+					var disabled = item.TryGetProperty("disabled", out var dis) && dis.GetBoolean();
+					var capturedId = itemId;
+					var capturedRid = requestId;
+
+					var mi = new MenuFlyoutItem { Text = label };
+					if (disabled)
+						mi.IsEnabled = false;
+					mi.Click += (_, _) =>
+					{
+						chosen = true;
+						PostJsonRaw(HostMenuResultJson(capturedRid, capturedId));
+					};
+					flyout.Items.Add(mi);
+				}
+			}
+
+			flyout.Closed += (_, _) =>
+			{
+				if (!chosen)
+					PostJsonRaw(HostMenuResultJson(requestId, null));
+			};
+
+			var opts = new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+			{
+				Position = new Windows.Foundation.Point(clientX, clientY),
+				Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft,
+			};
+			flyout.ShowAt(PaneWebView, opts);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine($"[CraftPaneHost] SHOW_HOST_CONTEXT_MENU: {ex.Message}");
+			PostJsonRaw(HostMenuResultJson(requestId, null));
+		}
+	}
+
+	private static string HostMenuResultJson(string? requestId, string? chosen) =>
+		JsonSerializer.Serialize(new { type = "HOST_CONTEXT_MENU_RESULT", id = requestId, payload = chosen });
 
 	public event EventHandler<JsonElement>? PaneMessage;
 

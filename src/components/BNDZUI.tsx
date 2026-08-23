@@ -12,12 +12,14 @@ import { MenubarSubmenu } from './MenubarSubmenu';
 import { MenubarPortalMenu } from './MenubarPortalMenu';
 import QuickActionsBar, { buildDefaultQuickActions } from './QuickActionsBar';
 import FileTransferQueuePanel from './FileTransferQueuePanel';
+import TransferProgressTheater from './TransferProgressTheater';
 import FolderSizeSyncChip from './FolderSizeSyncChip';
 import { SizeBar, type SizeBarStyle } from './SizeBar';
 import IndexProgressChip from './IndexProgressChip';
 import ListPaneSkeleton from './ListPaneSkeleton';
 import DriveCard from './DriveCard';
 import { BreadcrumbTrail } from './BreadcrumbTrail';
+import { DualPaneDiffStrip } from './DualPaneDiffStrip';
 import {
   setMarqueeActive, isMarqueeActive, beginDragSession, trackDragPointer,
   clearDragSession, markPointerDown, hasMetDragThreshold, isDragSessionReady,
@@ -163,7 +165,7 @@ import { formatFolderSizeLabel } from '../lib/folderSizeDisplay';
 import { VirtualizedFileList } from './VirtualizedFileList';
 import FileListRow from './list/FileListRow';
 import ListGroupHeaderRow from './list/ListGroupHeaderRow';
-import { PaneListBridgeSync, type FileListRowBridge } from './list/fileListRowBridge';
+import { PaneListBridgeSync, getPaneFileListBridge, type FileListRowBridge } from './list/fileListRowBridge';
 import { InlineRenameInput } from './list/InlineRenameInput';
 import { BndzDensitySlider } from './BndzDensitySlider';
 import MillerColumnsView from './MillerColumnsView';
@@ -1757,6 +1759,7 @@ export default function BNDZUI() {
   
   // Dual Pane Architecture state
   const [isDualPane, setIsDualPane] = useState(false);
+  const [dualPaneDiffActive, setDualPaneDiffActive] = useState(false);
 
   // Settings → Resizing the window (dual pane): keep left/right pixel width fixed on window resize
   useEffect(() => {
@@ -2855,7 +2858,6 @@ export default function BNDZUI() {
     dragSelection: string[];
     listEl: HTMLElement;
   } | null>(null);
-  const listGestureClickRef = useRef<((e: React.MouseEvent, id: string) => void) | null>(null);
   const listClickDeferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const columnResizeActiveRef = useRef(false);
   const [columnPicker, setColumnPicker] = useState<{ x: number; y: number } | null>(null);
@@ -2891,7 +2893,6 @@ export default function BNDZUI() {
   /** WebView2 often synthesizes list-body clicks after a row press — block deselect briefly. */
   const listItemPressGuardRef = useRef<{ entityId: string; at: number } | null>(null);
   const listEntityDblRef = useRef<{ paneId: string; entityId: string; at: number } | null>(null);
-  const listEntityDoubleClickRef = useRef<((entity: any) => void) | null>(null);
 
   // Sticky suppress after drag/marquee must not eat the next real click forever.
   useEffect(() => {
@@ -2907,7 +2908,6 @@ export default function BNDZUI() {
   }, []);
 
   // File Operations State
-  const [conflict, setConflict] = useState<{ opId: string, fileName: string, srcPath: string, destPath: string } | null>(null);
   const [folderContentsPeek, setFolderContentsPeek] = useState<FolderContentsPeekState | null>(null);
   const [dropActionMenu, setDropActionMenu] = useState<{
     x: number; y: number; paths: string[]; dest: string; sourcePath: string;
@@ -4833,6 +4833,10 @@ export default function BNDZUI() {
              fileName: conflictDetails.fileName,
              sourcePath: conflictDetails.sourcePath,
              destPath: conflictDetails.destPath,
+             sourceSize: conflictDetails.sourceSize,
+             sourceModifiedUtc: conflictDetails.sourceModifiedUtc,
+             destSize: conflictDetails.destSize,
+             destModifiedUtc: conflictDetails.destModifiedUtc,
            },
            onConflictResolve: (resolution, applyToAll) => {
              void IPC.resolveConflict(
@@ -5652,6 +5656,16 @@ export default function BNDZUI() {
        updateConfig({ dualPaneOpen: true });
     }
   };
+
+  // Open DualPaneDiffStrip from external dispatch (e.g. Compare plugin)
+  useEffect(() => {
+    const onComparePanes = () => {
+      if (!isDualPane) toggleDualPane();
+      setDualPaneDiffActive(true);
+    };
+    window.addEventListener('bndz-compare-panes', onComparePanes);
+    return () => window.removeEventListener('bndz-compare-panes', onComparePanes);
+  }, [isDualPane]);
 
   const openFolderInOppositePane = (folderPath: string, sourcePaneId: string) => {
     const norm = normalizePanePath(folderPath);
@@ -7073,9 +7087,8 @@ export default function BNDZUI() {
   };
 
   const openTabContextMenuAt = (paneId: string, tabIndex: number, clientX: number, clientY: number) => {
-    // WinUI native shell: always use the React tab menu (full color presets + reliable hit-testing).
-    // Classic WPF host may use the host-owned ContextMenu for true out-of-HWND chrome.
-    if (IPC.isNative && !isNativeShellHostBoot()) {
+    // Both WPF classic and BNDZShell WinUI use host-owned menus (WinUI via CraftPaneHost MenuFlyout).
+    if (IPC.isNative) {
       void (async () => {
         const pane = panes.find(p => p.id === paneId);
         const tab = pane?.tabs[tabIndex];
@@ -9421,7 +9434,6 @@ export default function BNDZUI() {
         }
       }
     };
-    listGestureClickRef.current = handleEntityClicked;
 
     /** Right-click selection only — never open/navigate (avoids dual-pane surprise opens). */
     const selectEntityForContextMenu = (entityId: string) => {
@@ -9454,7 +9466,6 @@ export default function BNDZUI() {
       suppressNativeDblUntilRef.current = performance.now() + 700;
       if (mouseRt.doubleClickOpen) openEntity(entity);
     };
-    listEntityDoubleClickRef.current = handleEntityDoubleClicked;
 
     const handleEntityMiddleClick = (e: React.MouseEvent, entity: any) => {
       // auxclick fires for BOTH middle (1) and right (2) buttons; only act on middle.
@@ -9914,9 +9925,10 @@ export default function BNDZUI() {
         
         {/* Breadcrumb Row — Files NavigationToolbar-height address strip under filesHost */}
         <div className={`bndz-files-address-strip flex ${config.applyColors ? '' : 'bg-[#1a1a1a]'} border-b border-[#333] items-center px-1.5 shrink-0 ${isDualPane && !isActive ? 'opacity-90' : ''}`}
-             style={config.applyColors
-               ? { background: 'var(--breadcrumb-bg)', color: 'var(--breadcrumb-text)' }
-               : { background: 'var(--breadcrumb-bg, var(--bndz-surface-chrome))', color: 'var(--breadcrumb-text, var(--text-muted))' }}>
+             style={{
+               background: 'var(--breadcrumb-bg, #24262c)',
+               color: 'var(--breadcrumb-text, rgba(255,255,255,0.9))',
+             }}>
             <ToolbarButton launcherIcon={launcherIconUrl('nav_back')} className={`bndz-files-nav-btn ${currentTab.historyIndex > 0 ? '' : 'opacity-30'}`} onClick={() => goBack(pane.id)} />
             <ToolbarButton launcherIcon={launcherIconUrl('nav_forward')} className={`bndz-files-nav-btn ${currentTab.historyIndex < currentTab.history.length - 1 ? '' : 'opacity-30'}`} onClick={() => goForward(pane.id)} />
             <ToolbarButton launcherIcon={launcherIconUrl('nav_up')} className="bndz-files-nav-btn" onClick={() => goUp(pane.id)} />
@@ -11065,6 +11077,9 @@ export default function BNDZUI() {
                     && !gesture.ctrlKey
                     && !gesture.shiftKey
                   );
+                  // Dual-pane: never use last-render shared click/open refs (pane2 always wins).
+                  const ownerPaneId = gesture.paneId || pane.id;
+                  const ownerBridge = getPaneFileListBridge(ownerPaneId);
                   if (isDoubleTap && gesture.entityId) {
                     listEntityDblRef.current = null;
                     const entity = contents?.find((x: any) => x.id === gesture.entityId)
@@ -11073,13 +11088,13 @@ export default function BNDZUI() {
                       suppressRowClickRef.current = true;
                       // Must arm before open — native dblclick fires after this pointerup.
                       suppressNativeDblUntilRef.current = performance.now() + 700;
-                      listEntityDoubleClickRef.current?.(entity);
+                      ownerBridge?.handleEntityDoubleClicked(entity);
                     }
                   } else if (gesture.entityId) {
                     listEntityDblRef.current = { paneId: pane.id, entityId: gesture.entityId, at: now };
                   }
                   // WebView2 often drops row onClick — commit click side-effects on pointerup.
-                  const clickHandler = listGestureClickRef.current;
+                  const clickHandler = ownerBridge?.handleEntityClicked ?? null;
                   if (!isDoubleTap && clickHandler && gesture.entityId && !gesture.selectedOnPress) {
                     suppressRowClickRef.current = true;
                     clickHandler({
@@ -11373,7 +11388,7 @@ export default function BNDZUI() {
               return (
                 <div className="sticky top-0 z-20 h-0 overflow-visible pointer-events-none">
                   <div
-                    className="absolute top-0 left-0 right-0 flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-wider text-[#99c9f0] bg-[#252526] border-b border-[#454545] shadow-[0_1px_0_rgba(0,0,0,0.35)]"
+                    className="bndz-list-sticky-group-header absolute top-0 left-0 right-0 flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-wider"
                     style={{ height: detailsRowHeight }}
                   >
                     <span>{sticky.header.label}</span>
@@ -13162,11 +13177,16 @@ export default function BNDZUI() {
              >Panes</div>
              {config.dualPaneFeature !== false && config.enableSubmenus !== false && config.enableContextSubmenus !== false && (
                  <MenubarPortalMenu open={openMenuId === 'Panes'} anchorEl={menubarAnchors.current['Panes']} minWidth={200}>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={toggleDualPane}>Toggle Dual Pane</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { swapPanes(); closeMenu(); }}>Swap Panes</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { syncPanesToSamePath(); closeMenu(); }}>Sync Panes</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setActivePaneId(panes[0]?.id || activePaneId); closeMenu(); }}>Focus Left Pane</div>
-                    <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setActivePaneId(panes[1]?.id || activePaneId); closeMenu(); }}>Focus Right Pane</div>
+                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={toggleDualPane}>Toggle Dual Pane</div>
+                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { swapPanes(); closeMenu(); }}>Swap Panes</div>
+                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { syncPanesToSamePath(); closeMenu(); }}>Sync Panes</div>
+                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setActivePaneId(panes[0]?.id || activePaneId); closeMenu(); }}>Focus Left Pane</div>
+                   <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setActivePaneId(panes[1]?.id || activePaneId); closeMenu(); }}>Focus Right Pane</div>
+                   {isDualPane && (
+                     <div className="px-3 py-1 hover:bg-[#007acc] cursor-pointer text-sm text-gray-200" onClick={() => { setDualPaneDiffActive(p => !p); closeMenu(); }}>
+                       {dualPaneDiffActive ? 'Hide Diff Strip' : 'Compare Panes (DiffPlex)'}
+                     </div>
+                   )}
                  </MenubarPortalMenu>
              )}
          </div>
@@ -14048,7 +14068,8 @@ export default function BNDZUI() {
                                </div>
                            </div>
                         )}
-                        <div className="flex flex-1 overflow-hidden min-h-0">
+                        <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+                           <div className="flex flex-1 overflow-hidden min-h-0">
                            {config.dualPaneFeature !== false && isDualPane && panes[1] ? (
                              <ResizablePanelGroup
                                id="dual-pane"
@@ -14084,6 +14105,36 @@ export default function BNDZUI() {
                            ) : (
                              renderPane(panes[0], 0)
                            )}
+                           </div>
+                           {/* DualPane DiffPlex compare strip — shown when diff mode is active */}
+                           {config.dualPaneFeature !== false && isDualPane && panes[1] && dualPaneDiffActive && (() => {
+                             const p1Tab = panes[0]?.tabs[panes[0]?.activeTabIndex];
+                             const p2Tab = panes[1]?.tabs[panes[1]?.activeTabIndex];
+                             const pathA = p1Tab?.path || '';
+                             const pathB = p2Tab?.path || '';
+                             // File compare: when both panes have the same single selected file
+                             const selA = p1Tab?.selectedItems;
+                             const selB = p2Tab?.selectedItems;
+                             const fileA = selA?.length === 1 && selB?.length === 1 ? selA[0] : undefined;
+                             const fileB = selA?.length === 1 && selB?.length === 1 ? selB[0] : undefined;
+                             return (
+                               <DualPaneDiffStrip
+                                 pathA={pathA}
+                                 pathB={pathB}
+                                 fileA={fileA ?? null}
+                                 fileB={fileB ?? null}
+                                 onNavigate={(name, pane) => {
+                                   const targetPaneId = pane === 'A' ? panes[0]?.id : panes[1]?.id;
+                                   if (targetPaneId) {
+                                     const base = pane === 'A' ? pathA : pathB;
+                                     const sep = base.endsWith('\\') || base.endsWith('/') ? '' : '\\';
+                                     setCurrentPath(base + sep + name, targetPaneId);
+                                   }
+                                 }}
+                                 onClose={() => setDualPaneDiffActive(false)}
+                               />
+                             );
+                           })()}
                         </div>
                         {config.commandDeck === true && commandDeckSignature.kind !== 'empty' && (
                           <div className="bndz-command-deck-float" aria-label="Context tools">
@@ -14325,6 +14376,9 @@ export default function BNDZUI() {
 
       {/* Transfer queue (native background jobs) */}
       <FileTransferQueuePanel enabled={fileOpsRt.showTransferPanel || config.showTransferQueuePanel !== false} />
+
+      {/* Floating progress theater for long-running transfers */}
+      <TransferProgressTheater />
 
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (

@@ -17,6 +17,9 @@ import { WIRED_SETTING_COUNT, DEFERRED_SETTING_COUNT } from './settingsRegistry'
 import { applySettingsBehavior } from './settingsBehavior';
 import type { SortColumnId } from './listColumns';
 import { isNetworkPanePath, isNonFsShellIconPath } from './shellPaths';
+import { TEXT_EDIT_EXTENSIONS, CODE_EXTENSIONS, isHtmlExt, isOfficeExt, isFontExt } from './textFileTypes';
+import { IMAGE_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, MODEL_EXTENSIONS } from './mediaTypes';
+import { ARCHIVE_EXTENSIONS, TORRENT_EXTENSIONS } from './archiveTypes';
 
 export interface PaneSortState {
   sortColumn?: SortColumnId;
@@ -677,60 +680,62 @@ function parseFilterStyle(style: string): { className?: string; inlineStyle?: Re
 export function isPreviewEnabledForExt(ext: string, config: AppConfig): boolean {
   if (!ext) return false;
   const e = ext.toLowerCase().replace(/^\./, '');
-  const categories = config.previewCategories || [];
-  const formats = config.previewFormats || [];
+  const categories = Array.isArray(config.previewCategories) ? config.previewCategories : [];
+  const formats = Array.isArray(config.previewFormats) ? config.previewFormats : [];
+
+  const textExts = Array.from(new Set<string>([...TEXT_EDIT_EXTENSIONS, ...CODE_EXTENSIONS]));
+  // Document / office / pdf — align with docked PDF / DOCX / Office handlers.
+  const documentExts = [
+    'pdf', 'docx', 'docm', 'xlsx', 'xlsm', 'xlsb', 'odt', 'ods', 'odp',
+    'doc', 'xls', 'ppt', 'pptx', 'rtf', 'epub', 'mobi', 'azw', 'cbz', 'cbr', 'vsd', 'vsdx',
+  ];
+  const webExts = ['htm', 'html', 'mht', 'mhtml', 'svg', 'url', 'xml', 'xhtml', 'rss', 'atom'];
+  const fontExts = ['ttf', 'otf', 'fon', 'woff', 'woff2', 'eot', 'ttc', 'pfm', 'pfb'];
+  const imageExts = Array.from(IMAGE_EXTENSIONS);
+  const audioExts = Array.from(AUDIO_EXTENSIONS);
+  const videoExts = Array.from(VIDEO_EXTENSIONS);
+  const archiveExts = Array.from(new Set<string>([...ARCHIVE_EXTENSIONS, ...TORRENT_EXTENSIONS]));
+  const modelExts = Array.from(MODEL_EXTENSIONS);
+
+  // Keep docked-handler predicates aligned with category membership (lint-friendly).
+  void isHtmlExt; void isOfficeExt; void isFontExt;
 
   const categoryMap: Record<string, string[]> = {
-    'Text Files': [
-      'txt', 'ini', 'bat', 'cmd', 'log', 'md', 'markdown', 'mdx', 'csv', 'tsv', 'cfg', 'conf', 'config',
-      'json', 'jsonl', 'xml', 'html', 'htm', 'css', 'scss', 'less', 'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs',
-      'py', 'cpp', 'cxx', 'cc', 'c', 'h', 'hpp', 'cs', 'yaml', 'yml', 'toml', 'sh', 'ps1', 'psd1', 'psm1',
-      'rs', 'go', 'java', 'kt', 'sql', 'lua', 'rb', 'php', 'vue', 'svelte', 'swift', 'dart', 'r', 'diff', 'patch',
-    ],
-    'Image Files': [
-      'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'svgz', 'ico', 'icon', 'cur', 'ani',
-      'tif', 'tiff', 'avif', 'heic', 'heif', 'psd', 'psb', 'xcf', 'raw', 'arw', 'cr2', 'cr3', 'nef', 'nrw',
-      'dng', 'orf', 'raf', 'rw2', 'pef', 'srw', 'x3f', 'exr', 'hdr', 'apng', 'jfif', 'jxl', 'dds', 'tga',
-      'pcx', 'jp2', 'j2k', 'emf', 'wmf', 'qoi', 'icns',
-    ],
-    'Audio Files': [
-      'mp3', 'wav', 'ogg', 'oga', 'flac', 'aac', 'm4a', 'wma', 'opus', 'aiff', 'aif', 'mid', 'midi',
-      'ape', 'wv', 'mpc', 'ra', 'ac3', 'dts', 'caf', 'mka',
-    ],
-    'Video Files': [
-      'mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv', 'm4v', 'mpg', 'mpeg', '3gp', 'ts', 'm2ts',
-      'flv', 'f4v', 'vob', 'ogv', 'divx', 'asf', 'rm', 'rmvb', 'mts',
-    ],
-    'Document Files': [
-      'pdf', 'docx', 'docm', 'xlsx', 'xlsm', 'odt', 'ods', 'odp', 'doc', 'xls', 'ppt', 'pptx',
-      'rtf', 'epub', 'mobi', 'azw', 'cbz', 'cbr', 'vsd', 'vsdx',
-    ],
-    'Archive Files': [
-      'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'cab', 'iso', 'jar', 'war', 'ear',
-      'torrent', 'zst', 'lz', 'arj', 'nupkg', 'vsix', 'apk', 'cbz', 'cbr',
-    ],
-    'Web Files': ['htm', 'html', 'svg', 'url', 'xml', 'mhtml', 'xhtml', 'rss', 'atom', 'mht'],
-    'Font Files': ['ttf', 'otf', 'fon', 'woff', 'woff2', 'eot', 'ttc', 'pfm', 'pfb'],
-    '3D Model Files': [
-      'glb', 'gltf', 'obj', 'stl', 'fbx', 'dae', 'ply', 'usdz', '3ds', 'blend',
-      'ydr', 'ybn', 'ydd', 'yft', 'ycd', 'ytd', 'ymap', 'ytyp',
-    ],
+    'Text Files': textExts,
+    'Image Files': imageExts,
+    'Audio Files': audioExts,
+    'Video Files': videoExts,
+    'Document Files': documentExts,
+    'Archive Files': archiveExts,
+    'Web Files': webExts,
+    'Font Files': fontExts,
+    '3D Model Files': modelExts,
   };
 
-  for (const cat of categories) {
-    if (!cat.c) continue;
-    const exts = categoryMap[cat.n];
-    if (exts?.includes(e)) return true;
+  const inKnownDockedMap = Object.values(categoryMap).some((exts) => exts.includes(e));
+
+  if (formats.some((f) => f.c && typeof f.n === 'string' && f.n.toLowerCase().includes(`*.${e}`))) {
+    return true;
   }
 
-  if (formats.some(f => f.c && f.n.toLowerCase().includes(`*.${e}`))) return true;
+  // Empty / missing categories → fail-OPEN for known maps that have docked handlers.
+  if (categories.length === 0) {
+    return inKnownDockedMap;
+  }
 
-  // Legacy configs may omit "3D Model Files" — still preview known model types by default.
-  const has3dCat = categories.some(c => c.n === '3D Model Files');
-  if (!has3dCat && categoryMap['3D Model Files']?.includes(e)) return true;
+  // Populated list is opt-out only: covering c:false denies; covering c:true allows.
+  const covering = categories.filter((cat) => categoryMap[cat.n]?.includes(e));
+  if (covering.length > 0) {
+    if (covering.some((cat) => cat.c)) return true;
+    if (covering.every((cat) => cat.c === false)) return false;
+  }
+
+  // Known docked type whose category row is absent from a partial list → fail-open.
+  if (inKnownDockedMap && covering.length === 0) return true;
 
   return false;
 }
+
 
 const COLOR_CSS_MAP: [string, string][] = [
   ['--tree-text', 'colorConfig1'],
@@ -972,6 +977,64 @@ function clearColorCssVars(root: HTMLElement): void {
   // Do NOT clear --plugin-hero-fill / edge — that flattened heroes to a solid panel.
 }
 
+/**
+ * After applyColors, restore light-theme chrome contrast tokens that color packs
+ * commonly overwrite (dark #252528 menus, black status/breadcrumb text on dark
+ * strips, light tree text on white sidebar). Popup menus stay pale + black ink;
+ * top menubar/toolbar/tabstrip/address/status stay dark + white ink.
+ */
+function lockLightThemeChromeContrast(root: HTMLElement): void {
+  if (!root.classList.contains('theme-light')) return;
+
+  const chromeBg = '#1e1e24';
+  const chromeRaised = '#252528';
+  const chromeText = 'rgba(255,255,255,0.9)';
+  const chromeMuted = 'rgba(255,255,255,0.55)';
+
+  // Pale popup menus (white/off-white) + black text — not dark chrome leftovers.
+  root.style.setProperty('--menu-bg', '#ffffff');
+  root.style.setProperty('--menu-text', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--menu-muted', 'rgba(0,0,0,0.55)');
+  root.style.setProperty('--menu-hover', 'rgba(0,0,0,0.06)');
+  root.style.setProperty('--menu-border', 'rgba(0,0,0,0.12)');
+  root.style.setProperty('--tooltip-bg', chromeRaised);
+  root.style.setProperty('--tooltip-text', chromeText);
+  root.style.setProperty('--tooltip-muted', chromeMuted);
+
+  root.style.setProperty('--statusbar-bg', chromeBg);
+  root.style.setProperty('--status-text', chromeText);
+  root.style.setProperty('--breadcrumb-bg', '#24262c');
+  root.style.setProperty('--breadcrumb-text', chromeText);
+  root.style.setProperty('--chrome-dark-bg', chromeBg);
+  root.style.setProperty('--chrome-dark-raised', chromeRaised);
+  root.style.setProperty('--chrome-dark-text', chromeText);
+  root.style.setProperty('--chrome-dark-muted', chromeMuted);
+
+  root.style.setProperty('--menubar-bg', chromeBg);
+  root.style.setProperty('--toolbar-bg', '#1a1a1f');
+  root.style.setProperty('--toolbar-text', chromeText);
+
+  // Tabs sit on dark tabstrip — keep chips dark + white ink (color packs often force pale chips + black text).
+  root.style.setProperty('--tab-active-bg', '#2a2e36');
+  root.style.setProperty('--tab-active-text', chromeText);
+  root.style.setProperty('--tab-inactive-bg', '#1a1c22');
+  root.style.setProperty('--tab-inactive-text', chromeMuted);
+
+  // Pale panels keep black type
+  root.style.setProperty('--tree-text', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--list-text', 'rgba(0,0,0,0.86)');
+  root.style.setProperty('--text-main', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--text-muted', 'rgba(0,0,0,0.55)');
+  root.style.setProperty('--sidebar-bg', '#ffffff');
+  root.style.setProperty('--tree-bg', '#ffffff');
+  root.style.setProperty('--list-header-bg', '#eef0f3');
+  root.style.setProperty('--list-header-text', 'rgba(0,0,0,0.82)');
+  root.style.setProperty('--list-text-secondary', 'rgba(0,0,0,0.58)');
+  root.style.setProperty('--header-text', 'rgba(0,0,0,0.72)');
+  root.style.setProperty('--panel-preview-text', 'rgba(0,0,0,0.88)');
+  root.style.setProperty('--panel-bottom-text', 'rgba(0,0,0,0.88)');
+}
+
 import { buildPanelTypographyCssVars } from './panelTypography';
 
 function readSelectString(config: AppConfig, key: string, fallback: string): string {
@@ -1122,6 +1185,10 @@ export function applySettingsRuntime(config: AppConfig): void {
     else root.dataset.pluginHeroThemed = 'false';
     applyStatusNeonAndPluginHeroVars(config, root);
   }
+
+  // Light themes keep dark top/bottom chrome. Color packs often overwrite those
+  // tokens with pale/dark-theme leftovers — re-lock contrast-critical vars.
+  lockLightThemeChromeContrast(root);
 
   // Column header accents stay personalizable even when the global color pack is off.
   applyColumnAccentCssVars(config, root);

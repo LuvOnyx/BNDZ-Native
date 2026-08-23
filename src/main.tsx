@@ -44,6 +44,8 @@ if (filesHost) {
  * JS reports hover coords for list targeting; preventDefault avoids default open.
  */
 function installExternalOleDragBridge() {
+  const isNative = typeof window !== 'undefined'
+    && !!(window as Window & { chrome?: { webview?: unknown } }).chrome?.webview;
   let lastHoverMs = 0;
   const hasFilePayload = (types: readonly string[]) =>
     types.some(t => t === 'Files' || /file|uri-list/i.test(t));
@@ -66,8 +68,14 @@ function installExternalOleDragBridge() {
   const onDrop = (e: DragEvent) => {
     const types = e.dataTransfer?.types;
     if (!types?.length || !hasFilePayload(types)) return;
-    // Host handles via NavigationStarting / WPF PreviewDrop — do not stopPropagation.
-    e.preventDefault();
+    // In native WebView2 host: OLE owns external drops. When OLE is registered the HTML5
+    // drop event typically does not fire at all. When OLE is NOT registered (e.g. registration
+    // still in progress), do NOT preventDefault here — allow Chromium to attempt file:
+    // navigation so Core_NavigationStarting can intercept it as Path A (cancel + dispatch).
+    // In browser dev mode (no webview), still preventDefault to avoid navigating away.
+    if (!isNative) {
+      e.preventDefault();
+    }
   };
 
   window.addEventListener('dragover', onDragOver, true);

@@ -64,6 +64,14 @@ public static class MediaThumbnailService
         if (!string.IsNullOrEmpty(cached))
             return cached;
 
+        // 0b) Assimp mesh silhouette (obj/fbx/gltf/stl/…)
+        if (AssimpMeshThumbService.IsMeshPath(filePath))
+        {
+            var meshBytes = AssimpMeshThumbService.TryRenderSilhouette(filePath, size);
+            if (meshBytes is { Length: > 0 })
+                return Convert.ToBase64String(meshBytes);
+        }
+
         // 1) MagicScaler stills (JPEG/PNG/WEBP/TIFF) — partial decode + EXIF, ahead of Skia.
         if (MagicScalerThumbnailService.IsSupported(filePath))
         {
@@ -239,11 +247,7 @@ public static class MediaThumbnailService
                 using var hbmp = item.GetImage(new SIZE(pixelSize, pixelSize), flags);
                 if (hbmp == null || hbmp.IsInvalid)
                     return "";
-                using var bitmap = hbmp.ToBitmap();
-                using var ms = new MemoryStream();
-                bitmap.MakeTransparent();
-                bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                return Convert.ToBase64String(ms.ToArray());
+                return ShellArgbPngEncoder.EncodeHBitmapPngBase64(hbmp.DangerousGetHandle());
             });
             if (!task.Wait(4500))
             {
