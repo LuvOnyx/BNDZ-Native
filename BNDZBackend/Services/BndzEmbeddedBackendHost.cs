@@ -169,6 +169,16 @@ public static class BndzEmbeddedBackendHost
 #endif
     }
 
+    /// <summary>WinUI STA synchronous invoke for OLE DoDragDrop (mouse-owning thread).</summary>
+    public static void SetHostStaInvoke(Action<Action>? invoke)
+    {
+#if BNDZ_HEADLESS_CORE
+        EnsureStarted();
+        try { _host?.SetHostStaInvoke(invoke); }
+        catch (Exception ex) { Debug.WriteLine($"[BndzEmbeddedBackendHost] SetHostStaInvoke: {ex.Message}"); }
+#endif
+    }
+
     /// <summary>WinUI CraftPaneHost: map OLE screen coords to WebView2 CSS client space.</summary>
     public static void ConfigureHeadlessDropBridge(
         Func<double, double, (double X, double Y)>? screenToClientMapper,

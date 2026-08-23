@@ -279,6 +279,15 @@ export function isInternalFileDragChromeAtPoint(clientX: number, clientY: number
 }
 
 /** True when archive drag should escalate to native OLE (desktop / Explorer), not in-app list. */
+
+/** True when the pointer left the WebView CSS viewport (desktop / other apps) — OLE escalate. */
+export function isPointerOutsideWebViewViewport(clientX: number, clientY: number, marginPx = 8): boolean {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+  return clientX < -marginPx || clientY < -marginPx || clientX > w + marginPx || clientY > h + marginPx;
+}
+
+
 export function shouldArchiveEscalateToOle(clientX: number, clientY: number): boolean {
   if (isArchiveInternalDropTargetAtPoint(clientX, clientY)) return false;
   return isOutsideArchivePreviewAtPoint(clientX, clientY)

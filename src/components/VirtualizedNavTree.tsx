@@ -20,6 +20,8 @@ import {
   getFileDragSession,
   hitTestNavTreeAtPoint,
   isInternalFileDragChromeAtPoint,
+  isPointerOutsideWebViewViewport,
+  stashOleDragSession,
 } from '../lib/fileDragSession';
 import {
   dispatchPointerFileDragActive,
@@ -641,21 +643,21 @@ export function VirtualizedNavTree({
         dispatchPointerFileDragActive(true);
       }
       dispatchPointerFileDragMove(ev.clientX, ev.clientY);
-      if (isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY)) {
+      if (!isPointerOutsideWebViewViewport(ev.clientX, ev.clientY)) {
         outsideChromeStreak = 0;
-      } else {
-        outsideChromeStreak++;
+        return;
       }
-      if (outsideChromeStreak >= 1) {
-        oleStarted = true;
-        suppressTreeClickRef.current = true;
-        dispatchPointerFileDragActive(false);
-        endFileDragSession();
-        cleanup();
-        IPC.startDrag([winPath], {
-          extended: !!config.extendedCompatibilityForClipboardAndDragAndDrop,
-        });
-      }
+      outsideChromeStreak++;
+      if (outsideChromeStreak < 2) return;
+      oleStarted = true;
+      suppressTreeClickRef.current = true;
+      dispatchPointerFileDragActive(false);
+      stashOleDragSession(getFileDragSession());
+      endFileDragSession();
+      cleanup();
+      IPC.startDrag([winPath], {
+        extended: !!config.extendedCompatibilityForClipboardAndDragAndDrop,
+      });
     };
 
     const onUp = (ev: PointerEvent) => {

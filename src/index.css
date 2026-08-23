@@ -2512,13 +2512,13 @@ html.theme-light .bndz-chrome-workspace .text-gray-500 {
   color: rgba(0, 0, 0, 0.72) !important;
 }
 
-/* Status bar is dark chrome — never inherit the pale-panel black remap */
+/* Status bar is pale paper on light — keep Tailwind muted classes BLACK */
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-200,
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-300,
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-gray-400,
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-white,
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) .text-slate-300 {
-  color: rgba(255, 255, 255, 0.88) !important;
+  color: rgba(0, 0, 0, 0.78) !important;
 }
 
 html.theme-light .bndz-chrome-preview .text-\[\#99c9f0\]:not(.bndz-preview-metadata-strip *),
@@ -2594,8 +2594,8 @@ html.theme-light .bndz-list-col-muted {
 }
 
 html.theme-light .bndz-chrome-statusbar {
-  background: var(--statusbar-bg, #1e1e24) !important;
-  color: var(--status-text, rgba(255, 255, 255, 0.88)) !important;
+  background: var(--statusbar-bg, #eef0f4) !important;
+  color: var(--status-text, rgba(0, 0, 0, 0.88)) !important;
 }
 
 /* Address / breadcrumb lives on dark chrome — never force black ink here */
@@ -2801,14 +2801,14 @@ html.theme-light .bndz-chrome-preview .bg-black\/50 {
   color: rgba(0, 0, 0, 0.88) !important;
 }
 
-/* Bottom status bar — dark chrome, white type (beat --text-muted / gray remaps) */
+/* Bottom status bar — pale paper + black type on light themes */
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab),
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) * {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(0, 0, 0, 0.88) !important;
 }
 
 html.theme-light .bndz-chrome-statusbar:not(.bndz-status-bar-tree-tab) {
-  background: #1e1e24 !important;
+  background: #eef0f4 !important;
 }
 
 /*
@@ -16777,17 +16777,32 @@ html.theme-light[data-bndz-shell="files-host"] .bndz-tab-item:not(.bndz-tab-acti
   color: rgba(255, 255, 255, 0.58) !important;
 }
 
+/*
+ * Light footer statusbar: pale paper + BLACK ink.
+ * Never white-on-pale (previous FINAL lock made left metrics invisible).
+ */
 html.theme-light .bndz-chrome-statusbar,
 html.theme-light .bndz-chrome-statusbar *,
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab,
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab * {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(0, 0, 0, 0.88) !important;
 }
 
-/* Footer may still carry tree-tab class — force solid dark chrome, never pale/theme wash */
+html.theme-light .bndz-chrome-statusbar,
 html.theme-light .bndz-chrome-statusbar.bndz-status-bar-tree-tab {
-  background: #1e1e24 !important;
+  background: #eef0f4 !important;
   background-image: none !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.10) !important;
+}
+
+html.theme-light .bndz-chrome-statusbar .text-sky-300\/90,
+html.theme-light .bndz-chrome-statusbar .text-amber-400\/90,
+html.theme-light .bndz-chrome-statusbar .text-amber-400\/70,
+html.theme-light .bndz-chrome-statusbar .text-\[\#cce4f7\],
+html.theme-light .bndz-chrome-statusbar .text-\[\#c8c8c8\],
+html.theme-light .bndz-chrome-statusbar .text-\[\#888\],
+html.theme-light .bndz-chrome-statusbar .bndz-glass-chip {
+  color: rgba(0, 0, 0, 0.72) !important;
 }
 
 html.theme-light .bndz-chrome-preview .bndz-preview-metadata-strip,

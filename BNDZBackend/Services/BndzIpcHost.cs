@@ -178,6 +178,27 @@ namespace BNDZ.Services
             try { _automationRunnerDeps.HostWindow = hwnd; } catch { /* ignore */ }
         }
 
+        /// <summary>
+        /// WinUI shell STA invoke for OLE <c>DoDragDrop</c>. Must be the thread that owns the
+        /// mouse (CraftPaneHost DispatcherQueue) — NOT <see cref="BndzUiDispatcher"/>, which
+        /// has no button-down state and instant-completes outbound drags.
+        /// </summary>
+        private Action<Action>? _hostStaInvoke;
+
+        public void SetHostStaInvoke(Action<Action>? invoke) => _hostStaInvoke = invoke;
+
+        private void InvokeOnOleDragSta(Action action)
+        {
+            if (action is null) return;
+            if (_hostStaInvoke != null)
+            {
+                _hostStaInvoke(action);
+                return;
+            }
+            // Classic WPF MainWindow / browser-dev fallback.
+            BndzUiDispatcher.Invoke(action);
+        }
+
         /// <summary>Screen → WebView2 CSS client coords for headless WinUI hosts (BNDZShell).</summary>
         public delegate System.Windows.Point HeadlessOleCoordMapper(double screenX, double screenY);
 
@@ -846,17 +867,19 @@ namespace BNDZ.Services
                 }
 
                 // Notify-only / fire-and-forget — acknowledge without waiting on a RESULT.
+                // START_DRAG blocks in DoDragDrop — never wait for a RESULT (IPC.startDrag has no id).
                 if (string.Equals(type, "BNDZ_UI_READY", StringComparison.Ordinal)
                     || string.Equals(type, "UI_READY", StringComparison.Ordinal)
                     || string.Equals(type, "NOTIFY_UI_READY", StringComparison.Ordinal)
-                    || string.Equals(type, "EXTERNAL_DRAG_HOVER_REPORT", StringComparison.Ordinal))
+                    || string.Equals(type, "EXTERNAL_DRAG_HOVER_REPORT", StringComparison.Ordinal)
+                    || string.Equals(type, "START_DRAG", StringComparison.Ordinal))
                 {
                     _ = ProcessIncomingIpcMessageAsync(messageStr);
                     return JsonSerializer.Serialize(new
                     {
                         type = "UI_READY_ACK",
                         id,
-                        payload = new { ok = true, mode = "backend-host" },
+                        payload = new { ok = true, mode = "backend-host", notify = type },
                     }, opts);
                 }
 
@@ -2830,7 +2853,8 @@ namespace BNDZ.Services
                     if (paths.Count == 0) return;
                     var pathArray = paths.ToArray();
 
-                    // DoDragDrop must run synchronously while the mouse button is still down.
+                    // DoDragDrop must run synchronously while the mouse button is still down,
+                    // on the WinUI STA that owns the mouse — never BndzUiDispatcher (wrong queue).
                     void RunOleDrag()
                     {
                         try
@@ -2838,26 +2862,21 @@ namespace BNDZ.Services
                             // _bndzOleDragActive lets our IDropTarget recognise internal re-entry
                             // and honour move intent when the drag lands back on BNDZ.
                             _bndzOleDragActive = true;
-                            var dataObject = new System.Windows.DataObject();
-                            dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
-                            // Explorer interop: Preferred DropEffect = Copy|Link (5). Ctrl/Shift still toggle.
-                            dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(5)));
-                            // BNDZShell headless: this WPF Window is never shown; START_DRAG arrives
-                            // on a thread-pool (MTA) thread from the IPC pipe. WPF DoDragDrop needs
-                            // STA + Dispatcher.PushFrame, so marshal to BndzUiDispatcher STA thread
-                            // and use raw ole32 DoDragDrop with a real WinUI HWND instead.
-                            // AttachShellDragImage also uses COM (IDragSourceHelper) — run it on
-                            // the same STA thread as DoDragDrop so the COM apartment is correct.
                             if (_hostWindowHandle != IntPtr.Zero)
                             {
-                                var capturedHwnd = _hostWindowHandle;
-                                var capturedData = dataObject;
+                                var capturedHwnd = WebView2DropTargetService.RegisteredWebViewHwnd != IntPtr.Zero
+                                    ? WebView2DropTargetService.RegisteredWebViewHwnd
+                                    : _hostWindowHandle;
                                 var capturedPaths = pathArray;
-                                BndzUiDispatcher.Invoke(() =>
+                                InvokeOnOleDragSta(() =>
                                 {
-                                    try { AttachShellDragImage(capturedData, capturedPaths); }
+                                    // Build IDataObject on the same STA as DoDragDrop (apartment affinity).
+                                    var dataObject = new System.Windows.DataObject();
+                                    dataObject.SetData(System.Windows.DataFormats.FileDrop, capturedPaths);
+                                    dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(5)));
+                                    try { AttachShellDragImage(dataObject, capturedPaths); }
                                     catch (Exception imgEx) { Debug.WriteLine($"[START_DRAG] STA drag image: {imgEx.Message}"); }
-                                    WebView2DropTargetService.RunNativeDragDrop(capturedHwnd, capturedData);
+                                    WebView2DropTargetService.RunNativeDragDrop(capturedHwnd, dataObject);
                                 });
                             }
                             else
@@ -2870,6 +2889,9 @@ namespace BNDZ.Services
                                 }
                                 else
                                 {
+                                    var dataObject = new System.Windows.DataObject();
+                                    dataObject.SetData(System.Windows.DataFormats.FileDrop, pathArray);
+                                    dataObject.SetData("Preferred DropEffect", new System.IO.MemoryStream(BitConverter.GetBytes(5)));
                                     try { AttachShellDragImage(dataObject, pathArray); }
                                     catch (Exception dragImgEx) { Debug.WriteLine($"[START_DRAG] drag image: {dragImgEx.Message}"); }
                                     System.Windows.DragDrop.DoDragDrop(this, dataObject, System.Windows.DragDropEffects.Copy | System.Windows.DragDropEffects.Move | System.Windows.DragDropEffects.Link);

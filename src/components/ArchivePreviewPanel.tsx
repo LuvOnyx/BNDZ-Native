@@ -25,6 +25,7 @@ import {
   hitTestArchiveRootAtPoint,
   hitTestListBodyAtPoint,
   isInternalFileDragChromeAtPoint,
+  isPointerOutsideWebViewViewport,
   stashOleDragSession,
 } from '../lib/fileDragSession';
 import { setDragGhostPosition, armDragGhost } from '../lib/pointerDragGhost';
@@ -442,7 +443,8 @@ export default function ArchivePreviewPanel({ path, format, onExtract }: Archive
 
       if (!drag.paths?.length) return;
 
-      if (isInternalFileDragChromeAtPoint(ev.clientX, ev.clientY)) {
+      // OLE only with extracted temps while button is down AND pointer left the WebView.
+      if (!isPointerOutsideWebViewViewport(ev.clientX, ev.clientY)) {
         outsideChromeStreak = 0;
         return;
       }

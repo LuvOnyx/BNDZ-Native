@@ -80,6 +80,7 @@ import {
   getFileDragSession,
   resolveFileDropDestination,
   isInternalFileDragChromeAtPoint,
+  isPointerOutsideWebViewViewport,
   hitTestArchiveRootAtPoint,
   DEFAULT_TAB_HOVER_DELAY_MS,
   resolveNativeFileDropTarget,
@@ -10747,17 +10748,10 @@ export default function BNDZUI() {
                   }
 
                   // O(1) chrome-zone check via cached DOMRects (replaces elementsFromPoint + closest() thrash).
+                  // Only escalate to OLE when the pointer leaves the WebView viewport.
+                  // Chrome-miss streaks falsely escalate list↔tree / splitter gaps into broken OLE.
                   const cx = ev.clientX, cy = ev.clientY;
-                  const overInternalChrome = chromeCacheRects.some(
-                    r => cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom,
-                  );
-                  if (overInternalChrome) {
-                    outsideChromeStreak = 0;
-                  } else {
-                    outsideChromeStreak++;
-                  }
-
-                  if (!oleDragStarted && getFileDragSession() && outsideChromeStreak >= 2) {
+                  if (!oleDragStarted && getFileDragSession() && isPointerOutsideWebViewViewport(cx, cy)) {
                     const dragPaths = buildDragPaths(entityId, listGestureRef.current.dragSelection);
                     if (dragPaths.length) {
                       const meshPaths = dragPaths.filter(isMeshPath);
@@ -14398,7 +14392,7 @@ export default function BNDZUI() {
       {/* Footer Status Bar scoped to active pane metrics */}
       {uiRuntime.showStatusBar && (
       <div
-        className="bndz-chrome-statusbar bndz-sidebar-section-header bndz-sidebar-section-drives px-3 py-1.5 pl-4 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
+        className="bndz-chrome-statusbar px-3 py-1.5 pl-4 flex items-center justify-between shrink-0 gap-3 min-h-[26px] text-[11px]"
         title="Right-click for folder menu"
         onContextMenu={(e) => {
           if ((e.target as HTMLElement).closest('button, a, input')) return;

@@ -197,8 +197,9 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--chrome-dark-text', isLight ? chromeDarkText : preset.text);
   root.style.setProperty('--chrome-dark-muted', isLight ? chromeDarkMuted : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--bndz-border-subtle', isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)');
-  root.style.setProperty('--statusbar-bg', isLight ? chromeDarkBg : mixHex(preset.bg, '#000000', 0.2));
-  root.style.setProperty('--status-text', isLight ? chromeDarkText : 'rgba(255,255,255,0.88)');
+  // Light themes: pale footer statusbar + black ink (top chrome stays dark via --chrome-dark-*).
+  root.style.setProperty('--statusbar-bg', isLight ? '#eef0f4' : mixHex(preset.bg, '#000000', 0.2));
+  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(255,255,255,0.88)');
   root.style.setProperty('--status-neon', preset.accent);
   root.style.setProperty('--status-neon-soft', `${preset.accent}28`);
   root.style.setProperty('--status-neon-mid', `${preset.accent}0a`);
@@ -238,9 +239,9 @@ export function applyThemeCssVars(preset: ThemePreset): void {
   root.style.setProperty('--menu-hover', isLight ? 'rgba(0,0,0,0.06)' : `${preset.accent}33`);
   root.style.setProperty('--menu-border', isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)');
   root.style.setProperty('--menu-accent', preset.accent);
-  root.style.setProperty('--statusbar-bg', isLight ? chromeDarkBg : mixHex(preset.bg, '#000000', 0.2));
-  // Status bar is dark chrome on light themes — keep status ink bright (not muted gray).
-  root.style.setProperty('--status-text', isLight ? chromeDarkText : 'rgba(255,255,255,0.88)');
+  root.style.setProperty('--statusbar-bg', isLight ? '#eef0f4' : mixHex(preset.bg, '#000000', 0.2));
+  // Pale footer on light themes — black ink (never white-on-pale).
+  root.style.setProperty('--status-text', isLight ? 'rgba(0,0,0,0.88)' : 'rgba(255,255,255,0.88)');
   root.style.setProperty('--list-header-bg', isLight ? '#eef0f3' : elevated);
   root.style.setProperty('--list-header-text', isLight ? 'rgba(0,0,0,0.82)' : 'rgba(255,255,255,0.55)');
   root.style.setProperty('--list-text-secondary', isLight ? 'rgba(0,0,0,0.58)' : 'rgba(255,255,255,0.45)');

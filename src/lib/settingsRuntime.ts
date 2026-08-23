@@ -981,7 +981,8 @@ function clearColorCssVars(root: HTMLElement): void {
  * After applyColors, restore light-theme chrome contrast tokens that color packs
  * commonly overwrite (dark #252528 menus, black status/breadcrumb text on dark
  * strips, light tree text on white sidebar). Popup menus stay pale + black ink;
- * top menubar/toolbar/tabstrip/address/status stay dark + white ink.
+ * top menubar/toolbar/tabstrip/address stay dark + white ink; footer statusbar is
+ * pale paper + black ink (never white-on-pale).
  */
 function lockLightThemeChromeContrast(root: HTMLElement): void {
   if (!root.classList.contains('theme-light')) return;
@@ -1001,8 +1002,9 @@ function lockLightThemeChromeContrast(root: HTMLElement): void {
   root.style.setProperty('--tooltip-text', chromeText);
   root.style.setProperty('--tooltip-muted', chromeMuted);
 
-  root.style.setProperty('--statusbar-bg', chromeBg);
-  root.style.setProperty('--status-text', chromeText);
+  // Footer statusbar: pale + black (do not reuse dark top-chrome tokens).
+  root.style.setProperty('--statusbar-bg', '#eef0f4');
+  root.style.setProperty('--status-text', 'rgba(0,0,0,0.88)');
   root.style.setProperty('--breadcrumb-bg', '#24262c');
   root.style.setProperty('--breadcrumb-text', chromeText);
   root.style.setProperty('--chrome-dark-bg', chromeBg);

@@ -60,6 +60,9 @@ internal static class WebView2DropTargetService
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")]
     private static extern bool ScreenToClient(IntPtr hWnd, ref NativePoint lpPoint);
 
     [DllImport("ole32.dll")]
@@ -149,27 +152,31 @@ internal static class WebView2DropTargetService
             Debug.WriteLine($"[OleDrop] OleInitialize hr=0x{oleHr:X8}");
 
         var wv2Hwnd = FindWebView2Hwnd(windowHwnd);
+        // WinUI composition hosts sometimes omit Chrome_WidgetWin_* — fall back to top-level HWND.
+        var targetHwnd = wv2Hwnd != IntPtr.Zero ? wv2Hwnd : windowHwnd;
         if (wv2Hwnd == IntPtr.Zero)
+            Debug.WriteLine($"[OleDrop] WebView2 HWND missing; registering on top-level 0x{windowHwnd:X}");
+
+        var target = new BndzDropTarget(targetHwnd, onDrop, onHover, isBndzOleDragActive);
+
+        // Probe first — never Revoke Chromium's target unless Register needs a replace.
+        int regHr = RegisterDragDrop(targetHwnd, target);
+        if (regHr == unchecked((int)0x80040101)) // DRAGDROP_E_ALREADYREGISTERED
         {
-            Debug.WriteLine("[OleDrop] WebView2 HWND not found; WPF-only drop fallback active.");
-            return false;
+            int revokeHr = RevokeDragDrop(targetHwnd);
+            Debug.WriteLine($"[OleDrop] RevokeDragDrop(0x{targetHwnd:X}) hr=0x{revokeHr:X8} (replace existing)");
+            regHr = RegisterDragDrop(targetHwnd, target);
         }
 
-        // Revoke any existing target (WebView2's own or a previous BNDZ registration).
-        int revokeHr = RevokeDragDrop(wv2Hwnd);
-        Debug.WriteLine($"[OleDrop] RevokeDragDrop(0x{wv2Hwnd:X}) → hr=0x{revokeHr:X8}");
-
-        var target = new BndzDropTarget(wv2Hwnd, onDrop, onHover, isBndzOleDragActive);
-        int regHr = RegisterDragDrop(wv2Hwnd, target);
         if (regHr == S_OK)
         {
             _activeTarget = target;
-            _registeredHwnd = wv2Hwnd;
-            Debug.WriteLine($"[OleDrop] ✓ Registered IDropTarget on WebView2 HWND 0x{wv2Hwnd:X}");
+            _registeredHwnd = targetHwnd;
+            Debug.WriteLine($"[OleDrop] Registered IDropTarget on HWND 0x{targetHwnd:X}");
             return true;
         }
 
-        Debug.WriteLine($"[OleDrop] RegisterDragDrop failed hr=0x{regHr:X8}");
+        Debug.WriteLine($"[OleDrop] RegisterDragDrop failed hr=0x{regHr:X8} (Chromium target preserved if present)");
         _activeTarget = null;
         _registeredHwnd = IntPtr.Zero;
         return false;
@@ -215,39 +222,54 @@ internal static class WebView2DropTargetService
     /// </summary>
     private static IntPtr FindWebView2Hwnd(IntPtr parentHwnd)
     {
-        IntPtr best = IntPtr.Zero;
+        // WinUI nests Chrome_WidgetWin_* several levels deep — EnumChildWindows is
+        // non-recursive, so we must DFS all descendants or OLE RegisterDragDrop never sticks.
+        IntPtr bestChrome1 = IntPtr.Zero;
+        IntPtr bestChrome = IntPtr.Zero;
+        IntPtr bestWebView = IntPtr.Zero;
         var sb = new StringBuilder(256);
 
-        EnumChildWindows(parentHwnd, (hwnd, _) =>
+        void Walk(IntPtr node)
         {
-            sb.Clear();
-            GetClassName(hwnd, sb, sb.Capacity);
-            var cls = sb.ToString();
-
-            // "Chrome_WidgetWin_1" = the interactive Chromium HWND that receives OLE drops.
-            if (cls.StartsWith("Chrome_WidgetWin_1", StringComparison.Ordinal))
+            EnumChildWindows(node, (hwnd, _) =>
             {
-                best = hwnd;
-                return false; // stop – highest priority hit
-            }
+                sb.Clear();
+                GetClassName(hwnd, sb, sb.Capacity);
+                var cls = sb.ToString();
 
-            // "Chrome_WidgetWin_0" or any other Chrome variant as fallback.
-            if (cls.StartsWith("Chrome_WidgetWin", StringComparison.Ordinal) && best == IntPtr.Zero)
-            {
-                best = hwnd;
-                // keep enumerating — a _1 might still appear
-            }
+                // "Chrome_WidgetWin_1" = interactive Chromium HWND that owns OLE drops.
+                if (cls.StartsWith("Chrome_WidgetWin_1", StringComparison.Ordinal))
+                {
+                    if (bestChrome1 == IntPtr.Zero)
+                        bestChrome1 = hwnd;
+                }
+                else if (cls.StartsWith("Chrome_WidgetWin", StringComparison.Ordinal))
+                {
+                    if (bestChrome == IntPtr.Zero)
+                        bestChrome = hwnd;
+                }
+                else if (cls.IndexOf("WebView", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (bestWebView == IntPtr.Zero)
+                    {
+                        bestWebView = hwnd;
+                        Debug.WriteLine($"[OleDrop]  candidate WebView HWND 0x{hwnd:X} class='{cls}'");
+                    }
+                }
 
-            // Generic "WebView" class name used by some WebView2 builds.
-            if (cls.IndexOf("WebView", StringComparison.OrdinalIgnoreCase) >= 0 && best == IntPtr.Zero)
-            {
-                best = hwnd;
-                Debug.WriteLine($"[OleDrop]  candidate WebView HWND 0x{hwnd:X} class='{cls}'");
-            }
+                Walk(hwnd);
+                return true;
+            }, IntPtr.Zero);
+        }
 
-            return true; // continue enumeration
-        }, IntPtr.Zero);
-
+        Walk(parentHwnd);
+        var best = bestChrome1 != IntPtr.Zero ? bestChrome1
+            : bestChrome != IntPtr.Zero ? bestChrome
+            : bestWebView;
+        if (best != IntPtr.Zero)
+            Debug.WriteLine($"[OleDrop] FindWebView2Hwnd → 0x{best:X}");
+        else
+            Debug.WriteLine($"[OleDrop] FindWebView2Hwnd failed under parent 0x{parentHwnd:X}");
         return best;
     }
 
@@ -464,8 +486,15 @@ internal static class WebView2DropTargetService
         {
             if (fEscapePressed)
                 return DRAGDROP_S_CANCEL;
-            // Drop when neither mouse button is held
-            if ((grfKeyState & (MK_LBUTTON | MK_RBUTTON)) == 0)
+            const int VK_LBUTTON = 0x01;
+            const int VK_RBUTTON = 0x02;
+            // Prefer process-wide async key state — OLE grfKeyState is queue-local to the
+            // DoDragDrop STA and looks "up" when the button-down lived on the WinUI queue.
+            bool buttonDown =
+                (grfKeyState & (MK_LBUTTON | MK_RBUTTON)) != 0
+                || (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0
+                || (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+            if (!buttonDown)
                 return DRAGDROP_S_DROP;
             return S_OK;
         }

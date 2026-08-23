@@ -81,8 +81,14 @@ public sealed partial class CraftPaneHost : UserControl
 				BndzEmbeddedBackendHost.UnregisterPushTarget(_pushHandler);
 				_pushHandler = null;
 			}
-			BndzEmbeddedBackendHost.RevokeHostOleDropTarget();
-			_oleDropRegistered = false;
+			// Do NOT revoke OLE here — WinUI Unloaded fires on theme/layout reparent and would
+			// leave Chromium + BNDZ with no drop target until a full relaunch.
+		};
+		Loaded += (_, _) =>
+		{
+			WireHostStaInvokeForOle();
+			if (_initialized && !_oleDropRegistered)
+				TryRegisterOleDropTarget();
 		};
 	}
 
@@ -339,7 +345,41 @@ public sealed partial class CraftPaneHost : UserControl
 		}
 	}
 
-	/// <summary>Register native OLE IDropTarget on WebView2 child HWND (desktop → BNDZ drops).</summary>
+	
+	/// <summary>
+	/// OLE DoDragDrop must run on the WinUI STA that owns the mouse. Blocking-wait enqueue
+	/// so thread-pool START_DRAG handlers can synchronously enter the drag loop.
+	/// </summary>
+	private void WireHostStaInvokeForOle()
+	{
+		var dq = DispatcherQueue;
+		if (dq is null) return;
+		BndzEmbeddedBackendHost.SetHostStaInvoke(action =>
+		{
+			if (action is null) return;
+			if (dq.HasThreadAccess)
+			{
+				action();
+				return;
+			}
+			using var done = new ManualResetEventSlim(false);
+			Exception? err = null;
+			if (!dq.TryEnqueue(() =>
+			    {
+				    try { action(); }
+				    catch (Exception ex) { err = ex; }
+				    finally { done.Set(); }
+			    }))
+			{
+				throw new InvalidOperationException("WinUI DispatcherQueue rejected OLE STA enqueue.");
+			}
+			if (!done.Wait(TimeSpan.FromMinutes(10)))
+				throw new TimeoutException("OLE DoDragDrop STA invoke timed out.");
+			if (err != null) throw err;
+		});
+	}
+
+/// <summary>Register native OLE IDropTarget on WebView2 child HWND (desktop → BNDZ drops).</summary>
 	internal void TryRegisterOleDropTarget()
 	{
 		if (!_initialized || PaneWebView.CoreWebView2 is null)
@@ -351,6 +391,7 @@ public sealed partial class CraftPaneHost : UserControl
 		try
 		{
 			BndzEmbeddedBackendHost.SetHostWindowHandle(hwnd);
+			WireHostStaInvokeForOle();
 
 			var clientW = PaneWebView.ActualWidth;
 			var clientH = PaneWebView.ActualHeight;
