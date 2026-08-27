@@ -21,9 +21,8 @@ public static class RageModelPreviewService
 
     public static bool IsRageModelExt(string? ext)
     {
-        if (string.IsNullOrWhiteSpace(ext)) return false;
-        var e = ext.Trim().TrimStart('.').ToLowerInvariant();
-        return e is "ydr" or "ybn" or "ydd" or "yft" or "ycd";
+        // Mesh containers only — textures/clips/map meta (.ytd/.ycd/.ymap/.ytyp) are not orbit-previewable.
+        return NeedsHostConversion(ext);
     }
 
     public static bool NeedsHostConversion(string? ext)
